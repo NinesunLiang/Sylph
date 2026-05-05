@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "type": "command",
+        "command": "bash .claude/hooks/permission-gate.sh",
+        "timeout": 5
+      }
+    ],
+    "afterShellExecution": [
+      {
+        "type": "command",
+        "command": "bash .claude/hooks/posttool-bash-audit.sh",
+        "timeout": 5
+      }
+    ]
+  }
+}

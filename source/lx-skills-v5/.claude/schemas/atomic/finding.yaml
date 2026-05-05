@@ -1,0 +1,50 @@
+# Schema: finding
+
+# Version: v1
+
+# Owner: harness-kit (shared)
+
+# Description: 单个问题/发现项，被 10+ skill 复用
+
+# Consumers: lx-code-review, lx-security-review, lx-browser-verify, lx-pre-commit, lx-pre-push, lx-perf-analysis, lx-web-perf, lx-react-review, lx-style-guide, lx-golang-test
+
+id:
+  type: string
+  required: true
+  pattern: '^FIND-\\d+$'
+  description: "唯一标识"
+rule_id:
+  type: string
+  required: true
+  description: "触发的规则/检查项 ID"
+  example: "A1"
+severity:
+  type: ref
+  target: severity.yaml
+  required: true
+  description: "严重度"
+file:
+  type: string
+  required: true
+  description: "涉及文件/资源"
+line:
+  type: integer
+  required: false
+  description: "涉及行号（如适用）"
+description:
+  type: string
+  required: true
+  description: "问题描述"
+evidence:
+  type: string
+  required: true
+  description: "证据（代码片段/截图描述/命令输出）"
+suggestion:
+  type: string
+  required: false
+  description: "修复建议"
+auto_fix_applied:
+  type: boolean
+  required: false
+  default: false
+  description: "是否已自动修复"

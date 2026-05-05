@@ -1,0 +1,64 @@
+# Schema: state_transitions
+
+# Version: v1
+
+# Owner: lx-task-spec (generic)
+
+# Description: 状态机转换契约，定义合法的状态流转路径
+
+states:
+  - need_clarification
+  - ready
+  - planning
+  - spec_review
+  - executing
+  - fallback_exploring
+  - blocked
+  - done
+transitions:
+  - from: need_clarification
+    to: ready
+    condition: "用户确认所有澄清问题"
+  - from: ready
+    to: planning
+    condition: "任务非琐碎（≥3步或含架构决策）"
+  - from: ready
+    to: executing
+    condition: "任务琐碎（<3步，无架构决策）"
+  - from: planning
+    to: spec_review
+    condition: "Plan Gate 通过"
+  - from: planning
+    to: need_clarification
+    condition: "发现缺失信息"
+  - from: spec_review
+    to: executing
+    condition: "Spec Gate 通过（技术方案 + 验收标准已锁定）"
+  - from: spec_review
+    to: planning
+    condition: "方案需修改"
+  - from: executing
+    to: done
+    condition: "所有 AC 通过，验收报告已生成"
+  - from: executing
+    to: fallback_exploring
+    condition: "执行失败 ≥2 轮或用户要求探索"
+  - from: executing
+    to: blocked
+    condition: "3 轮修复失败 + Fallback 耗尽 / 依赖缺失"
+  - from: executing
+    to: need_clarification
+    condition: "发现方案偏差"
+  - from: fallback_exploring
+    to: executing
+    condition: "用户确认新方案（轮次重置）"
+  - from: blocked
+    to: executing
+    condition: "用户提供新约束（Half-Open 试探）"
+# 非法转换（禁止）illegal_transitions: - from: executing to: done unless: "验收报告 100% 通过"
+  - from: spec_review
+    to: executing
+    unless: "Spec Gate 全部通过"
+  - from: fallback_exploring
+    to: done
+    unless: "不允许跳过执行直接完成"

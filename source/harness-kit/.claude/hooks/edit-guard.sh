@@ -1,0 +1,75 @@
+#!/bin/bash
+
+# harness-kit:managed v1.0.2
+
+# edit-guard.sh — PreToolUse:Edit Hook
+
+# 功能：编辑源代码文件前必须先 Read（Read-before-Edit 门禁）
+
+# 退出码 2 = 阻断（源文件未 Read 就 Edit）
+
+# 退出码 0 = 放行（非源文件 / 已 Read / fail-open）
+
+
+source "$(dirname "$0")/harness_config.sh"
+hc_enabled "edit_guard" || exit 0
+INPUT=$(cat)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+STATE_DIR="$PROJECT_ROOT/.omc/state"
+READ_LOG="$STATE_DIR/read-files.log"
+
+# 提取 file_path 字段
+if command -v jq &>/dev/null; then
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+else
+    FILE_PATH=$(echo "$INPUT" | python3 -c "
+import sys, json
+try:
+    data = json.load(sys.stdin)
+    print(data.get('tool_input', {}).get('file_path', ''))
+except:
+    pass" 2>/dev/null)
+fi
+
+# 无路径 → 放行（fail-open）
+if [ -z "$FILE_PATH" ]; then
+    exit 0
+fi
+
+# 仅检查配置的源代码文件扩展名
+SOURCE_EXT=$(hc_get "project.source_extensions" "*.go")
+_MATCH=false
+for ext in $SOURCE_EXT; do
+    case "$FILE_PATH" in
+        ${ext}) _MATCH=true; break ;;
+    esac
+done
+[ "$_MATCH" = false ] && exit 0
+
+# 规范化路径
+REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null)
+if [ -z "$REAL_PATH" ]; then
+    REAL_PATH="$FILE_PATH"
+fi
+
+# Fail-open: 状态文件不存在 → 放行（read-tracker 可能未工作）
+if [ ! -f "$READ_LOG" ]; then
+    exit 0
+fi
+
+# 检查是否已读取（精确匹配整行）
+if grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
+    exit 0
+fi
+
+# 阻断：源文件未 Read
+cat >&2 <<EOF
+[Read-before-Edit] 你正在编辑源代码文件但未先 Read。
+文件: $FILE_PATH
+宪法依据: 第六条（长对话稳定性）— 修改代码前必须先阅读当前内容
+强制流程:
+ 1. 先 Read "$FILE_PATH"
+ 2. 再执行 Edit
+EOF
+exit 2

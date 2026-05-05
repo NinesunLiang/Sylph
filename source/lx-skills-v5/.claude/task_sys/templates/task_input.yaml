@@ -1,0 +1,17 @@
+# task_input.yaml 模板
+
+# task_name: string
+# role: string | null  # 缺失可推断候选，但必须请求确认
+# target: string  # 必填；不清晰则进入 need_clarification
+# pass_criteria:  # 必须可观测
+#   - id: AC1
+#     type: test|build|behavior|perf|security|doc
+#     description: string
+#     how_to_check: string  # 命令/路径/操作
+#     expected: string
+# pass_example: string | null  # 有就用，没有也行
+# executor_mode: stepwise|race
+# priority: p0|p1|p2
+# context_hints:  # 可选：帮助推断 role/语言栈
+#   repo_stack_hint: go|frontend|fullstack|unknown
+#   key_paths: [string]

@@ -1,0 +1,19 @@
+{
+
+"name": "harness-kit-opencode-plugin",
+
+"version": "1.0.0",
+
+"description": "Carror OS harness-kit plugin for OpenCode — 22 hooks ported to OpenCode plugin system",
+
+"type": "module",
+
+"main": "harness-kit.ts",
+
+"dependencies": {
+
+"@opencode-ai/plugin": "latest"
+
+&#x20;}
+
+}

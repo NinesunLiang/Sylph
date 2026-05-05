@@ -1,0 +1,16 @@
+# harness-kit profile diff: Go 项目
+
+# v5.3.0: 仅包含与 base/harness.yaml 不同的字段（\~25%）
+
+# 安装：bash .claude/profiles/merge-profile.sh go
+
+# 直接用：bash .claude/profiles/merge-profile.sh go > .claude/harness.yaml
+
+\
+project: language: go source_extensions: "*.go" cite_extensions: "*.go *.mod *.sum"\
+protected_files: warn_on_edit: "main.go go.mod"\
+architecture: business_layers: "*/logic/* */model/* */executor/* */service/* */domain/*" handler_layers: "*/handler/* */api/* */router/* */controller/*" quality_checklist: "命名规范§4.2 | 导入三段式 | 错误处理必须含上下文 | 函数≤50行 | 日志纯英文" handler_constraint: "Handler 禁止直接调用 Model，必须经由 Logic/Service 层" doc_sync_target: "executor.md"\
+knowledge: lsp_hint: "Go 符号导航" lsp_example_file: "*.go"\
+fuzzy_detection: explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.go$|\.md$|handler|logic|model|service|controller|router'\
+error_dna: build_commands: "go build go test go vet golangci-lint"\
+build_validator: build_commands: "go build go test go vet golangci-lint run make"

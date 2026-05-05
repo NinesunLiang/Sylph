@@ -1,0 +1,40 @@
+# Schema: fix_record
+
+# Version: v1
+
+# Owner: harness-kit (shared)
+
+# Description: 修复记录，被 4+ skill 复用
+
+# Consumers: lx-code-review, lx-security-review, lx-todo, lx-debug-spec
+
+finding_id:
+  type: string
+  required: true
+  description: "被修复的 finding ID"
+fix_type:
+  type: enum
+  values: [code_change, config_change, test_add, doc_update, workaround]
+  required: true
+  description: "修复类型"
+files_changed:
+  type: array
+  required: true
+  items:
+    type: string
+  description: "变更文件列表"
+before_after:
+  type: object
+  required: true
+  properties:
+    before:
+      type: string
+      description: "修复前代码/状态"
+    after:
+      type: string
+      description: "修复后代码/状态"
+verification:
+  type: enum
+  values: [pass, fail, pending]
+  required: true
+  description: "修复验证结果"

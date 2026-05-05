@@ -1,0 +1,35 @@
+# Schema: severity
+
+# Version: v1
+
+# Owner: harness-kit (shared)
+
+# Description: 问题严重度分级，被 5+ skill 复用
+
+# Consumers: lx-code-review, lx-security-review, lx-browser-verify, lx-pre-push, lx-todo
+
+level:
+  type: integer
+  required: true
+  min: 0
+  max: 3
+  description: "严重度等级: 0=info, 1=warn, 2=error, 3=critical"
+label:
+  type: string
+  required: true
+  description: "人类可读标签"
+  example: "P0"
+action:
+  type: enum
+  values: [block, fix, warn, info]
+  required: true
+  description: "应采取的动作"
+auto_fixable:
+  type: boolean
+  required: false
+  default: false
+  description: "是否可自动修复"
+description:
+  type: string
+  required: true
+  description: "该严重度的含义"

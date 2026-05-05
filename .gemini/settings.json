@@ -1,0 +1,116 @@
+{
+  "hooks": {
+    "AfterTool": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/completion-gate.sh",
+            "timeout": 10,
+            "decision": "deny"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "timeout": 5
+          }
+        ],
+        "matcher": "shell"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/build-validator.sh",
+            "timeout": 5
+          }
+        ],
+        "matcher": "shell"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/context-guard.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/error-dna.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "BeforeTool": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/edit-guard.sh",
+            "timeout": 5,
+            "decision": "deny"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/permission-gate.sh",
+            "timeout": 5,
+            "decision": "deny"
+          }
+        ],
+        "matcher": "shell"
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/privacy-gate.sh",
+            "timeout": 3,
+            "decision": "deny"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-user-correction.sh",
+            "timeout": 3
+          }
+        ]
+      }
+    ],
+    "AfterAgent": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

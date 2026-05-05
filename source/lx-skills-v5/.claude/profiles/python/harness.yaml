@@ -1,0 +1,28 @@
+# harness-kit profile diff: Python 项目
+
+# v5.3.0: 仅包含与 base/harness.yaml 不同的字段（\~25%）
+
+# 安装：bash .claude/profiles/merge-profile.sh python
+
+project:
+  language: python
+  source_extensions: "*.py"
+  cite_extensions: "*.py *.toml *.cfg *.ini"
+protected_files:
+  warn_on_edit: "pyproject.toml setup.py requirements.txt setup.cfg"
+architecture:
+  business_layers: "*/services/* */models/* */core/* */domain/* */repositories/*"
+  handler_layers: "*/api/* */routes/* */views/* */endpoints/*"
+  quality_checklist: "类型注解必须 | 错误处理明确 | docstring | 函数≤40行 | 禁止裸 except"
+  handler_constraint: "View/Endpoint 禁止直接操作 DB，通过 Service/Repository 层"
+  doc_sync_target: "executor.md"
+knowledge:
+  lsp_hint: "Python 符号导航"
+  lsp_example_file: "*.py"
+fuzzy_detection:
+  explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.py$|service|model|view|endpoint'
+# python 特有：posttool_edit_quality 默认关闭（测试框架差异）hooks_enabled: posttool_edit_quality: false
+error_dna:
+  build_commands: "pytest python -m pytest ruff check mypy black --check"
+build_validator:
+  build_commands: "pytest python -m pytest ruff mypy black --check"

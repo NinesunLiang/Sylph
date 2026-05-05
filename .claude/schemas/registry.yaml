@@ -1,0 +1,51 @@
+# Schema 注册表（MVP v5）
+
+# 版本：v5（精简版，仅保留有消费者的 Schema）
+
+#
+
+# 审计规则：每个 schema 必须标注 consumers，零消费者的 schema 应被删除
+
+# 最后审计：2026-04-22（Oracle 评审 P0 精简）
+
+#
+
+# 已删除节点：
+
+# plan_node — 0 引用，规划逻辑内联到 skill
+
+# a0_clarifier — 0 引用，澄清逻辑合并到 interactive_prompt
+
+# spec_generator — 0 引用，generator.md 已覆盖
+
+# fallback_exploration — 0 引用，降级触发在 execute_node 中
+
+# fallback_framework — 0 引用，同上
+
+# judge — 0 引用，verdict schema 已定义判定结构
+
+#
+
+# 已删除 schemas：
+
+# output/plan_output.yaml — 消费者 plan_node 已删除
+
+# output/spec_output.yaml — 消费者 spec_generator 已删除
+
+# output/criteria_output.yaml — 无实际消费者
+
+# output/acceptance_report.yaml — 无实际消费者
+
+# output/fallback_output.yaml — 消费者 fallback_* 已删除
+
+
+# 原子 Schema（被 3+ skill 复用）atomic: scan_target: path: schemas/atomic/scan_target.yaml version: v1 description: "扫描/审查/验证目标定义" consumers: [lx-code-review, lx-security-review, lx-browser-verify, lx-pre-commit, lx-pre-push, lx-perf-analysis, lx-web-perf, lx-react-review, lx-style-guide, lx-golang-test]
+ severity: path: schemas/atomic/severity.yaml version: v1 description: "问题严重度分级" consumers: [lx-code-review, lx-security-review, lx-browser-verify, lx-pre-push, lx-todo]
+ finding: path: schemas/atomic/finding.yaml version: v1 description: "单个问题/发现项" consumers: [lx-code-review, lx-security-review, lx-browser-verify, lx-pre-commit, lx-pre-push, lx-perf-analysis, lx-web-perf, lx-react-review, lx-style-guide, lx-golang-test]
+ scan_report: path: schemas/atomic/scan_report.yaml version: v1 description: "扫描/审查/验证报告" consumers: [lx-code-review, lx-security-review, lx-browser-verify, lx-pre-commit, lx-pre-push, lx-perf-analysis, lx-web-perf, lx-react-review, lx-style-guide, lx-golang-test]
+ gate_result: path: schemas/atomic/gate_result.yaml version: v1 description: "Gate 判定结果" consumers: [lx-pre-commit, lx-pre-push, lx-security-review]
+ context_summary: path: schemas/atomic/context_summary.yaml version: v1 description: "上下文收集摘要" consumers: [lx-tdd-spec, lx-browser-verify, lx-debug-spec, lx-root-cause-analysis]
+ fix_record: path: schemas/atomic/fix_record.yaml version: v1 description: "修复记录" consumers: [lx-code-review, lx-security-review, lx-todo, lx-debug-spec, lx-react-review, lx-style-guide, lx-web-perf, lx-frontend-test, lx-golang-test, lx-perf-analysis]
+ verdict: path: schemas/atomic/verdict.yaml version: v1 description: "最终判定" consumers: [ALL]
+# 任务驱动 Schemainput: task_input: path: schemas/input/task_input.yaml version: v1 description: "结构化任务输入" consumers: [lx-task-spec, lx-tdd-spec, lx-rpe]
+contract: state_transitions: path: schemas/contract/state_transitions.yaml version: v1 description: "状态机转换契约（参考文档，非强制）" consumers: [lx-task-spec]
