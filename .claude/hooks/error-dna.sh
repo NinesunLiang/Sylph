@@ -78,6 +78,15 @@ command = tool_input.get('command', '') or ''
 stderr = tool_response.get('stderr', '') or ''
 stdout = tool_response.get('stdout', '') or ''
 
+# === Total-ops counter: increment on every Bash call ===
+ops_path = os.path.join(state_dir, 'total-ops.txt')
+try:
+    current = int(open(ops_path).read().strip())
+except (FileNotFoundError, ValueError):
+    current = 0
+with open(ops_path, 'w') as f:
+    f.write(str(current + 1))
+
 # PostToolUseFailure schema: top-level `error` field (no exit_code/stderr under tool_response)
 # Treat presence of top-level error OR hook_event_name=PostToolUseFailure as definite failure.
 top_error = data.get('error', '') or ''

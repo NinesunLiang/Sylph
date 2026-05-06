@@ -69,9 +69,13 @@ def check_context():
     danger_ratio = danger_pct / 100.0
 
     # Sweet-spot / Hand-off Alert
+    sweet_spot_msg = ""
     if warn_ratio <= ratio < danger_ratio:
-        print(f"[context_alert]: 当前上下文已达甜点区上限 ( {ratio:.1%}，阈值 {warn_pct:.0f}% )。", file=sys.stderr)
-        print("请打断当前长上下文对话！运行 /compact 压缩会话或开启新分支。", file=sys.stderr)
+        sweet_spot_msg = (
+            f"[context_alert]: 当前上下文已达甜点区上限 "
+            f"( {ratio:.1%}，阈值 {warn_pct:.0f}% )。"
+            f"请运行 /compact 压缩会话或开启新分支。"
+        )
 
     # JSON output for the bash hook to consume
     output = {
@@ -82,7 +86,8 @@ def check_context():
             "warn": warn_pct,
             "danger": danger_pct
         },
-        "is_danger": ratio >= danger_ratio
+        "is_danger": ratio >= danger_ratio,
+        "sweet_spot_warning": sweet_spot_msg,
     }
     print(json.dumps(output))
 

@@ -52,8 +52,7 @@ bash# 查看上次会话交接cat .omc/state/session-handoff.md
 # 查看错误记忆cat .omc/state/error-dna.json | python3 -c \ "import json,sys; [print(e['signature'][:60],'×',e['count']) \ for e in json.load(sys.stdin) if e.get('status')!='fixed']"
 ```
 
-## Hooks 速查（共 20 个）
-
+## Hooks 速查（共 31 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`completion-gate` | PreToolUse:TaskUpdate | 无证据禁止标 completed|
@@ -64,7 +63,28 @@ bash# 查看上次会话交接cat .omc/state/session-handoff.md
 |`error-dna` | PostToolUse:Bash | 错误模式积累|
 |`inject-project-knowledge` | SessionStart | 注入本文件 + 知识上下文|
 |`pretool-user-correction` | UserPromptSubmit | 纠正信号 → 提示写 claude-next.md|
-|**(其余 12 个)** | 各生命周期 | 审计/质量/LSP/飞轮等 |
+|`context-guard` | 全生命周期 | Token 监控 + 50%/80% 熔断|
+|`privacy-gate` | PreToolUse:Read/Bash | 密钥文件拦截 + 明文脱敏|
+|`build-validator` | PostToolUse:Bash | 编译验证 + 错误追踪|
+|`bash-audit` | PostToolUse:Bash | 命令审计日志|
+|`edit-guard` | PreToolUse:Edit | 文件写入范围保护|
+|`edit-quality` | PostToolUse:Edit | 编辑质量分析|
+|`plan-gate` | PreToolUse:Write | 计划文档门禁|
+|`read-tracker` | PostToolUse:Read | 读取追踪|
+|`skill-flywheel` | 各生命周期 | 技能飞轮数据收集|
+|`lsp-suggest` | PreToolUse:Edit | LSP 智能提示|
+|`subagent-guard` | PreToolUse:Task | Sub-agent 盲审|
+|`flywheel-report` | Stop | 飞轮报告生成|
+|`rule-anchor` | PreToolUse:Edit | 写前铁律锚定|
+|`write-cite` | PostToolUse:Write | 写入引用验证|
+|`write-lock` (pre) | PreToolUse:Write | 并发写入锁|
+|`write-lock` (post) | PostToolUse:Write | 并发写入解锁|
+|`user-correction` | UserPromptSubmit | 用户纠正检测|
+|`harness_config` | SessionStart | 框架配置加载|
+|`feature-probe` | Bash | 特性探针，L1-L4 证据验证|
+|`posttool-read-cite` | PostToolUse:Read | 读取后引用标注|
+|`proactive-handoff` | PostToolUse | 上下文 >50% 主动交接提醒|
+|`token_writer` | PostToolUse:Bash | Token 用量追踪|
 
 ## Language Profile 选择
 

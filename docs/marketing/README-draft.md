@@ -81,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 | Edit Guard | `edit-guard.sh` | Editing files AI hasn't read yet |
 | Scope | `pretool-edit-scope.sh` | Files outside the current task scope |
 
-**All 29 Hooks have passed 49 manual acceptance tests, 10 BDD scenarios, and L1-L4 layered testing (98 PASS / 0 FAIL).**
+**All 29 Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage.**
 
 ### ⚔️ The Skill Arsenal (23 Capabilities)
 
@@ -162,9 +162,9 @@ You choose how much control you want. The brakes never come off.
 
 ## Proven in Battle
 
-- **49 manual acceptance tests** — every Hook physically verified
-- **BDD 10 scenarios** — behavioral tests all passing
-- **L1-L4 layered testing** — 98 PASS / 0 FAIL
+- **L1-L4 layered testing** (manual acceptance + auto Hook validation + code scanning + format gates) — 98 PASS / 0 FAIL
+- **ShellCheck / Bandit security scans** — 0 real defects
+- **Industry standard compliance mapping** (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0) — 75/75 coverage
 - **5 language profiles** — Go, Python, Node, Rust, Generic
 - **Cross-platform** — Claude Code + OpenCode + any AGENTS.md-compatible IDE
 

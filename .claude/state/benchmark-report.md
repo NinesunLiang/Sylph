@@ -252,7 +252,51 @@ The loading matrix (`task_sys/loading_matrix.md`, line 89) claims:
 
 ---
 
-## 6. Limitations
+## 6. Token 节省估算公式
+
+### L3 Reference 按需加载
+```
+池均值   = L3总分担 / skill数             = 67,492 ÷ 17 ≈ 3,970 tok/skill
+单文件均 = L3总分担 / ref文件数            = 67,492 ÷ 95 ≈ 710 tok/文件
+每次触发 = 池均值 - 单文件均               ≈ 3,260 tok/次 skill 触发
+会话总计 = skill 触发次数 × 每次触发节省
+```
+
+**口径**：假设无渐进式时 skill 触发加载该 skill 全部 reference；有渐进式时只加载命中的（~1 文件）。实际节省量随 skill 的 reference 数波动（如 lx-rpe 池 ~19K tok，lx-golang-test 池 ~3K tok）。
+
+### CLAUDE.md 轻量化 (含 AGENTS.md)
+```
+每次会话节省 = 内联估算 - CLAUDE.md实际 - AGENTS.md
+             ≈ 9,400 - 160 - 3,180 = 6,060 tok/session
+```
+无 Carror OS 时 AGENTS.md 的内容也在 CLAUDE.md 内，净节省需扣除 AGENTS 加载成本。
+
+### Compact 节流
+```
+首次节省 ≈ 200K × 50% - 基线上下文  ≈ 100K - 39K ≈ 61K tok
+实际节省更多（transcript 实测一次 compact 即 112K tok）
+```
+Compact 发生在上下文接近 200K 限时，压缩后约剩 50%。实际节省量取决于压缩前的实际上下文大小，通常多于保守估算。
+
+---
+
+## 7. 20 轮会话节省结论（真实 transcript 推算）
+
+| 指标 | 无 Carror OS | 有 Carror OS | 节省量 | 比例 |
+|------|-------------|-------------|--------|------|
+| Session start | 45,524 tok (CLAUDE.md 9,400) | 39,464 tok (L1 7,539) | +6,060 | |
+| 20 轮对话增长 | ~58,843 tok (19×~3,097) | ~58,843 tok | — | |
+| Skill 触发 (3 次) | ~11,910 tok (3×3,970 全加载) | ~2,130 tok (3×710 命中) | +9,780 | |
+| **Context 预估** | **~116,277 tok** | **~100,437 tok** | **~15,840** | **~14%** |
+| **含 1 次 Compact** | **~107,000 tok** | **~50,000 tok** | **~57,000** | **~53%** |
+
+**关键发现：**
+- 仅结构节省（轻量化 + 按需加载）在短会话中占比约 14%
+- Compact 是最大节省来源，一次压缩即可超出所有结构节省之和
+- 会话越长（>80 轮），Compact 触发概率越高，节省比例可达 50%+
+- 以上为 transcript 实测数据 + 启发式估算值，标注 `[估算]` 处为口径说明
+
+## 8. Limitations
 
 1. **Token estimation method:** tiktoken cl100k_base
 2. **Single sample:** File contents are static, so repeated measurements would yield identical results.
@@ -265,7 +309,7 @@ The loading matrix (`task_sys/loading_matrix.md`, line 89) claims:
 
 ---
 
-## 7. Raw Data
+## 8. Raw Data
 
 ```json
 {

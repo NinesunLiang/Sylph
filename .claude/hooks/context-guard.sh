@@ -41,6 +41,7 @@ d = json.load(sys.stdin)
 print(d.get('percentage', 0))" 2>/dev/null)
 
     if [ "$IS_DANGER" = "true" ]; then
+        echo "$(date +%Y-%m-%d),context_guard_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
         cat >&2 <<EOF
 
 🚫 [Context Guard 硬阻断] 当前会话上下文占比已达 ${PCT}%（危险阈值: ${DANGER_PCT}%，警告阈值: ${WARN_PCT}%）！
@@ -55,6 +56,15 @@ print(d.get('percentage', 0))" 2>/dev/null)
 输入数字 (1-3):
 EOF
         exit 2
+    fi
+fi
+
+# Sweet-spot / Hand-off Alert: inject into AI context via additionalContext
+if [ -x "$PYTHON_SCRIPT" ]; then
+    SWEET_WARNING=$(echo "$RESULT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('sweet_spot_warning',''))" 2>/dev/null)
+    if [ -n "$SWEET_WARNING" ]; then
+        SWEET_JSON=$(echo "$SWEET_WARNING" | python3 -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.read().strip())))" 2>/dev/null)
+        printf '{"continue":true,"hookSpecificOutput":{"additionalContext":%s}}\n' "$SWEET_JSON"
     fi
 fi
 

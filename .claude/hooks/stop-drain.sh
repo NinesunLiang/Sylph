@@ -143,4 +143,10 @@ except Exception:
 # Silent: don't noise stdout in Stop flow
 PYEOF
 
+# Layer 3: Write token-tracking-real.json from transcript (real token data)
+if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
+    python3 "$PROJECT_ROOT/.claude/scripts/token-transcript-parser.py" \
+        --transcript "$TRANSCRIPT" --write 2>/dev/null || true
+fi
+
 exit 0

@@ -5,8 +5,9 @@
  *
  * 覆盖 22 个 Claude Code hook 的 OpenCode 等价实现：
  *
- * - 19 个通过 tool.execute.before/after 完全对齐
- * - 3 个通过 message.updated / tui.prompt.append 变通实现
+ * - 17 个通过 tool.execute.before/after 完全对齐
+ * - 3 个通过 message.updated / session.idle / experimental.session.compacting 变通实现
+ * - 2 个（lsp-suggest / flywheel-report 完整报告）因平台 API 限制为简化实现
  *
  * 安装：将此文件放入 .opencode/plugins/ 目录，OpenCode 自动加载
  * 配置：读取项目根 .claude/harness.yaml（与 Claude Code 共享配置）
@@ -49,7 +50,7 @@ function matchRegex(pattern: string, text: string): boolean {
 
 function hasVerifiedEvidence(root: string, keyword: string, minChars: number): boolean {
   const today = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  const evFile = `/tmp/.completion-evidence-${today}`;
+  const evFile = join(getStateDir(root), `.completion-evidence-${today}`);
   try {
     const content = readFileSync(evFile, "utf-8");
     return content.includes(keyword) && content.length >= minChars;
@@ -153,7 +154,7 @@ export const HarnessKitPlugin: Plugin = async ({ project, $, directory, worktree
         }
       }
 
-      // ── pretool-edit-scope：范围控制（写文件前警告）──────────
+      // ── lsp-suggest：LSP 提示（简化版）── if ((tool === "edit" || tool === "write") && cfg.hooks_enabled.lsp_suggest) { const filePath = (output.args?.filePath ?? output.args?.file_path ?? "") as string; if (filePath) { writeState(root, "last-edited-lang.txt", filePath.split(".").pop() || "unknown"); } } // ── pretool-edit-scope：范围控制（写文件前警告）──────────
       if ((tool === "edit" || tool === "write") && cfg.hooks_enabled.pretool_edit_scope) {
         const filePath = (output.args?.filePath ?? output.args?.file_path ?? "") as string;
         const scopeFile = join(stateDir, "current-scope.txt");
@@ -181,6 +182,14 @@ export const HarnessKitPlugin: Plugin = async ({ project, $, directory, worktree
             `🚫 harness-kit [subagent-guard]: 危险 Agent 类型 "${agentType}" 缺少 max_turns 限制\n` +
             `请指定 max_turns 防止无限循环。`
           );
+        }
+      }
+
+      // ── lsp-suggest：LSP 提示（简化版：OpenCode 无 LSP hook API，仅记录文件扩展名供后续参考）──
+      if ((tool === "edit" || tool === "write") && cfg.hooks_enabled.lsp_suggest) {
+        const filePath = (output.args?.filePath ?? output.args?.file_path ?? "") as string;
+        if (filePath) {
+          writeState(root, "last-edited-lang.txt", filePath.split(".").pop() || "unknown");
         }
       }
 
@@ -323,10 +332,23 @@ export const HarnessKitPlugin: Plugin = async ({ project, $, directory, worktree
       turnCount = 0;
       writeState(root, "session-turns.json", JSON.stringify({ count: 0, updated: new Date().toISOString() }));
 
-      // flywheel-report：加载飞轮报告
+      // flywheel-report：加载飞轮报告（读取 ~/.claude/flywheel.log 生成摘要）
       if (cfg.hooks_enabled.skill_flywheel) {
-        const flywheelFile = join(stateDir, "skill-flywheel.json");
-        if (existsSync(flywheelFile)) {
+        const os = require("os");
+        const userFlywheel = os.homedir() + "/.claude/flywheel.log";
+        try {
+          if (existsSync(userFlywheel)) {
+            const raw = readFileSync(userFlywheel, "utf-8").trim().split("\n").filter(Boolean);
+            const recentP0 = raw.filter((l: string) => l.includes("P0")).slice(-5);
+            const summary = recentP0.length
+              ? "\n最近 P0 事件:\n" + recentP0.join("\n")
+              : "（无 P0 事件）";
+            writeState(root, "flywheel-summary.txt", summary);
+          }
+        } catch (e) {}
+        // 同时加载 skill-flywheel.json 本地统计
+        const skillFile = join(stateDir, "skill-flywheel.json");
+        if (existsSync(skillFile)) {
           writeState(root, "flywheel-loaded.txt", new Date().toISOString());
         }
       }
@@ -336,13 +358,36 @@ export const HarnessKitPlugin: Plugin = async ({ project, $, directory, worktree
     // session.idle — Stop 等价
     // ══════════════════════════════════════════════════════════
     "session.idle": async () => {
-      // ── auto-snapshot：会话快照 ─────────────────────────────
+      // ── auto-snapshot：会话快照（含错误记忆 + Git 修改文件） ──
       if (cfg.hooks_enabled.auto_snapshot) {
         const snapshotFile = join(stateDir, "session-handoff.md");
         const todoFile = join(stateDir, "todo-queue.md");
         const todoContent = existsSync(todoFile) ? readFileSync(todoFile, "utf-8") : "（无待办）";
 
-        const snapshot = `# 会话快照 ${new Date().toISOString()}\n\n## Todo 状态\n${todoContent.slice(0, 500)}\n\n## 轮次\n${turnCount}\n`;
+        const errorFile = join(stateDir, "error-dna.jsonl");
+        let errorSummary = "（无错误记录）";
+        try {
+          if (existsSync(errorFile)) {
+            const errLines = readFileSync(errorFile, "utf-8").trim().split("\n").filter(Boolean).slice(-5).map(l => {
+              try { const e = JSON.parse(l); return `- [${new Date(e.ts).toLocaleString()}] exit:${e.exitCode} ${(e.cmd||"").slice(0,60)}` } catch { return "" }
+            }).filter(Boolean).join("\n");
+            if (errLines) errorSummary = errLines;
+          }
+        } catch (e) {}
+        const gitFiles = (() => {
+          try {
+            const { execSync } = require("child_process");
+            const modified = execSync("git diff --name-only", {cwd:root, encoding:"utf-8", timeout:3000}).toString().trim();
+            const staged = execSync("git diff --cached --name-only", {cwd:root, encoding:"utf-8", timeout:3000}).toString().trim();
+            const all = [...new Set([...modified.split("\n"), ...staged.split("\n")])].filter(Boolean);
+            return all.length ? `\n## 修改的文件\n${all.join("\n")}` : "";
+          } catch { return "" }
+        })();
+        const snapshot = `# 会话快照 ${new Date().toISOString()}\n\n` +
+          `## 轮次\n${turnCount}\n\n` +
+          `## Todo 状态\n${todoContent.slice(0, 500)}\n\n` +
+          `## 错误记忆（最近 5 条）\n${errorSummary}` +
+          gitFiles;
         try {
           writeFileSync(snapshotFile, snapshot, "utf-8");
         } catch {}
@@ -373,16 +418,20 @@ export const HarnessKitPlugin: Plugin = async ({ project, $, directory, worktree
         // turn-counter：每 N 轮注入铁律摘要
         const interval = cfg.turn_counter.todo_refresh_interval;
         if (turnCount > 0 && turnCount % interval === 0) {
-          // 在 OpenCode 里通过 console.warn 输出（显示在 debug 日志）
-          console.warn(
-            `\n【铁律提醒·第 ${turnCount} 轮·始终生效】\n` +
-            ` 1. 禁止编造：技术断言必须引用 file:line\n` +
-            ` 2. 证据门禁：说"完成"前必须有 VERIFIED 证据\n` +
-            ` 3. Git 门禁：commit/push 必须先报告，等用户批准\n` +
-            ` 4. 范围冻结：只改当前任务文件，顺手发现的记 TODO\n` +
-            ` 5. 修复上限：同一问题最多修 3 轮，第 3 轮失败→BLOCKED\n` +
-            ` 6. 禁用词：禁止用"应该是/可能/通常"做技术断言\n`
-          );
+          // 双通道注入：stdout（AI可见）+ console.warn（debug日志）
+          try {
+            process.stdout.write(
+              `\n【铁律提醒·第 ${turnCount} 轮·始终生效】\n` +
+              ` 1. 禁止编造：技术断言必须引用 file:line\n` +
+              ` 2. 证据门禁：说"完成"前必须有 VERIFIED 证据\n` +
+              ` 3. Git 门禁：commit/push 必须先报告，等用户批准\n` +
+              ` 4. 范围冻结：只改当前任务文件，顺手发现的记 TODO\n` +
+              ` 5. 修复上限：同一问题最多修 3 轮，第 3 轮失败→BLOCKED\n` +
+              ` 6. 禁用词：禁止用"应该是/可能/通常"做技术断言\n`
+            );
+          } catch(e) {
+            console.warn(`[turn-counter] 铁律提醒 第${turnCount}轮`);
+          }
         }
       }
     },

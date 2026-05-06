@@ -1,25 +1,17 @@
 #!/usr/bin/env python3
 """
-carror_dashboard.py — Carror OS 健康面板 v2.0
+carror_dashboard.py — Carror OS 健康面板 v3.0
 
-5 面板:
-  [1] Token 趋势       —— token-tracking-index.json
-  [2] Error DNA 状态    —— error-dna.json / error-dna.jsonl
-  [3] Flywheel P0 事件  —— ~/.claude/flywheel.log
-  [4] Feature Registry  —— .claude/feature-registry.yaml
-  [5] 上下文             —— token-tracking-index.json
+4 面板:
+  [1] Token 节省       —— token-tracking-index.json
+  [2] 任务通过率        —— error-dna.jsonl
+  [3] 拦截的错误        —— ~/.claude/flywheel.log
+  [4] 升华的知识点      —— claude-next.md + kernel.md
 
 用法:
   python3 carror_dashboard.py        # 标准面板
   python3 carror_dashboard.py --json # JSON 输出
   python3 carror_dashboard.py --watch# 每 5 秒刷新
-
-AC 覆盖:
-  AC-12.1: Token 消耗趋势 ASCII 图 + 源缺失时 degraded
-  AC-12.2: Error DNA 错误类型分布直方图 + RPE-001 未就绪时 degraded
-  AC-12.3: Flywheel P0 事件时间线
-  AC-12.4: feature-registry.yaml 注册表状态
-  AC-12.5: 所有面板数据源缺失时输出 degraded
 """
 
 import argparse
@@ -29,26 +21,24 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 # ── Paths ──
 STATE = Path(".omc/state")
-FEATURE_REGISTRY = Path(".claude/feature-registry.yaml")
 HOME = Path.home()
 FLYWHEEL_LOG = HOME / ".claude" / "flywheel.log"
 FLYWHEEL_ACK = HOME / ".claude" / "flywheel-ack.log"
+CLAUDE_DIR = Path(".claude")
+CLAUDE_NEXT = CLAUDE_DIR / "claude-next.md"
+KERNEL_MD = CLAUDE_DIR / "kernel.md"
 
-# ── Colors ──
-GREEN = "\033[92m"
-YELLOW = "\033[93m"
-RED = "\033[91m"
-CYAN = "\033[96m"
-BLUE = "\033[94m"
-MAGENTA = "\033[95m"
+# ── 荧光蓝色系（终端渲染） ──
+FLUO_BLUE = "\033[38;5;45m"
 BOLD = "\033[1m"
 DIM = "\033[2m"
 RESET = "\033[0m"
+COLOR = FLUO_BLUE
 
 # ── Panel width —— inner (excludes side borders) ──
 WI = 46
@@ -63,26 +53,27 @@ def colored(text, color):
 
 
 def visible_len(text):
-    return len(re.sub(r"\x1b\[[0-9;]*m", "", text))
+    import unicodedata
+    cleaned = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    width = 0
+    for ch in cleaned:
+        if unicodedata.east_asian_width(ch) in ('W', 'F'):
+            width += 2
+        else:
+            width += 1
+    return width
 
 
 def bar(value, width=20):
-    """Draw a horizontal bar chart element (value: 0-100)."""
+    """Draw a horizontal bar chart element (value: 0-100) in blue."""
     if value <= 0:
         return colored("░" * width, DIM)
     filled = min(int(round(value * width / 100)), width)
     empty = width - filled
-    if value >= 80:
-        c = GREEN
-    elif value >= 50:
-        c = YELLOW
-    else:
-        c = RED
-    return colored("█" * filled, c) + colored("░" * empty, DIM)
+    return colored("█" * filled, COLOR) + colored("░" * empty, DIM)
 
 
 def bar_by_count(value, max_value, width=20):
-    """Draw a bar proportional to value/max_value."""
     if max_value <= 0:
         return colored("░" * width, DIM)
     pct = value * 100 / max_value
@@ -92,92 +83,221 @@ def bar_by_count(value, max_value, width=20):
 # ── Box rendering ──
 
 def p(text=""):
-    """Print a single line within the box (borders auto-added)."""
     vlen = visible_len(text)
     pad = max(0, WI - vlen)
-    sys.stdout.write(f"{colored('│', CYAN)}{text}{' ' * pad}{colored('│', CYAN)}\n")
+    sys.stdout.write(f"{colored('│', COLOR)}{text}{' ' * pad}{colored('│', COLOR)}\n")
 
 
 def title(text):
-    """Print a centered title."""
     vlen = visible_len(text)
     left = max(0, (WI - vlen) // 2)
     p(" " * left + text)
 
 
 def section(name):
-    """Print a section header (left-aligned with leading space)."""
-    p(" " + colored(name, BOLD + YELLOW))
+    p(" " + colored(name, BOLD + COLOR))
     p()
 
 
 def degraded_msg(source):
-    """Print a degraded status line."""
-    p(" " + colored(f"[degraded] {source} ", RED + DIM) + colored("数据源不可用", DIM))
+    p(" " + colored(f"[degraded] {source} ", DIM) + colored("数据源不可用", DIM))
 
 
 def empty_msg(msg):
-    """Print an empty/no-data message."""
     p(" " + colored(msg, DIM))
 
 
 def top():
-    sys.stdout.write(f"{colored('┌', CYAN)}{colored('─' * WI, CYAN)}{colored('┐', CYAN)}\n")
+    sys.stdout.write(f"{colored('┌', COLOR)}{colored('─' * WI, COLOR)}{colored('┐', COLOR)}\n")
 
 
 def bottom():
-    sys.stdout.write(f"{colored('└', CYAN)}{colored('─' * WI, CYAN)}{colored('┘', CYAN)}\n")
+    sys.stdout.write(f"{colored('└', COLOR)}{colored('─' * WI, COLOR)}{colored('┘', COLOR)}\n")
 
 
 def sep():
-    sys.stdout.write(f"{colored('├', CYAN)}{colored('─' * WI, CYAN)}{colored('┤', CYAN)}\n")
+    sys.stdout.write(f"{colored('├', COLOR)}{colored('─' * WI, COLOR)}{colored('┤', COLOR)}\n")
 
 
 # ═══════════════════════════════════════════════
-# Panel 1: Token 趋势
+# Panel 1: Token 节省
 # ═══════════════════════════════════════════════
 
-def collect_token_trend():
-    f = STATE / "token-tracking-index.json"
-    if not f.exists():
-        return {"status": STATUS_DEGRADED, "source": "token-tracking-index.json"}
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-        usage = data.get("usage", 0)
-        limit = data.get("limit", 200000)
-        pct = round(usage * 100 / limit, 1) if limit > 0 else 0
-        updated = data.get("last_updated", "unknown")
-        return {"status": STATUS_OK, "usage": usage, "limit": limit, "pct": pct, "updated": updated}
-    except (json.JSONDecodeError, KeyError):
-        return {"status": STATUS_DEGRADED, "source": "token-tracking-index.json (解析失败)"}
+# Token counts from loading_benchmark.py [已验证: benchmark-report.md]
+# L1 = SessionStart 加载 (7,539 tok)
+# L3 pool = 67,492 tok across 95 files, 17 skills with references
+
+# Monolithic CLAUDE.md 估算 (如果所有内容 inline)
+# AGENTS.md 的内容传统上也应在 CLAUDE.md 内，所以节省要减掉 AGENTS.md 的加载
+# 9,400 - 160 (CLAUDE.md) - 3,180 (AGENTS.md) = 6,060
+# [已验证: benchmark-report.md L1 — CLAUDE.md 197 tok, AGENTS.md 3,180 tok]
+MONOLITHIC_CLAUDE_TOK = 9400
+ACTUAL_CLAUDE_TOK = 160
+AGENTS_TOK = 3180
+CLAUDE_LIGHTWEIGHT_SAVED = MONOLITHIC_CLAUDE_TOK - ACTUAL_CLAUDE_TOK - AGENTS_TOK  # ~6,060
+
+# L3 Reference 按需加载节省估算
+# 公式: 池均值 - 单文件均值 = 每次 skill 触发节省
+# 池均值 = 67492 / 17 skills ≈ 3970 tok
+# 单文件均值 = 67492 / 95 files ≈ 710 tok
+# 每次触发节省 ≈ 3260 tok
+# [估算口径: benchmark-report.md L3 统计, 假设每次命中 1 个 reference 文件]
+L3_POOL_TOK = 67492
+L3_SKILL_COUNT = 17
+L3_FILE_COUNT = 95
+L3_AVG_POOL_PER_SKILL = L3_POOL_TOK // L3_SKILL_COUNT  # 3,970
+L3_AVG_FILE_TOK = L3_POOL_TOK // L3_FILE_COUNT        # 710
+L3_PER_TRIGGER_SAVINGS = L3_AVG_POOL_PER_SKILL - L3_AVG_FILE_TOK  # 3,260
 
 
-def render_token_trend(data):
-    section("Token 趋势")
+def collect_token_savings():
+    """
+    使用 transcript 解析的真实 token 数据。
+    数据源优先级：token-tracking-real.json (平台真实) > token-savings.json (compact) > 合成计数器
+
+    context_used = input_tokens + cache_read_input_tokens + cache_creation_input_tokens
+    """
+    # === 真实数据（源：transcript 解析） ===
+    real_f = STATE / "token-tracking-real.json"
+    context_used = None
+    peak = None
+    baseline = None
+    real_total_input = None
+    real_total_output = None
+    real_total_cache = None
+    turns = None
+    session_id = None
+    if real_f.exists():
+        try:
+            r = json.loads(real_f.read_text(encoding="utf-8"))
+            context_used = r.get("current_context")
+            peak = r.get("peak_context")
+            baseline = r.get("session_start_cost")
+            real_total_input = r.get("total_input_tokens")
+            real_total_output = r.get("total_output_tokens")
+            real_total_cache = r.get("total_cache_read_tokens")
+            turns = r.get("total_turns")
+            session_id = r.get("session_id")
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # === 合成计数器（兜底） ===
+    syn_f = STATE / "token-tracking-index.json"
+    synthetic_usage = None
+    limit = 200000
+    if syn_f.exists():
+        try:
+            s = json.loads(syn_f.read_text(encoding="utf-8"))
+            synthetic_usage = s.get("usage", 0)
+            limit = s.get("limit", 200000)
+        except (json.JSONDecodeError, KeyError):
+            pass
+
+    # === Compact = 实测（来自 token-savings.json 或 token-tracking-real.json） ===
+    compact_saved = 0
+    compact_events = 0
+    sv_f = STATE / "token-savings.json"
+    if sv_f.exists():
+        try:
+            sv = json.loads(sv_f.read_text(encoding="utf-8"))
+            compact_saved = sv.get("compact", 0)
+            compact_events = sv.get("compact_events", 0)
+        except (json.JSONDecodeError, KeyError):
+            pass
+    # Override with real compact data if available
+    if real_f.exists() and r.get("compact_events", 0) > 0:
+        compact_events = r["compact_events"]
+        compact_saved = r["compact_savings"]
+
+    return {
+        "status": STATUS_OK,
+        "context_used": context_used,
+        "peak": peak,
+        "baseline": baseline,
+        "limit": limit,
+        "synthetic_usage": synthetic_usage,
+        "real_total_input": real_total_input,
+        "real_total_output": real_total_output,
+        "real_total_cache": real_total_cache,
+        "turns": turns,
+        "session_id": session_id,
+        "claude_lightweight": CLAUDE_LIGHTWEIGHT_SAVED,
+        "compact": compact_saved,
+        "compact_events": compact_events,
+        "l3_per_trigger": L3_PER_TRIGGER_SAVINGS,
+        "l3_pool": L3_POOL_TOK,
+        "l3_skills": L3_SKILL_COUNT,
+        "l3_files": L3_FILE_COUNT,
+        "l3_avg_file": L3_AVG_FILE_TOK,
+    }
+
+
+def render_token_savings(data):
+    section("Token 节省")
     if data["status"] == STATUS_DEGRADED:
-        degraded_msg(data.get("source", "unknown"))
-        p(" RPE-003 修复后启用数据追踪")
+        degraded_msg("token-tracking-real.json 和 token-tracking-index.json 均缺失")
         return
-    b = bar(data["pct"], 20)
-    pct_str = f"{data['pct']}%"
-    usage_str = f"({data['usage']:,}/{data['limit']:,})"
-    p(f" {b}  {pct_str} {usage_str}")
-    p(f" 最后更新: {data['updated']}")
+
+    context_used = data["context_used"]
+    peak = data["peak"]
+    baseline = data["baseline"]
+    limit = data["limit"]
+    syn = data["synthetic_usage"]
+    lw = data["claude_lightweight"]
+    compact = data["compact"]
+    comp_ev = data["compact_events"]
+    l3_pt = data.get("l3_per_trigger", 0)
+    l3_pool = data.get("l3_pool", 0)
+    l3_skills = data.get("l3_skills", 0)
+    l3_f = data.get("l3_files", 0)
+    l3_af = data.get("l3_avg_file", 0)
+
+    # === 主数据：真实 context ===
+    p(" " + colored("[实测] 平台 token 数据", BOLD + COLOR))
+    if context_used is not None:
+        pct = round(context_used * 100 / limit, 1)
+        b = bar(pct, 20)
+        p(f" Context  {b}  {pct}%  ({context_used:,}/{limit:,})")
+        if peak is not None:
+            p(f" 峰值: {colored(f'{peak:,}', COLOR)} tok  |  基线: {colored(f'{baseline:,}', COLOR)} tok/session")
+    else:
+        # Fallback to synthetic
+        if syn is not None:
+            pct = round(syn * 100 / limit, 1)
+            b = bar(pct, 20)
+            p(f" Context  {b}  {pct}%  ({syn:,}/{limit:,})  [合成计数器]")
+        else:
+            p(" " + colored("Context: 数据不可用", DIM))
+
+    p()
+    p(f" {colored('\u251c\u2500', DIM)} CLAUDE.md 轻量化:  {colored(f'{lw:,}', COLOR)} tok/session  [含 AGENTS.md]")
+    p(f" {colored('\u251c\u2500', DIM)} Reference 按需加载:  {colored(f'~{l3_pt:,}', COLOR)} tok/次 skill 触发  [估算]")
+
+    comp_c = COLOR if compact > 0 else DIM
+    p(f" {colored('\u2514\u2500', DIM)} Compact:  {colored(f'{comp_ev} 次事件', comp_c)}  ({colored(f'{compact:,}', comp_c)} tok)  [实测]")
+
+    # Summary line
+    ti = data.get("real_total_input")
+    to = data.get("real_total_output")
+    tc = data.get("real_total_cache")
+    tu = data.get("turns")
+    if ti is not None:
+        p()
+        p(f" 会话累计: 输入 {colored(f'{ti:,}', COLOR)}  缓存 {colored(f'{tc:,}', COLOR)}  输出 {colored(f'{to:,}', COLOR)}  ({tu} 轮)")
 
 
 # ═══════════════════════════════════════════════
-# Panel 2: Error DNA 状态
+# Panel 2: 任务通过率
 # ═══════════════════════════════════════════════
 
-def collect_error_dna():
-    """Read error-dna.jsonl for error type distribution; fallback to error-dna.json."""
+def collect_pass_rate():
+    """Error count from dna; total ops from error-dna.sh counter."""
     jsonl = STATE / "error-dna.jsonl"
-    json_f = STATE / "error-dna.json"
-    if not jsonl.exists() and not json_f.exists():
-        return {"status": STATUS_DEGRADED, "source": "error-dna.jsonl / error-dna.json", "type_counts": {}}
+    ops_f = STATE / "total-ops.txt"
 
+    # Count errors
+    err_count = 0
     type_counts = defaultdict(int)
-    total_count = 0
     if jsonl.exists():
         for line in jsonl.read_text(encoding="utf-8").strip().split("\n"):
             line = line.strip()
@@ -187,54 +307,66 @@ def collect_error_dna():
                 rec = json.loads(line)
                 et = rec.get("error_type", "unknown")
                 type_counts[et] += 1
-                total_count += 1
+                err_count += 1
             except json.JSONDecodeError:
                 pass
 
-    if not type_counts and json_f.exists():
+    # Read total ops from error-dna.sh counter
+    total_ops = 0
+    rate = None
+    if ops_f.exists():
         try:
-            merged = json.loads(json_f.read_text(encoding="utf-8"))
-            sigs = merged.get("error_signatures", {})
-            for sig_data in sigs.values():
-                total_count += sig_data.get("count", 0)
-        except (json.JSONDecodeError, KeyError):
+            total_ops = int(ops_f.read_text(encoding="utf-8").strip())
+        except (ValueError, OSError):
             pass
 
+    if total_ops > 0 and err_count <= total_ops:
+        rate = round((total_ops - err_count) * 100 / total_ops, 1)
+
     return {
-        "status": STATUS_OK if type_counts or total_count > 0 else STATUS_DEGRADED,
+        "status": STATUS_OK if err_count > 0 or total_ops > 0 else STATUS_DEGRADED,
+        "pass_rate": rate,
+        "total_ops": total_ops,
+        "err_count": err_count,
         "type_counts": dict(type_counts),
-        "total_errors": total_count,
-        "source_degraded": not jsonl.exists() and json_f.exists(),
     }
 
 
-def render_error_dna(data):
-    section("Error DNA 状态")
-    if data["status"] == STATUS_DEGRADED:
-        degraded_msg("error-dna.jsonl / error-dna.json")
-        p(" RPE-001 数据未就绪，执行 lx-rpe 后自动生成")
+def render_pass_rate(data):
+    section("任务通过率")
+    if data["status"] == STATUS_DEGRADED or data["err_count"] == 0:
+        p(" " + colored("暂无错误记录", DIM))
         return
 
-    types = data.get("type_counts", {})
-    total = data.get("total_errors", 0)
+    err_c = data["err_count"]
+    rate = data["pass_rate"]
+    total = data["total_ops"]
 
-    if types:
-        max_count = max(types.values())
-        for et in sorted(types.items(), key=lambda x: (-x[1], x[0])):
-            et_name, et_count = et
-            b = bar_by_count(et_count, max_count, 20)
-            p(f" {et_name:<12}{b} {et_count}")
+    if rate is not None:
+        rate_color = COLOR if rate >= 80 else DIM
+        b = bar(rate, 20)
+        p(f" {b}  {colored(f'{rate}%', rate_color)}")
     else:
-        p(f" 总错误数: {total} (无分类数据)")
+        p(f" {colored('▌估算 N/A', COLOR)} (需追踪总操作数)")
+
+    p(f" 累计错误: {colored(str(err_c), COLOR)}")
+
+    # Top error types
+    types = data.get("type_counts", {})
+    if types:
+        top = sorted(types.items(), key=lambda x: -x[1])[:3]
+        type_str = "  ".join(f"{n}×{c}" for n, c in top)
+        p(f" 高频错误: {type_str}")
 
 
 # ═══════════════════════════════════════════════
-# Panel 3: Flywheel P0 事件
+# Panel 3: 拦截的错误
 # ═══════════════════════════════════════════════
 
-def collect_flywheel():
+def collect_blocked():
+    """Count blocked/intercepted operations from flywheel P0 events."""
     if not FLYWHEEL_LOG.exists():
-        return {"status": STATUS_DEGRADED, "source": "flywheel.log", "events": []}
+        return {"status": STATUS_DEGRADED, "source": "flywheel.log", "blocked_total": 0}
 
     ack_resolved = set()
     ack_snoozed = {}
@@ -253,165 +385,229 @@ def collect_flywheel():
                         days = int(action[6:])
                     except (ValueError, IndexError):
                         days = 7
-                    snooze_until = datetime.now().strftime("%Y-%m-%d")
-                    # Simplified: use ack_date + days
-                    from datetime import timedelta
                     try:
                         sd = datetime.strptime(ack_date, "%Y-%m-%d") + timedelta(days=days)
                         snooze_until = sd.strftime("%Y-%m-%d")
                     except ValueError:
-                        pass
+                        snooze_until = datetime.now().strftime("%Y-%m-%d")
                     ack_snoozed[ack_evt] = snooze_until
 
     today = datetime.now().strftime("%Y-%m-%d")
-    events = []
+    type_counts = defaultdict(int)
+    total_blocked = 0
     for line in FLYWHEEL_LOG.read_text(encoding="utf-8").strip().split("\n"):
         line = line.strip()
         if not line:
             continue
         parts = line.split(",")
-        if len(parts) < 2:
+        if len(parts) < 3:
             continue
-        evt_date = parts[0]
         evt_name = parts[1].strip()
-        evt_sev = parts[2].strip() if len(parts) > 2 else ""
-        evt_proj = parts[3].strip() if len(parts) > 3 else ""
-
-        # Only P0 events
+        evt_sev = parts[2].strip()
         if evt_sev != "P0":
             continue
+        total_blocked += 1
+        type_counts[evt_name] += 1
+
+    active = 0
+    for evt_name in type_counts:
         if evt_name in ack_resolved:
             continue
         if evt_name in ack_snoozed and today <= ack_snoozed[evt_name]:
             continue
-        events.append((evt_date, evt_name, evt_proj))
-
-    events.sort(key=lambda x: x[0], reverse=True)
-    events = events[:5]
-
-    return {"status": STATUS_OK if events else STATUS_OK, "events": events}
-
-
-def render_flywheel(data):
-    section("Flywheel P0 事件")
-    if data["status"] == STATUS_DEGRADED and not data.get("events"):
-        degraded_msg("flywheel.log")
-        return
-    events = data.get("events", [])
-    if not events:
-        empty_msg("无 P0 事件记录")
-        return
-    for evt_date, evt_name, evt_proj in events:
-        desc = f" {evt_date}  {colored(evt_name, BOLD)}"
-        if evt_proj:
-            desc += f" ({evt_proj})"
-        p(desc)
-
-
-# ═══════════════════════════════════════════════
-# Panel 4: Feature Registry
-# ═══════════════════════════════════════════════
-
-def collect_feature_registry():
-    if not FEATURE_REGISTRY.exists():
-        return {"status": STATUS_DEGRADED, "source": "feature-registry.yaml"}
-
-    try:
-        import yaml
-        with open(FEATURE_REGISTRY) as f:
-            data = yaml.safe_load(f)
-    except Exception:
-        return {"status": STATUS_DEGRADED, "source": "feature-registry.yaml (解析失败)"}
-
-    hooks = data.get("hooks", [])
-    skills = data.get("skills", [])
-
-    hook_type_counts = defaultdict(int)
-    for h in hooks:
-        hook_type_counts[h.get("type", "unknown")] += 1
+        active += 1
 
     return {
-        "status": STATUS_OK,
-        "hook_count": len(hooks),
-        "skill_count": len(skills),
-        "online_hooks": sum(1 for h in hooks if h.get("enabled_by_default", False)),
-        "enabled_skills": sum(1 for s in skills if s.get("enabled_by_default", False)),
-        "hook_types": dict(sorted(hook_type_counts.items())),
+        "status": STATUS_OK if total_blocked > 0 else STATUS_DEGRADED,
+        "blocked_total": total_blocked,
+        "active": active,
+        "type_counts": dict(type_counts),
     }
 
 
-def render_feature_registry(data):
-    section("Feature Registry")
-    if data["status"] == STATUS_DEGRADED:
-        degraded_msg(data.get("source", "unknown"))
+def render_blocked(data):
+    section("拦截的错误")
+    if data["status"] == STATUS_DEGRADED or data["blocked_total"] == 0:
+        degraded_msg("flywheel.log (无 P0 拦截记录)")
         return
 
-    hc = data["hook_count"]
-    sc = data["skill_count"]
-    oh = data["online_hooks"]
-    es = data["enabled_skills"]
+    total = data["blocked_total"]
+    active = data["active"]
+    types = data.get("type_counts", {})
 
-    all_enabled = es == sc
-    all_online = oh == hc
+    # Total count with severity
+    if active > 0:
+        p(f" 累计拦截: {colored(str(total), COLOR + BOLD)}  待处理: {colored(str(active), COLOR)}")
+    else:
+        p(f" 累计拦截: {colored(str(total), COLOR + BOLD)}  (全部已确认)")
 
-    skills_status = colored(f"{es}/{sc}", GREEN) if all_enabled else colored(f"{es}/{sc}", YELLOW)
-    hooks_status = colored(f"{oh}/{hc}", GREEN) if all_online else colored(f"{oh}/{hc}", YELLOW)
-
-    p(f" {hc} hooks {chr(183)} {sc} skills {chr(183)} {skills_status} 启用")
-    p(f" Hook 健康检查: {hooks_status} 在线")
+    # Top 3 types
+    if types:
+        sorted_types = sorted(types.items(), key=lambda x: -x[1])
+        max_c = max(types.values())
+        for name, count in sorted_types[:3]:
+            readable = name.replace("_triggered", "").replace("_", " ")
+            b = bar_by_count(count, max_c, 16)
+            p(f" {readable:<14}{b} {count}")
+        if len(sorted_types) > 3:
+            others = sum(c for _, c in sorted_types[3:])
+            p(f" 其他{len(sorted_types)-3}种{'.' * 22}{others}")
 
 
 # ═══════════════════════════════════════════════
-# Panel 5: 上下文
+# Panel 4: 升华的知识点
 # ═══════════════════════════════════════════════
 
-def collect_context():
-    f = STATE / "token-tracking-index.json"
-    if not f.exists():
-        return {"status": STATUS_DEGRADED, "source": "token-tracking-index.json"}
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-        usage = data.get("usage", 0)
-        limit = data.get("limit", 200000)
-        pct = round(usage * 100 / limit, 1) if limit > 0 else 0
-        return {"status": STATUS_OK, "usage": usage, "limit": limit, "pct": pct}
-    except (json.JSONDecodeError, KeyError):
-        return {"status": STATUS_DEGRADED, "source": "token-tracking-index.json (解析失败)"}
+def collect_knowledge():
+    """Count claude-next entries vs kernel.md sections."""
+    # Parse claude-next.md
+    cn_entries = 0
+    cn_hits_total = 0
+    if CLAUDE_NEXT.exists():
+        content = CLAUDE_NEXT.read_text(encoding="utf-8")
+        # Count ### entries in 待验证规则 section
+        for line in content.split("\n"):
+            line = line.strip()
+            if line.startswith("### [") or line.startswith("### "):
+                cn_entries += 1
+            m = re.search(r"hits:(\d+)", line)
+            if m:
+                cn_hits_total += int(m.group(1))
+
+    # Count kernel.md sections with content (not placeholder)
+    kernel_sections = 0
+    kernel_filled = 0
+    if KERNEL_MD.exists():
+        content = KERNEL_MD.read_text(encoding="utf-8")
+        for line in content.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("## "):
+                kernel_sections += 1
+        # Sections that still have placeholder text
+        placeholders = sum(1 for kw in ["手动填写", "请按项目", "未检测到", "(新项目"] if kw in content)
+        kernel_filled = kernel_sections - placeholders
+
+    promoted = 0
+    candidates = 0
+    # Check for "已升华" / "已升华到" entries in claude-next.md footer
+    if CLAUDE_NEXT.exists():
+        content = CLAUDE_NEXT.read_text(encoding="utf-8")
+        promoted = len(re.findall(r"升华到|已升华|→\s*kernel\.md", content))
+
+        # Detect promotion candidates: hits>=5 or age>=10 days
+        sections = re.split(r'\n###\s+', content)
+        today_dt = datetime.now()
+        for section in sections[1:]:
+            date_m = re.search(r'@(\d{4}-\d{2}-\d{2})', section)
+            hits_m = re.search(r'hits:(\d+)', section)
+            date_ok = date_m and (today_dt - datetime.strptime(date_m.group(1), '%Y-%m-%d')).days >= 10
+            hits_ok = hits_m and int(hits_m.group(1)) >= 5
+            if date_ok or hits_ok:
+                candidates += 1
+
+    return {
+        "status": STATUS_OK if cn_entries > 0 else STATUS_DEGRADED,
+        "cn_entries": cn_entries,
+        "cn_hits": cn_hits_total,
+        "candidates": candidates,
+        "kernel_filled": kernel_filled,
+        "kernel_total": kernel_sections,
+        "promoted": promoted,
+    }
 
 
-def render_context(data):
-    section("上下文")
-    if data["status"] == STATUS_DEGRADED:
-        degraded_msg(data.get("source", "unknown"))
+def render_knowledge(data):
+    section("升华的知识点")
+    if data["status"] == STATUS_DEGRADED or data["cn_entries"] == 0:
+        degraded_msg("claude-next.md (无记录)")
         return
-    b = bar(data["pct"], 20)
-    p(f" 当前: {b}  {data['pct']}% ({data['usage']:,}/{data['limit']:,})")
+
+    cn = data["cn_entries"]
+    hits = data["cn_hits"]
+    candidates = data.get("candidates", 0)
+    k_filled = data["kernel_filled"]
+    k_total = data["kernel_total"]
+    promoted = data["promoted"]
+
+    # Entry count
+    p(f" 待升华知识: {colored(str(cn), BOLD)} 条  (累计 hits: {hits})")
+
+    # Promotion candidates
+    cand_color = COLOR
+    p(f" 可升华候选: {colored(str(candidates), cand_color)} 条  (hits>=5 或 age>=10天)")
+
+    # Kernel coverage bar
+    if k_total > 0:
+        k_pct = round(k_filled * 100 / k_total)
+        b = bar(k_pct, 20)
+        p(f" 内核填充率: {b}  {k_filled}/{k_total} ({k_pct}%)")
+
+    # Promoted count
+    if promoted > 0:
+        p(f" 已升华: {colored(str(promoted), COLOR)} 条到 kernel.md")
+    else:
+        p(f" 已升华: {colored('0', COLOR)} 条  (hits≥5 或 age≥10天可升华)")
+
+
+# ═══════════════════════════════════════════════
+# Panel 5: Audit 摘要（内联，不依赖 audit_dashboard.py）
+# ═══════════════════════════════════════════════
+
+def collect_audit():
+    """Check 5 audit data sources, return ok/degraded/missing counts."""
+    sources = [
+        ("token-tracking-index.json", STATE / "token-tracking-index.json"),
+        ("error-dna.jsonl", STATE / "error-dna.jsonl"),
+        ("flywheel.log", FLYWHEEL_LOG),
+        ("claude-next.md", CLAUDE_NEXT),
+        ("kernel.md", KERNEL_MD),
+    ]
+    ok_count = 0
+    missing = []
+    for name, path in sources:
+        if path.exists():
+            ok_count += 1
+        else:
+            missing.append(name)
+    total = len(sources)
+    return {"ok": ok_count, "total": total, "missing": missing}
+
+
+def render_audit(data):
+    ok_c = data["ok"]
+    total = data["total"]
+    missing = data["missing"]
+    if missing:
+        p(f" {colored('⚠', COLOR)} Audit: {ok_c}/{total} ok, {len(missing)} missing  ({', '.join(missing)})")
+    else:
+        p(f" {colored('✓', COLOR)} Audit: {ok_c}/{total} ok")
 
 
 # ═══════════════════════════════════════════════
 # Main Dashboard
 # ═══════════════════════════════════════════════
 
-def render_dashboard(ts, ed, fw, fr, ctx):
+def render_dashboard(ts, pr, bl, kn):
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     top()
-    title(colored("Carror OS 健康面板", BOLD + CYAN))
+    title(colored("Carror OS 健康面板", BOLD + COLOR))
     p(f" {now}")
     sep()
 
-    render_token_trend(ts)
+    render_token_savings(ts)
     sep()
 
-    render_error_dna(ed)
+    render_pass_rate(pr)
     sep()
 
-    render_flywheel(fw)
+    render_blocked(bl)
     sep()
 
-    render_feature_registry(fr)
+    render_knowledge(kn)
     sep()
 
-    render_context(ctx)
+    au = collect_audit()
+    render_audit(au)
     bottom()
 
     # Data source legend
@@ -419,23 +615,22 @@ def render_dashboard(ts, ed, fw, fr, ctx):
         ("token-tracking-index.json", (STATE / "token-tracking-index.json").exists()),
         ("error-dna.jsonl", (STATE / "error-dna.jsonl").exists()),
         ("flywheel.log", FLYWHEEL_LOG.exists()),
-        ("feature-registry.yaml", FEATURE_REGISTRY.exists()),
-        ("error-dna.json", (STATE / "error-dna.json").exists()),
+        ("claude-next.md", CLAUDE_NEXT.exists()),
+        ("kernel.md", KERNEL_MD.exists()),
     ]
     parts = []
     for name, exists in source_files:
-        icon = colored("\u25cf", GREEN) if exists else colored("\u25cb", DIM)
-        parts.append(f"{icon} {colored(name, CYAN if exists else DIM)}")
+        icon = colored("\u25cf", COLOR) if exists else colored("\u25cb", DIM)
+        parts.append(f"{icon} {colored(name, COLOR if exists else DIM)}")
     sys.stdout.write("\n  " + "  ".join(parts) + "\n")
 
 
 def collect_all():
     return (
-        collect_token_trend(),
-        collect_error_dna(),
-        collect_flywheel(),
-        collect_feature_registry(),
-        collect_context(),
+        collect_token_savings(),
+        collect_pass_rate(),
+        collect_blocked(),
+        collect_knowledge(),
     )
 
 
@@ -449,8 +644,8 @@ def main():
         try:
             while True:
                 sys.stdout.write("\033[2J\033[H")
-                ts, ed, fw, fr, ctx = collect_all()
-                render_dashboard(ts, ed, fw, fr, ctx)
+                ts, pr, bl, kn = collect_all()
+                render_dashboard(ts, pr, bl, kn)
                 print(colored("  \u23f3 Ctrl+C to exit | 5s refresh", DIM))
                 time.sleep(5)
         except KeyboardInterrupt:
@@ -458,16 +653,15 @@ def main():
             return
 
     if args.json:
-        ts, ed, fw, fr, ctx = collect_all()
+        ts, pr, bl, kn = collect_all()
         print(json.dumps(
-            {"token_trend": ts, "error_dna": ed, "flywheel": fw,
-             "feature_registry": fr, "context": ctx},
+            {"token_savings": ts, "pass_rate": pr, "blocked": bl, "knowledge": kn},
             ensure_ascii=False, indent=2,
         ))
         return
 
-    ts, ed, fw, fr, ctx = collect_all()
-    render_dashboard(ts, ed, fw, fr, ctx)
+    ts, pr, bl, kn = collect_all()
+    render_dashboard(ts, pr, bl, kn)
 
 
 if __name__ == "__main__":

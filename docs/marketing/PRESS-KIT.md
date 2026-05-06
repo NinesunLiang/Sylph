@@ -53,7 +53,7 @@ Carror OS: 用户 → AI → [⚠️ Hook 拦截] → 拒绝 / 授权 / 审计
 | 读写时序 | `edit-guard.sh` | 未读文件不允许编辑 |
 | 范围冻结 | `pretool-edit-scope.sh` | 超出任务范围的文件修改 |
 
-**所有 Hook 经过 49 项全人工验收 + BDD 10 场景 + L1-L4 四层测试全部通过。**
+**所有 Hook 经过 L1-L4 四层测试体系（手动验收 + 自动 Hook 校验 + 代码扫描 + 格式门禁）全部通过，通过 ShellCheck/Bandit 真实安全扫描（0 真实业务缺陷），对照 OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0 三项行业标准完成合规对照（75/75 覆盖）。**
 
 ### 2. AI 全程不知道你的真实密钥
 
@@ -135,7 +135,7 @@ Copilot Custom      ██▌        ██████▌    ██████
 | 架构完整性 | 8.5 | 内核/用户态分层 + Hook/Skill/Script 三层协作 |
 | 代码实现 | 7.5 | Hook 和 Python 脚本质量合格，包发布流程待完善 |
 | 文档质量 | 9.0 | CHANGELOG 53KB、SKILL.md 471 行、测试文档 49 项 |
-| 测试覆盖 | 8.0 | BDD 10 场景 + L1-L4 98 PASS，4 个 SOFT 已知未修 |
+| 测试覆盖 | 8.0 | L1-L4 四层测试 98 PASS，4 个 SOFT 已知未修，ShellCheck/Bandit 0 缺陷 |
 | 差异化能力 | 9.0 | 5 项设计在开源社区无同类 |
 | 工程成熟度 | 6.5 | packages 打包待修，4 SOFT 待解决 |
 | 实用性 | 7.0 | 强依赖 Claude Code/OpenCode Hook 协议 |

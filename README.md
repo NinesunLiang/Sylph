@@ -73,9 +73,11 @@
 
 **明文绝不出境，完美满足企业安全合规要求。**
 
-### ⚔️ 打破"我写得全对"的幻觉：A/B 多智能体盲审 (Blind Review)
+### ⚔️ 打破"我写得全对"的幻觉：双终端交叉验证 (A→B→A Cross-Verify)
 
-你不敢相信一个人既写代码又做 QA，对 AI 也是如此。在提交代码前，系统会强行剥夺主 Agent 的自审权，必须由它唤醒一个拥有 **Fresh Context（全新干净上下文）** 的极度苛刻的 QA 专家（Sub-agent）进行隔离盲审！我们用代码级的强制拦截，在单机上实现了工业级的**多智能体攻防对抗 (Adversarial System)**。
+你不敢相信一个模型既写方案又做验收，对 AI 也是如此。当方案/报告完成后，系统会提示你另开一个新终端，**换一个不同模型**担任对抗性验收官，逐条审查断言的真实性。审查报告带回原终端进行交叉比对 — 在单机上实现了**跨模型攻防对抗 (Adversarial Cross-Verification)**。
+
+对比一致才算验收通过，不一致则返回修订再循环。
 
 ---
 
@@ -106,7 +108,7 @@ curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh
 
 **⚔️ 选项 B：安装"增强版" (Enhanced Edition)**
 
-适合接手复杂重构、大型特性开发、深水区 Debug 的资深工程师。解锁全部 23 款主动工作流流水线（RPE 工业级开发、多智能体盲审对抗、DLP 脱敏代理等），让你"一人成军"。
+适合接手复杂重构、大型特性开发、深水区 Debug 的资深工程师。解锁全部 23 款主动工作流流水线（RPE 工业级开发、双终端交叉验证对抗、DLP 脱敏代理等），让你"一人成军"。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- enhanced

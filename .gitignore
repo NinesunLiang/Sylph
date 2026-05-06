@@ -4,5 +4,9 @@ __pycache__/
 *.pyc
 .env
 *.pem
-.omc/state/
-.omc/mirror/
+.omc/
+
+
+test/*
+locks/*
+*.lock

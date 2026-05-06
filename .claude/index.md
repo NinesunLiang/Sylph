@@ -46,7 +46,7 @@
 # 查看错误记忆cat .omc/state/error-dna.json | python3 -c \ "import json,sys; [print(e['signature'][:60],'×',e['count']) \ for e in json.load(sys.stdin) if e.get('status')!='fixed']"
 ```
 
-## Hooks 速查（共 30 个）
+## Hooks 速查（共 31 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`completion-gate` | PreToolUse:TaskUpdate | 无证据禁止标 completed|

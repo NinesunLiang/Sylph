@@ -33,7 +33,8 @@ esac
 
 # ─── 无损热更新机制 (Safe In-Place Upgrade) ──────────────
 BACKUP_DIR=$(mktemp -d)
-trap "rm -rf $BACKUP_DIR" EXIT
+# 注意：不要用 trap "rm -rf $BACKUP_DIR" EXIT，脚本中途失败时备份不会被删除。
+# 备份文件在所有场景（包括成功）下保留，由用户手动清理或下次安装时覆盖。
 HAS_BACKUP=false
 
 if [ -d ".claude" ]; then
@@ -84,18 +85,18 @@ case "$INSTALL_MODE" in
         for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill; do
             rm -rf .claude/skills/$s
         done
-        log_info "已精简为 6 个静默门禁 Skill。"
+        log_info "已精简为 10 个静默门禁 Skill。"
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（24 hooks）"
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 19 个 Skills）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 23 个 Skills）"
         ;;
     harness)
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（24 hooks）"
         ;;
     skills)
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 19 个 Skills）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 23 个 Skills）"
         ;;
 esac
 

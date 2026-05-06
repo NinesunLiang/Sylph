@@ -50,8 +50,16 @@ except:
         FRESH="yes"
     fi
     if [ "$FRESH" = "yes" ]; then
+        # 原子消费：mv 在同一文件系统是原子操作
+        # 并发场景下只有一个进程能 mv 成功，其余进程到此发现源文件已不存在
+        CONSUMED="${EVIDENCE_FILE}.consumed.$$"
+        if ! mv "$EVIDENCE_FILE" "$CONSUMED" 2>/dev/null; then
+            echo "⛔ COMPLETION BLOCKED: 证据已被其他进程消费" >&2
+            exit 2
+        fi
+
         # 证据内容验证：必须包含至少 20 字符实际描述 + VERIFIED 关键字
-        CONTENT=$(cat "$EVIDENCE_FILE" 2>/dev/null)
+        CONTENT=$(cat "$CONSUMED" 2>/dev/null)
         CONTENT_LEN=${#CONTENT}
         MIN_CHARS=$(hc_get "completion_gate.min_evidence_chars" "20")
         REQ_KEYWORD=$(hc_get "completion_gate.required_keyword" "VERIFIED")
@@ -59,16 +67,70 @@ except:
         if [ "$CONTENT_LEN" -lt "$MIN_CHARS" ]; then
             echo "⛔ COMPLETION BLOCKED: 证据内容过短（${CONTENT_LEN} 字符 < ${MIN_CHARS} 字符最低要求）。" >&2
             echo "证据必须包含至少 ${MIN_CHARS} 字符的实际验证描述，不能只有 '${REQ_KEYWORD}' 等占位符。" >&2
+            rm -f "$CONSUMED"
             exit 2
         fi
 
         if ! echo "$CONTENT" | grep -q "$REQ_KEYWORD"; then
             echo "⛔ COMPLETION BLOCKED: 证据文件中未找到 '${REQ_KEYWORD}' 关键字。" >&2
+            rm -f "$CONSUMED"
             exit 2
         fi
 
-        # 防重复使用：同一文件 5 分钟内只能使用一次，标记已消费
-        echo "CONSUMED at $(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$EVIDENCE_FILE"
+        # 验证通过，清理消费文件
+        rm -f "$CONSUMED"
+
+        # --- 检测方案/验收类任务 → A→B→A 交叉验证（两阶段匹配） ---
+        # 高精确率词：单命中即触发
+        if echo "$CONTENT" | grep -qiE '(验收|benchmark|scorecard|通过率|口径|mapping|合规)'; then
+            TRIGGER="yes"
+        # 中等精确率词：需 2+ 匹配避免日常用语误报
+        elif [ "$(echo "$CONTENT" | grep -ioE '(报告|方案|评估|design|proposal|review|analysis|评审|分析)' | sort -u | wc -l)" -ge 2 ]; then
+            TRIGGER="yes"
+        fi
+        if [ "${TRIGGER:-no}" = "yes" ]; then
+            # 构建手off内容（同时写文件 + 打印 stderr）
+            HANDOFF_FILE="$PROJECT_ROOT/.omc/state/cross-verify-handoff.md"
+            # 扫描近期修改的方案/报告文件
+            RECENT_DOCS=$(find "$PROJECT_ROOT/docs" "$PROJECT_ROOT/rpe" "$PROJECT_ROOT/.omc/plans" -name "*.md" -mmin -10 2>/dev/null | head -5)
+            cat > "$HANDOFF_FILE" <<HANDOFF
+***** 复制以下全部内容到 B 终端 *****
+
+【当前终端：A | 方案方】
+
+【对抗性验收提示词】
+换一个不同模型（如 A 用 Claude 则 B 用 GPT/Gemini），
+你是一个对抗性验收官。逐条审查以下方案中每个断言：
+· 有行业标准来源吗？有 file:line 吗？
+· 是自创指标/口径含糊/结论夸大吗？→ ❌
+· 输出格式: 断言 → 证据 → 判定(✅/⚠️/❌) + 理由
+
+【以下为待验收方案内容】
+任务描述: ${CONTENT}
+
+近期修改的相关文件（10分钟内）:
+$(echo "${RECENT_DOCS}" | sed 's/^/  - /')
+
+（如方案内容在以上文件中，B 终端直接读取对应文件审查）
+
+***** 以上复制到 B 终端 *****
+***** 以下为 B 返回报告 *****
+
+【当前终端：B | 验收方】
+（B 终端贴在这里）
+
+***** 验收报告结束 *****
+HANDOFF
+            # 读回文件打印到 stderr
+            cat "$HANDOFF_FILE" >&2
+            echo "" >&2
+            echo "📁 手off文件已写入: .omc/state/cross-verify-handoff.md" >&2
+            echo "   B 终端启动后直接执行: cat .omc/state/cross-verify-handoff.md" >&2
+            echo "" >&2
+            echo "同模型交叉验证效果有限（盲区重叠），必须不同模型才能真正发现断言造假。" >&2
+            echo "比对一致 → 验收通过 | 不一致 → 返回 A 重新生成方案，重复此流程" >&2
+            echo "══════════════════════════" >&2
+        fi
         exit 0
     fi
 fi
