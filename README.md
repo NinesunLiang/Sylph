@@ -55,7 +55,7 @@
 
 ### 💰 极致省钱：渐进式披露 (Token 瘦身)
 
-我们彻底废除了将所有开发规范（代码风格、安全准则、Commit 格式）一股脑塞进 System Prompt 的落后做法。Carror OS 在底层构建了按需加载的引用库（`references/`）：当你需要进行安全扫描时，它才加载安全规则；当你需要 `git commit` 时，它才加载团队提交规范。
+我们彻底废除了将所有开发规范（代码风格、安全准则、Commit 格式）一股脑塞进 System Prompt 的落后做法。Carror OS 在底层构建了按需加载的引用库（每个 Skill 内的 `references/` 目录）：当你需要进行安全扫描时，它才加载安全规则；当你需要 `git commit` 时，它才加载团队提交规范。
 
 **结果**：你的上下文永远保持极度干净，信噪比极高。不仅大幅削减了 API 账单，更让 AI 的"指令遵从率"产生了质的飞跃。
 
@@ -103,7 +103,7 @@ cd @
 适合只想要 AI 变规矩、不犯错，不想学习任何新指令的你。安装后，32 个底层物理拦截器将在后台静默运行（防幻觉、防隐私泄露、80% Context OOM 熔断）。你只管正常让 AI 写代码，出错时它在底层默默扫除漏洞和幻觉。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- base
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- base
 ```
 
 **⚔️ 选项 B：安装"增强版" (Enhanced Edition)**
@@ -111,10 +111,10 @@ curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh
 适合接手复杂重构、大型特性开发、深水区 Debug 的资深工程师。解锁全部 24 款主动工作流流水线（RPE 工业级开发、双终端交叉验证对抗、DLP 脱敏代理等），让你"一人成军"。
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- enhanced
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- enhanced
 ```
 
-> 注意：请将 URL 中的 `anomalyco/carror-os` 替换为你最终 Fork 的真实 GitHub 仓库地址。
+> 注意：请将 URL 中的 `NinesunLiang/Sylph` 替换为你 Fork 后的真实 GitHub 仓库地址。
 
 ### 第三步：启动你的 AI IDE (Claude Code / OpenCode)
 

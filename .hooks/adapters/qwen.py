@@ -50,6 +50,7 @@ class QwenAdapter(BaseAdapter):
             events = hook_def.get("events", [])
             script = hook_def.get("script", "")
             timeout_ms = hook_def.get("timeout", 5000)  # Qwen uses ms
+            blocking = hook_def.get("blocking", False)
 
             for evt in events:
                 native_event = event_map.get(evt)
@@ -64,6 +65,8 @@ class QwenAdapter(BaseAdapter):
                     "command": f"bash .claude/hooks/{script}",
                     "timeout": timeout_ms,
                 }
+                if blocking:
+                    entry["decision"] = "deny"
 
                 existing = native[native_event]
                 dup = any(

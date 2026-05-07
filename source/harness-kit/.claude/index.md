@@ -78,16 +78,21 @@
 |`pretool-write-lock` | PreToolUse:Edit\|Write | OMA 并发锁前置拦截|
 |`token_writer` | PostToolUse:.* / SessionStart | Token 用量追踪 + 重置|
 
-### 磁盘保留但未注册的脚本（共 4 个）
+### 已注册但默认禁用的脚本（共 3 个）
 
-以下脚本存在于磁盘（计入 32 总数）但未在 settings.json 注册，发版前如需激活请自行添加注册：
+以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
 
-| 脚本 | 原事件 | 说明 |
-|------|--------|------|
-| plan-gate.sh | PreToolUse:Write | 计划文档门禁 — Enhanced 专属，Base 版本暂不启用 |
-| proactive-handoff.sh | PostToolUse | 上下文>50%主动交接 — R23 移除反向漂移 |
-| feature-probe.sh | — | 独立工具脚本（非 Hook），L1-L4 证据验证 |
-| posttool-read-cite.sh | PostToolUse:Read | 读取后引用标注 — R23 僵尸，待 Enhanced 再激活 |
+| 脚本 | 事件 | 说明 |
+|------|------|------|
+| plan-gate.sh | PreToolUse:Edit\|Write | 计划文档门禁 — Enhanced 专属 |
+| proactive-handoff.sh | PostToolUse:Write\|Edit | 上下文>50%主动交接 — 默认关闭防反向漂移 |
+| posttool-read-cite.sh | PostToolUse:Read | 读取后引用标注 — 默认关闭防冗余 |
+
+### 独立工具脚本（非 Hook）
+
+| 脚本 | 说明 |
+|------|------|
+| feature-probe.sh | L1-L4 证据验证工具，手动调用 |
 
 ## Language Profile 选择
 

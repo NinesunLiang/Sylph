@@ -41,7 +41,7 @@ Carror OS:     User → AI → [⚠️ Hook Intercept] → Deny / Authorize / Au
 ```
 Carror OS
 ├── harness-kit          ← Kernel Layer: Defense & Governance
-│   └── 32 physical Hooks that intercept AI at the application layer
+│   └── 30 registered Hooks that intercept AI at the application layer
 └── lx-skills-v5         ← Userland: Capability & Workflow
     └── 23 Skills for task orchestration & code quality
 ```
@@ -57,7 +57,7 @@ Carror OS says **`Exit 2` — physically blocked.**
 ## Quick Start
 
 ```bash
-# Base Edition — 32 Hooks + 10 Gate Skills, zero learning curve
+# Base Edition — 30 registered Hooks + 10 Gate Skills, zero learning curve
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- base
 
 # Enhanced Edition — Full 24-Skill arsenal + task pipelines
@@ -70,7 +70,7 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 
 ## What's Inside
 
-### 🔒 The Hard Gates (32 Physical Hooks)
+### 🔒 The Hard Gates (30 Registered Hooks)
 
 | Domain | Hook | What It Blocks |
 |--------|------|----------------|
@@ -81,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 | Edit Guard | `edit-guard.sh` | Editing files AI hasn't read yet |
 | Scope | `pretool-edit-scope.sh` | Files outside the current task scope |
 
-**All 32 Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard self-assessed compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage [internal self-assessment, not third-party certification].**
+**All 30 registered Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard self-assessed compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage [internal self-assessment, not third-party certification].**
 
 ### ⚔️ The Skill Arsenal (23 Capabilities)
 
@@ -170,7 +170,7 @@ Carror OS is not a framework we built and asked others to test. **It's the armor
 
 The three-tier architecture reflects this:
 
-1. **Harness Only** — 32 silent interceptors. Zero cognitive load. AI is just wearing handcuffs.
+1. **Harness Only** — 30 registered interceptors. Zero cognitive load. AI is just wearing handcuffs.
 2. **Base Edition** — Adds 10 automated review gates. Passive, invisible, always on.
 3. **Enhanced Edition** — Full 24-skill arsenal. Active orchestration. Needs a commander.
 

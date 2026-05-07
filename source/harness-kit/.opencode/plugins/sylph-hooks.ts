@@ -43,7 +43,7 @@ function runHook(entry: HookEntry, input: any): { continue: boolean; error?: str
 function processHooks(entries: HookEntry[], input: any): boolean {
   for (const entry of entries) {
     const result = runHook(entry, input);
-    if (result && !result.continue) {
+    if (result && result.continue === false) {
       if (DEBUG) console.error(`[sylph-hooks] Blocked by ${entry.name}: ${result.error}`);
       return false;
     }

@@ -43,7 +43,7 @@ function runHook(entry: HookEntry, input: any): { continue: boolean; error?: str
 function processHooks(entries: HookEntry[], input: any): boolean {
   for (const entry of entries) {
     const result = runHook(entry, input);
-    if (result && !result.continue) {
+    if (result && result.continue === false) {
       if (DEBUG) console.error(`[sylph-hooks] Blocked by ${entry.name}: ${result.error}`);
       return false;
     }
@@ -56,27 +56,34 @@ export default async ({ $ }: any) => {
   const beforeHooks: HookEntry[] = [
   { name: "permission_gate", script: ".claude/hooks/permission-gate.sh", timeout: 5000, blocking: true },
   { name: "privacy_gate", script: ".claude/hooks/privacy-gate.sh", timeout: 3000, blocking: true },
+  { name: "write_lock_pre", script: ".claude/hooks/pretool-write-lock.sh", timeout: 10000, blocking: true },
+  { name: "edit_scope", script: ".claude/hooks/pretool-edit-scope.sh", timeout: 3000, blocking: true },
   ];
 
   // ── After hooks — observe only ──
   const afterHooks: HookEntry[] = [
   { name: "completion_gate", script: ".claude/hooks/completion-gate.sh", timeout: 10000, blocking: true },
   { name: "bash_audit", script: ".claude/hooks/posttool-bash-audit.sh", timeout: 5000, blocking: false },
+  { name: "write_lock_post", script: ".claude/hooks/posttool-write-lock.sh", timeout: 3000, blocking: false },
+  { name: "token_writer", script: ".claude/hooks/token_writer.sh", timeout: 3000, blocking: false },
   ];
 
   // ── Session hooks — fire on session start ──
   const sessionHooks: HookEntry[] = [
-  // No session hooks configured
+  { name: "flywheel_report", script: ".claude/hooks/flywheel-report.sh", timeout: 5000, blocking: false },
+  { name: "token_writer", script: ".claude/hooks/token_writer.sh", timeout: 3000, blocking: false },
   ];
 
   // ── Prompt hooks — fire on user message ──
   const promptHooks: HookEntry[] = [
   { name: "user_correction_detector", script: ".claude/hooks/pretool-user-correction.sh", timeout: 3000, blocking: false },
+  { name: "turn_counter", script: ".claude/hooks/turn-counter.sh", timeout: 3000, blocking: false },
+  { name: "compact_detect", script: ".claude/hooks/compact-detect.sh", timeout: 3000, blocking: false },
   ];
 
   // ── Idle hooks — fire on session idle ──
   const idleHooks: HookEntry[] = [
-  // No idle hooks configured
+  { name: "stop_drain", script: ".claude/hooks/stop-drain.sh", timeout: 10000, blocking: false },
   ];
 
   return {

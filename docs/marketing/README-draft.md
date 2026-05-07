@@ -41,9 +41,9 @@ Carror OS:     User → AI → [⚠️ Hook Intercept] → Deny / Authorize / Au
 ```
 Carror OS
 ├── harness-kit          ← Kernel Layer: Defense & Governance
-│   └── 32 physical Hooks that intercept AI at the application layer
+│   └── 30 registered Hooks that intercept AI at the application layer
 └── lx-skills-v5         ← Userland: Capability & Workflow
-    └── 23 Skills for task orchestration & code quality
+    └── 24 Skills for task orchestration & code quality
 ```
 
 ### What Makes It Different
@@ -81,9 +81,9 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 | Edit Guard | `edit-guard.sh` | Editing files AI hasn't read yet |
 | Scope | `pretool-edit-scope.sh` | Files outside the current task scope |
 
-**All 32 Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard self-assessed compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage [internal self-assessment, not third-party certification].**
+**All 30 registered Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard self-assessed compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage [internal self-assessment, not third-party certification].**
 
-### ⚔️ The Skill Arsenal (23 Capabilities)
+### ⚔️ The Skill Arsenal (24 Capabilities)
 
 | Category | Skills | What They Do |
 |----------|--------|--------------|

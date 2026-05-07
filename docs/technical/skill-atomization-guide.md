@@ -168,7 +168,7 @@ harness_version: ">=1.1.0"
 
 1. 复制 `.claude/skills/TEMPLATE.md` 到 `skills/lx-{name}/SKILL.md`
 2. 替换所有 `{name}`、`{description}` 等占位符
-3. 声明使用的通用节点（从现有 13 个节点中选取）
+3. 声明使用的通用节点（从现有 14 个节点中选取）
 4. 声明引用的 Schema（从 `schemas/registry.yaml` 选择）
 5. 编写本 Skill 私有的规则/检查集
 6. 如有固定逻辑 → 按需创建 `scripts/xxx.py`

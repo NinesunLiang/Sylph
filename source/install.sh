@@ -60,6 +60,15 @@ BACKUP_DIR=$(mktemp -d)
 # 注意：不使用 trap EXIT 删除备份。中途失败时保留备份文件由用户手动清理。
 HAS_BACKUP=false
 
+# 备份已有根目录治理文件，无论是否为升级安装
+for file in CLAUDE.md AGENTS.md; do
+    if [ -f "$file" ]; then
+        cp "$file" "$BACKUP_DIR/"
+        log_info "已安全备份 $file（用户项目配置）"
+        HAS_BACKUP=true
+    fi
+done
+
 if [ -d ".claude" ]; then
     log_warn "检测到已安装 Carror OS (.claude/ 目录已存在)。"
     if [ "$UPGRADE_MODE" = "skip" ]; then
@@ -105,21 +114,21 @@ extract_tar() {
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
-        for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill; do
+        for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill lx-race; do
             rm -rf .claude/skills/$s
         done
         log_info "已精简为 10 个静默门禁 Skill。"
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         ;;
     skills)
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
@@ -147,15 +156,38 @@ if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     log_info "OpenCode plugins 已安装（.opencode/plugins/）"
 fi
 
-if [ -f "AGENTS.md" ]; then
-    log_info "AGENTS.md 已存在（主治理文件）"
-else
-    cp "CLAUDE.md" "AGENTS.md" 2>/dev/null && log_info "AGENTS.md 从 CLAUDE.md 生成" || true
+# ─── 用户治理文件合并迁移 ──────────────────────────────────────
+if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
+    USER_CONTENT=""
+    if [ -f "$BACKUP_DIR/AGENTS.md" ]; then
+        USER_CONTENT=$(cat "$BACKUP_DIR/AGENTS.md")
+        log_info "从备份恢复用户 AGENTS.md 内容"
+    elif [ -f "$BACKUP_DIR/CLAUDE.md" ]; then
+        if ! grep -q "^@AGENTS.md" "$BACKUP_DIR/CLAUDE.md" 2>/dev/null; then
+            USER_CONTENT=$(cat "$BACKUP_DIR/CLAUDE.md")
+            log_info "从备份 CLAUDE.md 提取用户项目配置（无 @AGENTS.md 引用）"
+        fi
+    fi
+
+    if [ -n "$USER_CONTENT" ]; then
+        TEMPLATE=$(cat "AGENTS.md")
+        {
+            echo "$USER_CONTENT"
+            echo ""
+            echo "# ════════════════════════════════════════════"
+            echo "# Carror OS 治理框架"
+            echo "# ════════════════════════════════════════════"
+            echo ""
+            echo "$TEMPLATE"
+        } > AGENTS.md
+        log_info "已合并 → AGENTS.md：用户项目配置在前，Carror OS 治理模板在后"
+    fi
 fi
 
+# 确保 CLAUDE.md 为 @-include 跳板格式
 if ! grep -q "^@AGENTS.md" "CLAUDE.md" 2>/dev/null; then
-    CLAUDE_CONTENT=$(cat CLAUDE.md 2>/dev/null)
-    printf "@AGENTS.md\n\n%s\n" "$CLAUDE_CONTENT" > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md
+    CLAUDE_CONTENT=$(cat CLAUDE.md 2>/dev/null || echo "")
+    printf '@AGENTS.md\n\n%s\n' "$CLAUDE_CONTENT" > CLAUDE.md
     log_info "CLAUDE.md 更新为 @-include 跳板格式"
 fi
 
@@ -174,7 +206,7 @@ chk() { [ -f "$1" ] || { log_warn "缺少：$1"; ERRORS=$((ERRORS+1)); }; }
 case "$INSTALL_MODE" in
     enhanced|base|harness)
         chk "CLAUDE.md"; chk ".claude/settings.json"; chk ".claude/harness.yaml"; chk ".claude/index.md"
-        [ "$HOOKS" -ge 22 ] || { log_warn "hooks 不足（$HOOKS/22）"; ERRORS=$((ERRORS+1)); }
+        [ "$HOOKS" -ge 30 ] || { log_warn "hooks 不足（$HOOKS/30）"; ERRORS=$((ERRORS+1)); }
         ;;
 esac
 [ "$ACTUAL" -ge "$MIN" ] || { log_warn "文件数不足（$ACTUAL/$MIN）"; ERRORS=$((ERRORS+1)); }

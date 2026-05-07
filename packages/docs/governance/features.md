@@ -10,7 +10,7 @@
 
 **适用人群**：只需 AI 变规矩、不犯错，不想学习新指令的开发者。
 **安装方式**：`bash install.sh base`
-**包含内容**：Harness-kit (32 个底层 Hooks) + 10 款门禁审查 Skill。
+**包含内容**：Harness-kit (30 个注册 Hooks) + 10 款门禁审查 Skill。
 | 能力 | 作用 | 触发方式 |
 | :--- | :--- | :--- |
 | **底层拦截网 (Hooks)** | 物理阻断 AI 的幻觉、破坏性命令 (如 `rm -rf`)、隐私泄露和长会话智力衰减。 | **静默拦截** (任何时刻) |
@@ -92,7 +92,7 @@ bash install.sh base
 
 | 文件 | 说明 |
 | :--- | :--- |
-| **`manual-acceptance-test.md`** | 全人工验收清单，共 **49 项**，覆盖 harness-kit 全部 32 个底层 Hook 及所有核心 Skill。每一条命令你亲自执行，每一个结果你亲眼确认。Agentic UI 的拦截弹窗由 Hook 真实触发，而非 AI 模拟。 |
+| **`manual-acceptance-test.md`** | 全人工验收清单，共 **49 项**，覆盖 harness-kit 全部 30 个注册 Hook 及所有核心 Skill。每一条命令你亲自执行，每一个结果你亲眼确认。Agentic UI 的拦截弹窗由 Hook 真实触发，而非 AI 模拟。 |
 | **`manual-acceptance-test-log.md`** | 对应战报模板，49 行空白记录表，Fail 项必须填写根因与修复方案，验收官签字后存档。 |
 
 > ⚠️ **正式交付场景**：使用全人工验收流程。AI 的总结不算证据，你的亲手执行和签字才算数。这是 Carror OS 零信任理念的最高表达。

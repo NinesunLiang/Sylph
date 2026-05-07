@@ -89,7 +89,7 @@
 - **Devin**：内置限制（不能 push 到 default branch），但不可配置、不可审计
 - **Aider**：无治理层
 
-Carror OS 的 32 个 Hook 通过 [Exit 2 实现物理级工具调用阻断](https://agentic-patterns.com/patterns/hook-based-safety-guard-rails)。AI 不是"被建议不要做"，而是"物理上做不到"。这一差异决定了约束的有效层级：Prompt 级建议可被忽略，物理阻断则是不可绕过的硬约束。
+Carror OS 的 30 个注册 Hook 通过 [Exit 2 实现物理级工具调用阻断](https://agentic-patterns.com/patterns/hook-based-safety-guard-rails)。AI 不是"被建议不要做"，而是"物理上做不到"。这一差异决定了约束的有效层级：Prompt 级建议可被忽略，物理阻断则是不可绕过的硬约束。
 
 ### S 安全防护 — Carror OS 9.0 vs 行业均值 3.0
 

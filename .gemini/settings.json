@@ -57,6 +57,24 @@
             "timeout": 3
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-write-lock.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/token_writer.sh",
+            "timeout": 3
+          }
+        ]
       }
     ],
     "BeforeTool": [
@@ -99,6 +117,44 @@
             "timeout": 3
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/turn-counter.sh",
+            "timeout": 3
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-write-lock.sh",
+            "timeout": 10,
+            "decision": "deny"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-edit-scope.sh",
+            "timeout": 3,
+            "decision": "deny"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/compact-detect.sh",
+            "timeout": 3
+          }
+        ]
       }
     ],
     "AfterAgent": [
@@ -108,6 +164,15 @@
             "type": "command",
             "command": "bash .claude/hooks/auto-snapshot.sh",
             "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/stop-drain.sh",
+            "timeout": 10
           }
         ]
       }

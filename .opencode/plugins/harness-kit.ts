@@ -1,17 +1,14 @@
 /**
- * harness-kit.ts — Carror OS OpenCode Plugin
+ * harness-kit.ts — Carror OS OpenCode Plugin (Legacy)
  *
- * 版本：v1.0.0 | 对应 Claude Code harness-kit v6.0.1
+ * 版本：v1.0.1 | 对应 Claude Code harness-kit v6.1.8
  *
- * 覆盖 22 个 Claude Code hook 的 OpenCode 等价实现：
+ * 注意：新的 .opencode/plugins/sylph-hooks.ts 由 generate.py 自动生成，
+ * 覆盖全部 13 个 OpenCode 可移植 hook。本文件为补充实现，提供一些
+ * 旧版工具函数的 OpenCode 等价。
  *
- * - 17 个通过 tool.execute.before/after 完全对齐
- * - 3 个通过 message.updated / session.idle / experimental.session.compacting 变通实现
- * - 2 个（lsp-suggest / flywheel-report 完整报告）因平台 API 限制为简化实现
- *
- * 安装：将此文件放入 .opencode/plugins/ 目录，OpenCode 自动加载
- * 配置：读取项目根 .claude/harness.yaml（与 Claude Code 共享配置）
- */
+ * - auto-generated hook 注册请使用 sylph-hooks.ts（由 python3 .hooks/generate.py install 生成）
+ * - 本文件保留以兼容旧版工作流 */
 
 import type { Plugin } from "@opencode-ai/plugin";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";

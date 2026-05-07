@@ -1,10 +1,9 @@
 #!/bin/bash
 
 # harness-kit:managed v1.0.3
-# PostToolUse:Read 来源标注提醒 - 读取文件后提示引用规范 [INACTIVE: 未注册]
-# R24-S3 修复：恢复因前序 Edit 导致的换行丢失（整行合并 + \n 嵌入）
-# 注意：此脚本存在于磁盘但未注册到 settings.json（R23 僵尸修复时遗漏）。
-# 恢复激活请：settings.json PostToolUse:Read 添加
+# PostToolUse:Read 来源标注提醒 - 读取文件后提示引用规范 [已注册，默认禁用]
+# 已在 settings.json PostToolUse:Read 注册。默认关闭（harness.yaml posttool_read_cite: false）。
+# 启用：harness.yaml → posttool_read_cite: true
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_read_cite" || { echo '{"continue": true}'; exit 0; }

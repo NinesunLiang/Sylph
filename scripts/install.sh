@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.1.8-stable | 日期：2026-05-03
+# 版本：v6.1.8-stable | 日期：2026-05-04
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -32,7 +32,7 @@ for arg in "$@"; do
         --yes|-y) UPGRADE_MODE="force" ;;
         --no-upgrade) UPGRADE_MODE="skip" ;;
         --lang=*) LANG_SPEC="${arg#*=}" ;;
-        --lang) SKIP_NEXT=1 ;;  # consumed below
+        --lang) SKIP_NEXT=1 ;;
         go|node|python|rust|generic)
             [ "${SKIP_NEXT:-0}" -eq 1 ] && { LANG_SPEC="$arg"; SKIP_NEXT=0; continue; }
             POSITIONAL+=("$arg") ;;
@@ -52,13 +52,22 @@ case "$INSTALL_MODE" in
     base|enhanced|full|harness|skills) ;;
     *) log_error "未知模式：$INSTALL_MODE（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
 esac
+
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
 
-# ─── 无损热更新机制 (Safe In-Place Upgrade) ──────────────
+# ─── 无损热更新机制 (Safe In-Place Upgrade) ──────────────────
 BACKUP_DIR=$(mktemp -d)
-# 注意：不要用 trap "rm -rf $BACKUP_DIR" EXIT，脚本中途失败时备份不会被删除。
-# 备份文件在所有场景（包括成功）下保留，由用户手动清理或下次安装时覆盖。
+# 注意：不使用 trap EXIT 删除备份。中途失败时保留备份文件由用户手动清理。
 HAS_BACKUP=false
+
+# 备份已有根目录治理文件，无论是否为升级安装
+for file in CLAUDE.md AGENTS.md; do
+    if [ -f "$file" ]; then
+        cp "$file" "$BACKUP_DIR/"
+        log_info "已安全备份 $file（用户项目配置）"
+        HAS_BACKUP=true
+    fi
+done
 
 if [ -d ".claude" ]; then
     log_warn "检测到已安装 Carror OS (.claude/ 目录已存在)。"
@@ -105,7 +114,7 @@ extract_tar() {
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
         for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill lx-race; do
@@ -115,11 +124,11 @@ case "$INSTALL_MODE" in
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         ;;
     skills)
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
@@ -147,22 +156,44 @@ if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     log_info "OpenCode plugins 已安装（.opencode/plugins/）"
 fi
 
-if [ -f "AGENTS.md" ]; then
-    log_info "AGENTS.md 已存在（主治理文件）"
-else
-    cp "CLAUDE.md" "AGENTS.md" 2>/dev/null && log_info "AGENTS.md 从 CLAUDE.md 生成" || true
+# ─── 用户治理文件合并迁移 ──────────────────────────────────────
+if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
+    USER_CONTENT=""
+    if [ -f "$BACKUP_DIR/AGENTS.md" ]; then
+        USER_CONTENT=$(cat "$BACKUP_DIR/AGENTS.md")
+        log_info "从备份恢复用户 AGENTS.md 内容"
+    elif [ -f "$BACKUP_DIR/CLAUDE.md" ]; then
+        if ! grep -q "^@AGENTS.md" "$BACKUP_DIR/CLAUDE.md" 2>/dev/null; then
+            USER_CONTENT=$(cat "$BACKUP_DIR/CLAUDE.md")
+            log_info "从备份 CLAUDE.md 提取用户项目配置（无 @AGENTS.md 引用）"
+        fi
+    fi
+
+    if [ -n "$USER_CONTENT" ]; then
+        TEMPLATE=$(cat "AGENTS.md")
+        {
+            echo "$USER_CONTENT"
+            echo ""
+            echo "# ════════════════════════════════════════════"
+            echo "# Carror OS 治理框架"
+            echo "# ════════════════════════════════════════════"
+            echo ""
+            echo "$TEMPLATE"
+        } > AGENTS.md
+        log_info "已合并 → AGENTS.md：用户项目配置在前，Carror OS 治理模板在后"
+    fi
 fi
 
+# 确保 CLAUDE.md 为 @-include 跳板格式
 if ! grep -q "^@AGENTS.md" "CLAUDE.md" 2>/dev/null; then
-    CLAUDE_CONTENT=$(cat CLAUDE.md 2>/dev/null)
-    printf "@AGENTS.md\n\n%s\n" "$CLAUDE_CONTENT" > CLAUDE.md.tmp && mv CLAUDE.md.tmp CLAUDE.md
+    CLAUDE_CONTENT=$(cat CLAUDE.md 2>/dev/null || echo "")
+    printf '@AGENTS.md\n\n%s\n' "$CLAUDE_CONTENT" > CLAUDE.md
     log_info "CLAUDE.md 更新为 @-include 跳板格式"
 fi
 
 log_step "验证安装..."
 ACTUAL=$(find .claude -type f 2>/dev/null | wc -l | tr -d ' ')
 HOOKS=$(find .claude/hooks -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
-
 case "$INSTALL_MODE" in
     enhanced) MIN=70;;
     base) MIN=35;;
@@ -172,14 +203,12 @@ esac
 
 ERRORS=0
 chk() { [ -f "$1" ] || { log_warn "缺少：$1"; ERRORS=$((ERRORS+1)); }; }
-
 case "$INSTALL_MODE" in
     enhanced|base|harness)
         chk "CLAUDE.md"; chk ".claude/settings.json"; chk ".claude/harness.yaml"; chk ".claude/index.md"
-        [ "$HOOKS" -ge 22 ] || { log_warn "hooks 不足（$HOOKS/22）"; ERRORS=$((ERRORS+1)); }
+        [ "$HOOKS" -ge 30 ] || { log_warn "hooks 不足（$HOOKS/30）"; ERRORS=$((ERRORS+1)); }
         ;;
 esac
-
 [ "$ACTUAL" -ge "$MIN" ] || { log_warn "文件数不足（$ACTUAL/$MIN）"; ERRORS=$((ERRORS+1)); }
 echo ""
 [ "$ERRORS" -eq 0 ] \
@@ -231,7 +260,7 @@ if [ "$INSTALL_MODE" = "base" ]; then
     echo " 🛡️ 基础版已就绪 (Base Edition)！"
     echo " - 内置 27+ 个底层物理拦截器 (防幻觉、防隐私泄露)。"
     echo " - 提交前输入 /lx-pre-commit 或 /lx-pre-push 即可自动进行门禁审查。"
-    echo " - 若要解锁完整大任务流水线与看板，请运行 bash install.sh enhanced。"
+    echo " - 若要解锁完整大任务流水线与看板，请运行 \`bash install.sh enhanced\`。"
 else
     echo " ⚔️ 增强版已就绪 (Enhanced Edition)！"
     echo " - 使用 /lx-status 查看健康监控面板。"

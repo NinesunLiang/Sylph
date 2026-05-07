@@ -13,6 +13,14 @@ hooks_enabled.auto_snapshot=true
 hooks_enabled.user_correction_detector=true
 hooks_enabled.context_guard=true
 hooks_enabled.error_dna=true
+hooks_enabled.turn_counter=true
+hooks_enabled.write_lock_pre=true
+hooks_enabled.write_lock_post=true
+hooks_enabled.edit_scope=true
+hooks_enabled.flywheel_report=true
+hooks_enabled.compact_detect=true
+hooks_enabled.token_writer=true
+hooks_enabled.stop_drain=true
 hooks_enabled.lsp_suggest=false
 hooks_enabled.subagent_guard=false
 hooks_enabled.skill_flywheel=false
@@ -21,6 +29,8 @@ hooks_enabled.read_tracker=false
 hooks_enabled.edit_quality=false
 hooks_enabled.write_cite=false
 hooks_enabled.rule_anchor=false
+hooks_enabled.read_cite=false
+hooks_enabled.subagent_audit=false
 
 # workflow defaults (from harness.yaml)
 workflow.doc_root=rpe

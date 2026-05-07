@@ -34,9 +34,9 @@ A: 是的。Carror OS 是 MIT 开源项目，框架费 $0。你只需要支付 A
 ### 技术问题
 
 **Q: Hook 是怎么工作的？**
-A: Carror OS 的 32 个 Hook 利用 Claude Code / OpenCode 的底层 Hook 协议，在 AI 的每次工具调用前插入拦截逻辑。当 AI 调用 `ExecuteCommand` 或 `WriteToFile` 等危险工具时，Hook 脚本在毫秒级执行检查。如果命中规则（如 `rm -rf`、明文密钥、超上下文阈值），Hook 返回 `Exit 2` 阻止操作。AI 不是"被建议不要做"，而是"物理上做不到"。
+A: Carror OS 的 30 个注册 Hook 利用 Claude Code / OpenCode 的底层 Hook 协议，在 AI 的每次工具调用前插入拦截逻辑。当 AI 调用 `ExecuteCommand` 或 `WriteToFile` 等危险工具时，Hook 脚本在毫秒级执行检查。如果命中规则（如 `rm -rf`、明文密钥、超上下文阈值），Hook 返回 `Exit 2` 阻止操作。AI 不是"被建议不要做"，而是"物理上做不到"。
 
-**Q: 32 个 Hook 覆盖哪些安全域？**
+**Q: 30 个注册 Hook 覆盖哪些安全域？**
 A: 六大安全域：权限门禁（危险命令拦截）、隐私防线（敏感文件/DLP）、上下文熔断（OOM 防护）、交付验收（证据门禁）、读写时序（未读不可写）、范围冻结（越界修改拦截）。
 
 **Q: varlock 脱敏代理安全吗？**
@@ -46,7 +46,7 @@ A: varlock 使用占位符替换 + 正则匹配实现正向脱敏和反向还原
 A: 目前完整支持 Claude Code（通过 Hook 协议）和 OpenCode（通过 AGENTS.md）。部分支持支持 AGENTS.md 格式的其他 CLI 工具。OS 层面支持 macOS（完整）、Linux（完整）、Windows（通过 WSL）。
 
 **Q: 上下文甜点区交接是怎么实现的？**
-A: context_monitor.py 实时读取本地环境中大模型的真实 Token 消耗量。当任务完成且上下文 ≥50%，下发 context_alert 强制 AI 打断执行、总结状态并运行 /compact 重置会话。当上下文 ≥80%，context-guard.sh 抛 Exit 2 锁死一切写入。两种机制配合实现 AI 永远在最高智商区间接力。
+A: context_monitor.py 读取本地 Token 追踪索引文件中的上下文使用估算值。当任务完成且上下文 ≥50%，向终端输出 context_alert 建议用户执行 /compact 重置会话（当前写入 stderr，对 AI 不可见，需用户手动触发）。当上下文 ≥80%，context-guard.sh 抛 Exit 2 阻止写入操作。80% 熔断为硬阻断，50% 告警为软提示。[已验证: /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/context-guard.sh:50-70]
 
 ---
 
@@ -57,10 +57,10 @@ A: 一行命令：
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- base
 ```
-Base 版包含 32 个 Hook + 10 个门禁 Skill，零学习成本。
+Base 版包含 32 个 Hook + 10 个门禁 Skill（含 `lx-oma-hier` 分层拆解），零学习成本。
 
 **Q: Base 版和 Enhanced 版的区别？**
-A: Base 版 = 32 个 Hook（物理防线）+ 10 个自动化审查 skill（被动触发，全自动运行），零学习成本。Enhanced 版 = Base 全部能力 + 14 个主动式工作流 skill（RPE 流水线、根因分析、DLP 代理等），需要主动学习和调度。
+A: Base 版 = 32 个 Hook（物理防线）+ 10 个自动化审查 skill（含 lx-oma-hier 分层拆解），零学习成本。Enhanced 版 = Base 全部能力 + 14 个主动式工作流 skill（含 lx-race 竞态检测、RPE 流水线、根因分析、DLP 代理等），需要主动学习和调度。
 
 **Q: 我可以自定义 Hook 规则吗？**
 A: 可以。Hook 规则在 .claude/harness.yaml 中配置。你可以在 32 个内置规则的基础上调整阈值（如上下文熔断百分比）、添加自定义拦截模式（正则）、启用/禁用特定 Hook。高级用户还可以编写自己的 Hook 脚本。

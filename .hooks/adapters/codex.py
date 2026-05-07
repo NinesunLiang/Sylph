@@ -53,6 +53,7 @@ class CodexAdapter(BaseAdapter):
             timeout_s = hook_def.get("timeout", 5000) // 1000
             if timeout_s < 1:
                 timeout_s = 1
+            blocking = hook_def.get("blocking", False)
 
             for evt in events:
                 native_event = event_map.get(evt)
@@ -68,6 +69,8 @@ class CodexAdapter(BaseAdapter):
                     "command": f"bash {rel_path}",
                     "timeout": timeout_s,
                 }
+                if blocking:
+                    entry["decision"] = "deny"
 
                 # Check if this event group already has this hook
                 existing_groups = native[native_event]

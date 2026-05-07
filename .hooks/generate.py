@@ -359,7 +359,7 @@ def _do_list(unified: dict[str, Any]) -> None:
                 row += f" {'❌':<12}"
         print(row)
     # Claude-specific summary row
-    row = f"  {'Claude Only (8)':<22} {'—':<6}"
+    row = f"  {'Claude Only (' + str(len(claude_spec)) + ')':<22} {'—':<6}"
     for p in platforms:
         if p == "claude_code":
             row += f" {'✅':<12}"

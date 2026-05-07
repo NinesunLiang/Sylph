@@ -301,6 +301,129 @@ hooks:
       - gemini
       - qwen
 
+  turn_counter:
+    description: "Track conversation turns, inject todo queue at intervals, detect fuzzy commands"
+    events:
+      - prompt:submit
+    script: "turn-counter.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  write_lock_pre:
+    description: "Acquire write lock before file modifications — concurrency guard"
+    events:
+      - tool:before
+    script: "pretool-write-lock.sh"
+    blocking: true
+    timeout: 10000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  write_lock_post:
+    description: "Release write lock after file modifications"
+    events:
+      - tool:after
+    script: "posttool-write-lock.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "audit"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  edit_scope:
+    description: "Enforce edit scope boundary — block edits outside current scope"
+    events:
+      - tool:before
+    script: "pretool-edit-scope.sh"
+    blocking: true
+    timeout: 3000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  flywheel_report:
+    description: "Report previous session flywheel events at session start"
+    events:
+      - session:start
+    script: "flywheel-report.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "report"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  compact_detect:
+    description: "Detect compaction signals and preserve critical context paths"
+    events:
+      - prompt:submit
+    script: "compact-detect.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  token_writer:
+    description: "Track token usage across turns and write to token-tracking index"
+    events:
+      - tool:after
+      - session:start
+    script: "token_writer.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  stop_drain:
+    description: "Drain remaining state on session stop — error-dna transcript scan, token parser, state hygiene"
+    events:
+      - stop
+    script: "stop-drain.sh"
+    blocking: false
+    timeout: 10000
+    strategy: "drain"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
 # ── Claude Code Specific ──────────────────────────────────────────────────
 # These hooks depend on Claude Code's internal tool pipeline (LSP, subagent,
 # skill, plan systems). Not portable to other platforms.
@@ -352,3 +475,15 @@ claude_specific:
     events: [tool:before]
     script: "pretool-rule-anchor.sh"
     reason: "Turn indexing is Claude Code internal"
+
+  read_cite:
+    description: "Cite source references on file reads — depends on Read tool interception"
+    events: [tool:after]
+    script: "posttool-read-cite.sh"
+    reason: "Read tool input/output format is Claude Code specific"
+
+  subagent_audit:
+    description: "Post-hoc subagent usage audit and high-usage flywheel alerting"
+    events: [tool:after]
+    script: "posttool-subagent-audit.sh"
+    reason: "Subagent/Task API is Claude Code internal"

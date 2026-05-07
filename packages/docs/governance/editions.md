@@ -26,7 +26,7 @@
 
 | 能力模块 | 具体包含 | 说明 |
 | :--- | :--- | :--- |
-| **底层防线** (Hooks) | `privacy-gate`, `context-guard`, `permission-gate` 等 32 个 Hook | 负责拦截隐私泄露、危险终端命令、80% Context 内存熔断、记录错误 DNA。 |
+| **底层防线** (Hooks) | `privacy-gate`, `context-guard`, `permission-gate` 等 30 个注册 Hook | 负责拦截隐私泄露、危险终端命令、80% Context 内存熔断、记录错误 DNA。 |
 
 ### 🛡️ Level 2 - Base Edition (基础守护版
 

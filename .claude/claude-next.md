@@ -124,3 +124,18 @@
 触发条件：实现从 Sub-agent 盲审变更为双终端交叉验证后，README.md 仍描述旧模式
 正确行为：每次架构变更后，搜索 `docs/` 和 `README.md` 中所有相关描述并同步更新
 证据：Sub-agent → A→B→A 切换后，README.md 及 20+ 营销文档仍描述旧模式，用户纠正后才修复
+
+### [R30] AI 评估自身环境前必须先检查，禁止用文档默认值代替实际配置
+
+@2026-05-07 hits:1
+触发条件：评估/评分/分析类任务中，AI 引用文档描述而非读取实际配置
+正确行为：必须先检查运行环境（如检查 skill 目录、settings.json、harness.yaml 中的实际开关状态），确认是 Base 还是 Enhanced 等，再基于实际状态做评估。评估报告中标注运行环境版本和检查方式。
+证据：AI 在 Enhanced 环境下运行却按 Base 版文档评分，导致"Enhanced 隐藏"和"不会主动提示"两条扣分不成立。用户纠正后 AI 自检发现是 D3 反模式（项目业务盲区）。
+
+### [R31] gh CLI 写操作是 permission-gate 防御盲区
+
+@2026-05-07 hits:1
+触发条件：AI 执行 `gh release upload` 推送到 GitHub Release，未触发任何 gate 拦截，未征得用户同意。
+正确行为：`gh` 的写操作（release upload/create、pr create/merge、secret set、repo create/delete 等）必须经 permission-gate 拦截，与 git push / rm -rf 同级对待。已新增 `permission_gate.gh_write_regex` 配置，默认匹配 release、pr、issue、repo、variable、secret、workflow 等 gh 写子命令。
+证据：用户批评"越权"——AI 在未询问的情况下直接用 `gh release upload` 推送了外部服务。检查发现 permission-gate.sh 没有针对 gh CLI 的任何检测规则，`gh` 命令不匹配 git push / destructive / sudo 任何已有 regex。这是防御体系的设计遗漏，不是因为用户没配置。
+补强：`permission_gate.gh_write_regex` 默认值为全写操作覆盖，可通过 harness.yaml 自定义缩小/扩大范围。

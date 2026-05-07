@@ -32,7 +32,7 @@ Carror OS: 用户 → AI → [⚠️ Hook 拦截] → 拒绝 / 授权 / 审计
 
 | 层 | 做什么 | 怎么做的 |
 |------|------|---------|
-| **Harness-kit**（内核） | 32 个物理 Hook，在 AI 接触文件系统之前拦截 | `Exit 2` 硬阻断，不是 Prompt 请求 |
+| **Harness-kit**（内核） | 30 个注册 Hook，在 AI 接触文件系统之前拦截 | `Exit 2` 硬阻断，不是 Prompt 请求 |
 | **lx-skills**（用户态） | 24 个工作流 Skill，从 PRD 到提交的全周期 | Markdown 指令集 + 19 个 Python 工具 |
 | **Profiles**（桥接） | 5 种语言环境的一键适配 | YAML 配置，零代码切换 |
 
@@ -42,7 +42,7 @@ Carror OS: 用户 → AI → [⚠️ Hook 拦截] → 拒绝 / 授权 / 审计
 
 ### 1. 你在 AI 要 `rm -rf` 时拔了它的电源
 
-32 个 Hook 覆盖六大安全域：
+30 个注册 Hook 覆盖六大安全域：
 
 | 域 | 代表 Hook | 拦截什么 |
 |------|----------|---------|
@@ -162,7 +162,7 @@ Copilot Custom      ██▌        ██████▌    ██████
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- base
 ```
 
-Base 版：32 个 Hook 安全底座 + 10 个门禁审查 Skill，零学习成本。
+Base 版：30 个注册 Hook 安全底座 + 10 个门禁审查 Skill，零学习成本。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- enhanced

@@ -9,7 +9,7 @@ The **Enhanced Edition** unlocks the full Carror OS -- active workflows, multi-a
 Install it:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- enhanced
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- enhanced
 ```
 
 ## What You Get (Beyond Base)

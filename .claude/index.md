@@ -27,7 +27,7 @@
 |`kernel.md` | 代码执行内核（命名/错误处理/测试要求） | full|
 |`anti-patterns.md` | 14 条反模式（A牙膏输出/B范围/C错误/D记忆/E效率/F推理） | summary|
 |`claude-next.md` | 项目专属教训积累 | summary|
-|`CLAUDE.md` | 宪法宪法 + 6 条铁律 + 工作流原则 | 会话自动加载 |
+|`CLAUDE.md` | 宪法 + 7 条铁律 + 工作流原则 | 会话自动加载 |
 
 ## 记忆系统
 | 路径 | 内容 | 写入时机|
@@ -57,7 +57,7 @@
 |`error-dna` | PostToolUse\|PostToolUseFailure:Bash | 错误模式积累|
 |`inject-project-knowledge` | SessionStart | 注入本文件 + 知识上下文|
 |`pretool-user-correction` | UserPromptSubmit | 纠正信号 → 提示写 claude-next.md|
-|`context-guard` | PreToolUse:.* | Token 监控 + 50%/80% 熔断（全工具）|
+|`context-guard` | PreToolUse:Edit\|Write | Token 监控 + 50%/80% 熔断（写入/编辑）|
 |`privacy-gate` | PreToolUse:Read/Grep/Bash | 密钥文件拦截 + 明文脱敏|
 |`build-validator` | PostToolUse\|PostToolUseFailure:Bash | 编译验证 + 错误追踪|
 |`bash-audit` | PostToolUse\|PostToolUseFailure:Bash | 命令审计日志|
@@ -78,16 +78,24 @@
 |`pretool-write-lock` | PreToolUse:Edit\|Write | OMA 并发锁前置拦截|
 |`token_writer` | PostToolUse:.* / SessionStart | Token 用量追踪 + 重置|
 
-### 磁盘保留但未注册的脚本（共 4 个）
+### 已注册但默认禁用的脚本（共 6 个）
 
-以下脚本存在于磁盘（计入 32 总数）但未在 settings.json 注册，发版前如需激活请自行添加注册：
+以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
 
-| 脚本 | 原事件 | 说明 |
-|------|--------|------|
-| plan-gate.sh | PreToolUse:Write | 计划文档门禁 — Enhanced 专属，Base 版本暂不启用 |
-| proactive-handoff.sh | PostToolUse | 上下文>50%主动交接 — R23 移除反向漂移 |
-| feature-probe.sh | — | 独立工具脚本（非 Hook），L1-L4 证据验证 |
-| posttool-read-cite.sh | PostToolUse:Read | 读取后引用标注 — R23 僵尸，待 Enhanced 再激活 |
+| 脚本 | 事件 | 说明 |
+|------|------|------|
+| plan-gate.sh | PreToolUse:Edit\|Write | 计划文档门禁 — Enhanced 专属 |
+| proactive-handoff.sh | PostToolUse:Write\|Edit | 上下文>50%主动交接 — 默认关闭防反向漂移 |
+| posttool-read-cite.sh | PostToolUse:Read | 读取后引用标注 — 默认关闭防冗余 |
+| lsp-suggest.sh | PreToolUse:Grep | LSP 智能提示 — 默认关闭防 Grep 延迟 |
+| posttool-edit-quality.sh | PostToolUse:Edit\|Write | 编辑质量分析 — 默认关闭防冗余 |
+| skill-flywheel.sh | Stop | 技能飞轮数据收集 — 默认关闭防 Stop 延迟 |
+
+### 独立工具脚本（非 Hook）
+
+| 脚本 | 说明 |
+|------|------|
+| feature-probe.sh | L1-L4 证据验证工具，手动调用 |
 
 ## Language Profile 选择
 

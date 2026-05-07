@@ -18,7 +18,7 @@
 进入你想被 Carror OS 接管的项目目录，一行命令：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- base
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- base
 ```
 
 安装完成后，你的项目下会多出 `AGENTS.md` 和 `.claude/` 目录。

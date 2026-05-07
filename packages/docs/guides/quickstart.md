@@ -5,7 +5,7 @@
 ## 1. Install
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- base
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- base
 ```
 
 ## 2. Start Claude Code

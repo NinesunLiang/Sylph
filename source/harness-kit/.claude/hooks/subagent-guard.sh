@@ -37,7 +37,11 @@ else
     AGENT_TYPE=""
     MAX_TURNS=""
     EFFECTIVE_SOURCE=""
-    TMPFILE=$(mktemp /tmp/subagent-guard-XXXXXX)
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    STATE_DIR="$PROJECT_ROOT/.omc/state"
+    mkdir -p "$STATE_DIR" 2>/dev/null
+    TMPFILE=$(mktemp "${STATE_DIR}/subagent-guard-XXXXXX")
     echo "$INPUT" | python3 -c "
 import sys, json, re, os
 try:

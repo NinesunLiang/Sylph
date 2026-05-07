@@ -2,9 +2,9 @@
 
 # harness-kit:managed v2.1.0
 
-# plan-gate.sh — PreToolUse:Edit Hook [INACTIVE: 未注册]
-# 注意：此脚本存在于磁盘但未注册到 settings.json（R23 移除非活跃 hook）。
-# 恢复激活请：1) 添加 settings.json PreToolUse:Write 条目  2) harness.yaml hooks_enabled.plan_gate=true
+# plan-gate.sh — PreToolUse:Edit Hook [DISABLED: harness.yaml 默认关闭]
+# 注意：此脚本已注册到 settings.json（PreToolUse:Edit|Write），但默认被 harness.yaml plan_gate: false 关闭。
+# 恢复激活请：harness.yaml hooks_enabled.plan_gate=true
 
 # 功能：当编辑 plan.md/executor.md 时，注入 Gate 提醒（软阻断，给 AI 判断空间）
 

@@ -36,6 +36,7 @@ GIT_PUSH_FORCE_RE=$(hc_get "permission_gate.git_push_force_regex" 'git\s+push\s+
 GIT_PUSH_RE=$(hc_get "permission_gate.git_push_regex" 'git\s+push\b')
 DESTRUCTIVE_RE=$(hc_get "permission_gate.destructive_regex" '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b')
 SUDO_RE=$(hc_get "permission_gate.sudo_regex" '^\s*sudo\b|sudo\s')
+GH_WRITE_RE=$(hc_get "permission_gate.gh_write_regex" 'gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review\s+--approve)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|api\s+.*-X\s+(PUT|POST|PATCH|DELETE))\b')
 
 # 危险命令检测
 IS_DANGEROUS=false
@@ -69,6 +70,12 @@ fi
 if echo "$COMMAND" | grep -qE "$SUDO_RE"; then
     IS_DANGEROUS=true
     DANGER_TYPE="sudo"
+fi
+
+# gh 写操作检测（release upload/create, pr create/merge, issue create/close, secret set 等）
+if echo "$COMMAND" | grep -qE "$GH_WRITE_RE"; then
+    IS_DANGEROUS=true
+    DANGER_TYPE="gh external write"
 fi
 
 # 非危险命令 → 放行

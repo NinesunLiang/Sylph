@@ -149,4 +149,18 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
         --transcript "$TRANSCRIPT" --write 2>/dev/null || true
 fi
 
+# Layer 4: State directory hygiene — 1-day shelf life for all files
+if [ -d "$STATE_DIR" ]; then
+    find "$STATE_DIR" -name "*.tmp.*" -mtime +0 -delete 2>/dev/null || true
+    find "$STATE_DIR" -name "harness-smoke-*.log" -mtime +0 -delete 2>/dev/null || true
+    find "$STATE_DIR" -name "snapshot-*.txt" -mtime +0 -delete 2>/dev/null || true
+    for pattern in "harness-smoke-*.log" "snapshot-*.txt" ".completion-evidence-*"; do
+        count=3
+        [[ "$pattern" == "snapshot-*.txt" ]] && count=5
+        ls -t "$STATE_DIR"/$pattern 2>/dev/null | tail -n +$((count+1)) | while read -r f; do
+            rm -f "$f" 2>/dev/null || true
+        done
+    done
+fi
+
 exit 0
