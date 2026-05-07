@@ -80,7 +80,7 @@ extract_tar() {
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（24 hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
         for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill; do
@@ -90,14 +90,14 @@ case "$INSTALL_MODE" in
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（24 hooks）"
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 23 个 Skills）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（24 hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（27+ hooks）"
         ;;
     skills)
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 23 个 Skills）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
 esac
 
@@ -193,7 +193,7 @@ echo " 下一步"
 echo "============================================"
 if [ "$INSTALL_MODE" = "base" ]; then
     echo " 🛡️ 基础版已就绪 (Base Edition)！"
-    echo " - 内置 24 个底层物理拦截器 (防幻觉、防隐私泄露)。"
+    echo " - 内置 27+ 个底层物理拦截器 (防幻觉、防隐私泄露)。"
     echo " - 提交前输入 /lx-pre-commit 或 /lx-pre-push 即可自动进行门禁审查。"
     echo " - 若要解锁完整大任务流水线与看板，请运行 \`bash install.sh enhanced\`。"
 else

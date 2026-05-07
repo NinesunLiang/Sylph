@@ -18,6 +18,13 @@ if command -v jq &>/dev/null; then
     STDOUT_RESULT=$(echo "$INPUT" | jq -r '.tool_response.stdout // empty' 2>/dev/null)
     STDERR_RESULT=$(echo "$INPUT" | jq -r '.tool_response.stderr // empty' 2>/dev/null)
     EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_response.exit_code // "0"' 2>/dev/null)
+    # R23: PostToolUseFailure schema — 顶层 error 字段，无 tool_response
+    EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null)
+    TOP_ERROR=$(echo "$INPUT" | jq -r '.error // empty' 2>/dev/null)
+    if [ "$EVENT" = "PostToolUseFailure" ]; then
+        [ "$EXIT_CODE" = "0" ] && EXIT_CODE="1"
+        [ -z "$STDERR_RESULT" ] && STDERR_RESULT="$TOP_ERROR"
+    fi
 else
     COMMAND=$(echo "$INPUT" | python3 -c "
 import sys, json
@@ -87,9 +94,10 @@ export FULL_OUTPUT
 export EXIT_CODE
 export LOG_FILE
 export PROJECT_ROOT
+export SCRIPT_DIR
 
 RESULT=$(python3 - <<'PYEOF'
-import json, os, re
+import json, os, re, sys
 from datetime import datetime, timezone
 
 command = os.environ.get('COMMAND', '')
@@ -97,10 +105,11 @@ full_output = os.environ.get('FULL_OUTPUT', '')
 exit_code = os.environ.get('EXIT_CODE', '1')
 log_file = os.environ.get('LOG_FILE', '')
 project_root = os.environ.get('PROJECT_ROOT', '')
+script_dir = os.environ.get('SCRIPT_DIR', '')
 
 timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-def classify_and_suggest(output, cmd):
+def _classify_and_suggest_fallback(output, cmd):
     categories = []
     # --- Go 错误 ---
     if re.search(r'\.go:\d+:\d+:', output):
@@ -242,6 +251,22 @@ def classify_and_suggest(output, cmd):
             ]
         })
     return categories
+
+# Try shared error_classifier.py first
+_ec_path = os.path.abspath(os.path.join(script_dir, '..', 'scripts', 'error_classifier.py'))
+_ec_available = False
+if os.path.exists(_ec_path):
+    try:
+        sys.path.insert(0, os.path.dirname(_ec_path))
+        from error_classifier import classify_error as _ec_classify
+        def classify_and_suggest(output, cmd):
+            return _ec_classify(cmd, exit_code, output)
+        _ec_available = True
+    except Exception:
+        pass
+
+if not _ec_available:
+    classify_and_suggest = _classify_and_suggest_fallback
 
 errors = classify_and_suggest(full_output, command)
 

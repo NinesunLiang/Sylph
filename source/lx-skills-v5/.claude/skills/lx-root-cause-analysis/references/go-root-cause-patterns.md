@@ -1,7 +1,6 @@
 # Go 根因模式
 
 ## 常见 Go 根因分类
-
 | 模式 | 典型根因 | 出现于 Why 层级|
 |------|---------|---------------|
 |Goroutine 泄漏 | 缺少 `ctx.Done()` / 无 `done` channel / 无界 `go func` | Why 1-2|
@@ -12,7 +11,6 @@
 |错误吞没 | `recover()` 静默处理 / `_` 丢弃错误 | Why 2 |
 
 ## 症状专用搜索命令
-
 | 症状 | 搜索命令|
 |------|---------|
 |Goroutine 泄漏 | `rg "go func" --type go` + 检查是否有对应的 `done`/`cancel`；`rg "ctx.Done()" --type go`|
@@ -23,7 +21,6 @@
 |OOM / 内存泄漏 | `go tool pprof http://localhost/debug/pprof/heap`；在循环中 `rg "append(" --type go` |
 
 ## go-zero 专用模式
-
 | 模式 | 根因 | Why 层级|
 |------|------|---------|
 |ServiceContext 泄漏 | ServiceContext 未正确初始化或连接未关闭（DB/Redis 句柄泄漏） | Why 2-3|
@@ -32,14 +29,13 @@
 
 ## go-zero 调试命令
 
-```
-bash# 检查 ServiceContext 连接清理rg "svcCtx\\\." --type go | grep -v "_test.go" | grep -v "Close\\\|cleanup"
+```bash
+# 检查 ServiceContext 连接清理rg "svcCtx\\\." --type go | grep -v "_test.go" | grep -v "Close\\\|cleanup"
 # 检查 RPC 调用是否传递 ctx（context.Background() = 可疑）rg "context\\\.Background\\\(\\\)" --type go -A2 | grep -i "rpc\\\|call\\\|invoke"
 # 检查 logx.Error 后跟 return nil（错误吞没）# 使用 AST-grep: ast-grep -p 'logx.Error($ERR)' --lang go
 ```
 
 ## Go 版本约束
-
 | 版本 | 对根因分析的影响|
 |------|---------------|
 |< 1.21 | 无 `log/slog`；若项目同时使用 logx + slog，需在 Why 链中区分日志来源|

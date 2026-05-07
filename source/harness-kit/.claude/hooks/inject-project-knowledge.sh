@@ -131,7 +131,7 @@ fi
 rm -f "$PROJECT_ROOT/.omc/state/lsp-suggested"
 
 # 清除 Read 追踪日志（新会话重新追踪）
-rm -f "$PROJECT_ROOT/.omc/state/read-files.log" "$PROJECT_ROOT/.omc/state/read-files.log.lock"
+rm -f "$PROJECT_ROOT/.omc/state/read-tracker.txt" "$PROJECT_ROOT/.omc/state/read-tracker.txt.lock"
 
 # 注入上次会话交接备忘录（优先于快照，内容更丰富）
 HANDOFF_FILE="$PROJECT_ROOT/.omc/state/session-handoff.md"
@@ -175,28 +175,35 @@ try:
     with open(sys.argv[1]) as f:
         dna = json.load(f)
 
-    unfixed = [e for e in dna if e.get('status') != 'fixed']
-    reopened = [e for e in dna if e.get('status') == 'reopened']
+    signatures = dna.get('error_signatures', {})
 
-    if unfixed or reopened:
+    reopened_errors = {}
+    unfixed_errors = {}
+
+    for sig, entry in signatures.items():
+        status = entry.get('status', 'active')
+        if status == 'reopened':
+            reopened_errors[sig] = entry
+        elif status != 'fixed':
+            unfixed_errors[sig] = entry
+
+    if reopened_errors or unfixed_errors:
         print("[错误记忆]")
-        if reopened:
-            print("⚠️ 反复出现的错误:")
-            for e in reopened[:3]:
-                sig = e.get('signature', '(unknown)')[:80]
+        if reopened_errors:
+            print("反复出现的错误:")
+            for sig, e in list(reopened_errors.items())[:3]:
                 count = e.get('count', 1)
                 fix_count = e.get('fix_count', 0)
-                print(f" - [{count}次, 修过{fix_count}次] {sig}")
+                message = e.get('message', '(unknown)')[:80]
+                print(f" - [{count}次, 修过{fix_count}次] {message}")
                 if e.get('fix_context'):
-                    print(f" 上次修复相关文件: {', '.join(e['fix_context'])}")
-        if unfixed:
-            new_errors = [e for e in unfixed if e.get('status') != 'reopened']
-            if new_errors:
-                print("未解决的错误:")
-                for e in new_errors[:3]:
-                    sig = e.get('signature', '(unknown)')[:80]
-                    count = e.get('count', 1)
-                    print(f" - [{count}次] {sig}")
+                    print(f"  上次修复相关文件: {', '.join(e['fix_context'])}")
+        if unfixed_errors:
+            print("未解决的错误:")
+            for sig, e in list(unfixed_errors.items())[:3]:
+                count = e.get('count', 1)
+                message = e.get('message', '(unknown)')[:80]
+                print(f" - [{count}次] {message}")
         print("---")
 except Exception:
     pass

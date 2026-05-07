@@ -100,7 +100,7 @@ cd @
 
 **🛡️ 选项 A：安装"基础版" (Base Edition)**
 
-适合只想要 AI 变规矩、不犯错，不想学习任何新指令的你。安装后，29 个底层物理拦截器将在后台静默运行（防幻觉、防隐私泄露、80% Context OOM 熔断）。你只管正常让 AI 写代码，出错时它在底层默默扫除漏洞和幻觉。
+适合只想要 AI 变规矩、不犯错，不想学习任何新指令的你。安装后，32 个底层物理拦截器将在后台静默运行（防幻觉、防隐私泄露、80% Context OOM 熔断）。你只管正常让 AI 写代码，出错时它在底层默默扫除漏洞和幻觉。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- base
@@ -108,7 +108,7 @@ curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh
 
 **⚔️ 选项 B：安装"增强版" (Enhanced Edition)**
 
-适合接手复杂重构、大型特性开发、深水区 Debug 的资深工程师。解锁全部 23 款主动工作流流水线（RPE 工业级开发、双终端交叉验证对抗、DLP 脱敏代理等），让你"一人成军"。
+适合接手复杂重构、大型特性开发、深水区 Debug 的资深工程师。解锁全部 24 款主动工作流流水线（RPE 工业级开发、双终端交叉验证对抗、DLP 脱敏代理等），让你"一人成军"。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh | bash -s -- enhanced

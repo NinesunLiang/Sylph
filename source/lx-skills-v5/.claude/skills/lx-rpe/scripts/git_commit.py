@@ -6,7 +6,8 @@ git_commit.py — lx-rpe Step 8 严格 Git 提交脚本
 """
 import argparse, subprocess, sys, json
 def run(cmd, capture=True):
-    r = subprocess.run(cmd, shell=True, capture_output=capture, text=True)
+    # nosec B602: skill 层 CLI 工具，cmd 为内部 git 命令拼接，非用户原始输入
+    r = subprocess.run(cmd, shell=True, capture_output=capture, text=True)  # nosec B602
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 def main():
     p = argparse.ArgumentParser()

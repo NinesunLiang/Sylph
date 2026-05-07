@@ -2,7 +2,7 @@
 
 # harness-kit:managed v1.0.0
 
-# context-guard.sh — PreToolUse:Edit/Write/Bash Hook
+# context-guard.sh — PreToolUse:.* Hook (R26: 全工具走阈值, see claude-next.md)
 
 # 功能：真实 Context Token 百分比硬阻断 (Hard Gate)
 
@@ -16,23 +16,21 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "context_guard" || exit 0
 
-# 仅拦截变更操作，允许 Read、Grep 继续执行以便用户查看上下文
+# R26: 产品定位"冷酷无情 AI 管理员"要求 95% 上下文时任何工具都应受门禁。
+# 原白名单 (edit/write/bash) 与 R19 settings.json matcher=.* 形成漂移：
+#   matcher 派发所有事件 → 脚本又主动放行 Read/Grep → 真实 hook 行为与产品承诺不符。
+# 现在不再在脚本层过滤工具名，全工具统一走阈值判断。
 INPUT=$(cat)
-if command -v jq &>/dev/null; then
-    TOOL=$(echo "$INPUT" | jq -r '.tool // empty' 2>/dev/null)
-else
-    TOOL=$(echo "$INPUT" | grep -o '"tool"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
-fi
 
-if [ "$TOOL" != "edit" ] && [ "$TOOL" != "write" ] && [ "$TOOL" != "bash" ]; then
-    exit 0
-fi
+# 从 harness config 读取可配置阈值，传递给 Python 探针
+WARN_PCT=$(hc_get "context_guard.warn_threshold" "50")
+DANGER_PCT=$(hc_get "context_guard.danger_threshold" "80")
 
-# 执行探针脚本计算真实百分比
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
 if [ -x "$PYTHON_SCRIPT" ]; then
-    RESULT=$(python3 "$PYTHON_SCRIPT" 2>/dev/null)
+    RESULT=$(CONTEXT_WARN_THRESHOLD="$WARN_PCT" CONTEXT_DANGER_THRESHOLD="$DANGER_PCT" \
+        python3 "$PYTHON_SCRIPT" 2>/dev/null)
     IS_DANGER=$(echo "$RESULT" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -43,11 +41,30 @@ d = json.load(sys.stdin)
 print(d.get('percentage', 0))" 2>/dev/null)
 
     if [ "$IS_DANGER" = "true" ]; then
-        echo "🚫 [Context Guard 硬阻断] 当前会话上下文占比已达 ${PCT}%！" >&2
-        echo "为了防止灾难性的幻觉、指令遗忘或代码损毁，已强制拦截了你的写/执行操作。" >&2
-        echo "请立刻：运行 \`/compact\` 压缩会话，或开启一个新的分支对话。" >&2
-        echo "👉 Re-insp-Kernel-Design:1.2-ContextGuard_OOMKill" >&2
+        echo "$(date +%Y-%m-%d),context_guard_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
+        cat >&2 <<EOF
+
+🚫 [Context Guard 硬阻断] 当前会话上下文占比已达 ${PCT}%（危险阈值: ${DANGER_PCT}%，警告阈值: ${WARN_PCT}%）！
+
+为了防止灾难性的幻觉、指令遗忘或代码损毁，已强制拦截了你的写/执行操作。
+
+请选择：
+  1. 运行 /compact 压缩会话
+  2. 开启新分支对话
+  3. 强制覆盖（风险自负）
+
+输入数字 (1-3):
+EOF
         exit 2
+    fi
+fi
+
+# Sweet-spot / Hand-off Alert: inject into AI context via additionalContext
+if [ -x "$PYTHON_SCRIPT" ]; then
+    SWEET_WARNING=$(echo "$RESULT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('sweet_spot_warning',''))" 2>/dev/null)
+    if [ -n "$SWEET_WARNING" ]; then
+        SWEET_JSON=$(echo "$SWEET_WARNING" | python3 -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.read().strip())))" 2>/dev/null)
+        printf '{"continue":true,"hookSpecificOutput":{"additionalContext":%s}}\n' "$SWEET_JSON"
     fi
 fi
 

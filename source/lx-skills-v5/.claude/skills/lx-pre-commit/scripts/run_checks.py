@@ -27,7 +27,8 @@ def write_trace(event: dict):
         pass
 
 def run(cmd):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # nosec B602: skill 层 CLI 工具，cmd 来自本文件内静态拼接（go/node 命令），非用户原始输入
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
     return r.returncode, r.stdout, r.stderr
 
 def check_go():

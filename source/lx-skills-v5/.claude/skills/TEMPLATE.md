@@ -1,17 +1,16 @@
 # Skill 模板 — 新建 skill 时复制此文件
 
->
+> >
 > **目录结构（三层规范 v6.0.0）**
->
-```
+> ```
 > skills/lx-{name}/
 > ├── SKILL.md ← AI 判断层（必须）
 > ├── scripts/ ← 确定性执行层（有固定逻辑时创建）
 > │ └── xxx.py ← 纯 Python，exit code，JSON 输出
 > └── references/ ← 按需知识层（有大块结构化知识时创建）
 > └── xxx.md ← SKILL.md 写死加载时机
->
-```
+> >
+> ```
 > **判断标准**：
 > - 步骤固定、无需 AI 判断 → `scripts/`
 > - 大块结构化知识（
@@ -19,8 +18,9 @@
 > - 需要 AI 语义理解才能执行 → 留在 `SKILL.md`
 > 复制 `.claude/skills/lx-{name}/SKILL.md` 并替换所有 `{name}`、`{description}` 等占位符。
 
-```
-yaml---name: lx-{name}description: "{一句话描述}"when_to_use: "Use when user says '{trigger1}', '{trigger2}'."model: sonnetargument-hint: "[参数提示]"paths: - "*.{ext}"harness_version: ">=1.1.0"---
+```yam
+l
+---name: lx-{name}description: "{一句话描述}"when_to_use: "Use when user says '{trigger1}', '{trigger2}'."model: sonnetargument-hint: "[参数提示]"paths: - "*.{ext}"harness_version: ">=1.1.0"---
 # {Skill 标题}
 ## 原子化声明
 > 本 skill 遵循 [skill-atomization-guide.md](../../skill-atomization-guide.md) 架构分层。
@@ -34,7 +34,7 @@ yaml---name: lx-{name}description: "{一句话描述}"when_to_use: "Use when use
 |verifier | `../../nodes/verifier.md` | 验证修复（如适用）|
 |gate_checker | `../../nodes/gate_checker.md` | Gate 判定（如适用）|
 |report_generator | `../../nodes/report_generator.md` | 报告生成|
-|behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |
+|behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |\|
 ### 引用的通用 Schema
 | Schema | 路径 | 用途|
 |--------|------|------|
@@ -44,14 +44,14 @@ yaml---name: lx-{name}description: "{一句话描述}"when_to_use: "Use when use
 |scan_report | `../../schemas/atomic/scan_report.yaml` | 报告|
 |fix_record | `../../schemas/atomic/fix_record.yaml` | 修复记录|
 |gate_result | `../../schemas/atomic/gate_result.yaml` | Gate 判定（如适用）|
-|verdict | `../../schemas/atomic/verdict.yaml` | 最终判定 |
+|verdict | `../../schemas/atomic/verdict.yaml` | 最终判定 |\|
 ### 引用的 task_sys 组件
 | 组件 | 路径 | 用途|
 |------|------|------|
 |统一交付 Schema | `../../task_sys/unified_delivery_schema.md` | 输出格式统一|
-|上下文守卫 | `../../task_sys/context_guard.md` | 长会话上下文总结 |
+|上下文守卫 | `../../task_sys/context_guard.md` | 长会话上下文总结 |\|
 ### 状态机
-> 说明本 skill 的状态机类型：
+> > 说明本 skill 的状态机类型：
 > - **scan→fix→re-scan 循环**（审查类）
 > - **analyze→generate→verify 流程**（生成类）
 > - **门禁型**（Gate 链）
@@ -63,23 +63,18 @@ yaml---name: lx-{name}description: "{一句话描述}"when_to_use: "Use when use
 | 不做的操作 | 原因 | 推荐替代|
 |-----------|------|---------|
 |{不做的操作 1} | {原因} | 使用 {替代 skill}|
-|{不做的操作 2} | {原因} | 使用 {替代 skill} |
+|{不做的操作 2} | {原因} | 使用 {替代 skill} |\|
 ---
 ## 执行流程
 ### Step 0: 入口检查
-```
-b
-a
-s
-h
+```bash
 #
 检查项目是否适用本 skill
 
 ```
 
 ### Step 1: 解析目标
-加载 `@../../nodes/target_resolver.md`，传入 `$ARGUMENTS`。
-- 过滤规则：保留/排除的文件类型
+加载 `@../../nodes/target_resolver.md`，传入 `$ARGUMENTS`。- 过滤规则：保留/排除的文件类型
 
 ### Step 2: 收集项目上下文
 加载 `@../../nodes/context_collector.md`，收集：框架版本、配置、已知问题。
@@ -105,9 +100,5 @@ h
 ### Step 7: 输出报告
 加载 `@../../nodes/report_generator.md`，传入 `scan_report` + `verdict`。
 
-## 错误恢复与中止条件
-- 不适用场景 → "不适用"报告
-- 过滤后无目标文件 → "无变更"报告
-- 全部命中为误报 → "通过"报告
-- 待确认项超过 5 个 → 暂停，请求用户输入
+## 错误恢复与中止条件- 不适用场景 → "不适用"报告- 过滤后无目标文件 → "无变更"报告- 全部命中为误报 → "通过"报告- 待确认项超过 5 个 → 暂停，请求用户输入
 ```

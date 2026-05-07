@@ -15,7 +15,7 @@ INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
-READ_LOG="$STATE_DIR/read-files.log"
+READ_LOG="$STATE_DIR/read-tracker.txt"
 
 # 提取 file_path 字段
 if command -v jq &>/dev/null; then
@@ -43,6 +43,21 @@ fi
 
 # 确保状态目录存在
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+
+# 轮转：超过配置行数时归档
+ROTATION_LINE_COUNT=$(hc_get "read_tracker.rotation_line_count" "500")
+ARCHIVE_GENS=$(hc_get "read_tracker.archive_generations" "4")
+if [ -f "$READ_LOG" ]; then
+    LINE_COUNT=$(wc -l < "$READ_LOG" 2>/dev/null || echo 0)
+    if [ "$LINE_COUNT" -gt "$ROTATION_LINE_COUNT" ] 2>/dev/null; then
+        i=$ARCHIVE_GENS
+        while [ "$i" -ge 1 ]; do
+            [ -f "${READ_LOG}.${i}" ] && mv "${READ_LOG}.${i}" "${READ_LOG}.$((i+1))" 2>/dev/null
+            i=$((i - 1))
+        done
+        [ -f "$READ_LOG" ] && mv "$READ_LOG" "${READ_LOG}.1" 2>/dev/null
+    fi
+fi
 
 # 去重写入（工具调用为顺序执行，竞态风险极低）
 if [ -f "$READ_LOG" ] && grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then

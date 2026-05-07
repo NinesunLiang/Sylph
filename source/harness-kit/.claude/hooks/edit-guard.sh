@@ -17,7 +17,7 @@ INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
-READ_LOG="$STATE_DIR/read-files.log"
+READ_LOG="$STATE_DIR/read-tracker.txt"
 
 # 提取 file_path 字段
 if command -v jq &>/dev/null; then
@@ -38,13 +38,19 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 # 仅检查配置的源代码文件扩展名
+# R18 修复：case 的 * glob 不跨 /，先 basename 再匹配
+# R24-S3 修复：set -f 禁用 pathname expansion，避免 cwd 有 main.go 时 $SOURCE_EXT 被展开为具体文件名
 SOURCE_EXT=$(hc_get "project.source_extensions" "*.go")
+_BASE=$(basename "$FILE_PATH")
 _MATCH=false
+set -f
 for ext in $SOURCE_EXT; do
-    case "$FILE_PATH" in
+    # shellcheck disable=SC2254  # glob ${ext} is intentional (matches "*.go" as pattern)
+    case "$_BASE" in
         ${ext}) _MATCH=true; break ;;
     esac
 done
+set +f
 [ "$_MATCH" = false ] && exit 0
 
 # 规范化路径

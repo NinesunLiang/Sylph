@@ -1,7 +1,6 @@
 # Prohibited Actions & Danger Signals
 
 ## Prohibited Actions
-
 Before every action, self-check against these. If triggered → stop → return to current Phase:
 | Code | Prohibited | Correct Action|
 |---|---|---|
@@ -21,7 +20,6 @@ Before every action, self-check against these. If triggered → stop → return 
 |X14 | Single-run verification for intermittent bugs | Use `-count=20` or higher |
 
 ## Danger Signal Self-Check
-
 If you catch yourself thinking any of these → stop → re-analyze in current Phase:
 | Dangerous Thought | Violation|
 |-------------------|-----------|

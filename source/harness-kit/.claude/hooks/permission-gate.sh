@@ -74,35 +74,45 @@ fi
 # 非危险命令 → 放行
 [ "$IS_DANGEROUS" = false ] && exit 0
 
-# 检查权限申请标记文件（由 AI 对话生成）
+# ─── 随机验证码审批机制 ──────────────────────────
+# 原理：Hook 生成随机 hex 码写入 state，阻断时仅在用户终端打印该码。
+# AI 无法预知验证码，只有用户手动 echo 验证码到标记文件才能放行。
+# 这从根本上解决了旧版「AI 自写标记文件绕过审批」的问题。
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 PERMISSION_MARKER="$STATE_DIR/permission-approved"
+PERMISSION_REQUIRED="$STATE_DIR/permission-required"
 
-if [ -f "$PERMISSION_MARKER" ]; then
-    # 检查标记文件是否在 5 分钟内（防过期）
-    if command -v python3 &>/dev/null; then
-        FRESH=$(python3 -c "import os, time
+# 检查是否有待处理的验证码（即有未完成的审批流程）
+if [ -f "$PERMISSION_REQUIRED" ]; then
+    EXPECTED_CODE=$(cat "$PERMISSION_REQUIRED" 2>/dev/null)
+    if [ -f "$PERMISSION_MARKER" ]; then
+        ACTUAL_CODE=$(cat "$PERMISSION_MARKER" 2>/dev/null)
+        # 检查标记文件新鲜度（5分钟内有效）
+        if [ "$ACTUAL_CODE" = "$EXPECTED_CODE" ]; then
+            if command -v python3 &>/dev/null; then
+                FRESH=$(python3 -c "import os, time
 try:
     age = time.time() - os.path.getmtime('$PERMISSION_MARKER')
     print('yes' if age < 300 else 'no')
 except:
     print('no')" 2>/dev/null)
-    else
-        FRESH="yes"
-    fi
-    if [ "$FRESH" = "yes" ]; then
-        # 只要标记文件存在且非空，即视为已授权（简化：一句话理由即可）
-        if [ -s "$PERMISSION_MARKER" ]; then
-            # 有效授权，消费标记文件
-            rm -f "$PERMISSION_MARKER"
-            exit 0
+            else
+                FRESH="yes"
+            fi
+            if [ "$FRESH" = "yes" ]; then
+                # 验证码匹配 → 有效授权，清理并放行
+                rm -f "$PERMISSION_MARKER" "$PERMISSION_REQUIRED"
+                exit 0
+            fi
         fi
     fi
+    # 标记文件过期或验证码不匹配 → 清理旧码，重新生成
+    rm -f "$PERMISSION_REQUIRED"
 fi
 
-# 阻断：无有效权限申请
+# 阻断：无有效权限申请 → 生成随机验证码，写入 state 文件
 case "$DANGER_TYPE" in
     "git push --force")
         SEVERITY="🔴 致命" ;;
@@ -112,11 +122,25 @@ case "$DANGER_TYPE" in
         SEVERITY="🟡 高危" ;;
 esac
 
+# 生成随机 8 位 hex 验证码（AI 无法预知，只在用户终端显示）
+APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "perm-$$-$(date +%s)")
+echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
+
 cat >&2 <<EOF
-⛔ BLOCKED ($SEVERITY): $DANGER_TYPE — 请先说明理由。
-执行前写入一句话理由即可放行：
-  echo '理由说明' > $PERMISSION_MARKER
-示例：echo '提交标签分析终态防护功能' > $PERMISSION_MARKER
+
+[Permission Gate 警报] 请用 Markdown 表格向用户展示以下危险命令，并通过原生 AskUserQuestion 表单询问处置方式（不要让用户手敲数字）：
+
+| 项 | 值 |
+|---|---|
+| 危险等级 | ${SEVERITY} |
+| 命令类型 | ${DANGER_TYPE} |
+| 完整命令 | \`${COMMAND}\` |
+
+用户选择后 AI 执行对应动作：
+  批准执行 → 告知用户在终端运行: echo '${APPROVAL_CODE}' > ${PERMISSION_MARKER}
+               然后重新触发该命令（验证码 5 分钟内有效）
+  取消操作 → 保持阻断，回到任务循环
+  修改命令 → 询问用户新命令，不写标记文件
+
 EOF
-echo "👉 Re-insp-Kernel-Design:1.4-PermissionGate_Block" >&2
 exit 2

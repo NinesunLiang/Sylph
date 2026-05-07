@@ -41,7 +41,7 @@ Carror OS:     User → AI → [⚠️ Hook Intercept] → Deny / Authorize / Au
 ```
 Carror OS
 ├── harness-kit          ← Kernel Layer: Defense & Governance
-│   └── 29 physical Hooks that intercept AI at the OS level
+│   └── 32 physical Hooks that intercept AI at the OS level
 └── lx-skills-v5         ← Userland: Capability & Workflow
     └── 23 Skills for task orchestration & code quality
 ```
@@ -57,10 +57,10 @@ Carror OS says **`Exit 2` — physically blocked.**
 ## Quick Start
 
 ```bash
-# Base Edition — 29 Hooks + 6 Gate Skills, zero learning curve
+# Base Edition — 32 Hooks + 10 Gate Skills, zero learning curve
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- base
 
-# Enhanced Edition — Full 23-Skill arsenal + task pipelines
+# Enhanced Edition — Full 24-Skill arsenal + task pipelines
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- enhanced
 ```
 
@@ -70,7 +70,7 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 
 ## What's Inside
 
-### 🔒 The Hard Gates (29 Physical Hooks)
+### 🔒 The Hard Gates (32 Physical Hooks)
 
 | Domain | Hook | What It Blocks |
 |--------|------|----------------|
@@ -81,7 +81,7 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 | Edit Guard | `edit-guard.sh` | Editing files AI hasn't read yet |
 | Scope | `pretool-edit-scope.sh` | Files outside the current task scope |
 
-**All 29 Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage.**
+**All 32 Hooks have passed L1-L4 layered testing (manual acceptance + auto Hook validation + code scanning + format gates): 98 PASS / 0 FAIL, ShellCheck/Bandit security scans: 0 real defects, and industry standard compliance mapping (OWASP ASVS v4.0.3 / MITRE ATLAS / NIST AI RMF 1.0): 75/75 coverage.**
 
 ### ⚔️ The Skill Arsenal (23 Capabilities)
 
@@ -102,7 +102,7 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 | Defense Layer | **Exit 2 Physical Block** | Black-box | Prompt suggestion | Hook primitives |
 | DLP | **Bidirectional proxy** | None | None | None |
 | Context Drift | **3-layer auto-prevention** | Unknown | None | Manual /compact |
-| A/B Blind Review | **Sub-agent adversarial** | None | None | None |
+| A→B→A Cross-Verify | **A→B→A adversarial** | None | None | None |
 | Concurrency | **File lock + MECE** | Built-in | None | None |
 | Price | **$0** | $20-500/mo | $20-40/mo | $20/mo |
 | Auditability | **Fully open source** | Black-box | Partially open | Closed |
@@ -152,9 +152,9 @@ It's not a tool that helps AI write faster. It's the thing that stops AI from de
 
 The three-tier architecture reflects this:
 
-1. **Harness Only** — 29 silent interceptors. Zero cognitive load. AI is just wearing handcuffs.
-2. **Base Edition** — Adds 6 automated review gates. Passive, invisible, always on.
-3. **Enhanced Edition** — Full 23-skill arsenal. Active orchestration. Needs a commander.
+1. **Harness Only** — 32 silent interceptors. Zero cognitive load. AI is just wearing handcuffs.
+2. **Base Edition** — Adds 10 automated review gates. Passive, invisible, always on.
+3. **Enhanced Edition** — Full 24-skill arsenal. Active orchestration. Needs a commander.
 
 You choose how much control you want. The brakes never come off.
 

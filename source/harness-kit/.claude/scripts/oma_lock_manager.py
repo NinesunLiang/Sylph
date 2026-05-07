@@ -34,7 +34,40 @@ LOCK_DIR = PROJECT_ROOT / ".omc" / "locks"
 STATE_DIR = PROJECT_ROOT / ".omc" / "state"
 OBSERVABILITY_FILE = STATE_DIR / "locks.json"
 TIMEOUT_SEC = float(os.environ.get("OMA_LOCK_TIMEOUT", 60.0))
-MAX_OBSERVABILITY_EVENTS = 500
+
+
+def _read_harness_config():
+    """Read harness config from cache file, with env var override."""
+    root = get_project_root()
+    cache_file = root / ".omc" / "state" / ".harness-cache"
+    config = {}
+    if cache_file.exists():
+        try:
+            for line in cache_file.read_text().splitlines():
+                if '=' in line:
+                    k, v = line.split('=', 1)
+                    config[k] = v
+        except Exception:
+            pass
+    return config
+
+
+_harness_config = _read_harness_config()
+
+MAX_OBSERVABILITY_EVENTS = int(os.environ.get(
+    "OMA_MAX_OBSERVABILITY_EVENTS",
+    _harness_config.get("oma_lock_manager.max_observability_events", "500")
+))
+
+INITIAL_BACKOFF = float(os.environ.get(
+    "OMA_INITIAL_BACKOFF",
+    _harness_config.get("oma_lock_manager.initial_backoff", "0.1")
+))
+
+MAX_BACKOFF = float(os.environ.get(
+    "OMA_MAX_BACKOFF",
+    _harness_config.get("oma_lock_manager.max_backoff", "1.0")
+))
 
 # Ensure directories exist at import time
 LOCK_DIR.mkdir(parents=True, exist_ok=True)
@@ -119,7 +152,7 @@ def _record_observability(action: str, target_path: str, owner: str, success: bo
 def acquire_lock(target_path: str, owner: str) -> bool:
     os.makedirs(LOCK_DIR, exist_ok=True)
     lock_file = get_lock_file(target_path)
-    base_sleep = 0.1
+    base_sleep = INITIAL_BACKOFF
 
     lock_data = {
         "locked_by": owner,
@@ -179,7 +212,7 @@ def acquire_lock(target_path: str, owner: str) -> bool:
                 sys.stdout.flush()
                 # Exponential backoff with jitter to prevent thundering herd
                 time.sleep(base_sleep + random.uniform(0, 0.1))
-                base_sleep = min(1.0, base_sleep * 1.5)
+                base_sleep = min(MAX_BACKOFF, base_sleep * 1.5)
 
             except (json.JSONDecodeError, OSError):
                 time.sleep(0.1)

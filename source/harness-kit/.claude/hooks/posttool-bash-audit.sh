@@ -13,6 +13,13 @@ if command -v jq &>/dev/null; then
     COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
     EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_response.exit_code // empty' 2>/dev/null)
     STDERR_OR_STDOUT=$(echo "$INPUT" | jq -r '.tool_response.stderr // .tool_response.stdout // empty' 2>/dev/null | head -c 500)
+    # PostToolUseFailure fallback: top-level `error`, no tool_response
+    EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty' 2>/dev/null)
+    TOP_ERROR=$(echo "$INPUT" | jq -r '.error // empty' 2>/dev/null | head -c 500)
+    if [ "$EVENT" = "PostToolUseFailure" ]; then
+        [ -z "$EXIT_CODE" ] && EXIT_CODE="1"
+        [ -z "$STDERR_OR_STDOUT" ] && STDERR_OR_STDOUT="$TOP_ERROR"
+    fi
 else
     COMMAND=$(echo "$INPUT" | python3 -c "
 import sys, json
@@ -88,7 +95,8 @@ with open(path, 'w') as f:
     json.dump(data, f)
 print(data['count'])" 2>/dev/null)
 
-        if [ "$STREAK" -ge 3 ] 2>/dev/null; then
+        FAIL_STREAK_THRESHOLD=$(hc_get "posttool_bash_audit.fail_streak_threshold" "3")
+        if [ "$STREAK" -ge "$FAIL_STREAK_THRESHOLD" ] 2>/dev/null; then
             # Get number of distinct signatures
             DISTINCT=$(python3 -c "import json, os
 data = json.load(open(os.environ.get('BUILD_FAIL_FILE', '')))

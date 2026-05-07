@@ -26,7 +26,7 @@
 | 核心能力 | 说明 |
 |:---|:---|
 | **绝对武力（物理阻断）** | 在所有同类产品还在拼"系统提示词"时，它通过 Claude Code Hook 机制在**应用层实现了硬阻断**。大模型想读 `.env`？`Exit 2` 爆头；想在 80% 上下文时继续写代码？硬阻断。它把大模型的"合规性"从一个概率问题，变成了一个**物理确定性问题**。 |
-| **极致轻量（Less is More）** | 25 个有效 Bash Hook 加起来约 2800 行代码（含配置库）。没有常驻内存的 Daemon 进程，并发锁 `oma_lock_manager.py` 甚至只用了一个原生的 `os.O_CREAT` 原语就解决了多进程竞态。这种极简美学（Unix Philosophy）保证了极低的运行开销。 |
+| **极致轻量（Less is More）** | 32 个 Hook 脚本（27 个注册于 settings.json）加起来约 2800 行代码（含配置库）。没有常驻内存的 Daemon 进程，并发锁 `oma_lock_manager.py` 甚至只用了一个原生的 `os.O_CREAT` 原语就解决了多进程竞态。这种极简美学（Unix Philosophy）保证了极低的运行开销。 |
 | **企业级合规（DLP）** | `privacy-gate` 配合 `lx-varlock` 的双向透明脱敏，让大模型在内网裸奔成为可能，这是打通企业安全合规（Infosec）的命门。 |
 
 #### 扣掉的 0.2 分在哪里？
@@ -49,7 +49,7 @@
 |:---|:---|
 | **🚀 一人成军（lx-oma 多端并发引擎）** | 如何让一个开发者变成一个排的产能？它将需求大纲通过 MECE 原则自动拆解为多个**物理正交**的开发沙盒（`rpe/feat-X/`）。搭配内核层的 OMA 并发锁，你可以同时拉起 5 个终端（5 个独立大模型），分别在毫无 Token 污染的干净上下文中并行开发不同的功能点，彻底解决长上下文混淆的痛点。 |
 | **对抗大模型熵增（lx-rpe 状态机飞轮）** | 大模型的输出是无序的（高熵）。`lx-rpe` 把这种无序关进了一个严酷的 9 步流水线里——进度丢给 `executor.md`，教训丢给 `claude-next.md`，把 AI 的"瞬时记忆"转化为了物理硬盘上的"持久化状态机"。 |
-| **打破自我证实偏差（A/B 盲审）** | 引入 `subagent_reviewer`，强行拉起一个干净上下文的子 Agent 进行代码 Review，这是对大模型"讨好型人格"最致命的纠偏。 |
+| **打破自我证实偏差（A→B→A 验证）** | A→B→A 双终端对抗验证：用无上下文包袱的独立模型（如 Claude→GPT/Gemini）审查主 Agent 的输出，这是对大模型"讨好型人格"最致命的纠偏。 |
 
 #### 扣掉的 0.8 分在哪里？（后续重点攻坚方向）
 
@@ -79,7 +79,7 @@ harness
 
 > **版本**：v6.1.3（Sweet-spot Context Handoff Edition）
 > **日期**：2026-04-27
-> **核心突破**：A/B 对抗盲审、透明脱敏代理(DLP)、80% OOM 物理熔断、50% 甜点区主动交接
+> **核心突破**：A→B→A 对抗验证、透明脱敏代理(DLP)、80% OOM 物理熔断、50% 甜点区主动交接
 > **总分**：127.2 / 130（突破 118 的工程天花板，迈入系统级多智能体架构）
 
 ---
@@ -90,14 +90,14 @@ harness
 | 维度 (权重) | v6.1.7 分数 | 提升核心驱动力 |
 |:---|:---:|:---|
 | **[H] Hallucination Guard (防幻觉)** | 9.5 | **80% OOM 物理阻断 + 50% 甜点区主动交接**。 |
-| **[A] Autonomy Control (自主控制)** | 9.8 | **A/B 终端对抗盲审 (Sub-agent Review)**。 |
+| **[A] Autonomy Control (自主控制)** | 9.8 | **A→B→A 终端对抗验证**。 |
 | **[S] Security (安全性)** | 10.0 | **企业级 DLP透明代理** (`privacy-gate` + `lx-varlock`)。 |
 | **[S] Simplicity (简洁性)** | 9.7 | **三阶段产品安装模型**。 |
 | **[M] Migration (迁移能力)** | 10.0 | **Safe In-Place Upgrade 无损热更** + **AGENTS.md 主文件化 + OpenCode 插件全平台适配**。 |
 | **[Z] UX Intelligence (交互主动性)**| 9.8 | **渐进式披露** + `/lx-status` 看板 + **Context Guard 主动拦截**。 |
 | **[C] Cost Efficiency (成本效益)** | 9.5 | 渐进式披露节省大量 Token 成本（实测约 14% 短会话，50%+ 长会话含 compact）。 |
 | **[T] Task Continuity (连续性)** | 9.8 | **50% Sweet-spot Context Handoff** + 任务完成时主动 `/compact`。 |
-| **[I] Intelligence (工具层智能)** | 9.0 | Sub-agent 盲审 + 构建缺陷自动分析。 |
+| **[I] Intelligence (工具层智能)** | 9.0 | A→B→A 交叉验证 + 构建缺陷自动分析。 |
 | **[D] Drift Prevention (防漂移)** | 9.8 | **软完成语禁令**从 Prompt 层面拦截 AI 敷衍。 |
 | **[C] Configuration (配置友好)** | 10.0 | 一键 `merge-profile` 极简设定。 |
 
@@ -125,7 +125,7 @@ harness
 1. **从“防范”到“对抗” (The Adversarial Shift)**
 
 - **竞品困境**：无论是 Cursor 还是 Devin，AI 写完代码后都是“自己审自己”。由于大模型基于上一轮 Context 继续生成的特性，它**必然**会觉得自己的破绽是合理的（Self-confirmation Bias）。
-- **Carror 破局**：在 `v6.0.6` 中，主 Agent 的自审权被物理剥夺。它必须用 `Task` 工具唤醒一个毫无上下文包袱的 Sub-agent（盲审官）。这种 A/B 终端对抗盲审，是企业级 Code Review 才有的纪律，目前在市面上的个人 AI 辅助开发工具中是**独一档**的存在。
+- **Carror 破局**：在 `v6.0.6` 中，主 Agent 的自审权被物理剥夺。它必须用 `Task` 工具唤醒一个毫无上下文包袱的 Sub-agent（验证官）。这种 A→B→A 终端对抗验证，是企业级 Code Review 才有的纪律，目前在市面上的个人 AI 辅助开发工具中是**独一档**的存在。
 2. **数据防泄漏 (DLP) 的透明代理机制**
 
 - **竞品困境**：只要你在 Prompt 里或者环境变量里给了密钥，或者让它读了 `.env`，这些核心资产的明文就会顺着网络被发给外部大模型。
@@ -133,7 +133,7 @@ harness
 3. **直击大模型软肋：上下文甜点区 (Sweet-spot Guard)**
 
 - **竞品困境**：在长期的重构任务中，随着 Token 的暴增，大模型的注意力会被稀释（Lost in the Middle），它开始乱改原本完美运行的文件，产生极具破坏性的“末期幻觉”。
-- **Carror 破局**：我们不再仅仅依赖软约束。`context-guard.sh` (第 29 个 Hook) 从底层直读 `token-tracking` 数据。当 `ctx% >= 80%`，它会抛出 `Exit 2` 锁死系统；当 `ctx%
+- **Carror 破局**：我们不再仅仅依赖软约束。`context-guard.sh` (内核级 Hook) 从底层直读 `token-tracking` 数据。当 `ctx% >= 80%`，它会抛出 `Exit 2` 锁死系统；当 `ctx%
 >= 50%` 且处于任务交接点时，它会自动插入强烈警告，强迫 AI 执行 `/compact` 或新开分支。**让 AI 永远运行在其智力最巅峰的区间。**
 
 ---

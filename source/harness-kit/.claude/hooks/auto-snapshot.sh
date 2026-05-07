@@ -69,6 +69,14 @@ with open("$SNAPSHOT_FILE", "w") as f:
     json.dump(snapshot, f, ensure_ascii=False, indent=2)
 PYEOF
 
+# SHA256 防篡改摘要
+SHA256_FILE="$STATE_DIR/session-snapshot.json.sha256"
+if command -v shasum &>/dev/null; then
+    shasum -a 256 "$SNAPSHOT_FILE" | awk '{print $1}' > "$SHA256_FILE"
+elif command -v sha256sum &>/dev/null; then
+    sha256sum "$SNAPSHOT_FILE" | awk '{print $1}' > "$SHA256_FILE"
+fi
+
 echo "Session snapshot saved: turns=$TURNS branch=$BRANCH"
 
 # 文档同步检查：本次修改的源文件是否有对应的 executor.md 更新

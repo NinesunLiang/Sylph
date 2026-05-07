@@ -1,19 +1,35 @@
 #!/usr/bin/env bash
 
-# write-lock-gate.sh (PreToolUse) - Carror OS 一人成军并发锁前置拦截
-
+# write-lock-gate.sh (PreToolUse) — Carror OS OMA 并发锁前置拦截
+# 集成 harness_config.sh，支持通过 harness.yaml 启用/禁用
 # 当大模型尝试写文件时，调用底层 Python 锁管理器。若被占用，则挂起大模型（while 循环打印 WAITING）。
 
+# Source harness config for feature toggle support
+HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
+if [ -f "$HARNESS_CONFIG" ]; then
+    # shellcheck source=harness_config.sh
+    . "$HARNESS_CONFIG" 2>/dev/null
+    if ! hc_enabled "oma_lock" 2>/dev/null; then
+        exit 0
+    fi
+fi
 
-TOOL_NAME="$1"
+TOOL_INPUT=$(cat)
+
+# 从 stdin JSON 读 tool_name（兼容 settings.json 无位置参数场景）
+if command -v jq &>/dev/null; then
+    TOOL_NAME=$(echo "$TOOL_INPUT" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
+else
+    TOOL_NAME=$(echo "$TOOL_INPUT" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
+    [ -z "$TOOL_NAME" ] && TOOL_NAME=$(echo "$TOOL_INPUT" | grep -o '"tool"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
+fi
+[ -z "$TOOL_NAME" ] && TOOL_NAME="$1"
+TOOL_NAME=$(echo "$TOOL_NAME" | tr '[:upper:]' '[:lower:]')
 
 # 仅拦截直接写文件的工具
 if [[ "$TOOL_NAME" != "edit" && "$TOOL_NAME" != "write" && "$TOOL_NAME" != "replace" && "$TOOL_NAME" != "str_replace" ]]; then
     exit 0
 fi
-
-# 从 stdin 读取工具输入的 JSON
-TOOL_INPUT=$(cat)
 
 # 提取文件路径 (支持 filePath 或 file_path)
 FILE_PATH=$(echo "$TOOL_INPUT" | grep -o '"filePath"\s*:\s*"[^"]*"' | cut -d'"' -f4)

@@ -32,8 +32,8 @@ Carror OS: 用户 → AI → [⚠️ Hook 拦截] → 拒绝 / 授权 / 审计
 
 | 层 | 做什么 | 怎么做的 |
 |------|------|---------|
-| **Harness-kit**（内核） | 30 个物理 Hook，在 AI 接触文件系统之前拦截 | `Exit 2` 硬阻断，不是 Prompt 请求 |
-| **lx-skills**（用户态） | 23 个工作流 Skill，从 PRD 到提交的全周期 | Markdown 指令集 + 19 个 Python 工具 |
+| **Harness-kit**（内核） | 32 个物理 Hook，在 AI 接触文件系统之前拦截 | `Exit 2` 硬阻断，不是 Prompt 请求 |
+| **lx-skills**（用户态） | 24 个工作流 Skill，从 PRD 到提交的全周期 | Markdown 指令集 + 19 个 Python 工具 |
 | **Profiles**（桥接） | 5 种语言环境的一键适配 | YAML 配置，零代码切换 |
 
 ---
@@ -42,7 +42,7 @@ Carror OS: 用户 → AI → [⚠️ Hook 拦截] → 拒绝 / 授权 / 审计
 
 ### 1. 你在 AI 要 `rm -rf` 时拔了它的电源
 
-30 个 Hook 覆盖六大安全域：
+32 个 Hook 覆盖六大安全域：
 
 | 域 | 代表 Hook | 拦截什么 |
 |------|----------|---------|
@@ -92,7 +92,7 @@ AI 始终在数据隔离沙箱中工作，从未接触过任何明文凭证。
 | 防御层级 | **Exit 2 物理阻断** | 商业黑盒 | Prompt 软约束 | Hook 原语 |
 | DLP 脱敏 | **双向混淆代理** | 无 | 无 | 无 |
 | 上下文防护 | **三层自动防漂移** | 未知 | 无 | 手动 /compact |
-| A/B 对抗审查 | **Sub-agent 盲审** | 无 | 无 | 无 |
+| A/B 对抗审查 | **A→B→A 交叉验证** | 无 | 无 | 无 |
 | 并发协同 | **文件锁 + MECE 拆解** | 内置 | 无 | 无 |
 | 任务流水线 | **RPE 9 步闭环** | 内置 | 无 | 无 |
 | 成本 | **$0** | $500/月 | 包含在订阅 | 包含在订阅 |
@@ -160,13 +160,13 @@ Copilot Custom      ██▌        ██████▌    ██████
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- base
 ```
 
-Base 版：30 个 Hook 安全底座 + 6 个门禁审查 Skill，零学习成本。
+Base 版：32 个 Hook 安全底座 + 10 个门禁审查 Skill，零学习成本。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- enhanced
 ```
 
-Enhanced 版：完整 23 个 Skill + RPE 流水线 + 全栈武器库。
+Enhanced 版：完整 24 个 Skill + RPE 流水线 + 全栈武器库。
 
 ---
 

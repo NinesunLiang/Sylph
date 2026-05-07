@@ -8,7 +8,7 @@ log_info(){ echo -e "${GREEN}[INFO]${NC} $1"; }
 
 log_step(){ echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION="v6.1.7-stable"
+VERSION="v6.1.8-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$SCRIPT_DIR/source"
 PACKAGES_DIR="$SCRIPT_DIR/packages"
@@ -48,4 +48,4 @@ do [ -f "$SCRIPT_DIR/$F" ] && cp -f "$SCRIPT_DIR/$F" "$PACKAGES_DIR/"
 done
 [ -d "$SCRIPT_DIR/docs" ] && cp -r "$SCRIPT_DIR/docs" "$PACKAGES_DIR/"
 
-log_info "✅ 打包完成！v6.1.7-stable is fully loaded."
+log_info "✅ 打包完成！v6.1.8-stable is fully loaded."

@@ -196,11 +196,46 @@ hc_get_list() {
     fi
 }
 
-# hc_enabled "hook_name" — 检查 hook 是否启用（默认 true）
+# hc_enabled "feature_name" — 检查 feature 是否启用（默认 true）
+# 先查 hooks_enabled.{name}（自动 hyphen→underscore 转换），
+# 再查 skills_enabled.{name}（原生名称），均不存在返回 true
 hc_enabled() {
-    local hook_name="$1"
+    local feature_name="$1"
     local val
-    val=$(hc_get "hooks_enabled.${hook_name}" "true")
+
+    # 检查 hooks_enabled.{name}（harness.yaml 使用下划线，自动转换 hyphen→underscore）
+    local hook_key="${feature_name//-/_}"
+    val=$(hc_get "hooks_enabled.${hook_key}" "")
+    if [ -n "$val" ]; then
+        [ "$val" = "true" ]
+        return $?
+    fi
+
+    # 检查 skills_enabled.{name}（skills 使用原生名称，无转换）
+    val=$(hc_get "skills_enabled.${feature_name}" "")
+    if [ -n "$val" ]; then
+        [ "$val" = "true" ]
+        return $?
+    fi
+
+    # 默认启用
+    return 0
+}
+
+# hc_hook_enabled "hook_name" — 仅检查 hooks_enabled（默认 true，自动 hyphen→underscore）
+hc_hook_enabled() {
+    local hook_name="$1"
+    local hook_key="${hook_name//-/_}"
+    local val
+    val=$(hc_get "hooks_enabled.${hook_key}" "true")
+    [ "$val" = "true" ]
+}
+
+# hc_skill_enabled "skill_name" — 仅检查 skills_enabled（默认 true，原生名称）
+hc_skill_enabled() {
+    local skill_name="$1"
+    local val
+    val=$(hc_get "skills_enabled.${skill_name}" "true")
     [ "$val" = "true" ]
 }
 

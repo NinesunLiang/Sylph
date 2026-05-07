@@ -6,7 +6,8 @@ import argparse, subprocess, sys, json
 
 
 def run(cmd):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # nosec B602: skill 层 CLI 工具，cmd 为内部 git 命令拼接，非用户原始输入
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
     return r.returncode, r.stdout.strip()
 
 def main():

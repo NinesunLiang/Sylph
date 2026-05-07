@@ -3,7 +3,6 @@
 Execute ALL rules against changed files. Parallel execution allowed.
 
 ## 🔴 Critical (6 rules)
-
 | # | Scan Item | rg Command|
 |---|-----------|------------|
 |S01 | Hardcoded key/token | `rg -i '(api[_-]?key\|secret\|token)\s*=\s*"[^"]{10,}"'`|
@@ -14,14 +13,12 @@ Execute ALL rules against changed files. Parallel execution allowed.
 |S06 | Command injection | `rg 'exec\.Command\s*\(.*\+'` |
 
 ## 🟠 High (2 rules)
-
 | # | Scan Item | rg Command|
 |---|-----------|------------|
 |S07 | Path traversal | `rg 'filepath\.(Join\|Clean)\s*\([^)]*r\.(URL\|FormValue\|Header)'`|
 |S08 | Sensitive data in logs | `rg -i '(log\|logx\|logc)\.(Print\|Printf\|Println\|Fatal\|Error\|Info\|Infof\|Infow\|Debug\|Debugf\|Slow\|Slowf\|Severe\|Severef).*\b(password\|token\|secret\|key\|cvv)\b'` |
 
 ## 🟡 Medium (4 rules)
-
 | # | Scan Item | rg Command|
 |---|-----------|------------|
 |S09 | Missing input validation | `rg 'r\.(URL\.Query()\|FormValue\|PostFormValue)\(' \| rg -v '(validate\|sanitize\|bind\|Bind\|Parse\|ShouldBind)'`|
@@ -30,7 +27,6 @@ Execute ALL rules against changed files. Parallel execution allowed.
 |S12 | SSRF risk | `rg 'http\.Get\s*\(.*r\.(URL\|FormValue\|Header)'` |
 
 ## 🟢 Low (3 rules)
-
 | # | Scan Item | rg Command|
 |---|-----------|------------|
 |S13 | Sensitive comments | `rg -i '//.*\b(password\|secret\|key\|token\|todo.*auth)\b'`|

@@ -134,7 +134,8 @@ def main():
         real_cmd = restore_content(raw_cmd, vault)
 
         try:
-            r = subprocess.run(real_cmd, shell=True, capture_output=True, text=True)
+            # nosec B602: varlock 用户态代理，real_cmd 来自用户在可信终端执行的命令，脱敏还原后保持语义一致
+            r = subprocess.run(real_cmd, shell=True, capture_output=True, text=True)  # nosec B602
             code = r.returncode
             out_text = r.stdout
             err_text = r.stderr

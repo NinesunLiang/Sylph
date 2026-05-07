@@ -20,7 +20,8 @@ from datetime import datetime
 CONVENTION_FILE = Path(".omc/state/commit-convention.json")
 
 def run(cmd: str):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # nosec B602: skill 层 CLI 工具，cmd 为内部 git 命令拼接，非用户原始输入
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
     return r.returncode, r.stdout.strip(), r.stderr.strip()
 
 # ── 从示例 commit 提取骨架 ─────────────────────────────────────

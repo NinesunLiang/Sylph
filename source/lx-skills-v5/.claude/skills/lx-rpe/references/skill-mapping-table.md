@@ -1,6 +1,6 @@
 ## Skill 映射表
 
->
+> >
 > **调用方式**：所有 Skill 均通过 `Invoke the Skill tool with skill: "<name
 > "` 调用，不使用斜杠命令。
 | 步骤 | Skill（Skill tool name） | 项目类型 | 触发条件 | 模式|

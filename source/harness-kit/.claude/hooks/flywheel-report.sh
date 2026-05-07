@@ -21,8 +21,16 @@ REPORT_DIR="$HOME/.claude/flywheel-reports"
 # AC-17.2: Ensure persistent report directory exists
 mkdir -p "$REPORT_DIR"
 
+# Read configurable values from harness.yaml
+FLYWHEEL_REPORT_WINDOW_DAYS=$(hc_get "flywheel_report.report_window_days" "30")
+export FLYWHEEL_REPORT_WINDOW_DAYS
+FLYWHEEL_DEFAULT_SNOOZE_DAYS=$(hc_get "flywheel_report.default_snooze_days" "7")
+export FLYWHEEL_DEFAULT_SNOOZE_DAYS
+FLYWHEEL_P0_WARNING_THRESHOLD=$(hc_get "flywheel_report.p0_warning_threshold" "5")
+export FLYWHEEL_P0_WARNING_THRESHOLD
+
 python3 - "$FLYWHEEL" "$REPORT_DIR" <<'PYEOF'
-import sys, os
+import sys, os, subprocess
 from datetime import date, timedelta
 from collections import defaultdict
 
@@ -30,7 +38,8 @@ log_path = sys.argv[1]
 report_dir = sys.argv[2]
 today = date.today()
 today_str = today.isoformat()
-cutoff = (today - timedelta(days=30)).isoformat()
+report_window = int(os.environ.get('FLYWHEEL_REPORT_WINDOW_DAYS', '30'))
+cutoff = (today - timedelta(days=report_window)).isoformat()
 
 # Parse flywheel.log: date,event,severity,project
 counts = defaultdict(int)
@@ -87,7 +96,8 @@ if os.path.exists(ack_log):
                     if ack_evt not in ack_resolved or ack_d > ack_resolved[ack_evt]:
                         ack_resolved[ack_evt] = ack_d
                 elif action.startswith('snooze'):
-                    days = int(action[6:]) if action[6:].isdigit() else 7
+                    default_snooze = int(os.environ.get('FLYWHEEL_DEFAULT_SNOOZE_DAYS', '7'))
+                    days = int(action[6:]) if action[6:].isdigit() else default_snooze
                     snooze_until = (date.fromisoformat(ack_d) + timedelta(days=days)).isoformat()
                     if ack_evt not in ack_snooze or snooze_until > ack_snooze[ack_evt]:
                         ack_snooze[ack_evt] = snooze_until
@@ -107,8 +117,9 @@ def is_suppressed(evt):
     return False
 
 # Warnings: P0 events with count > 5 and not suppressed
+p0_threshold = int(os.environ.get('FLYWHEEL_P0_WARNING_THRESHOLD', '5'))
 warnings = [(evt, cnt) for evt, cnt in ranked
-            if severity_map.get(evt) == 'P0' and cnt > 5 and not is_suppressed(evt)]
+            if severity_map.get(evt) == 'P0' and cnt > p0_threshold and not is_suppressed(evt)]
 
 if not warnings:
     sys.exit(0)
@@ -195,10 +206,10 @@ except Exception:
 # AC-17.4: Desktop notification for P0 events
 p0_summary = "; ".join(f"{evt}x{cnt}" for evt, cnt in warnings[:3])
 try:
-    os.system('osascript -e \'display notification "' + p0_summary + '" with title "Flywheel P0 Alert"\'')
+    subprocess.run(['osascript', '-e', 'display notification "' + p0_summary + '" with title "Flywheel P0 Alert"'], capture_output=True)
 except Exception:
     try:
-        os.system('notify-send "Flywheel P0 Alert" "' + p0_summary + '"')
+        subprocess.run(['notify-send', 'Flywheel P0 Alert', p0_summary], capture_output=True)
     except Exception:
         pass
 

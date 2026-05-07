@@ -6,7 +6,8 @@ import argparse, sys, json, subprocess
 def run_diff(files: list):
     """提取实际变更"""
     cmd = "git diff HEAD -- " + " ".join(f'"{f}"' for f in files)
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # nosec B602: skill 层 CLI 工具，输入为内部 git 命令拼接，非用户原始输入
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
     return r.stdout
 
 def main():

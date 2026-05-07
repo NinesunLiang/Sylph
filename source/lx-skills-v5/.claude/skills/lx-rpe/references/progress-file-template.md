@@ -1,35 +1,16 @@
 # RPE Progress: {feature_name}
 
-## 特性信息
+## 特性信息- 特性名：{feature_name}- 创建时间：{date}- 状态：Phase [1/2/3] / 主循环执行中 / 已完成
 
-- 特性名：{feature_name}
-- 创建时间：{date}
-- 状态：Phase [1/2/3] / 主循环执行中 / 已完成
+## Phase 1 — Research- 状态：pending- 迭代次数：0
 
-## Phase 1 — Research
+## Phase 2 — Plan- 状态：pending- 迭代次数：0
 
-- 状态：pending
-- 迭代次数：0
-
-## Phase 2 — Plan
-
-- 状态：pending
-- 迭代次数：0
-
-## Phase 3 — Execute
-
-- 状态：pending
-- 当前 Task：-
+## Phase 3 — Execute- 状态：pending- 当前 Task：-
 
 ## RPE 任务项（Phase 3 进入主循环时从 plan.md 提取）
 
-## 当前进度### {date} 会话
-
-- 当前阶段：[Phase N / 主循环 Step N]
-- 当前任务项：RPE-xxx
-- 完成项：[列表]
-- 阻塞项：[列表]
-- 下一步：[描述]
+## 当前进度### {date} 会话- 当前阶段：[Phase N / 主循环 Step N]- 当前任务项：RPE-xxx- 完成项：[列表]- 阻塞项：[列表]- 下一步：[描述]
 
 ## Tech-Debt List（开发过程中发现但不立即处理的技术债务）
 
@@ -39,8 +20,7 @@
 
 ### 恢复流程（默认行为）
 
-```
-1
+```1
 . 搜索 RPE 实例目录： ls rpe/
 2. 若多个特性 → 列出供用户选择 若指定名称 → 直接加载 rpe/{feature_name}/ 若仅一个 → 自动加载
 3. readFile rpe/{feature_name}/state/progress.md → 提取： - 当前阶段（Phase 1/2/3 / 主循环） - 当前步骤编号（主循环时） - 当前任务项 ID - 上次会话的"下一步" - 阻塞项
@@ -50,9 +30,5 @@
 7. → 进入对应阶段/步骤
 
 ```
-**完成标准**：
-- ✅ 进度文件已加载（引用 readFile 输出）
-- ✅ 恢复摘要已输出
-- ✅ 上下文已重建（当前阶段 + 步骤 + 任务项 + 阻塞项）
-- ✅ 恢复入口正确（Phase 1/2/3 或主循环步骤）
+**完成标准**：- ✅ 进度文件已加载（引用 readFile 输出）- ✅ 恢复摘要已输出- ✅ 上下文已重建（当前阶段 + 步骤 + 任务项 + 阻塞项）- ✅ 恢复入口正确（Phase 1/2/3 或主循环步骤）
 ---

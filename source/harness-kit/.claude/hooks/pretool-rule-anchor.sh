@@ -16,7 +16,7 @@
 
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "rule_anchor" || exit 0
+hc_enabled "pretool_rule_anchor" || exit 0
 
 # 复用 harness_config.sh 已计算好的 PROJECT_ROOT（与其他所有 hook 一致）
 PROJECT_ROOT="$(hc_project_root)"

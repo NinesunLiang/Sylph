@@ -44,13 +44,15 @@ SCOPE_FILE="$PROJECT_ROOT/.omc/state/current-scope.txt"
 coupling_remind() {
     local edit_file="$1"
     local proj_root="$2"
-    local coupling_enabled=$(hc_get "coupling.enabled" "true")
+    local coupling_enabled
+    coupling_enabled=$(hc_get "coupling.enabled" "true")
     [ "$coupling_enabled" != "true" ] && return
 
     local COUPLING_MAP="$proj_root/.omc/state/coupling-map.json"
     [ ! -f "$COUPLING_MAP" ] && return
 
-    local COUPLED=$(python3 - "$edit_file" "$COUPLING_MAP" <<'PYEOF'
+    local COUPLED
+    COUPLED=$(python3 - "$edit_file" "$COUPLING_MAP" <<'PYEOF'
 import json, sys
 edit_file = sys.argv[1]
 coupling_path = sys.argv[2]
@@ -112,5 +114,20 @@ done < "$SCOPE_FILE"
 # 全部不匹配 → 输出耦合提醒后阻断
 coupling_remind "$REL_PATH" "$PROJECT_ROOT"
 SCOPE_CONTENT=$(tr '\n' ' ' < "$SCOPE_FILE")
-echo "⛔ 范围冻结: ${REL_PATH} 不在当前 Step 允许范围内。允许的范围: ${SCOPE_CONTENT}。如需修改请先更新 .omc/state/current-scope.txt" >&2
+cat >&2 <<EOF
+
+[Scope Gate 警报] 请用 Markdown 表格向用户展示以下范围越界阻断，并通过原生 AskUserQuestion 表单询问处置方式（不要让用户手敲数字）：
+
+| 项 | 值 |
+|---|---|
+| 越界文件 | \`${REL_PATH}\` |
+| 当前允许范围 | ${SCOPE_CONTENT} |
+| 范围文件 | \`.omc/state/current-scope.txt\` |
+
+用户选择后 AI 执行对应动作：
+  加入允许范围 → Bash: echo '${REL_PATH}' >> ${SCOPE_FILE} && 重试编辑
+  放弃编辑     → 保持阻断，回到任务循环
+  新开 Step    → 提示先完成当前 Step，再建新 Step 和 scope
+
+EOF
 exit 2

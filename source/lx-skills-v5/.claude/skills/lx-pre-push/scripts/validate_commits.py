@@ -18,7 +18,8 @@ HEADER_RE = re.compile(r'^(feat|fix|perf|test|docs|style|refactor|build|other|me
 ISSUE_RE = re.compile(r'[a-zA-Z0-9_]+#\d+')
 
 def run(cmd):
-    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+    # nosec B602: skill 层 CLI 工具，cmd 为内部 git 命令拼接，非用户原始输入
+    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
     return r.stdout.strip()
 
 def validate_commit(hash_, subject, body):

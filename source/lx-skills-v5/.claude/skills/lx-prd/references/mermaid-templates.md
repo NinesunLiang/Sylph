@@ -1,54 +1,50 @@
 # Mermaid 图模板库
 
->
+> >
 > **调用时机**：`readFile(references/mermaid-templates.md)` 在 Phase 2-E 写作阶段需要插入图表时。
 > 所有模板均为通用业务模式，将 `{占位符}` 替换为产品实际内容。
 
 ---
 
 ## 1. 系统架构图（必须，graph TB）
-
 必须包含所有主要模块和数据流向，按产品实际情况替换层名：
 
-```
-mermaid
-graph
+```mermaidgra
+p
+h
 TB subgraph USER["用户层（终端/界面）"] U[用户界面 / 客户端] end subgraph CORE["核心系统（业务逻辑层）"] GW["入口/网关"] --> SVC["业务服务层"] --> DATA["数据存储层"] end subgraph EXT["外部依赖（第三方/下游服务）"] API["外部服务 / 第三方 API"] end U -->|"请求"| GW SVC -->|"调用"| API API -->|"响应"| SVC
 ```
 
 ---
 
 ## 2. 核心执行流程（必须，flowchart TD）
-
 必须包含决策分支和降级路径，替换为产品实际业务逻辑：
 
-```
-mermaidflow
-chart
+```mermaidflowcha
+r
+t
 TD A[用户触发操作] --> B{前置条件判断} B -->|"条件满足"| C[主流程执行] B -->|"条件不满足"| D[引导/拒绝/提示] C --> E{执行结果} E -->|"成功"| F[成功响应 + 状态更新] E -->|"失败"| G[降级处理 / 错误提示] F --> H{是否触发后续动作?} H -->|"是"| I[异步任务 / 通知 / 沉淀] H -->|"否"| J[返回用户]
 ```
 
 ---
 
 ## 3. 飞轮闭环图（若产品有沉淀/增长价值则必须，graph LR）
-
 替换为产品实际飞轮要素：
 
-```
-mermaid
-graph
+```mermaidgra
+p
+h
 LR A["用户行为<br/>（触发器）"] --> B["核心处理<br/>（价值生成）"] B --> C["结果输出<br/>（用户价值）"] C --> D{"用户确认/<br/>正向反馈?"} D -->|"✅"| E["价值沉淀<br/>（数据/内容/关系）"] E --> F["沉淀再利用<br/>（提升体验/降低成本）"] F --> A D -->|"❌"| G["降级/告知/<br/>改进路径"] style E fill:#e8f5e9,stroke:#4CAF50
 ```
 
 ---
 
 ## 4. 迭代路线图 Gantt（必须，Phase 分解）
-
 替换为实际里程碑和时间：
 
-```
-mermaid
-gantt dateFormat YYYY-MM-DD title {产品名} 迭代路线图
+```mermaidgan
+t
+t dateFormat YYYY-MM-DD title {产品名} 迭代路线图
  section Phase 1（MVP） {P0功能1} :p1f1, {开始日}, {天数}d {P0功能2} :p1f2, after p1f1, {天数}d 验收 & 上线 :milestone, after p1f2, 0d
  section Phase 2（扩展） {P1功能1} :p2f1, after p1f2, {天数}d {P1功能2} :p2f2, after p2f1, {天数}d
 ```
@@ -57,9 +53,7 @@ gantt dateFormat YYYY-MM-DD title {产品名} 迭代路线图
 
 ## 5. 架构决策记录（ADR）表
 
-```
-mark
-down
+```markdown
 | ADR | 决策内容 | 原因 | 状态 ||-----|---------|------|------|| ADR-001 | {决策} [已验证: file:line] | {为什么} | ✅ 定稿 || ADR-002 | {决策} [推断, 待确认] | {原因} | ❓ 待确认 |
 markdown| ADR | 决策内容 | 原因 | 状态 ||-----|---------|------|------|| ADR-001 | {决策} [已验证: file:line] | {为什么} | ✅ 定稿 || ADR-002 | {决策} [推断, 待确认] | {原因} | ❓ 待确认 |
 
