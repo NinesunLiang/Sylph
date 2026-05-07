@@ -13,10 +13,33 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 VERSION="v6.1.8-stable"
-GITHUB_REPO="your-username/carror-os" # 请替换为真实的 GitHub 仓库路径（如：anomalyco/carror-os）
+GITHUB_REPO="NinesunLiang/Sylph"
 GITHUB_RELEASE_URL="https://github.com/$GITHUB_REPO/releases/download/$VERSION"
-INSTALL_MODE="${1:-base}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# 兼容两种运行方式：bash packages/install.sh（本地包）和 curl ... | bash（远程下载）
+SCRIPT_DIR=""
+if [ -n "${BASH_SOURCE[0]:-}" ] && [ "${BASH_SOURCE[0]}" != "bash" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/null)"
+fi
+
+# Agentic UI: CLI flags 驱动，零交互提示
+UPGRADE_MODE="auto"  # auto | skip | force
+LANG_SPEC=""
+POSITIONAL=()
+
+for arg in "$@"; do
+    case "$arg" in
+        --yes|-y) UPGRADE_MODE="force" ;;
+        --no-upgrade) UPGRADE_MODE="skip" ;;
+        --lang=*) LANG_SPEC="${arg#*=}" ;;
+        --lang) SKIP_NEXT=1 ;;
+        go|node|python|rust|generic)
+            [ "${SKIP_NEXT:-0}" -eq 1 ] && { LANG_SPEC="$arg"; SKIP_NEXT=0; continue; }
+            POSITIONAL+=("$arg") ;;
+        *) POSITIONAL+=("$arg") ;;
+    esac
+done
+INSTALL_MODE="${POSITIONAL[0]:-base}"
 
 echo "============================================"
 echo " Carror OS 安装向导"
@@ -38,18 +61,20 @@ BACKUP_DIR=$(mktemp -d)
 HAS_BACKUP=false
 
 if [ -d ".claude" ]; then
-    log_warn "检测到当前项目已安装 Carror OS (.claude/ 目录已存在)。"
-    read -p " 是否执行无损升级？系统将保留你的配置与记忆资产，仅更新内核与技能引擎。(y/N) " -n 1 -r
-    echo ""
-    [[ $REPLY =~ ^[Yy]$ ]] || { log_info "安装已取消"; exit 0; }
-    log_step "正在备份用户态资产 (User Assets)..."
-    for file in harness.yaml claude-next.md anti-patterns.md kernel.md; do
-        if [ -f ".claude/$file" ]; then
-            cp ".claude/$file" "$BACKUP_DIR/"
-            log_info "已安全备份 .claude/$file"
-            HAS_BACKUP=true
-        fi
-    done
+    log_warn "检测到已安装 Carror OS (.claude/ 目录已存在)。"
+    if [ "$UPGRADE_MODE" = "skip" ]; then
+        log_info "跳过升级（--no-upgrade），保留现有安装。"
+    else
+        log_step "正在自动执行无损升级 — 保留配置与记忆资产，仅更新内核与技能引擎。"
+        log_info "（跳过升级请使用 --no-upgrade 参数）"
+        for file in harness.yaml claude-next.md anti-patterns.md kernel.md; do
+            if [ -f ".claude/$file" ]; then
+                cp ".claude/$file" "$BACKUP_DIR/"
+                log_info "已安全备份 .claude/$file"
+                HAS_BACKUP=true
+            fi
+        done
+    fi
 fi
 
 log_step "创建目录结构..."
@@ -102,6 +127,7 @@ case "$INSTALL_MODE" in
 esac
 
 chmod +x .claude/hooks/*.sh 2>/dev/null || true
+chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
 chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
 
 # ─── 恢复用户态资产 ──────────────────────────────────────────
@@ -147,7 +173,7 @@ ERRORS=0
 chk() { [ -f "$1" ] || { log_warn "缺少：$1"; ERRORS=$((ERRORS+1)); }; }
 case "$INSTALL_MODE" in
     enhanced|base|harness)
-        chk "CLAUDE.md"; chk ".claude/harness.yaml"; chk ".claude/index.md"
+        chk "CLAUDE.md"; chk ".claude/settings.json"; chk ".claude/harness.yaml"; chk ".claude/index.md"
         [ "$HOOKS" -ge 22 ] || { log_warn "hooks 不足（$HOOKS/22）"; ERRORS=$((ERRORS+1)); }
         ;;
 esac
@@ -159,28 +185,35 @@ echo ""
 
 if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL_MODE" == "base" ]] \
     && [ -f ".claude/profiles/merge-profile.sh" ]; then
-    echo ""
-    echo "============================================"
-    echo " 🌐 请选择项目主语言"
-    echo "============================================"
-    echo " 1) Go — *.go，三层架构，golangci-lint"
-    echo " 2) Node.js/TS — *.ts/*.tsx，Controller-Service，tsc+eslint"
-    echo " 3) Python — *.py，View-Service，pytest+ruff+mypy"
-    echo " 4) Rust — *.rs，cargo build+test+clippy"
-    echo " 5) Generic — 任意语言（base profile，已安装）"
-    echo ""
-    read -p " 请输入选项 [1-5]（回车=Generic）: " -n 1 -r LANG_CHOICE; echo ""
-    case "$LANG_CHOICE" in
-        1) LANG_NAME="go" ;;
-        2) LANG_NAME="node" ;;
-        3) LANG_NAME="python" ;;
-        4) LANG_NAME="rust" ;;
-        *) LANG_NAME="" ;;
-    esac
-    if [ -n "$LANG_NAME" ]; then
-        CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_NAME" 2>/dev/null \
-            && log_info "✅ 已合并 base + $LANG_NAME profile → .claude/harness.yaml" \
-            || log_warn "merge 失败，保留 generic harness.yaml"
+
+    # Agentic UI: --lang flag > 自动检测 > 兜底 generic
+    if [ -z "$LANG_SPEC" ]; then
+        if [ -f "go.mod" ]; then
+            LANG_SPEC="go"
+            log_info "检测到 go.mod → 自动选择 Go profile（可通过 --lang <name> 覆盖）"
+        elif [ -f "package.json" ]; then
+            LANG_SPEC="node"
+            log_info "检测到 package.json → 自动选择 Node.js profile（可通过 --lang <name> 覆盖）"
+        elif ls *.py &>/dev/null 2>/dev/null || [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then
+            LANG_SPEC="python"
+            log_info "检测到 Python 项目 → 自动选择 Python profile（可通过 --lang <name> 覆盖）"
+        elif [ -f "Cargo.toml" ]; then
+            LANG_SPEC="rust"
+            log_info "检测到 Cargo.toml → 自动选择 Rust profile（可通过 --lang <name> 覆盖）"
+        else
+            LANG_SPEC=""
+        fi
+    fi
+
+    if [ -n "$LANG_SPEC" ]; then
+        log_info "使用 $LANG_SPEC profile"
+        case "$LANG_SPEC" in
+            go|node|python|rust) CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_SPEC" 2>/dev/null \
+                && log_info "✅ 已合并 base + $LANG_SPEC profile → .claude/harness.yaml" \
+                || log_warn "merge 失败，保留 generic harness.yaml" ;;
+            generic|*) cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
+                && log_info "使用 Generic profile（base）→ .claude/harness.yaml" ;;
+        esac
     else
         cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
             && log_info "使用 Generic profile（base）→ .claude/harness.yaml"

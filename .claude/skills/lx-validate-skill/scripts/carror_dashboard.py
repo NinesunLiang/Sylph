@@ -41,7 +41,7 @@ RESET = "\033[0m"
 COLOR = FLUO_BLUE
 
 # ── Panel width —— inner (excludes side borders) ──
-WI = 46
+WI = 72
 
 # ── Status constants ──
 STATUS_OK = "ok"

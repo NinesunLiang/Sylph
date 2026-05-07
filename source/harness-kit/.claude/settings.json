@@ -34,7 +34,7 @@
         ]
       },
       {
-        "matcher": ".*",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
@@ -49,6 +49,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/pretool-edit-scope.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/plan-gate.sh",
             "timeout": 3000
           }
         ]
@@ -132,6 +137,11 @@
             "type": "command",
             "command": "bash .claude/hooks/read-tracker.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-read-cite.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -201,6 +211,16 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-subagent-audit.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/proactive-handoff.sh",
+            "timeout": 5000
           }
         ]
       }

@@ -1,0 +1,70 @@
+name: Carror OS CI
+
+on:
+  push:
+    branches: [main, 'release/*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: ShellCheck — all hooks
+        run: |
+          sudo apt-get install -y shellcheck
+          find .claude/hooks -name '*.sh' -exec shellcheck --severity=warning {} \; || true
+          shellcheck .claude/scripts/*.sh || true
+        # ShellCheck warnings are advisory — non-blocking for hooks
+
+      - name: Python syntax check
+        run: |
+          python3 -m py_compile .claude/scripts/*.py
+          python3 -m py_compile .claude/skills/*/scripts/*.py
+
+      - name: YAML & JSON syntax check
+        run: |
+          pip install pyyaml -q
+          python3 -c "
+import yaml, json
+yaml.safe_load(open('.claude/harness.yaml'))
+json.load(open('.claude/settings.json'))
+print('✅ YAML + JSON syntax OK')
+"
+
+  test:
+    name: Harness Smoke Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run harness smoke test
+        run: |
+          bash .claude/scripts/harness-smoke-test.sh 2>&1
+
+      - name: Run hook production verify
+        run: |
+          bash .claude/scripts/hook-production-verify.sh 2>&1
+
+      - name: Run audit hooks alignment
+        run: |
+          bash .claude/scripts/audit-hooks.sh 2>&1
+
+  audit:
+    name: Triune Alignment Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Audit hooks triune alignment (internal filter scan)
+        run: |
+          bash .claude/scripts/audit-hooks.sh --scan-internal-filter
+
+      - name: Verify version consistency
+        run: |
+          grep -q '6.1.8' VERSION.json
+          grep -q 'v6.1.8' .claude/kernel.md
+          echo '✅ Version consistent'

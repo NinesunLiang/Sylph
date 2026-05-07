@@ -133,10 +133,9 @@ curl -fsSL https://raw.githubusercontent.com/anomalyco/carror-os/main/install.sh
 
 在深入深水区之前，请务必阅读以下文档，了解 Carror OS 的底层运作机理：
 
-- [全特性参考手册](docs/features.md) — 包含所有命令的使用方法
-- [三阶段产品结构与版本说明书](docs/editions.md) — 了解 Base 与 Enhanced 的边界
+- [产品指南：三阶段结构与全特性参考](docs/technical/product-guide.md) — 包含所有命令的使用方法
 - [Carror OS 宣言](docs/marketing/manifesto.md) — 理解我们为何坚持不妥协的工程纪律
-- [数据资产转移与无损升级指南](docs/MIGRATION.md) — 如何在团队或新项目中安全继承 AI 的血泪教训（错误 DNA）
+- [数据资产转移与无损升级指南](docs/governance/MIGRATION.md) — 如何在团队或新项目中安全继承 AI 的血泪教训（错误 DNA）
 - [架构极限评分与拆解分析](docs/technical/architecture-review.md) — 内核态与用户态的深度评估
 - [全人工验收大盘](docs/tests/manual-acceptance-test.md) — 49 根直通底层的物理探针
 

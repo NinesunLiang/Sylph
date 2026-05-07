@@ -11,7 +11,7 @@ VERSION="v6.1.8-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SOURCE_DIR="$ROOT_DIR/source"
-PACKAGES_DIR="$SCRIPT_DIR/packages"
+PACKAGES_DIR="$ROOT_DIR/packages"
 
 rm -rf "$PACKAGES_DIR" && mkdir -p "$PACKAGES_DIR"
 TEMP_DIR=$(mktemp -d); trap "rm -rf $TEMP_DIR" EXIT
@@ -27,10 +27,12 @@ cp -f "$HK_SRC/.claude/kernel.md" "$HK_TMP/.claude/"
 cp -f "$HK_SRC/.claude/anti-patterns.md" "$HK_TMP/.claude/"
 cp -f "$HK_SRC/.claude/claude-next.md" "$HK_TMP/.claude/"
 cp -f "$HK_SRC/.claude/harness.yaml" "$HK_TMP/.claude/"
+cp -f "$HK_SRC/.claude/settings.json" "$HK_TMP/.claude/" 2>/dev/null || true
 cp -f "$HK_SRC/.claude/index.md" "$HK_TMP/.claude/"
 cp -f "$HK_SRC/.claude/hooks/"*.sh "$HK_TMP/.claude/hooks/"
 cp -f "$HK_SRC/.claude/scripts/"* "$HK_TMP/.claude/scripts/"
 chmod +x "$HK_TMP/.claude/hooks/"*.sh
+chmod +x "$HK_TMP/.claude/scripts/"*.py "$HK_TMP/.claude/scripts/"*.sh 2>/dev/null || true
 cp -f "$HK_SRC/.opencode/plugins/"*.ts "$HK_TMP/.opencode/plugins/" 2>/dev/null || true
 cp -f "$HK_SRC/.opencode/plugins/package.json" "$HK_TMP/.opencode/plugins/" 2>/dev/null || true
 

@@ -170,8 +170,9 @@ _D3_BAK=""
 # 伪造 95% 用量
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 
-# 三种工具都应被拦（context-guard matcher=.*）
-for tool in "Write" "Bash" "Edit" "Read"; do
+# R29: matcher=Edit|Write (保留诊断通道)
+# Write/Edit 应被拦 (exit 2); Read/Bash 应放行 (exit 0)
+for tool in "Write" "Edit"; do
     payload='{"hook_event_name":"PreToolUse","tool_name":"'$tool'","tool_input":{}}'
     run "$payload" context-guard.sh
     if [ "$EXIT" = "2" ]; then
@@ -181,6 +182,19 @@ for tool in "Write" "Bash" "Edit" "Read"; do
         TOTAL=$((TOTAL+1))
         FAILED=$((FAILED+1))
         echo "  🔴 D3: $tool @ 95% 未被拦 (exit=$EXIT)"
+    fi
+done
+
+for tool in "Read" "Bash"; do
+    payload='{"hook_event_name":"PreToolUse","tool_name":"'$tool'","tool_input":{}}'
+    run "$payload" context-guard.sh
+    if [ "$EXIT" = "0" ]; then
+        TOTAL=$((TOTAL+1))
+        echo "  🟢 D3: $tool @ 95% 正确放行 (诊断通道)"
+    else
+        TOTAL=$((TOTAL+1))
+        FAILED=$((FAILED+1))
+        echo "  🔴 D3: $tool @ 95% 被错误阻断 (exit=$EXIT)"
     fi
 done
 
@@ -206,11 +220,11 @@ fi
 
 echo ""
 echo "========================================"
-echo "E3: harness-smoke-test 52 case 回归"
+echo "E3: harness-smoke-test 66 case 回归"
 echo "========================================"
 if bash .claude/scripts/harness-smoke-test.sh >/dev/null 2>&1; then
     TOTAL=$((TOTAL+1))
-    echo "  🟢 harness-smoke 52/52 全绿"
+    echo "  🟢 harness-smoke 66/66 全绿"
 else
     TOTAL=$((TOTAL+1))
     FAILED=$((FAILED+1))

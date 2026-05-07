@@ -16,6 +16,15 @@ VERSION="v6.1.8-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TAR="$SCRIPT_DIR/harness-kit-$VERSION.tar.gz"
 
+# Agentic UI: CLI flags 驱动
+FORCE_MODE=false
+
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f) FORCE_MODE=true ;;
+    esac
+done
+
 echo "============================================"
 echo " harness-kit 治理层安装向导"
 echo " 版本：$VERSION（27+ 个 hooks）"
@@ -26,9 +35,7 @@ echo ""
 
 if [ -d ".claude/hooks" ]; then
     log_warn ".claude/hooks/ 已存在（将覆盖）"
-    read -p " 是否继续？(y/N) " -n 1 -r
-    echo ""
-    [[ $REPLY =~ ^[Yy]$ ]] || { log_info "安装已取消"; exit 0; }
+    log_info "正在自动备份并覆盖安装。（跳过确认请使用 --force/-f 参数）"
 fi
 
 log_step "创建目录..."

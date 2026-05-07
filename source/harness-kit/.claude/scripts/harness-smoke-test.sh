@@ -56,9 +56,9 @@ run_case "context-guard: Edit @ 95% 应硬阻断（大写）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"x"}}' \
   "context-guard.sh" 2 "Context Guard"
 
-run_case "context-guard: Bash @ 95% 应硬阻断" \
+run_case "context-guard: Bash @ 95% 应放行 (R29 诊断通道)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' \
-  "context-guard.sh" 2 "Context Guard"
+  "context-guard.sh" 0 ""
 
 rm -f .omc/state/token-tracking-index.json
 run_case "context-guard: 正常占比不应拦截 Write" \
@@ -70,11 +70,11 @@ run_case "context-guard: 正常占比 Read 应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"x"}}' \
   "context-guard.sh" 0 ""
 
-# R26: 95% 时 Read 也必须被拦（冷酷无情产品定位）
+# R29: 诊断通道（Read/Grep/Bash）在高上下文时放行，保留写工具 (Edit/Write) 的硬阻断
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
-run_case "R26 context-guard: Read @ 95% 也应硬阻断" \
+run_case "R29 context-guard: Read @ 95% 应放行 (诊断通道)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 2 "Context Guard"
+  "context-guard.sh" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
 # --- privacy-gate (R13 + R15 + R16) ---
@@ -428,11 +428,15 @@ fi
 TOTAL=$((TOTAL+1))
 
 # P1-1 R26 audit-hooks --scan-internal-filter: 脚本内白名单 vs matcher 漂移扫描应 0 🟡
+# 注：3 个 🟡 为预期设计（plan-gate / posttool-read-cite / proactive-handoff
+# 已注册但禁用，Base 版可用但默认不激活），允许 ≤3 个预期 🟡
 SCAN_OUT=$(bash .claude/scripts/audit-hooks.sh --scan-internal-filter 2>&1)
-if echo "$SCAN_OUT" | grep -q "🟡 次要: 0" && echo "$SCAN_OUT" | grep -q "✅ 无异常"; then
-    pass "P1-1 audit-hooks --scan-internal-filter: R26 回归 clean"
+YELLOW_COUNT=$(echo "$SCAN_OUT" | grep -E '🟡 次要:' | grep -oE '[0-9]+' | head -1)
+RED_COUNT=$(echo "$SCAN_OUT" | grep -E '🔴 严重:' | grep -oE '[0-9]+' | head -1)
+if [ "${RED_COUNT:-0}" -eq 0 ] && [ "${YELLOW_COUNT:-99}" -le 3 ]; then
+    pass "P1-1 audit-hooks --scan-internal-filter: R26 回归 clean (🟡 $YELLOW_COUNT, 预期 ≤3)"
 else
-    fail "P1-1 audit-hooks --scan-internal-filter: 发现内部白名单漂移"
+    fail "P1-1 audit-hooks --scan-internal-filter: 发现内部白名单漂移 (R=$RED_COUNT Y=$YELLOW_COUNT)"
 fi
 TOTAL=$((TOTAL+1))
 
@@ -452,6 +456,64 @@ rm -f .omc/state/subagent-usage.jsonl
 run_case "R25 posttool-subagent-audit: 非 Task 工具应放行" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' \
   "posttool-subagent-audit.sh" 0 ""
+
+# --- R29: compact-detect (UserPromptSubmit /compact detection) ---
+TOTAL=$((TOTAL+1))
+run_case "R29 compact-detect: /compact 应写 compact-state" \
+  '/compact' \
+  "compact-detect.sh" 0 ""
+if [ -f .omc/state/token-compact-state.json ] && grep -q '"pre_compact_usage"' .omc/state/token-compact-state.json; then
+    pass "R29 compact-detect 已写 compact-state"
+else
+    fail "R29 compact-detect 未写 compact-state"
+fi
+rm -f .omc/state/token-compact-state.json
+
+TOTAL=$((TOTAL+1))
+run_case "R29 compact-detect: 普通输入应静默退出" \
+  'ls' \
+  "compact-detect.sh" 0 ""
+if [ ! -f .omc/state/token-compact-state.json ]; then
+    pass "R29 compact-detect 非 compact 正确放行"
+else
+    fail "R29 compact-detect 非 compact 错误触发了写入"
+fi
+rm -f .omc/state/token-compact-state.json
+
+# --- R29: token_writer (PostToolUse/PostToolUseFailure token tracking) ---
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/token-tracking-index.json
+run_case "R29 token_writer: --reset 应设 usage=0" \
+  '' \
+  "token_writer.sh" 0 ""
+# token_writer without args is a no-op for default values; use --reset
+bash .claude/hooks/token_writer.sh --reset 2>/dev/null
+if [ -f .omc/state/token-tracking-index.json ]; then
+    USAGE=$(python3 -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', -1))" 2>/dev/null)
+    if [ "$USAGE" = "0" ]; then
+        pass "R29 token_writer --reset usage=0"
+    else
+        fail "R29 token_writer --reset usage=$USAGE 应为 0"
+    fi
+else
+    fail "R29 token_writer --reset 未写 index"
+fi
+
+TOTAL=$((TOTAL+1))
+run_case "R29 token_writer: --increment 应递增 usage" \
+  '' \
+  "token_writer.sh" 0 ""
+bash .claude/hooks/token_writer.sh --increment 2>/dev/null
+if [ -f .omc/state/token-tracking-index.json ]; then
+    USAGE=$(python3 -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', 0))" 2>/dev/null)
+    if [ "$USAGE" -gt 0 ]; then
+        pass "R29 token_writer --increment usage=$USAGE"
+    else
+        fail "R29 token_writer --increment usage=$USAGE 应 >0"
+    fi
+else
+    fail "R29 token_writer --increment 未写 index"
+fi
 
 log ""
 log "========================================"
