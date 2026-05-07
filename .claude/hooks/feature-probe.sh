@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-# feature-probe.sh — 特性探针
+# feature-probe.sh — 特性探针 [INACTIVE: 未注册]
+# 注意：此脚本为独立工具脚本，不是 Hook（不需要 settings.json 注册）。
+# 使用方式：bash .claude/hooks/feature-probe.sh <feature_name> [--json]
 # 接收 feature name 作为参数，输出 L1-L4 证据级别
 # Usage: bash .claude/hooks/feature-probe.sh <feature_name> [--json]
 #   <feature_name>:  hook 名（如 completion-gate）或 skill 名（如 lx-status）

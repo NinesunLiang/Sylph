@@ -54,17 +54,17 @@ CHANGELOG 自身记录为 "Claude Code 26/26 hooks"（`CHANGELOG.md:24`）。
 
 ## 偏差 4（严重）："19,280 Tokens / 75% 上下文缩减" 无证据 ✅ 已修复
 
-**文档：** `README.md:28`
+**文档：** `README.md:28`、`docs/marketing/v6.1.8-dual-domain-scoring.md:182`
 
-该数字全项目仅 README.md 中出现一次。任何地方均无：
+该数字最初被认为仅 README.md 中出现一次。后续 Round 4 审计发现同样出现在双域评分文档中。任何地方均无：
 - Benchmark 脚本
 - 计算公式或推导过程
 - 对照测试数据
 - 测试用例
 
 按 AGENTS.md 证据层级规范，该声明仅达到 **L4（格式合法）**，远低于要求的 **L1（端到端功能验证）**。
-**修复：** 从 README.md 中删除该无证据数字。
-**状态：** ✅ 已删除
+**修复：** 从 README.md 中删除该无证据数字；从 `v6.1.8-dual-domain-scoring.md` 中替换为 `[内部自检，非行业标准]` 标注。
+**状态：** ✅ 已删除/标注
 
 ---
 
@@ -107,7 +107,7 @@ CHANGELOG 自身记录为 "Claude Code 26/26 hooks"（`CHANGELOG.md:24`）。
 | Context Guard 80% Exit 2 | `context-guard.sh:50` | ✅ |
 | Completion Gate 证据门禁 | `completion-gate.sh:73` | ✅ |
 | 6 平台适配器 | `.hooks/adapters/` | ✅ |
-| A/B 盲审对抗 | `lx-code-review` skill | ✅ |
+| A→B→A 对抗验证 | `lx-code-review` skill | ✅ |
 | 6 条铁律 | `AGENTS.md` | ✅ |
 | 跨平台热插拔 | `unified.yaml` + `generate.py` | ✅ |
 | OOM 硬阻断原理 | `context-guard.sh` | ✅ |

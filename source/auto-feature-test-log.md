@@ -1,4 +1,4 @@
-# 📊 Carror OS v6.1.7-stable 验收执行战报 (Executor Log)
+# 📊 Carror OS v6.1.8-stable 验收执行战报 (Executor Log)
 
 > 执行基准：`auto-feature-test.md`（全战区 Agentic UI 压测）
 

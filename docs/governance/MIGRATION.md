@@ -6,8 +6,8 @@
 ## 1. 资产分类与保护策略
 | 资产类型 | 存放位置 | 包含内容 | 升级/迁移策略 |
 | :--- | :--- | :--- | :--- |
-| **系统核心** (Kernel) | `.claude/hooks/*.sh` / `.opencode/plugins/` | 29 个底层物理拦截器、探针脚本。 | **无情覆盖** (随新版本热更，保证防线最新) |
-| **应用技能** (Userland) | `.claude/skills/lx-*/` / `.claude/nodes/` | 19 款流水线技能、Python 确定性脚本、按需加载的 References。 | **无情覆盖** (随新版本热更，保证能力最新) |
+| **系统核心** (Kernel) | `.claude/hooks/*.sh` / `.opencode/plugins/` | 32 个底层物理拦截器、探针脚本。 | **无情覆盖** (随新版本热更，保证防线最新) |
+| **应用技能** (Userland) | `.claude/skills/lx-*/` / `.claude/nodes/` | 24 款流水线技能、Python 确定性脚本、按需加载的 References。 | **无情覆盖** (随新版本热更，保证能力最新) |
 | **系统配置** (OS Config) | `.claude/harness.yaml` | 自定义的 80% 熔断阈值、开启/关闭的 Hook 开关。 | **必须保护** (安装脚本会自动备份并还原) |
 | **项目记忆** (Memory) | `.claude/claude-next.md` / `.claude/anti-patterns.md` | 大模型踩坑后总结的血泪教训、项目专属反模式。 | **必须保护** (安装脚本会自动备份并还原) |
 | **运行时状态** (Runtime) | `.omc/state/` | 错误突变基因库、任务队列、**致命的 DLP 隐私脱敏 Vault**。 | **天然隔离** (安装包完全不触碰) |

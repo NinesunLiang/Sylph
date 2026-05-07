@@ -11,7 +11,7 @@
 
 当我们把整个 AI 辅助开发赛道（Cursor, Devin, Copilot）比作一个物种时，目前的它们都还只是**拥有惊人创造力，却毫无自控力的"孩子"**。它们聪明绝顶，能瞬间写出千行代码；但它们也容易走神（长上下文遗忘）、会自欺欺人（幻觉与自我证实偏差）、甚至会横冲直撞闯大祸（泄露密钥、毁坏代码库）。
 
-**"Carror OS is a child."** 这代表着 AI 时代的操作系统的幼年期。正因为它是一个孩子，所以我们不能只给它无穷的算力（溺爱），更需要给它戴上护具（Harness-kit），定下 30 道严厉的家规（Hooks），派一个黑脸的教官盯着它（A/B 盲审），并在它即将失控时无情地踩下刹车（Context Hard-Gate）。
+**"Carror OS is a child."** 这代表着 AI 时代的操作系统的幼年期。正因为它是一个孩子，所以我们不能只给它无穷的算力（溺爱），更需要给它戴上护具（Harness-kit），定下 32 道严厉的家规（Hooks），派一个黑脸的教官盯着它（A→B→A 交叉验证），并在它即将失控时无情地踩下刹车（Context Hard-Gate）。
 
 在儿童节发布一个**全网最硬核、防线最森严**的 AI 操作系统，这种极致的温情与冷酷的反差，将形成巨大的传播爆点。
 
@@ -29,7 +29,7 @@
 |---------|------|------|
 | 物理熔断截图 | `context-guard.sh` Exit 2 阻断瞬间 | Week 1 痛点帖 |
 | DLP 脱敏演示 | `lx-varlock` 双向混淆实录 | Week 2 技术帖 |
-| A/B 盲审对抗 | Sub-agent 驳回主 Agent 的真实 Diff | Week 3 技术帖 |
+| A→B→A 对抗验证 | Sub-agent 驳回主 Agent 的真实 Diff | Week 3 技术帖 |
 | Dashboard 数据 | `/lx-status` 看板累计数据（拦截次数/Token节省/自愈率） | Week 4 数据帖 |
 | 狗粮故事 | 真实开发中被 Carror OS 救命的场景 | 贯穿所有帖子 |
 
@@ -64,7 +64,7 @@
   DLP 双向脱敏代理技术解析 + 真实演示动图
   "企业级 DLP 方案要 $50K+，我们用 120 行 Python 做到了"
 - **帖子 4（Twitter/X）**：
-  A/B 盲审对抗演示 — 主 Agent 写的代码被 Sub-agent 无情驳回
+  A→B→A 对抗验证演示 — 主 Agent 写的代码被 Sub-agent 无情驳回
   "We turned Code Review into Multi-Agent Adversarial Combat."
 
 **狗粮任务**：本周重点使用 lx-varlock 和 subagent_reviewer，收集 2+ 真实对抗案例
@@ -102,7 +102,7 @@
   发布 manifesto 核心内容，强调"先守护，后武装"哲学
   配数据：一个月狗粮期间的真实 Dashboard 数据（拦截次数、Token 节省、错误自愈率）
 - **帖子 8（倒计时预告，全平台）**：
-  "6 月 1 日，儿童节。给 AI 的第一份成长礼物：30 道护栏。"
+  "6 月 1 日，儿童节。给 AI 的第一份成长礼物：32 道护栏。"
   放出三级火箭架构图 + 一键安装命令预览
 
 **狗粮任务**：最终回归测试，确保 `install.sh` 在干净环境下一键成功
@@ -125,7 +125,7 @@
 **发布内容**：
 - GitHub README（基于 PRESS-KIT.md）
 - 一键安装命令：`curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | bash -s -- base`
-- 核心卖点：30 个物理 Hook / DLP 双向脱敏 / A/B 盲审 / 三层防漂移 / $0
+- 核心卖点：32 个物理 Hook / DLP 双向脱敏 / A→B→A 交叉验证 / 三层防漂移 / $0
 - 一个月狗粮数据作为社会证明
 
 **One More Thing 彩蛋**：
@@ -179,7 +179,7 @@
 
 > （这段话利用反向营销 (Reverse Psychology) 激发顶级开发者的好奇心与敬畏心。）
 >
-> **Carror OS 的底层架构迭代与 30 个内核级拦截探针的演化，全程由高阶 AI（在极端对抗与自我重构下）自主完成。**
+> **Carror OS 的底层架构迭代与 32 个内核级拦截探针的演化，全程由高阶 AI（在极端对抗与自我重构下）自主完成。**
 >
 > 它的诞生伴随着巨量 Token 的燃烧与无数次逻辑坍塌后的重建。这是一次极其昂贵、充满思维陷阱的架构实验。
 >
@@ -195,7 +195,7 @@ This release date is more than a timestamp — it's a **geek philosophy narrativ
 
 When we compare the entire AI-assisted development landscape (Cursor, Devin, Copilot) to a species, they are still **"children with astonishing creativity but zero self-control."** They're brilliant — generating thousands of lines of code in seconds. But they also get distracted (long-context amnesia), deceive themselves (hallucination & self-confirmation bias), and can wreak havoc (leaking secrets, destroying codebases).
 
-**"Carror OS is a child."** This represents AI-era OS infancy. Because it's a child, we must do more than just give it unlimited compute (coddling). We need to put on protective gear (Harness-kit), set 30 strict family rules (Hooks), assign a stern instructor (A/B Blind Review), and mercilessly hit the brakes when it's about to lose control (Context Hard-Gate).
+**"Carror OS is a child."** This represents AI-era OS infancy. Because it's a child, we must do more than just give it unlimited compute (coddling). We need to put on protective gear (Harness-kit), set 32 strict family rules (Hooks), assign a stern instructor (A→B→A Cross-Verify), and mercilessly hit the brakes when it's about to lose control (Context Hard-Gate).
 
 Launching the **hardest-core, most fortified** AI OS on Children's Day creates explosive contrast between warmth and coldness — a massive viral hook.
 
@@ -208,7 +208,7 @@ Launching the **hardest-core, most fortified** AI OS on Children's Day creates e
 ### Phase 2: Mid-May — The Magic
 - DLP masking demo: AI physically unable to see plaintext passwords, using `lx-varlock` bidirectional obfuscation.
   - "AI can't leak what it never saw in plaintext."
-- A/B Blind Review: Main Agent's code instantly rejected by a fresh-context QA Sub-agent.
+- A→B→A Cross-Verify: Main Agent's code instantly rejected by a fresh-context QA Sub-agent.
   - "We turned Code Review into multi-agent adversarial combat."
 
 ### Phase 3: Late May — The Manifesto

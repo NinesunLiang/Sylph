@@ -37,7 +37,8 @@ else
     AGENT_TYPE=""
     MAX_TURNS=""
     EFFECTIVE_SOURCE=""
-    eval "$(echo "$INPUT" | python3 -c "
+    TMPFILE=$(mktemp /tmp/subagent-guard-XXXXXX)
+    echo "$INPUT" | python3 -c "
 import sys, json, re, os
 try:
     data = json.load(sys.stdin)
@@ -55,13 +56,15 @@ try:
         src = 'default'
     at = re.sub(r'[^a-zA-Z0-9_:\-]', '', at)
     mt = re.sub(r'[^0-9]', '', mt)
-    print(f'AGENT_TYPE=\"{at}\"')
-    print(f'MAX_TURNS=\"{mt}\"')
-    print(f'EFFECTIVE_SOURCE=\"{src}\"')
+    print(f'AGENT_TYPE={json.dumps(at)}')
+    print(f'MAX_TURNS={json.dumps(mt)}')
+    print(f'EFFECTIVE_SOURCE={json.dumps(src)}')
 except:
     print('AGENT_TYPE=\"\"')
-    print(f'MAX_TURNS=\"{os.environ.get(\"DEFAULT_MAX_TURNS\", \"20\")}\"')
-    print('EFFECTIVE_SOURCE=\"default\"')" 2>/dev/null)"
+    print(f'MAX_TURNS={json.dumps(os.environ.get(\"DEFAULT_MAX_TURNS\", \"20\"))}')
+    print('EFFECTIVE_SOURCE=\"default\"')" > "$TMPFILE" 2>/dev/null
+    source "$TMPFILE"
+    rm -f "$TMPFILE"
 fi
 
 # Fail-open: 无法解析 agent 类型 → 放行

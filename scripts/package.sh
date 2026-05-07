@@ -7,9 +7,10 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
 log_info(){ echo -e "${GREEN}[INFO]${NC} $1"; }
 log_step(){ echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION="v6.1.7-stable"
+VERSION="v6.1.8-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SOURCE_DIR="$SCRIPT_DIR/source"
+ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+SOURCE_DIR="$ROOT_DIR/source"
 PACKAGES_DIR="$SCRIPT_DIR/packages"
 
 rm -rf "$PACKAGES_DIR" && mkdir -p "$PACKAGES_DIR"
@@ -33,8 +34,8 @@ chmod +x "$HK_TMP/.claude/hooks/"*.sh
 cp -f "$HK_SRC/.opencode/plugins/"*.ts "$HK_TMP/.opencode/plugins/" 2>/dev/null || true
 cp -f "$HK_SRC/.opencode/plugins/package.json" "$HK_TMP/.opencode/plugins/" 2>/dev/null || true
 
-# lx-skills
-LX_SRC="$SOURCE_DIR/lx-skills"
+# lx-skills (from lx-skills-v5 source)
+LX_SRC="$SOURCE_DIR/lx-skills-v5"
 LX_TMP="$TEMP_DIR/skills"
 mkdir -p "$LX_TMP/.claude"
 cp -rf "$LX_SRC/.claude/nodes" "$LX_TMP/.claude/"
@@ -48,8 +49,12 @@ cd "$LX_TMP" && tar -czf "$PACKAGES_DIR/lx-skills-$VERSION.tar.gz" . 2>/dev/null
 
 log_step "复制辅助文件..."
 for F in install.sh harness-kit-install.sh harness-kit-uninstall.sh final-exam.md CHANGELOG.md; do
-    [ -f "$SCRIPT_DIR/$F" ] && cp -f "$SCRIPT_DIR/$F" "$PACKAGES_DIR/"
+    if [ -f "$SCRIPT_DIR/$F" ]; then
+        cp -f "$SCRIPT_DIR/$F" "$PACKAGES_DIR/"
+    elif [ -f "$ROOT_DIR/$F" ]; then
+        cp -f "$ROOT_DIR/$F" "$PACKAGES_DIR/"
+    fi
 done
-[ -d "$SCRIPT_DIR/docs" ] && cp -r "$SCRIPT_DIR/docs" "$PACKAGES_DIR/"
+[ -d "$ROOT_DIR/docs" ] && cp -r "$ROOT_DIR/docs" "$PACKAGES_DIR/"
 
-log_info "✅ 打包完成！v6.1.7-stable is fully loaded."
+log_info "✅ 打包完成！v6.1.8-stable is fully loaded."

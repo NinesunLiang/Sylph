@@ -24,7 +24,7 @@ We noted your expertise in [domain/specialty] and sincerely invite you to review
 
 **Project Overview**:
 - Positioning: AI behavior governance infrastructure (NOT an AI coding tool)
-- Core capability: 29 Hooks implementing physical-level tool-call blocking (Exit 2), not prompt-level soft constraints
+- Core capability: 32 Hooks implementing physical-level tool-call blocking (Exit 2), not prompt-level soft constraints
 - License: MIT
 - Repository: [URL]
 - Governance version: v6.1.8

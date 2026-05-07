@@ -30,7 +30,7 @@ FLYWHEEL_P0_WARNING_THRESHOLD=$(hc_get "flywheel_report.p0_warning_threshold" "5
 export FLYWHEEL_P0_WARNING_THRESHOLD
 
 python3 - "$FLYWHEEL" "$REPORT_DIR" <<'PYEOF'
-import sys, os
+import sys, os, subprocess
 from datetime import date, timedelta
 from collections import defaultdict
 
@@ -206,10 +206,10 @@ except Exception:
 # AC-17.4: Desktop notification for P0 events
 p0_summary = "; ".join(f"{evt}x{cnt}" for evt, cnt in warnings[:3])
 try:
-    os.system('osascript -e \'display notification "' + p0_summary + '" with title "Flywheel P0 Alert"\'')
+    subprocess.run(['osascript', '-e', 'display notification "' + p0_summary + '" with title "Flywheel P0 Alert"'], capture_output=True)
 except Exception:
     try:
-        os.system('notify-send "Flywheel P0 Alert" "' + p0_summary + '"')
+        subprocess.run(['notify-send', 'Flywheel P0 Alert', p0_summary], capture_output=True)
     except Exception:
         pass
 

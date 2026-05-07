@@ -2,7 +2,7 @@
 
 # harness-kit:managed v1.0.0
 
-# context-guard.sh — PreToolUse:Edit/Write/Bash Hook
+# context-guard.sh — PreToolUse:.* Hook (R26: 全工具走阈值, see claude-next.md)
 
 # 功能：真实 Context Token 百分比硬阻断 (Hard Gate)
 

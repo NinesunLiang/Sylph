@@ -2,7 +2,9 @@
 
 # harness-kit:managed v1.0.0
 
-# proactive-handoff.sh — PostToolUse Hook
+# proactive-handoff.sh — PostToolUse Hook [INACTIVE: 未注册, 反向漂移]
+# 注意：此脚本存在于磁盘但未注册到 settings.json（R23 移除反向漂移）。
+# 恢复激活请：settings.json PostToolUse 添加 + harness.yaml hooks_enabled.proactive_handoff=true
 #
 # 功能：Enhanced 专属。当 step 执行完毕且上下文 >50% 时，
 #       触发主动交接警告，提醒用户运行 /compact 压缩会话。

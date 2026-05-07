@@ -84,7 +84,7 @@
 - **Devin**：内置限制（不能 push 到 default branch），但不可配置、不可审计
 - **Aider**：无治理层
 
-Carror OS 的 30 个 Hook 通过 [Exit 2 实现物理级工具调用阻断](https://agentic-patterns.com/patterns/hook-based-safety-guard-rails)。AI 不是"被建议不要做"，而是"物理上做不到"。这一差异决定了约束的有效层级：Prompt 级建议可被忽略，物理阻断则是不可绕过的硬约束。
+Carror OS 的 32 个 Hook 通过 [Exit 2 实现物理级工具调用阻断](https://agentic-patterns.com/patterns/hook-based-safety-guard-rails)。AI 不是"被建议不要做"，而是"物理上做不到"。这一差异决定了约束的有效层级：Prompt 级建议可被忽略，物理阻断则是不可绕过的硬约束。
 
 ### S 安全防护 — Carror OS 9.0 vs 行业均值 3.0
 
@@ -116,7 +116,7 @@ ctx >= 80% → context-guard.sh 物理熔断（Exit 2 锁死一切写入）
 
 | 产品 | 框架费 | 隐性成本 |
 |:-----|:-------|:---------|
-| **Carror OS** | **$0** | 纯 API 计费，渐进式加载节省 ~19,280 tokens/session |
+| **Carror OS** | **$0** | 纯 API 计费，渐进式加载显著降低上下文占用 `[内部自检，非行业标准]` |
 | Claude Code | $0 | 纯 API 计费 |
 | Cursor | $20-40/月 | 额度用完按量计费 |
 | Copilot Enterprise | $39/月/人 | 强绑定 GitHub 生态 |
@@ -140,7 +140,7 @@ ctx >= 80% → context-guard.sh 物理熔断（Exit 2 锁死一切写入）
 | 2 | **证据门禁** | `completion-gate.sh` 要求 VERIFIED + 20 字符证据 | 无（全行业信任 AI 自述） |
 | 3 | **三层防漂移** | SessionStart 注入 + 每 10 轮复诵 + 写前锚定 | 无 |
 | 4 | **甜点区主动交接** | `context_monitor.py` 在 50% 时 AI 状态最干净时强制重置 | 手动 /compact |
-| 5 | **A/B 对抗盲审** | `subagent_reviewer.py` 生成 Zero-shot Prompt 唤起独立 Sub-agent | 无（全行业 AI 自审） |
+| 5 | **A→B→A 对抗验证** | `subagent_reviewer.py` 生成 Zero-shot Prompt 唤起独立 Sub-agent | 无（全行业 AI 自审） |
 | 6 | **文件级并发锁** | `oma_lock_manager.py` 用 `O_CREAT|O_EXCL` 原子操作 | 无（需 Redis 或 RPC） |
 
 ---

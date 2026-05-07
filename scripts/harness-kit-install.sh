@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # harness-kit 治理层独立安装脚本
-# 版本：v6.1.7-stable | 日期：2026-04-24
+# 版本：v6.1.8-stable | 日期：2026-05-03
 # 用法：bash harness-kit-install.sh
 
 set -eo pipefail
@@ -12,7 +12,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION="v6.1.7-stable"
+VERSION="v6.1.8-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TAR="$SCRIPT_DIR/harness-kit-$VERSION.tar.gz"
 
@@ -61,7 +61,7 @@ done
 HOOKS=$(find .claude/hooks -name "*.sh" 2>/dev/null | wc -l | tr -d ' ')
 [ "$HOOKS" -ge 22 ] || { log_warn "hooks 数量不足（$HOOKS/22）"; ERRORS=$((ERRORS+1)); }
 
-# v6.1.7-stable 内容校验
+# v6.1.8-stable 内容校验
 grep -q "铁律速查" ".claude/index.md" 2>/dev/null \
     || { log_warn "index.md 缺少铁律速查表"; ERRORS=$((ERRORS+1)); }
 grep -q "铁律提醒" ".claude/hooks/turn-counter.sh" 2>/dev/null \
@@ -71,12 +71,12 @@ echo ""
 [ "$ERRORS" -eq 0 ] && log_info "✅ 安装成功（$HOOKS 个 hooks）" || log_warn "⚠️ $ERRORS 个警告"
 
 echo ""
-echo " v6.1.7-stable 新增 hooks（上下文衰减加固）："
+echo " v6.1.8-stable 新增 hooks（上下文衰减加固）："
 echo " pretool-rule-anchor.sh — 长对话防漂移锚点（第22个）"
 echo " · 第15轮起，每次写文件前注入铁律提醒"
 echo " · 检测顺手/顺便等漂移词，升级为强预警"
 echo ""
-echo " v6.1.7-stable 增强："
+echo " v6.1.8-stable 增强："
 echo " index.md — 新增铁律速查表（6条，SessionStart即锚定）"
 echo " turn-counter.sh — 每10轮注入铁律摘要（防长对话规则失效）"
 echo ""

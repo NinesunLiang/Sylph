@@ -6,7 +6,7 @@
 # 与实时层（PostToolUseFailure → error-dna.sh）互不冲突，重复事件会被去重丢弃
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "error_dna" || exit 0
+hc_enabled "stop_drain" || exit 0
 
 INPUT=$(cat)
 

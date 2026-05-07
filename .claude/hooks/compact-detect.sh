@@ -14,6 +14,11 @@
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+
+# Config gate: 从 harness.yaml 读取启停开关
+source "$SCRIPT_DIR/harness_config.sh" 2>/dev/null || true
+hc_enabled "compact_detect" || exit 0
+
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 INDEX_FILE="$STATE_DIR/token-tracking-index.json"
 COMPACT_STATE="$STATE_DIR/token-compact-state.json"

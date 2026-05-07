@@ -17,12 +17,27 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
+hc_enabled "token_writer" || exit 0
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 INDEX_FILE="$STATE_DIR/token-tracking-index.json"
 SAVINGS_FILE="$STATE_DIR/token-savings.json"
 COMPACT_STATE="$STATE_DIR/token-compact-state.json"
 
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+
+# --reset 模式：新会话重置计数器
+if [ "${1:-}" = "--reset" ]; then
+    cat > "$INDEX_FILE" <<'RESETEOF'
+{
+  "usage": 0,
+  "limit": 200000,
+  "last_updated": "SESSION_START",
+  "source": "token_writer.sh --reset"
+}
+RESETEOF
+    echo "[token_writer] reset" >> "$STATE_DIR/.token-writer-session.log" 2>/dev/null
+    exit 0
+fi
 
 # 从 harness config 读取可配置的 token limit
 LIMIT=$(hc_get "token_tracking.limit" "200000")

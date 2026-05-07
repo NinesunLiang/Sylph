@@ -5,8 +5,4 @@ __pycache__/
 .env
 *.pem
 .omc/
-
-
-test/*
-locks/*
-*.lock
+scripts/packages/

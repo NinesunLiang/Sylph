@@ -64,6 +64,19 @@ def check_context():
 
     if limit == 0:
         limit = 200000
+
+    # 会话过期防御：如果 state_file 的 last_updated 超过 5 分钟前，
+    # 说明这是一个新会话且 token_writer --reset 尚未运行（死锁保护）。
+    # 此时将 usage 视为 0，防止旧会话残留数据导致硬阻断。
+    if state_file.exists():
+        try:
+            import time
+            file_age = time.time() - state_file.stat().st_mtime
+            if file_age > 300 and data.get("usage", 0) > 0:
+                usage = 0
+        except Exception:
+            pass
+
     ratio = usage / limit
     warn_ratio = warn_pct / 100.0
     danger_ratio = danger_pct / 100.0

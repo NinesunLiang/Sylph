@@ -77,6 +77,19 @@ except:
             exit 2
         fi
 
+        # R27: 语义验证 — 形式门禁通过 ≠ 断言真实
+        # 强制证据包含结构化格式（file:line 引用 或 命令输出）
+        # 拒绝仅 "VERIFIED" + 描述 的模糊证据
+        if ! echo "$CONTENT" | grep -qE '(\[已验证:|\[已测试:|✅|exit 0|PASS|is_danger.*false|status.*completed)'; then
+            echo "⛔ COMPLETION BLOCKED: 证据格式过于模糊，缺少结构化验证标记。" >&2
+            echo "证据必须包含以下结构化格式之一：" >&2
+            echo "  - [已验证: file:line] 格式的代码引用" >&2
+            echo "  - [已测试: 命令+输出] 格式的运行验证" >&2
+            echo "  - 明确的通过标记（exit 0, PASS, ✅ 等）" >&2
+            rm -f "$CONSUMED"
+            exit 2
+        fi
+
         # 验证通过，清理消费文件
         rm -f "$CONSUMED"
 

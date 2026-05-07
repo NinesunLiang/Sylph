@@ -14,7 +14,7 @@
 # 所以这里只做"声明层对账 + 统计"，不做中断决策。
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "subagent_guard" || { echo '{"continue": true}'; exit 0; }
+hc_enabled "subagent_audit" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then

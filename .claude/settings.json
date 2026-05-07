@@ -255,6 +255,15 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/token_writer.sh --reset",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "Stop": [

@@ -127,7 +127,9 @@ hooks_enabled:
   pretool_write_lock: true
   posttool_write_lock: true
   flywheel_report: true
-  feature_probe: true
+  stop_drain: true
+  compact_detect: true
+  subagent_audit: true
   token_writer: true
 
 skills_enabled:
