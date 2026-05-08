@@ -44,6 +44,9 @@ knowledge:
 turn_counter:
   todo_refresh_interval: 10
   todo_max_items: 15
+  # 规范注入复合触发条件（两个条件同时满足才注入，避免过度注入）
+  knowledge_inject_context_pct: 50   # context 使用率超过此值
+  knowledge_inject_min_turns: 20     # 且轮次超过此值
 
 fuzzy_detection:
   fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"

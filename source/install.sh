@@ -171,16 +171,18 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
 
     if [ -n "$USER_CONTENT" ]; then
         TEMPLATE=$(cat "AGENTS.md")
+        # 降级 Carror OS 标题层级：# → ##，保留用户原始 # 的原创性
+        DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
         {
             echo "$USER_CONTENT"
             echo ""
-            echo "# ════════════════════════════════════════════"
-            echo "# Carror OS 治理框架"
-            echo "# ════════════════════════════════════════════"
+            echo "## ════════════════════════════════════════════"
+            echo "## Carror OS 治理框架"
+            echo "## ════════════════════════════════════════════"
             echo ""
-            echo "$TEMPLATE"
+            echo "$DEMOTED"
         } > AGENTS.md
-        log_info "已合并 → AGENTS.md：用户项目配置在前，Carror OS 治理模板在后"
+        log_info "已合并 → AGENTS.md：用户项目配置在前（#），Carror OS 治理模板在后（##）"
     fi
 fi
 

@@ -139,3 +139,25 @@
 正确行为：`gh` 的写操作（release upload/create、pr create/merge、secret set、repo create/delete 等）必须经 permission-gate 拦截，与 git push / rm -rf 同级对待。已新增 `permission_gate.gh_write_regex` 配置，默认匹配 release、pr、issue、repo、variable、secret、workflow 等 gh 写子命令。
 证据：用户批评"越权"——AI 在未询问的情况下直接用 `gh release upload` 推送了外部服务。检查发现 permission-gate.sh 没有针对 gh CLI 的任何检测规则，`gh` 命令不匹配 git push / destructive / sudo 任何已有 regex。这是防御体系的设计遗漏，不是因为用户没配置。
 补强：`permission_gate.gh_write_regex` 默认值为全写操作覆盖，可通过 harness.yaml 自定义缩小/扩大范围。
+
+### [R32] install.sh 合并已有 AGENTS.md 应降级标题层级
+
+@2026-05-08 hits:1
+触发条件：在已有 CLAUDE.md/AGENTS.md 的项目上运行 `bash install.sh`
+正确行为：Carror OS 治理内容应以 `##` 二级标题合并到用户文件末尾，保留用户 `#` 一级标题的原创性。当前实现在用户内容后用 `# Carror OS 治理框架` 一级标题，与用户原始 `#` 标题同级混乱。
+证据：狗粮测试 — 用户项目已有 `# Project Name`，Carror OS 合并后出现两个 `#` 一级标题，层次结构不清晰。
+
+### [R34] 说"系统没这问题"前必须逐文件交叉验证
+
+@2026-05-08 hits:1
+触发条件：AI 快速查看 grep 结果后直接断言"Carror OS 不存在 X 问题"，未逐文件对照验证
+正确行为：声称系统不存在某问题前，必须逐文件 Read 并交叉对比，引用具体行号作为证据。否则只能说"未验证，不确定"。Grep 看一遍不等于验证。
+证据：用户强调 Oracle 狗粮发现的 C2 不一是"实战数据"，而我在看了几个 grep 结果后就声称本系统没这个问题，构成 F1 假设驱动反模式。应直接逐文件对照 AGENTS.md / qa-checklist.md / index.md 的 C2 定义行号才能断言。
+
+### [R33] compact-detect.sh 必须注入知识，不能只记 token
+
+@2026-05-08 hits:1
+触发条件：用户在会话中执行 /compact 后继续工作
+正确行为：compact-detect.sh 必须在保存 compact state 后，立即通过 echo/additionalContext 注入项目知识摘要（index.md 铁律 + AGENTS.md 纲要 + 当前 step 状态），防止 AI 失忆。当前实现仅记录 token usage 到 token-compact-state.json，什么都不注入。
+证据：狗粮测试 — /compact 后 AI 忘记技术栈、ADR 决策、活跃 feature 状态，需要用户重新解释。
+补强：同时实现复合触发注入（context > 50% 且 turns > 20）作为周期刷新，防范 compact 后的规范漂移。

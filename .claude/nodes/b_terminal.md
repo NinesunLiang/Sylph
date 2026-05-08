@@ -108,8 +108,12 @@ b_factual_report:
   executed_steps:
     - step_id: "S1"
       command: "实际执行的命令"
-      exit_code: 0 | 1 | null
-      actual_output: "命令的原始输出（截取关键部分）"
+      machine_evidence:
+        exit_code: 0 | 1 | null
+        path: "目标路径 | null"
+        size: "文件大小 bytes | null"
+        sha256: "checksum | null"
+        raw_preview: "原始输出关键行"
       observed: "客观描述看到的现象"
   anomalies:
     - description: "异常描述"

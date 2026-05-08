@@ -1,6 +1,6 @@
-<!-- PROJECT: {project_name} -->
+<!-- PROJECT: Carror OS -->
 
-<!-- DATE: {date} -->
+<!-- DATE: 2026-05-08 -->
 
 # 代码执行内核（kernel.md）
 

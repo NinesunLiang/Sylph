@@ -59,6 +59,9 @@
 - 阶段 1 可以向 A 提问澄清，但**不得泄露预期的答案方向**
 - 阶段 2 是单向评审：接收全部材料后一次性输出，不与 A 对话
 - 终审报告中必须逐条引用证据（`file:line` 或命令输出）
+- Oracle 阶段 1 以 **minimal_by_category**（详见 AGENTS.md #6 证据模板）为拒止底线：
+  — B 报告每条 evidence 必须 ≥3 个 machine fields（path/size/sha256/exit_code 中至少 3 个）
+  — 不足 → rejected，退回 A 补充要求，不进入 B 执行
 
 ---
 
@@ -70,6 +73,9 @@
 oracle_stage1:
   status: approved | rejected | needs_clarification
   reasoning: string
+  min_evidence_check:
+    passed: true | false
+    detail: "每条 evidence 的 machine fields 数，不足 3 的列出"
   clarifications: string[] | null  # 仅 needs_clarification 时
   approved_plan:
     - step_id: string
