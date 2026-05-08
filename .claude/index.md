@@ -25,7 +25,7 @@
 | 文件 | 内容 | 注入方式|
 |------|------|---------|
 |`kernel.md` | 代码执行内核（命名/错误处理/测试要求） | full|
-|`anti-patterns.md` | 14 条反模式（A牙膏输出/B范围/C错误/D记忆/E效率/F推理） | summary|
+|`anti-patterns.md` | 16 条反模式（A输出/B范围/C错误/D记忆/E效率/F推理/G报告/H语义） | summary|
 |`claude-next.md` | 项目专属教训积累 | summary|
 |`CLAUDE.md` | 宪法 + 7 条铁律 + 工作流原则 | 会话自动加载 |
 
