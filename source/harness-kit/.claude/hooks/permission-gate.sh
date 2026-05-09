@@ -124,21 +124,7 @@ esac
 APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "perm-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
 
-cat >&2 <<EOF
-
-[Permission Gate 警报] 请用 Markdown 表格向用户展示以下危险命令，并通过原生 AskUserQuestion 表单询问处置方式（不要让用户手敲数字）：
-
-| 项 | 值 |
-|---|---|
-| 危险等级 | ${SEVERITY} |
-| 命令类型 | ${DANGER_TYPE} |
-| 完整命令 | \`${COMMAND}\` |
-
-用户选择后 AI 执行对应动作：
-  批准执行 → 告知用户在终端运行: echo '${APPROVAL_CODE}' > ${PERMISSION_MARKER}
-               然后重新触发该命令（验证码 5 分钟内有效）
-  取消操作 → 保持阻断，回到任务循环
-  修改命令 → 询问用户新命令，不写标记文件
-
-EOF
+echo "Permission Gate: 需要你批准后才能执行 ${DANGER_TYPE}" >&2
+echo "复制下方内容执行：" >&2
+echo "echo '${APPROVAL_CODE}' > ${STATE_DIR##$PROJECT_ROOT/}/permission-approved" >&2
 exit 2

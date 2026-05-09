@@ -160,20 +160,5 @@ if [ -f "$REGISTRY_PATH" ]; then
     [ -n "$L" ] && EVIDENCE_LEVEL_LABEL="$L"
 fi
 
-cat >&2 <<EOF
-
-[Completion Gate 警报] 请用 Markdown 表格向用户展示以下未完成证据阻断，并通过原生 AskUserQuestion 表单询问处置方式（不要让用户手敲数字）：
-
-| 项 | 值 |
-|---|---|
-| 拦截原因 | 任务标记 completed 但无验证证据 |
-| 预期证据级别 | ${EVIDENCE_LEVEL_LABEL} |
-| 证据文件路径 | \`${EVIDENCE_FILE}\` |
-
-用户选择后 AI 执行对应动作：
-  运行测试重试 → 回到任务循环，先跑测试/编译/端到端，结果写入证据文件后重试 completed
-  强制覆盖     → 询问用户理由，理由写入证据文件后继续（风险自负）
-  压缩上下文   → 调 /compact 后重试
-
-EOF
+echo "[Completion Gate] evidence missing: expected ${EVIDENCE_LEVEL_LABEL} at ${EVIDENCE_FILE}" >&2
 exit 2

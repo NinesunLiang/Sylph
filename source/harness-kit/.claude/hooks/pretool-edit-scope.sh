@@ -111,20 +111,5 @@ done < "$SCOPE_FILE"
 # 全部不匹配 → 输出耦合提醒后阻断
 coupling_remind "$REL_PATH" "$PROJECT_ROOT"
 SCOPE_CONTENT=$(tr '\n' ' ' < "$SCOPE_FILE")
-cat >&2 <<EOF
-
-[Scope Gate 警报] 请用 Markdown 表格向用户展示以下范围越界阻断，并通过原生 AskUserQuestion 表单询问处置方式（不要让用户手敲数字）：
-
-| 项 | 值 |
-|---|---|
-| 越界文件 | \`${REL_PATH}\` |
-| 当前允许范围 | ${SCOPE_CONTENT} |
-| 范围文件 | \`.omc/state/current-scope.txt\` |
-
-用户选择后 AI 执行对应动作：
-  加入允许范围 → Bash: echo '${REL_PATH}' >> ${SCOPE_FILE} && 重试编辑
-  放弃编辑     → 保持阻断，回到任务循环
-  新开 Step    → 提示先完成当前 Step，再建新 Step 和 scope
-
-EOF
+echo "echo '${REL_PATH}' >> ${SCOPE_FILE}    # Scope Gate: 需要你批准才能将 ${REL_PATH} 加入编辑允许范围" >&2
 exit 2

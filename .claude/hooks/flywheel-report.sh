@@ -206,17 +206,11 @@ except Exception:
     except Exception:
         pass
 
-# AI context injection (stdout) — keep original format for AI parsing
-print("[Flywheel 警报] 请用 Markdown 表格向用户展示以下高频 P0 问题，并询问处理方式：")
-print("| 事件 | 本月次数 | 等级 | 项目 |")
-print("|------|---------|------|------|")
-for evt, cnt in warnings[:3]:
-    projs = ', '.join(sorted(project_map[evt]))[:30] if project_map[evt] else '-'
-    print(f"| {evt} | {cnt} 次 | P0 | {projs} |")
-print("")
-print("用户选择后 AI 执行（替换 EVENT/PROJECT 为实际值，DATE 为今日）：")
-print(" 已解决 → Bash: echo 'DATE,EVENT,resolved,PROJECT' >> ~/.claude/flywheel-ack.log")
-print(" 稍后7天 → Bash: echo 'DATE,EVENT,snooze7,PROJECT' >> ~/.claude/flywheel-ack.log")
-print(" 永久静默 → Bash: echo 'DATE,EVENT,ignore,PROJECT' >> ~/.claude/flywheel-ack.log")
+# AI context injection (stdout) — flywheel alerts
+print(f"[Flywheel] P0 alerts this month: {warnings_count} events across {project_count} projects")
+if warnings:
+    print(f"  top: {warnings[0]}")
+    if len(warnings) > 1:
+        print(f"  also: {warnings[1]}")
 print("---")
 PYEOF
