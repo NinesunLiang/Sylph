@@ -125,6 +125,6 @@ APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/
 echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
 
 echo "Permission Gate: 需要你批准后才能执行 ${DANGER_TYPE}" >&2
-echo "复制下方内容执行：" >&2
+echo '复制下方内容执行，回车后说"继续"：' >&2
 echo "echo '${APPROVAL_CODE}' > ${STATE_DIR##$PROJECT_ROOT/}/permission-approved" >&2
 exit 2
