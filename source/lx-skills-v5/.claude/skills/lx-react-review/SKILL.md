@@ -21,7 +21,12 @@ paths:
  - "*.ts"
 
 harness_version: ">=1.1.0"
+role: "React/Next.js code quality reviewer — component patterns, hooks, performance"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-react-review"
+  - "react review"
 ---
 
 # React/Next.js 代码质量审查
@@ -147,3 +152,5 @@ p
 |skill 不可用 | Invoke lx-react-review | 用 references/checklists/ 直接审查，标注 [降级审查]|
 |组件 >200 行 | 全量审查 | 只审查 hooks 规则和 state 管理（最高风险）|
 |P0 auto-fix 破坏功能 | 自动修复 | 回退，改为只报告不修复，让用户决定 |
+
+

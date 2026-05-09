@@ -1,18 +1,8 @@
 #!/usr/bin/env bash
-
-# token_writer.sh — 写入 token-tracking-index.json + token-savings.json
-#
-# 由 PostToolUse 钩子调用或 context-guard.sh 调用，
-# 作为 context_monitor.py 的写入端，更新 token 使用量。
-#
-# 功能：
-#   1. 维护 token-tracking-index.json（合成使用计数器）
-#   2. 维护 token-savings.json（分项节省累积）
-#   3. 处理 compact 后续（检测待处理的 compact → 计算节省 → 重置计数器）
-#
-# 用法: token_writer.sh [--increment]
-#   --increment    每调用一次将 usage 增加约 500 (模拟轨迹)
-#   无参数         仅确保文件存在（默认值写入）
+# token_writer.sh — PostToolUse:.* / SessionStart — 写入 token 用量追踪索引供 context-guard 计算
+# Role: 写入 token 用量追踪索引供 context-guard 计算
+# NOTE: 增量(3000/轮)是对 token 消耗的代理估算。Claude Code 不暴露真实 token 用量。
+# 阈值选择依据: ~33 轮触发软提醒(50%), ~53 轮触发硬阻断(80%)。见 kernel.md 校准说明。
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -106,7 +96,7 @@ except:
 
             # 更新 usage：从旧值降至 post_compact + 当前增量（保持单调性）
             # 这样合成计数器不会暴跌（避免 context-guard 误判），但反映了 compact 效果
-            NEW_USAGE=$((POST_COMPACT + 500))
+            NEW_USAGE=$((POST_COMPACT + 3000))
             [ "$NEW_USAGE" -gt "$LIMIT" ] && NEW_USAGE=$LIMIT
             USAGE=$NEW_USAGE
 
@@ -119,12 +109,12 @@ except:
 COMPACTEOF
         else
             # 无待处理 compact：正常递增
-            USAGE=$((USAGE + 500))
+            USAGE=$((USAGE + 3000))
             [ "$USAGE" -gt "$LIMIT" ] && USAGE=$LIMIT
         fi
     else
         # 无 compact state 文件：正常递增
-        USAGE=$((USAGE + 500))
+        USAGE=$((USAGE + 3000))
         [ "$USAGE" -gt "$LIMIT" ] && USAGE=$LIMIT
     fi
 fi

@@ -1,19 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.2
-
-# skill-flywheel.sh — Stop Hook
-#
-# 功能：机械地将 AI skills 写入的飞轮 buffer 刷入全局日志
-#
-# 设计背景：
-#   lx-* skills 在 AI 层写入 buffer（尽力而为，不保证每次执行）
-#   本 hook 在每次 Stop 事件（AI 回复结束）时机械刷入，补偿 AI 的不可靠性
-#
-# 两层架构：
-#   Phase 1（AI, best-effort）: echo "..." >> ~/.claude/flywheel-buffer.jsonl
-#   Phase 2（Shell, 机械保证）: 本 hook flush buffer → ~/.claude/flywheel.log
-
+# skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）
+# Role: 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "skill_flywheel" || exit 0
@@ -27,20 +14,25 @@ FLYWHEEL="$HOME/.claude/flywheel.log"
 # 确保 flywheel.log 目录存在
 mkdir -p "$(dirname "$FLYWHEEL")"
 
-# flush：将 buffer 内容追加到 flywheel.log
-# 去重策略留给分析端（sort | uniq），此处保留时序信息
+# flush：将 buffer 内容追加到 flywheel.log，附带时间戳标记
+# 时间戳格式: # ts=<epoch> iso=<ISO-8601>
 BUFFER_CONTENT=$(cat "$BUFFER")
 if [ -z "$BUFFER_CONTENT" ]; then
     rm -f "$BUFFER"
     exit 0
 fi
 
-# 追加到全局日志
-cat "$BUFFER" >> "$FLYWHEEL"
+# 写入时间戳标记 + buffer 内容
+TS=$(date +%s)
+TS_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+{
+    echo "# ts=${TS} iso=${TS_ISO}"
+    echo "$BUFFER_CONTENT"
+} >> "$FLYWHEEL"
 
 # 消费 buffer
 rm -f "$BUFFER"
 
 LINES=$(echo "$BUFFER_CONTENT" | wc -l | tr -d ' ')
-echo "Flywheel flushed: ${LINES} entries → flywheel.log"
+echo "Flywheel flushed: ${LINES} entries → flywheel.log (${TS_ISO})"
 exit 0

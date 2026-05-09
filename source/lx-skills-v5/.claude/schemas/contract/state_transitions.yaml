@@ -6,6 +6,7 @@
 
 # Description: 状态机转换契约，定义合法的状态流转路径
 
+
 states:
   - need_clarification
   - ready
@@ -15,6 +16,7 @@ states:
   - fallback_exploring
   - blocked
   - done
+
 transitions:
   - from: need_clarification
     to: ready
@@ -55,7 +57,12 @@ transitions:
   - from: blocked
     to: executing
     condition: "用户提供新约束（Half-Open 试探）"
-# 非法转换（禁止）illegal_transitions: - from: executing to: done unless: "验收报告 100% 通过"
+
+# 非法转换（禁止）
+illegal_transitions:
+  - from: executing
+    to: done
+    unless: "验收报告 100% 通过"
   - from: spec_review
     to: executing
     unless: "Spec Gate 全部通过"

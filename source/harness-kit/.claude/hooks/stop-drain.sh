@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-# stop-drain.sh — Stop hook 兜底重放
-# 防御纵深第二层：扫 transcript.jsonl 抓 PostToolUse 派发之外的 Bash 失败，补写 error-dna.jsonl
-# 触发时机：Claude Code 会话结束（Stop event）
-# 幂等：基于 session_id + ts + signature 去重
-# 与实时层（PostToolUseFailure → error-dna.sh）互不冲突，重复事件会被去重丢弃
+# stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）
+# Role: Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "stop_drain" || exit 0
@@ -110,11 +107,17 @@ try:
 
                 # Use tool_use_id as pseudo-command key if nothing else
                 tool_use_id = item.get('tool_use_id', '')
-                # We don't have the command here; look back-index the original tool_use
-                # (skipped: simple approach — record by tool_use_id hash)
                 cmd_clean = sanitize(f'[tool_use_id:{tool_use_id}]')
                 signature = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
+
+                # P1-7: Fix ts=0 — transcript entries often lack top-level timestamp.
+                # Fallback chain: entry.timestamp > transcript mtime > current time.
                 ts = int(entry.get('timestamp', 0)) if isinstance(entry.get('timestamp'), (int, float)) else 0
+                if ts == 0:
+                    try:
+                        ts = int(os.path.getmtime(os.environ.get('TRANSCRIPT', '')))
+                    except (OSError, ValueError):
+                        ts = int(__import__('time').time())
 
                 key = (session_id, signature, ts)
                 if key in seen:
@@ -125,11 +128,13 @@ try:
                     'ts': ts,
                     'signature': signature,
                     'cmd': cmd_clean,
-                    'exit_code': -1,  # unknown from transcript, marker for drain-origin
+                    'exit_code': -1,  # marker for drain-origin (transcript doesn't expose exit_code)
                     'error_type': classify(cmd_clean),
                     'message': result_content[:200].replace('\n', ' ').strip(),
                     'output_snippet': result_content,
                     'session_id': session_id,
+                    'session_start': ts - 3600,  # estimate: drain runs at session end
+                    'session_end': ts,
                     'origin': 'stop-drain',
                 }
                 with open(jsonl_path, 'a') as f:
@@ -150,10 +155,16 @@ if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
 fi
 
 # Layer 4: State directory hygiene — 1-day shelf life for all files
+# Keep: last 3 harness-smoke logs, last 5 snapshots, last 3 completion evidence
+# Remove: any file older than 1 day
 if [ -d "$STATE_DIR" ]; then
+    # Clean .tmp files (leftover from crashed processes)
     find "$STATE_DIR" -name "*.tmp.*" -mtime +0 -delete 2>/dev/null || true
+    # Clean harness-smoke logs older than 1 day
     find "$STATE_DIR" -name "harness-smoke-*.log" -mtime +0 -delete 2>/dev/null || true
+    # Clean snapshot files older than 1 day
     find "$STATE_DIR" -name "snapshot-*.txt" -mtime +0 -delete 2>/dev/null || true
+    # Keep only last N of each type
     for pattern in "harness-smoke-*.log" "snapshot-*.txt" ".completion-evidence-*"; do
         count=3
         [[ "$pattern" == "snapshot-*.txt" ]] && count=5

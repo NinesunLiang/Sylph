@@ -25,8 +25,8 @@
 ## 输出契约
 
 输出验证报告：
-```
-yamltotal: number # 验证总数
+```yaml
+total: number # 验证总数
 passed: number # 通过数
 failed: number # 失败数
 residual_findings: # 残留问题列表

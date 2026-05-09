@@ -1,15 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# subagent-guard.sh — PreToolUse:Task Hook
-
-# 功能：对高资源消耗类型子 agent 强制要求 max_turns 参数
-
-# 退出码 2 = 阻断（危险 agent 缺少 max_turns）
-
-# 退出码 0 = 放行（安全 agent / 已设 max_turns / fail-open）
-
+# subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）
+# Role: 约束子 agent 用量，防账单雪崩（软约束+事后对账）
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "subagent_guard" || exit 0

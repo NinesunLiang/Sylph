@@ -1,15 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# edit-guard.sh — PreToolUse:Edit Hook
-
-# 功能：编辑源代码文件前必须先 Read（Read-before-Edit 门禁）
-
-# 退出码 2 = 阻断（源文件未 Read 就 Edit）
-
-# 退出码 0 = 放行（非源文件 / 已 Read / fail-open）
-
+# edit-guard.sh — PreToolUse:Edit — 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
+# Role: 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "edit_guard" || exit 0

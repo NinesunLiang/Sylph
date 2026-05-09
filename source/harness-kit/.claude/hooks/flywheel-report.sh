@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.3.0
-
-# flywheel-report.sh — SessionStart Hook (RPE-017 enhanced)
-# Reads ~/.claude/flywheel.log, generates 30-day frequency summary
-# AC-17.1: Explicit empty log guard
-# AC-17.2: Persistent .claude/flywheel-reports/ with date-stamped reports
-# AC-17.3: Monthly trend comparison (printed to /dev/tty, not injected)
-# AC-17.4: Desktop notification for P0 events (osascript/notify-send)
+# flywheel-report.sh — SessionStart — 读取飞轮日志，生成 30 天频率摘要注入会话
+# Role: 读取飞轮日志，生成 30 天频率摘要注入会话
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "skill_flywheel" || exit 0

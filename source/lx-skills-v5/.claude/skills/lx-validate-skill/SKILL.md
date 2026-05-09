@@ -17,7 +17,11 @@ paths:
  - ".claude/skills/lx-*/SKILL.md"
 
 harness_version: ">=1.1.0"
+role: "Skill atomization compliance validator — 11-rule architecture check"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-validate-skill"
 ---
 
 # Skill 原子化规则校验器
@@ -157,3 +161,5 @@ n
 bashpython3 .claude/skills/lx-validate-skill/scripts/check_progressive_disclosure.py \ --all --skills-dir .claude/skills
 ```
 读取 JSON：`total_violations=0` → 合规；有 violations → 报告并建议修复。
+
+

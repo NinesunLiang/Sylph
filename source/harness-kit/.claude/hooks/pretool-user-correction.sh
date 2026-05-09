@@ -1,33 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.0
-
-# pretool-user-correction.sh — UserPromptSubmit Hook
-
-# 功能：检测用户输入中的纠正信号词，强制提示 AI 将教训写入 claude-next.md
-
-# 设计：透传原始输入（必须），纯 stdout 输出提醒，exit 0 放行
-
-#
-
-# 触发逻辑：
-
-# - 检测到纠正信号词（如"不对"/"错了"/"你搞错了"）
-
-# - 且当天 claude-next.md 尚无新条目
-
-# → 输出强制写入提醒
-
-#
-
-# 防误报：
-
-# - 纯英文指令不匹配中文信号词
-
-# - 当天已写入则不重复提醒（避免骚扰）
-
-# - fail-open：任何错误直接透传输入，不阻断
-
+# pretool-user-correction.sh — UserPromptSubmit — 检测用户纠正信号，强制记录到 claude-next.md
+# Role: 检测用户纠正信号，强制记录到 claude-next.md
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_user_correction" || { cat; exit 0; }

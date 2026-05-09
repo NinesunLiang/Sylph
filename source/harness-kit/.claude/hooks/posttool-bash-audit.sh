@@ -1,9 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# PostToolUse:Bash 权限上下文审计 - 只提醒不阻断
-
+# posttool-bash-audit.sh — PostToolUse:Bash / PostToolUseFailure:Bash — Bash 执行后审计权限上下文，只提醒不阻断
+# Role: Bash 执行后审计权限上下文，只提醒不阻断
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_bash_audit" || { echo '{"continue": true}'; exit 0; }

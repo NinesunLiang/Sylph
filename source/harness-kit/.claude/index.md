@@ -27,7 +27,7 @@
 |`kernel.md` | 代码执行内核（命名/错误处理/测试要求） | full|
 |`anti-patterns.md` | 16 条反模式（A输出/B范围/C错误/D记忆/E效率/F推理/G报告/H语义） | summary|
 |`claude-next.md` | 项目专属教训积累 | summary|
-|`CLAUDE.md` | 宪法 + 6 条铁律 + 工作流原则 | 会话自动加载 |
+|`CLAUDE.md` | 宪法 + 7 条铁律 + 工作流原则 | 会话自动加载 |
 
 ## 记忆系统
 | 路径 | 内容 | 写入时机|
@@ -82,7 +82,7 @@
 
 | 脚本 | 事件 | 说明 |
 |------|------|------|
-| plan-gate | PreToolUse | plan-gate.sh — PreToolUse:Edit Hook [INACTIVE: 未注册] |
+| plan-gate | PreToolUse | plan-gate.sh — PreToolUse:Edit Hook [DISABLED: harness.yaml 默认关闭] |
 | posttool-read-cite | PostToolUse | PostToolUse:Read 来源标注提醒 - 读取文件后提示引用规范 [已注册，默认禁用] |
 | proactive-handoff | PostToolUse | proactive-handoff.sh — PostToolUse Hook [INACTIVE: 未注册, 反向漂移] |
 

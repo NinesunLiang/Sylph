@@ -19,7 +19,11 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+role: "Test spec & acceptance criteria generator for new features"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-tdd-spec"
 ---
 
 # Requirements Spec Generator
@@ -138,3 +142,5 @@ Build 3 mapping tables:- BR → AC- AC → Matrix row- Parameter → AC (in Give
 |------|--------|---------|
 |AC 无法量化 | 生成验收标准 | 改为"可观测行为"描述，标注"[主观验收]"|
 |缺少现有测试参考 | 提取模式 | AI 基于功能描述直接生成 GWT 框架 |
+
+

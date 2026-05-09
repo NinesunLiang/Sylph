@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
-
-# harness-kit:managed v1.0.0
-
-# privacy-gate.sh — PreToolUse:Read / Grep / Bash Hook
-
-# 功能：防止隐私数据泄露 (DLP)
-
-# - 拦截读取 .env, *.pem, id_rsa 等敏感文件
-
-# - 拦截命令中明文出现的 Token (如 sk-ant-*, ghp_*)
-
-# 退出码 2 = 阻断（涉及隐私违规）
-
+# privacy-gate.sh — PreToolUse:Bash|Read|Grep — 防止隐私数据泄露（DLP 门禁）
+# Role: 防止隐私数据泄露（DLP 门禁）
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "privacy_gate" || exit 0

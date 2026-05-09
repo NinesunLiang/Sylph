@@ -26,8 +26,8 @@
 ## 输出契约
 
 输出 `scan_target` schema（`schemas/atomic/scan_target.yaml`）：
-```
-yamltarget_type: file | dir | commit | url | function | component
+```yaml
+target_type: file | dir | commit | url | function | component
 target_path: string # 解析后的路径/URL
 scope: staged | uncommitted | committed | directory | single_file | url
 exclude_patterns: string[]

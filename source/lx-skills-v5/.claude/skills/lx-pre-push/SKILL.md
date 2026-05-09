@@ -13,7 +13,11 @@ model: sonnet
 argument-hint: "<prod-commit-hash>"
 
 harness_version: ">=1.1.0"
+role: "Pre-push quality gate — commit message validation, diff sanity check"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-pre-push"
 ---
 
 # lx-pre-push — 推送前深度门禁
@@ -87,3 +91,5 @@ Gate 0 Commit格式：✅ {N} commits 全部通过Gate 1 变更范围： {N} 文
 |lx-security-review 不可用 | 调用 skill | 执行 `govulncheck ./...`，标注"[降级扫描]"|
 |prod-commit 无效 | 脚本报错 | 提示用户重新提供，说明获取方法|
 |测试超时 | 等待 | 120s 后标注"[测试超时，建议手动验证]"，不阻塞 |
+
+

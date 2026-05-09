@@ -8,6 +8,7 @@
 
 # Consumers: lx-code-review, lx-security-review, lx-browser-verify, lx-pre-commit, lx-pre-push, lx-perf-analysis, lx-web-perf, lx-react-review, lx-style-guide, lx-golang-test
 
+
 target:
   type: ref
   target: scan_target.yaml
@@ -17,21 +18,21 @@ findings:
   type: array
   required: true
   items:
-    type: ref
-    target: finding.yaml
+  type: ref
+  target: finding.yaml
   description: "发现的问题列表"
 summary:
   type: object
   required: true
   properties:
-    total:
-      type: integer
-      required: true
-    by_severity:
-      type: object
-      required: true
-      description: "按严重度分组的计数"
-      example: {"critical": 2, "high": 5, "medium": 3, "low": 1}
+  total:
+  type: integer
+  required: true
+  by_severity:
+  type: object
+  required: true
+  description: "按严重度分组的计数"
+  example: {"critical": 2, "high": 5, "medium": 3, "low": 1}
 verdict:
   type: enum
   values: [pass, blocked, warn]
@@ -41,13 +42,13 @@ evidence:
   type: array
   required: false
   items:
-    type: object
-    properties:
-      type:
-        type: enum
-        values: [screenshot, command_output, code_snippet, test_result]
-      content:
-        type: string
-      source:
-        type: string
+  type: object
+  properties:
+  type:
+  type: enum
+  values: [screenshot, command_output, code_snippet, test_result]
+  content:
+  type: string
+  source:
+  type: string
   description: "证据集合"

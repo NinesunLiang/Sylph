@@ -27,8 +27,8 @@
 
 ## 输出契约
 
-```
-yamlgenerated_content: string # 生成的完整内容
+```yaml
+generated_content: string # 生成的完整内容
 quality_check:
   passed: boolean # 是否通过质量检查
   issues: string[] # 未通过的问题列表

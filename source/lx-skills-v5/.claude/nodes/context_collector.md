@@ -11,9 +11,4 @@
 
 - `context_summary` schema（见 schemas/atomic/context_summary.yaml）
 
-## 流程
-
-1. 并行启动 2-4 个探索 agent（代码模式/配置/外部文档/测试）
-2. 汇总关键发现
-3. 标注不确定事项及置信度
-4. 输出 context_summary
+## 流程1. 并行启动 2-4 个探索 agent（代码模式/配置/外部文档/测试）2. 汇总关键发现3. 标注不确定事项及置信度4. 输出 context_summary

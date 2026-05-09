@@ -25,8 +25,8 @@
 ## 输出契约
 
 输出 `gate_result` schema（`schemas/atomic/gate_result.yaml`）：
-```
-yamlgate_name: string
+```yaml
+gate_name: string
 passed: boolean
 blockers: finding.yaml[] # 阻塞项
 warnings: finding.yaml[] # 警告项

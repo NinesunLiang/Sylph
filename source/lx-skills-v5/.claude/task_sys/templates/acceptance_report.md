@@ -1,7 +1,8 @@
 # acceptance_report.md 模板
 
-```
-markdown
+```markdo
+w
+n
 
 # Acceptance Report: {task_name}
 

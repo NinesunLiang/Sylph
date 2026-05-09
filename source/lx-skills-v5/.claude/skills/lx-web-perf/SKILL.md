@@ -27,7 +27,11 @@ paths:
  - "package.json"
 
 harness_version: ">=1.1.0"
+role: "Web performance auditor — bundle analysis, Web Vitals, Next.js optimization"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-web-perf"
 ---
 
 # Web 性能审查
@@ -131,3 +135,5 @@ p
 |Lighthouse 不可用 | CI 性能测试 | 静态分析 Bundle + 渲染路径，标注 [静态分析-无Lighthouse]|
 |Bundle 分析工具缺失 | bundle-analyzer | ls -lh dist/ 估算，标注 [估算]|
 |Web Vitals 无法测量 | 真实用户数据 | 提供优化建议，不给量化分数，标注 [无法测量] |
+
+

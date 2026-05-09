@@ -1,19 +1,23 @@
 ---
 name: lx-oma-hier
 
-description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma 拆解为特性级 RPE。
+description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma-split 拆解为特性级 RPE。
 
-version: 1.0.0
+version: v1.2.0
 harness_version: "6.1.8"
+model: sonnet
+argument-hint: "<path> [output_dir]"
 when_to_use: |
   当需要将超大型 PRD（单文件或目录）按功能域 MECE 拆分为多个独立的 Sub PRD，
   每个 Sub PRD 定义接口契约、Mock 数据、黑盒边界、依赖关系和验收条件，
-  并可进一步委托 lx-oma 拆解为特性级 RPE。
+  并可进一步委托 lx-oma-split 拆解为特性级 RPE。
 
 triggers:
   - "/lx-oma-hier"
   - "分层拆解"
   - "prd 拆分"
+role: "PRD hierarchical decomposer — master PRD to Sub PRDs (Level 1)"
+execution_mode: stepwise
 ---
 
 # lx-oma-hier 分层 PRD 拆解大脑
@@ -46,7 +50,7 @@ need_input → [reading → analyzing → generating → verifying] → done
 | 输入为空文件 | 报错 | 输出"PRD 内容为空，无法拆解" |
 | 读取的 PRD 内容过少（<200 字） | 按已有内容拆解 | 告知用户内容不足，建议补充后重新执行 |
 | 输出目录已存在 | 覆盖写入 | 询问用户是否覆盖或指定新目录 |
-| lx-oma 不可用（Level 2） | 委托调用 | 告知用户手动执行 `/lx-oma` 拆解 |
+| lx-oma-split 不可用（Level 2） | 委托调用 | 告知用户手动执行 `/lx-oma-split` 拆解 |
 | Sub PRD 生成的字段不完整 | 自动补充 | 标记缺失字段为用户待办 |
 
 ## 1. 任务目标
@@ -59,7 +63,7 @@ need_input → [reading → analyzing → generating → verifying] → done
 
 每个 Sub PRD 包含「功能边界、接口契约、非功能契约、Mock 数据、数据实体归属、依赖关系、父需求追溯、验收条件」完整字段。
 
-完成后，可委托 `lx-oma` 对每个 Sub PRD 继续拆解为特性级 RPE。
+完成后，可委托 `lx-oma-split` 对每个 Sub PRD 继续拆解为特性级 RPE。
 
 ## 2. 参数处理（Input）
 
@@ -88,11 +92,23 @@ need_input → [reading → analyzing → generating → verifying] → done
 
 ### 3.2 MECE 检查表
 
-每拆出一个域，验证：
-- [ ] 与已拆出的所有域无职责重叠
-- [ ] 该域内部功能内聚（高内聚）
-- [ ] 该域对外暴露的接口明确（低耦合）
-- [ ] 该域可绑 Mock 数据独立验证
+每拆出一个域，逐项标记：
+
+**正交性验证（必须全绿）：**
+- [ ] 与已拆出的所有域无职责重叠（对照 PRD 原文逐条核查）
+- [ ] 该域内部功能内聚（高内聚 — 所有功能围绕同一业务实体）
+- [ ] 该域对外暴露的接口明确（低耦合 — ≤5 个对外接口）
+- [ ] 该域可绑 Mock 数据独立验证（输入/输出有明确契约）
+
+**边界清晰度验证：**
+- [ ] "负责"清单完整覆盖该域所有职责
+- [ ] "不负责"清单明确排除了与其他域的重叠区
+- [ ] 每个接口至少有一个调用方和一个实现方（无孤儿接口）
+
+**数据实体验证：**
+- [ ] 本域 Own 的实体不被其他域同时 Own（唯一数据主控）
+- [ ] 本域 Read 的实体在其他域中有明确的 Own 方
+- [ ] 实体 CRUD 操作类型完整（C/R/U/D 若适用则必须列出）
 
 ### 3.3 依赖分析
 
@@ -219,7 +235,37 @@ need_input → [reading → analyzing → generating → verifying] → done
 - ...
 ```
 
-## 6. 联动 lx-oma（Level 2）
+## 6. PRD 全生命周期管线
+
+本 skill 是 PRD 全生命周期的起点。完成拆解后，下游管线如下：
+
+```
+初始化路径（一次性，新项目启动）:
+
+  lx-oma-hier    →     lx-oma-split       →     lx-rpe
+  (主PRD→SubPRD)     (SubPRD→RPE)        (特性开发)
+
+  用法:
+    1. /lx-oma-hier docs/master-prd.md      # 拆出 Sub PRD
+    2. /lx-oma-split sub-prds/domain-xxx.md       # 拆出 feature RPE
+    3. /lx-rpe <feature-name>               # 启动特性开发
+
+治理路径（长期，主 PRD 变更时）:
+
+  lx-oma-gov      →   lx-oma-split / lx-rpe
+  (reconcile/       (变更后重新拆解或直接开发)
+   propagate/
+   audit)
+
+  用法:
+    1. /lx-oma-gov reconcile                # 检测变更 + 冲突裁决
+    2. /lx-oma-gov propagate --dry-run      # 预览传播内容
+    3. /lx-oma-gov propagate --execute      # 实际写入 prd/{sub_prd}/{feature}
+    4. /lx-oma-gov audit                    # 漂移检测
+    5. /lx-oma-gov status                   # 治理面板
+```
+
+### 联动 lx-oma-split（Level 2）
 
 完成 Sub PRD 拆解后，向用户报告：
 
@@ -233,17 +279,42 @@ need_input → [reading → analyzing → generating → verifying] → done
 每个 Sub PRD 可独立进入特性级拆解。
 运行以下命令分别拆解：
 
-/lx-oma {output_dir}/domain-xxx.md
-/lx-oma {output_dir}/domain-yyy.md
+/lx-oma-split {output_dir}/domain-xxx.md
+/lx-oma-split {output_dir}/domain-yyy.md
 ...
 ```
 
-如果调用者要求"继续拆"，则逐一调用 `lx-oma` skill 对每个 Sub PRD 进行特性级拆解，产出 `rpe/feat-X/` 目录。
+如果调用者要求"继续拆"，则逐一调用 `lx-oma-split` skill 对每个 Sub PRD 进行特性级拆解，产出 `prd/{sub_prd}/feat-X/` 目录。
 
 **注意**：
-- 不修改 `lx-oma` 原有代码
+- 不修改 `lx-oma-split` 原有代码
 - 两阶段可独立执行（先拆 Sub PRD → 确认 → 再拆特性）
-- Sub PRD 目录和 `rpe/` 目录可共存，不冲突
+- Sub PRD 目录和 `prd/` 目录可共存，不冲突
+- 长期治理使用 `lx-oma-gov`，见 `.claude/skills/lx-oma-gov/SKILL.md`
+
+### 交付后的方向指引
+
+输出报告后（无论是否继续拆），必须追加方向指引：
+
+```
+─── 方向指引 ───
+📍 分层拆解完成。你现在位于 PRD 全生命周期的起点。
+
+建议下一步:
+  1. /lx-oma-split sub-prds/domain-{name}.md
+     → 对某个 Sub PRD 进行特性级拆解（推荐先拆核心域）
+  2. /lx-orch status
+     → 查看 PRD 全景管线状态
+  3. 继续拆分其余 Sub PRD
+     → 重复 /lx-oma-hier，直到所有域拆分完成
+  4. 自定义操作
+     → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
+
+注意事项:
+  · 依赖链上游的域建议优先拆解（如 auth→order→payment）
+  · 无依赖的域可并行推进
+```
 
 ## 7. 拆解质量的自我校验
 
@@ -268,3 +339,72 @@ need_input → [reading → analyzing → generating → verifying] → done
 - 非功能契约一致性：✅
 - 父需求全覆盖：✅
 ```
+
+## 8. Pipeline 集成
+
+本 skill 与 `state/pipeline.yaml` 状态机配合，支持 `/lx-oma-orch` 编排。
+
+### 入口检查（编排模式）
+
+当调用者传入 `--pipeline <sub_prd_id>` 参数时：
+1. 读取 `state/pipeline.yaml`
+2. 检查该 sub_prd 的 `status` 是否为 `hier_done` 或更早
+3. 若不是 `hier` 级状态 → 跳过（可能已被 lx-oma-split 拆解过）
+4. 读取 sub_prd 的 `path` 作为输入路径
+
+若未传入 `--pipeline` 参数，按原有交互模式执行（手动指定路径）。
+
+### 出口写入（编排/手动模式均执行）
+
+拆解完成后，更新 `state/pipeline.yaml`：
+- 为每个 Sub PRD 写入 `sub_prds[].{id, path, status: hier_done, oracle: pending, features: []}`
+- 设置 `stages.hier = completed`
+- 新增 Oracle gate 条目：`{id: og-NNN, from_stage: hier_done, to_stage: oma_ready, status: pending}`
+
+## 9. 可观测性契约
+
+本 skill 遵循 OMA 系列统一可观测性规范，详见 `lx-oma-orch/SKILL.md` §可观测性契约。
+
+### 本 skill 特定采集点
+
+| 采集点 | 触发条件 | 记录字段 | 用途 |
+|--------|---------|---------|------|
+| hier_started | 拆解开始时 | `{input_path, sub_prd_count, expected_domains[]}` | 拆解规模评估 |
+| hier_completed | 拆解完成时 | `{output_dir, sub_prd_count, quality_score}` | 拆解质量追踪 |
+| hier_entity_found | 核心实体识别 | `{entity_name, domain_assignment}` | 实体分布统计 |
+| hier_gate_passed | MECE 校验通过 | `{orthogonal_count, dependency_resolution}` | 校验质量 |
+
+> 数据写入 `.omc/state/oma-telemetry.yaml`，格式与 lx-oma-orch 保持一致。
+
+## 10. 错误码与超时规范
+
+本 skill 遵循共享错误码体系 `.claude/schemas/atomic/error_codes.yaml`，前缀 `HIER`。
+
+| 错误码 | 场景 | 处理 |
+|--------|------|------|
+| ERR-HIER-01 | 缺少路径参数 | 提示输入路径 |
+| ERR-HIER-03 | 输入路径不存在 | 报错阻断 |
+| ERR-HIER-10 | PRD 文件读取失败 | 尝试 latin-1 回退 |
+| ERR-HIER-23 | MECE 校验失败 | 修复后重新拆解 |
+| ERR-HIER-30 | 拆解超时（>5 分钟） | 建议缩小 PRD 范围后重试 |
+| ERR-HIER-31 | 超过最大重试次数（3 次） | 报告已尝试方案 + 失败证据 |
+| ERR-HIER-90 | lx-oma-split 不可用 | 降级提示手动拆解 |
+
+**超时**: 单次拆解操作默认 5 分钟。
+**重试**: 校验失败最多重试 3 次，每轮必须不同假设。
+
+## 11. 人工审核门禁
+
+hier → oma 阶段转换前，**必须**执行人工审核：
+
+```
+审核清单：
+[ ] Sub PRD 边界是否正交（无重叠）？
+[ ] 每个 Sub PRD 的接口契约是否完整？
+[ ] 数据实体唯一性满足（无两个域同时 Own 同一实体）？
+[ ] 依赖图无循环依赖？
+[ ] INDEX.md 中所有文件存在？
+```
+
+人工确认后，运行 `/lx-oma-orch gate og-NNN approve` 推进。
+

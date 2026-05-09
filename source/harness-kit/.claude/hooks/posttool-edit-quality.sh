@@ -1,11 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# PostToolUse:Edit 代码风格自查 + 文档同步提醒 + 方案复用检测
-
-# 仅对源代码文件生效，提示开发者执行自查清单
-
+# posttool-edit-quality.sh — PostToolUse:Edit|Write — 编辑后自查代码风格、文档同步、方案复用检测
+# Role: 编辑后自查代码风格、文档同步、方案复用检测
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_edit_quality" || { echo '{"continue": true}'; exit 0; }

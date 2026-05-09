@@ -13,7 +13,11 @@ model: sonnet
 argument-hint: "[set | list | rm | run | read | write]"
 
 harness_version: ">=1.4.0"
+role: "Privacy desensitization proxy manager for sensitive data"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-varlock"
 ---
 
 # lx-varlock — 隐私脱敏代理管理器 (DLP)
@@ -66,3 +70,5 @@ n
 |------|--------|---------|
 |脚本执行失败 | 运行脚本 | 提示用户：底层脱敏机制异常，禁止传输任何明文。请手动在脱离 AI 的环境测试。|
 |用户拒绝使用脱敏机制 | 强制执行 | **拒绝任务**。明确表示 Carror OS 无法违反数据防泄露 (DLP) 铁律。 |
+
+

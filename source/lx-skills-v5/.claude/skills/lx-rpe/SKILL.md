@@ -20,8 +20,11 @@ triggers:
 paths:
 
  - "rpe/**/*.md"
+ - "prd/**/*.md"
 
 harness_version: ">=1.1.0"
+role: "RPE-driven feature development — 9-step closed loop with quality gates"
+execution_mode: stepwise
 
 ---
 
@@ -97,6 +100,7 @@ harness_version: ">=1.1.0"
 |`status` | 输出结构化进度面板 | 读所有 RPE 实例状态+Todo+未提交变更|
 |`new` | 初始化新特性 RPE | 创建目录+骨架文档|
 |`[name]` | 继续指定特性开发 | 恢复流程（指定特性） |
+|`[path]（含 /）` | 使用指定 OMA 目录路径 | 恢复流程（指定路径） |
 | `batch-accept` | 批量验收已完成开发的任务 | 编译+测试+门禁自动验证|
 |无参数 | 自动检测恢复点 | 恢复最近活跃 RPE 实例 |
 **输入不合规提示**（当参数无法路由到有效子命令时）：
@@ -106,6 +110,7 @@ harness_version: ">=1.1.0"
 快速开始:
 /lx-rpe status ← 看全局进度面板
 /lx-rpe {feature} ← 继续特性开发（进入 9 步闭环）
+/lx-rpe prd/{sub_prd}/{feature} ← 直接使用 OMA 目录路径
 /lx-rpe new ← 新建特性 RPE
 
 验收与推送:
@@ -131,6 +136,7 @@ harness_version: ">=1.1.0"
 |**无参数** | **继续最近活跃 RPE（少即是多）** | **→ 恢复流程（自动检测），直接推进**|
 |`new` | 创建新特性| → 新建流程|
 |`[name]` | 继续指定特性 | → 恢复流程（指定特性），直接推进|
+|`[path]（含 /）` | 使用指定 OMA 目录路径 | → 恢复流程（指定路径）|
 |`status` | 输出进度面板 | → 状态面板|
 |`batch-accept` | 批量验收 | → 批量验收 |
 **哲学：少，即是多**- `/lx-rpe`（无参数）= 直接继续工作，不问问题，不弹过场- 有活跃任务 → 恢复最近活跃实例，直接推进- 无任何实例 → 一行提示："当前无 RPE 任务，使用 `/lx-rpe new` 创建"- 只有 `new` 才创建新任务，直接开始
@@ -140,7 +146,7 @@ harness_version: ">=1.1.0"
 **执行**：
 
 ```
-1. 扫描 rpe/ 目录 → 列出所有 RPE 实例
+1. 扫描 rpe/ 和 prd/ 目录 → 列出所有 RPE/OMA 实例
 2. 对每个实例：
    a. readFile state/progress.md → 提取 Phase/Task/阻塞项
    b. readFile executor.md → 提取最近 3 个 Task 完成状态 + commit hash
@@ -308,6 +314,22 @@ harness_version: ">=1.1.0"
 - 关键发现：[摘要]
 ```
 
+**输出方向指引**（Phase 1 完成后自动输出）：
+
+```
+─── 方向指引 ───
+📍 Research 阶段完成。现在你有两条路:
+
+建议下一步:
+  1. 进入 Phase 2 — Plan
+     → 基于研究成果，将需求拆解为可执行的任务项（推荐）
+  2. 补充更多研究
+     → 发现遗漏或需要更多代码调研时继续迭代
+  3. 自定义操作
+     → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
+```
+
 #### Phase 2 — Plan（规划迭代循环）
 **前置条件**：Phase 1 Research 已完成，用户已确认。
 **首次规划 Prompt**（AI 执行）：
@@ -410,6 +432,22 @@ harness_version: ">=1.1.0"
 - 预估影响文件：[N]
 ```
 
+**输出方向指引**（Phase 2 完成后自动输出）：
+
+```
+─── 方向指引 ───
+📍 Plan 阶段完成，共 {N} 个 Task 已规划。
+
+建议下一步:
+  1. 进入 Phase 3 — 执行
+     → 按 plan 启动开发，AI 自动推进 9 步闭环（推荐）
+  2. 调整 plan 内容
+     → Task 顺序/范围需要修改时继续迭代
+  3. 自定义操作
+     → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
+```
+
 #### Phase 3 — Execute（执行 → 进入主循环）
 **前置条件**：Phase 2 Plan 已完成，用户已确认。
 **启动（Phase 2 确认已包含，直接进入）**：
@@ -489,11 +527,14 @@ Gate-X 检查（每个 Task 执行前）：
 ### 恢复流程（默认行为）
 
 ```
-1. 搜索 RPE 实例目录： ls rpe/
-2. 若多个特性 → 列出供用户选择
-   若指定名称 → 直接加载 rpe/{feature_name}/
-   若仅一个 → 自动加载
-3. readFile rpe/{feature_name}/state/progress.md → 提取：
+0. 若 ARG 包含 `/`（如 prd/payment/checkout），视为 OMA 路径：
+   直接使用 ARG 作为目录路径，BASE_DIR = ARG/
+   跳到步骤 3
+1. 搜索 RPE/OMA 实例目录： ls rpe/ prd/*/
+2. 若多个实例 → 列出供用户选择
+   若指定名称且 rpe/{feature_name}/ 存在 → BASE_DIR = rpe/{feature_name}/
+   若仅一个 → BASE_DIR = 唯一实例目录
+3. readFile {BASE_DIR}state/progress.md → 提取：
    - 当前阶段（Phase 1/2/3 / 主循环）
    - 当前步骤编号（主循环时）
    - 当前任务项 ID
@@ -510,7 +551,7 @@ Gate-X 检查（每个 Task 执行前）：
    ├─ Phase 3 / 主循环 → 恢复对应主循环步骤
    └─ Gate-X 暂停中 → 恢复 Plan 二次批准
 6. 输出恢复摘要：
-   📂 已恢复：{feature_name}
+   📂 已恢复：{BASE_DIR}
    📍 当前阶段：[Phase N / 主循环 Step N]
    📋 当前任务：RPE-xxx {描述}（主循环时）
    📝 上次记录的下一步：{内容}
@@ -526,6 +567,9 @@ Gate-X 检查（每个 Task 执行前）：
 ---
 
 ## 主循环（9 步）
+
+> 路径适配：当通过 `/lx-rpe prd/{sub_prd}/{feature}` OMA 路径进入时，Base Dir = BASE_DIR（恢复流程设置），
+> 替换所有 `rpe/{feature_name}/` → `{BASE_DIR}`。文件结构（prd.md / research.md / plan.md / executor.md / state/）一致。
 
 ```
 [1] 读 RPE 任务项
@@ -1032,6 +1076,24 @@ C. 验收清单（含自动验收结果）
 📋 下一个：RPE-yyy {描述} · 👉 /lx-rpe
 ```
 
+**输出方向指引**（Step 9 完成后自动输出）：
+
+```
+─── 方向指引 ───
+📍 RPE-xxx 开发完成。
+
+建议下一步:
+  1. 继续下一个 Task
+     → /lx-rpe，自动加载进度文件推进到 RPE-yyy（推荐）
+  2. 查看全部进度
+     → /lx-rpe status，了解整个 feature 的开发全景
+  3. 全部 Task 已完成 → 进入验收
+     → /lx-rpe batch-accept，批量验收所有已完成开发项
+  4. 自定义操作
+     → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
+```
+
 ---
 > >
 > **参考文档**（按需加载，命中路由时才读取）：
@@ -1045,6 +1107,42 @@ C. 验收清单（含自动验收结果）
 |v1.0 | 2026-04-17 | 初始版本：Phase 1/2/3 + 9步主循环 + HARNESS 统一入口 + 批量验收 + Blocker SLA 三态熔断|
 |v1.1 | 2026-04-17 | P0修复：`### Step 7 — 等待验收` 改为 `### Step 6`（步骤号与主循环对齐）；补 AI 角色声明（C2）；补根因三步协议（E5）；Step 4 补 lx-security-review 3级降级路径（C7）；补版本历史（C8） |
 
+## Pipeline 集成
+
+本 skill 与 `state/pipeline.yaml` 状态机配合，支持 `/lx-oma-orch` 编排。
+
+### 无参模式增强（编排模式）
+
+当通过 `/lx-oma-orch run <sub_prd> --feature <id>` 调用时：
+1. 读取 `state/pipeline.yaml`
+2. 从 `sub_prds[].features[]` 匹配 feature ID
+3. 使用 `path` 字段作为 `BASE_DIR`
+4. 跳转到恢复流程步骤 3（跳过实例选择）
+
+### 无参模式（独立使用）
+
+当 `/lx-rpe` 无参数时，先尝试读取 `state/pipeline.yaml`：
+- 若存在 → 扫描 `features[]` 找到 `stage: rpe_planned` 的 feature，列出供选择
+- 若不存在 → 回退到原有逻辑（扫描 `rpe/` 和 `prd/*/` 目录）
+
+### 出口写入
+
+RPE Phase 1/2/3 状态变更后，更新 `state/pipeline.yaml`：
+- Phase 1 完成（research 就绪）：`features[].stage = research_done`
+- Phase 2 完成（plan 就绪）：`features[].stage = rpe_planned`
+- Phase 3 完成（实现完成）：`features[].stage = dev_done`
+- 所有 feature 完成后：`stages.dev = completed`
+- 新增 Oracle gate：`{from_stage: rpe_planned, to_stage: dev_ready}`（plan 就绪后）
+
+### 路径优先顺序
+
+```
+1. pipeline.yaml 中的 feature path（编排模式）
+2. 参数中的 OMA 路径 prd/{sub_prd}/{feature}（含 `/`）
+3. 参数中的 feature name rpe/{name}/
+4. 无参数 → pipeline.yaml 自动发现 → `prd/*/` 扫描
+```
+
 ## 降级策略
 | 场景 | 主路径 | 降级路径|
 |------|--------|---------|
@@ -1053,3 +1151,4 @@ C. 验收清单（含自动验收结果）
 |lx-security-review 不可用 | 调用 skill | 执行 govulncheck ./...，标注"[降级扫描]"|
 |Gate-X 频繁触发（>3次）| 暂停执行 | 回 Phase 2 全面重审影响范围|
 |Phase 迭代超 5 轮 | 继续迭代 | 暂停，询问用户是否简化需求 |
+

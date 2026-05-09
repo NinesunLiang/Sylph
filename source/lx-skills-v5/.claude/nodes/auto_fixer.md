@@ -25,8 +25,8 @@
 ## 输出契约
 
 输出 `fix_record[]` 数组，每项符合 `schemas/atomic/fix_record.yaml`：
-```
-yamlfinding_id: string # 被修复的 finding ID
+```yaml
+finding_id: string # 被修复的 finding ID
 fix_type: code_change | config_change | test_add | doc_update | workaround
 files_changed: string[] # 变更文件列表
 before_after:

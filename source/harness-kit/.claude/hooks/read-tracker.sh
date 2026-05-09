@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# read-tracker.sh — PostToolUse:Read Hook
-
-# 功能：记录已读取的文件路径（realpath 规范化），供 edit-guard.sh 检查
-
-# 退出码：始终 0（fail-open，记录失败不阻断正常操作）
-
+# read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit
+# Role: 记录已读文件路径供 edit-guard 检查 Read-before-Edit
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "read_tracker" || exit 0

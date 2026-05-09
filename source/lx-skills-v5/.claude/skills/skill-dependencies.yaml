@@ -1,0 +1,141 @@
+# skill-dependencies.yaml — 技能依赖图声明
+# 用途：显式声明各 skill 之间的依赖关系和管线流向，防止隐式循环
+# 维护者：Carror OS
+# 版本：v1.0.0
+
+# ─── 管线阶段（严格有序） ───
+# 每个阶段依赖上一阶段的输出
+pipeline:
+  stages:
+    - id: hier
+      name: 分层拆解
+      skill: lx-oma-hier
+      input: master-prd.md / 大型 PRD 目录
+      output: sub-prds/domain-{id}.md
+      gate: og-001 (hier→oma)
+    - id: split
+      name: 特性拆解
+      skill: lx-oma-split
+      input: sub-prds/domain-{id}.md
+      output: prd/{sub_prd}/feat-{id}/prd.md
+      gate: og-002 (oma→gov)
+    - id: gov
+      name: 治理初始化
+      skill: lx-oma-gov
+      input: master-prd.md + prd/{sub_prd}/feat-{id}/
+      output: .omc/state/gov-latest-report.yaml
+      gate: og-00N (gov→rpe)
+    - id: rpe
+      name: 特性开发
+      skill: lx-rpe
+      input: prd/{sub_prd}/feat-{id}/prd.md
+      output: rpe/{feature}/ (implementation)
+      gate: og-00N (rpe→dev)
+    - id: dev
+      name: 研发执行
+      skill: (multi-agent / lx-race)
+      input: rpe/{feature}/plan.md
+      output: 代码变更
+      gate: none (terminal stage)
+
+# ─── 技能依赖声明 ───
+# provides: 该 skill 产出的工件
+# consumes: 该 skill 消耗的工件/其他 skill 的产出
+# references: 该 skill 引用（import/read）的其他 skill 的 SKILL.md
+# orchestrator: 该 skill 被哪个编排器协调
+skills:
+  - id: lx-oma-hier
+    version: v1.2.0
+    type: pipeline
+    consumes: [master_prd]
+    provides: [sub_prd_domains]
+    references:
+      - lx-oma-split  # 委托拆解为特性级 RPE
+      - lx-oma-orch   # 通过 pipeline.yaml 编排
+      - lx-oma-gov    # 长期治理引用
+    orchestrator: lx-oma-orch
+    description: 分层 PRD 拆解 — 将主 PRD 按功能域 MECE 拆分为 Sub PRD
+
+  - id: lx-oma-split
+    version: v1.2.0
+    type: pipeline
+    consumes: [sub_prd_domains]
+    provides: [feature_prds]
+    references:
+      - lx-oma-orch   # 通过 pipeline.yaml 编排
+    orchestrator: lx-oma-orch
+    description: 特性拆解 — 将 Sub PRD 拆解为正交的 feature 级 RPE
+
+  - id: lx-oma-gov
+    version: v1.2.0
+    type: pipeline
+    consumes: [master_prd, feature_prds]
+    provides: [gov_report]
+    references:
+      - lx-oma-orch   # 编排+状态写入
+      - lx-oma-hier   # pipeline 上下文
+      - lx-oma-split  # pipeline 上下文
+      - lx-rpe        # 治理路径通知开发
+    orchestrator: lx-oma-orch
+    description: OMA PRD 治理 — reconcile/propagate/audit
+
+  - id: lx-oma-orch
+    version: v1.2.0
+    type: orchestrator
+    consumes: [pipeline_state]
+    provides: [pipeline_advancement, gate_decisions]
+    orchestrates:
+      - lx-oma-hier
+      - lx-oma-split
+      - lx-oma-gov
+      - lx-rpe
+    description: Pipeline Orchestrator — 管线编排、阶段推进、Oracle 门禁
+
+  - id: lx-rpe
+    version: v4.0.0
+    type: implementation
+    consumes: [feature_prds]
+    provides: [implementation, test_evidence]
+    references:
+      - lx-oma-gov    # 治理路径从 gov 接收变更通知
+    orchestrator: lx-oma-orch
+    description: RPE 系统性开发模式 — 9 步开发闭环
+
+  - id: lx-race
+    version: v1.0.0
+    type: coordination
+    consumes: [task_queue]
+    provides: [parallel_execution, conflict_report]
+    references:
+      - lx-oma-orch   # 编排上下文
+    orchestrator: lx-oma-orch (optional)
+    description: 蜂群协调层 — 状态跟踪+冲突协调
+
+# ─── 数据契约 ───
+# 各 skill 之间交换的数据格式约定
+contracts:
+  - from: lx-oma-hier
+    to: lx-oma-split
+    artifact: sub-prds/domain-{id}.md
+    schema: Sub PRD 模板（边界/接口/非功能/Mock/数据实体/依赖/AC）
+  - from: lx-oma-split
+    to: lx-oma-gov
+    artifact: prd/{sub_prd}/feat-{id}/prd.md
+    schema: feature PRD 模板
+  - from: lx-oma-gov
+    to: lx-oma-orch
+    artifact: .omc/state/gov-latest-report.yaml
+    schema: gov_report.yaml
+  - from: lx-oma-orch
+    to: all
+    artifact: state/pipeline.yaml
+    schema: pipeline 状态机 YAML
+
+# ─── 校验规则 ───
+validation:
+  # 禁止循环依赖：skills[].references 必须形成 DAG
+  no_cycles: true
+  # 管线阶段必须是有向无环的
+  pipeline_acyclic: true
+  # 每个 consumed artifact 必须被上游某个 skill 的 provides 覆盖
+  artifact_coverage: true

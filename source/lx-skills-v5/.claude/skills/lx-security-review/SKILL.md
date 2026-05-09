@@ -19,7 +19,12 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+role: "Security vulnerability scanner for Go code and dependencies"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-security-review"
+  - "security scan"
 ---
 
 # Pre-commit Security Gate (Go)
@@ -125,3 +130,5 @@ go.mod # 缺失 → "不适用"
 |govulncheck 未安装 | govulncheck | references/scan-rules.md 静态模式扫描，标注 [静态扫描-无工具]|
 |🔴 阻断2次仍未修复 | 修复 | BLOCKED + 漏洞清单，等待用户决策|
 |外部依赖漏洞 | 修复 | 记录 tech-debt + CVE，不阻断 |
+
+

@@ -1,7 +1,11 @@
 ---
 name: lx-race
 description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team skill 调度 + OMA Lock 写锁 + race_manager.sh 状态跟踪。不做调度引擎，只做协调。"
-version: 1.0.0
+version: v1.0.0
+role: "Swarm coordinator — sub-task registration, dispatch, collection, conflict resolution"
+execution_mode: race
+triggers:
+  - "/lx-race"
 ---
 
 # lx-race — 蜂群协调层 (Swarm Coordination)
@@ -242,3 +246,5 @@ OMA Lock 已通过 Bootstrap 安装，无需额外配置：
 - **不造新文件协议**：复用 `owner.json` + `result.json` 格式
 - **子任务粒度**：建议每个子任务独立可验收，避免依赖链
 - **冲突检测**：当前为被动模式（通过 OMA Lock 阻止），主动冲突预测为未来能力
+
+

@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# build-validator.sh — PostToolUse:Bash 构建失败自动记录 + 修复建议
-
-# 功能：当 AI 执行构建命令失败时，自动记录错误到日志并给出针对性修复建议
-
-# 输出格式：JSON hookSpecificOutput
-
+# build-validator.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 构建失败自动记录错误日志并给出针对性修复建议
+# Role: 构建失败自动记录错误日志并给出针对性修复建议
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "build_validator" || { echo '{"continue": true}'; exit 0; }
@@ -146,19 +139,35 @@ def _classify_and_suggest_fallback(output, cmd):
                 "如果需要使用 side effect，改为 `_ \"package\"`"
             ]
         })
-    # --- TypeScript/JavaScript 错误 ---
-    ts_match = re.search(r'error\s+(TS\d+):\s*(.+)', output)
+    # --- TypeScript/JavaScript 错误（带 file:line 提取） ---
+    ts_match = re.search(r'([^\s]+\.(ts|tsx|js|jsx)):(\d+):\d+\s+-\s+error\s+(TS\d+):\s*(.+)', output)
     if ts_match:
         categories.append({
             "type": "typescript",
-            "code": ts_match.group(1),
-            "message": ts_match.group(2).strip()[:200],
+            "file": ts_match.group(1),
+            "line": ts_match.group(3),
+            "code": ts_match.group(4),
+            "message": f"[{ts_match.group(4)}] {ts_match.group(5).strip()[:160]}",
             "suggestions": [
-                "查阅 TypeScript 文档: https://www.typescriptlang.org/docs/handbook/release-notes/",
+                f"检查 {ts_match.group(1)}:{ts_match.group(3)} 的类型错误",
                 "运行 `npx tsc --noEmit` 查看完整类型错误列表",
                 "检查 tsconfig.json 的 strict 设置"
             ]
         })
+    else:
+        # Fallback: match error code only (no file:line available)
+        ts_match = re.search(r'error\s+(TS\d+):\s*(.+)', output)
+        if ts_match:
+            categories.append({
+                "type": "typescript",
+                "code": ts_match.group(1),
+                "message": ts_match.group(2).strip()[:200],
+                "suggestions": [
+                    "查阅 TypeScript 文档: https://www.typescriptlang.org/docs/handbook/release-notes/",
+                    "运行 `npx tsc --noEmit` 查看完整类型错误列表",
+                    "检查 tsconfig.json 的 strict 设置"
+                ]
+            })
     if "cannot find module" in output.lower() or "module not found" in output.lower():
         categories.append({
             "type": "missing_module",

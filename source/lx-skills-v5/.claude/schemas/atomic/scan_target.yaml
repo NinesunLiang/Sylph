@@ -8,30 +8,35 @@
 
 # Consumers: lx-code-review, lx-security-review, lx-browser-verify, lx-pre-commit, lx-pre-push, lx-perf-analysis, lx-web-perf, lx-react-review, lx-style-guide, lx-golang-test
 
+
 target_type:
   type: enum
   values: [file, dir, commit, url, function, component]
   required: true
   description: "目标类型"
+
 target_path:
   type: string
   required: true
   description: "目标路径/URL/标识符"
-  example: "pkg/handler/user.go"
+  example: '"pkg/handler/user.go" | "http://localhost:3000/dashboard"'
+
 scope:
   type: enum
   values: [staged, uncommitted, committed, directory, single_file, url]
   required: false
   default: uncommitted
   description: "扫描范围"
+
 exclude_patterns:
   type: array
   required: false
   default: []
+  description: "排除模式列表"
   items:
     type: string
-  description: "排除模式列表"
-  example: ["*.pb.go", "node_modules/", "dist/"]
+  example: '["*.pb.go", "node_modules/", "dist/"]'
+
 derived_from:
   type: enum
   values: [arguments, git_diff, user_prompt, auto_detected]

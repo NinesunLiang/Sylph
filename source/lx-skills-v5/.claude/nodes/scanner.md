@@ -23,8 +23,8 @@
 ## 输出契约
 
 输出 `finding[]` 数组，每项符合 `schemas/atomic/finding.yaml`：
-```
-yamlid: string # 自动生成，如 "FIND-001"
+```yaml
+id: string # 自动生成，如 "FIND-001"
 rule_id: string # 触发的规则 ID（如 "A1", "SEC-01"）
 severity: severity.yaml # 严重度
 file: string # 涉及文件
@@ -46,8 +46,8 @@ auto_fix_applied: boolean (optional) # 是否已自动修复
 ## 5-Why 根因记录（强制）
 
 对每个 P0/P1 finding，必须附加根因分析：
-```
-yamlfinding:
+```yaml
+finding:
   rule_id: "A1"
   severity: "P0"
   root_cause:

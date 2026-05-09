@@ -4,24 +4,11 @@
 
 # 安装：bash .claude/profiles/merge-profile.sh node
 
-project:
-  language: node
-  source_extensions: "*.ts *.tsx *.js *.jsx"
-  cite_extensions: "*.ts *.tsx *.json *.mjs"
-protected_files:
-  warn_on_edit: "package.json tsconfig.json package-lock.json"
-architecture:
-  business_layers: "*/src/services/* */src/models/* */src/lib/* */src/domain/*"
-  handler_layers: "*/src/routes/* */src/controllers/* */src/api/* */src/handlers/*"
-  quality_checklist: "禁止any | 错误必须有类型 | async/await | 测试覆盖≥80% | 禁止硬编码密钥"
-  handler_constraint: "Controller/Route 禁止直接操作 DB，通过 Service/Repository 层"
-  doc_sync_target: "executor.md"
-knowledge:
-  lsp_hint: "TS/JS 符号导航"
-  lsp_example_file: "*.ts"
-fuzzy_detection:
-  explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.ts$|\.tsx$|\.js$|controller|service|route'
-error_dna:
-  build_commands: "npm run build npm test tsc npx eslint npx jest"
-build_validator:
-  build_commands: "npm run build npm test tsc npx eslint webpack vite"
+\
+project: language: node source_extensions: "*.ts *.tsx *.js *.jsx" cite_extensions: "*.ts *.tsx *.json *.mjs"\
+protected_files: warn_on_edit: "package.json tsconfig.json package-lock.json"\
+architecture: business_layers: "*/src/services/* */src/models/* */src/lib/* */src/domain/*" handler_layers: "*/src/routes/* */src/controllers/* */src/api/* */src/handlers/*" quality_checklist: "禁止any | 错误必须有类型 | async/await | 测试覆盖≥80% | 禁止硬编码密钥" handler_constraint: "Controller/Route 禁止直接操作 DB，通过 Service/Repository 层" doc_sync_target: "executor.md"\
+knowledge: lsp_hint: "TS/JS 符号导航" lsp_example_file: "*.ts"\
+fuzzy_detection: explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.ts$|\.tsx$|\.js$|controller|service|route'\
+error_dna: build_commands: "npm run build npm test tsc npx eslint npx jest"\
+build_validator: build_commands: "npm run build npm test tsc npx eslint webpack vite"

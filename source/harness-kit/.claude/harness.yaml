@@ -44,6 +44,9 @@ knowledge:
 turn_counter:
   todo_refresh_interval: 10
   todo_max_items: 15
+  # 规范注入复合触发条件（两个条件同时满足才注入，避免过度注入）
+  knowledge_inject_context_pct: 50   # context 使用率超过此值
+  knowledge_inject_min_turns: 20     # 且轮次超过此值
 
 fuzzy_detection:
   fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"
@@ -113,7 +116,7 @@ hooks_enabled:
   auto_snapshot: true
   posttool_edit_quality: true
   inject_project_knowledge: true
-  plan_gate: false
+  plan_gate: true
   turn_counter: true
   read_tracker: true
   error_dna: true
@@ -121,7 +124,7 @@ hooks_enabled:
   build_validator: true
   pretool_user_correction: true
   pretool_rule_anchor: true
-  proactive_handoff: false
+  proactive_handoff: true
   context_guard: true
   privacy_gate: true
   pretool_write_lock: true
@@ -136,12 +139,9 @@ skills_enabled:
   lx-status: true
   lx-code-review: true
   lx-react-review: true
-  lx-style-guide: true
   lx-web-perf: true
   lx-browser-verify: true
   lx-golang-test: true
-  lx-perf-analysis: true
-  lx-frontend-test: true
   lx-security-review: true
   lx-varlock: true
   lx-todo: true

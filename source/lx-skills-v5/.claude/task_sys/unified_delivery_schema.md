@@ -1,52 +1,37 @@
 # 统一交付 Schema
 
->
+> >
 > 所有节点必须遵循的输出格式
 > 版本：v1.0.0
 
 ---
 
 ## 结论 / 当前状态
-
-- state: `ready` | `need_clarification` | `planning` | `spec_review` | `executing` | `fallback_exploring` | `blocked` | `done`
-- task: `{task_name}` - priority: `p0` | `p1` | `p2`
-- mode: `stepwise` | `race`
+- state: `ready` | `need_clarification` | `planning` | `spec_review` | `executing` | `fallback_exploring` | `blocked` | `done`- task: `{task_name}` - priority: `p0` | `p1` | `p2`- mode: `stepwise` | `race`
 
 ## 我需要你确认的问题（仅在 need_clarification）
-
-1. xxxx
-2. xxxx
+1. xxxx2. xxxx
 
 ## 本轮产出
 
 ### 方案 / 变更
-
 1. xxxx
 
 ### 证据
-
-- `[已验证: path:line]` ...
-- `[已测试: cmd + output 摘要]` ...
-- `[用户确认]` ...
+- `[已验证: path:line]` ...- `[已测试: cmd + output 摘要]` ...- `[用户确认]` ...
 
 ### 风险与回退
-
-- 风险：...
-- 回退：...
+- 风险：...- 回退：...
 
 ## 需要用户裁定（给选项，不替你决定）
-
-- A: ...
-- B: ...
+- A: ...- B: ...
 
 ## 下一步（可执行、可验收）
-
 - [ ] ...
 
 ---
 
 ## State 转换规则
-
 | 当前状态 | 允许转到 | 触发条件|
 |---------|---------|---------|
 |`need_clarification` | `ready` | 用户确认所有澄清问题|
@@ -64,7 +49,6 @@
 |`blocked` | `executing` | 用户提供新约束（Half-Open 试探） |
 
 ## 证据层级
-
 | 层级 | 类型 | 可信度|
 |------|------|--------|
 |L1 | **端到端功能验证**（实际使用场景中生效） | ✅ 强|
@@ -74,7 +58,6 @@
 **只有 L1/L2 可支撑 "done" 结论。**
 
 ## 置信度标注
-
 | 标注 | 含义 | 使用场景|
 |------|------|---------|
 |`[已验证: file:line]` | 从源码直接确认 | 代码引用、字段存在性|

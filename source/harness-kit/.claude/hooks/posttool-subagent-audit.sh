@@ -1,17 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.0
-# posttool-subagent-audit.sh — PostToolUse:Task Hook
-#
-# 功能：子 agent 返回时的执行层兜底
-#   Claude Code 的 Task 工具 schema 没有 max_turns 参数，也不在 tool_response 里返回实际使用轮次。
-#   本 hook 做三件事（事后对账不能中断，但能产生告警 + flywheel P0）：
-#   1. 读取 PreToolUse 层 subagent-guard 记录的 budget（声明的 max_turns）
-#   2. 估算子 agent 实际消耗：从 tool_response.content 长度 + 可观察 task_id 对齐
-#   3. 如果无法取到实际轮次 → 写 flywheel P0 告警，让下次 SessionStart 提醒用户
-#
-# 证据：Claude Code 2026-05 schema Task 工具无 turns/usage 字段暴露给 hook，
-# 所以这里只做"声明层对账 + 统计"，不做中断决策。
+# posttool-subagent-audit.sh — PostToolUse:Task — 子 agent 执行后审计 content 用量，超限告警
+# Role: 子 agent 执行后审计 content 用量，超限告警
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "subagent_audit" || { echo '{"continue": true}'; exit 0; }

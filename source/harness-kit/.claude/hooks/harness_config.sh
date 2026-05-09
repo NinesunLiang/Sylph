@@ -1,23 +1,7 @@
 #!/usr/bin/env bash
+# harness_config.sh — 共享库（非 Hook） — 共享配置库，提供 hc_get/hc_enabled 等 harness.yaml 读取函数
+# Role: 共享配置库，提供 hc_get/hc_enabled 等 harness.yaml 读取函数
 
-# harness-kit:managed v1.0.2
-
-# harness_config.sh — 共享配置读取器
-
-# 所有 hook 脚本 source 此文件，通过 hc_get/hc_get_list/hc_enabled 读取 harness.yaml
-
-#
-
-# 机制: harness.yaml → python3 扁平化 → .omc/state/.harness-cache (key=value) → grep 查询
-
-# 性能: 首次调用 ~50ms (python3 解析), 后续 ~2ms (grep)
-
-# 容错: 无 yaml 文件 → 全部返回默认值 (fail-open)
-
-# 缓存: yaml 修改时间 > cache 修改时间 → 自动重建
-
-
-# 路径初始化（幂等，可被多次 source）
 if [ -z "$_HC_PROJECT_ROOT" ]; then
     HC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     _HC_PROJECT_ROOT="$(cd "$HC_SCRIPT_DIR/../.." && pwd)"
@@ -33,21 +17,26 @@ _hc_ensure_cache() {
     [ "$_HC_CACHE_LOADED" = "ready" ] && return 0
     [ "$_HC_CACHE_LOADED" = "empty" ] && return 1
 
-    # 无 yaml → 标记空缓存，所有 hc_get 返回默认值
-    if [ ! -f "$_HC_YAML" ]; then
-        _HC_CACHE_LOADED="empty"
-        return 1
-    fi
-
     mkdir -p "$_HC_STATE_DIR" 2>/dev/null
 
-    # 检查缓存是否新鲜（yaml 修改时间 <= cache 修改时间 且缓存非空）
+    # 第一步：缓存已存在且非空 → 尝试使用
     if [ -f "$_HC_CACHE" ] && [ -s "$_HC_CACHE" ]; then
-        # 比较修改时间：yaml 比 cache 旧或相同 → 缓存有效
+        if [ ! -f "$_HC_YAML" ]; then
+            # 无 yaml 但有预先生成的缓存（跨平台 fallback 场景）
+            _HC_CACHE_LOADED="ready"
+            return 0
+        fi
+        # 有 yaml：比较修改时间，yaml 不比 cache 新 → 缓存有效
         if [ ! "$_HC_YAML" -nt "$_HC_CACHE" ]; then
             _HC_CACHE_LOADED="ready"
             return 0
         fi
+    fi
+
+    # 无 yaml → 标记空缓存（也无预生成缓存），所有 hc_get 返回默认值
+    if [ ! -f "$_HC_YAML" ]; then
+        _HC_CACHE_LOADED="empty"
+        return 1
     fi
 
     # 需要重建缓存：python3 扁平化 yaml → key=value

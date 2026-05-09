@@ -1,18 +1,17 @@
 # Orchestrator - 任务调度器
 
->
+> >
 > 状态机 + Gate 检查点 + 失败回退
 > 版本：v5.1.0
 
 ---
 
 ## 第一层：身份与边界层
-
 **核心契约**：结构化任务输入
 
-```
-yamltask_
-name: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} # stepwise | racepriority: {$6} # p0 | p1 | p2
+```yaml
+e
+: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} # stepwise | racepriority: {$6} # p0 | p1 | p2
 yamltask_name: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} # stepwise | racepriority: {$6} # p0 | p1 | p2
 ```
 
@@ -22,14 +21,13 @@ yamltask_name: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} 
 
 ### 状态机（v5.1.0 简化版）
 
-```
-need_clarific
-ation → ready → planning → executing → done ↑ ↑ ↑ ↑ └──── blocked ─────┘ └─ fallback ┘ ↓ need_clarification (偏差时)
+```need_clarificati
+o
+n → ready → planning → executing → done ↑ ↑ ↑ ↑ └──── blocked ─────┘ └─ fallback ┘ ↓ need_clarification (偏差时)
 need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑ └──── blocked ─────┘ └─ fallback ┘ ↓ need_clarification (偏差时)
 ```
 
 ### 状态定义
-
 | 状态 | 含义 | 触发条件 | 下一状态|
 |------|------|---------|---------|
 |`need_clarification` | 需要用户澄清 | criteria 缺失 / target 模糊 | `ready`（用户确认后）|
@@ -41,30 +39,13 @@ need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑
 
 ### 三步工作流
 
-#### 1. 调研阶段
+#### 1. 调研阶段- 收集信息 → 评估不确定性 → 探索方案- **Gate 检查点**（Research Gate）： - [ ] 所有涉及文件已 Read 并标注 file:line - [ ] 外部依赖/接口契约已查明 - [ ] 不存在未解答的技术问题 - [ ] 与现有代码的集成点已定位
 
-- 收集信息 → 评估不确定性 → 探索方案
-- **Gate 检查点**（Research Gate）：
-  - [ ] 所有涉及文件已 Read 并标注 file:line
-  - [ ] 外部依赖/接口契约已查明
-  - [ ] 不存在未解答的技术问题
-  - [ ] 与现有代码的集成点已定位
+#### 2. 规划阶段- 分解任务 → 定义步骤 → 分析依赖 → 分配资源- **Gate 检查点**（Plan Gate）： - [ ] 每个 Step 有明确验收标准 - [ ] Step 间依赖关系已标注 - [ ] 预估影响文件已列出 - [ ] 用户已确认方案
 
-#### 2. 规划阶段
-
-- 分解任务 → 定义步骤 → 分析依赖 → 分配资源
-- **Gate 检查点**（Plan Gate）：
-  - [ ] 每个 Step 有明确验收标准
-  - [ ] Step 间依赖关系已标注
-  - [ ] 预估影响文件已列出
-  - [ ] 用户已确认方案
-
-#### 3. 执行阶段
-
-- 实施 → 调试 → 验证 → 文档化 → 同步
+#### 3. 执行阶段- 实施 → 调试 → 验证 → 文档化 → 同步
 
 ### 质量控制
-
 | 阶段 | 类型 | 内容|
 |------|------|------|
 |前置 | 检查点 | Research Gate + Plan Gate|
@@ -72,49 +53,25 @@ need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑
 |后置 | 验证 | A/B 终端分离验收 |
 
 ### 补充设计
-
-1. **先规划**：将计划写入 `.omc/state/{date}/{task_name}/output/plan.md`，使用可勾选清单
-2. **验证计划**：实现前先 check-in
-3. **跟踪进度**：每完成一项即标记
-4. **解释变更**：每步提供高层总结
-5. **记录结果**：在 plan.md 末尾添加 checklist 部分
-6. **捕捉教训**：纠正后更新 `.claude/next-learn`
+1. **先规划**：将计划写入 `.omc/state/{date}/{task_name}/output/plan.md`，使用可勾选清单2. **验证计划**：实现前先 check-in3. **跟踪进度**：每完成一项即标记4. **解释变更**：每步提供高层总结5. **记录结果**：在 plan.md 末尾添加 checklist 部分6. **捕捉教训**：纠正后更新 `.claude/next-learn`
 
 ---
 
 ## 第三层：记忆系统 - 三层结构
 
-### 短期记忆：渐进性披露
+### 短期记忆：渐进性披露- 大纲 → 步骤 → 执行- 当前步骤只访问必要资源- 严格边界，不越界
 
-- 大纲 → 步骤 → 执行
-- 当前步骤只访问必要资源
-- 严格边界，不越界
+### 中期记忆：Markdown 文档化- 每个步骤：[方案文档] + [验收文档]- 每个章节：汇总更新任务状态
 
-### 中期记忆：Markdown 文档化
-
-- 每个步骤：[方案文档] + [验收文档]
-- 每个章节：汇总更新任务状态
-
-### 长期记忆：飞轮迭代
-
-- 收集错误模式
-- 识别成功模式
-- 持续优化迭代
+### 长期记忆：飞轮迭代- 收集错误模式- 识别成功模式- 持续优化迭代
 
 ---
 
 ## 第四层：验收系统 - A/B 终端分离
 
-### A 终端（生成验收方案）
+### A 终端（生成验收方案）- **输入**：任务目标- **输出**：通过/不通过的具体现象标准- **埋点**：可观测的检查点
 
-- **输入**：任务目标
-- **输出**：通过/不通过的具体现象标准
-- **埋点**：可观测的检查点
-
-### B 终端（执行验收）
-
-- **输入**：实际产出
-- **输出**：验收报告（命中哪些现象）
+### B 终端（执行验收）- **输入**：实际产出- **输出**：验收报告（命中哪些现象）
 
 ### 验证机制A 终端对比验收报告与标准 → 判定通过/不通过
 
@@ -122,33 +79,21 @@ need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑
 
 ## 第五层：韧性机制 - 三层保障
 
-### 1. 优雅降级
+### 1. 优雅降级- 核心功能优先保障- 非核心可降级或放弃
 
-- 核心功能优先保障
-- 非核心可降级或放弃
+### 2. 全链路溯源- 输入 → 处理 → 输出- 每个决策可追溯
 
-### 2. 全链路溯源
-
-- 输入 → 处理 → 输出
-- 每个决策可追溯
-
-### 3. 自动恢复
-
-- 重试机制（有限次数，最多 3 轮）
-- 错误收集与分析
-- 自我修复尝试
+### 3. 自动恢复- 重试机制（有限次数，最多 3 轮）- 错误收集与分析- 自我修复尝试
 
 ---
 
 ## 第六层：学习进化 - 飞轮系统
-
 **循环**：执行 → 收集错误 → 分析优化 → 再次执行
 **目标**：避免重复错误，固化成功模式
 
 ---
 
 ## 设计哲学
-
 | # | 原则 | 含义|
 |---|------|------|
 |1 | **契约优先** | 明确的接口定义|
@@ -160,7 +105,6 @@ need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑
 ---
 
 ## 失败回退策略
-
 | 失败类型 | 回退动作 | 升级条件|
 |---------|---------|---------|
 |Research Gate 未通过 | 标记 BLOCKED，列出缺失信息 | 用户提供新线索 → Half-Open 试探|
@@ -174,6 +118,8 @@ need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑
 
 ### Fallback 降级流程
 
-```
+```执行失
+败
+（≥2轮） → 触发 Fallback Exploration ├─ explore agent: 搜索代码库既有解法 ├─ librarian agent: 搜索外部最佳实践 └─ 产出：方案对比表 + 降级路径（A→B→C） → 用户确认方案 → 轮次计数重置 → 回到 executing
 执行失败（≥2轮） → 触发 Fallback Exploration ├─ explore agent: 搜索代码库既有解法 ├─ librarian agent: 搜索外部最佳实践 └─ 产出：方案对比表 + 降级路径（A→B→C） → 用户确认方案 → 轮次计数重置 → 回到 executing
 ```

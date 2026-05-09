@@ -1,15 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.2.3
-
-# turn-counter.sh — UserPromptSubmit Hook
-
-# 功能：统计会话轮次，每 N 轮注入 Todo 队列（防漂移）+ 模糊指令检测
-
-# Todo 队列：.omc/state/todo-queue.md，max 15 条，FIFO
-
-# 输出格式：纯文本到 stdout
-
+# turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测
+# Role: 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "turn_counter" || { cat > /dev/null; exit 0; }
@@ -117,6 +108,40 @@ if [ -f "$FUZZY_CHECK" ]; then
             else
                 echo "⚠️ 模糊指令检测: 指令含模糊动词'$FUZZY_VERB'但无明确目标。请补充 Step 编号/文件路径/功能名称(§1.6)。"
             fi
+        fi
+    fi
+fi
+
+# ─── 复合条件注入：context > N% 且 turn > M ──────────────
+# 解决规范漂移问题：单独用 context% 太频繁，单独用轮数不精准
+KNOWLEDGE_CTX_PCT=$(hc_get "turn_counter.knowledge_inject_context_pct" "50")
+KNOWLEDGE_MIN_TURNS=$(hc_get "turn_counter.knowledge_inject_min_turns" "20")
+if [ "$new_count" -gt "$KNOWLEDGE_MIN_TURNS" ] && [ $(( new_count % 5 )) -eq 0 ]; then
+    # 每 5 轮检查一次复合条件（避免每轮都读文件）
+    INDEX_FILE="$STATE_DIR/token-tracking-index.json"
+    if [ -f "$INDEX_FILE" ]; then
+        CTX_PCT=$(python3 -c "
+import json
+try:
+    d = json.load(open('$INDEX_FILE'))
+    usage = d.get('usage', 0)
+    limit = d.get('limit', 200000)
+    print(int(usage * 100 / limit)) if limit > 0 else print(0)
+except:
+    print(0)" 2>/dev/null)
+        if [ -n "$CTX_PCT" ] && [ "$CTX_PCT" -ge "$KNOWLEDGE_CTX_PCT" ] 2>/dev/null; then
+            echo ""
+            echo "═══ [轮次 $new_count] 规范漂移检测 — context ${CTX_PCT}% > ${KNOWLEDGE_CTX_PCT}% ═══"
+            echo "【规范重新锚定】上下文使用率和轮次均超出阈值，重新注入项目规范。"
+            INJECT_INDEX="$PROJECT_ROOT/.claude/index.md"
+            if [ -f "$INJECT_INDEX" ]; then
+                echo ""
+                grep -E '^\| \#' "$INJECT_INDEX" 2>/dev/null | head -15
+                echo ""
+                grep -E '^\|`[a-z]' "$INJECT_INDEX" 2>/dev/null | head -8
+            fi
+            echo ""
+            echo "═══ 规范重新锚定完毕 ═══"
         fi
     fi
 fi

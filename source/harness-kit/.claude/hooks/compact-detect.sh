@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# compact-detect.sh — UserPromptSubmit Hook
-#
-# 检测用户输入是否为 /compact，保存 compact 前 usage 供 token_writer 处理
-# 流程：
-#   UserPromptSubmit (此脚本) → token_writer.sh --increment (下一次 PostToolUse)
-#
-# 依赖：token-tracking-index.json（由 token_writer.sh 维护）
-# 输出：.omc/state/token-compact-state.json（写入预 compact 状态）
-#
-# 不阻塞：任何失败都 exit 0，不干扰用户流程
-
-# 故意不设 set -e: 本 hook 永不阻塞，任何失败静默 exit 0
+# compact-detect.sh — UserPromptSubmit — 检测 /compact 命令，保存 compact 前 usage 供 token 追踪
+# Role: 检测 /compact 命令，保存 compact 前 usage 供 token 追踪
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -65,7 +55,6 @@ EOF
 # 注入到 stdout，hook 框架会传递给 AI 作为 additionalContext
 INJECT_INDEX="$PROJECT_ROOT/.claude/index.md"
 INJECT_KERNEL="$PROJECT_ROOT/.claude/kernel.md"
-INJECT_AGENTS="$PROJECT_ROOT/AGENTS.md"
 echo ""
 echo "═══════════════════════════════════════════════"
 echo " /compact 检测 — 项目知识重新注入"
@@ -89,6 +78,7 @@ if [ -f "$INJECT_KERNEL" ]; then
 fi
 
 # 注入 AGENTS.md 治理框架纲要
+INJECT_AGENTS="$PROJECT_ROOT/AGENTS.md"
 if [ -f "$INJECT_AGENTS" ]; then
     echo ""
     echo "--- 治理框架纲要 ---"

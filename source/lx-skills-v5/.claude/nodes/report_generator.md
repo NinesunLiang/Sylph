@@ -24,9 +24,8 @@
 ## 输出契约
 
 输出结构化 Markdown 报告，包含：
-```
-mark
-down## {skill_name} 报告 {✅/⚠️/⏭️}
+```markdown
+## {skill_name} 报告 {✅/⚠️/⏭️}
 
 ### 范围
 - 目标：{scan_report.target}

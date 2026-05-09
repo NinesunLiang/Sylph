@@ -30,8 +30,17 @@
 
 ### Fallback 路由流程
 
-```
-执行失败→ 5-Why 根因分析 → 记录到 step 文件错误记录区 → 判断轮次： ├─ 1/3 → 尝试不同策略（仍在 executing） ├─ 2/3 → 触发 Fallback Exploration（自主调研 ≥2 种方案） └─ 3/3 → 触发 Fallback Exploration（含降级路径 A→B→C） → 用户确认新方案 → 轮次计数重置（新策略方向） → 回到 executing
+```text
+执行失败
+→ 5-Why 根因分析
+→ 记录到 step 文件错误记录区
+→ 判断轮次：
+   ├─ 1/3 → 尝试不同策略（仍在 executing）
+   ├─ 2/3 → 触发 Fallback Exploration（自主调研 ≥2 种方案）
+   └─ 3/3 → 触发 Fallback Exploration（含降级路径 A→B→C）
+→ 用户确认新方案
+→ 轮次计数重置（新策略方向）
+→ 回到 executing
 ```
 
 ### 降级执行规则
