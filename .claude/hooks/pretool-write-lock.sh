@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
+# pretool-write-lock.sh — PreToolUse:Edit|Write — 写操作前获取 OMA 并发锁，防止多终端冲突
+# Role: 写操作前获取 OMA 并发锁，防止多终端冲突
 
-# write-lock-gate.sh (PreToolUse) — Carror OS OMA 并发锁前置拦截
-# 集成 harness_config.sh，支持通过 harness.yaml 启用/禁用
-# 当大模型尝试写文件时，调用底层 Python 锁管理器。若被占用，则挂起大模型（while 循环打印 WAITING）。
-
-# Source harness config for feature toggle support
 HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
 if [ -f "$HARNESS_CONFIG" ]; then
     # shellcheck source=harness_config.sh

@@ -21,7 +21,12 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+role: "Root-cause debugger for Go — structured investigation protocol"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-debug-spec"
+  - "debug"
 ---
 
 # Systematic Debugging
@@ -199,3 +204,5 @@ If user says any of these → stop → back to Phase 1:- "That didn't happen tho
 |go test -race 挂起 | 并发调试 | 加 -timeout 30s，减少 -count 值|
 |LSP 无响应 | 代码导航 | 用 grep + readFile 替代，标注"[降级:无LSP]"|
 |无法复现（<10%复现率）| 定位根因 | 增加日志，记录触发条件，标注"[间歇性]" |
+
+

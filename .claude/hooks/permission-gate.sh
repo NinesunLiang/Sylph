@@ -1,15 +1,6 @@
 #!/usr/bin/env bash
-
-# harness-kit:managed v1.0.2
-
-# permission-gate.sh — PreToolUse:Bash Hook
-
-# 功能：当执行危险命令时，检查最近对话是否包含权限申请格式
-
-# 退出码 2 = 阻断（无权限申请上下文）
-
-# 退出码 0 = 放行（已包含申请格式 / 非危险命令）
-
+# permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式
+# Role: 执行危险命令前检查权限申请格式
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "permission_gate" || exit 0

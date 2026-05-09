@@ -1,9 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.3
-# PostToolUse:Read 来源标注提醒 - 读取文件后提示引用规范 [已注册，默认禁用]
-# 已在 settings.json PostToolUse:Read 注册。默认关闭（harness.yaml posttool_read_cite: false）。
-# 启用：harness.yaml → posttool_read_cite: true
+# posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范
+# Role: 读取文件后提示引用规范
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_read_cite" || { echo '{"continue": true}'; exit 0; }

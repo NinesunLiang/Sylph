@@ -1,19 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.0
-
-# pretool-rule-anchor.sh — PreToolUse:Write Hook
-
-# 功能：长对话防漂移——当轮次 > ANCHOR_THRESHOLD 时，
-
-# 在 AI 写文件之前注入铁律锚点，防止规则在长会话中被"遗忘"
-
-# 触发：PreToolUse:Write（每次 AI 调用 Write/Edit 工具前）
-
-# 输出：JSON { "continue": true, "hookSpecificOutput": { "additionalContext": "..." } }
-
-# 或 exit 0（轮次未达阈值，静默放行）
-
+# pretool-rule-anchor.sh — PreToolUse:Edit|Write — 长对话防漂移，高轮次时注入锚定规则
+# Role: 长对话防漂移，高轮次时注入锚定规则
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_rule_anchor" || exit 0

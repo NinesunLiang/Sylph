@@ -1,27 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.0
-
-# posttool-write-cite.sh — PostToolUse:Write Hook
-
-# 功能：检测写入 claude-next.md 时，验证教训格式是否符合规范
-
-# 目的：强化 E - Evolution 维度，确保 claude-next.md 积累的教训有结构，可升华
-
-#
-
-# 触发条件：Write 工具写入 claude-next.md（AI 记录教训时）
-
-# 检查内容：
-
-# 1. 标题格式 ## [YYYY-MM-DD] {教训标题}
-
-# 2. 包含 **问题**、**根因**、**纠正** 三个字段
-
-# 3. 内容非空（不是占位符）
-
-# 输出：格式合规 → 确认消息；格式错误 → 纠正提示（不阻断）
-
+# posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式
+# Role: 检测写入 claude-next.md 时验证教训格式
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_write_cite" || { echo '{"continue": true}'; exit 0; }

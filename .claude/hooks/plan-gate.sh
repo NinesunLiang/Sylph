@@ -1,37 +1,6 @@
 #!/usr/bin/env bash
-
-# harness-kit:managed v2.1.0
-
-# plan-gate.sh — PreToolUse:Edit Hook [DISABLED: harness.yaml 默认关闭]
-# 注意：此脚本已注册到 settings.json（PreToolUse:Edit|Write），但默认被 harness.yaml plan_gate: false 关闭。
-# 恢复激活请：harness.yaml hooks_enabled.plan_gate=true
-
-# 功能：当编辑 plan.md/executor.md 时，注入 Gate 提醒（软阻断，给 AI 判断空间）
-
-#
-
-# 触发时机说明（v6.0.0 重新设计）：
-
-# - plan-gate 不再自动检测 rpe/ 目录，不再自动启用
-
-# - 正确的触发路径：用户 → /lx-rpe skill → skill 内部 Gate-R/P/X/E
-
-# - plan-gate.sh 的职责：当 plan_gate: true 时，提供 hook 层的 Gate 提醒（辅助）
-
-# - plan_gate: false（默认）→ exit 0，不干预任何任务模式（rpe/todo 均不受影响）
-
-#
-
-# 设计原则：
-
-# - lx-rpe skill 已有完整 Gate-R/P/X/E 四阶段门禁（AI 层软约束）
-
-# - plan-gate.sh 是 hook 层辅助提醒，不替代 skill 层逻辑
-
-# - 软阻断 = 注入提醒 + AI 可判断是否继续，而非 exit 2 硬阻断
-
-# - 小任务（lx-todo 路径）完全不受此 hook 影响
-
+# plan-gate.sh — PreToolUse:Edit|Write [默认关闭] — 编辑前检查是否跳过规划阶段
+# Role: 编辑前检查是否跳过规划阶段
 
 source "$(dirname "$0")/harness_config.sh"
 # plan_gate: false（默认）→ 直接放行，不影响 rpe 和 todo 任何工作流

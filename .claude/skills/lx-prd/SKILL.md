@@ -25,7 +25,12 @@ paths:
  - "docs/**/*.md"
 
 harness_version: ">=1.1.0"
+role: "PRD production pipeline — specification authoring and quality review"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-prd"
+  - "write prd"
 ---
 
 # lx-prd — 高质量 PRD 生产流水线（RPE 模式 v2.9）
@@ -41,6 +46,7 @@ harness_version: ">=1.1.0"
 |report_generator | `../../nodes/report_generator.md` | PRD 最终输出格式化|
 |behavior_rules | `../../nodes/behavior_rules.md` | 研究阶段行为约束（防编造/证据门禁）|
 |interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
+|verifier | `../../nodes/verifier.md` | PRD AC 质量验证 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途|
@@ -367,3 +373,5 @@ Expert Review 记录### Round {N} — {date}**专家**：oh-my-claudecode:{agent
 |用户无法明确需求 | 引导收集 | 切换为"反向场景"：描述不希望出现什么|
 |技术可行性不确定 | 生成 PRD | 在 PRD 中标注"[技术可行性待评估]"，继续|
 |模板不适用当前项目 | 套用模板 | 删掉不适用的章节，从问题描述直接开始 |
+
+

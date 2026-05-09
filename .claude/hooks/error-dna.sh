@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# PostToolUse hook: Capture structured error DNA for cross-session error memory
-#
-# AC-1.1: Writes to error-dna.jsonl (append log) + error-dna.json (merged state)
-# AC-1.2: Captures all non-zero exit bash commands with structured signature
-# AC-1.4: Credential sanitization (--password/--token/--secret/--key)
-# AC-1.5: 1MB auto-rotate for error-dna.jsonl, keep 3 archives
-# AC-1.6: Local fallback classifier (no external error_classifier.py dependency)
-
+# error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 捕获结构化错误 DNA 写入跨会话错误记忆
+# Role: 捕获结构化错误 DNA 写入跨会话错误记忆
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "error_dna" || { echo '{"continue": true}'; exit 0; }
@@ -47,7 +40,7 @@ export ERROR_DNA_ROTATION_SIZE
 ERROR_DNA_ARCHIVE_COUNT=$(hc_get "error_dna.archive_count" "3")
 export ERROR_DNA_ARCHIVE_COUNT
 export SCRIPT_DIR
-python3 - "$STATE_DIR" "$TS" "$TMP_FILE" <<'PYEOF'
+PY_OUTPUT=$(python3 - "$STATE_DIR" "$TS" "$TMP_FILE" <<'PYEOF'
 import json, os, sys, hashlib, re
 
 state_dir = sys.argv[1]
@@ -219,7 +212,24 @@ try:
         open(jsonl_path, 'w').close()
 except Exception:
     pass
-PYEOF
 
-echo '{"continue": true}'
+# === Oracle Q2-A: additionalContext for high-frequency errors (>=2 occurrences) ===
+frequent = [(sig, info['count'], info.get('message', '')[:120])
+            for sig, info in aggregated.items()
+            if info['count'] >= 2 and info.get('status') != 'fixed']
+if frequent:
+    frequent.sort(key=lambda x: -x[1])
+    lines = ["[高频错误模式检测] 以下签名已出现 >=2 次:"]
+    for sig, count, msg in frequent:
+        lines.append(f'  · {sig[:20]} ×{count} — {msg}')
+    print('|'.join(lines))
+PYEOF
+)
+
+if [ -n "$PY_OUTPUT" ]; then
+    ESCAPED=$(echo "$PY_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+    echo "{\"continue\": true, \"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": ${ESCAPED}}}"
+else
+    echo '{"continue": true}'
+fi
 exit 0

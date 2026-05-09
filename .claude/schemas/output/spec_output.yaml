@@ -1,0 +1,37 @@
+# spec_output.yaml
+# Schema: 测试规约输出契约
+# Referenced by: lx-tdd-spec Step 3
+version: "1.0"
+fields:
+  feature_id:
+    type: string
+    required: true
+  test_specs:
+    type: array
+    items:
+      type: object
+      properties:
+        spec_id:
+          type: string
+          pattern: "SPEC-\\d{3}"
+        description:
+          type: string
+        behavior_matrix:
+          type: array
+          items:
+            type: object
+            properties:
+              input:
+                type: string
+              expected_output:
+                type: string
+              edge_case:
+                type: boolean
+        acceptance_conditions:
+          type: array
+          items:
+            type: string
+        dependencies:
+          type: array
+          items:
+            type: string

@@ -1,15 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.2.3
-
-# turn-counter.sh — UserPromptSubmit Hook
-
-# 功能：统计会话轮次，每 N 轮注入 Todo 队列（防漂移）+ 模糊指令检测
-
-# Todo 队列：.omc/state/todo-queue.md，max 15 条，FIFO
-
-# 输出格式：纯文本到 stdout
-
+# turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测
+# Role: 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "turn_counter" || { cat > /dev/null; exit 0; }

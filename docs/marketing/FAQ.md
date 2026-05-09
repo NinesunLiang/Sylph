@@ -46,7 +46,7 @@ A: varlock 使用占位符替换 + 正则匹配实现正向脱敏和反向还原
 A: 目前完整支持 Claude Code（通过 Hook 协议）和 OpenCode（通过 AGENTS.md）。部分支持支持 AGENTS.md 格式的其他 CLI 工具。OS 层面支持 macOS（完整）、Linux（完整）、Windows（通过 WSL）。
 
 **Q: 上下文甜点区交接是怎么实现的？**
-A: context_monitor.py 读取本地 Token 追踪索引文件中的上下文使用估算值。当任务完成且上下文 ≥50%，向终端输出 context_alert 建议用户执行 /compact 重置会话（当前写入 stderr，对 AI 不可见，需用户手动触发）。当上下文 ≥80%，context-guard.sh 抛 Exit 2 阻止写入操作。80% 熔断为硬阻断，50% 告警为软提示。[已验证: /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/context-guard.sh:50-70]
+A: context_monitor.py 读取本地 Token 追踪索引文件中的上下文使用估算值。当任务完成且上下文 ≥50%，向终端输出 context_alert 建议用户执行 /compact 重置会话（当前写入 stderr，对 AI 不可见，需用户手动触发）。当上下文 ≥80%，context-guard.sh 抛 Exit 2 阻止写入操作。80% 熔断为硬阻断，50% 告警为软提示。[已验证: hooks/context-guard.sh:50-70]
 
 ---
 

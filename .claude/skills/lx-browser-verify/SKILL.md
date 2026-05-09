@@ -27,7 +27,11 @@ paths:
  - "*.css"
 
 harness_version: ">=1.1.0"
+role: "Browser visual verification & acceptance testing via Playwright"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-browser-verify"
 ---
 
 # Browser Visual Verification
@@ -111,3 +115,5 @@ p
 |Playwright 不可用 | 浏览器自动化 | 提供手动验收步骤，生成 checklist 给用户|
 |截图对比失败 | 视觉验证 | 标注差异区域，由用户确认是否可接受|
 |页面加载超时 | 等待 | 重试一次，仍失败则记录"[加载超时]" |
+
+

@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
-
-# harness-kit:managed v1.0.2
-
-# PreToolUse:Edit — 范围冻结拦截 + 核心文件警告 + 耦合提醒
-
+# pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围冻结拦截，阻止越界编辑 + 核心文件警告
+# Role: 范围冻结拦截，阻止越界编辑 + 核心文件警告
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_edit_scope" || exit 0

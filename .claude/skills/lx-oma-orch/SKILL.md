@@ -3,7 +3,7 @@ name: lx-oma-orch
 
 description: Pipeline Orchestrator — 4-skill 管线编排（状态查看/阶段推进/Oracle 门禁/并行开发管理）
 
-version: 1.2.0
+version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
 argument-hint: "status | advance [--force] | gate <og-id> approve|reject [--reason \"...\"] | run <target> | dev list | dev mark <feature-id> <status>"
@@ -19,6 +19,8 @@ triggers:
   - "pipeline"
   - "管线状态"
   - "orchestrate"
+role: "Pipeline orchestrator — 4-skill lifecycle orchestration with Oracle gates"
+execution_mode: stepwise
 ---
 
 # lx-oma-orch Pipeline Orchestrator
@@ -31,6 +33,7 @@ triggers:
 | 节点 | 路径 | 用途 |
 |------|------|------|
 | oracle | `../../nodes/oracle_terminal.md` | 阶段转移门禁裁决 |
+| mode_selector | `../../nodes/mode_selector.md` | 根据 skill frontmatter 确定执行模式，挂载对应门禁 |
 
 ### 本 skill 参考文档
 
@@ -160,6 +163,18 @@ hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe ──→ de
 设置 `stages.dev = running`（不标记 completed — 等各 feature 独立完成后由 lx-rpe 或手动更新）。
 
 `--force` 跳过 Oracle gate 检查（风险自负）。
+
+### 2.5 模式门禁路由（advance 附带）
+
+当调用子 skill 时，读取该 skill 的 `execution_mode` frontmatter 字段，自动挂载模式对应门禁：
+
+| execution_mode | 路由行为 | 成功门槛 |
+|---------------|---------|---------|
+| **race** | 注册为 Race 子任务，用 `race_manager.sh` 跟踪 | 聚合报告 N/M 通过 |
+| **stepwise** | 执行 Stepwise 阶段流程（entry gate → 执行 → exit gate） | 所有 exit criteria 通过 |
+| direct/无 | 直接调用，不挂载额外门禁 | skill 自行返回 |
+
+对应门禁参考 `@../../nodes/mode_selector.md`。
 
 ### 3. gate — Oracle 门禁裁决
 
@@ -392,3 +407,4 @@ Oracle Gate: {og-id} → {approved/rejected}
 确认方法: /lx-oma-orch gate {og-id} approve
 拒绝方法: /lx-oma-orch gate {og-id} reject --reason "..."
 ```
+

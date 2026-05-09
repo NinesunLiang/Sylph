@@ -32,8 +32,8 @@ Carror OS: 用户 → AI → [⚠️ Hook 拦截] → 拒绝 / 授权 / 审计
 
 | 层 | 做什么 | 怎么做的 |
 |------|------|---------|
-| **Harness-kit**（内核） | 30 个应用层 Hook，在 AI 工具调用前拦截 | `Exit 2` 硬阻断，不是 Prompt 请求 |
-| **lx-skills**（用户态） | 24 个工作流 Skill，从 PRD 到提交的全周期 | Markdown 指令集 + 19 个 Python 工具 |
+| **Harness**（内核） | 32 个应用层 Hook，在 AI 工具调用前拦截 | `Exit 2` 硬阻断，不是 Prompt 请求 |
+| **Skills**（用户态） | 25 个工作流 Skill，从 PRD 到提交的全周期 | Markdown 指令集 + 19 个 Python 工具 |
 | **Profiles**（桥接） | 5 种语言环境的一键适配 | YAML 配置，零代码切换 |
 
 ---

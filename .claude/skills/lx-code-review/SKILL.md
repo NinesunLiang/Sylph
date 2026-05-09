@@ -19,7 +19,13 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+role: "Go code quality reviewer — 8 categories, 39 rules"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-code-review"
+  - "review code"
+  - "code review"
 ---
 
 # Go 代码质量审查
@@ -172,3 +178,5 @@ t
 |skill 不可用 | Invoke lx-code-review | AI 用 references/knowledge/ 规则自行审查，标注 [降级审查]|
 |变更文件 >50 个 | 全量审查 | 只审查高风险文件（main/handler/auth）|
 |auto-fix 后仍有 P0 | 修复+重审 | 最多重试2次，第3次 BLOCKED + 修复建议 |
+
+

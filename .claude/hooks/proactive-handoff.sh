@@ -1,21 +1,6 @@
 #!/usr/bin/env bash
-
-# harness-kit:managed v1.0.0
-
-# proactive-handoff.sh — PostToolUse Hook [INACTIVE: 未注册, 反向漂移]
-# 注意：此脚本存在于磁盘但未注册到 settings.json（R23 移除反向漂移）。
-# 恢复激活请：settings.json PostToolUse 添加 + harness.yaml hooks_enabled.proactive_handoff=true
-#
-# 功能：Enhanced 专属。当 step 执行完毕且上下文 >50% 时，
-#       触发主动交接警告，提醒用户运行 /compact 压缩会话。
-#
-# 触发条件（全部满足）：
-#   1. Enhanced 模式已激活（profiles/enhanced/ 存在）
-#   2. 真实上下文百分比 >= 50%
-#   3. 最近 5 分钟内 executor.md 被修改且包含完成标记
-#   4. 本会话中尚未触发过（防重复）
-#
-# 退出码：0（仅警告，不阻断操作）
+# proactive-handoff.sh — PostToolUse:Write|Edit — 主动会话交接（上下文阈值触发）
+# Role: 主动会话交接，上下文阈值触发的交接提示
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

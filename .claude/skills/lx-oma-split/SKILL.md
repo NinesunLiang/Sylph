@@ -3,7 +3,7 @@ name: lx-oma-split
 
 description: 一人成军司令部 (One-Man Army) - 将需求拆解为正交的多个功能分支 (prd/{sub_prd}/{feature})，支持目录和单文件作为输入。
 
-version: 1.2.0
+version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
 argument-hint: "<path> [--pipeline <sub_prd_id>]"
@@ -15,6 +15,8 @@ triggers:
   - "/lx-oma-split"
   - "拆解需求"
   - "一人成军拆解"
+role: "OMA commander — Sub PRD to feature decomposition (Level 2)"
+execution_mode: race
 ---
 
 # lx-oma-split 一人成军拆解大脑
@@ -225,6 +227,31 @@ EOF
 
 ```
 
+### 交付后的方向指引
+
+输出战报后，必须追加方向指引：
+
+```
+─── 方向指引 ───
+📍 拆解完成，{N} 个 feature 已就绪。
+
+建议下一步:
+  1. /lx-rpe prd/{sub_prd_name}/feat-{name}
+     → 启动核心 feature 的 RPE 开发（建议先做依赖链上游的）
+  2. 并行启动多个 /lx-rpe
+     → 无依赖的 feature 可同时开始开发
+  3. /lx-orch status
+     → 查看管线全景，了解整体进度
+  4. 自定义操作
+     → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
+
+推荐顺序:
+  · 有依赖项的 feature → 优先启动（处于依赖链上游的）
+  · 无依赖的 feature   → 可并行启动
+  · 建议一次启动不超过 3 个 RPE 实例，避免上下文混
+```
+
 ## 7. Pipeline 集成
 
 本 skill 与 `state/pipeline.yaml` 状态机配合，支持 `/lx-oma-orch` 编排。
@@ -298,3 +325,4 @@ oma → gov 阶段转换前，**必须**执行人工审核：
 ```
 
 人工确认后，运行 `/lx-oma-orch gate og-NNN approve` 推进。
+

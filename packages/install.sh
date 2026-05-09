@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.1.8-stable | 日期：2026-05-03
+# 版本：v6.1.9-stable | 日期：2026-05-09
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -12,7 +12,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION="v6.1.8-stable"
+VERSION="v6.1.9-stable"
 GITHUB_REPO="NinesunLiang/Sylph"
 GITHUB_RELEASE_URL="https://github.com/$GITHUB_REPO/releases/download/$VERSION"
 

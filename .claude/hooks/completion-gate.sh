@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# completion-gate.sh — PreToolUse:TaskUpdate Hook
-
-# 功能：当 AI 尝试将任务标记为 completed 时，强制阻断并要求提供证据
-
-# 退出码 2 = 阻断工具执行（Claude Code 硬阻断，AI 无法绕过）
-
+# completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件
+# Role: 强制 TaskUpdate 前提供结构化证据文件
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -93,13 +86,20 @@ except:
         # 验证通过，清理消费文件
         rm -f "$CONSUMED"
 
-        # --- 检测方案/验收类任务 → A→B→A 交叉验证（两阶段匹配） ---
-        # 高精确率词：单命中即触发
-        if echo "$CONTENT" | grep -qiE '(验收|benchmark|scorecard|通过率|口径|mapping|合规)'; then
+        # --- A→B→A 交叉验证触发（Oracle Q1: 关键词匹配 + 复杂度门控双通道）---
+        # 通道1: 复杂度门控 — L3/L4 任务、架构决策、多文件变更等复杂度指标
+        if echo "$CONTENT" | grep -qiE '(L[34]|三重门|architecture|arch decision|方案选型|跨模块|interface change|multi.*file|设计决策|架构变更|design decision)'; then
             TRIGGER="yes"
-        # 中等精确率词：需 2+ 匹配避免日常用语误报
-        elif [ "$(echo "$CONTENT" | grep -ioE '(报告|方案|评估|design|proposal|review|analysis|评审|分析)' | sort -u | wc -l)" -ge 2 ]; then
-            TRIGGER="yes"
+        fi
+        # 通道2: 关键词匹配（原有逻辑，复杂度未命中时启用）
+        if [ "$TRIGGER" != "yes" ]; then
+            # 高精确率词：单命中即触发
+            if echo "$CONTENT" | grep -qiE '(验收|benchmark|scorecard|通过率|口径|mapping|合规)'; then
+                TRIGGER="yes"
+            # 中等精确率词：需 2+ 匹配避免日常用语误报
+            elif [ "$(echo "$CONTENT" | grep -ioE '(报告|方案|评估|design|proposal|review|analysis|评审|分析)' | sort -u | wc -l)" -ge 2 ]; then
+                TRIGGER="yes"
+            fi
         fi
         if [ "${TRIGGER:-no}" = "yes" ]; then
             # 构建手off内容（同时写文件 + 打印 stderr）

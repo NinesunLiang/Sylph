@@ -1,11 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# 项目级 SessionStart hook：注入 .claude/ 核心知识到 AI context
-
-# 输出格式：纯文本（与 inject-instincts.sh 一致，已验证有效）
-
+# inject-project-knowledge.sh — SessionStart — 注入 .claude/ 核心知识到 AI context
+# Role: 注入 .claude/ 核心知识到 AI context
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "inject_project_knowledge" || exit 0

@@ -139,12 +139,9 @@ skills_enabled:
   lx-status: true
   lx-code-review: true
   lx-react-review: true
-  lx-style-guide: true
   lx-web-perf: true
   lx-browser-verify: true
   lx-golang-test: true
-  lx-perf-analysis: true
-  lx-frontend-test: true
   lx-security-review: true
   lx-varlock: true
   lx-todo: true

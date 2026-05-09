@@ -1,15 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.3
-
-# lsp-suggest.sh — PreToolUse:Grep Hook
-
-# 功能：检测 Grep 搜索导出符号时，首次阻断并建议使用 LSP 工具
-
-# 策略：每会话首次符号 Grep → exit 2 阻断（可靠传递建议）
-
-# 同一会话后续 → exit 0 放行（已提醒过）
-
+# lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具
+# Role: 检测 Grep 搜索导出符号时建议改用 LSP 工具
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "lsp_suggest" || exit 0

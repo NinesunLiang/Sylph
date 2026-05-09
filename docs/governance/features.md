@@ -81,10 +81,10 @@ bash install.sh base
 
 | 文件 | 说明 |
 | :--- | :--- |
-| **`auto-feature-test.md`** | 验收执行手册。对 AI 说"请帮我执行战区一的测试"即可启动，无需手动敲命令。涵盖 Agentic UI 门禁体验、图表化可观测性、OMA 并发引擎等核心特性。 |
-| **`auto-feature-test-log.md`** | 验收战报模板。边测试边记录实际表现，最终签字存档。 |
+| **`../tests/auto-feature-test.md`** | 验收执行手册。对 AI 说"请帮我执行战区一的测试"即可启动，无需手动敲命令。涵盖 Agentic UI 门禁体验、图表化可观测性、OMA 并发引擎等核心特性。 |
+| **`../tests/auto-feature-test-log.md`** | 验收战报模板。边测试边记录实际表现，最终签字存档。 |
 
-> 💡 **新成员首次上手**：直接打开 `auto-feature-test.md`，按头部三步引导操作，整个过程以 AI 全自动代跑为主，你只需要在弹出的交互表单里做选择。
+> 💡 **新成员首次上手**：直接打开 `../tests/auto-feature-test.md`，按头部三步引导操作，整个过程以 AI 全自动代跑为主，你只需要在弹出的交互表单里做选择。
 
 ---
 
@@ -92,7 +92,7 @@ bash install.sh base
 
 | 文件 | 说明 |
 | :--- | :--- |
-| **`manual-acceptance-test.md`** | 全人工验收清单，共 **49 项**，覆盖 harness-kit 全部 32 个底层 Hook 及所有核心 Skill。每一条命令你亲自执行，每一个结果你亲眼确认。Agentic UI 的拦截弹窗由 Hook 真实触发，而非 AI 模拟。 |
-| **`manual-acceptance-test-log.md`** | 对应战报模板，49 行空白记录表，Fail 项必须填写根因与修复方案，验收官签字后存档。 |
+| **`../tests/manual-acceptance-test.md`** | 全人工验收清单，共 **49 项**，覆盖 harness-kit 全部 32 个底层 Hook 及所有核心 Skill。每一条命令你亲自执行，每一个结果你亲眼确认。Agentic UI 的拦截弹窗由 Hook 真实触发，而非 AI 模拟。 |
+| **`../tests/manual-acceptance-test-log.md`** | 对应战报模板，49 行空白记录表，Fail 项必须填写根因与修复方案，验收官签字后存档。 |
 
 > ⚠️ **正式交付场景**：使用全人工验收流程。AI 的总结不算证据，你的亲手执行和签字才算数。这是 Carror OS 零信任理念的最高表达。

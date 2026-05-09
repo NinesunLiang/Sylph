@@ -1,5 +1,7 @@
 # Sylph v6.1.8 — 质量审计报告
 
+> **⚠️ SUPSEDED** — This audit is superseded by `audit-v6.1.8-rev2.md` (72/100). The old 40/100 score was based on incorrect directory references.
+
 ## 1. 文件统计
 
 | 类别 | 数量 | 状态 |

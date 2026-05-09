@@ -6,9 +6,30 @@
 
 ---
 
-## [未发布]
+## [v6.1.9-stable] — 2026-05-09
 
-> 待纳入下一版本的改动记录于此
+> 狗粮修复 + 三重门硬化 + Oracle 审计闭环 + 发布流水线
+
+### v6.1.9 发布汇总
+
+**新增**：
+- 三重门交叉验证协议（A→B→A 盲执行 + Oracle 终审）
+- OMA 技能依赖图声明（`skill-dependencies.yaml`）
+- 统一技能版本号格式（全部 v 前缀对齐）
+- 全新 skill：`lx-oma-orch`、`lx-oma-split`、`lx-oma-hier`、`lx-oma-gov`
+- Human-in-the-loop gate 规范
+
+**修复**：
+- context-guard 白名单漂移修复
+- subagent-guard max_turns 软约束重构
+- PostToolUseFailure 事件架构纠正
+- 12 个僵尸脚本批量归位
+- error-dna 高频错误捕获增强
+- 锁可观测性原子写入（os.rename）
+
+**治理**：
+- Oracle 审计评分提升（72 → 74）
+- E2 运行时语义校验 + 治理 hook 升级
 
 ### R26 — context-guard 白名单漂移修复 + 剩余 ⏳ 验收收尾（2026-05-05）
 

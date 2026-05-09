@@ -21,7 +21,11 @@ paths:
  - "*_test.go"
 
 harness_version: ">=1.1.0"
+role: "Go test code generator — pattern-based test scaffolding"
+execution_mode: stepwise
 
+triggers:
+  - "/lx-golang-test"
 ---
 
 # Go Testing: Pattern Router + Code Generator
@@ -131,3 +135,5 @@ bashpython3 .claude/skills/lx-golang-test/scripts/run_go_tests.py \ --pkg {targe
 |测试超时（>60s）| 等待 | 加 -timeout 30s，标注"[超时截断]"|
 |race 检测触发 | 分析 | go test -race -count=10 缩小范围，记录复现条件|
 |go build 失败 | 修复编译 | 报告编译错误，不执行测试 |
+
+

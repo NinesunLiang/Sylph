@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
+# posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁
+# Role: 写操作后释放 OMA 并发锁
 
-# write-lock-release.sh (PostToolUse) — Carror OS OMA 并发锁释放
-# 集成 harness_config.sh，支持通过 harness.yaml 启用/禁用
-
-# Source harness config for feature toggle support
 HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
 if [ -f "$HARNESS_CONFIG" ]; then
     # shellcheck source=harness_config.sh

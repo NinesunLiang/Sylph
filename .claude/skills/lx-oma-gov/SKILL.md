@@ -3,7 +3,7 @@ name: lx-oma-gov
 
 description: OMA PRD 治理 — 在 `prd/{sub_prd}/{feature}` 变更时通过 reconcile/propagate 机制增量同步，处理冲突裁决、漂移检测，保持 OMA 文档体系一致性
 
-version: 1.2.0
+version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
 argument-hint: "init [path] | reconcile [path] | resolve <CONFLICT-ID> <verdict> [--reason] | propagate --dry-run|--execute [path] | status | audit [path]"
@@ -19,6 +19,8 @@ triggers:
   - "reconcile"
   - "propagate"
   - "漂移检测"
+role: "PRD governance — drift detection, reconciliation, propagation"
+execution_mode: stepwise
 ---
 
 # lx-oma-gov OMA PRD 治理
@@ -31,6 +33,7 @@ triggers:
 | 节点 | 路径 | 用途 |
 |------|------|------|
 | explore | `../../nodes/explore.md` | 扫描 feature 目录，读取 PRD 文件 |
+| verifier | `../../nodes/verifier.md` | reconcile 变更质量验证 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途 |
@@ -53,7 +56,9 @@ need_input
       → [no changes] → done
       → [L3 conflict] → awaiting_human_decision
           → [resolve] → reconciling
-      → [changes ready] → propagating_dry_run
+      → [changes ready] → verifying
+          → [verified] → propagating_dry_run
+          → [warning] → propagating_dry_run
           → [confirmed] → propagating → done
           → [cancelled] → done
   → [status] → done
@@ -133,7 +138,38 @@ prd/{sub_prd}/{feature}/
 - 更新 `CONSOLIDATION-LOG.md`
 - L3 挂起写入 `state/pending-decisions.md`
 
-### 2.3 resolve — L3 人工裁决
+### 2.3 verifier — 变更质量验证（reconcile → propagate 门禁）
+
+> **引用节点**：`../../nodes/verifier.md` — 自动验证 reconcile 产出的变更分类和 ID 格式
+
+当 reconcile 产出变更后、propagate 执行前，运行此命令验证变更质量。
+
+**执行**：
+
+```
+1. 读取 CONSOLIDATION-LOG.md → 提取所有 CHG-ID
+2. 逐项校验：
+   a. CHG-ID 格式匹配 `CHG-YYYYMMDD-NNN`（日期为当天，NNN 为三位数字）
+   b. L1/L2/L3 分类合理性：L3 必须涉及 REQ-/DEC-/TERM- 修改或已有决策矛盾
+   c. L3 冲突必须有对应的 CONFLICT-NNN 且已写入 pending-decisions.md
+3. 调用 verifier 节点裁决：
+   ├─ 全部通过 → 标记 verified 状态，可进入 propagate
+   └─ 发现问题 → 报告具体问题 + 修正建议，不阻断但标 warning
+```
+
+**产出**：
+- 验证报告写入 `state/verify-report.md`
+- `verified: true|false` 标记
+
+**与状态机集成**：
+
+```
+→ [changes ready] → [verifier] → verifying
+    → [verified] → propagating_dry_run
+    → [verification failed → warning] → propagating_dry_run（非阻断）
+```
+
+### 2.4 resolve — L3 人工裁决
 
 当 reconcile 产出 L3 冲突时，用户运行此命令裁决。
 
@@ -144,7 +180,7 @@ prd/{sub_prd}/{feature}/
 - 从 `state/pending-decisions.md` 移除（或标记 resolved）
 - accept → 继续归并；reject → 标记拒绝；defer → 保留
 
-### 2.4 propagate — 增量传播
+### 2.5 propagate — 增量传播
 
 将 reconcile 产生的变更传播到各 `prd/{sub_prd}/{feature}/prd.md`。
 
@@ -156,7 +192,7 @@ prd/{sub_prd}/{feature}/
 
 > **MVP 范围**：v1 仅支持 `--dry-run`（预览模式），`--execute` 为 v2 计划。
 
-### 2.5 status — 治理状态查看
+### 2.6 status — 治理状态查看
 
 **格式**：`/lx-oma-gov status`
 
@@ -166,7 +202,7 @@ prd/{sub_prd}/{feature}/
 - 各 feature 同步状态（up-to-date / behind）
 - 待处理 pending decisions
 
-### 2.6 audit — 漂移检测
+### 2.7 audit — 漂移检测
 
 四类检测规则：
 
@@ -179,7 +215,7 @@ prd/{sub_prd}/{feature}/
 
 > **MVP 范围**：v1 实现基础检测（ID 孤儿 + 版本落后），v2 扩展为完整四类规则（含冲突定义检测 + 孤立变更检测）。
 
-### 2.7 参考规范能力（v2 计划）
+### 2.8 参考规范能力（v2 计划）
 
 以下能力在 `governance-spec.md` 中有完整规范，当前未作为独立命令实现，v2 计划：
 
@@ -212,7 +248,8 @@ prd/{sub_prd}/{feature}/
 | 触发条件 | 操作 |
 |---------|------|
 | 主 PRD 更新 | `/lx-oma-gov reconcile` → 检测变更 |
-| reconcile 产出变更 | `/lx-oma-gov propagate --dry-run` → 预览 |
+| reconcile 产出变更 | `/lx-oma-gov verifier` → 验证变更质量 |
+| verifier 通过 | `/lx-oma-gov propagate --dry-run` → 预览 |
 | 预览确认 | `/lx-oma-gov propagate --execute` |
 | L3 冲突 | `/lx-oma-gov resolve CONFLICT-NNN <verdict>` |
 | 定期检查 | `/lx-oma-gov audit` → 漂移报告 |
@@ -226,10 +263,11 @@ prd/{sub_prd}/{feature}/
 执行命令后自动校验：
 
 1. **CHG-ID 完整性**：每条变更记录有唯一 CHG-ID，且格式正确
-2. **CONFLICT-ID 闭合性**：已裁决的 CONFLICT 标记 resolved，无遗漏
-3. **幂等安全**：重复 propagate 不产生重复内容
-4. **引用一致性**：propagate 后所有 feature 引用的 REQ/DEC 在 master 中存在
-5. **同步状态**：所有活跃 feature 最后同步时间 ≥ 最后一次 reconcile 时间
+2. **CHG 分类正确性**：L1/L2/L3 分类与变更内容匹配（L3 必须涉及 REQ-/DEC-/TERM- 修改）
+3. **CONFLICT-ID 闭合性**：已裁决的 CONFLICT 标记 resolved，无遗漏
+4. **幂等安全**：重复 propagate 不产生重复内容
+5. **引用一致性**：propagate 后所有 feature 引用的 REQ/DEC 在 master 中存在
+6. **同步状态**：所有活跃 feature 最后同步时间 ≥ 最后一次 reconcile 时间
 
 ---
 
@@ -334,3 +372,4 @@ features_updated:
 ---
 
 > 完整规范见 `governance-spec.md`（本 skill 目录下），含对象 ID 体系、状态机扩展、并发写入保护、deprecated 机制等细节。
+

@@ -3,7 +3,7 @@ name: lx-oma-hier
 
 description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma-split 拆解为特性级 RPE。
 
-version: 1.2.0
+version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
 argument-hint: "<path> [output_dir]"
@@ -16,6 +16,8 @@ triggers:
   - "/lx-oma-hier"
   - "分层拆解"
   - "prd 拆分"
+role: "PRD hierarchical decomposer — master PRD to Sub PRDs (Level 1)"
+execution_mode: stepwise
 ---
 
 # lx-oma-hier 分层 PRD 拆解大脑
@@ -282,13 +284,37 @@ need_input → [reading → analyzing → generating → verifying] → done
 ...
 ```
 
-如果调用者要求"继续拆"，则逐一调用 `lx-oma-split` skill 对每个 Sub PRD 进行特性级拆解，产出 `rpe/feat-X/` 目录。
+如果调用者要求"继续拆"，则逐一调用 `lx-oma-split` skill 对每个 Sub PRD 进行特性级拆解，产出 `prd/{sub_prd}/feat-X/` 目录。
 
 **注意**：
 - 不修改 `lx-oma-split` 原有代码
 - 两阶段可独立执行（先拆 Sub PRD → 确认 → 再拆特性）
-- Sub PRD 目录和 `rpe/` 目录可共存，不冲突
+- Sub PRD 目录和 `prd/` 目录可共存，不冲突
 - 长期治理使用 `lx-oma-gov`，见 `.claude/skills/lx-oma-gov/SKILL.md`
+
+### 交付后的方向指引
+
+输出报告后（无论是否继续拆），必须追加方向指引：
+
+```
+─── 方向指引 ───
+📍 分层拆解完成。你现在位于 PRD 全生命周期的起点。
+
+建议下一步:
+  1. /lx-oma-split sub-prds/domain-{name}.md
+     → 对某个 Sub PRD 进行特性级拆解（推荐先拆核心域）
+  2. /lx-orch status
+     → 查看 PRD 全景管线状态
+  3. 继续拆分其余 Sub PRD
+     → 重复 /lx-oma-hier，直到所有域拆分完成
+  4. 自定义操作
+     → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
+
+注意事项:
+  · 依赖链上游的域建议优先拆解（如 auth→order→payment）
+  · 无依赖的域可并行推进
+```
 
 ## 7. 拆解质量的自我校验
 
@@ -381,3 +407,4 @@ hier → oma 阶段转换前，**必须**执行人工审核：
 ```
 
 人工确认后，运行 `/lx-oma-orch gate og-NNN approve` 推进。
+

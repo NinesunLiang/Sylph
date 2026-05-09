@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# harness-kit:managed v1.0.2
-
-# auto-snapshot.sh — Stop Hook
-
-# 功能：会话结束时自动保存状态快照（分支、轮次、未提交文件）+ 文档同步检查
-
-# 输出格式：纯文本到 stdout
-
+# auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）
+# Role: 会话结束时自动保存状态快照（分支/轮次/未提交文件）
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "auto_snapshot" || exit 0
