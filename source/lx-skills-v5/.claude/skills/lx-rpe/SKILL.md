@@ -12,7 +12,10 @@ model: sonnet
 
 effort: high
 
-argument-hint: "new [name] [需求描述] | [feature name]"
+argument-hint: "new [name] [需求描述] | [feature name] | [path] (e.g. prd/payment/checkout)"
+
+triggers:
+  - "/lx-rpe"
 
 paths:
 

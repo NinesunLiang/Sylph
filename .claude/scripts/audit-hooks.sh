@@ -24,18 +24,24 @@ cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 99
 
 JSON_OUT=false
 SCAN_INTERNAL=false
+CHECK_INDEX=false
+SYNC_INDEX=false
 for arg in "$@"; do
     case "$arg" in
         --json) JSON_OUT=true ;;
         --scan-internal-filter) SCAN_INTERNAL=true ;;
+        --check-index) CHECK_INDEX=true ;;
+        --sync-index) SYNC_INDEX=true ;;
     esac
 done
 
-python3 - "$JSON_OUT" "$SCAN_INTERNAL" <<'PYEOF'
+python3 - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" <<'PYEOF'
 import json, os, re, sys, glob
 
 json_out = sys.argv[1].lower() == 'true'
 scan_internal = sys.argv[2].lower() == 'true'
+check_index = sys.argv[3].lower() == 'true'
+sync_index = sys.argv[4].lower() == 'true'
 
 # === A. Disk ===
 disk = set()
@@ -193,6 +199,148 @@ if scan_internal:
                         f'{event} matcher={matcher!r} 派发 {extra} 但脚本内 case 不覆盖；'
                         f'matcher 与脚本白名单语义不一致'
                     ))
+
+# === D. Index.md hooks 速查表对账 ===
+if check_index or sync_index:
+    def _parse_index_table(content):
+        hooks = {}
+        m = re.search(r'## Hooks 速查（共 \d+ 个）\n\|.*?\n\|.*?\n((?:\|.*?\n)+)', content)
+        if not m:
+            return hooks
+        for line in m.group(1).split('\n'):
+            if not line.startswith('|') or line.startswith('|---'):
+                continue
+            parts = [p.strip() for p in line.split('|')]
+            if len(parts) >= 4 and parts[1]:
+                hooks[parts[1].strip('`')] = {'trigger': parts[2].strip('`'), 'desc': parts[3].strip('`')}
+        return hooks
+
+    def _script_desc(name):
+        try:
+            with open(f'.claude/hooks/{name}') as f:
+                lines = f.readlines()
+            header_skipped = False
+            for line in lines:
+                s = line.strip()
+                if not s.startswith('#'):
+                    continue
+                content = s.lstrip('# ').strip()
+                # Skip blank, version markers, and page separators
+                if not content or content.startswith('---') or 'harness-kit:' in content:
+                    continue
+                if not header_skipped:
+                    header_skipped = True  # first real comment = header, skip
+                    continue
+                return content[:80]
+        except:
+            pass
+        return ''
+
+    def _yaml_key(s):
+        return s[:-3].replace('-', '_') if s.endswith('.sh') else s.replace('-', '_')
+
+    with open('.claude/index.md') as f:
+        index_src = f.read()
+
+    cur_hooks = _parse_index_table(index_src)
+    cur_names = set(cur_hooks.keys())
+
+    # Parse disabled section from index.md
+    cur_disabled = set()
+    dis_start = index_src.find('### 已注册但默认禁用的脚本')
+    if dis_start >= 0:
+        dis_end = index_src.find('\n### ', dis_start + 3)
+        if dis_end < 0:
+            dis_end = len(index_src)
+        for line in index_src[dis_start:dis_end].split('\n'):
+            if line.startswith('|') and not line.startswith('|---'):
+                parts = [p.strip() for p in line.split('|')]
+                if len(parts) >= 2 and parts[1] and parts[1].strip('`') not in ('脚本', 'Hook', '---'):
+                    cur_disabled.add(parts[1].strip('`'))
+
+    # Build actual hooks data, split by yaml status
+    act_rows = []
+    dis_rows = []
+    active_names = set()
+    disabled_names = set()
+    for script in sorted(disk | set(registered.keys())):
+        if script in NON_HOOKS:
+            continue
+        name = script.replace('.sh', '')
+        events = registered.get(script, set())
+        if not events:
+            continue
+        yk = _yaml_key(script)
+        if yaml_enabled.get(yk) is False:
+            disabled_names.add(name)
+        else:
+            active_names.add(name)
+
+    # Rebuild with descriptions
+    for script in sorted(disk | set(registered.keys())):
+        if script in NON_HOOKS:
+            continue
+        name = script.replace('.sh', '')
+        events = registered.get(script, set())
+        trig = ' / '.join(sorted(events)) if events else '(未注册)'
+        desc = cur_hooks.get(script, {}).get('desc', '') or _script_desc(script)
+        yk = _yaml_key(script)
+        if yaml_enabled.get(yk) is False:
+            dis_rows.append((name, trig, desc))
+        elif events:
+            act_rows.append((name, trig, desc))
+
+    missing_in_main = active_names - cur_names
+    orphaned_in_main = cur_names - active_names
+    missing_in_disabled = disabled_names - cur_disabled
+    orphaned_in_disabled = cur_disabled - disabled_names
+
+    if check_index:
+        print(f'\n=== index.md hooks 速查表对账 ===')
+        print(f'  主表: {len(cur_names)} | 实际活跃: {len(active_names)}')
+        print(f'  禁用区: {len(cur_disabled)} | 实际禁用: {len(disabled_names)}')
+        issues_found = False
+        if missing_in_main:
+            issues_found = True
+            print(f'  🟡 主表缺少 {len(missing_in_main)} 个: {", ".join(sorted(missing_in_main))}')
+        if orphaned_in_main:
+            issues_found = True
+            print(f'  🟡 主表幽灵 {len(orphaned_in_main)} 个: {", ".join(sorted(orphaned_in_main))}')
+        if missing_in_disabled:
+            issues_found = True
+            print(f'  🟡 禁用区缺少 {len(missing_in_disabled)} 个: {", ".join(sorted(missing_in_disabled))}')
+        if orphaned_in_disabled:
+            issues_found = True
+            print(f'  🟡 禁用区幽灵 {len(orphaned_in_disabled)} 个: {", ".join(sorted(orphaned_in_disabled))}')
+        if not issues_found:
+            print(f'  ✅ hooks 速查表与实际一致')
+
+    if sync_index:
+        # Preserve standalone tools section
+        st_match = re.search(r'(### 独立工具脚本.*?)(?=\n## |\Z)', index_src, re.DOTALL)
+        st_text = st_match.group(1) if st_match else ''
+
+        new_table = f"## Hooks 速查（共 {len(act_rows)} 个）\n"
+        new_table += "| Hook | 触发 | 作用|\n|------|------|------|\n"
+        for name, trig, desc in act_rows:
+            new_table += f"|`{name}` | {trig} | {desc}|\n"
+
+        if dis_rows:
+            new_table += f"\n### 已注册但默认禁用的脚本（共 {len(dis_rows)} 个）\n\n"
+            new_table += "以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：\n\n"
+            new_table += "| 脚本 | 事件 | 说明 |\n|------|------|------|\n"
+            for name, trig, desc in dis_rows:
+                new_table += f"| {name} | {trig} | {desc} |\n"
+
+        if st_text:
+            new_table += f"\n{st_text}"
+
+        idx_section = re.compile(r'## Hooks 速查.*?(?=\n## |\Z)', re.DOTALL)
+        new_index = idx_section.sub(new_table, index_src)
+        with open('.claude/index.md', 'w') as f:
+            f.write(new_index)
+        print(f'\n  ✅ index.md hooks 表已同步（{len(act_rows)} 活跃 + {len(dis_rows)} 禁用）')
+        print(f'  🔄 原表 {len(cur_names)} 个 → 新表 {len(act_names)} 个')
 
 result = {
     'disk_count': len(disk),

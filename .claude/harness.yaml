@@ -116,7 +116,7 @@ hooks_enabled:
   auto_snapshot: true
   posttool_edit_quality: true
   inject_project_knowledge: true
-  plan_gate: false
+  plan_gate: true
   turn_counter: true
   read_tracker: true
   error_dna: true
@@ -124,7 +124,7 @@ hooks_enabled:
   build_validator: true
   pretool_user_correction: true
   pretool_rule_anchor: true
-  proactive_handoff: false
+  proactive_handoff: true
   context_guard: true
   privacy_gate: true
   pretool_write_lock: true

@@ -215,3 +215,224 @@ session_id 在 error-dna.jsonl 中全是 `38603363-b3e7-4779-ab87-33ef171c4b27` 
 
 *文档由 Hermes Agent 自动维护，随项目迭代更新。*
 *最后更新: 2026-05-09*
+
+---
+
+## Audit Review — Hermes Agent 审计结论 (2026-05-09)
+
+> **来源**: Agent 对 RELEASE-PLAN.md + HUMAN-IN-THE-LOOP-GATE.md 的独立审计  
+> **目的**: 找出文档中的虚假信心、逻辑漏洞、优先级错误，确保 Boss 在同步前能看到不同视角
+
+---
+
+### 🔴 结论 1: 当前综合评分应改为 7/10 (不是 8)
+
+**问题**: lx-oma-gov 和 lx-oma-orch 当前状态是"规范完备但无实现代码"。  
+governance-spec.md 有 561 行、HUMAN-IN-THE-LOOP-GATE.md 有完整状态机定义，但 `reconcile()` / `propagate()` CLI 命令不存在。
+
+**虚假信心**: "当前综合评分: 8/10" 给了用户错误预期。  
+真实情况是防御层 (hooks) 有 7/10，治理层 (gov/orch) 只有 3-4/10（纸面规范）。
+
+**修正**: 
+```
+当前综合评分: 7/10 — 防御层到位 (8-9)，治理有规范但无实现 (3-4)
+```
+
+---
+
+### 🔴 结论 2: P0 三件事优先级应重新排序
+
+**当前顺序**: 
+1. Pipeline Orchestrator (最重)
+2. Human-in-the-Loop Gate (中等)
+3. Flywheel (最轻)
+
+**我的判断 — 应改为**:
+1. **Flywheel → P0-1 (5月12日 M1)** — 最快，2天内可出。已有 flywheel.log + error-dna.jsonl，只需整理成可读格式
+2. **Human-in-the-Loop Gate → P0-2 (5月26日 M3)** — 中等，依赖 resolve 命令
+3. **Pipeline Orchestrator → P0-3 (5月24日 M3)** — 最重，需要 CLI + state machine
+
+**理由**: 
+- Flywheel 是其他两件事的"证据源" — 没有数据，gov/orch 的优化就是纸上谈兵
+- Flywheel M3 (5月26日) 可以和其他两件事同时完成，但它的 M1/M2 (5月12日/19日) 必须先做
+- "the less the more" 原则：Flywheel 先出数据 → 用数据驱动 gov/orch 的优化
+
+---
+
+### 🔴 结论 3: P1-5 Edit Guard "未读即写"硬阻断有技术争议
+
+**当前方案**: 
+```
+PreToolUse:Edit → EditGuard.sh 检查 read-tracker.txt
+如果未 Read → exit 2 + additionalContext "请先读取文件"
+```
+
+**问题**: 这会导致 AI **"卡死"**。  
+AI 想 Write 一个刚创建的文件（Read 它不存在），被阻断说"请先 Read"，但它不知道要 Read 哪个文件。
+
+**更好的方案**: 
+```
+PreToolUse:Edit → EditGuard.sh 检查 read-tracker.txt  
+如果未 Read → exit 0 + additionalContext "检测到 Write 操作，建议先 Read" (软提示)
+```
+
+**理由**: 
+- AI 有时确实需要 Write 一个刚创建的文件（Read 它不存在）
+- 硬阻断 (exit 2) = AI 必须重试，但重试时可能 Write 同一个文件 → 无限循环
+- 软提示 (exit 0 + additionalContext) = AI 收到建议，可以选择是否遵守
+- "软提示" 在无人值守模式下更安全 — 不会阻塞 AI，但会留下证据
+
+---
+
+### 🔴 结论 4: "发布策略" 部分过于营销化，应分离
+
+**问题**: 
+- "AI Agent Governance, Engineered" — marketing copy
+- "8 gates 已拦截 X,XXX 次错误操作" — 需要数据，但当前 flywheel.log 不完整
+- "context-guard 保护了 Y,YYY token" — 同上
+
+**建议**: 
+- RELEASE-PLAN.md → 纯技术文档，去掉营销内容
+- LAUNCH-COPY.md (新文件) → marketing copy, release notes, promotion channels
+
+---
+
+### 🔴 结论 5: lx-oma-gov vs lx-oma-orch 的区别在文档中没有体现
+
+**Boss 之前问过这个问题，但 RELEASE-PLAN.md 里没有回答。**
+
+| 维度 | lx-oma-gov (governance) | lx-oma-orch (orchestrator) |
+|------|------------------------|---------------------------|
+| **职责** | PRD 文档治理 — reconcile/propagate | Pipeline 编排 — advance/gate |
+| **核心命令** | init, ingest, reconcile, propagate, resolve, status | status, advance, gate, run, dev list/mark |
+| **状态机** | need_input → reconciling → awaiting_human_decision → done | idle → checking_oracle_gate → calling_skill → update_pipeline → done |
+| **依赖** | 独立（不依赖 orch） | 调用 gov.reconcile 作为子 skill |
+| **触发方式** | keyword triggers: `/lx-oma-gov`, `reconcile`, `漂移检测` | keyword triggers: `/lx-oma-orch`, `pipeline`, `管线状态` |
+| **当前实现** | 规范完备 (561行 spec)，无 CLI 命令 | Schema v1.0 (pipeline.yaml), 无 CLI 命令 |
+
+**关系**: orch → gov.reconcile。orch 是上层调度器，gov 是下层执行者。
+
+---
+
+### 🔴 结论 6: "无人值守 Self-healing" 概念缺失
+
+**Boss 刚才提出的关键问题**: 
+> "无人值守模式时，真正做到无人、自助发现问题记录问题、解决问题，解决不了的换方式最多三次。还解决不了文档记录下来跳过。"
+
+**RELEASE-PLAN.md 完全没有覆盖这个场景。**
+
+**建议新增 P0.5**:
+```markdown
+### 13. Self-healing for Unattended Mode (P0.5)
+
+**目标**: 无人值守时，系统自动发现问题 → 尝试修复（3次）→ 解决不了记录并跳过。
+
+#### 三条规则:
+1. **发现问题**: hook error handler → 自动归类到 flywheel.log + error-dna.jsonl
+2. **尝试修复**: retry 最多 3 次（同一错误类型），每次换不同策略
+   - attempt 1: retry original command
+   - attempt 2: with additional context (read file first)  
+   - attempt 3: alternative approach (different tool/path)
+3. **记录并跳过**: 3次都失败 → 写入 `.omc/state/skipped-errors.md`，标记 `reason: self-healing exhausted (3/3)`
+
+#### 无人值守触发条件:
+- `unattended_mode=true` (环境变量或配置文件)
+- 没有用户交互（no human-in-the-loop）
+- hooks 自动执行，不阻塞 AI 主流程
+
+#### 验收标准:
+- [ ] error-dna.jsonl entry 有 attempt_count / last_attempt_reason
+- [ ] skipped-errors.md 有自动写入的失败记录
+- [ ] flywheel.log 能统计 "self-healing success rate"
+```
+
+---
+
+### 🔴 结论 7: 文档中缺少 "交互体验" 审计
+
+**问题**: RELEASE-PLAN.md 关注的是功能实现，但 Boss 问的 "交互是否都是 Agentic UI" 没有被回答。
+
+**当前 hook 触发情况**:
+- **PreToolUse hooks (9个)**: context-guard, edit-guard, privacy-gate, permission-gate 等 — **自动触发** ✅
+- **PostToolUse hooks (12个)**: auto-snapshot, error-dna, build-validator 等 — **自动触发** ✅
+- **SessionStart hooks (3个)**: inject-project-knowledge, flywheel-report — **自动触发** ✅
+- **Skill triggers**: `/lx-oma-gov`, `reconcile` 等 — **需要用户输入** ❌
+- **CLI commands**: `lx-oma-gov resolve`, `lx-oma-orch advance` — **需要用户输入** ❌
+
+**问题**: 
+1. Hooks 是 Agentic UI (自动触发) ✅
+2. 但 gov/orch CLI 命令需要用户手动输入 `/lx-oma-gov reconcile` ❌
+3. L3 冲突的 `resolve CONFLICT-ID accept/reject` 需要用户手动输入 ❌
+4. propagate --execute (实际写入) 在 MVP 中是 "推迟到 v2" ❌
+
+**结论**: "AI Agent Governance, Engineered" 的 claim 是成立的，但"Agentic UI"的程度被高估了。  
+**真实情况**: 80% hooks 是自动的，20% CLI/gov/orch 需要用户手动输入。
+
+**改进建议**: 
+- L3 resolve → 自动尝试 accept/reject (基于风险评估)，只有高置信度冲突才 require human
+- propagate → 自动 dry-run，用户只需 approve/reject (不需要手动输入 CHG-ID)
+
+---
+
+### 🟡 结论 8: P1-4 Stop-Drain.sh timestamp fix — 优先级争议
+
+**当前**: P1-7 (中等优先级)  
+**我的判断**: 应该升为 P0-3。
+
+**理由**: 
+- error-dna.jsonl (256KB, 100+ entries) 的 timestamp=0 → **完全无法追溯**
+- session_id 全是同一个 `38603363-b3e7-4779-ab87-33ef171c4b27` — 说明所有错误都被归到了同一 session
+- 如果 timestamp fix 不做，Flywheel (P0) 的数据就是"盲数据"
+- **Flywheel + Stop-Drain timestamp = 缺一不可**
+
+---
+
+### 🟡 结论 9: "文档同步" 概念需要明确定义
+
+**Boss 说**: "你持续深度探索，挖掘优化点和问题点...文档同步了"
+
+**问题**: 什么是"文档同步"？
+1. **Governance spec → implementation**? (已有 HUMAN-IN-THE-LOOP-GATE.md)
+2. **Implementation → documentation**? (RELEASE-PLAN.md 更新)
+3. **Documentation → user-facing docs**? (README, launch copy)
+
+**建议**: 明确定义 sync 的 scope，避免"文档同步了"变成模糊承诺。
+
+---
+
+### 🟡 结论 10: Milestone dates are too aggressive
+
+**当前**: M3 gate check + dev override — 5月24日  
+**问题**: "gate check" 需要实现完整的 Oracle gate + approve/reject workflow。这不是一个命令能搞定的。
+
+**建议**: 里程碑按依赖关系排期，不写死日期：
+```markdown
+#### 里程碑 (按依赖顺序)
+- M1: pipeline.yaml schema v2 → status CLI (5月10日)
+- M2: advance CLI + basic gate check → 7天 after M1
+- M3: dev override + full cycle (research→plan→exec→verify) → 7 days after M2
+```
+
+---
+
+## Summary — Agent 的建议排序
+
+### 必须改 (MUST):
+1. **评分改为 7/10** — 不要给虚假信心
+2. **Flywheel → P0-1** — 最快出数据，驱动后续优化
+3. **Edit Guard → soft-prompt** — 避免无人值守卡死
+4. **Self-healing P0.5** — Boss 提出的关键需求
+
+### 应该改 (SHOULD):
+5. **P1-7 Stop-Drain timestamp → P0** — Flywheel 依赖
+6. **P1 milestone dates → dependency-based** — 不写死日期
+7. **lx-oma-gov vs orch 区别** — 在文档中明确
+
+### 建议改 (COULD):
+8. **发布策略分离到 LAUNCH-COPY.md** — 技术文档 vs marketing
+9. **Agentic UI 审计结果** — 不要高估自动化程度
+
+---
+
+*这份审计结论由 Hermes Agent 独立生成，未经 Boss 审阅。*
+*目的: 给 Boss 一个不同视角的审查结果，帮助他做最终决策。*

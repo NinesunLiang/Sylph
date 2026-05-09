@@ -87,6 +87,26 @@ if [ -f "$INJECT_KERNEL" ]; then
     grep -E '^\*\*' "$INJECT_KERNEL" 2>/dev/null | head -10
 fi
 
+# 注入 AGENTS.md 治理框架纲要
+INJECT_AGENTS="$PROJECT_ROOT/AGENTS.md"
+if [ -f "$INJECT_AGENTS" ]; then
+    echo ""
+    echo "--- 治理框架纲要 ---"
+    grep -E '^## |^### ' "$INJECT_AGENTS" 2>/dev/null | head -15
+fi
+
+# 注入会话状态恢复
+echo ""
+echo "--- 当前会话状态 ---"
+if [ -f "$PROJECT_ROOT/.omc/state/session-handoff.md" ]; then
+    echo "▪ 上次会话交接："
+    grep -E '^(#|## )|Feature:|进度:|关键决策|踩坑记录' "$PROJECT_ROOT/.omc/state/session-handoff.md" 2>/dev/null | head -10
+fi
+if [ -f "$PROJECT_ROOT/.omc/state/todo-queue.md" ]; then
+    echo "▪ 当前 Todo："
+    head -10 "$PROJECT_ROOT/.omc/state/todo-queue.md" 2>/dev/null
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════"
 echo " 知识已恢复，继续当前任务。"

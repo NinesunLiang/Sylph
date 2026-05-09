@@ -1,0 +1,238 @@
+# Pipeline State — 4-skill 统一状态机
+# 所有 skill 入口读、出口写
+
+version: "1.0"
+created_at: "2026-05-08T22:00:00+08:00"
+updated_at: "2026-05-09T13:30:00+08:00"
+
+source_prd: mothership-prd.md
+master_prd: master-prd.md
+
+# 管线级状态
+stages:
+  hier: completed
+  oma: completed
+  gov: completed
+  rpe: completed
+  dev: initialized     # 所有 20 个 feature 的 research/plan 完成，待进入 dev 开发
+
+# Sub PRD 注册表
+sub_prds:
+  - id: alert-engine
+    path: sub-prds/domain-alert-engine.md
+    status: rpe_done             # hier_done → oma_done → rpe_done → dev_ready
+    oracle: final                # pending → approved → revised → final
+    features:
+      - id: feat-alert-crud
+        path: prd/alert-engine/feat-alert-crud
+        stage: rpe_planned      # oma_created → gov_registered → rpe_planned → in_dev → done
+        oracle: revised
+      - id: feat-price-evaluation
+        path: prd/alert-engine/feat-price-evaluation
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-advanced-evaluation
+        path: prd/alert-engine/feat-advanced-evaluation
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-trigger-history
+        path: prd/alert-engine/feat-trigger-history
+        stage: rpe_planned
+        oracle: approved
+
+  - id: notification
+    path: sub-prds/domain-notification.md
+    status: rpe_done
+    oracle: final
+    features:
+      - id: feat-notification-dispatcher
+        path: prd/notification/feat-notification-dispatcher
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-notification-push
+        path: prd/notification/feat-notification-push
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-notification-email
+        path: prd/notification/feat-notification-email
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-notification-sms
+        path: prd/notification/feat-notification-sms
+        stage: rpe_planned
+        oracle: approved
+
+  - id: dashboard
+    path: sub-prds/domain-dashboard.md
+    status: rpe_done
+    oracle: final
+    features:
+      - id: feat-dashboard-list
+        path: prd/dashboard/feat-dashboard-list
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-dashboard-creator
+        path: prd/dashboard/feat-dashboard-creator
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-dashboard-history
+        path: prd/dashboard/feat-dashboard-history
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-dashboard-mobile
+        path: prd/dashboard/feat-dashboard-mobile
+        stage: rpe_planned
+        oracle: approved
+
+  - id: tradingview
+    path: sub-prds/domain-tradingview.md
+    status: rpe_done
+    oracle: final
+    features:
+      - id: feat-tv-websocket
+        path: prd/tradingview/feat-tv-websocket
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-tv-indicators
+        path: prd/tradingview/feat-tv-indicators
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-tv-patterns
+        path: prd/tradingview/feat-tv-patterns
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-tv-ratelimit
+        path: prd/tradingview/feat-tv-ratelimit
+        stage: rpe_planned
+        oracle: approved
+
+  - id: user-preferences
+    path: sub-prds/domain-user-preferences.md
+    status: rpe_done
+    oracle: final
+    features:
+      - id: feat-upref-channels
+        path: prd/user-preferences/feat-upref-channels
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-upref-2fa
+        path: prd/user-preferences/feat-upref-2fa
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-upref-premium
+        path: prd/user-preferences/feat-upref-premium
+        stage: rpe_planned
+        oracle: approved
+      - id: feat-upref-gdpr
+        path: prd/user-preferences/feat-upref-gdpr
+        stage: rpe_planned
+        oracle: approved
+
+# Oracle 门禁队列
+oracle_gates:
+  - id: og-001
+    from_stage: hier_done
+    to_stage: oma_ready
+    status: approved
+    target: "sub_prds: all"
+    reviewed_at: "2026-05-08T21:00:00+08:00"
+    result: "2 Major + 5 Minor — 全部修复"
+
+  - id: og-002
+    from_stage: oma_done
+    to_stage: gov_initialized
+    status: approved
+    target: "sub_prd: alert-engine"
+    description: "审阅 alert-engine 的 4 个 feature OMA 拆解结果"
+    reviewed_at: "2026-05-09T${now}+08:00"
+    result: "✅ Approved — 3 项漂移已修复 (phantom interfaces, entity ownership, Free limit spec). Coverage verification exit 0. 341 行 Task 1 代码已实现."
+
+  - id: og-003
+    from_stage: rpe_planned
+    to_stage: dev_ready
+    status: approved
+    target: "feature: feat-alert-crud"
+    description: "feat-alert-crud RPE 方案（含 Critical 修复）"
+    reviewed_at: "2026-05-09T12:00+08:00"
+    result: "✅ Approved — RPE plan validated. Task 1 (341 lines DDL+TypeScript CRUD) implemented and compiles clean."
+
+  - id: og-004
+    from_stage: oma_done
+    to_stage: gov_initialized
+    status: approved
+    target: "sub_prd: notification"
+    description: "审阅 notification 的 4 个 feature OMA 拆解结果"
+    reviewed_at: "2026-05-09T12:00+08:00"
+    result: "✅ Approved — 3 interfaces, 5 events, 8 entities, 6 NFRs all aligned and covered. No drift found."
+
+  - id: og-005
+    from_stage: oma_done
+    to_stage: gov_initialized
+    status: approved
+    target: "sub_prd: dashboard"
+    description: "审阅 dashboard 的 4 个 feature OMA 拆解结果"
+    reviewed_at: "2026-05-09T12:00+08:00"
+    result: "✅ Approved — 3 UI interfaces, 5 events, 2 entities all aligned. UI-layer only (no business logic)."
+
+  - id: og-006
+    from_stage: oma_done
+    to_stage: gov_initialized
+    status: approved
+    target: "sub_prd: tradingview"
+    description: "审阅 tradingview 的 4 个 feature OMA 拆解结果"
+    reviewed_at: "2026-05-09T12:00+08:00"
+    result: "✅ Approved — 7 interfaces, 2 events, 5 entities all aligned. Token Bucket/cache hierarchy/circuit breaker patterns documented."
+
+  - id: og-007
+    from_stage: oma_done
+    to_stage: gov_initialized
+    status: approved
+    target: "sub_prd: user-preferences"
+    description: "审阅 user-preferences 的 4 个 feature OMA 拆解结果"
+    reviewed_at: "2026-05-09T12:00+08:00"
+    result: "✅ Approved — 9 interfaces, 2 events, 4 entities all aligned. GDPR/2FA/Stripe webhook/optimistic lock patterns documented."
+
+  - id: og-008
+    from_stage: rpe_planned
+    to_stage: dev_ready
+    status: approved
+    target: "sub_prd: notification (4 features)"
+    description: "notification 的 4 个 feature RPE 方案审阅"
+    reviewed_at: "2026-05-09T13:30:00+08:00"
+    result: "✅ Approved — 4 features all have prd.md + research.md + plan.md. All research/plan phases complete."
+
+  - id: og-009
+    from_stage: rpe_planned
+    to_stage: dev_ready
+    status: approved
+    target: "sub_prd: dashboard (4 features)"
+    description: "dashboard 的 4 个 feature RPE 方案审阅"
+    reviewed_at: "2026-05-09T13:30:00+08:00"
+    result: "✅ Approved — 4 features all have prd.md + research.md + plan.md. UI-layer scope, all research/plan phases complete."
+
+  - id: og-010
+    from_stage: rpe_planned
+    to_stage: dev_ready
+    status: approved
+    target: "sub_prd: tradingview (4 features)"
+    description: "tradingview 的 4 个 feature RPE 方案审阅"
+    reviewed_at: "2026-05-09T13:30:00+08:00"
+    result: "✅ Approved — 4 features all have prd.md + research.md + plan.md. Websocket/indicators/patterns/ratelimit research/plan complete."
+
+  - id: og-011
+    from_stage: rpe_planned
+    to_stage: dev_ready
+    status: approved
+    target: "sub_prd: user-preferences (4 features)"
+    description: "user-preferences 的 4 个 feature RPE 方案审阅"
+    reviewed_at: "2026-05-09T13:30:00+08:00"
+    result: "✅ Approved — 4 features all have prd.md + research.md + plan.md. Channels/2FA/Premium/GDPR research/plan complete."
+
+  - id: og-012
+    from_stage: poll_loop
+    to_stage: exit
+    status: approved
+    target: "all sub_prds: all features"
+    description: "轮询模式退出门禁 — 所有 5 个 sub-prd × 20 个 feature 的 research/plan 阶段已完成"
+    reviewed_at: "2026-05-09T13:30:00+08:00"
+    result: "✅ 退出条件满足 — 全部 20 个 feature 已通过 research/plan 阶段，可退出轮询模式，进入 dev 开发阶段。"

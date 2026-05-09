@@ -46,50 +46,45 @@
 # 查看错误记忆cat .omc/state/error-dna.json | python3 -c \ "import json,sys; [print(e['signature'][:60],'×',e['count']) \ for e in json.load(sys.stdin) if e.get('status')!='fixed']"
 ```
 
-## Hooks 速查（共 32 个）
+## Hooks 速查（共 26 个）
 | Hook | 触发 | 作用|
 |------|------|------|
-|`completion-gate` | PreToolUse:TaskUpdate | 无证据禁止标 completed|
-|`permission-gate` | PreToolUse:Bash | git/rm/sudo 需申请理由|
-|`pretool-edit-scope` | PreToolUse:Edit\|Write | 范围冻结（current-scope.txt）|
-|`turn-counter` | UserPromptSubmit | 轮次计数 + 模糊指令检测|
-|`auto-snapshot` | Stop / PostToolUse:Edit\|Write | 会话快照 + 交接备忘录|
-|`error-dna` | PostToolUse\|PostToolUseFailure:Bash | 错误模式积累|
-|`inject-project-knowledge` | SessionStart | 注入本文件 + 知识上下文|
-|`pretool-user-correction` | UserPromptSubmit | 纠正信号 → 提示写 claude-next.md|
-|`context-guard` | PreToolUse:Edit\|Write | Token 监控 + 50%/80% 熔断（写入/编辑）|
-|`privacy-gate` | PreToolUse:Read/Grep/Bash | 密钥文件拦截 + 明文脱敏|
-|`build-validator` | PostToolUse\|PostToolUseFailure:Bash | 编译验证 + 错误追踪|
-|`bash-audit` | PostToolUse\|PostToolUseFailure:Bash | 命令审计日志|
-|`edit-guard` | PreToolUse:Edit | 文件写入范围保护|
-|`edit-quality` | PostToolUse:Edit\|Write | 编辑质量分析|
-|`read-tracker` | PostToolUse:Read | 读取追踪|
-|`skill-flywheel` | Stop | 技能飞轮数据收集|
-|`lsp-suggest` | PreToolUse:Grep | LSP 智能提示|
-|`subagent-guard` | PreToolUse:Task | Sub-agent 用量审计|
-|`flywheel-report` | SessionStart | 飞轮报告生成|
-|`rule-anchor` | PreToolUse:Edit\|Write | 写前铁律锚定|
-|`write-cite` | PostToolUse:Write\|Edit | 写入引用验证|
-|`write-lock` (pre) | PreToolUse:Edit\|Write | 并发写入锁|
-|`write-lock` (post) | PostToolUse:Edit\|Write | 并发写入解锁|
-|`stop-drain` | Stop | 兜底扫 transcript 补录失败事件|
-|`compact-detect` | UserPromptSubmit | 检测 /compact 命令保存 usage 快照|
-|`posttool-subagent-audit` | PostToolUse:Task | Sub-agent 用量落盘 + flywheel P0|
-|`pretool-write-lock` | PreToolUse:Edit\|Write | OMA 并发锁前置拦截|
-|`token_writer` | PostToolUse:.* / SessionStart | Token 用量追踪 + 重置|
+|`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop Hook|
+|`build-validator` | PostToolUse / PostToolUseFailure | build-validator.sh — PostToolUse:Bash 构建失败自动记录 + 修复建议|
+|`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit Hook|
+|`completion-gate` | PostToolUse | completion-gate.sh — PreToolUse:TaskUpdate Hook|
+|`context-guard` | PreToolUse | context-guard.sh — PreToolUse:.* Hook (R26: 全工具走阈值, see claude-next.md)|
+|`edit-guard` | PreToolUse | edit-guard.sh — PreToolUse:Edit Hook|
+|`error-dna` | PostToolUse / PostToolUseFailure | PostToolUse hook: Capture structured error DNA for cross-session error memory|
+|`flywheel-report` | SessionStart | flywheel-report.sh — SessionStart Hook (RPE-017 enhanced)|
+|`inject-project-knowledge` | SessionStart | 项目级 SessionStart hook：注入 .claude/ 核心知识到 AI context|
+|`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep Hook|
+|`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash Hook|
+|`posttool-bash-audit` | PostToolUse / PostToolUseFailure | PostToolUse:Bash 权限上下文审计 - 只提醒不阻断|
+|`posttool-edit-quality` | PostToolUse | PostToolUse:Edit 代码风格自查 + 文档同步提醒 + 方案复用检测|
+|`posttool-subagent-audit` | PostToolUse | posttool-subagent-audit.sh — PostToolUse:Task Hook|
+|`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write Hook|
+|`posttool-write-lock` | PostToolUse | write-lock-release.sh (PostToolUse) — Carror OS OMA 并发锁释放|
+|`pretool-edit-scope` | PreToolUse | PreToolUse:Edit — 范围冻结拦截 + 核心文件警告 + 耦合提醒|
+|`pretool-rule-anchor` | PreToolUse | pretool-rule-anchor.sh — PreToolUse:Write Hook|
+|`pretool-user-correction` | UserPromptSubmit | pretool-user-correction.sh — UserPromptSubmit Hook|
+|`pretool-write-lock` | PreToolUse | write-lock-gate.sh (PreToolUse) — Carror OS OMA 并发锁前置拦截|
+|`privacy-gate` | PreToolUse | privacy-gate.sh — PreToolUse:Read / Grep / Bash Hook|
+|`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read Hook|
+|`skill-flywheel` | Stop | skill-flywheel.sh — Stop Hook|
+|`stop-drain` | Stop | stop-drain.sh — Stop hook 兜底重放|
+|`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task Hook|
+|`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit Hook|
 
-### 已注册但默认禁用的脚本（共 6 个）
+### 已注册但默认禁用的脚本（共 3 个）
 
 以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
 
 | 脚本 | 事件 | 说明 |
 |------|------|------|
-| plan-gate.sh | PreToolUse:Edit\|Write | 计划文档门禁 — Enhanced 专属 |
-| proactive-handoff.sh | PostToolUse:Write\|Edit | 上下文>50%主动交接 — 默认关闭防反向漂移 |
-| posttool-read-cite.sh | PostToolUse:Read | 读取后引用标注 — 默认关闭防冗余 |
-| lsp-suggest.sh | PreToolUse:Grep | LSP 智能提示 — 默认关闭防 Grep 延迟 |
-| posttool-edit-quality.sh | PostToolUse:Edit\|Write | 编辑质量分析 — 默认关闭防冗余 |
-| skill-flywheel.sh | Stop | 技能飞轮数据收集 — 默认关闭防 Stop 延迟 |
+| plan-gate | PreToolUse | plan-gate.sh — PreToolUse:Edit Hook [DISABLED: harness.yaml 默认关闭] |
+| posttool-read-cite | PostToolUse | PostToolUse:Read 来源标注提醒 - 读取文件后提示引用规范 [已注册，默认禁用] |
+| proactive-handoff | PostToolUse | proactive-handoff.sh — PostToolUse Hook [INACTIVE: 未注册, 反向漂移] |
 
 ### 独立工具脚本（非 Hook）
 

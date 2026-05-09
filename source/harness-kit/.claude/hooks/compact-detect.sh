@@ -61,4 +61,56 @@ cat > "$COMPACT_STATE" <<EOF
 }
 EOF
 
+# ─── /compact 后知识注入 — 防止 AI 失忆 ──────────────────────
+# 注入到 stdout，hook 框架会传递给 AI 作为 additionalContext
+INJECT_INDEX="$PROJECT_ROOT/.claude/index.md"
+INJECT_KERNEL="$PROJECT_ROOT/.claude/kernel.md"
+INJECT_AGENTS="$PROJECT_ROOT/AGENTS.md"
+echo ""
+echo "═══════════════════════════════════════════════"
+echo " /compact 检测 — 项目知识重新注入"
+echo "═══════════════════════════════════════════════"
+
+# 注入 index.md 铁律速查（约 30 行）
+if [ -f "$INJECT_INDEX" ]; then
+    echo ""
+    echo "--- 铁律速查 ---"
+    grep -A 20 '^| \#' "$INJECT_INDEX" 2>/dev/null | head -25
+    echo ""
+    echo "--- 治理规则 ---"
+    grep -E '^\|`|^\| 文件' "$INJECT_INDEX" 2>/dev/null | head -10
+fi
+
+# 注入 kernel.md 架构铁律（约 15 行）
+if [ -f "$INJECT_KERNEL" ]; then
+    echo ""
+    echo "--- 架构铁律 ---"
+    grep -E '^\*\*' "$INJECT_KERNEL" 2>/dev/null | head -10
+fi
+
+# 注入 AGENTS.md 治理框架纲要
+if [ -f "$INJECT_AGENTS" ]; then
+    echo ""
+    echo "--- 治理框架纲要 ---"
+    grep -E '^## |^### ' "$INJECT_AGENTS" 2>/dev/null | head -15
+fi
+
+# 注入会话状态恢复
+echo ""
+echo "--- 当前会话状态 ---"
+if [ -f "$PROJECT_ROOT/.omc/state/session-handoff.md" ]; then
+    echo "▪ 上次会话交接："
+    grep -E '^(#|## )|Feature:|进度:|关键决策|踩坑记录' "$PROJECT_ROOT/.omc/state/session-handoff.md" 2>/dev/null | head -10
+fi
+if [ -f "$PROJECT_ROOT/.omc/state/todo-queue.md" ]; then
+    echo "▪ 当前 Todo："
+    head -10 "$PROJECT_ROOT/.omc/state/todo-queue.md" 2>/dev/null
+fi
+
+echo ""
+echo "═══════════════════════════════════════════════"
+echo " 知识已恢复，继续当前任务。"
+echo "═══════════════════════════════════════════════"
+echo ""
+
 exit 0
