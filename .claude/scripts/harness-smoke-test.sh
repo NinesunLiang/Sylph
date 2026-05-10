@@ -612,6 +612,122 @@ else
 fi
 rm -f "$_SM_EXT_OUT"
 
+rm -f "$_SM_EXT_OUT"
+
+# --- R35: error-dna-auto-fix.sh 回归 ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R35 error-dna-auto-fix: 语法检查"
+bash -n .claude/hooks/error-dna-auto-fix.sh
+if [ $? -eq 0 ]; then
+    pass "R35 error-dna-auto-fix 语法通过"
+else
+    fail "R35 error-dna-auto-fix 语法错误"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R35 error-dna-auto-fix: 无 error-dna.json 时静默退出"
+echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/error-dna-auto-fix.sh > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    pass "R35 error-dna-auto-fix 无文件静默退出"
+else
+    fail "R35 error-dna-auto-fix 无文件不应阻断 (exit=$?)"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R35 error-dna-auto-fix: 只读不写验证"
+_READ_ONLY=$(grep -cE '\bwrite\b|json\.dump\(' .claude/hooks/error-dna-auto-fix.sh 2>/dev/null; true)
+if [ "$_READ_ONLY" = "0" ] 2>/dev/null; then
+    pass "R35 error-dna-auto-fix 只读不写 (0 write calls)"
+else
+    fail "R35 error-dna-auto-fix 发现写操作 (grep-count=$_READ_ONLY)"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R35 error-dna-auto-fix: settings.json 注册"
+if grep -q "error-dna-auto-fix.sh" .claude/settings.json; then
+    pass "R35 error-dna-auto-fix 已注册 settings.json"
+else
+    fail "R35 error-dna-auto-fix 未注册 settings.json"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R35 error-dna-auto-fix: harness.yaml 开关"
+if grep -q "error_dna_auto_fix: true" .claude/harness.yaml; then
+    pass "R35 error-dna-auto-fix harness.yaml 已启用"
+else
+    fail "R35 error-dna-auto-fix harness.yaml 未启用"
+fi
+
+# --- R36: knowledge-condenser.sh 回归 ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R36 knowledge-condenser: 语法检查"
+bash -n .claude/hooks/knowledge-condenser.sh
+if [ $? -eq 0 ]; then
+    pass "R36 knowledge-condenser 语法通过"
+else
+    fail "R36 knowledge-condenser 语法错误"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R36 knowledge-condenser: 无 claude-next.md 时静默退出"
+_OLD_NEXT=""
+[ -f ".claude/claude-next.md" ] && _OLD_NEXT=$(cat .claude/claude-next.md) && mv .claude/claude-next.md /tmp/smoke-next-$$.bak
+echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/knowledge-condenser.sh > /dev/null 2>&1
+_RC=$?
+if [ -f "/tmp/smoke-next-$$.bak" ]; then
+    mv /tmp/smoke-next-$$.bak .claude/claude-next.md
+fi
+if [ "$_RC" = "0" ]; then
+    pass "R36 knowledge-condenser 无文件静默退出"
+else
+    fail "R36 knowledge-condenser 无文件不应阻断 (exit=$_RC)"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R36 knowledge-condenser: 双格式解析验证"
+_NEXT_EXISTS="no"
+[ -f ".claude/claude-next.md" ] && _NEXT_EXISTS="yes"
+_NEXT_HITS=$(python3 -c "
+import re
+try:
+    c = open('.claude/claude-next.md').read()
+    # [seed:*] format
+    m1 = re.findall(r'hits:(\d+)', c)
+    print(','.join(m1) if m1 else '0')
+except: print('err')
+" 2>/dev/null)
+if [ "$_NEXT_EXISTS" = "yes" ] && [ -n "$_NEXT_HITS" ] && [ "$_NEXT_HITS" != "err" ]; then
+    pass "R36 knowledge-condenser 双格式解析正常 (hits: $_NEXT_HITS)"
+else
+    fail "R36 knowledge-condenser 解析失败"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R36 knowledge-condenser: settings.json 注册"
+if grep -q "knowledge-condenser.sh" .claude/settings.json; then
+    pass "R36 knowledge-condenser 已注册 settings.json"
+else
+    fail "R36 knowledge-condenser 未注册 settings.json"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R36 knowledge-condenser: harness.yaml 开关"
+if grep -q "knowledge_condenser: true" .claude/harness.yaml; then
+    pass "R36 knowledge-condenser harness.yaml 已启用"
+else
+    fail "R36 knowledge-condenser harness.yaml 未启用"
+fi
+
 log ""
 log "========================================"
 log "summary: $((TOTAL-FAILED))/$TOTAL passed, $FAILED failed"

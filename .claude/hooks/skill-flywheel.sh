@@ -43,4 +43,32 @@ if [ -f "$ANALYTICS_SCRIPT" ]; then
     python3 "$ANALYTICS_SCRIPT" "$FLYWHEEL" "$PROJECT_ROOT/.omc/state/flywheel-report.json" 2>/dev/null || true
 fi
 
+# === GS-002: Deprecated skill notification ===
+REPORT="$PROJECT_ROOT/.omc/state/flywheel-report.json"
+if [ -f "$REPORT" ]; then
+    DEP_OUTPUT=$(python3 - "$REPORT" <<'PYEOF'
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        report = json.load(f)
+    dep = report.get('deprecated_skills', [])
+    if not dep:
+        sys.exit(0)
+    lines = ["[flywheel] ⚠️ {} 个技能已废弃 (>30天未使用):".format(len(dep))]
+    skills = report.get('skills', {})
+    for name in dep:
+        info = skills.get(name, {})
+        days = info.get('days_since_last_use', '?')
+        lines.append(" · {} — 上次使用: {} 天前".format(name, days))
+    print('|'.join(lines))
+except Exception:
+    sys.exit(0)
+PYEOF
+)
+    if [ -n "$DEP_OUTPUT" ]; then
+        ESCAPED=$(echo "$DEP_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
+        echo "{\"continue\": true, \"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": ${ESCAPED}}}"
+    fi
+fi
+
 exit 0

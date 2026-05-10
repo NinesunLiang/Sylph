@@ -113,7 +113,7 @@ hooks_enabled:
   pretool_edit_scope: true
   edit_guard: true
   lsp_suggest: true
-  posttool_read_cite: false
+  posttool_read_cite: true
   posttool_bash_audit: true
   posttool_write_cite: true
   permission_gate: true
@@ -139,6 +139,8 @@ hooks_enabled:
   subagent_audit: true
   token_writer: true
   intent_tracker: true
+  error_dna_auto_fix: true
+  knowledge_condenser: true
 
 skills_enabled:
   lx-status: true

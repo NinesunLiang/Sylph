@@ -250,3 +250,26 @@ except Exception:
     pass
 PYEOF
 fi
+
+# === GS-004 5.2: 治理一致性告警 ===
+GOV_AUDIT_SCRIPT="$PROJECT_ROOT/.claude/scripts/audit-hooks.sh"
+if [ -f "$GOV_AUDIT_SCRIPT" ]; then
+    GOV_OUTPUT=$(bash "$GOV_AUDIT_SCRIPT" --json 2>/dev/null | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    red = d.get('issue_count_red', 0)
+    yellow = d.get('issue_count_yellow', 0)
+    if red == 0 and yellow == 0:
+        sys.exit(0)
+    print('[governance-drift] {} 🔴, {} 🟡 治理漂移 — 运行 audit-hooks.sh 查看详情'.format(red, yellow))
+    issues = d.get('issues', [])
+    for iss in issues[:3]:
+        print(' · [{}] {}: {}'.format(iss['level'], iss['script'], iss['message'][:120]))
+except Exception:
+    sys.exit(0)
+" 2>/dev/null)
+    if [ -n "$GOV_OUTPUT" ]; then
+        echo "$GOV_OUTPUT"
+    fi
+fi

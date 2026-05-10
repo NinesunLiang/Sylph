@@ -10,6 +10,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 READ_LOG="$STATE_DIR/read-tracker.txt"
 
+# 无人值守模式: 跳过 Read-before-Edit 门禁（exit 0 + additionalContext）
+UNATTENDED_FILE="$STATE_DIR/.unattended-mode"
+if [ -f "$UNATTENDED_FILE" ]; then
+    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 无人值守模式: 跳过 Read-before-Edit 检查"}}\n'
+    exit 0
+fi
+
 # 提取 file_path 字段
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)

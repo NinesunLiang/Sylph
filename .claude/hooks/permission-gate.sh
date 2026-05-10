@@ -79,6 +79,24 @@ fi
 # 非危险命令 → 放行
 [ "$IS_DANGEROUS" = false ] && exit 0
 
+# ─── 无人值守模式 ──────────────────────────────
+# 不执行，仅记录到 flywheel + skipped-errors.md，无验证码
+# exit 2 阻断命令执行（PreToolUse 行为），但跳过验证码审批
+UNATTENDED_FILE="$STATE_DIR/.unattended-mode"
+if [ -f "$UNATTENDED_FILE" ]; then
+    echo "$(date +%Y-%m-%d),permission_gate_blocked_${DANGER_TYPE// /_},P0,carror-os" >> "$HOME/.claude/flywheel.log"
+    SKIPPED_FILE="$STATE_DIR/skipped-errors.md"
+    {
+        echo ""
+        echo "## $(date '+%Y-%m-%d %H:%M:%S') — permission-gate blocked [${DANGER_TYPE}]"
+        echo '```'
+        echo "$COMMAND"
+        echo '```'
+    } >> "$SKIPPED_FILE"
+    echo "[无人值守] 已拦截 ${DANGER_TYPE}: ${COMMAND:0:120}..." >&2
+    exit 2
+fi
+
 # ─── 随机验证码审批机制 ──────────────────────────
 # 原理：Hook 生成随机 hex 码写入 state，阻断时仅在用户终端打印该码。
 # AI 无法预知验证码，只有用户手动 echo 验证码到标记文件才能放行。
