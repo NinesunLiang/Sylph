@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式
 # Role: 检测写入 claude-next.md 时验证教训格式
 

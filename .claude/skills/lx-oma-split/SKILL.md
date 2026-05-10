@@ -3,6 +3,7 @@ name: lx-oma-split
 
 description: 一人成军司令部 (One-Man Army) - 将需求拆解为正交的多个功能分支 (prd/{sub_prd}/{feature})，支持目录和单文件作为输入。
 
+complexity: intermediate
 version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
@@ -28,7 +29,7 @@ execution_mode: race
 ### 使用的通用节点
 | 节点 | 路径 | 用途 |
 |------|------|------|
-| — | — | 本 skill 无外部节点依赖，拆解逻辑由 AI 自主执行 |
+| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途 |
@@ -236,15 +237,17 @@ EOF
 📍 拆解完成，{N} 个 feature 已就绪。
 
 建议下一步:
-  1. /lx-rpe prd/{sub_prd_name}/feat-{name}
-     → 启动核心 feature 的 RPE 开发（建议先做依赖链上游的）
+  1. /lx-rpe prd/{sub_prd_name}/feat-{name} — 推荐 ✓
+     说明：启动核心 feature 的 RPE 开发
+     适用场景：有依赖链上游的 feature，优先启动
   2. 并行启动多个 /lx-rpe
-     → 无依赖的 feature 可同时开始开发
+     说明：无依赖的 feature 可同时开始开发
+     适用场景：多个 feature 无相互依赖，可并行加速
   3. /lx-orch status
-     → 查看管线全景，了解整体进度
+     说明：查看管线全景，了解整体进度
+     适用场景：想了解当前 PRD 全貌
   4. 自定义操作
      → 输入你想要的命令
-  ─── 或直接输入你想要的命令 ───
 
 推荐顺序:
   · 有依赖项的 feature → 优先启动（处于依赖链上游的）

@@ -96,6 +96,8 @@ PYEOF
 if [ ! -f "$SCOPE_FILE" ]; then
     REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
     coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
+    # Record to session edit log
+    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
     exit 0
 fi
 
@@ -105,11 +107,18 @@ REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
 # 逐行 glob 匹配
 while IFS= read -r pattern || [ -n "$pattern" ]; do
     [ -z "$pattern" ] && continue
-    [[ "$REL_PATH" == $pattern ]] && { coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1; exit 0; }
+    [[ "$REL_PATH" == $pattern ]] && {
+        coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
+        # Record to session edit log
+        echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+        exit 0
+    }
 done < "$SCOPE_FILE"
 
 # 全部不匹配 → 输出耦合提醒后阻断
 coupling_remind "$REL_PATH" "$PROJECT_ROOT"
 SCOPE_CONTENT=$(tr '\n' ' ' < "$SCOPE_FILE")
-echo "echo '${REL_PATH}' >> ${SCOPE_FILE}    # Scope Gate: 需要你批准才能将 ${REL_PATH} 加入编辑允许范围" >&2
+echo "Scope Gate: ${REL_PATH} 不在编辑允许范围内。" >&2
+echo "复制下方内容执行，回车后说"继续"：" >&2
+echo "echo '${REL_PATH}' >> ${SCOPE_FILE}" >&2
 exit 2

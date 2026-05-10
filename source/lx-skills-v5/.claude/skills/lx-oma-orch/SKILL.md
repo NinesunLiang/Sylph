@@ -34,6 +34,7 @@ execution_mode: stepwise
 |------|------|------|
 | oracle | `../../nodes/oracle_terminal.md` | 阶段转移门禁裁决 |
 | mode_selector | `../../nodes/mode_selector.md` | 根据 skill frontmatter 确定执行模式，挂载对应门禁 |
+| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 本 skill 参考文档
 

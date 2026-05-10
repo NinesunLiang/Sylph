@@ -3,6 +3,7 @@ name: lx-oma-orch
 
 description: Pipeline Orchestrator — 4-skill 管线编排（状态查看/阶段推进/Oracle 门禁/并行开发管理）
 
+complexity: advanced
 version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
@@ -34,6 +35,7 @@ execution_mode: stepwise
 |------|------|------|
 | oracle | `../../nodes/oracle_terminal.md` | 阶段转移门禁裁决 |
 | mode_selector | `../../nodes/mode_selector.md` | 根据 skill frontmatter 确定执行模式，挂载对应门禁 |
+| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 本 skill 参考文档
 

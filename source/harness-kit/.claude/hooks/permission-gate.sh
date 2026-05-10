@@ -28,6 +28,7 @@ GIT_PUSH_RE=$(hc_get "permission_gate.git_push_regex" 'git\s+push\b')
 DESTRUCTIVE_RE=$(hc_get "permission_gate.destructive_regex" '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b')
 SUDO_RE=$(hc_get "permission_gate.sudo_regex" '^\s*sudo\b|sudo\s')
 GH_WRITE_RE=$(hc_get "permission_gate.gh_write_regex" 'gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review\s+--approve)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|api\s+.*-X\s+(PUT|POST|PATCH|DELETE))\b')
+SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt')
 
 # 危险命令检测
 IS_DANGEROUS=false
@@ -67,6 +68,12 @@ fi
 if echo "$COMMAND" | grep -qE "$GH_WRITE_RE"; then
     IS_DANGEROUS=true
     DANGER_TYPE="gh external write"
+fi
+
+# scope 文件写入检测（防止 AI 自绕过 scope gate）
+if echo "$COMMAND" | grep -qE "$SCOPE_WRITE_RE"; then
+    IS_DANGEROUS=true
+    DANGER_TYPE="scope gate bypass"
 fi
 
 # 非危险命令 → 放行
@@ -124,7 +131,8 @@ esac
 APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "perm-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
 
-echo "Permission Gate: 需要你批准后才能执行 ${DANGER_TYPE}" >&2
-echo '复制下方内容执行，回车后说"继续"：' >&2
-echo "echo '${APPROVAL_CODE}' > ${STATE_DIR##$PROJECT_ROOT/}/permission-approved" >&2
+PERMISSION_FILE="${PROJECT_ROOT}/.omc/state/permission-approved"
+echo "Permission Gate: ${SEVERITY} 级别操作 — ${DANGER_TYPE}" >&2
+echo '复制这一行并粘贴到输入框（含 ! 前缀）：' >&2
+echo "! echo '${APPROVAL_CODE}' > ${PERMISSION_FILE}" >&2
 exit 2

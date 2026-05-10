@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # posttool-edit-quality.sh — PostToolUse:Edit|Write — 编辑后自查代码风格、文档同步、方案复用检测
 # Role: 编辑后自查代码风格、文档同步、方案复用检测
 
@@ -116,6 +116,97 @@ if [ "$FILE_COUNT" -ge 3 ]; then
 
     # 保存本次文件集供下次比较
     echo "$CURRENT_FILES" > "$PREVIOUS_EDIT_FILE"
+fi
+
+# === AC-3: 工具响应异常检测 → claude-next.md 追加 ===
+# 检测模式：超大编辑（>500 chars）、快速连续编辑同一文件
+_CLAUDE_NEXT="$PROJECT_ROOT/.claude/claude-next.md"
+_ANOMALY_TRACKER="$STATE_DIR/edit-quality-anomalies.json"
+mkdir -p "$(dirname "$_ANOMALY_TRACKER")"
+
+_PY_ANOMALY=$(echo "$INPUT" | python3 - "$FILE_PATH" "$_ANOMALY_TRACKER" "$_CLAUDE_NEXT" "$EDIT_HISTORY" <<'PYEOF' 2>/dev/null
+import json, os, sys, time
+
+stdin_json = sys.stdin.read()
+file_path = sys.argv[1]
+tracker_path = sys.argv[2]
+claude_next = sys.argv[3]
+edit_history = sys.argv[4]
+
+try:
+    data = json.loads(stdin_json)
+except json.JSONDecodeError:
+    sys.exit(0)
+
+tool_input = data.get('tool_input', {})
+ti = tool_input or {}
+old_size = len(ti.get('old_string', '') or '')
+new_size = len(ti.get('new_string', '') or '')
+content_size = len(ti.get('content', '') or '')
+max_change = max(old_size, new_size, content_size)
+
+anomalies = []
+now = time.time()
+
+if max_change > 500:
+    anomalies.append(('large_edit', f'{file_path} ({max_change} chars)'))
+
+if os.path.exists(edit_history):
+    try:
+        with open(edit_history) as f:
+            recent = [l.strip().split() for l in f if l.strip()]
+        same_file = [(int(ts), p) for ts, p in recent if p == file_path and now - int(ts) < 60]
+        if len(same_file) >= 3:
+            anomalies.append(('rapid_edit', f'{file_path} ({len(same_file)} edits/60s)'))
+    except (ValueError, IndexError, OSError):
+        pass
+
+if not anomalies:
+    sys.exit(0)
+
+tracked = {}
+if os.path.exists(tracker_path):
+    try:
+        with open(tracker_path) as f:
+            tracked = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        tracked = {}
+
+new_entries = [a for a in anomalies if a[0] not in tracked]
+if not new_entries:
+    sys.exit(0)
+
+for sig, _ in new_entries:
+    tracked[sig] = {'ts': now, 'file': file_path}
+with open(tracker_path, 'w') as f:
+    json.dump(tracked, f, indent=2)
+
+entry_date = time.strftime('%Y-%m-%d')
+lines = [f'\n### [auto-detect:{entry_date}] Edit anomaly pattern\n']
+lines.append(f'@{entry_date} hits:1\n')
+anomaly_names = {'large_edit': '大编辑块', 'rapid_edit': '快速连续编辑'}
+for sig, desc in new_entries:
+    name = anomaly_names.get(sig, sig)
+    lines.append(f'**模式**: {name} — {desc}')
+    lines.append(f'触发条件：编辑工具调用中出现 {name} 模式')
+    lines.append(f'建议：拆分大编辑为多个小编辑，或预先规划减少快速修正\n')
+
+try:
+    with open(claude_next) as f:
+        existing = f.read()
+    with open(claude_next, 'a') as f:
+        for line in lines:
+            if line not in existing:
+                f.write(line + '\n')
+except OSError:
+    pass
+
+print(f'anomaly_detected: {", ".join(a[0] for a in new_entries)}')
+PYEOF
+)
+
+if [ -n "$_PY_ANOMALY" ]; then
+    MSG="${MSG} | 编辑异常检测: ${_PY_ANOMALY}"
 fi
 
 printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG"

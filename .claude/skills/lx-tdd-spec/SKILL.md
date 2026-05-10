@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Generate testable spec & acceptance criteria for new features/APIs via behavior matrix + GWT."
 
+complexity: intermediate
 when_to_use: "Use when user describes a new feature/module/API and needs structured spec + verifiable ACs."
 
 model: sonnet

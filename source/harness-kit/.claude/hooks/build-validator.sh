@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # build-validator.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 构建失败自动记录错误日志并给出针对性修复建议
 # Role: 构建失败自动记录错误日志并给出针对性修复建议
 

@@ -40,6 +40,7 @@ triggers:
 |------|------|------|
 |report_generator | `../../nodes/report_generator.md` | 校验报告生成|
 |behavior_rules | `../../nodes/behavior_rules.md` | 校验阶段行为约束 |
+|interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途|

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # flywheel-report.sh — SessionStart — 读取飞轮日志，生成 30 天频率摘要注入会话
 # Role: 读取飞轮日志，生成 30 天频率摘要注入会话
 

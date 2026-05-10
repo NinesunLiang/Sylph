@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # pretool-rule-anchor.sh — PreToolUse:Edit|Write — 长对话防漂移，高轮次时注入锚定规则
 # Role: 长对话防漂移，高轮次时注入锚定规则
 

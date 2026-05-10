@@ -134,29 +134,36 @@ echo "─── 方向指引 ───"
 case "$VERDICT" in
     accept|accept-partial)
         echo "  变更已接受，可继续以下流程:"
-        echo "    1. lx-oma-gov propagate --dry-run"
-        echo "       → 预览传播内容"
+        echo "    1. lx-oma-gov propagate --dry-run — 推荐 ✓"
+        echo "       说明：预览传播内容"
+        echo "       适用场景：确认变更范围后再实际写入"
         echo "    2. lx-oma-gov propagate --execute"
-        echo "       → dry-run确认后执行实际传播"
+        echo "       说明：dry-run 确认后执行实际传播"
+        echo "       适用场景：dry-run 已验证，准备写入"
         echo "    3. lx-oma-gov status"
-        echo "       → 查看治理全景（建议首选）"
+        echo "       说明：查看治理全景"
+        echo "       适用场景：想了解整体治理状态"
         ;;
     reject)
         echo "  变更已驳回。建议下一步:"
-        echo "    1. lx-oma-gov status"
-        echo "       → 查看更新后治理状态"
+        echo "    1. lx-oma-gov status — 推荐 ✓"
+        echo "       说明：查看更新后治理状态"
+        echo "       适用场景：确认驳回后各 feature 状态"
         echo "    2. lx-oma-gov reconcile"
-        echo "       → 如有新资料，重新reconcile"
+        echo "       说明：如有新资料，重新 reconcile"
+        echo "       适用场景：有新的输入需要重新处理"
         ;;
     defer)
         echo "  变更已暂缓。建议下一步:"
-        echo "    1. lx-oma-gov status"
-        echo "       → 查看待处理的 BLOCKED 项"
+        echo "    1. lx-oma-gov status — 推荐 ✓"
+        echo "       说明：查看待处理的 BLOCKED 项"
+        echo "       适用场景：了解当前所有挂起的冲突"
         echo "    2. 收集更多信息后重新裁决"
-        echo "       → lx-oma-gov resolve $CONFLICT_ID accept|reject"
+        echo "       说明：lx-oma-gov resolve $CONFLICT_ID accept|reject"
+        echo "       适用场景：已收集到补充信息，准备重新裁决"
         ;;
 esac
-echo "    4. 自定义操作 — 输入你想要的命令"
-echo "    ─── 或直接输入你想要的命令 ───"
+echo "    4. 自定义操作"
+echo "       → 输入你想要的命令"
 
 exit 0

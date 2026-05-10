@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范
 # Role: 读取文件后提示引用规范
 

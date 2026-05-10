@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）
 # Role: 会话结束时自动保存状态快照（分支/轮次/未提交文件）
 
@@ -314,4 +314,133 @@ fi
 # 注意：不在 Stop hook 中重置计数器
 # Stop 事件每次 AI 回复结束都会触发，不是只在会话结束时
 # 计数器重置移至 SessionStart hook（inject-project-knowledge.sh）
+
+# ─── 结构化 Session Dump ──────────────────────────────────
+DUMP_FILE="$STATE_DIR/session-dump.json"
+python3 - "$PROJECT_ROOT" "$BRANCH" "$TURNS" "$DUMP_FILE" <<'PYEOF'
+import sys, os, json, re
+
+project_root = sys.argv[1]
+branch = sys.argv[2]
+turns = sys.argv[3]
+dump_path = sys.argv[4]
+state_dir = os.path.join(project_root, '.omc', 'state')
+
+dump = {}
+
+# 1. git_state
+try:
+    import subprocess
+    modified = subprocess.run(['git', 'diff', '--name-only'], capture_output=True, text=True, cwd=project_root).stdout.strip().split('\n')
+    staged = subprocess.run(['git', 'diff', '--cached', '--name-only'], capture_output=True, text=True, cwd=project_root).stdout.strip().split('\n')
+    diff_stat = subprocess.run(['git', 'diff', '--stat'], capture_output=True, text=True, cwd=project_root).stdout.strip()
+    modified = [f for f in modified if f]
+    staged = [f for f in staged if f]
+    dump['git_state'] = {
+        'branch': branch,
+        'turns': int(turns) if turns.isdigit() else 0,
+        'modified_files': modified,
+        'staged_files': staged,
+        'diff_stat': diff_stat[:500]
+    }
+except Exception as e:
+    dump['git_state'] = {'branch': branch, 'error': str(e)}
+
+# 2. error_summary: unfixed errors from error-dna.json
+error_path = os.path.join(state_dir, 'error-dna.json')
+if os.path.isfile(error_path):
+    try:
+        with open(error_path) as f:
+            error_data = json.load(f)
+        signatures = error_data.get('error_signatures', {})
+        unfixed = []
+        for sig, info in signatures.items():
+            if info.get('status') != 'fixed':
+                unfixed.append({
+                    'signature': sig[:20],
+                    'count': info.get('count', 0),
+                    'last_seen': info.get('last_seen', ''),
+                    'message': info.get('message', '')[:120]
+                })
+        dump['error_summary'] = {'unfixed_count': len(unfixed), 'errors': unfixed[:5]}
+    except Exception:
+        dump['error_summary'] = {'error': 'parse_failed'}
+else:
+    dump['error_summary'] = {'error': 'no_file'}
+
+# 3. todo_queue
+todo_path = os.path.join(state_dir, 'todo-queue.md')
+if os.path.isfile(todo_path):
+    try:
+        with open(todo_path) as f:
+            content = f.read()
+        items = [l.strip() for l in content.split('\n') if '[·]' in l or re.match(r'\s*-\s*\[', l)]
+        dump['todo_queue'] = items[:10]
+    except Exception:
+        dump['todo_queue'] = []
+else:
+    dump['todo_queue'] = []
+
+# 4. active_features: scan rpe/*/state/progress.md
+active = []
+rpe_dir = os.path.join(project_root, 'rpe')
+if os.path.isdir(rpe_dir):
+    for feat in sorted(os.listdir(rpe_dir)):
+        ppath = os.path.join(rpe_dir, feat, 'state', 'progress.md')
+        if os.path.isfile(ppath):
+            try:
+                with open(ppath) as f:
+                    first = f.read(300)
+                active.append({'feature': feat, 'status_snippet': first[:200]})
+            except Exception:
+                active.append({'feature': feat, 'status_snippet': '(read_error)'})
+dump['active_features'] = active[:5]
+
+# 5. token_usage
+token_path = os.path.join(state_dir, 'token-tracking-index.json')
+if os.path.isfile(token_path):
+    try:
+        with open(token_path) as f:
+            dump['token_usage'] = json.load(f)
+    except Exception:
+        dump['token_usage'] = {}
+else:
+    dump['token_usage'] = {}
+
+# 6. claude_next_hits: today's entries
+cn_path = os.path.join(project_root, '.claude', 'claude-next.md')
+if os.path.isfile(cn_path):
+    try:
+        from datetime import datetime
+        today = datetime.now().strftime('%Y-%m-%d')
+        with open(cn_path) as f:
+            content = f.read()
+        today_lines = [l.strip() for l in content.split('\n') if today in l]
+        dump['claude_next_hits'] = today_lines[:5]
+    except Exception:
+        dump['claude_next_hits'] = []
+else:
+    dump['claude_next_hits'] = []
+
+# 7. edit_log
+edit_log_path = os.path.join(state_dir, 'session-edit-log.txt')
+if os.path.isfile(edit_log_path):
+    try:
+        with open(edit_log_path) as f:
+            files = sorted(set(l.strip() for l in f if l.strip()))
+        dump['edit_log'] = files[:20]
+    except Exception:
+        dump['edit_log'] = []
+else:
+    dump['edit_log'] = []
+
+# Write atomically
+os.makedirs(state_dir, exist_ok=True)
+tmp = dump_path + '.tmp'
+with open(tmp, 'w') as f:
+    json.dump(dump, f, ensure_ascii=False, indent=2)
+os.rename(tmp, dump_path)
+print(f"Session dump written: {len(dump)} sections")
+PYEOF
+
 exit 0

@@ -44,9 +44,13 @@ knowledge:
 turn_counter:
   todo_refresh_interval: 10
   todo_max_items: 15
-  # 规范注入复合触发条件（两个条件同时满足才注入，避免过度注入）
-  knowledge_inject_context_pct: 50   # context 使用率超过此值
-  knowledge_inject_min_turns: 20     # 且轮次超过此值
+  # 多层 context injection 策略（turn-counter.sh 实现）
+  # L0 (<30%): 每15轮 全量规范预防注入
+  # L1 (30-50%): 每10轮 摘要刷新
+  # L2 (>50%): 轮数 > knowledge_inject_min_turns 时锚定（旧复合条件）
+  # L3 (>80%): 每5轮 仅6铁律 + /compact 建议
+  knowledge_inject_context_pct: 50
+  knowledge_inject_min_turns: 20
 
 fuzzy_detection:
   fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"
@@ -134,6 +138,7 @@ hooks_enabled:
   compact_detect: true
   subagent_audit: true
   token_writer: true
+  intent_tracker: true
 
 skills_enabled:
   lx-status: true
@@ -164,7 +169,7 @@ rule_anchor:
 
 context_guard:
   warn_threshold: 50
-  danger_threshold: 80
+  danger_threshold: 60
 
 proactive_handoff:
   context_threshold: 50

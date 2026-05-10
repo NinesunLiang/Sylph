@@ -132,23 +132,41 @@ if next_stages:
     print(f"")
 
 print(f"  建议下一步:")
-cmds = []
+entries = []
 if current == 'hier':
-    cmds = ["/lx-oma-hier <master-prd.md> — 开始分层拆解"]
+    entries = [
+        ("/lx-oma-hier <master-prd.md>", "开始分层拆解", "准备拆分主 PRD 为 Sub PRD"),
+    ]
 elif current == 'oma':
-    cmds = ["/lx-oma-split sub-prds/domain-{sub_prd}.md — 开始特性拆解"]
+    entries = [
+        ("/lx-oma-split sub-prds/domain-{sub_prd}.md", "开始特性拆解", "将 Sub PRD 拆为可开发的 feature"),
+    ]
 elif current == 'gov':
-    cmds = [
-        "/lx-oma-gov reconcile — 执行reconcile检测变更",
-        "/lx-oma-gov status — 查看治理全景",
+    entries = [
+        ("/lx-oma-gov reconcile", "执行 reconcile 检测变更", "主 PRD 有更新，需同步到 feature"),
+        ("/lx-oma-gov status", "查看治理全景", "想了解各 feature 同步和冲突状态"),
     ]
 elif current == 'rpe':
-    cmds = ["/lx-rpe status — 查看RPE进度面板"]
+    entries = [
+        ("/lx-rpe status", "查看 RPE 进度面板", "想了解各 feature 的开发进度"),
+    ]
 elif current == 'dev':
-    cmds = ["/lx-rpe status — 查看开发进度"]
-cmds.append("自定义操作 — 输入你想要的命令")
-for i, c in enumerate(cmds, 1):
-    print(f"    {i}. {c}")
+    entries = [
+        ("/lx-rpe status", "查看开发进度", "查看所有开发中 feature 的进度"),
+    ]
+entries.append(("自定义操作", "输入你想要的命令", ""))
+for i, (cmd, desc, scene) in enumerate(entries, 1):
+    if cmd == "自定义操作":
+        print(f"    {i}. 自定义操作")
+        print(f"       → {desc}")
+    elif i == 1:
+        print(f"    {i}. {cmd} — 推荐 ✓")
+        print(f"       说明：{desc}")
+        print(f"       适用场景：{scene}")
+    else:
+        print(f"    {i}. {cmd}")
+        print(f"       说明：{desc}")
+        print(f"       适用场景：{scene}")
 print(f"  你也可以: lx-orch status — 刷新管线全景")
 PYEOF
 

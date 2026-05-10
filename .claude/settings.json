@@ -224,6 +224,16 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/intent-tracker.sh",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "PostToolUseFailure": [

@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "验收新 skill 是否遵循原子化架构规则。检查 frontmatter、原子化声明、节点/Schema 引用、无私有目录等 11 项规则。"
 
+complexity: beginner
 when_to_use: "Use after creating a new skill. Trigger: 'validate skill', 'check skill', 'new skill review', 'skill audit'."
 
 model: haiku
@@ -40,6 +41,7 @@ triggers:
 |------|------|------|
 |report_generator | `../../nodes/report_generator.md` | 校验报告生成|
 |behavior_rules | `../../nodes/behavior_rules.md` | 校验阶段行为约束 |
+|interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途|

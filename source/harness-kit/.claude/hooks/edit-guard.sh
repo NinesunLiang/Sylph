@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # edit-guard.sh — PreToolUse:Edit — 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
 # Role: 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
 

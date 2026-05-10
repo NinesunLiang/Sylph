@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # token_writer.sh — PostToolUse:.* / SessionStart — 写入 token 用量追踪索引供 context-guard 计算
 # Role: 写入 token 用量追踪索引供 context-guard 计算
-# NOTE: 增量(3000/轮)是对 token 消耗的代理估算。Claude Code 不暴露真实 token 用量。
-# 阈值选择依据: ~33 轮触发软提醒(50%), ~53 轮触发硬阻断(80%)。见 kernel.md 校准说明。
+# NOTE: 增量优先使用实际响应内容字节（tool_response 的 content/stdout 字节数），
+# 无响应内容时回退到工具类型固定值（Read 500 / Grep 1000 / Bash 2000 / Edit&Write 5000 / 默认 3000）。
+# 增量上限 50000 防止异常值。
+# 阈值选择依据: Edit-heavy 场景 ~15 轮 50% / ~20 轮 60%，Read-heavy 场景 ~150 轮 50% / ~240 轮 60%
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -14,6 +16,71 @@ SAVINGS_FILE="$STATE_DIR/token-savings.json"
 COMPACT_STATE="$STATE_DIR/token-compact-state.json"
 
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+
+# Read stdin for tool context (PostToolUse hook — extract tool_name for differentiated increment)
+INPUT_STDIN=$(cat 2>/dev/null || echo "")
+TOOL_NAME=""
+if [ -n "$INPUT_STDIN" ]; then
+    if command -v jq &>/dev/null; then
+        TOOL_NAME=$(echo "$INPUT_STDIN" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
+    else
+        TOOL_NAME=$(echo "$INPUT_STDIN" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
+        [ -z "$TOOL_NAME" ] && TOOL_NAME=$(echo "$INPUT_STDIN" | grep -o '"tool"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
+    fi
+fi
+
+# Map tool type to per-turn token increment
+# Read: light, Grep: medium, Bash: moderate, Edit/Write: heavy, default: baseline
+get_increment() {
+    case "${TOOL_NAME:-}" in
+        Read|read)       echo 500  ;;
+        Grep|grep)       echo 1000 ;;
+        Bash|bash)       echo 2000 ;;
+        Write|write|Edit|edit) echo 5000 ;;
+        *)               echo 3000 ;;
+    esac
+}
+
+# Get effective increment: actual response content bytes, or fallback to tool-type fixed value
+# Read/Grep → content blocks (array of {type, text}), Bash → stdout, Edit/Write → fallback
+get_effective_incr() {
+    local raw
+    raw=$(echo "$INPUT_STDIN" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    tr = d.get('tool_response', {}) or {}
+
+    # Sum all text from content blocks (Read, Grep, Edit results)
+    total = 0
+    content = tr.get('content')
+    if isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict):
+                total += len(str(block.get('text', '') or ''))
+
+    # Fall back to stdout (Bash results)
+    if total == 0:
+        stdout = tr.get('stdout', '') or ''
+        total = len(stdout)
+
+    # Fall back to stderr
+    if total == 0:
+        stderr = tr.get('stderr', '') or ''
+        total = len(stderr)
+
+    print(total if total > 0 else '0')
+except:
+    print('0')
+" 2>/dev/null)
+
+    if [ -n "$raw" ] && [ "$raw" -gt 0 ] 2>/dev/null; then
+        [ "$raw" -gt 50000 ] && raw=50000
+        echo "$raw"
+    else
+        get_increment
+    fi
+}
 
 # --reset 模式：新会话重置计数器
 if [ "${1:-}" = "--reset" ]; then
@@ -108,13 +175,15 @@ except:
 }
 COMPACTEOF
         else
-            # 无待处理 compact：正常递增
-            USAGE=$((USAGE + 3000))
+            # 无待处理 compact：正常递增（优先按实际响应字节）
+            INCR=$(get_effective_incr)
+            USAGE=$((USAGE + INCR))
             [ "$USAGE" -gt "$LIMIT" ] && USAGE=$LIMIT
         fi
     else
-        # 无 compact state 文件：正常递增
-        USAGE=$((USAGE + 3000))
+        # 无 compact state 文件：正常递增（优先按实际响应字节）
+        INCR=$(get_effective_incr)
+        USAGE=$((USAGE + INCR))
         [ "$USAGE" -gt "$LIMIT" ] && USAGE=$LIMIT
     fi
 fi

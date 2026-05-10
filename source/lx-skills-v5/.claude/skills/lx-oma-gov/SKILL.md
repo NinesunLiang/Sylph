@@ -34,6 +34,7 @@ execution_mode: stepwise
 |------|------|------|
 | explore | `../../nodes/explore.md` | 扫描 feature 目录，读取 PRD 文件 |
 | verifier | `../../nodes/verifier.md` | reconcile 变更质量验证 |
+| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途 |

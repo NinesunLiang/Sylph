@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具
 # Role: 检测 Grep 搜索导出符号时建议改用 LSP 工具
 

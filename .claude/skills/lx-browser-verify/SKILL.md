@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Browser visual verification & acceptance testing via Playwright. 5 categories, 24 check items covering multi-resolution screenshots, visual regression, interactive flows, cross-browser checks, responsive layout, and dark mode verification."
 
+complexity: intermediate
 when_to_use: "Use after frontend implementation to visually verify rendering. Trigger: 'browser verify', 'visual check', 'screenshot check', 'visual regression', 'responsive verify', 'browser test'."
 
 model: sonnet

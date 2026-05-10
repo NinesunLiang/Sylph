@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # posttool-subagent-audit.sh — PostToolUse:Task — 子 agent 执行后审计 content 用量，超限告警
 # Role: 子 agent 执行后审计 content 用量，超限告警
 

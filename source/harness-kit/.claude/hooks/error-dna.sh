@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 捕获结构化错误 DNA 写入跨会话错误记忆
 # Role: 捕获结构化错误 DNA 写入跨会话错误记忆
 
@@ -90,15 +90,33 @@ if event_name == 'PostToolUseFailure' or top_error:
     if not stderr:
         stderr = top_error
 
-# Skip success and empty commands
-if exit_code == 0 or not command:
-    sys.exit(0)
-
-# === AC-1.4: Credential sanitization ===
+# === AC-1.4: Credential sanitization (early for repair tracking) ===
 cmd_clean = re.sub(r'--password\s+\S+', '--password ***', command)
 cmd_clean = re.sub(r'--token\s+\S+', '--token ***', cmd_clean)
 cmd_clean = re.sub(r'--secret\s+\S+', '--secret ***', cmd_clean)
 cmd_clean = re.sub(r'--key\s+\S+', '--key ***', cmd_clean)
+
+# === repair_success detection: previous failure now succeeds (exit_code non-zero → zero) ===
+_rs_json_path = os.path.join(state_dir, 'error-dna.json')
+_rs_aggregated = {}
+if exit_code == 0 and command:
+    try:
+        with open(_rs_json_path) as f:
+            _rs_aggregated = json.load(f).get('error_signatures', {})
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    _rs_sig = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
+    _rs_entry = _rs_aggregated.get(_rs_sig, {})
+    if _rs_entry and _rs_entry.get('count', 0) > 0 and not _rs_entry.get('repair_success'):
+        _rs_entry['repair_success'] = True
+        _rs_entry['status'] = 'fixed'
+        with open(_rs_json_path, 'w') as f:
+            json.dump({'error_signatures': _rs_aggregated}, f, indent=2, ensure_ascii=False)
+        print(f"[error-dna repair_success] 签名 {_rs_sig[:12]} — 之前失败 ({_rs_entry.get('count', 0)} 次)，现已修复")
+
+# Skip success and empty commands
+if exit_code == 0 or not command:
+    sys.exit(0)
 
 # === AC-1.2 / AC-1.6: Shared library classifier + signature (with local fallback) ===
 _ec_path = os.path.abspath(os.path.join(script_dir, '..', 'scripts', 'error_classifier.py'))
@@ -163,7 +181,16 @@ os.makedirs(state_dir, exist_ok=True)
 with open(jsonl_path, 'a') as f:
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
-# === AC-1.1: Merge into json state (rebuild from jsonl source-of-truth) ===
+# === AC-1.1: Merge into json state (rebuild from jsonl, preserve persistent metadata) ===
+# Step 1: Load persistent state from error-dna.json (preserves fix_count, repair_success, etc.)
+_persistent_agg = {}
+try:
+    with open(json_path) as f:
+        _persistent_agg = json.load(f).get('error_signatures', {})
+except (FileNotFoundError, json.JSONDecodeError):
+    pass
+
+# Step 2: Rebuild from jsonl source-of-truth
 aggregated = {}
 try:
     with open(jsonl_path) as f:
@@ -191,9 +218,74 @@ try:
 except FileNotFoundError:
     pass
 
+# Step 3: Merge persistent metadata (fix_count, repair_success, repair_command) from error-dna.json
+for sig in aggregated:
+    if sig in _persistent_agg:
+        p = _persistent_agg[sig]
+        aggregated[sig]['fix_count'] = p.get('fix_count', aggregated[sig]['fix_count'])
+        aggregated[sig]['status'] = p.get('status', aggregated[sig]['status'])
+        if p.get('repair_success'):
+            aggregated[sig]['repair_success'] = True
+        if p.get('repair_command'):
+            aggregated[sig]['repair_command'] = p['repair_command']
+
 merged = {'error_signatures': aggregated}
 with open(json_path, 'w') as f:
     json.dump(merged, f, indent=2, ensure_ascii=False)
+
+# === Auto-fix: generate fix strategy for known error types ===
+# Track fix_attempts in the aggregated state (incremented per suggestion emission)
+_fix_suggestions = []
+_error_entry = aggregated.get(signature, {})
+_fix_count = _error_entry.get('fix_count', 0)
+_repair_command = ''
+
+if error_type == 'build':
+    cmd_lower_fix = cmd_clean.lower()
+    if 'go build' in cmd_lower_fix or 'go test' in cmd_lower_fix:
+        _fix_suggestions.append("运行 `go mod tidy` 后重试")
+        _fix_suggestions.append("检查是否有未使用的 import 或未定义的变量")
+        _repair_command = 'go mod tidy && go build ./...'
+    elif 'tsc' in cmd_lower_fix or 'npm run build' in cmd_lower_fix or 'npm build' in cmd_lower_fix:
+        _fix_suggestions.append("运行 `npm install` 确保依赖完整")
+        _fix_suggestions.append("检查 `npx tsc --noEmit` 的完整错误列表")
+        _repair_command = 'npm install && npx tsc --noEmit'
+elif error_type == 'dependency':
+    cmd_lower_fix = cmd_clean.lower()
+    if 'npm' in cmd_lower_fix or 'node' in cmd_lower_fix:
+        _fix_suggestions.append("运行 `npm install` 或检查 package.json 中的版本约束")
+        _repair_command = 'npm install'
+    elif 'go' in cmd_lower_fix:
+        _fix_suggestions.append("运行 `go mod tidy` 后重试")
+        _repair_command = 'go mod tidy'
+elif error_type == 'git':
+    _fix_suggestions.append("检查 .git/index.lock 是否存在并清理")
+    _fix_suggestions.append("确认 git HEAD 未 detached 且分支名正确")
+    _repair_command = 'rm -f .git/index.lock && git status'
+elif error_type == 'lint':
+    _fix_suggestions.append("运行 `git diff` 查看最近的改动区域")
+    _fix_suggestions.append("检查是否有格式或命名规范违规")
+
+if _fix_suggestions and _fix_count < 3:
+    # Track fix_attempt (increment fix_count)
+    if signature in aggregated:
+        aggregated[signature]['fix_count'] = _fix_count + 1
+        if _repair_command:
+            aggregated[signature]['repair_command'] = _repair_command
+
+    _fix_lines = [f"[error-dna auto-fix] 签名 {signature[:12]} 类型 {error_type} — 建议修复策略:"]
+    for suggestion in _fix_suggestions:
+        _fix_lines.append(f"  · {suggestion}")
+    if _repair_command:
+        _fix_lines.append(f"  ▶ 可执行修复: `{_repair_command}`")
+    if _fix_count >= 2:
+        _fix_lines.append(f"  ⚠️ 已尝试 {_fix_count + 1}/3 次，超过 3 次将不再自动建议")
+    print('|'.join(_fix_lines))
+
+# Re-write with updated fix_count and repair metadata
+if _fix_suggestions and _fix_count < 3:
+    with open(json_path, 'w') as f:
+        json.dump(merged, f, indent=2, ensure_ascii=False)
 
 # === AC-1.5: auto-rotation, configurable size & archive count ===
 try:

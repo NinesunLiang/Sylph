@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件
 # Role: 强制 TaskUpdate 前提供结构化证据文件
 

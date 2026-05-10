@@ -5,6 +5,18 @@
 #   Carror OS 本身非 git 工作区，铁律 #4（Git 门禁）降级为 "sha256 + 人工批准"。
 #   本脚本提供标准化的 before/after 快照 + diff，让证据门禁在非 git 环境仍可闭环。
 #
+# D1-3: shasum/sha256sum 跨平台兼容（macOS: shasum, Linux: sha256sum）
+_SHA256() {
+    if command -v sha256sum &>/dev/null; then
+        sha256sum "$@"
+    elif command -v shasum &>/dev/null; then
+        shasum -a 256 "$@"
+    else
+        echo "ERROR: no sha256sum or shasum found" >&2
+        exit 99
+    fi
+}
+
 # 用法：
 #   bash .claude/scripts/snapshot-helper.sh before <file1> [file2 ...]
 #     → 生成 .omc/state/snapshot-before-<TS>.txt
@@ -38,7 +50,7 @@ case "$MODE" in
             if [ ! -f "$f" ]; then
                 echo "missing  0  -  $f"
             else
-                SHA=$(shasum -a 256 "$f" | awk '{print $1}')
+                SHA=$(_SHA256 "$f" | awk '{print $1}')
                 LINES=$(wc -l < "$f" | tr -d ' ')
                 MTIME=$(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%S' "$f" 2>/dev/null || stat -c '%y' "$f" 2>/dev/null | cut -d'.' -f1)
                 echo "$SHA  $LINES  $MTIME  $f"
@@ -59,7 +71,7 @@ case "$MODE" in
             if [ ! -f "$f" ]; then
                 echo "missing  0  -  $f"
             else
-                SHA=$(shasum -a 256 "$f" | awk '{print $1}')
+                SHA=$(_SHA256 "$f" | awk '{print $1}')
                 LINES=$(wc -l < "$f" | tr -d ' ')
                 MTIME=$(stat -f '%Sm' -t '%Y-%m-%dT%H:%M:%S' "$f" 2>/dev/null || stat -c '%y' "$f" 2>/dev/null | cut -d'.' -f1)
                 echo "$SHA  $LINES  $MTIME  $f"

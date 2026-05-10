@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Scan staged Go code + dependencies for vulnerabilities, auto-fix, re-scan, and give commit verdict."
 
+complexity: intermediate
 when_to_use: "Use after 'git add' before commit, or when user says 'security review', 'security scan', 'pre-commit check'."
 
 model: sonnet

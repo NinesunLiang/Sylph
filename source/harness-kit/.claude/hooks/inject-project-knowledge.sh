@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # inject-project-knowledge.sh — SessionStart — 注入 .claude/ 核心知识到 AI context
 # Role: 注入 .claude/ 核心知识到 AI context
 

@@ -169,11 +169,19 @@ available_actions.append((
     "输入你想做的其他操作（如直接调 skill / 手动检查文件）"
 ))
 
-print("  你可以执行:")
+print("  建议下一步:")
 for i, (cmd, desc) in enumerate(available_actions, 1):
-    print(f"    {i}. {cmd}")
-    print(f"       → {desc}")
-print(f"    ─── 或直接输入你想要的命令 ───")
+    if cmd == "自定义操作":
+        print(f"    {i}. 自定义操作")
+        print(f"       → 输入你想要的命令")
+    elif i == 1:
+        print(f"    {i}. {cmd} — 推荐 ✓")
+        print(f"       说明：{desc}")
+        print(f"       适用场景：当前阶段最推荐的下一步操作")
+    else:
+        print(f"    {i}. {cmd}")
+        print(f"       说明：{desc}")
+        print(f"       适用场景：{desc}时选择此操作")
 
 # Warning if pending gates not in current path
 other_pending = [g for g in pending_gates if g != current_gate]

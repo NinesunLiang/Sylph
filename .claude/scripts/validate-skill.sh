@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # validate-skill.sh — Skill 原子化合规性校验入口
 # 委托给 lx-validate-skill/scripts/validate_skill.py 执行
 # 保留为独立脚本以兼容 lx-validate-skill/SKILL.md 中的引用
@@ -19,7 +19,13 @@ if [ ! -f "$VALIDATOR" ]; then
 fi
 
 if [ $# -eq 0 ]; then
-  python3 "$VALIDATOR" --skills-dir "$SKILLS_DIR"
+  for skill_dir in "$SKILLS_DIR"/lx-*/; do
+    skill_name=$(basename "$skill_dir")
+    set +e
+    python3 "$VALIDATOR" --skill "$skill_name" --skills-dir "$SKILLS_DIR"
+    set -e
+    echo "---"
+  done
 else
   python3 "$VALIDATOR" --skill "$1" --skills-dir "$SKILLS_DIR"
 fi

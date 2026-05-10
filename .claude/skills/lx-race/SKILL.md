@@ -1,7 +1,11 @@
 ---
 name: lx-race
 description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team skill 调度 + OMA Lock 写锁 + race_manager.sh 状态跟踪。不做调度引擎，只做协调。"
+complexity: intermediate
 version: v1.0.0
+harness_version: ">=1.4.0"
+model: sonnet
+when_to_use: "Use when tasks have multiple independent sub-tasks that can run in parallel; when lx-task-spec identifies independent sub-tasks and routes to race mode; when user says '/lx-race' or '蜂群/并行执行'."
 role: "Swarm coordinator — sub-task registration, dispatch, collection, conflict resolution"
 execution_mode: race
 triggers:
@@ -9,6 +13,35 @@ triggers:
 ---
 
 # lx-race — 蜂群协调层 (Swarm Coordination)
+
+## 原子化声明
+
+### 使用的通用节点
+| 节点 | 路径 | 用途 |
+|------|------|------|
+| report_generator | `../../nodes/report_generator.md` | 聚合报告生成 |
+| behavior_rules | `../../nodes/behavior_rules.md` | 派发/收集阶段行为约束 |
+
+### scripts/（确定性执行层）
+| 脚本 | 用途 | 调用时机 |
+|------|------|---------|
+| `scripts/race_manager.sh` | 状态引擎：register/status/report | 4 步协调流程 |
+
+### 状态机
+本 skill 使用私有 4 步协调流程（Register → Dispatch → Collect → Report），不引用 `orchestrator.md` 的通用状态机。
+**核心状态映射**: need_input → [register → dispatch → collect → report] → done
+
+### 私有节点
+本 skill 无私有节点。
+
+## 降级策略
+| 场景 | 主路径 | 降级路径 |
+|------|--------|---------|
+| 无子任务可派发 | race_manager.sh register | 报告"无独立子任务"，退出 |
+| Task() API 不可用（非 Claude Code） | Task 派发 | 回退到 run_in_background 并行执行 |
+| 后台执行不可用 | run_in_background | 回退到顺序执行 |
+| race_manager.sh 不存在 | 脚本执行 | 提示脚本缺失，建议重新安装 lx-race |
+| 子任务全部失败 | 聚合报告 | 报告失败原因，不阻断父任务 |
 
 > 核心哲学：Race 不做调度，只做**状态跟踪 + 冲突协调**。
 > - 调度 → 复用 `team` skill / 平台原生 Task() API

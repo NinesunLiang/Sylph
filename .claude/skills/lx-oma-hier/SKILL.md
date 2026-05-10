@@ -3,6 +3,7 @@ name: lx-oma-hier
 
 description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma-split 拆解为特性级 RPE。
 
+complexity: advanced
 version: v1.2.0
 harness_version: "6.1.8"
 model: sonnet
@@ -30,6 +31,7 @@ execution_mode: stepwise
 | 节点 | 路径 | 用途 |
 |------|------|------|
 | explore | `../../nodes/explore.md` | 读取 PRD 文件/目录，识别核心业务实体 |
+| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途 |
@@ -301,15 +303,17 @@ need_input → [reading → analyzing → generating → verifying] → done
 📍 分层拆解完成。你现在位于 PRD 全生命周期的起点。
 
 建议下一步:
-  1. /lx-oma-split sub-prds/domain-{name}.md
-     → 对某个 Sub PRD 进行特性级拆解（推荐先拆核心域）
+  1. /lx-oma-split sub-prds/domain-{name}.md — 推荐 ✓
+     说明：对某个 Sub PRD 进行特性级拆解
+     适用场景：先拆核心域，优先推进依赖链上游的域
   2. /lx-orch status
-     → 查看 PRD 全景管线状态
+     说明：查看 PRD 全景管线状态
+     适用场景：想了解整体 PRD 进度
   3. 继续拆分其余 Sub PRD
-     → 重复 /lx-oma-hier，直到所有域拆分完成
+     说明：重复 /lx-oma-hier，直到所有域拆分完成
+     适用场景：剩余域全部拆完再进入开发
   4. 自定义操作
      → 输入你想要的命令
-  ─── 或直接输入你想要的命令 ───
 
 注意事项:
   · 依赖链上游的域建议优先拆解（如 auth→order→payment）

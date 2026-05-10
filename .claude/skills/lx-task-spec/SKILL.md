@@ -1,13 +1,13 @@
 ---
-
 name: lx-task-spec
-
 version: v5.1.0
-
+harness_version: ">=1.1.0"
+model: sonnet
 description: 任务驱动机制（task_spec）：lx-todo 的升级目标，处理需要精确 AC 驱动但不需要完整 PRD 的中等复杂任务。引导式问答（3问）→ 结构化任务输入 → 澄清 → 规划 → 执行 → 验收。
+complexity: intermediate
+when_to_use: "Use when a task requires precise acceptance criteria but not a full PRD (mid-complexity); when lx-todo exceeds its limit (>3 files or 2 failures) and upgrades to task-spec; when user says '/lx-task-spec' with a task description."
 role: "Task specification engine — structured task decomposition and execution"
 execution_mode: stepwise
-
 triggers:
   - "/lx-task-spec"
 ---

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）
 # Role: 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）
 
@@ -35,4 +35,12 @@ rm -f "$BUFFER"
 
 LINES=$(echo "$BUFFER_CONTENT" | wc -l | tr -d ' ')
 echo "Flywheel flushed: ${LINES} entries → flywheel.log (${TS_ISO})"
+
+# === Analytics: compute per-skill frequency and deprecation detection ===
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+ANALYTICS_SCRIPT="$PROJECT_ROOT/.claude/scripts/flywheel_analytics.py"
+if [ -f "$ANALYTICS_SCRIPT" ]; then
+    python3 "$ANALYTICS_SCRIPT" "$FLYWHEEL" "$PROJECT_ROOT/.omc/state/flywheel-report.json" 2>/dev/null || true
+fi
+
 exit 0

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit
 # Role: 记录已读文件路径供 edit-guard 检查 Read-before-Edit
 

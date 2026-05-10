@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）
 # Role: 约束子 agent 用量，防账单雪崩（软约束+事后对账）
 

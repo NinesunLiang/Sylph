@@ -305,6 +305,20 @@ else
 fi
 rm -f "$_CORR_OUT"
 
+# R30 source mirror: 一致性校验
+TOTAL=$((TOTAL+1))
+_SM_OUT="/tmp/smoke-source-mirror-$$.out"
+log ""
+log "[$TOTAL] R30 source mirror: 一致性应全绿"
+bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_OUT" 2>&1
+if grep -q "source mirror 一致性: 全部一致" "$_SM_OUT"; then
+    pass "R30 source mirror 一致性校验通过"
+else
+    fail "R30 source mirror 存在漂移"
+    grep "🔴" "$_SM_OUT" | head -5
+fi
+rm -f "$_SM_OUT"
+
 # --- R23: 新注册的 8 个 hook — 业务级验收（R24-S2 升级版） ---
 
 # R23/R24 lsp-suggest: 首次导出符号 Grep 应阻断（exit 2）+ 提示 LSP
@@ -514,6 +528,89 @@ if [ -f .omc/state/token-tracking-index.json ]; then
 else
     fail "R29 token_writer --increment 未写 index"
 fi
+
+# --- R31: session-dump.json 结构完整性 ---
+TOTAL=$((TOTAL+1))
+_DUMP_FILE=".omc/state/session-dump.json"
+log ""
+log "[$TOTAL] R31 session-dump: auto-snapshot 应写入结构化 dump"
+echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/auto-snapshot.sh > /dev/null 2>&1
+if [ -f "$_DUMP_FILE" ]; then
+    _DUMP_OK=$(python3 -c "
+import json
+d = json.load(open('$_DUMP_FILE'))
+fields = ['git_state', 'error_summary', 'todo_queue', 'active_features', 'token_usage', 'claude_next_hits', 'edit_log']
+present = [f for f in fields if f in d]
+print(f'{len(present)}/{len(fields)} fields: {present}')
+" 2>/dev/null)
+    if echo "$_DUMP_OK" | grep -q "7/7"; then
+        pass "R31 session-dump 结构完整 ($_DUMP_OK)"
+    else
+        fail "R31 session-dump 字段不完整 ($_DUMP_OK)"
+    fi
+else
+    fail "R31 session-dump 未生成"
+fi
+rm -f "$_DUMP_FILE"
+
+# --- R32: intent-tracker 注册与基本功能 ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R32 intent-tracker: 注册检查"
+if grep -q "intent-tracker.sh" .claude/settings.json; then
+    pass "R32 intent-tracker 已注册 settings.json"
+else
+    fail "R32 intent-tracker 未注册"
+fi
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R32 intent-tracker: harness.yaml 开关"
+if grep -q "intent_tracker: true" .claude/harness.yaml; then
+    pass "R32 intent-tracker harness.yaml 已启用"
+else
+    fail "R32 intent-tracker harness.yaml 未启用"
+fi
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R32 intent-tracker: 非 Edit 应静默退出"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' | \
+    bash .claude/hooks/intent-tracker.sh > /dev/null 2>&1
+_EXIT=$?
+if [ "$_EXIT" = "0" ]; then
+    pass "R32 intent-tracker 非 Edit 放行 (exit=0)"
+else
+    fail "R32 intent-tracker 非 Edit 不应阻断 (exit=$_EXIT)"
+fi
+
+# --- R33: validate_skill_refs.py skill 引用校验 ---
+TOTAL=$((TOTAL+1))
+_SKILL_REF_OUT="/tmp/smoke-skill-ref-$$.out"
+python3 .claude/scripts/validate_skill_refs.py > "$_SKILL_REF_OUT" 2>&1
+_SKILL_REF_EXIT=$?
+log ""
+log "[$TOTAL] R33 validate_skill_refs: 所有 skill 引用应有效"
+if [ "$_SKILL_REF_EXIT" = "0" ] && grep -q "PASS" "$_SKILL_REF_OUT"; then
+    SKILL_COUNT=$(grep -oE 'All [0-9]+ skills have valid references' "$_SKILL_REF_OUT" | grep -oE '[0-9]+')
+    pass "R33 validate_skill_refs 全部有效 ($SKILL_COUNT skills, exit=$_SKILL_REF_EXIT)"
+else
+    fail "R33 validate_skill_refs 发现破损引用 (exit=$_SKILL_REF_EXIT)"
+    grep -E "broken|FAIL|missing" "$_SKILL_REF_OUT" | head -5
+fi
+rm -f "$_SKILL_REF_OUT"
+
+# --- R34: audit-hooks --check-source-mirror 扩展: settings.json + harness.yaml 三方对账 ---
+TOTAL=$((TOTAL+1))
+_SM_EXT_OUT="/tmp/smoke-mirror-ext-$$.out"
+bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_EXT_OUT" 2>&1
+log ""
+log "[$TOTAL] R34 source mirror 扩展: settings.json + harness.yaml 注册一致性"
+if grep -q "config mirror" "$_SM_EXT_OUT"; then
+    fail "R34 source mirror config 存在漂移"
+    grep "🔴" "$_SM_EXT_OUT" | head -5
+else
+    pass "R34 source mirror config 校验通过 (settings.json + harness.yaml)"
+fi
+rm -f "$_SM_EXT_OUT"
 
 log ""
 log "========================================"

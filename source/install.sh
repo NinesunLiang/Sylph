@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
 # 版本：v6.1.8-stable | 日期：2026-05-08
@@ -31,6 +31,23 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR/../packages" ]; then
 fi
 
 GITHUB_RELEASE_URL="https://github.com/$GITHUB_REPO/releases/download/$VERSION"
+
+# 跨平台兼容检测
+# D1-1: sed -i 语法差异（macOS BSD sed vs Linux GNU sed）
+if sed -i 's/hello/hello/' /dev/null 2>/dev/null; then
+    SED_INPLACE=("sed" "-i")
+else
+    SED_INPLACE=("sed" "-i" "")
+fi
+
+# D1-2: sha256sum 兼容（macOS 用 shasum -a 256）
+if command -v sha256sum &>/dev/null; then
+    SHA256_CMD="sha256sum"
+elif command -v shasum &>/dev/null; then
+    SHA256_CMD="shasum -a 256"
+else
+    SHA256_CMD=""  # 后续用到时 exit 99
+fi
 
 # Agentic UI: CLI flags 驱动，零交互提示
 UPGRADE_MODE="auto"  # auto | skip | force
@@ -106,7 +123,7 @@ if [ -d ".claude" ]; then
 
         # ── hooks sha256 快照（后续对比用户是否修改过官方 hook） ──
         for f in .claude/hooks/*.sh; do
-            [ -f "$f" ] && sha256sum "$f" >> "$BACKUP_DIR/hooks-sha256.txt" 2>/dev/null
+            [ -f "$f" ] && $SHA256_CMD "$f" >> "$BACKUP_DIR/hooks-sha256.txt" 2>/dev/null
         done
 
         # ── 用户 settings.json 副本（用于 3-way merge） ──
@@ -206,7 +223,7 @@ PROJECT_NAME=$(basename "$(pwd)")
 INSTALL_DATE=$(date +%Y-%m-%d)
 if [ -f ".claude/kernel.md" ]; then
     if grep -q '{project_name}' ".claude/kernel.md" 2>/dev/null; then
-        sed -i '' "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
+        "${SED_INPLACE[@]}" "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
         log_info "已填充 kernel.md 模板占位符（project=$PROJECT_NAME, date=$INSTALL_DATE）"
     fi
 fi
@@ -254,7 +271,7 @@ if [ "$HAS_BACKUP" = true ]; then
             old_hook="$BACKUP_DIR/.claude/hooks/$hook_name"
             new_hook=".claude/hooks/$hook_name"
             if [ -f "$old_hook" ] && [ -f "$new_hook" ]; then
-                new_sha=$(sha256sum "$new_hook" 2>/dev/null | awk '{print $1}')
+                new_sha=$($SHA256_CMD "$new_hook" 2>/dev/null | awk '{print $1}')
                 if [ "$old_sha" != "$new_sha" ]; then
                     # sha256 不同 → 用户修改过 → 恢复用户版
                     cp "$old_hook" "$new_hook"
@@ -425,6 +442,12 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
         cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
             && log_info "使用 Generic profile（base）→ .claude/harness.yaml"
     fi
+fi
+
+# 跨平台 CLI 配置自动生成（Qwen Code / Codex / Gemini / Cursor / OpenCode）
+if command -v python3 &>/dev/null && [ -f ".hooks/generate.py" ]; then
+    log_step "生成跨平台 CLI hooks 配置..."
+    python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（无可用平台）"
 fi
 
 echo ""

@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Debug Go code via root-cause investigation → hypothesis verification → fix → regression. Evidence before fix."
 
+complexity: intermediate
 when_to_use: "Use when user says 'debug', 'fix bug', test failure, CI broken, intermittent error, race condition, or after failed fixes."
 
 model: sonnet

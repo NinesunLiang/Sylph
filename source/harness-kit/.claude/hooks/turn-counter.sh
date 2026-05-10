@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测
 # Role: 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测
 
@@ -112,15 +112,18 @@ if [ -f "$FUZZY_CHECK" ]; then
     fi
 fi
 
-# ─── 复合条件注入：context > N% 且 turn > M ──────────────
-# 解决规范漂移问题：单独用 context% 太频繁，单独用轮数不精准
-KNOWLEDGE_CTX_PCT=$(hc_get "turn_counter.knowledge_inject_context_pct" "50")
+# ─── 多层 context window 提示策略 ────────────────────────
+# 根据 context 使用率分 4 层注入，每层触发密度不同
+# 同一轮只触发最高适用层（低层命中时不再注入高层）
+# L0 (<30%) 每15轮: 全量规范刷新（预防性）
+# L1 (30-50%) 每10轮: 摘要规范刷新
+# L2 (>50% && >20轮) 每5轮: 核心规范锚定（已有复合条件）
+# L3 (>80%) 每5轮: 6铁律 + /compact 建议
 KNOWLEDGE_MIN_TURNS=$(hc_get "turn_counter.knowledge_inject_min_turns" "20")
-if [ "$new_count" -gt "$KNOWLEDGE_MIN_TURNS" ] && [ $(( new_count % 5 )) -eq 0 ]; then
-    # 每 5 轮检查一次复合条件（避免每轮都读文件）
-    INDEX_FILE="$STATE_DIR/token-tracking-index.json"
-    if [ -f "$INDEX_FILE" ]; then
-        CTX_PCT=$(python3 -c "
+INDEX_FILE="$STATE_DIR/token-tracking-index.json"
+CTX_PCT=""
+if [ -f "$INDEX_FILE" ] && [ $(( new_count % 5 )) -eq 0 ]; then
+    CTX_PCT=$(python3 -c "
 import json
 try:
     d = json.load(open('$INDEX_FILE'))
@@ -129,20 +132,64 @@ try:
     print(int(usage * 100 / limit)) if limit > 0 else print(0)
 except:
     print(0)" 2>/dev/null)
-        if [ -n "$CTX_PCT" ] && [ "$CTX_PCT" -ge "$KNOWLEDGE_CTX_PCT" ] 2>/dev/null; then
+fi
+
+INJECT_INDEX="$PROJECT_ROOT/.claude/index.md"
+INJECT_KERNEL="$PROJECT_ROOT/.claude/kernel.md"
+INJECT_ANTI="$PROJECT_ROOT/.claude/anti-patterns.md"
+
+if [ -n "$CTX_PCT" ]; then
+    # L3: 危机协议 — context > 80%
+    if [ "$CTX_PCT" -ge 80 ] 2>/dev/null && [ $(( new_count % 5 )) -eq 0 ]; then
+        echo ""
+        echo "═══ [轮次 $new_count] 上下文危机 — context ${CTX_PCT}% ═══"
+        echo "【仅 6 铁律】上下文使用率超过 80%，仅保留最低门禁规则："
+        echo " 1. 禁止编造：技术断言必须引用 file:line"
+        echo " 2. 证据门禁：说'完成'前必须有 VERIFIED 证据"
+        echo " 3. Git 门禁：commit/push 必须先报告，等用户批准"
+        echo " 4. 范围冻结：只改当前任务文件，发现的问题记 TODO"
+        echo " 5. 修复上限：同一问题最多修 3 轮"
+        echo " 6. 禁用词：禁止用'应该是/可能/通常'做技术断言"
+        echo ""
+        echo "💡 建议运行 /compact 释放上下文空间后继续。"
+        echo "═══ 危机协议完成 ═══"
+
+    # L2: 核心锚定 — context > 50% 且轮数 > 阈值
+    elif [ "$CTX_PCT" -ge 50 ] 2>/dev/null && [ "$new_count" -gt "$KNOWLEDGE_MIN_TURNS" ]; then
+        echo ""
+        echo "═══ [轮次 $new_count] 规范漂移检测 — context ${CTX_PCT}% > 50% ═══"
+        echo "【规范重新锚定】上下文使用率超出阈值，重新注入项目规范。"
+        if [ -f "$INJECT_INDEX" ]; then
             echo ""
-            echo "═══ [轮次 $new_count] 规范漂移检测 — context ${CTX_PCT}% > ${KNOWLEDGE_CTX_PCT}% ═══"
-            echo "【规范重新锚定】上下文使用率和轮次均超出阈值，重新注入项目规范。"
-            INJECT_INDEX="$PROJECT_ROOT/.claude/index.md"
-            if [ -f "$INJECT_INDEX" ]; then
-                echo ""
-                grep -E '^\| \#' "$INJECT_INDEX" 2>/dev/null | head -15
-                echo ""
-                grep -E '^\|`[a-z]' "$INJECT_INDEX" 2>/dev/null | head -8
-            fi
+            grep -E '^\| \#' "$INJECT_INDEX" 2>/dev/null | head -15
             echo ""
-            echo "═══ 规范重新锚定完毕 ═══"
+            grep -E '^\|`[a-z]' "$INJECT_INDEX" 2>/dev/null | head -8
         fi
+        echo ""
+        echo "═══ 规范重新锚定完毕 ═══"
+
+    # L1: 摘要刷新 — context 30-50%，每 10 轮预防性注入
+    elif [ "$CTX_PCT" -ge 30 ] 2>/dev/null && [ $(( new_count % 10 )) -eq 0 ]; then
+        echo ""
+        echo "═══ [轮次 $new_count] 规范预防刷新 — context ${CTX_PCT}% ═══"
+        echo "【上下文摘要】当前使用率中等，注入内核关键规则："
+        if [ -f "$INJECT_KERNEL" ]; then
+            echo "--- 架构铁律 ---"
+            grep -E '^## |^-\s*\*\*' "$INJECT_KERNEL" 2>/dev/null | head -10
+        fi
+        echo ""
+        echo "═══ 预防刷新完毕 ═══"
+
+    # L0: 全量预防 — context < 30%，每 15 轮全量注入
+    elif [ $(( new_count % 15 )) -eq 0 ] && [ "$new_count" -gt 5 ]; then
+        echo ""
+        echo "═══ [轮次 $new_count] 全量规范预防注入 — context ${CTX_PCT}% ═══"
+        echo "【全量刷新】早期预防，确保规范始终锚定。"
+        if [ -f "$INJECT_INDEX" ]; then
+            grep -E '^\|#' "$INJECT_INDEX" 2>/dev/null | head -20
+        fi
+        echo ""
+        echo "═══ 全量注入完毕 ═══"
     fi
 fi
 

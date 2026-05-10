@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Web 性能审查：Bundle 分析 + Web Vitals 阈值 + Next.js 优化 + 渲染性能 + 网络性能 + 资产优化。6 大类别 24 条规则。适用于 React/Next.js 前端项目。"
 
+complexity: intermediate
 when_to_use: "Use after building frontend features or before deployment. Trigger: 'perf check', 'web perf', 'performance audit', 'bundle check', 'web vitals', 'lighthouse check'."
 
 model: sonnet
