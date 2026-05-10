@@ -8,7 +8,7 @@ log_info(){ echo -e "${GREEN}[INFO]${NC} $1"; }
 
 log_step(){ echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION="v6.1.8-stable"
+VERSION="v6.1.9-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SOURCE_DIR="$SCRIPT_DIR/source"
 PACKAGES_DIR="$SCRIPT_DIR/packages"

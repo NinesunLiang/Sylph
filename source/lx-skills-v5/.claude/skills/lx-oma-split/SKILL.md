@@ -3,8 +3,9 @@ name: lx-oma-split
 
 description: 一人成军司令部 (One-Man Army) - 将需求拆解为正交的多个功能分支 (prd/{sub_prd}/{feature})，支持目录和单文件作为输入。
 
+complexity: intermediate
 version: v1.2.0
-harness_version: "6.1.8"
+harness_version: "6.1.9"
 model: sonnet
 argument-hint: "<path> [--pipeline <sub_prd_id>]"
 when_to_use: |
@@ -242,7 +243,7 @@ EOF
   2. 并行启动多个 /lx-rpe
      说明：无依赖的 feature 可同时开始开发
      适用场景：多个 feature 无相互依赖，可并行加速
-  3. /lx-orch status
+  3. /lx-oma-orch status
      说明：查看管线全景，了解整体进度
      适用场景：想了解当前 PRD 全貌
   4. 自定义操作

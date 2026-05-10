@@ -5,7 +5,7 @@ description: OMA PRD 治理 — 在 `prd/{sub_prd}/{feature}` 变更时通过 re
 
 complexity: advanced
 version: v1.2.0
-harness_version: "6.1.8"
+harness_version: "6.1.9"
 model: sonnet
 argument-hint: "init [path] | reconcile [path] | resolve <CONFLICT-ID> <verdict> [--reason] | propagate --dry-run|--execute [path] | status | audit [path]"
 when_to_use: |

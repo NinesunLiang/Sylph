@@ -3,8 +3,9 @@ name: lx-oma-gov
 
 description: OMA PRD 治理 — 在 `prd/{sub_prd}/{feature}` 变更时通过 reconcile/propagate 机制增量同步，处理冲突裁决、漂移检测，保持 OMA 文档体系一致性
 
+complexity: advanced
 version: v1.2.0
-harness_version: "6.1.8"
+harness_version: "6.1.9"
 model: sonnet
 argument-hint: "init [path] | reconcile [path] | resolve <CONFLICT-ID> <verdict> [--reason] | propagate --dry-run|--execute [path] | status | audit [path]"
 when_to_use: |

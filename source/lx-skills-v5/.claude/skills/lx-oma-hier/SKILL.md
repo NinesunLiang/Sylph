@@ -3,8 +3,9 @@ name: lx-oma-hier
 
 description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma-split 拆解为特性级 RPE。
 
+complexity: advanced
 version: v1.2.0
-harness_version: "6.1.8"
+harness_version: "6.1.9"
 model: sonnet
 argument-hint: "<path> [output_dir]"
 when_to_use: |
@@ -305,7 +306,7 @@ need_input → [reading → analyzing → generating → verifying] → done
   1. /lx-oma-split sub-prds/domain-{name}.md — 推荐 ✓
      说明：对某个 Sub PRD 进行特性级拆解
      适用场景：先拆核心域，优先推进依赖链上游的域
-  2. /lx-orch status
+  2. /lx-oma-orch status
      说明：查看 PRD 全景管线状态
      适用场景：想了解整体 PRD 进度
   3. 继续拆分其余 Sub PRD
