@@ -15,6 +15,7 @@ fi
 # 从配置读取注入文件列表
 INJECT_FILES=$(hc_get_list "knowledge.inject_files" "index.md:full kernel.md:full claude-next.md:summary style-guide.md:summary")
 
+set -f
 for entry in $INJECT_FILES; do
     # 解析 filename:mode 格式
     FILE_NAME="${entry%%:*}"
@@ -35,6 +36,7 @@ for entry in $INJECT_FILES; do
         echo ""
     fi
 done
+set +f
 
 # LSP 提醒（从配置读取）
 LSP_HINT=$(hc_get "knowledge.lsp_hint" "")
@@ -64,7 +66,7 @@ try:
 
     entries = []
     for i, line in enumerate(lines):
-        m = re.match(r'^## \[(.+?)\] (.+)', line)
+        m = re.match(r'^### \[(.+?)\] (.+)', line)
         if m:
             title = m.group(2)
             entry_date = None
@@ -136,7 +138,7 @@ SNAPSHOT_EXPIRY=$(hc_get "knowledge.snapshot_expiry_sec" "86400")
 if [ "$HANDOFF_ENABLED" = "true" ] && [ -f "$HANDOFF_FILE" ]; then
     # 检查过期（与 snapshot 相同逻辑）
     python3 - "$HANDOFF_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF'
-import sys, os
+import sys, os, re
 from datetime import datetime, timezone
 
 handoff_path = sys.argv[1]
@@ -151,6 +153,11 @@ try:
         content = f.read().strip()
     if content:
         print("[上次会话交接]")
+        # 提取 Next Steps 区块并高亮显示
+        next_section = re.search(r'## Next Steps\s*\n(.*?)(?=\n##|\Z)', content, re.DOTALL)
+        if next_section:
+            next_text = next_section.group(1).strip()
+            print(f"> 下一步: {next_text[:200]}")
         print(content)
         print("---")
 except Exception:

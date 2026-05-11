@@ -8,6 +8,13 @@
 
 加载 `@../../nodes/behavior_rules.md`（执行阶段行为约束）。
 
+**执行前检查点（go/no-go）**：
+- [ ] 当前有活跃的 RPE 任务项（progress.md 中标记为当前项）
+- [ ] 上一步（如有前任务项）已完成并验收通过
+- [ ] 当前任务项的影响范围已知（文件列表或 module）
+- [ ] 不存在未解决的 BLOCKER
+→ 全部 yes → **go** | 任一 no → 先解决再进入 Step 1
+
 **执行**：
 ```
 1. readFile state/progress.md → 第一个未完成的 RPE 任务项
@@ -28,6 +35,13 @@
 ## Step 2 — 设计
 
 加载 `@../../nodes/context_collector.md`。按项目类型加载编码规范（Go → `references/go-coding-rules.md` / 前端 → `references/frontend-coding-rules.md`）。
+
+**执行前检查点（go/no-go）**：
+- [ ] 当前任务项已从 progress.md 读取并确认
+- [ ] 所需上下文（research.md + plan.md）已加载
+- [ ] 设计方案前已阅读真实代码（grep/LSP 追踪关键路径）
+- [ ] 未超出范围冻结（不修范围外问题，记 TODO）
+→ 全部 yes → **go** | 任一 no → 先解决再进入 Step 2
 
 **执行**：
 ```
@@ -56,6 +70,13 @@
 ## Step 3 — 编码 + pre-commit 门禁
 
 加载 `@../../nodes/auto_fixer.md`。lx-pre-commit 统一处理 Code Review + 测试 + 补测。
+
+**执行前检查点（go/no-go）**：
+- [ ] Step 2 设计已完成，影响文件列表已确定
+- [ ] 编码规范已按项目类型加载（Go/frontend coding rules）
+- [ ] 编译环境就绪（无残留编译错误）
+- [ ] 修复上限未耗尽（当前任务修复轮次 < 3）
+→ 全部 yes → **go** | 任一 no → 先解决再进入 Step 3
 
 ### Go 项目
 1. 按设计逐文件实现。关键决策点主动说一句（复用模块、换策略等）
@@ -86,6 +107,12 @@
 ## Step 4 — Security Review
 
 加载 `@../../nodes/scanner.md` + `@references/security-scan-rules.md`。
+
+**执行前检查点（go/no-go）**：
+- [ ] Step 3 编码 + pre-commit 门禁已全部通过
+- [ ] 安全扫描规则已加载
+- [ ] 变更文件列表已知且已确认扫描范围
+→ 全部 yes → **go** | 任一 no → 先解决再进入 Step 4
 
 ### Go 项目
 调用 `Skill("lx-security-review")` → 降级链：security-review → govulncheck + 基础扫描

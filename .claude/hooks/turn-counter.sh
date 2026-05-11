@@ -88,6 +88,7 @@ if [ -f "$FUZZY_CHECK" ]; then
         FUZZY_VERBS=$(hc_get "fuzzy_detection.fuzzy_verbs" "继续 优化 修复 改进 完善 处理一下 看一下 搞一下")
         HAS_FUZZY_VERB=false
         FUZZY_VERB=""
+        set -f
         for verb in $FUZZY_VERBS; do
             if echo "$PROMPT" | grep -qF "$verb"; then
                 HAS_FUZZY_VERB=true
@@ -95,6 +96,7 @@ if [ -f "$FUZZY_CHECK" ]; then
                 break
             fi
         done
+        set +f
 
         if [ "$HAS_FUZZY_VERB" = true ]; then
             LATEST_EXEC_CHECK=$(find "$PROJECT_ROOT/$DOC_ROOT" -name "$EXEC_DOC" -type f 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
@@ -102,11 +104,24 @@ if [ -f "$FUZZY_CHECK" ]; then
             if [ -n "$LATEST_EXEC_CHECK" ]; then
                 INCOMPLETE_COUNT=$(grep -cE '🔄|⏳|进行中|in.progress' "$LATEST_EXEC_CHECK" 2>/dev/null || echo 0)
             fi
+
+            # 收集具体上下文：活跃 feature / scope 状态
+            FEATURES=$(ls "$PROJECT_ROOT/$DOC_ROOT" 2>/dev/null | head -5 | tr '\n' ' ')
+            SCOPE_FILE_STATE=""
+            if [ -f "$PROJECT_ROOT/.omc/state/current-scope.txt" ]; then
+                SCOPE_LINES=$(wc -l < "$PROJECT_ROOT/.omc/state/current-scope.txt" | tr -d ' ')
+                SCOPE_FILE_STATE="(scope: ${SCOPE_LINES} entries)"
+            fi
+
             if [ "$INCOMPLETE_COUNT" -gt 1 ]; then
                 echo "⚠️ 模糊指令检测: 指令含模糊动词'$FUZZY_VERB'但无明确目标，且有 $INCOMPLETE_COUNT 个活跃 Step。"
                 echo "可能意图: A.修复阻塞Step B.继续开发进行中Step C.代码优化。请指定具体目标(§1.6)。"
+                echo "当前 RPE 实例: $FEATURES $SCOPE_FILE_STATE"
+                echo "建议: 指定文件路径（如 ${FEATURES%% *}/handler.go）或 Step 编号"
             else
                 echo "⚠️ 模糊指令检测: 指令含模糊动词'$FUZZY_VERB'但无明确目标。请补充 Step 编号/文件路径/功能名称(§1.6)。"
+                echo "当前 RPE 实例: $FEATURES $SCOPE_FILE_STATE"
+                echo "建议: /lx-rpe status 查看进度 | 或指定具体文件路径"
             fi
         fi
     fi

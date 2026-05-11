@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# unattended — 无人值守模式快捷开关
+# 用法: ./unattended on|off|status
+exec bash "$(dirname "$0")/.claude/scripts/lx-unattended-toggle.sh" "$@"

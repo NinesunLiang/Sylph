@@ -49,16 +49,23 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # 写入快照文件
 SNAPSHOT_FILE="$STATE_DIR/session-snapshot.json"
-python3 - <<PYEOF
-import json
+python3 - "$TIMESTAMP" "$TURNS" "$BRANCH" "$MODIFIED_JSON" "$STAGED_JSON" "$SNAPSHOT_FILE" <<'PYEOF'
+import json, sys
+timestamp = sys.argv[1]
+turns = int(sys.argv[2]) if sys.argv[2].isdigit() else 0
+branch = sys.argv[3]
+modified_files = json.loads(sys.argv[4])
+staged_files = json.loads(sys.argv[5])
+snapshot_file = sys.argv[6]
+
 snapshot = {
-    "timestamp": "$TIMESTAMP",
-    "turns": int("$TURNS") if "$TURNS".isdigit() else 0,
-    "branch": "$BRANCH",
-    "modified_files": $MODIFIED_JSON,
-    "staged_files": $STAGED_JSON
+    "timestamp": timestamp,
+    "turns": turns,
+    "branch": branch,
+    "modified_files": modified_files,
+    "staged_files": staged_files
 }
-with open("$SNAPSHOT_FILE", "w") as f:
+with open(snapshot_file, "w") as f:
     json.dump(snapshot, f, ensure_ascii=False, indent=2)
 PYEOF
 

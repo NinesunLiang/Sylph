@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Trace recurring Go bugs via Five Whys: evidence chains → confidence scoring → immunity defense."
 
+complexity: intermediate
 when_to_use: "Use when bug recurs after fix, systematic debugging failed, or user says 'root cause', 'keeps happening', 'why again'."
 
 model: sonnet
@@ -208,6 +209,14 @@ Phase 3 关键证据：[最强证据的工具命令 + 一行输出摘要]
 |"别猜了" | 使用推测代替了证据 | 停止，收集证据|
 |"这个之前修过" | 遗漏了历史修复记录 | 重新检查 git 历史|
 |"其他包也有这个问题" | 修复范围过窄 | 扩展至跨 package 范围 |
+
+## 症状分类表（快速诊断入口）
+| 症状类别 | 典型信号 | 诊断入口 | 初始假设方向 |
+|---------|---------|---------|-------------|
+| **编译报错** | go build / tsc 失败、类型不匹配、undefined symbol | Phase 1 → LSP hover/goto 追踪类型链 | 接口变更未同步、循环依赖、缺少 go mod tidy |
+| **运行异常** | panic、nil pointer、crash、超时 | Phase 1 → Agent B 数据流追踪 + go test -race | 空值逃逸、并发竞态、资源泄漏（连接/goroutine） |
+| **数据不一致** | 脏数据、部分更新、重复记录、状态错乱 | Phase 1 → 追踪写入路径 + 事务边界检查 | 缺乏原子性、缺少锁、事务边界不完整 |
+| **性能退化** | 响应变慢、CPU 飙升、内存增长、连接池耗尽 | Phase 2 → go test -bench + pprof + goroutine 追踪 | 资源泄漏（goroutine/连接）、N+1 查询、大对象分配 |
 
 ## 降级策略
 | 场景 | 主路径 | 降级路径|

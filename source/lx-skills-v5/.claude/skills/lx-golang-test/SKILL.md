@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Generate Go test code via pattern routing: table-driven, mocks, HTTP handlers, benchmarks, fuzz, race detection."
 
+complexity: intermediate
 when_to_use: "Use when user needs Go test code for functions, interfaces, HTTP handlers, benchmarks, or fuzz tests."
 
 model: sonnet

@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Lightweight todo workflow: capture, triage, fix, verify, close. 5-step single-terminal loop with quality gates and hard upgrade limits."
 
+complexity: beginner
 when_to_use: "Use when user says 'todo', 'quick fix', 'small bug', 'add todo', 'todo list', or wants to handle a minor task without full RPE flow."
 
 model: sonnet

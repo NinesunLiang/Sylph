@@ -3,6 +3,7 @@
 name: lx-rpe
 version: v4.0.0
 description: "Run RPE-driven feature dev loop on main branch: TDD, code review, security, acceptance, graded rollback."
+complexity: advanced
 when_to_use: "Use when user says 'rpe', 'main branch', 'feature dev', 'start feature', 'continue feature', or begins systematic feature development."
 model: sonnet
 effort: high
@@ -190,19 +191,11 @@ execution_mode: stepwise
 
 ## Pipeline 集成
 
-配合 `state/pipeline.yaml` 状态机，支持 `/lx-oma-orch` 编排。
+Pipeline 编排由 `/lx-oma-orch` 统一管理。`lx-rpe` 不做 pipeline.yaml 读写，仅接收 BASE_DIR 参数。
 
-- 编排模式：读取 pipeline.yaml → 匹配 feature → 使用 path 作为 BASE_DIR
-- 独立使用：/lx-rpe 无参数时先读 pipeline.yaml，若存在则列出 `rpe_planned` 的 feature
-- 出口：Phase 1`→research_done`，Phase 2`→rpe_planned`，Phase 3`→dev_done`
-
-路径优先级：
-```
-1. pipeline.yaml feature path（编排模式）
-2. OMA 路径 prd/{sub_prd}/{feature}（含 /）
-3. feature name prd/{name}/
-4. 无参数 → pipeline.yaml 自动发现 → prd/*/ 扫描
-```
+- 编排模式：`/lx-oma-orch advance` 将 BASE_DIR 注入 `lx-rpe {path}`
+- 独立使用：`/lx-rpe {feature}` 直接指定 rpe/{feature}/
+- 出口仅标注 state/progress.md 的阶段状态，不写入 pipeline.yaml
 
 ## 版本历史
 | 版本 | 日期 | 变更摘要|

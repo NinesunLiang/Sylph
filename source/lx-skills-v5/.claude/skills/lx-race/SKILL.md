@@ -1,6 +1,7 @@
 ---
 name: lx-race
 description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team skill 调度 + OMA Lock 写锁 + race_manager.sh 状态跟踪。不做调度引擎，只做协调。"
+complexity: intermediate
 version: v1.0.0
 harness_version: ">=1.4.0"
 model: sonnet

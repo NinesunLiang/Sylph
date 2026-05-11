@@ -162,7 +162,7 @@ sys.exit(0 if found else 1)
     fi
 
     local l3=""
-    if [ "$file_exists" = true ] && [ "$syntax_check" = "0" ]; then
+    if [ "$file_exists" = true ] && [ -z "$syntax_check" ]; then
         l3="PASS (${file_path})"
     elif [ "$file_exists" = true ] && [ "$syntax_check" = "SKILL.md (text)" ]; then
         l3="PASS (${file_path})"
@@ -184,7 +184,7 @@ sys.exit(0 if found else 1)
 
     # ---- L1: 完整功能验证（仅对已知的可执行 feature 进行） ----
     local l1=""
-    if [ -n "$hook_script" ] && [ "$syntax_check" = "0" ]; then
+    if [ -n "$hook_script" ] && [ -z "$syntax_check" ]; then
         # source 执行 hook 的 exit code（不带参数，预期 exit 0 或 exit 2）
         bash "$hook_script" 2>/dev/null
         local exit_code=$?

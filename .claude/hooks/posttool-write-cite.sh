@@ -82,7 +82,7 @@ else
     MSG_ESC=$(echo "$MSG" | python3 -c "
 import sys
 s = sys.stdin.read()
-print(s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', '\\\\\\n'))" 2>/dev/null || echo "$MSG")
+print(s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', '\\\\n'))" 2>/dev/null || echo "$MSG")
     printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG_ESC"
 fi
 

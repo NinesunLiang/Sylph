@@ -10,6 +10,13 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 READ_LOG="$STATE_DIR/read-tracker.txt"
 
+# 无人值守模式: 跳过 Read-before-Edit 门禁（exit 0 + additionalContext）
+UNATTENDED_FILE="$STATE_DIR/.unattended-mode"
+if [ -f "$UNATTENDED_FILE" ]; then
+    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 无人值守模式: 跳过 Read-before-Edit 检查"}}\n'
+    exit 0
+fi
+
 # 提取 file_path 字段
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
@@ -50,9 +57,10 @@ if [ -z "$REAL_PATH" ]; then
     REAL_PATH="$FILE_PATH"
 fi
 
-# Fail-open: 状态文件不存在 → 放行（read-tracker 可能未工作）
+# Fail-closed: 状态文件不存在 → 阻断（read-tracker 可能未初始化）
 if [ ! -f "$READ_LOG" ]; then
-    exit 0
+    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [Read-before-Edit] 读文件追踪器未初始化，无法验证 Read-before-Edit。请确认 read-tracker hook 已启用。"}}\n'
+    exit 2
 fi
 
 # 检查是否已读取（精确匹配整行）

@@ -107,6 +107,11 @@
             "type": "command",
             "command": "bash .claude/hooks/completion-gate.sh",
             "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-handoff-writer.sh",
+            "timeout": 3000
           }
         ]
       },

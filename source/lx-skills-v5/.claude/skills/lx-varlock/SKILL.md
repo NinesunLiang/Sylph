@@ -6,6 +6,7 @@ version: v1.1.0
 
 description: "隐私脱敏代理管理器。处理包含敏感信息（密码、API Key、Token）的文件读写或命令执行，确保明文绝不泄露在 AI 上下文中。"
 
+complexity: beginner
 when_to_use: "Use when user provides a password, api key, token, or when you need to read/write a sensitive configuration file like .env or secret.yml."
 
 model: sonnet
@@ -75,5 +76,11 @@ n
 |------|--------|---------|
 |脚本执行失败 | 运行脚本 | 提示用户：底层脱敏机制异常，禁止传输任何明文。请手动在脱离 AI 的环境测试。|
 |用户拒绝使用脱敏机制 | 强制执行 | **拒绝任务**。明确表示 Carror OS 无法违反数据防泄露 (DLP) 铁律。 |
+
+### 关联技能
+| 技能 | 关联关系 |
+|------|---------|
+| [lx-security-review](../lx-security-review/SKILL.md) | 安全审查中需识别敏感信息，可与 varlock 脱敏联动 |
+| [lx-race](../lx-race/SKILL.md) | 并发场景下的敏感数据竞争检测 |
 
 

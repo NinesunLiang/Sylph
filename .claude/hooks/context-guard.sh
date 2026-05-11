@@ -23,10 +23,22 @@ fi
 # 无人值守模式: .omc/state/.unattended-mode 存在时，策略更松散
 # - 写操作也不阻断(仅记录 flywheel)
 # - 危险阈值提升到 95%，减少误报
+# - 自动过期: 超过 UNATTENDED_MAX_AGE (默认30分钟) 视为过期，自动清理
 UNATTENDED_FILE="$STATE_DIR/.unattended-mode"
 UNATTENDED=false
 if [ -f "$UNATTENDED_FILE" ]; then
-    UNATTENDED=true
+    UNATTENDED_MAX_AGE=$(hc_get "context_guard.unattended_max_age_seconds" "1800")
+    if [ -n "$UNATTENDED_MAX_AGE" ] && [ "$UNATTENDED_MAX_AGE" -gt 0 ]; then
+        FILE_AGE=$(( $(date +%s) - $(stat -f %m "$UNATTENDED_FILE") ))
+        if [ "$FILE_AGE" -gt "$UNATTENDED_MAX_AGE" ]; then
+            rm -f "$UNATTENDED_FILE"
+            echo "⚠️ [Context Guard] 无人值守模式文件已过期 (超过 ${UNATTENDED_MAX_AGE}s)，自动清理" >&2
+        else
+            UNATTENDED=true
+        fi
+    else
+        UNATTENDED=true
+    fi
 fi
 
 # R29: 只对写工具 (Edit/Write) 做硬阻断, 保留 Read/Grep/Bash 诊断通道
@@ -82,6 +94,7 @@ EOF
             # 非写工具 或 无人值守模式: 仅记录 flywheel + 告警, 不阻断
             printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文占比 %s%%。超出危险阈值。请考虑 /compact。诊断操作未阻断。%s"}}\n' \
                 "$PCT" "$([ "$UNATTENDED" = "true" ] && echo ' [无人值守模式: 已记录，未阻断]' || echo '')"
+            exit 0
         fi
     fi
 fi

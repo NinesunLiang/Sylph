@@ -6,7 +6,7 @@
 # 文件级签名 dedup，写入 .omc/state/contradiction-log.jsonl
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "intent_tracker" || { cat; exit 0; }
+hc_enabled "intent_tracker" || { echo '{"continue":true}'; exit 0; }
 INPUT=$(cat)
 
 # 从 stdin JSON 提取关键字段
@@ -19,7 +19,7 @@ try:
 except:
     pass" 2>/dev/null)
 
-[ -z "$FILE_PATH" ] && { cat; exit 0; }
+[ -z "$FILE_PATH" ] && exit 0
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -83,7 +83,7 @@ for rec in previous:
 record = {
     'ts': int(__import__('time').time()),
     'sig': sig,
-    'file': file_path[len(os.path.commonpath([file_path, os.path.dirname(log_path)])):] if False else file_path,
+    'file': file_path,
     'assertion_found': True,
     'contradiction': is_contradiction,
 }
@@ -96,7 +96,11 @@ if is_contradiction:
 # Append
 with open(log_path, 'a') as f:
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
+
+# Output additionalContext on contradiction so AI sees its own past declarations
+if is_contradiction:
+    ctx = f"[intent-tracker] 矛盾检测: 文件 {file_path} 在同一会话中已有声明记录，再次编辑存在前后矛盾风险"
+    print(json.dumps({"continue": True, "hookSpecificOutput": {"additionalContext": ctx}}))
 PYEOF
 
-cat  # pass through stdin for hook protocol
 exit 0

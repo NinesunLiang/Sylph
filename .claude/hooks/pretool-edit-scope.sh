@@ -25,12 +25,14 @@ BASENAME=$(basename "$FILE_PATH")
 
 # 保护文件警告（仅 stderr，不阻断）
 PROTECTED=$(hc_get "protected_files.warn_on_edit" "package.json go.mod Cargo.toml main.go pom.xml")
+set -f
 for f in $PROTECTED; do
     if [ "$BASENAME" = "$f" ]; then
         echo "⚠️ 正在编辑核心文件: ${BASENAME}。请确认已声明影响范围并获得用户确认(§6.2)。" >&2
         break
     fi
 done
+set +f
 
 # 范围冻结检查
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -92,11 +94,17 @@ PYEOF
     fi
 }
 
-# 无范围文件 → 仅输出耦合提醒后放行
+# 无范围文件 → 尝试自动推导（仅输出提醒，不创建 scope 文件）
+# 原则：无 scope = 放行。auto-scope 不应本末倒置产生 scope 封锁。
 if [ ! -f "$SCOPE_FILE" ]; then
+    AUTO_SCOPE="$PROJECT_ROOT/.claude/scripts/auto-scope.sh"
+    if [ -f "$AUTO_SCOPE" ]; then
+        # 仅输出提醒，不创建 scope 文件
+        AUTO_MSG=$(bash "$AUTO_SCOPE" 2>&1 || true)
+        echo "ℹ️  auto-scope: $AUTO_MSG" >&2
+    fi
     REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
     coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
-    # Record to session edit log
     echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
     exit 0
 fi
@@ -107,7 +115,8 @@ REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
 # 逐行 glob 匹配
 while IFS= read -r pattern || [ -n "$pattern" ]; do
     [ -z "$pattern" ] && continue
-    [[ "$REL_PATH" == $pattern ]] && {
+    # 同时匹配 REL_PATH（全路径）和 BASENAME（文件名），解决 auto-scope 只生成 basename 的问题
+    [[ "$REL_PATH" == $pattern || "$BASENAME" == $pattern ]] && {
         coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
         # Record to session edit log
         echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true

@@ -16,6 +16,49 @@ import sys
 from typing import Any
 
 
+# 症状分类映射（E5: symptom-level grouping for cross-session pattern detection）
+# 每个 type → symptom 的映射，用于发现跨 session 的症状重复模式
+SYMPTOM_MAP: dict[str, str] = {
+    "go_compile": "compile_error",
+    "go_undefined": "compile_error",
+    "go_unused_import": "compile_error",
+    "typescript": "compile_error",
+    "rust_compile": "compile_error",
+    "missing_module": "dependency_missing",
+    "python_missing_module": "dependency_missing",
+    "python_error": "runtime_error",
+    "make_error": "build_failure",
+    "permission": "permission_denied",
+    "oom": "resource_exhaustion",
+    "unknown": "unclassified",
+}
+
+
+def classify_symptom(error_types: list[str]) -> str:
+    """Aggregate multiple error types into a single symptom category.
+
+    Uses majority vote: the symptom appearing most frequently wins.
+    Returns 'unclassified' on empty input or tie without clear winner.
+    """
+    if not error_types:
+        return "unclassified"
+    counts: dict[str, int] = {}
+    for t in error_types:
+        sym = SYMPTOM_MAP.get(t, "unclassified")
+        counts[sym] = counts.get(sym, 0) + 1
+    if not counts:
+        return "unclassified"
+    max_count = max(counts.values())
+    # Tie among ≥2 symptoms with same count → unclassified
+    winners = [s for s, c in counts.items() if c == max_count]
+    return winners[0] if len(winners) == 1 else "unclassified"
+
+
+def error_to_symptom(error_type: str) -> str:
+    """Map a single error type to its symptom category."""
+    return SYMPTOM_MAP.get(error_type, "unclassified")
+
+
 def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str, Any]]:
     """Multi-language error classifier. Returns list of error dicts."""
     categories: list[dict[str, Any]] = []
@@ -27,6 +70,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
             file_path, error_msg = go_errors[0]
             categories.append({
                 "type": "go_compile",
+                "symptom": "compile_error",
                 "file": file_path.split(':')[0],
                 "line": file_path.split(':')[1],
                 "message": error_msg.strip()[:200],
@@ -39,6 +83,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if 'undefined:' in output.lower() or 'undeclared name' in output.lower():
         categories.append({
             "type": "go_undefined",
+            "symptom": "compile_error",
             "message": "未定义的标识符",
             "suggestions": [
                 "检查变量/函数名拼写是否正确",
@@ -49,6 +94,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if 'imported and not used' in output:
         categories.append({
             "type": "go_unused_import",
+            "symptom": "compile_error",
             "message": "导入了未使用的包",
             "suggestions": [
                 "删除未使用的 import",
@@ -60,6 +106,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if ts_match:
         categories.append({
             "type": "typescript",
+            "symptom": "compile_error",
             "code": ts_match.group(1),
             "message": ts_match.group(2).strip()[:200],
             "suggestions": [
@@ -71,7 +118,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if "cannot find module" in output.lower() or "module not found" in output.lower():
         categories.append({
             "type": "missing_module",
-            "message": "找不到模块",
+            "symptom": "dependency_missing",            "message": "找不到模块",
             "suggestions": [
                 "运行 `npm install` 或 `pnpm install` 安装依赖",
                 "检查 import 路径是否正确",
@@ -83,6 +130,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if py_match:
         categories.append({
             "type": "python_error",
+            "symptom": "runtime_error",
             "error_type": py_match.group(1),
             "message": py_match.group(2).strip()[:200],
             "suggestions": [
@@ -94,7 +142,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if "no module named" in output.lower():
         categories.append({
             "type": "python_missing_module",
-            "message": "找不到 Python 模块",
+            "symptom": "dependency_missing",            "message": "找不到 Python 模块",
             "suggestions": [
                 "运行 `pip install <module_name>` 安装缺失的包",
                 "确认使用了正确的 Python 解释器 (`which python`)",
@@ -107,6 +155,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
         if rust_match:
             categories.append({
                 "type": "rust_compile",
+                "symptom": "compile_error",
                 "code": rust_match.group(1),
                 "message": rust_match.group(2).strip()[:200],
                 "suggestions": [
@@ -119,7 +168,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if "make:" in output or "Makefile" in output:
         categories.append({
             "type": "make_error",
-            "message": "Make 构建失败",
+            "symptom": "build_failure",            "message": "Make 构建失败",
             "suggestions": [
                 "检查 Makefile 中的目标和依赖",
                 "运行 `make -n` 查看实际执行的命令",
@@ -130,7 +179,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if "permission denied" in output.lower():
         categories.append({
             "type": "permission",
-            "message": "权限被拒绝",
+            "symptom": "permission_denied",            "message": "权限被拒绝",
             "suggestions": [
                 "检查文件/目录权限 (`ls -la`)",
                 "确认有足够的执行权限",
@@ -140,7 +189,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if "out of memory" in output.lower() or "oom" in output.lower():
         categories.append({
             "type": "oom",
-            "message": "内存不足",
+            "symptom": "resource_exhaustion",            "message": "内存不足",
             "suggestions": [
                 "减少并行度 (如 `GOMAXPROCS=1` 或 `--max-old-space-size`)",
                 "关闭其他占用内存的程序",
@@ -151,6 +200,7 @@ def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str
     if not categories:
         categories.append({
             "type": "unknown",
+            "symptom": "unclassified",
             "message": f"构建命令退出码 {exit_code}",
             "suggestions": [
                 "仔细阅读第一条错误信息（通常后续错误是级联的）",

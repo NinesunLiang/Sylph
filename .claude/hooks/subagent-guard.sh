@@ -70,11 +70,13 @@ fi
 # 判断是否为危险类型（从配置读取危险关键词列表）
 DANGEROUS_TYPES=$(hc_get "subagent_guard.dangerous_types" "executor designer scientist")
 IS_DANGEROUS=false
+set -f
 for dtype in $DANGEROUS_TYPES; do
     case "$AGENT_TYPE" in
         *${dtype}*) IS_DANGEROUS=true; break ;;
     esac
 done
+set +f
 
 # 安全类型 → 放行
 if [ "$IS_DANGEROUS" = "false" ]; then

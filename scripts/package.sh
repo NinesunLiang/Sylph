@@ -7,7 +7,7 @@ RED='\033[0;31m'; GREEN='\033[0;32m'; BLUE='\033[0;34m'; NC='\033[0m'
 log_info(){ echo -e "${GREEN}[INFO]${NC} $1"; }
 log_step(){ echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION="v6.1.8-stable"
+VERSION="v6.1.9-stable"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 SOURCE_DIR="$ROOT_DIR/source"
@@ -62,4 +62,4 @@ for F in install.sh harness-kit-install.sh harness-kit-uninstall.sh final-exam.m
 done
 [ -d "$ROOT_DIR/docs" ] && cp -r "$ROOT_DIR/docs" "$PACKAGES_DIR/"
 
-log_info "✅ 打包完成！v6.1.8-stable is fully loaded."
+log_info "✅ 打包完成！v6.1.9-stable is fully loaded."

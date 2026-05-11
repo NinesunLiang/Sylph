@@ -124,9 +124,12 @@ _ec_available = False
 if os.path.exists(_ec_path):
     try:
         sys.path.insert(0, os.path.dirname(_ec_path))
-        from error_classifier import classify_by_command, generate_signature as _gs_lib
+        from error_classifier import classify_by_command, generate_signature as _gs_lib, classify_error
         error_type = classify_by_command(cmd_clean)
         signature = _gs_lib(cmd_clean, exit_code, error_type)
+        # E5: 症状级分类
+        errors_detail = classify_error(cmd_clean, exit_code, stderr or stdout)
+        symptom = errors_detail[0].get('type', error_type) if errors_detail else error_type
         _ec_available = True
     except Exception:
         pass
@@ -134,6 +137,7 @@ if os.path.exists(_ec_path):
 if not _ec_available:
     # === Fallback: inline signature (cmd-only) + local classifier ===
     signature = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
+    symptom = 'unknown'
 
     cmd_lower = cmd_clean.lower()
     if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc']):
@@ -159,18 +163,31 @@ if not _ec_available:
 output_snippet = (stderr or stdout)[:500]
 message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
 
+# E5: Noise classification — known operational patterns that are not actionable
+NOISE_PATTERNS = [
+    'File has not been read yet',       # edit-guard enforcement (normal)
+    "doesn't want to proceed",           # user tool rejection (normal)
+    "doesn't want to take this action",  # user tool rejection (normal)
+    'String to replace not found',       # Edit tool retry (normal)
+    'cat: illegal option',               # macOS compat (known)
+    'File does not exist',               # Read tool error (normal)
+]
+is_noise = any(p in message for p in NOISE_PATTERNS)
+
 session_id = os.environ.get('SESSION_ID', 'unknown') or 'unknown'
 
 # === AC-1.1: JSONL record ===
 record = {
     'ts': ts,
     'signature': signature,
+    'symptom': symptom,
     'cmd': cmd_clean,
     'exit_code': exit_code,
     'error_type': error_type,
     'message': message,
     'output_snippet': output_snippet,
-    'session_id': session_id
+    'session_id': session_id,
+    'is_noise': is_noise
 }
 
 jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
@@ -202,10 +219,11 @@ try:
                 rec = json.loads(line)
                 sig = rec.get('signature', 'unknown')
                 if sig not in aggregated:
+                    _noise = rec.get('is_noise', False)
                     aggregated[sig] = {
                         'count': 0,
                         'fix_count': 0,
-                        'status': 'active',
+                        'status': 'noise' if _noise else 'active',
                         'last_seen': 0,
                         'message': ''
                     }
@@ -308,7 +326,7 @@ except Exception:
 # === Oracle Q2-A: additionalContext for high-frequency errors (>=2 occurrences) ===
 frequent = [(sig, info['count'], info.get('message', '')[:120])
             for sig, info in aggregated.items()
-            if info['count'] >= 2 and info.get('status') != 'fixed']
+            if info['count'] >= 2 and info.get('status') not in ('fixed', 'noise')]
 if frequent:
     frequent.sort(key=lambda x: -x[1])
     lines = ["[高频错误模式检测] 以下签名已出现 >=2 次:"]

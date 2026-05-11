@@ -83,6 +83,74 @@ except:
             exit 2
         fi
 
+        # E3 增强: 软完成语检测 — 拒绝违禁词（AGENTS.md §软完成语禁令）
+        SOFT_WORDS=$(hc_get "completion_gate.soft_completion_words" "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过")
+        if echo "$CONTENT" | grep -qiE "$SOFT_WORDS"; then
+            echo "⛔ COMPLETION BLOCKED: 证据含软完成语（违禁词），请用具体验证结果替换。" >&2
+            echo "违禁词: 应该没问题了、基本完成、大部分完成、差不多了、理论上可行、看起来正常" >&2
+            echo "正确格式示例: 'VERIFIED: go build ./... → exit 0, all tests PASS'" >&2
+            rm -f "$CONSUMED"
+            exit 2
+        fi
+
+        # E3 增强: 证据质量评分 — 量化证据完整性，低于阈值则阻断
+        QUALITY_SCORE=$(python3 -c "
+import sys, re
+content = '''$CONTENT'''
+score = 0.0
+details = []
+
+# 1) file:line 引用（权重 40%）
+fl_count = len(re.findall(r'[\w./-]+\.[a-z]+:\d+', content))
+fl_score = min(fl_count / 3.0, 1.0) * 40
+score += fl_score
+details.append(f'file:line refs ({fl_count}处): {fl_score:.0f}/40')
+
+# 2) 命令/测试输出（权重 30%）
+cmd_patterns = ['exit.code', r'\bPASS\b', r'\bFAIL\b', r'✅', r'❌', 'test', 'build', r'\d+ passed', r'\d+ failed', 'VERIFIED']
+cmd_hits = sum(1 for p in cmd_patterns if re.search(p, content, re.IGNORECASE))
+cmd_score = min(cmd_hits / 4.0, 1.0) * 30
+score += cmd_score
+details.append(f'test/cmd markers ({cmd_hits}处): {cmd_score:.0f}/30')
+
+# 3) 多方面验证（权重 20%）
+multi_patterns = [r'\d+%', r'\d+ms', r'\d+ req', r'coverage', 'all tests', 'zero errors', 'edge.case', 'regression']
+multi_hits = sum(1 for p in multi_patterns if re.search(p, content, re.IGNORECASE))
+multi_score = min(multi_hits / 3.0, 1.0) * 20
+score += multi_score
+details.append(f'multi-aspect ({multi_hits}处): {multi_score:.0f}/20')
+
+# 4) 量化/边界（权重 10%）
+quant_patterns = [r'\d+/\d+', r'\d+\.\d+', r'PASS.*FAIL', r'N/A']
+quant_hits = sum(1 for p in quant_patterns if re.search(p, content))
+quant_score = min(quant_hits / 2.0, 1.0) * 10
+score += quant_score
+details.append(f'quantification ({quant_hits}处): {quant_score:.0f}/10')
+
+print(f'{score:.0f}')
+for d in details:
+    print(d)
+" 2>/dev/null)
+
+        QUALITY_THRESHOLD=$(hc_get "completion_gate.quality_threshold" "50")
+
+        if [ -n "$QUALITY_SCORE" ] && [ "$QUALITY_SCORE" -lt "$QUALITY_THRESHOLD" ] 2>/dev/null; then
+            echo "⛔ COMPLETION BLOCKED: 证据质量评分 ${QUALITY_SCORE}% < ${QUALITY_THRESHOLD}% 最低要求。" >&2
+            echo "质量分解:" >&2
+            python3 -c "
+content = '''$(cat "$CONSUMED" 2>/dev/null)'''
+import re; score=0; fl=len(re.findall(r'[\w./-]+\.[a-z]+:\d+', content))
+cmd=sum(1 for p in ['exit.code',r'PASS',r'FAIL','✅','❌','test','build'] if re.search(p,content,re.I))
+multi=sum(1 for p in [r'\d+%',r'\d+ms','coverage','all tests','edge.case'] if re.search(p,content,re.I))
+print(f'  file:line引用: {fl}处 (需≥3)')
+print(f'  测试/编译标记: {cmd}处 (需≥2)')
+print(f'  多方面验证:   {multi}处 (需≥2)')
+print(f'  >>> 改进: 添加 file:line 引用 + 具体命令输出 + 量化测试结果')
+" 2>/dev/null
+            rm -f "$CONSUMED"
+            exit 2
+        fi
+
         # 验证通过，清理消费文件
         rm -f "$CONSUMED"
 

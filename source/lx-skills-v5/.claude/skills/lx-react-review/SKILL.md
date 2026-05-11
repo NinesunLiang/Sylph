@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "React/Next.js 及前端框架代码审查：渲染性能、Hooks 规则、组件设计、状态管理、TypeScript 质量。适用于 React/Vue/Svelte 等现代前端项目。"
 
+complexity: intermediate
 when_to_use: "Use after writing React/Next.js components. Trigger: 'react review', 'component review', 'check react', 'review component'."
 
 model: sonnet

@@ -28,7 +28,7 @@
 - **Python 脚本**：snake_case（`context_monitor.py`、`oma_lock_manager.py`）
 - **Skill 目录**：`lx-` 前缀（`lx-rpe`、`lx-oma-split`），SKILL.md 主文件
 - **YAML key**：snake_case（`hooks_enabled.completion_gate`），与脚本调用一致
-- **版本号**：始终 `v6.1.8-stable` 格式，VERSION.json 无前缀 `6.1.8`
+- **版本号**：始终 `v6.1.9-stable` 格式，VERSION.json 无前缀 `6.1.9`
 
 ## 错误处理铁律
 <!-- 由 R17 审计填充 @2026-05-07 -->

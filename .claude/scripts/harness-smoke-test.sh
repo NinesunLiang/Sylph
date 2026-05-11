@@ -47,6 +47,8 @@ log "harness-smoke-test.sh @ $TS"
 log "========================================"
 
 # --- context-guard (R13 大小写 + R15 tool_name) ---
+# 清理可能残留的无人值守模式文件，防止干扰阻断测试
+rm -f .omc/state/.unattended-mode
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "context-guard: Write @ 95% 应硬阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
@@ -726,6 +728,77 @@ if grep -q "knowledge_condenser: true" .claude/harness.yaml; then
     pass "R36 knowledge-condenser harness.yaml 已启用"
 else
     fail "R36 knowledge-condenser harness.yaml 未启用"
+fi
+
+# --- R37: posttool-handoff-writer.sh 回归 ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R37 posttool-handoff-writer: 语法检查"
+bash -n .claude/hooks/posttool-handoff-writer.sh
+if [ $? -eq 0 ]; then
+    pass "R37 posttool-handoff-writer 语法通过"
+else
+    fail "R37 posttool-handoff-writer 语法错误"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R37 posttool-handoff-writer: 非 completed 静默退出"
+echo '{"tool":"TaskUpdate","tool_input":{"status":"in_progress"}}' | bash .claude/hooks/posttool-handoff-writer.sh > /dev/null 2>&1
+if [ $? -eq 0 ]; then
+    pass "R37 posttool-handoff-writer 非 completed 静默退出"
+else
+    fail "R37 posttool-handoff-writer 非 completed 不应阻断"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R37 posttool-handoff-writer: settings.json 注册"
+if grep -q "posttool-handoff-writer.sh" .claude/settings.json; then
+    pass "R37 posttool-handoff-writer 已注册 settings.json"
+else
+    fail "R37 posttool-handoff-writer 未注册 settings.json"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R37 posttool-handoff-writer: harness.yaml 开关"
+if grep -q "posttool_handoff_writer: true" .claude/harness.yaml; then
+    pass "R37 posttool-handoff-writer harness.yaml 已启用"
+else
+    fail "R37 posttool-handoff-writer harness.yaml 未启用"
+fi
+
+# --- R38: auto-scope.sh 回归 ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38 auto-scope: 语法检查"
+bash -n .claude/scripts/auto-scope.sh
+if [ $? -eq 0 ]; then
+    pass "R38 auto-scope 语法通过"
+else
+    fail "R38 auto-scope 语法错误"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38 auto-scope: 静默执行（无 plan.md fallback）"
+bash .claude/scripts/auto-scope.sh > /dev/null 2>&1
+_RC=$?
+if [ "$_RC" = "0" ]; then
+    pass "R38 auto-scope 静默执行 (exit=$_RC)"
+else
+    fail "R38 auto-scope 不应阻断 (exit=$_RC)"
+fi
+
+# --- R39: completion-gate 证据质量评分回归 ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R39 completion-gate quality: harness.yaml 配置检查"
+if grep -q "quality_threshold" .claude/harness.yaml || grep -q "quality_threshold" .claude/profiles/base/harness.yaml 2>/dev/null; then
+    pass "R39 completion-gate quality 配置存在"
+else
+    fail "R39 completion-gate quality 无 quality_threshold 配置"
 fi
 
 log ""

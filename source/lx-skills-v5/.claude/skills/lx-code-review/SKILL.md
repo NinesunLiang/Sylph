@@ -6,6 +6,7 @@ version: v4.0.0
 
 description: "Review & fix Go code: 8 categories, 39 rules covering error handling, go-zero patterns, concurrency, interface design, performance, robustness, observability."
 
+complexity: intermediate
 when_to_use: "Use after writing Go code, before tests/commit. Trigger: 'review code', 'code review', 'check quality', 'review my changes'."
 
 model: sonnet

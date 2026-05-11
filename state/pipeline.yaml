@@ -13,7 +13,7 @@ oracle_gates:
   id: og-002
   result: ✅ Approved — 3 项漂移已修复 (phantom interfaces, entity ownership, Free limit
     spec). Coverage verification exit 0. 341 行 Task 1 代码已实现.
-  reviewed_at: 2026-05-09T${now}+08:00
+  reviewed_at: 2026-05-09T22:00:00+08:00
   status: approved
   target: 'sub_prd: alert-engine'
   to_stage: gov_initialized

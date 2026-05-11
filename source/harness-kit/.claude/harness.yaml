@@ -68,6 +68,7 @@ completion_gate:
   required_keyword: "VERIFIED"
   evidence_dir: ".omc/state"
   evidence_freshness_sec: 300
+  quality_threshold: 50
 
 bash_audit:
   dangerous_patterns: "git commit git push git reset --hard rm -rf rm -r pkill kill"
@@ -107,7 +108,7 @@ coupling:
   max_coupled_files: 5
 
 hooks_enabled:
-  oma_lock: true
+  # oma_lock: Python module (oma_lock_manager.py), not a shell hook
   completion_gate: true
   subagent_guard: true
   pretool_edit_scope: true
@@ -136,11 +137,12 @@ hooks_enabled:
   flywheel_report: true
   stop_drain: true
   compact_detect: true
-  subagent_audit: true
+  posttool_subagent_audit: true
   token_writer: true
   intent_tracker: true
   error_dna_auto_fix: true
   knowledge_condenser: true
+  posttool_handoff_writer: true
 
 skills_enabled:
   lx-status: true

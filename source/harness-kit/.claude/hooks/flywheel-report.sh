@@ -144,6 +144,8 @@ try:
             sev = parts[2] if len(parts) > 2 else ''
             if sev != 'P0':
                 continue
+            if is_suppressed(evt):
+                continue
             if d >= this_month_cutoff:
                 this_month_counts[evt] += 1
             elif d >= prev_month_cutoff:
@@ -207,10 +209,12 @@ except Exception:
         pass
 
 # AI context injection (stdout) — flywheel alerts
-print(f"[Flywheel] P0 alerts this month: {warnings_count} events across {project_count} projects")
+project_count = len(set(proj for evt, cnt in warnings for proj in project_map.get(evt, [])))
+print(f"[Flywheel] P0 alerts this month: {len(warnings)} events across {project_count} projects")
 if warnings:
     print(f"  top: {warnings[0]}")
     if len(warnings) > 1:
         print(f"  also: {warnings[1]}")
 print("---")
 PYEOF
+exit 0

@@ -25,12 +25,14 @@ BASENAME=$(basename "$FILE_PATH")
 
 # 保护文件警告（仅 stderr，不阻断）
 PROTECTED=$(hc_get "protected_files.warn_on_edit" "package.json go.mod Cargo.toml main.go pom.xml")
+set -f
 for f in $PROTECTED; do
     if [ "$BASENAME" = "$f" ]; then
         echo "⚠️ 正在编辑核心文件: ${BASENAME}。请确认已声明影响范围并获得用户确认(§6.2)。" >&2
         break
     fi
 done
+set +f
 
 # 范围冻结检查
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -92,22 +94,32 @@ PYEOF
     fi
 }
 
-# 无范围文件 → 仅输出耦合提醒后放行
-if [ ! -f "$SCOPE_FILE" ]; then
-    REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
-    coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
-    # Record to session edit log
-    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
-    exit 0
+# ─── 删除保护：禁止 AI 删除 scope 文件（结构性 fail-open 修复） ───
+if [ "$BASENAME" = "current-scope.txt" ] && echo "$FILE_PATH" | grep -q "\.omc/state/"; then
+    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [Scope Gate] 禁止删除编辑范围文件 current-scope.txt。这是结构性安全控制，无法绕过。"}}\n'
+    exit 2
 fi
 
-# 转为相对路径
+# ─── 无范围文件 → fail-closed（结构性脆弱修复） ───
+# 原则：无 scope = 阻断，必须先声明编辑范围。auto-scope 只生成提醒，不自动创建 scope。
+if [ ! -f "$SCOPE_FILE" ]; then
+    AUTO_SCOPE="$PROJECT_ROOT/.claude/scripts/auto-scope.sh"
+    if [ -f "$AUTO_SCOPE" ]; then
+        AUTO_MSG=$(bash "$AUTO_SCOPE" 2>&1 || true)
+    fi
+    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [Scope Gate] 未找到编辑范围文件 current-scope.txt。当前编辑操作被阻断。\n\n请在 .omc/state/current-scope.txt 中声明允许编辑的文件/目录，格式：\n  ./path/to/file.go\n  ./**/*.go\n\n提示: %s"}}\n' \
+        "${AUTO_MSG:-运行 auto-scope.sh 获取建议范围}" >&2
+    exit 2
+fi
+
+# ─── 转为相对路径，逐行 glob 匹配范围 ───
 REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
 
 # 逐行 glob 匹配
 while IFS= read -r pattern || [ -n "$pattern" ]; do
     [ -z "$pattern" ] && continue
-    [[ "$REL_PATH" == $pattern ]] && {
+    # 同时匹配 REL_PATH（全路径）和 BASENAME（文件名），解决 auto-scope 只生成 basename 的问题
+    [[ "$REL_PATH" == $pattern || "$BASENAME" == $pattern ]] && {
         coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
         # Record to session edit log
         echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true

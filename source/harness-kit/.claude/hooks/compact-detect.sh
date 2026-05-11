@@ -74,7 +74,7 @@ fi
 if [ -f "$INJECT_KERNEL" ]; then
     echo ""
     echo "--- 架构铁律 ---"
-    grep -E '^\*\*' "$INJECT_KERNEL" 2>/dev/null | head -10
+    grep -E '^## |^\*\*' "$INJECT_KERNEL" 2>/dev/null | head -10
 fi
 
 # 注入 AGENTS.md 治理框架纲要
