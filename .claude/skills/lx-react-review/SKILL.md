@@ -140,7 +140,7 @@ p
 |git 不可用 | 回退到 `$ARGUMENTS` 指定的文件列表扫描|
 |react-rules.md 缺失 | AI 使用通用前端规则执行扫描|
 |react-style-guide.md 缺失 | 使用本 Skill 内置规范，降级通知用户|
-|2 次修复失败 + 根因不明 | 升级至 `/lx-debug-spec`|
+|2 次修复失败 + 根因不明 | 上报用户，请求人工介入|
 |AST grep 不支持 TSX 模式 | 回退到 grep + readFile 手动匹配|
 |LSP 无响应或超时 | 回退到 grep + readFile 手动提取类型签名 |
 
