@@ -110,7 +110,7 @@ message = ''
 contradiction_level = 0
 contradiction_type = 'first_edit'
 
-if edit_count >= 3:
+if edit_count >= 5:
     contradiction_level = 2
     contradiction_type = 'churn'
     message = (f"[intent-tracker] 矛盾检测: 文件 {file_path} "

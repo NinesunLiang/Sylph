@@ -242,32 +242,63 @@ print(f'  file:line={fl}  test/cmd={cmd}  multi-aspect={multi}  quant={quant}')
             # 扫描近期修改的方案/报告文件
             RECENT_DOCS=$(find "$PROJECT_ROOT/docs" "$PROJECT_ROOT/rpe" "$PROJECT_ROOT/.omc/plans" -name "*.md" -mmin -10 2>/dev/null | head -5)
             cat > "$HANDOFF_FILE" <<HANDOFF
-***** 复制以下全部内容到 B 终端 *****
+# 🚦 三重门交叉验证 — A→B→A
 
-【当前终端：A | 方案方】
+## Phase 1: A 填写可证伪预测（发给 B 前填写）
+> 注意：以下预测由 A 终端填写，B 终端**不得查看** Phase 1 内容
 
-【对抗性验收提示词】
-换一个不同模型（如 A 用 Claude 则 B 用 GPT/Gemini），
-你是一个对抗性验收官。逐条审查以下方案中每个断言：
-· 有行业标准来源吗？有 file:line 吗？
-· 是自创指标/口径含糊/结论夸大吗？→ ❌
-· 输出格式: 断言 → 证据 → 判定(✅/⚠️/❌) + 理由
+**subject**: ${TASK_DESCRIPTION:-任务验证}
 
-【以下为待验收方案内容】
-任务描述: ${CONTENT}
+predictions:
+$(echo "${CONTENT}" | head -5 | sed 's/^/  /')
+- [ ] 预测1: [A 填写具体可证伪断言]
+- [ ] 预测2: [A 填写具体可证伪断言]
+- [ ] 预测3: [A 填写具体可证伪断言]
 
-近期修改的相关文件（10分钟内）:
+**evidence_requirements**:
+  - build: [产物/exit_code/构建日志]
+  - test: [通过数/失败数/覆盖率]
+  - behavior: [路径/内容/副作用]
+
+---
+
+## Phase 2: B 盲执行（剥离预测后发给 B）
+
+> 以下内容复制到 B 终端（B **不知道** A 的预测，消除确认偏差）
+
+B 终端，你是执行方。执行以下验证任务，**只陈述事实**，不下结论：
+
+**任务描述**:
+${CONTENT}
+
+**近期修改的相关文件（10分钟内）**:
 $(echo "${RECENT_DOCS}" | sed 's/^/  - /')
 
-（如方案内容在以上文件中，B 终端直接读取对应文件审查）
+**B 报告格式**（请逐项填写原始输出，不做分析）:
+\`\`\`
+executed_steps:
+  - step_id: "S1"
+    command: "[实际执行的命令]"
+    exit_code: 0|1|null
+    actual_output: "[原始输出]"
+    observed: "[客观描述]"
+anomalies: []
+\`\`\`
 
-***** 以上复制到 B 终端 *****
-***** 以下为 B 返回报告 *****
+---
 
-【当前终端：B | 验收方】
-（B 终端贴在这里）
+## Phase 3: A 自证（收到 B 报告后填写）
 
-***** 验收报告结束 *****
+comparisons:
+  - prediction_id: "P1"
+    expected: "[A 的预测内容]"
+    observed: "[B 的观测结果]"
+    match: true|false
+    explanation: "[不匹配时解释原因]"
+self_verdict: "PASS|FAIL|INCONCLUSIVE"
+reasoning: "[综合判断]"
+
+***** 全部内容结束 *****
 HANDOFF
             # 读回文件打印到 stderr
             cat "$HANDOFF_FILE" >&2
