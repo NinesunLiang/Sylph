@@ -39,8 +39,8 @@
 
 ## 测试要求
 <!-- 由 R17 审计填充 @2026-05-07 -->
-- **Harness Smoke**：修改 hook 后必须通过 `harness-smoke-test.sh`（66/66 pass）
-- **Hook 生产验证**：`hook-production-verify.sh`（25/25 pass）覆盖所有 gate 场景
+- **Harness Smoke**：修改 hook 后必须通过 `harness-smoke-test.sh`（动态计数，全绿为 pass）
+- **Hook 生产验证**：`hook-production-verify.sh`（动态计数，全绿为 pass）覆盖所有 gate 场景
 - **OMA Lock 测试**：修改锁逻辑后必须运行 `test_oma_lock.py`
 - **版本审计**：修改版本号后必须运行 `audit-hooks.sh` 确认三方对齐
 

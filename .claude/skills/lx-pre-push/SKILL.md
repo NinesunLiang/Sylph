@@ -6,7 +6,6 @@ version: v2.0.0
 
 description: "推送前深度门禁：commit message 规范校验（骨架驱动，通用）→ 测试覆盖 → 安全扫描 → 判定。"
 
-complexity: intermediate
 when_to_use: "Use when user says 'pre-push', 'push check', '推送前检查', or before git push."
 
 model: sonnet
@@ -25,11 +24,22 @@ triggers:
 
 ## 原子化声明
 
-### 使用的通用节点| 节点 | 路径 | 用途 ||------|------|------|| behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 || scanner | `../../nodes/scanner.md` | 安全扫描 |
+### 使用的通用节点
+| 节点 | 路径 | 用途 |
+|------|------|------|
+| behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |
+| scanner | `../../nodes/scanner.md` | 安全扫描 |
 
-### scripts/（确定性执行层）| 脚本 | 用途 | 调用时机 ||------|------|---------|| `scripts/commit_convention.py` | commit 规范管理（learn/validate/show/reset）| Gate 0 || `scripts/get_changed_files.py` | 获取相对于 prod-commit 的变更文件 | Gate 1 前 |
+### scripts/（确定性执行层）
+| 脚本 | 用途 | 调用时机 |
+|------|------|---------|
+| `scripts/commit_convention.py` | commit 规范管理（learn/validate/show/reset）| Gate 0 |
+| `scripts/get_changed_files.py` | 获取相对于 prod-commit 的变更文件 | Gate 1 前 |
 
-### references/（按需加载）| 文件 | 加载时机 ||------|---------|| `references/commit-convention-guide.md` | commit 规范学习和管理指南 |
+### references/（按需加载）
+| 文件 | 加载时机 |
+|------|---------|
+| `references/commit-convention-guide.md` | commit 规范学习和管理指南 |
 
 ---
 
@@ -92,12 +102,5 @@ Gate 0 Commit格式：✅ {N} commits 全部通过Gate 1 变更范围： {N} 文
 |lx-security-review 不可用 | 调用 skill | 执行 `govulncheck ./...`，标注"[降级扫描]"|
 |prod-commit 无效 | 脚本报错 | 提示用户重新提供，说明获取方法|
 |测试超时 | 等待 | 120s 后标注"[测试超时，建议手动验证]"，不阻塞 |
-
-### 关联技能
-| 技能 | 关联关系 |
-|------|---------|
-| [lx-pre-commit](../lx-pre-commit/SKILL.md) | pre-commit 是 pre-push 的前置门禁，两者构成提交流水线 |
-| [lx-security-review](../lx-security-review/SKILL.md) | Gate 2 调用进行安全扫描 |
-| [lx-code-review](../lx-code-review/SKILL.md) | 按项目类型自动调用代码审查 |
 
 

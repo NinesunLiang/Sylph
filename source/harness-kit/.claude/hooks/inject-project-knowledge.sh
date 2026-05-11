@@ -355,3 +355,65 @@ if [ -f "$RETRY_SCRIPT" ]; then
         echo "$RETRY_CTX"
     fi
 fi
+
+# 注入 Session Dump 恢复上下文（E8 跨会话恢复）
+SESSION_DUMP="$PROJECT_ROOT/.omc/state/session-dump.json"
+if [ -f "$SESSION_DUMP" ]; then
+    python3 -c "
+import json, os
+try:
+    with open('$SESSION_DUMP') as f:
+        d = json.load(f)
+except:
+    exit(0)
+
+parts = []
+
+gs = d.get('git_state', {})
+mf = gs.get('modified_files', [])
+if mf:
+    parts.append('[session-dump] 上次会话状态: 分支=%s | 轮次=%s | 修改文件=%d' % (gs.get('branch','?'), gs.get('turns',0), len(mf)))
+    for f in mf[:6]:
+        parts.append('  * %s' % f)
+    if len(mf) > 6:
+        parts.append('  * ... 共 %d 个文件' % len(mf))
+
+af = d.get('active_features', [])
+if af:
+    feat_names = []
+    for a in af:
+        if isinstance(a, dict):
+            feat_names.append(str(a.get('name', a.get('feature', ''))))
+        else:
+            feat_names.append(str(a))
+    parts.append('活跃特性: %s' % ' | '.join(feat_names[:4]))
+
+es = d.get('error_summary', {})
+unfixed = es.get('unfixed_count', 0)
+if unfixed > 0 and unfixed < 50:
+    parts.append('未修复错误: %d 个' % unfixed)
+elif unfixed >= 50:
+    parts.append('未修复错误: %d 个（大量噪音）' % unfixed)
+
+tq = d.get('todo_queue', [])
+if tq:
+    parts.append('待办 (%d): 见 todo-queue.md' % len(tq))
+
+cn = d.get('claude_next_hits', [])
+if cn:
+    parts.append('近期教训 (%d):' % len(cn))
+    for h in cn[:3]:
+        label = h[:120] if isinstance(h, str) else str(h.get('title', ''))[:120]
+        parts.append('  * %s' % label)
+
+el = d.get('edit_log', [])
+if el:
+    parts.append('上次会话编辑: %d 个文件' % len(el))
+
+if parts:
+    print('[session-recovery]')
+    for p in parts:
+        print(p)
+    print('--- 完整 dump: Read .omc/state/session-dump.json')
+" 2>/dev/null || true
+fi

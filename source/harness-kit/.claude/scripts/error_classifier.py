@@ -34,31 +34,6 @@ SYMPTOM_MAP: dict[str, str] = {
 }
 
 
-def classify_symptom(error_types: list[str]) -> str:
-    """Aggregate multiple error types into a single symptom category.
-
-    Uses majority vote: the symptom appearing most frequently wins.
-    Returns 'unclassified' on empty input or tie without clear winner.
-    """
-    if not error_types:
-        return "unclassified"
-    counts: dict[str, int] = {}
-    for t in error_types:
-        sym = SYMPTOM_MAP.get(t, "unclassified")
-        counts[sym] = counts.get(sym, 0) + 1
-    if not counts:
-        return "unclassified"
-    max_count = max(counts.values())
-    # Tie among ≥2 symptoms with same count → unclassified
-    winners = [s for s, c in counts.items() if c == max_count]
-    return winners[0] if len(winners) == 1 else "unclassified"
-
-
-def error_to_symptom(error_type: str) -> str:
-    """Map a single error type to its symptom category."""
-    return SYMPTOM_MAP.get(error_type, "unclassified")
-
-
 def classify_error(cmd: str, exit_code: str | int, output: str) -> list[dict[str, Any]]:
     """Multi-language error classifier. Returns list of error dicts."""
     categories: list[dict[str, Any]] = []

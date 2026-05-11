@@ -3,7 +3,7 @@
 # Role: 检测用户纠正信号，强制记录到 claude-next.md
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "pretool_user_correction" || { cat; exit 0; }
+hc_enabled "user_correction_detector" || { cat; exit 0; }
 
 # 从 stdin 读取完整用户输入
 PROMPT=$(cat)

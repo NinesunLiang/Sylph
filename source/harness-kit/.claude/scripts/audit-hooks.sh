@@ -353,7 +353,7 @@ if check_source_mirror:
     }
     # 根级配置文件：动态发现 .json/.yaml 文件
     # 排除本地专属文件（names.local.*, *local.json 等）
-    _EXCLUDED_CONFIG = {'settings.local.json'}
+    _EXCLUDED_CONFIG = {'settings.local.json', 'scheduled_tasks.json'}
     config_files = {}
     for _cf in glob.glob('.claude/*.json') + glob.glob('.claude/*.yaml'):
         _name = os.path.basename(_cf)

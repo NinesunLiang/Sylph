@@ -14,202 +14,22 @@
 
 # 3. 仅用 base：cp profiles/base/harness.yaml .claude/harness.yaml
 
-
-workflow:
-  doc_root: "rpe"
-  executor_doc: "executor.md"
-  plan_doc: "plan.md"
-  research_doc: "research.md"
-
-task_decomposition:
-  require_step_file: true
-  step_file_path: ".claude/{YYYY-M-D}/{task}_step.md"
-  substep_format: "[ ] {描述} → 验收标准"
-  timeout_minutes: 10
-  max_different_approaches: 3
-  on_exceed_attempts: "record_in_step_file_and_continue"
-  sync_rule: "complete_one_mark_one"
-  circuit_breaker_states: "Closed → Open → Half-Open"
-  half_open_retry: true
-  rollback_declaration: "required_for_strict_mode"
-
-knowledge:
-  inject_files:
-    - "index.md:full"
-    - "kernel.md:full"
-    - "claude-next.md:summary"
-    - "anti-patterns.md:summary"
-  snapshot_expiry_sec: 86400
-
-turn_counter:
-  todo_refresh_interval: 10
-  todo_max_items: 15
-  # 多层 context injection 策略（turn-counter.sh 实现）
-  # L0 (<30%): 每15轮 全量规范预防注入
-  # L1 (30-50%): 每10轮 摘要刷新
-  # L2 (>50%): 轮数 > knowledge_inject_min_turns 时锚定（旧复合条件）
-  # L3 (>80%): 每5轮 仅6铁律 + /compact 建议
-  knowledge_inject_context_pct: 50
-  knowledge_inject_min_turns: 20
-
-fuzzy_detection:
-  fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"
-
-lsp_suggest:
-  enabled: true
-
-subagent_guard:
-  dangerous_types: "executor designer scientist"
-  default_max_turns: "20"
-  high_usage_threshold_bytes: "51200"
-
-completion_gate:
-  min_evidence_chars: 20
-  required_keyword: "VERIFIED"
-  evidence_dir: ".omc/state"
-  evidence_freshness_sec: 300
-  quality_threshold: 50
-
-bash_audit:
-  dangerous_patterns: "git commit git push git reset --hard rm -rf rm -r pkill kill"
-
-permission_gate:
-  git_commit_regex: 'git\s+(commit|add\s+--?all|\s+-A)'
-  git_push_force_regex: 'git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force'
-  git_push_regex: 'git\s+push\b'
-  destructive_regex: '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b'
-  sudo_regex: '^\s*sudo\b|sudo\s'
-  permission_keywords: "当前任务 申请理由 permission 需要权限"
-
-sublimation:
-  count_threshold: 20
-  age_days: 10
-  hit_threshold: 5
-
-correction_detector:
-  signals: "不对 错了 你搞错了 应该是 重新来"
-
-session_handoff:
-  enabled: true
-  max_adr_lines: 10
-  max_todo_lines: 10
-  max_lessons: 3
-
-error_dna:
-  enabled: true
-  max_entries: 100
-  rotation_size_bytes: 1048576
-  archive_count: 3
-
-coupling:
-  enabled: true
-  min_co_change: 3
-  max_history_commits: 200
-  max_coupled_files: 5
-
-hooks_enabled:
-  # oma_lock: Python module (oma_lock_manager.py), not a shell hook
-  completion_gate: true
-  subagent_guard: true
-  pretool_edit_scope: true
-  edit_guard: true
-  lsp_suggest: true
-  posttool_read_cite: true
-  posttool_bash_audit: true
-  posttool_write_cite: true
-  permission_gate: true
-  auto_snapshot: true
-  posttool_edit_quality: true
-  inject_project_knowledge: true
-  plan_gate: true
-  turn_counter: true
-  read_tracker: true
-  error_dna: true
-  skill_flywheel: true
-  build_validator: true
-  pretool_user_correction: true
-  pretool_rule_anchor: false
-  proactive_handoff: true
-  context_guard: true
-  privacy_gate: true
-  pretool_write_lock: true
-  posttool_write_lock: true
-  flywheel_report: true
-  stop_drain: true
-  compact_detect: true
-  posttool_subagent_audit: true
-  token_writer: true
-  intent_tracker: true
-  fuzzy_block: true
-  error_dna_auto_fix: true
-  knowledge_condenser: true
-  posttool_handoff_writer: true
-
-skills_enabled:
-  lx-status: true
-  lx-code-review: true
-  lx-react-review: true
-  lx-web-perf: true
-  lx-browser-verify: true
-  lx-golang-test: true
-  lx-security-review: true
-  lx-varlock: true
-  lx-todo: true
-  lx-task-spec: true
-  lx-tdd-spec: true
-  lx-debug-spec: true
-  lx-pre-commit: true
-  lx-pre-push: true
-  lx-rpe: true
-  lx-prd: true
-  lx-validate-skill: true
-  lx-root-cause-analysis: true
-  lx-oma-split: true
-  lx-oma-hier: true
-  lx-race: true
-
-rule_anchor:
-  turn_threshold: 15
-  interval: 5
-
-context_guard:
-  warn_threshold: 50
-  danger_threshold: 60
-
-ghost_mode:
-  default_expiry_hours: 3
-  default_poll_interval: 600
-
-unattended_mode:
-  default_expiry_hours: 6
-
-retry_budget:
-  max_retries: 3
-
-proactive_handoff:
-  context_threshold: 50
-  executor_freshness_sec: 300
-
-token_tracking:
-  limit: 200000
-
-flywheel_report:
-  report_window_days: 30
-  default_snooze_days: 7
-  p0_warning_threshold: 5
-
-read_tracker:
-  rotation_line_count: 500
-  archive_generations: 4
-
-posttool_bash_audit:
-  fail_streak_threshold: 3
-
-oma_lock_manager:
-  max_observability_events: 500
-  initial_backoff: 0.1
-  max_backoff: 1.0
-
-build_validator:
-  log_file: ".omc/state/build-errors.log"
-  max_log_entries: 50
+\
+workflow: doc_root: "rpe" executor_doc: "executor.md" plan_doc: "plan.md" research_doc: "research.md"\
+task_decomposition: require_step_file: true step_file_path: ".claude/{YYYY-M-D}/{task}_step.md" substep_format: "[ ] {描述} → 验收标准" timeout_minutes: 10 max_different_approaches: 3 on_exceed_attempts: "record_in_step_file_and_continue" sync_rule: "complete_one_mark_one" circuit_breaker_states: "Closed → Open → Half-Open" half_open_retry: true rollback_declaration: "required_for_strict_mode"\
+knowledge: inject_files: - "index.md:full" - "kernel.md:full" - "claude-next.md:summary" - "anti-patterns.md:summary" snapshot_expiry_sec: 86400\
+turn_counter: todo_refresh_interval: 10 todo_max_items: 15\
+fuzzy_detection: fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"\
+lsp_suggest: enabled: true\
+subagent_guard: dangerous_types: "executor designer scientist"\
+completion_gate: min_evidence_chars: 20 required_keyword: "VERIFIED" quality_threshold: 65\
+bash_audit: dangerous_patterns: "git commit git push git reset --hard rm -rf rm -r pkill kill"\
+permission_gate: git_commit_regex: 'git\s+(commit|add\s+--?all|\badd\b.*-A)' git_push_force_regex: 'git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force' git_push_regex: 'git\s+push\b' destructive_regex: '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b' sudo_regex: '^\s*sudo\b|sudo\s' permission_keywords: "当前任务 申请理由 permission 需要权限"\
+sublimation: count_threshold: 20 age_days: 10 hit_threshold: 5\
+correction_detector: signals: "不对 错了 你搞错了 应该是 重新来"\
+session_handoff: enabled: true max_adr_lines: 10 max_todo_lines: 10 max_lessons: 3\
+error_dna: enabled: true max_entries: 100\
+coupling: enabled: true min_co_change: 3 max_history_commits: 200 max_coupled_files: 5\
+hooks_enabled: completion_gate: true subagent_guard: true pretool_edit_scope: true edit_guard: true lsp_suggest: true posttool_read_cite: false posttool_bash_audit: true posttool_write_cite: true permission_gate: true auto_snapshot: true posttool_edit_quality: true inject_project_knowledge: true plan_gate: false turn_counter: true read_tracker: true error_dna: true skill_flywheel: true build_validator: true user_correction_detector: true rule_anchor: false proactive_handoff: false posttool_claim_audit: true intent_tracker: true error_dna_auto_fix: true knowledge_condenser: true posttool_handoff_writer: true fuzzy_block: false retry_budget_check: false posttool_completion_audit: false compact_detect: true context_guard: true posttool_subagent_audit: true posttool_write_lock: true pre_completion_gate: true pretool_write_lock: true privacy_gate: true stop_drain: true token_writer: true\
+rule_anchor: turn_threshold: 15 interval: 5\
+build_validator: log_file: ".omc/state/build-errors.log" max_log_entries: 50

@@ -6,7 +6,6 @@ version: v4.0.0
 
 description: "React/Next.js 及前端框架代码审查：渲染性能、Hooks 规则、组件设计、状态管理、TypeScript 质量。适用于 React/Vue/Svelte 等现代前端项目。"
 
-complexity: intermediate
 when_to_use: "Use after writing React/Next.js components. Trigger: 'react review', 'component review', 'check react', 'review component'."
 
 model: sonnet
@@ -117,7 +116,7 @@ p
 |E2 index key | 替换为稳定的唯一标识（`item.id`）|
 |F1 any 类型 | 使用 LSP hover 推断实际类型并替换|
 |A1 内联对象 props | 提取到组件外 const 或 useMemo 包裹|
-|E3 缺 ErrorBoundary | App Router → 创建 `error.tsx` |\|
+|E3 缺 ErrorBoundary | App Router → 创建 `error.tsx` |
 
 ### Step 6.5: Re-scan 验证
 加载 `@../../nodes/verifier.md`，传入 `fix_record[]` + 原始 `finding[]`。重新执行 Step 3 的全部规则，输出 before/after 对比表。若有 LSP → 执行 `lsp_diagnostics` 检查 TypeScript 错误。
@@ -143,7 +142,7 @@ p
 |react-style-guide.md 缺失 | 使用本 Skill 内置规范，降级通知用户|
 |2 次修复失败 + 根因不明 | 升级至 `/lx-debug-spec`|
 |AST grep 不支持 TSX 模式 | 回退到 grep + readFile 手动匹配|
-|LSP 无响应或超时 | 回退到 grep + readFile 手动提取类型签名 |\|
+|LSP 无响应或超时 | 回退到 grep + readFile 手动提取类型签名 |
 
 ## 中止条件- 过滤后无 React 文件 → "无 React 变更"报告- 非 React 项目（无 react 依赖在 package.json）→ "不适用"- 全部命中为误报 → "通过"报告- 待确认项超过 5 个 → 暂停，请求用户输入
 

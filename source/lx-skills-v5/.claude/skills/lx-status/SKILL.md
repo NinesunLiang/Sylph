@@ -27,7 +27,11 @@ triggers:
 
 ## 原子化声明
 
-### scripts/（确定性执行层）| 脚本 | 用途 | 调用时机 ||------|------|---------|| `../lx-validate-skill/scripts/carror_dashboard.py` | 渲染 4 面板健康仪表盘（Token 节省/任务通过率/拦截的错误/升华的知识点） | 执行时 || `../../scripts/audit_dashboard.py --summary` | 审计聚合摘要（5 源：read-tracker/session-turns/token-tracking/error-dna/session-snapshot） | 执行时追加
+### scripts/（确定性执行层）
+| 脚本 | 用途 | 调用时机 |
+|------|------|---------|
+| `../lx-validate-skill/scripts/carror_dashboard.py` | 渲染 4 面板健康仪表盘（Token 节省/任务通过率/拦截的错误/升华的知识点） | 执行时 |
+| `../../scripts/audit_dashboard.py --summary` | 审计聚合摘要（5 源：read-tracker/session-turns/token-tracking/error-dna/session-snapshot） | 执行时追加
 
 ---
 

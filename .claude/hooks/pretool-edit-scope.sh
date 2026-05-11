@@ -141,7 +141,10 @@ if [ ! -f "$SCOPE_FILE" ]; then
     REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
     coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
     rule_anchor_check
-    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+    # session-edit-log：跳过 /tmp/ 临时文件
+    case "$REL_PATH" in /tmp/*) ;; *)
+		    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+		;; esac
     echo '{"continue": true}'
     exit 0
 fi
@@ -157,7 +160,10 @@ while IFS= read -r pattern || [ -n "$pattern" ]; do
         coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
         rule_anchor_check
         # Record to session edit log
-        echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+        # session-edit-log：跳过 /tmp/ 临时文件
+    case "$REL_PATH" in /tmp/*) ;; *)
+		    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+		;; esac
         echo '{"continue": true}'
         exit 0
     }
@@ -169,7 +175,10 @@ done < "$SCOPE_FILE"
 coupling_remind "$REL_PATH" "$PROJECT_ROOT"
 echo "ℹ️ [scope] ${REL_PATH} 自动加入编辑范围（之前未在 scope 中）" >&2
 echo "$REL_PATH" >> "$SCOPE_FILE" 2>/dev/null || true
-echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+# session-edit-log：跳过 /tmp/ 临时文件
+case "$REL_PATH" in /tmp/*) ;; *)
+    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+;; esac
 rule_anchor_check
 echo '{"continue": true}'
 exit 0

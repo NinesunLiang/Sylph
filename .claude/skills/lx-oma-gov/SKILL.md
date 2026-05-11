@@ -3,7 +3,6 @@ name: lx-oma-gov
 
 description: OMA PRD 治理 — 在 `prd/{sub_prd}/{feature}` 变更时通过 reconcile/propagate 机制增量同步，处理冲突裁决、漂移检测，保持 OMA 文档体系一致性
 
-complexity: advanced
 version: v1.2.0
 harness_version: "6.1.9"
 model: sonnet
@@ -35,7 +34,6 @@ execution_mode: stepwise
 |------|------|------|
 | explore | `../../nodes/explore.md` | 扫描 feature 目录，读取 PRD 文件 |
 | verifier | `../../nodes/verifier.md` | reconcile 变更质量验证 |
-| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途 |

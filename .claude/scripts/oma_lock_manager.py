@@ -83,10 +83,23 @@ def get_lock_file(target_path: str) -> Path:
 
 def _load_observability() -> dict:
     """Load the lock observability file, returning a dict with 'events' and 'current_locks'."""
+    now = time.time()
+    stale_threshold = now - 86400  # 24h
+
     if OBSERVABILITY_FILE.exists():
         try:
             data = json.loads(OBSERVABILITY_FILE.read_text())
             if isinstance(data, dict) and "events" in data:
+                # Purge stale current_locks entries (>24h without heartbeat)
+                if "current_locks" in data:
+                    stale = [k for k, v in data["current_locks"].items()
+                             if v.get("locked_at", 0) < stale_threshold]
+                    for k in stale:
+                        del data["current_locks"][k]
+                    if stale:
+                        # Reduce file size by trimming events older than 48h
+                        data["events"] = [e for e in data["events"]
+                                          if e.get("ts", 0) > stale_threshold - 86400]
                 return data
         except (json.JSONDecodeError, OSError):
             pass

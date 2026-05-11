@@ -188,6 +188,8 @@ NOISE_PATTERNS = [
     'Skill compact is not',                     # invalid skill name (operational)
     'verify_oma_interface_coverage',          # OMA verify script errors (operational)
     'OMA 接口覆盖校验',                        # OMA 接口覆盖校验 banner (operational)
+    '=======',                                 # harness-smoke/test separator (operational)
+    'summary:',                                # test summary line (operational)
 ]
 is_noise = any(p in message for p in NOISE_PATTERNS)
 
@@ -226,9 +228,16 @@ except (FileNotFoundError, json.JSONDecodeError):
 
 # Step 2: Rebuild from jsonl source-of-truth (including archive files)
 aggregated = {}
-for _js in [jsonl_path] + [
-        os.path.join(state_dir, f'error-dna.jsonl.{i}')
-        for i in range(int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3')))]:
+_archive_files = []
+_i = 0
+while True:
+    _ap = os.path.join(state_dir, f'error-dna.jsonl.{_i}')
+    if os.path.exists(_ap):
+        _archive_files.append(_ap)
+        _i += 1
+    else:
+        break
+for _js in [jsonl_path] + _archive_files:
     try:
         with open(_js) as f:
             for line in f:
@@ -309,6 +318,31 @@ merged = {'error_signatures': aggregated}
 with open(json_path, 'w') as f:
     json.dump(merged, f, indent=2, ensure_ascii=False)
 
+# === C9: Record retry budget for captured errors ===
+if exit_code != 0 and command:
+    budget_path = os.path.join(state_dir, 'retry-budget.json')
+    budget = {'signatures': {}}
+    if os.path.isfile(budget_path):
+        try:
+            with open(budget_path) as _bf:
+                budget = json.load(_bf)
+        except:
+            pass
+    sigs = budget.get('signatures', {})
+    if signature not in sigs:
+        sigs[signature] = {
+            'retry_count': 0, 'label': message[:80],
+            'first_seen': ts, 'error_type': error_type
+        }
+    sigs[signature]['retry_count'] = sigs[signature].get('retry_count', 0) + 1
+    sigs[signature]['last_retry'] = ts
+    sigs[signature]['label'] = message[:80]
+    budget['signatures'] = sigs
+    _btmp = budget_path + '.tmp'
+    with open(_btmp, 'w') as _bf:
+        json.dump(budget, _bf, indent=2, ensure_ascii=False)
+    os.rename(_btmp, budget_path)
+
 # === Auto-fix: generate fix strategy for known error types ===
 # Track fix_attempts in the aggregated state (incremented per suggestion emission)
 _fix_suggestions = []
@@ -341,6 +375,20 @@ elif error_type == 'git':
 elif error_type == 'lint':
     _fix_suggestions.append("运行 `git diff` 查看最近的改动区域")
     _fix_suggestions.append("检查是否有格式或命名规范违规")
+elif error_type == 'test':
+    cmd_lower_fix = cmd_clean.lower()
+    if 'go test' in cmd_lower_fix:
+        _fix_suggestions.append("检查测试文件中的语法错误或 import 循环")
+        _fix_suggestions.append("运行 `go test -count=1 ./...` 重新执行（禁用缓存）")
+        _repair_command = 'go test -count=1 ./...'
+elif error_type == 'runtime':
+    _fix_suggestions.append("检查脚本执行权限和语法错误")
+    cmd_lower_fix = cmd_clean.lower()
+    if './' in cmd_lower_fix or '.sh' in cmd_lower_fix:
+        _repair_command = 'chmod +x ' + cmd_lower_fix.split()[-1]
+elif error_type == 'network':
+    _fix_suggestions.append("检查网络连接状态和 URL 正确性")
+    _fix_suggestions.append("检查是否有必要的认证令牌")
 
 if _fix_suggestions and _fix_count < 3:
     # Track fix_attempt (increment fix_count)
@@ -392,11 +440,14 @@ try:
     archive_count = int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3'))
     if size > rotation_size:
         rotate_dir = state_dir
-        for i in range(archive_count, 0, -1):
+        for i in range(archive_count - 1, 0, -1):
             old_path = os.path.join(rotate_dir, 'error-dna.jsonl.{}'.format(i - 1))
             new_path = os.path.join(rotate_dir, 'error-dna.jsonl.{}'.format(i))
             if os.path.exists(old_path):
                 os.rename(old_path, new_path)
+        orphan = os.path.join(rotate_dir, 'error-dna.jsonl.{}'.format(archive_count))
+        if os.path.exists(orphan):
+            os.unlink(orphan)
         os.rename(jsonl_path, os.path.join(rotate_dir, 'error-dna.jsonl.0'))
         # Create fresh empty file
         open(jsonl_path, 'w').close()

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# intent-tracker.sh — PostToolUse:Edit|Write — 检测同一会话中声明矛盾 + 模式级矛盾（E6 自我矛盾）
-# Role: 检测同一会话中文件级编辑矛盾 + 模式级矛盾（先加后删等）
+# intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测
+# Role: 跟踪编辑次数、检测内容回退（revert）、标记高频编辑（churn）
 #
 # 原理：
-#   PostToolUse 不暴露 AI 输出文本，无法直接检测语义矛盾。
-#   替代方案：
-#   1. 跟踪每个文件在会话内的编辑次数，3+ 次编辑 = churn 矛盾
+#   PostToolUse 不暴露 AI 输出文本，无法直接检测语义矛盾（已知约束）。
+#   替代方案（均为文件级统计，非语义分析）：
+#   1. 跟踪每个文件在会话内的编辑次数，5+ 次编辑 = churn（标记"高频改动"）
 #   2. 跟踪文件内容哈希序列，检测 revert 模式（内容回到前一个哈希的版本）
-#   3. 跨文件模式检测：同一会话中 A 写 X → B 写 Y（如果 X 和 Y 是同一个文件的互逆操作）
+#   注意：churn ≠ 矛盾，revert ≠ 矛盾。本 hook 只做统计标记，不推断意图。
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "intent_tracker" || { echo '{"continue":true}'; exit 0; }
@@ -111,17 +111,28 @@ contradiction_level = 0
 contradiction_type = 'first_edit'
 
 if edit_count >= 5:
-    contradiction_level = 2
-    contradiction_type = 'churn'
-    message = (f"[intent-tracker] 矛盾检测: 文件 {file_path} "
-               f"本会话已被编辑 {edit_count} 次，前后矛盾风险。")
+    # Dedup: skip if same file already has a churn entry within the last hour
+    recent_churn = False
+    for r in reversed(previous):
+        if r.get('sig') == sig and r.get('type') == 'churn' and r.get('level') == 2:
+            if now - r.get('ts', 0) < 3600:
+                recent_churn = True
+            break
+    if recent_churn:
+        contradiction_level = 0
+        contradiction_type = 'dedup_churn'
+    else:
+        contradiction_level = 2
+        contradiction_type = 'churn'
+        message = (f"[intent-tracker] 编辑抖动: 文件 {file_path} "
+                   f"本会话已被编辑 {edit_count} 次，高频改动。")
 elif revert_of_hash is not None:
     contradiction_level = 2
     contradiction_type = 'revert'
     message = (f"[intent-tracker] revert 检测: 文件 {file_path} "
                f"内容回退到之前的状态（哈希 {content_hash}）。"
                f"本会话第 {edit_count} 次编辑" +
-               (f"，注意冲突方向。" if churn_keyword else "。"))
+               (f"，注意内容方向变化。" if churn_keyword else "。"))
 elif churn_keyword:
     contradiction_level = 1
     contradiction_type = 'churn_keyword'
@@ -143,7 +154,7 @@ record = {
     'revert_of': revert_of_hash,
     'file': file_path,
     'edit_count': edit_count,
-    'contradiction': contradiction_level >= 2,
+    'contradiction': contradiction_level >= 2 and contradiction_type in ('revert',),
     'level': contradiction_level,
     'type': contradiction_type,
 }
@@ -154,10 +165,19 @@ with open(log_path, 'a') as f:
 
 # Output additionalContext for level 2+ (real contradiction)
 if contradiction_level >= 2:
-    ctx = (f"[intent-tracker] {'revert 矛盾' if revert_of_hash else '编辑矛盾'}"
+    # Build detailed context with actionable guidance
+    history_summary = ""
+    file_edits = [r for r in reversed(previous) if r.get('sig') == sig]
+    if len(file_edits) > 1:
+        prev_types = [r.get('type', '?') for r in file_edits[:3]]
+        history_summary = f"。编辑历史: {', '.join(prev_types)}"
+    resolution = ("建议: (1) 若内容回退, 确认目标版本正确后重新编辑; "
+                  "(2) 若频繁 churn, 先固化设计再改; "
+                  "(3) 检查前几次编辑是否被意外撤销。")
+    ctx = (f"[intent-tracker] {'内容回退' if revert_of_hash else '编辑抖动'}"
            f": 文件 {file_path} "
-           f"本会话第 {edit_count} 次编辑{'，内容回退到历史版本' if revert_of_hash else '，频繁改动风险'}"
-           f"。建议检查前几次编辑是否完整。")
+           f"本会话第 {edit_count} 次编辑{'，内容回退到历史版本' if revert_of_hash else '，高频改动'}"
+           f"{history_summary}。{resolution}")
     print(json.dumps({"continue": True, "hookSpecificOutput": {"additionalContext": ctx}}))
 PYEOF
 

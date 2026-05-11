@@ -101,7 +101,7 @@ except:
         fi
 
         # E3 增强: 软完成语检测 — 拒绝违禁词（AGENTS.md §软完成语禁令）
-        SOFT_WORDS=$(hc_get "completion_gate.soft_completion_words" "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过")
+        SOFT_WORDS=$(hc_get "completion_gate.soft_completion_words" "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically done|mostly complete|seems to work|probably works|theoretically|should work|looks good")
         if echo "$CONTENT" | grep -qiE "$SOFT_WORDS"; then
             echo "⛔ COMPLETION BLOCKED: 证据含软完成语（违禁词），请用具体验证结果替换。" >&2
             echo "违禁词: 应该没问题了、基本完成、大部分完成、差不多了、理论上可行、看起来正常" >&2

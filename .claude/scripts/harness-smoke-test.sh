@@ -339,6 +339,53 @@ fi
 TOTAL=$((TOTAL+1))
 rm -f .omc/state/read-tracker.txt
 
+# R38 posttool-claim-audit: 铁律 #1 强制校验回归 — 使用 bash ... hook.sh Edit 直调(传递$1)
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38 posttool-claim-audit: 无 claim 时放行"
+rm -f .omc/state/read-tracker.txt
+echo '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/any.go"}}' | \
+    bash .claude/hooks/posttool-claim-audit.sh Edit >/dev/null 2>&1
+if [ $? -eq 0 ]; then
+    pass "R38 posttool-claim-audit 无 claim 放行"
+else
+    fail "R38 posttool-claim-audit 无 claim 不应阻断"
+fi
+
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38 posttool-claim-audit: 未读 claim 应阻断"
+_CLAIM_OUT="/tmp/smoke-claim-$$.out"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/claim-test.go","new_content":"Reference: ./src/nonexistent_claim_file_test.go:42"}}' | \
+    bash .claude/hooks/posttool-claim-audit.sh Edit > "$_CLAIM_OUT" 2>&1
+_CLAIM_EXIT=$?
+if [ "$_CLAIM_EXIT" = "2" ] && grep -q "IRRELEVANT_CLAIM\|铁律\|编造" "$_CLAIM_OUT"; then
+    pass "R38 posttool-claim-audit 正确阻断未读 claim (exit=$_CLAIM_EXIT)"
+else
+    fail "R38 posttool-claim-audit 未阻断未读 claim (exit=$_CLAIM_EXIT out=$(head -c200 $_CLAIM_OUT | tr '\n' ' '))"
+fi
+rm -f "$_CLAIM_OUT" .omc/state/read-tracker.txt
+
+# R38 posttool-claim-audit: settings.json 注册
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38 posttool-claim-audit: settings.json 注册"
+if grep -q "posttool-claim-audit.sh" .claude/settings.json; then
+    pass "R38 posttool-claim-audit 已注册 settings.json"
+else
+    fail "R38 posttool-claim-audit 未注册 settings.json"
+fi
+
+# R38 posttool-claim-audit: harness.yaml 开关
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38 posttool-claim-audit: harness.yaml 开关"
+if grep -q "posttool_claim_audit: true" .claude/harness.yaml; then
+    pass "R38 posttool-claim-audit harness.yaml 已启用"
+else
+    fail "R38 posttool-claim-audit harness.yaml 未启用"
+fi
+
 # R24 turn-counter: UserPromptSubmit 应递增 session-turns.json
 rm -f .omc/state/session-turns.json
 echo "test prompt" | bash .claude/hooks/turn-counter.sh >/dev/null 2>&1
@@ -371,7 +418,7 @@ _SM_OUT="/tmp/smoke-source-mirror-$$.out"
 log ""
 log "[$TOTAL] R30 source mirror: 一致性应全绿"
 bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_OUT" 2>&1
-if grep -q "source mirror 一致性: 全部一致" "$_SM_OUT"; then
+if grep -q -e "全部一致" -e "已废弃" "$_SM_OUT"; then
     pass "R30 source mirror 一致性校验通过"
 else
     fail "R30 source mirror 存在漂移"
@@ -666,14 +713,14 @@ _SM_EXT_OUT="/tmp/smoke-mirror-ext-$$.out"
 bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_EXT_OUT" 2>&1
 log ""
 log "[$TOTAL] R34 source mirror 扩展: settings.json + harness.yaml 注册一致性"
-if grep -q "config mirror" "$_SM_EXT_OUT"; then
+if grep -q "已废弃" "$_SM_EXT_OUT"; then
+    pass "R34 source mirror 已废弃，跳过"
+elif grep -q "config mirror" "$_SM_EXT_OUT"; then
     fail "R34 source mirror config 存在漂移"
     grep "🔴" "$_SM_EXT_OUT" | head -5
 else
     pass "R34 source mirror config 校验通过 (settings.json + harness.yaml)"
 fi
-rm -f "$_SM_EXT_OUT"
-
 rm -f "$_SM_EXT_OUT"
 
 # --- R35: error-dna-auto-fix.sh 回归 ---

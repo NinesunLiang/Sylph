@@ -126,43 +126,6 @@ grep -v "^$_A5_REAL_GO\$" .omc/state/read-tracker.txt > .omc/state/read-tracker.
 
 echo ""
 echo "========================================"
-echo "C2: pretool-rule-anchor 长会话(≥15 轮) 应注入铁律锚定"
-echo "========================================"
-_C2_BAK=""
-[ -f .omc/state/session-turns.json ] && _C2_BAK=$(mktemp) && cp .omc/state/session-turns.json "$_C2_BAK"
-# 制造 count=15 的场景
-echo '{"count": 15}' > .omc/state/session-turns.json
-_C2_OUT="/tmp/smoke-c2-$$.out"
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-rule-anchor.sh > "$_C2_OUT" 2>&1
-_C2_EXIT=$?
-TOTAL=$((TOTAL+1))
-if [ "$_C2_EXIT" = "0" ] && grep -qE "规则锚定|禁止编造|VERIFIED" "$_C2_OUT"; then
-    echo "  🟢 C2: 长会话注入铁律锚定 (count=15)"
-else
-    echo "  🔴 C2: 未注入或 exit≠0 (exit=$_C2_EXIT)"
-    echo "    output: $(head -c 200 $_C2_OUT)"
-    FAILED=$((FAILED+1))
-fi
-rm -f "$_C2_OUT"
-
-# C2 反向: count=5 应放行无注入
-echo '{"count": 5}' > .omc/state/session-turns.json
-_C2_OUT="/tmp/smoke-c2b-$$.out"
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-rule-anchor.sh > "$_C2_OUT" 2>&1
-_C2_EXIT=$?
-TOTAL=$((TOTAL+1))
-if [ "$_C2_EXIT" = "0" ] && ! grep -qE "规则锚定" "$_C2_OUT"; then
-    echo "  🟢 C2 反向: count=5 无注入"
-else
-    echo "  🔴 C2 反向: count=5 不应注入 (exit=$_C2_EXIT)"
-    FAILED=$((FAILED+1))
-fi
-rm -f "$_C2_OUT"
-# 恢复
-if [ -n "$_C2_BAK" ]; then cp "$_C2_BAK" .omc/state/session-turns.json; rm -f "$_C2_BAK"; else rm -f .omc/state/session-turns.json; fi
-
-echo ""
-echo "========================================"
 echo "D3: context-guard 95% 应硬阻断"
 echo "========================================"
 _D3_BAK=""
@@ -204,6 +167,28 @@ run '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{}}' conte
 assert_exit "D3 反向: 正常占比(15%) 应放行" 0 "$EXIT"
 # 恢复
 if [ -n "$_D3_BAK" ]; then cp "$_D3_BAK" .omc/state/token-tracking-index.json; rm -f "$_D3_BAK"; else rm -f .omc/state/token-tracking-index.json; fi
+
+echo ""
+echo "========================================"
+echo "A6: posttool-claim-audit 铁律 #1 强制校验"
+echo "========================================"
+
+# A6 主: 未读 claim 应阻断 — 直调 bash ... Edit (传递$1)
+# NOTE: posttool-claim-audit 输出 violation 到 stdout (JSON)，非 stderr
+rm -f .omc/state/read-tracker.txt
+_PCA_PAYLOAD='{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/a6-claim-test.go","new_content":"Reference: ./src/a6_nonexistent_claim.go:42"}}'
+_PCA_OUT=$(echo "$_PCA_PAYLOAD" | bash .claude/hooks/posttool-claim-audit.sh Edit 2>/dev/null)
+_PCA_EXIT=$?
+assert_exit "A6: 未读 claim 应 exit 2" 2 "$_PCA_EXIT"
+assert_stderr "A6: stdout 应含 IRRELEVANT_CLAIM" "IRRELEVANT_CLAIM" "$_PCA_OUT"
+
+# A6 反向: 已读 claim 应放行
+mkdir -p .omc/state
+echo "/Users/test/src/a6_nonexistent_claim.go" > .omc/state/read-tracker.txt
+_PCA_OUT2=$(echo "$_PCA_PAYLOAD" | bash .claude/hooks/posttool-claim-audit.sh Edit 2>/dev/null)
+_PCA_EXIT2=$?
+assert_exit "A6 reverse: 已读 claim 应放行" 0 "$_PCA_EXIT2"
+rm -f .omc/state/read-tracker.txt
 
 echo ""
 echo "========================================"

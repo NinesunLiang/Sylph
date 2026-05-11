@@ -179,10 +179,16 @@ hooks:
     description: 写入 token 追踪索引，由 context-guard 调用
     enabled_by_default: true
     evidence_level: L3
-  - name: oma_lock
+  - name: pretool-write-lock
     type: gate
     category: runtime
-    description: OMA 并发写锁门禁，多 Agent 写同一文件时排队互斥
+    description: OMA 写锁前置门禁，多 Agent 写同一文件时排队互斥
+    enabled_by_default: true
+    evidence_level: L3
+  - name: posttool-write-lock
+    type: gate
+    category: runtime
+    description: OMA 写锁释放，完成写入后释放文件锁
     enabled_by_default: true
     evidence_level: L3
 

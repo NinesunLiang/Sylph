@@ -160,11 +160,11 @@ need_init
 3. 裁决命令格式
     lx-oma-gov resolve <CONFLICT-ID> <verdict> [--reason "说明"]
 
-    verdict 选项（A — 推荐 ✓）：
-    - accept          完整接受变更并合并到 master — 新资料可靠时
-    - accept-partial  部分接受（需配合 --targets）— 仅部分内容有效时
-    - reject          驳回，不进入 master — 现有定义仍为最优时
-    - defer           暂缓，保留 pending — 信息不足以裁决时
+    verdict 选项：
+    - accept          完整接受，进入 master
+    - accept-partial  部分接受（需配合 --targets 指定接受哪些对象）
+    - reject          驳回，不进入 master
+    - defer           暂缓，保留在 pending，不关闭 CONFLICT
 
 4. 系统更新
     → 更新 CONSOLIDATION-LOG.md 对应 Entry（写入 adjudicated_by / adjudicated_at / verdict / reason）
@@ -194,18 +194,10 @@ Risk Level: L3
 - decisions/DEC-004（依赖 REQ-021 的决策）
 
 ### 建议选项
-A. accept — 推荐 ✓
-   说明：接受新定义，更新 REQ-021 和 DEC-004
-   适用场景：新资料更符合当前业务需求
-B. reject
-   说明：维持现有定义，驳回新资料
-   适用场景：现有定义仍为最优，新资料理由不足
-C. defer
-   说明：暂缓处理，等待进一步确认
-   适用场景：信息不足以做出裁决，需补充资料
-D. 自定义操作
-   → 输入其他裁决方式和理由
-执行裁决: lx-oma-gov resolve CONFLICT-001 A|B|C|D [--reason "说明"]
+A. accept     → 接受新定义，更新 REQ-021 和 DEC-004
+B. reject     → 维持现有定义，驳回新资料
+C. defer      → 暂缓处理，等待进一步确认
+执行裁决: lx-oma-gov resolve CONFLICT-001 accept|reject|defer [--reason "说明"]
 ```
 
 ## state/pending-decisions.md 格式

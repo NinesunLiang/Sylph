@@ -25,11 +25,22 @@ triggers:
 
 ## 原子化声明
 
-### 使用的通用节点| 节点 | 路径 | 用途 ||------|------|------|| behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 || auto_fixer | `../../nodes/auto_fixer.md` | P0 自动修复 |
+### 使用的通用节点
+| 节点 | 路径 | 用途 |
+|------|------|------|
+| behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |
+| auto_fixer | `../../nodes/auto_fixer.md` | P0 自动修复 |
 
-### scripts/（确定性执行层）| 脚本 | 用途 | 调用时机 ||------|------|---------|| `scripts/detect_project.py` | 检测项目类型（go/node/python/rust）| Step 0 || `scripts/run_checks.py` | 运行编译+测试门禁序列 | Step 1 |
+### scripts/（确定性执行层）
+| 脚本 | 用途 | 调用时机 |
+|------|------|---------|
+| `scripts/detect_project.py` | 检测项目类型（go/node/python/rust）| Step 0 |
+| `scripts/run_checks.py` | 运行编译+测试门禁序列 | Step 1 |
 
-### references/（按需加载）| 文件 | 加载时机 ||------|---------|| `references/checklists/danger-signals.md` | 发现异常时加载 |
+### references/（按需加载）
+| 文件 | 加载时机 |
+|------|---------|
+| `references/checklists/danger-signals.md` | 发现异常时加载 |
 
 ---
 

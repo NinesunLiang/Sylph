@@ -1,0 +1,7 @@
+{
+  "comment": "Sulphur 2 Image-to-Video 工作流参考提示",
+  "source": "https://www.freedidi.com/24142.html",
+  "setup": "此工作流为 ComfyUI 内置模板『LTX-2.3:图生视频』,无需单独下载。在 ComfyUI → 模板 → 视频 中加载后,将主模型切换为 Sulphur 2 即可。",
+  "model_checkpoint": "ltx-av-step-1751000_vocoder_24K.safetensors",
+  "workflow_note": "详情请参照 SETUP_Sulphur2.md 中的图生视频章节"
+}

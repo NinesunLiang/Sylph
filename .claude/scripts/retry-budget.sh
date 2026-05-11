@@ -68,7 +68,7 @@ try:
         sys.exit(2)
     else:
         sys.exit(0)
-except:
+except Exception:
     sys.exit(0)
 " 2>/dev/null)
     EXIT_CODE=$?

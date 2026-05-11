@@ -32,20 +32,21 @@ for sig, entry in signatures.items():
     message = entry.get('message', '')[:80]
     last_seen = entry.get('last_seen', 0)
 
-    if count >= 2 and status != 'fixed' and repair_cmd and fix_count > 1:
+    if count >= 3 and status == 'active':
         candidates.append((count, fix_count, sig, message, repair_cmd, last_seen))
 
 if not candidates:
     sys.exit(0)
 
 candidates.sort(key=lambda x: -x[0])
-candidates = candidates[:3]
+candidates = candidates[:5]
 
-lines = [f"[error-dna retrospective] {len(candidates)} 个跨会话失败模式:"]
+lines = [f"[error-dna retrospective] {len(candidates)} 个顽固错误 (≥3次出现，仍 active):"]
 for count, fix_count, sig, message, repair_cmd, last_seen in candidates:
     last_str = datetime.fromtimestamp(last_seen).strftime('%Y-%m-%d %H:%M') if last_seen else '未知'
     lines.append(f" · {sig[:16]} ×{count} (已尝试修复 {fix_count} 次) — {message}")
-    lines.append(f"   ▶ 上次修复命令: `{repair_cmd}`")
+    if repair_cmd:
+        lines.append(f"   ▶ 自动执行修复: `{repair_cmd}`")
     lines.append(f"   └ 上次失败: {last_str}")
 
 print('|'.join(lines))

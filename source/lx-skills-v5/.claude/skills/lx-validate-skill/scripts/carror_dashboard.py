@@ -123,31 +123,8 @@ def sep():
 # Panel 1: Token 节省
 # ═══════════════════════════════════════════════
 
-# Token counts from loading_benchmark.py [已验证: benchmark-report.md]
-# L1 = SessionStart 加载 (7,539 tok)
-# L3 pool = 67,492 tok across 95 files, 17 skills with references
-
-# Monolithic CLAUDE.md 估算 (如果所有内容 inline)
-# AGENTS.md 的内容传统上也应在 CLAUDE.md 内，所以节省要减掉 AGENTS.md 的加载
-# 9,400 - 160 (CLAUDE.md) - 3,180 (AGENTS.md) = 6,060
-# [已验证: benchmark-report.md L1 — CLAUDE.md 197 tok, AGENTS.md 3,180 tok]
-MONOLITHIC_CLAUDE_TOK = 9400
-ACTUAL_CLAUDE_TOK = 160
-AGENTS_TOK = 3180
-CLAUDE_LIGHTWEIGHT_SAVED = MONOLITHIC_CLAUDE_TOK - ACTUAL_CLAUDE_TOK - AGENTS_TOK  # ~6,060
-
-# L3 Reference 按需加载节省估算
-# 公式: 池均值 - 单文件均值 = 每次 skill 触发节省
-# 池均值 = 67492 / 17 skills ≈ 3970 tok
-# 单文件均值 = 67492 / 95 files ≈ 710 tok
-# 每次触发节省 ≈ 3260 tok
-# [估算口径: benchmark-report.md L3 统计, 假设每次命中 1 个 reference 文件]
-L3_POOL_TOK = 67492
-L3_SKILL_COUNT = 17
-L3_FILE_COUNT = 95
-L3_AVG_POOL_PER_SKILL = L3_POOL_TOK // L3_SKILL_COUNT  # 3,970
-L3_AVG_FILE_TOK = L3_POOL_TOK // L3_FILE_COUNT        # 710
-L3_PER_TRIGGER_SAVINGS = L3_AVG_POOL_PER_SKILL - L3_AVG_FILE_TOK  # 3,260
+# 所有 Token 数据均来自 transcript 解析 (token-tracking-real.json)
+# 无硬编码估算值 — 真实的才是宝贵的
 
 
 def collect_token_savings():
@@ -178,6 +155,7 @@ def collect_token_savings():
             real_total_cache = r.get("total_cache_read_tokens")
             turns = r.get("total_turns")
             session_id = r.get("session_id")
+            context_limit = r.get("context_limit", 200000)
         except (json.JSONDecodeError, KeyError):
             pass
 
@@ -193,42 +171,57 @@ def collect_token_savings():
         except (json.JSONDecodeError, KeyError):
             pass
 
-    # === Compact = 实测（来自 token-savings.json 或 token-tracking-real.json） ===
+    # === Compact — 来自转录本实测 ===
     compact_saved = 0
     compact_events = 0
-    sv_f = STATE / "token-savings.json"
-    if sv_f.exists():
-        try:
-            sv = json.loads(sv_f.read_text(encoding="utf-8"))
-            compact_saved = sv.get("compact", 0)
-            compact_events = sv.get("compact_events", 0)
-        except (json.JSONDecodeError, KeyError):
-            pass
-    # Override with real compact data if available
-    if real_f.exists() and r.get("compact_events", 0) > 0:
-        compact_events = r["compact_events"]
-        compact_saved = r["compact_savings"]
+    if real_f.exists():
+        compact_events = r.get("compact_events", 0)
+        compact_saved = r.get("compact_savings", 0)
+    # Fallback: token-savings.json (旧格式)
+    if compact_events == 0:
+        sv_f = STATE / "token-savings.json"
+        if sv_f.exists():
+            try:
+                sv = json.loads(sv_f.read_text(encoding="utf-8"))
+                compact_saved = sv.get("compact", 0)
+                compact_events = sv.get("compact_events", 0)
+            except (json.JSONDecodeError, KeyError):
+                pass
+
+    # 缓存命中率 & 回合均耗
+    cache_rate = None
+    per_turn_avg = None
+    if real_f.exists():
+        total_ctx = r.get("total_context_used", 0)
+        if total_ctx > 0:
+            cache_read = r.get("total_cache_read_tokens", 0)
+            cache_rate = round(cache_read * 100 / total_ctx, 1)
+            tu = r.get("total_turns", 0)
+            if tu > 0:
+                per_turn_avg = round(total_ctx / tu)
+
+    # context_limit: real data > synthetic > hardcoded
+    if real_f.exists() and r.get("context_limit"):
+        effective_limit = r["context_limit"]
+    else:
+        effective_limit = limit
 
     return {
         "status": STATUS_OK,
         "context_used": context_used,
         "peak": peak,
         "baseline": baseline,
-        "limit": limit,
+        "limit": effective_limit,
         "synthetic_usage": synthetic_usage,
         "real_total_input": real_total_input,
         "real_total_output": real_total_output,
         "real_total_cache": real_total_cache,
         "turns": turns,
         "session_id": session_id,
-        "claude_lightweight": CLAUDE_LIGHTWEIGHT_SAVED,
         "compact": compact_saved,
         "compact_events": compact_events,
-        "l3_per_trigger": L3_PER_TRIGGER_SAVINGS,
-        "l3_pool": L3_POOL_TOK,
-        "l3_skills": L3_SKILL_COUNT,
-        "l3_files": L3_FILE_COUNT,
-        "l3_avg_file": L3_AVG_FILE_TOK,
+        "cache_rate": cache_rate,
+        "per_turn_avg": per_turn_avg,
     }
 
 
@@ -243,23 +236,28 @@ def render_token_savings(data):
     baseline = data["baseline"]
     limit = data["limit"]
     syn = data["synthetic_usage"]
-    lw = data["claude_lightweight"]
     compact = data["compact"]
     comp_ev = data["compact_events"]
-    l3_pt = data.get("l3_per_trigger", 0)
-    l3_pool = data.get("l3_pool", 0)
-    l3_skills = data.get("l3_skills", 0)
-    l3_f = data.get("l3_files", 0)
-    l3_af = data.get("l3_avg_file", 0)
+    cache_rate = data.get("cache_rate")
+    per_turn_avg = data.get("per_turn_avg")
 
-    # === 主数据：真实 context ===
-    p(" " + colored("[实测] 平台 token 数据", BOLD + COLOR))
+    # === 全部来自 transcript 实测 ===
+    p(" " + colored("[实测] Token 消耗", BOLD + COLOR))
     if context_used is not None:
         pct = round(context_used * 100 / limit, 1)
         b = bar(pct, 20)
         p(f" Context  {b}  {pct}%  ({context_used:,}/{limit:,})")
+        parts = []
         if peak is not None:
-            p(f" 峰值: {colored(f'{peak:,}', COLOR)} tok  |  基线: {colored(f'{baseline:,}', COLOR)} tok/session")
+            parts.append(f"峰值: {colored(f'{peak:,}', COLOR)} tok")
+        if baseline is not None:
+            parts.append(f"基线: {colored(f'{baseline:,}', COLOR)} tok")
+        if per_turn_avg is not None:
+            parts.append(f"回合均耗: {colored(f'{per_turn_avg:,}', COLOR)} tok/轮")
+        if parts:
+            p("  " + "  |  ".join(parts))
+        if cache_rate is not None:
+            p(f" 缓存命中率: {colored(f'{cache_rate}%', COLOR)}")
     else:
         # Fallback to synthetic
         if syn is not None:
@@ -270,11 +268,10 @@ def render_token_savings(data):
             p(" " + colored("Context: 数据不可用", DIM))
 
     p()
-    p(f" {colored('\u251c\u2500', DIM)} CLAUDE.md 轻量化:  {colored(f'{lw:,}', COLOR)} tok/session  [含 AGENTS.md]")
-    p(f" {colored('\u251c\u2500', DIM)} Reference 按需加载:  {colored(f'~{l3_pt:,}', COLOR)} tok/次 skill 触发  [估算]")
-
-    comp_c = COLOR if compact > 0 else DIM
-    p(f" {colored('\u2514\u2500', DIM)} Compact:  {colored(f'{comp_ev} 次事件', comp_c)}  ({colored(f'{compact:,}', comp_c)} tok)  [实测]")
+    if comp_ev > 0:
+        p(f" Compact: {colored(f'{comp_ev} 次事件', COLOR)}  ({colored(f'{compact:,}', COLOR)} tok)")
+    else:
+        p(f" Compact: {colored('0 次事件', DIM)}")
 
     # Summary line
     ti = data.get("real_total_input")
@@ -666,3 +663,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    sys.exit(0)

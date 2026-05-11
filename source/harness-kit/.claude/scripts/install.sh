@@ -360,7 +360,7 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
     fi
 
     # 检测 AGENTS.md 是否已包含 Carror OS 内容（防止重复叠加）
-    if grep -q "Carror OS — AI Native Developer Operating System" "AGENTS.md" 2>/dev/null; then
+    if grep -q "Carror OS — AI 行为治理框架\|Harness 治理框架" "AGENTS.md" 2>/dev/null; then
         log_info "AGENTS.md 已包含 Carror OS 治理框架，跳过合并（保留最新模板）"
     elif [ -n "$USER_CONTENT" ]; then
         TEMPLATE=$(cat "AGENTS.md")
