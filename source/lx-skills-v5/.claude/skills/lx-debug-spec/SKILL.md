@@ -86,7 +86,7 @@ If missing, ask: "Please describe the error and provide the full error output in
 **工具降级**：Agent 失败（git 不可用、LSP 无响应）→ 记录 `[降级：原因]`，用其他途径补充（如 readFile 代替 LSP，用户描述代替 git log）。
 
 ### 1.2 Analyze Findings
-Synthesize agent outputs. For special scenarios:- **Intermittent (< 50% repro)**: increase logging, run `go test -count=20 -race`, record trigger conditions- **Race condition**: force `-race`, collect full race report (goroutine ID + stack)- **Performance regression**: benchmark before/after, `go tool pprof`- **Deep call stack (> 5 layers)**: read `${CLAUDE_SKILL_DIR}/docs/root-cause-tracing.md`
+Synthesize agent outputs. For special scenarios:- **Intermittent (< 50% repro)**: increase logging, run `go test -count=20 -race`, record trigger conditions- **Race condition**: force `-race`, collect full race report (goroutine ID + stack)- **Performance regression**: benchmark before/after, `go tool pprof`- **Deep call stack (> 5 layers)**: read `${CLAUDE_SKILL_DIR}/references/root-cause-tracing.md`
 
 ### 1.3 Failure handling- Cannot reproduce → collect more data (max 3 rounds), do NOT guess- Incomplete error → ask user for full stack trace- 3 rounds without localization → output "Investigation Aborted" report
 **Success criteria — Phase 1 Gate** (all fields must be filled):
@@ -120,7 +120,7 @@ Cross-phase consistency = NO → stop, back to Phase 3.
 长调试会话中，在以下时间点使用 `<remember priority>` 保存关键发现防止上下文遗忘：- Phase 1 Gate 完成后：保存错误摘要 + 初始定位- Phase 3 Gate 完成后：保存确认的根因 + 假说历史- 每次假说被拒绝后：保存已排除假说列表
 
 ## Prohibited Actions & Danger Signals
-Before every action, load and self-check: `readFile("${CLAUDE_SKILL_DIR}/docs/checklists/danger-signals.md")`（若文件不存在 → 使用内置规则：禁止未验证就提出修复、禁止堆叠变更、禁止跳过复现步骤）
+Before every action, load and self-check: `readFile("${CLAUDE_SKILL_DIR}/references/checklists/danger-signals.md")`（若文件不存在 → 使用内置规则：禁止未验证就提出修复、禁止堆叠变更、禁止跳过复现步骤）
 
 ## 跨 Skill 联动
 | 方向 | Skill | 触发条件 | 数据契约|
@@ -146,9 +146,9 @@ If user says any of these → stop → back to Phase 1:- "That didn't happen tho
 ## Auxiliary Documents
 | Document | Trigger | Phase|
 |---|---|---|
-|`${CLAUDE_SKILL_DIR}/docs/root-cause-tracing.md` | Call stack > 5 layers deep | Phase 1|
-|`${CLAUDE_SKILL_DIR}/docs/defense-in-depth.md` | Multi-layer verification needed after fix | Post Phase 4|
-|`${CLAUDE_SKILL_DIR}/docs/condition-based-waiting.md` | Code contains `time.Sleep()` or fixed timeouts | Phase 4 |
+|`${CLAUDE_SKILL_DIR}/references/root-cause-tracing.md` | Call stack > 5 layers deep | Phase 1|
+|`${CLAUDE_SKILL_DIR}/references/defense-in-depth.md` | Multi-layer verification needed after fix | Post Phase 4|
+|`${CLAUDE_SKILL_DIR}/references/condition-based-waiting.md` | Code contains `time.Sleep()` or fixed timeouts | Phase 4 |
 
 ## Output Templates
 

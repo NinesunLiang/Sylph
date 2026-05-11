@@ -88,6 +88,8 @@ export EXIT_CODE
 export LOG_FILE
 export PROJECT_ROOT
 export SCRIPT_DIR
+MAX_LOG_ENTRIES=$(hc_get "build_validator.max_log_entries" "50")
+export MAX_LOG_ENTRIES
 
 RESULT=$(python3 - <<'PYEOF'
 import json, os, re, sys
@@ -299,6 +301,17 @@ with open(log_file, 'a', encoding='utf-8') as f:
     lines = full_output.split('\n')[:50]
     f.write('\n'.join(lines))
     f.write("\n\n")
+
+# Rotation: keep last max_log_entries entries (config in harness.yaml build_validator.max_log_entries: 50)
+max_entries = int(os.environ.get('MAX_LOG_ENTRIES', '50'))
+with open(log_file, 'r', encoding='utf-8') as rf:
+    raw = rf.read()
+entries = [e for e in raw.split('=== ')[1:] if e.strip()]
+if len(entries) > max_entries:
+    keep = entries[-max_entries:]
+    with open(log_file, 'w', encoding='utf-8') as wf:
+        for entry in keep:
+            wf.write('=== ' + entry + ('\n' if not entry.endswith('\n') else ''))
 
 msg_parts = [f"[构建失败] 命令: {command[:100]}"]
 msg_parts.append(f"退出码: {exit_code}")

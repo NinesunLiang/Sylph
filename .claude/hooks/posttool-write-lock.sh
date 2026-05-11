@@ -6,7 +6,8 @@ HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
 if [ -f "$HARNESS_CONFIG" ]; then
     # shellcheck source=harness_config.sh
     . "$HARNESS_CONFIG" 2>/dev/null
-    if ! hc_enabled "oma_lock" 2>/dev/null; then
+    if ! hc_enabled "posttool_write_lock" 2>/dev/null; then
+        echo '{"continue": true}'
         exit 0
     fi
 fi
@@ -24,6 +25,7 @@ fi
 TOOL_NAME=$(echo "$TOOL_NAME" | tr '[:upper:]' '[:lower:]')
 
 if [[ "$TOOL_NAME" != "edit" && "$TOOL_NAME" != "write" && "$TOOL_NAME" != "replace" && "$TOOL_NAME" != "str_replace" ]]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -35,4 +37,5 @@ fi
 if [[ -n "$FILE_PATH" ]]; then
     python3 .claude/scripts/oma_lock_manager.py release "$FILE_PATH" 2>/dev/null
 fi
+echo '{"continue": true}'
 exit 0

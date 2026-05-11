@@ -6,7 +6,8 @@ HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
 if [ -f "$HARNESS_CONFIG" ]; then
     # shellcheck source=harness_config.sh
     . "$HARNESS_CONFIG" 2>/dev/null
-    if ! hc_enabled "oma_lock" 2>/dev/null; then
+    if ! hc_enabled "pretool_write_lock" 2>/dev/null; then
+        echo '{"continue": true}'
         exit 0
     fi
 fi
@@ -25,6 +26,7 @@ TOOL_NAME=$(echo "$TOOL_NAME" | tr '[:upper:]' '[:lower:]')
 
 # 仅拦截直接写文件的工具
 if [[ "$TOOL_NAME" != "edit" && "$TOOL_NAME" != "write" && "$TOOL_NAME" != "replace" && "$TOOL_NAME" != "str_replace" ]]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -36,6 +38,7 @@ fi
 
 if [[ -z "$FILE_PATH" ]]; then
     # 提取不到路径，放行
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -57,4 +60,5 @@ if [[ $exit_code -ne 0 ]]; then
 fi
 
 # 成功抢到锁，由于标准输出被 Claude Code 捕获，此处静默退出
+echo '{"continue": true}'
 exit 0

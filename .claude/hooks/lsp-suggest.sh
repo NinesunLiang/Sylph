@@ -3,7 +3,7 @@
 # Role: 检测 Grep 搜索导出符号时建议改用 LSP 工具
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "lsp_suggest" || exit 0
+hc_enabled "lsp_suggest" || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -26,33 +26,39 @@ fi
 
 # 无 pattern 则静默放行
 if [ -z "$PATTERN" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 # 排除：包含正则元字符（非纯符号搜索）
 if echo "$PATTERN" | grep -qE '[.*+?\[\](){}|^$\\]'; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 # 排除：不匹配导出符号正则（默认大写字母开头）
 SYMBOL_REGEX=$(hc_get "lsp_suggest.exported_symbol_regex" "^[A-Z]")
 if ! echo "$PATTERN" | grep -qE "$SYMBOL_REGEX"; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 # 排除：太短
 MIN_LEN=$(hc_get "lsp_suggest.min_symbol_length" "3")
 if [ ${#PATTERN} -lt "$MIN_LEN" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 # 排除：包含非字母数字字符（非纯符号名）
 if ! echo "$PATTERN" | grep -qE '^[A-Za-z0-9_]+$'; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 # 已提醒过本会话 → 放行
 if [ -f "$SUGGESTED_FILE" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -68,7 +74,8 @@ LSP 工具可精确定位（无噪音），推荐：
   - 全局搜索: lsp_workspace_symbols(query="$PATTERN", file="$EXAMPLE_FILE")
   - 找定义:   lsp_goto_definition(file=..., line=..., character=...)
   - 找引用:   lsp_find_references(file=..., line=..., character=...)
-请改用 LSP 工具，或重新发起同一 Grep 继续（本会话不再阻断）。
+如需 LSP 结果，改用 LSP 工具；继续 Grep 自动放行。
 EOF
 
-exit 2
+echo '{"continue": true}'
+exit 0

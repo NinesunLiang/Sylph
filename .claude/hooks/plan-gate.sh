@@ -4,7 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 # plan_gate: false（默认）→ 直接放行，不影响 rpe 和 todo 任何工作流
-hc_enabled "plan_gate" || exit 0
+hc_enabled "plan_gate" || { echo '{"continue": true}'; exit 0; }
 
 # ─── 以下仅在 plan_gate: true 时执行 ────────────────────────────
 INPUT=$(cat)
@@ -22,7 +22,7 @@ except:
     pass" 2>/dev/null)
 fi
 
-[ -z "$FILE_PATH" ] && exit 0
+[ -z "$FILE_PATH" ] && { echo '{"continue": true}'; exit 0; }
 BASENAME=$(basename "$FILE_PATH")
 EXEC_DOC=$(hc_get "workflow.executor_doc" "executor.md")
 PLAN_DOC=$(hc_get "workflow.plan_doc" "plan.md")
@@ -31,18 +31,19 @@ DOC_ROOT=$(hc_get "workflow.doc_root" "rpe")
 # 仅对 rpe/ 目录下的 plan.md / executor.md 生效
 case "$BASENAME" in
     "$PLAN_DOC"|"$EXEC_DOC") ;;
-    *) exit 0 ;;
+    *) echo '{"continue": true}'; exit 0 ;;
 esac
 
 # 确认文件路径在 rpe/ 目录下（不影响其他 plan.md）
 if ! echo "$FILE_PATH" | grep -q "$DOC_ROOT/"; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LATEST_EXEC=$(find "$PROJECT_ROOT/$DOC_ROOT" -name "$EXEC_DOC" -type f 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
-[ -z "$LATEST_EXEC" ] && exit 0
+[ -z "$LATEST_EXEC" ] && { echo '{"continue": true}'; exit 0; }
 FEATURE=$(echo "$LATEST_EXEC" | sed "s|.*/${DOC_ROOT}/||;s|/${EXEC_DOC}||")
 
 get_incomplete_steps() {
@@ -63,8 +64,9 @@ check_plan_gate() {
 
 INCOMPLETE_STEPS=$(get_incomplete_steps "$LATEST_EXEC")
 FIRST_INCOMPLETE=$(echo "$INCOMPLETE_STEPS" | head -1)
-[ -z "$FIRST_INCOMPLETE" ] && exit 0
+[ -z "$FIRST_INCOMPLETE" ] && { echo '{"continue": true}'; exit 0; }
 
+echo '{"continue": true}'
 # ─── 软阻断：注入提醒而非 exit 2 ──────────────────────────────
 # AI 读到提醒后可自行判断：继续（说明已确认）或回到正确流程
 if [ "$BASENAME" = "$PLAN_DOC" ]; then
@@ -83,4 +85,5 @@ if [ "$BASENAME" = "$EXEC_DOC" ]; then
     fi
 fi
 
+echo '{"continue": true}'
 exit 0

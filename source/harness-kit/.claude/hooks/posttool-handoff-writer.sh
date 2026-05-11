@@ -2,7 +2,7 @@
 # posttool-handoff-writer.sh — PostToolUse:TaskUpdate — 每次 Task 完成后写 handoff
 # Role: 每次 Task 完成后写 handoff（E8 上下文遗忘防御）
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "posttool_handoff_writer" || exit 0
+hc_enabled "posttool_handoff_writer" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # 解析 TaskUpdate 的 status 字段
@@ -17,7 +17,7 @@ except:
 " 2>/dev/null)
 
 # 仅对 "completed" status 响应
-[ "$STATUS" != "completed" ] && exit 0
+[ "$STATUS" != "completed" ] && { echo '{"continue": true}'; exit 0; }
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -113,4 +113,5 @@ if [ -n "$ACTIVE_FEATURE" ]; then
     fi
 fi
 
+echo '{"continue": true}'
 exit 0

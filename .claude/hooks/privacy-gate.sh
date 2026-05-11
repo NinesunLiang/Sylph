@@ -3,7 +3,7 @@
 # Role: 防止隐私数据泄露（DLP 门禁）
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "privacy_gate" || exit 0
+hc_enabled "privacy_gate" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then
@@ -60,4 +60,5 @@ for p in patterns:
     fi
 fi
 
+echo '{"continue": true}'
 exit 0

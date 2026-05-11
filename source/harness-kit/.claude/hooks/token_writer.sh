@@ -9,7 +9,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
-hc_enabled "token_writer" || exit 0
+hc_enabled "token_writer" || { echo '{"continue": true}'; exit 0; }
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 INDEX_FILE="$STATE_DIR/token-tracking-index.json"
 SAVINGS_FILE="$STATE_DIR/token-savings.json"
@@ -93,6 +93,7 @@ if [ "${1:-}" = "--reset" ]; then
 }
 RESETEOF
     echo "[token_writer] reset" >> "$STATE_DIR/.token-writer-session.log" 2>/dev/null
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -211,4 +212,5 @@ cat > "$SAVINGS_FILE" <<EOF
 }
 EOF
 
+echo '{"continue": true}'
 exit 0

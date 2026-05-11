@@ -118,6 +118,12 @@
 <!-- 已升华到 kernel.md 或 style-guide.md 的条目记录在此 -->
 <!-- 格式: - \~\~原标题\~\~ → 归宿（如 kernel.md §X.X 已覆盖）@日期 -->
 
+- \~\~[seed:typescript] 禁止 any 类型逃逸\~\~ → kernel.md §禁止行为: "禁止未引用 file:line" 覆盖核心原则 @2026-05-11
+- \~\~[seed:typescript] useEffect 依赖数组必须完整\~\~ → kernel.md §禁止行为 覆盖核心原则（留 claude-next 作参考）@2026-05-11
+- \~\~[seed:typescript] API 响应必须定义完整类型\~\~ → kernel.md §禁止行为 覆盖核心原则（留 claude-next 作参考）@2026-05-11
+- \~\~[seed:general] 修改接口前必须查引用\~\~ → kernel.md §禁止行为: "禁止未引用 file:line" + LSP 规则覆盖 @2026-05-11
+- \~\~[seed:general] 长对话中禁止依赖记忆引用文件内容\~\~ → kernel.md §禁止行为: "禁止未引用 file:line" 覆盖，hits=5 升华确认 @2026-05-11
+
 ### [R28] 废弃架构描述必须随实现同步更新
 
 @2026-05-06 hits:1
@@ -162,16 +168,58 @@
 证据：狗粮测试 — /compact 后 AI 忘记技术栈、ADR 决策、活跃 feature 状态，需要用户重新解释。
 补强：同时实现复合触发注入（context > 50% 且 turns > 20）作为周期刷新，防范 compact 后的规范漂移。
 
-### [2026-05-10] 用户纠正: 不对
+### [2026-05-10] 用户纠正: 不对（scope gate 和 version drift 修复时被中断）
 @2026-05-10 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+**触发场景**：用户在 ghost mode 对某次操作说"不对"
+**问题**：具体纠正内容未保留
+**纠正**：下次遇到同样信号时先记录纠正上下文，再补充到此条目
 
 
-### [2026-05-11] 用户纠正: 不对
+### [2026-05-11] 用户纠正: 不对（修复 agent-found issues 时被中断）
 @2026-05-11 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+**触发场景**：用户在 ghost mode 对某次操作说"不对"
+**问题**：具体纠正内容未保留
+**纠正**：下次遇到同样信号时先记录纠正上下文，再补充到此条目
+
+### [R35] hook 行为变更后必须更新脚本头部注释
+
+@2026-05-11 hits:1
+触发条件：修改 hook 核心行为（如 pretool-edit-scope 从 hard-block 改为 auto-add）后，未更新脚本顶部 Role 注释
+正确行为：行为变更后，搜索脚本顶部 `# Role:` 和 `# 用途` 行并同步更新。头部注释是其他维护者理解脚本的第一入口，不一致导致排查困难。
+证据：pretool-edit-scope.sh 改为 auto-add 后，Role 注释仍写"范围冻结拦截，阻止越界编辑"，与实际 auto-add（exit 0）行为矛盾。
+
+### [R36] hook 合并/废弃需三方同步
+
+@2026-05-11 hits:1
+触发条件：合并 pretool-rule-anchor 逻辑到 pretool-edit-scope.sh 后，从 settings.json 移除但其 harness.yaml 开关仍为 true
+正确行为：合并/废弃 hook 需要同步更新 3 个文件：(A) settings.json — 移除事件注册，(B) harness.yaml — 设 enabled=false 或移除条目，(C) smoke tests — 更新对应用例预期
+证据：合并后 audit-hooks 检测为 zombie（磁盘脚本存在 + harness enabled，但 settings 无注册），二次修复才关闭 harness.yaml 开关。
+
+### [R37] ghost mode 下需豁免模糊指令检测
+
+@2026-05-11 hits:1
+触发条件：turn-counter.sh 在 ghost mode 中触发模糊指令（"继续""优化""改进"）检测，产生误报
+正确行为：钩子检测到 `.omc/state/ghost-mode.active` 文件存在时，将 HAS_EXPLICIT_TARGET 设为 true，跳过模糊动词检测
+证据：ghost mode 的"继续""优化"等指令是合法迭代指令，非模糊指令。已在 turn-counter.sh 实现 ghost-mode.active 豁免。
+
+### [R38] 证据门禁失败时也应展示质量评分方向
+
+@2026-05-11 hits:1
+触发条件：completion-gate.sh 证据质量评分低于阈值时仅告知"不通过"，不给改进方向
+正确行为：证据不通过时输出质量分解（file:line 引用数、test/cmd 标记数、multi-aspect 数），指明具体提升方向
+证据：P3.4 实施后，通过时展示 score + breakdown 明显提升用户体验和 self-fix 效率。
+
+### [R39] 自动注入内容应优先驻留在 reference 文件
+
+@2026-05-11 hits:1
+触发条件：SessionStart 时 index.md 全量注入含 34 行 hooks 表格（~2.8KB），占据 ~20% 注入预算
+正确行为：不常变/仅查阅内容移到 `.claude/reference/*.md`，index.md 仅留摘要链接。每次 SessionStart 自动注入应优先控制在 ~120 行/3KB 以内。
+证据：hooks 表从 index.md 移出后，SessionStart 注入节省 ~2.6KB（~20%）。验证 90/90 smoke 不受影响。
+
+### [R40] Stop hook 产出的文件需运行时验证而非仅代码审查
+
+@2026-05-11 hits:1
+触发条件：auto-snapshot.sh 中 session-dump.json 写入逻辑经代码审查确认，但文件一直不存在
+正确行为：Stop hook 产出的文件（session-dump.json、handoff.md 等）必须测试触发验证，不能仅凭 Read 代码断言。在 session 中手动触发一次 Stop hook 确认产出。
+证据：session-dump.json 代码存在且正确，但从未在运行时创建（未发生 Stop 事件）。手动触发后立即创建 7121 bytes / 7 字段的 dump 文件。
 

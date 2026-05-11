@@ -5,7 +5,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
-hc_enabled "completion_gate" || exit 0
+hc_enabled "completion_gate" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # 提取 status 字段
@@ -23,8 +23,25 @@ fi
 
 # 非 completed 状态 → 放行
 if [ "$STATUS" != "completed" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
+
+# 自主/无人值守模式：证据检查仍执行（留痕），但失败降级为 warn
+AUTONOMOUS=false
+if [ -f "$PROJECT_ROOT/.omc/state/autonomous.active" ] || [ -f "$PROJECT_ROOT/.omc/state/ghost-mode.active" ]; then
+    AUTONOMOUS=true
+fi
+
+# 自主模式降级：exit 2 → warn + exit 0（仍检查证据用于留痕，但不阻断操作）
+auto_soft_block() {
+    if [ "$AUTONOMOUS" = true ]; then
+        echo "⚠️ [自主模式] $1" >&2
+        echo '{"continue": true}'
+        exit 0
+    fi
+    exit 2
+}
 
 # 检查证据文件是否存在（AI 必须先运行验证并写入证据文件才能标记完成）
 EVIDENCE_DIR=$(hc_get "completion_gate.evidence_dir" ".omc/state")
@@ -48,7 +65,7 @@ except:
         CONSUMED="${EVIDENCE_FILE}.consumed.$$"
         if ! mv "$EVIDENCE_FILE" "$CONSUMED" 2>/dev/null; then
             echo "⛔ COMPLETION BLOCKED: 证据已被其他进程消费" >&2
-            exit 2
+            auto_soft_block "证据已被其他进程消费"
         fi
 
         # 证据内容验证：必须包含至少 20 字符实际描述 + VERIFIED 关键字
@@ -61,13 +78,13 @@ except:
             echo "⛔ COMPLETION BLOCKED: 证据内容过短（${CONTENT_LEN} 字符 < ${MIN_CHARS} 字符最低要求）。" >&2
             echo "证据必须包含至少 ${MIN_CHARS} 字符的实际验证描述，不能只有 '${REQ_KEYWORD}' 等占位符。" >&2
             rm -f "$CONSUMED"
-            exit 2
+            auto_soft_block "证据内容过短（${CONTENT_LEN}字符）"
         fi
 
         if ! echo "$CONTENT" | grep -q "$REQ_KEYWORD"; then
             echo "⛔ COMPLETION BLOCKED: 证据文件中未找到 '${REQ_KEYWORD}' 关键字。" >&2
             rm -f "$CONSUMED"
-            exit 2
+            auto_soft_block "证据文件缺少关键字"
         fi
 
         # R27: 语义验证 — 形式门禁通过 ≠ 断言真实
@@ -80,7 +97,7 @@ except:
             echo "  - [已测试: 命令+输出] 格式的运行验证" >&2
             echo "  - 明确的通过标记（exit 0, PASS, ✅ 等）" >&2
             rm -f "$CONSUMED"
-            exit 2
+            auto_soft_block "证据格式模糊"
         fi
 
         # E3 增强: 软完成语检测 — 拒绝违禁词（AGENTS.md §软完成语禁令）
@@ -90,7 +107,29 @@ except:
             echo "违禁词: 应该没问题了、基本完成、大部分完成、差不多了、理论上可行、看起来正常" >&2
             echo "正确格式示例: 'VERIFIED: go build ./... → exit 0, all tests PASS'" >&2
             rm -f "$CONSUMED"
-            exit 2
+            auto_soft_block "证据含软完成语"
+        fi
+
+        # E2 增强: 双源证据要求 — 证据必须来自 ≥2 个独立验证类别
+        # 类别: (A) file:line 引用 / (B) 测试/编译标记 / (C) 边界/量化数据
+        DUAL_SOURCE=$(python3 -c "
+import re
+c = '''$CONTENT'''
+sources = 0
+if re.search(r'[\w./-]+\.[a-z]+:\d+', c): sources += 1  # A: file:line
+if re.search(r'(exit\.code|PASS|FAIL|✅|❌|build|test|\d+ passed|\d+ failed)', c, re.I): sources += 1  # B: test
+if re.search(r'(\d+/\d+|\d+\.\d+%|edge.case|coverage|regression|\d+ms)', c, re.I): sources += 1  # C: quant
+print(sources)
+" 2>/dev/null)
+        if [ -n "$DUAL_SOURCE" ] && [ "$DUAL_SOURCE" -lt 2 ] 2>/dev/null; then
+            echo "⛔ COMPLETION BLOCKED: 证据仅来自 ${DUAL_SOURCE}/3 个验证类别，需要 ≥2 类独立证据。" >&2
+            echo "证据类别:" >&2
+            echo "  (A) file:line 代码引用" >&2
+            echo "  (B) 测试/编译通过标记" >&2
+            echo "  (C) 量化/边界数据" >&2
+            echo "示例: 'VERIFIED: go build → exit 0, handler.go:42 配置加载 ✅'" >&2
+            rm -f "$CONSUMED"
+            auto_soft_block "证据仅来自 ${DUAL_SOURCE}/3 类别"
         fi
 
         # E3 增强: 证据质量评分 — 量化证据完整性，低于阈值则阻断
@@ -132,7 +171,7 @@ for d in details:
     print(d)
 " 2>/dev/null)
 
-        QUALITY_THRESHOLD=$(hc_get "completion_gate.quality_threshold" "50")
+        QUALITY_THRESHOLD=$(hc_get "completion_gate.quality_threshold" "65")
 
         if [ -n "$QUALITY_SCORE" ] && [ "$QUALITY_SCORE" -lt "$QUALITY_THRESHOLD" ] 2>/dev/null; then
             echo "⛔ COMPLETION BLOCKED: 证据质量评分 ${QUALITY_SCORE}% < ${QUALITY_THRESHOLD}% 最低要求。" >&2
@@ -148,11 +187,29 @@ print(f'  多方面验证:   {multi}处 (需≥2)')
 print(f'  >>> 改进: 添加 file:line 引用 + 具体命令输出 + 量化测试结果')
 " 2>/dev/null
             rm -f "$CONSUMED"
-            exit 2
+            auto_soft_block "证据质量评分过低（${QUALITY_SCORE}%）"
         fi
+
+        # P3.4: 质量评分透明输出（通过时也展示评分）
+        echo "✅ 证据通过. 质量评分: ${QUALITY_SCORE}/100 (阈值 ${QUALITY_THRESHOLD})" >&2
+        python3 -c "
+content = '''$(cat "$CONSUMED" 2>/dev/null)'''
+import re
+fl = len(re.findall(r'[\w./-]+\.[a-z]+:\d+', content))
+cmd = sum(1 for p in ['exit.code',r'PASS',r'FAIL','✅','❌','test','build'] if re.search(p,content,re.I))
+multi = sum(1 for p in [r'\d+%',r'\d+ms','coverage','all tests','edge.case'] if re.search(p,content,re.I))
+quant = sum(1 for p in [r'\d+/\d+',r'\d+\.\d+'] if re.search(p,content))
+print(f'  file:line={fl}  test/cmd={cmd}  multi-aspect={multi}  quant={quant}')
+" 2>/dev/null
 
         # 验证通过，清理消费文件
         rm -f "$CONSUMED"
+
+        # --- 自动推进 Pipeline Step（C3 流程结构化） ---
+        PIPELINE_SCRIPT="$PROJECT_ROOT/.claude/scripts/pipeline-step.sh"
+        if [ -f "$PIPELINE_SCRIPT" ]; then
+            bash "$PIPELINE_SCRIPT" advance >/dev/null 2>&1 || true
+        fi
 
         # --- A→B→A 交叉验证触发（Oracle Q1: 关键词匹配 + 复杂度门控双通道）---
         # 通道1: 复杂度门控 — L3/L4 任务、架构决策、多文件变更等复杂度指标
@@ -212,6 +269,7 @@ HANDOFF
             echo "比对一致 → 验收通过 | 不一致 → 返回 A 重新生成方案，重复此流程" >&2
             echo "══════════════════════════" >&2
         fi
+        echo '{"continue": true}'
         exit 0
     fi
 fi
@@ -229,4 +287,4 @@ if [ -f "$REGISTRY_PATH" ]; then
 fi
 
 echo "[Completion Gate] evidence missing: expected ${EVIDENCE_LEVEL_LABEL} at ${EVIDENCE_FILE}" >&2
-exit 2
+auto_soft_block "无证据文件"

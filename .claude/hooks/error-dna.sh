@@ -164,13 +164,24 @@ output_snippet = (stderr or stdout)[:500]
 message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
 
 # E5: Noise classification — known operational patterns that are not actionable
+# Note: Keep as substring `in` matching (not regex). These patterns are also used
+# retroactively during aggregation to re-classify pre-noise-era records.
 NOISE_PATTERNS = [
-    'File has not been read yet',       # edit-guard enforcement (normal)
-    "doesn't want to proceed",           # user tool rejection (normal)
-    "doesn't want to take this action",  # user tool rejection (normal)
-    'String to replace not found',       # Edit tool retry (normal)
-    'cat: illegal option',               # macOS compat (known)
-    'File does not exist',               # Read tool error (normal)
+    'File has not been read yet',             # edit-guard enforcement (normal)
+    "doesn't want to proceed",                 # user tool rejection (normal)
+    "doesn't want to take this action",        # user tool rejection (normal)
+    'String to replace not found',             # Edit tool retry (normal)
+    'cat: illegal option',                     # macOS compat (known)
+    'File does not exist',                     # Read tool error (normal)
+    'Permission Gate:',                        # permission-gate blocking (normal)
+    'Unable to verify if domain',              # WebFetch safety check (internal)
+    'File has been modified since read',       # concurrency guard (normal)
+    'exceeds maximum allowed tokens',          # token limit enforcement (normal)
+    'InputValidationError: Edit',              # edit validation (normal)
+    'lsp-suggest.sh',                          # LSP suggest hook error (operational)
+    'Exit code 126',                           # permission denied (operational)
+    'Exit code 127',                           # command not found (operational)
+    'PreToolUse:Bash hook error',              # hook pipeline error (operational)
 ]
 is_noise = any(p in message for p in NOISE_PATTERNS)
 
@@ -207,34 +218,37 @@ try:
 except (FileNotFoundError, json.JSONDecodeError):
     pass
 
-# Step 2: Rebuild from jsonl source-of-truth
+# Step 2: Rebuild from jsonl source-of-truth (including archive files)
 aggregated = {}
-try:
-    with open(jsonl_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-                sig = rec.get('signature', 'unknown')
-                if sig not in aggregated:
-                    _noise = rec.get('is_noise', False)
-                    aggregated[sig] = {
-                        'count': 0,
-                        'fix_count': 0,
-                        'status': 'noise' if _noise else 'active',
-                        'last_seen': 0,
-                        'message': ''
-                    }
-                aggregated[sig]['count'] += 1
-                aggregated[sig]['last_seen'] = max(aggregated[sig]['last_seen'], rec.get('ts', 0))
-                if not aggregated[sig]['message']:
-                    aggregated[sig]['message'] = rec.get('message', '')[:200]
-            except json.JSONDecodeError:
-                continue
-except FileNotFoundError:
-    pass
+for _js in [jsonl_path] + [
+        os.path.join(state_dir, f'error-dna.jsonl.{i}')
+        for i in range(int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3')))]:
+    try:
+        with open(_js) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = json.loads(line)
+                    sig = rec.get('signature', 'unknown')
+                    if sig not in aggregated:
+                        _noise = rec.get('is_noise', False)
+                        aggregated[sig] = {
+                            'count': 0,
+                            'fix_count': 0,
+                            'status': 'noise' if _noise else 'active',
+                            'last_seen': 0,
+                            'message': ''
+                        }
+                    aggregated[sig]['count'] += 1
+                    aggregated[sig]['last_seen'] = max(aggregated[sig]['last_seen'], rec.get('ts', 0))
+                    if not aggregated[sig]['message']:
+                        aggregated[sig]['message'] = rec.get('message', '')[:200]
+                except json.JSONDecodeError:
+                    continue
+    except FileNotFoundError:
+        pass
 
 # Step 3: Merge persistent metadata (fix_count, repair_success, repair_command) from error-dna.json
 for sig in aggregated:
@@ -246,6 +260,44 @@ for sig in aggregated:
             aggregated[sig]['repair_success'] = True
         if p.get('repair_command'):
             aggregated[sig]['repair_command'] = p['repair_command']
+
+# Step 4: Retroactive noise re-classification — records stored before noise detection
+# existed have is_noise=False, but their message unambiguously matches noise patterns.
+for _rs_sig in list(aggregated.keys()):
+    _rs_info = aggregated[_rs_sig]
+    if _rs_info.get('status') == 'fixed':
+        continue
+    _rs_msg = _rs_info.get('message', '')
+    if any(_p in _rs_msg for _p in NOISE_PATTERNS):
+        _rs_info['status'] = 'noise'
+
+# E5: Stale entry archiver — entries with last_seen > 7 days and count >= 10
+# are moved to a separate archive file, reducing active context noise.
+import time
+_now_ts = int(time.time())
+_seven_days = 7 * 86400
+_archive_path = os.path.join(state_dir, 'error-dna-archive.json')
+_archived = {}
+if os.path.isfile(_archive_path):
+    try:
+        with open(_archive_path) as _af:
+            _archived = json.load(_af).get('error_signatures', {})
+    except:
+        pass
+_stale_count = 0
+for _as_sig in list(aggregated.keys()):
+    _as_entry = aggregated[_as_sig]
+    _last_seen = _as_entry.get('last_seen', 0)
+    _count = _as_entry.get('count', 0)
+    if _last_seen > 0 and (_now_ts - _last_seen) > _seven_days and _count >= 10:
+        _archived[_as_sig] = _as_entry
+        del aggregated[_as_sig]
+        _stale_count += 1
+if _archived:
+    with open(_archive_path, 'w') as _af:
+        json.dump({'error_signatures': _archived}, _af, indent=2, ensure_ascii=False)
+if _stale_count > 0:
+    print(f"[error-dna archive] {_stale_count} 条陈旧记录已归档到 {_archive_path}")
 
 merged = {'error_signatures': aggregated}
 with open(json_path, 'w') as f:
@@ -300,6 +352,28 @@ if _fix_suggestions and _fix_count < 3:
         _fix_lines.append(f"  ⚠️ 已尝试 {_fix_count + 1}/3 次，超过 3 次将不再自动建议")
     print('|'.join(_fix_lines))
 
+# C9 auto-rollback: When fix_count >= 3 and error still active, suggest stash rollback
+if _fix_count >= 3:
+    _fix_lines = [f"[C9 auto-rollback] 签名 {signature[:12]} 已失败 {_fix_count} 次，建议回滚:"]
+    _fix_lines.append(f"  · 运行 git stash 撤销当前更改，从已知可用状态重试")
+    _fix_lines.append(f"  · 记录回滚原因到 .omc/state/rollback-log.jsonl")
+    # Write rollback suggestion to rollback log
+    _rl_path = os.path.join(state_dir, 'rollback-log.jsonl')
+    _rl_record = {
+        'ts': ts,
+        'signature': signature,
+        'fix_count': _fix_count,
+        'cmd': cmd_clean[:200],
+        'suggestion': 'git stash or reset',
+    }
+    try:
+        with open(_rl_path, 'a') as _rl_f:
+            _rl_f.write(json.dumps(_rl_record, ensure_ascii=False) + '\n')
+        _fix_lines.append(f"  ▶ 已记录到 {_rl_path}")
+    except:
+        pass
+    print('|'.join(_fix_lines))
+
 # Re-write with updated fix_count and repair metadata
 if _fix_suggestions and _fix_count < 3:
     with open(json_path, 'w') as f:
@@ -330,8 +404,28 @@ frequent = [(sig, info['count'], info.get('message', '')[:120])
 if frequent:
     frequent.sort(key=lambda x: -x[1])
     lines = ["[高频错误模式检测] 以下签名已出现 >=2 次:"]
+    # 按工具类型分组
+    tool_groups = {}
     for sig, count, msg in frequent:
-        lines.append(f'  · {sig[:20]} ×{count} — {msg}')
+        if 'Bash' in msg or 'bash' in msg:
+            tg = 'Bash'
+        elif 'Edit' in msg or 'edit' in msg:
+            tg = 'Edit'
+        elif 'Read' in msg or 'read' in msg:
+            tg = 'Read'
+        elif 'Write' in msg or 'write' in msg:
+            tg = 'Write'
+        elif 'Grep' in msg or 'grep' in msg:
+            tg = 'Grep'
+        else:
+            tg = 'Other'
+        if tg not in tool_groups:
+            tool_groups[tg] = []
+        tool_groups[tg].append((sig, count, msg))
+    for tg in sorted(tool_groups.keys()):
+        lines.append(f"  [{tg}]")
+        for sig, count, msg in tool_groups[tg][:3]:
+            lines.append(f'    · {sig[:20]} ×{count} — {msg}')
     print('|'.join(lines))
 PYEOF
 )

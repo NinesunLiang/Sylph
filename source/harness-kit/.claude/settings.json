@@ -4,6 +4,16 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/fuzzy-block.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
         "matcher": "Edit",
         "hooks": [
           {
@@ -70,13 +80,7 @@
       },
       {
         "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-rule-anchor.sh",
-            "timeout": 3000
-          }
-        ]
+        "hooks": []
       },
       {
         "matcher": "Edit|Write",
@@ -94,6 +98,16 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/subagent-guard.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-completion-gate.sh",
             "timeout": 3000
           }
         ]

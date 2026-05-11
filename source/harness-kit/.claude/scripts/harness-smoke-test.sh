@@ -192,9 +192,9 @@ run_case "pretool-edit-scope: 无 scope 文件应放行" \
   "pretool-edit-scope.sh" 0 ""
 
 echo "auth.go" > .omc/state/current-scope.txt
-run_case "pretool-edit-scope: 越界文件应阻断" \
+run_case "pretool-edit-scope: 越界文件应自动加入范围" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/payment.go"}}' \
-  "pretool-edit-scope.sh" 2 "Scope Gate"
+  "pretool-edit-scope.sh" 0 "自动加入编辑范围"
 rm -f .omc/state/current-scope.txt
 
 # --- R24-S1: 8 个未覆盖 hook 的业务语义验收 ---
@@ -323,11 +323,11 @@ rm -f "$_SM_OUT"
 
 # --- R23: 新注册的 8 个 hook — 业务级验收（R24-S2 升级版） ---
 
-# R23/R24 lsp-suggest: 首次导出符号 Grep 应阻断（exit 2）+ 提示 LSP
+# UX-1.3 lsp-suggest: 首次导出符号 Grep 应警告（exit 0，不再阻断）
 rm -f .omc/state/lsp-suggested
-run_case "R23/R24 lsp-suggest: 首次 Grep 导出符号应阻断并提示 LSP" \
+run_case "UX-1.3 lsp-suggest: 首次 Grep 导出符号应提示 LSP（不阻断）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"SomeExportedSymbol"}}' \
-  "lsp-suggest.sh" 2 "LSP 建议|lsp_workspace_symbols"
+  "lsp-suggest.sh" 0 "LSP 建议|lsp_workspace_symbols"
 if [ -f .omc/state/lsp-suggested ]; then
     pass "R24 lsp-suggest 写入会话标记（首次后不再重提）"
 else
@@ -343,25 +343,27 @@ run_case "R23/R24 lsp-suggest: 非符号模式（含正则元字符）应放行"
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"func.*Foo"}}' \
   "lsp-suggest.sh" 0 ""
 
-# R23/R24 pretool-rule-anchor: 轮次 <15 应放行
+# R23/R24 pretool-rule-anchor → 已合并到 pretool-edit-scope.sh
+# 在 scope 匹配 + 高轮次时应输出规则锚定
 rm -f .omc/state/session-turns.json
-run_case "R23/R24 pretool-rule-anchor: 轮次低应放行" \
+echo "/tmp/x" > .omc/state/current-scope.txt
+run_case "R23/R24 pretool-rule-anchor(合并): 低轮次无锚定" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' \
-  "pretool-rule-anchor.sh" 0 ""
+  "pretool-edit-scope.sh" 0 ""
 
-# R24 pretool-rule-anchor: 轮次 >=15 应注入 additionalContext（规则锚定）
-echo '{"count": 15}' > .omc/state/session-turns.json
+# R24 pretool-rule-anchor(合并): 轮次 >=15 应输出规则锚定
+echo '{"count": 20}' > .omc/state/session-turns.json
 _ANCHOR_OUT="/tmp/smoke-anchor-$$.out"
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-rule-anchor.sh > "$_ANCHOR_OUT" 2>&1
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-edit-scope.sh > "$_ANCHOR_OUT" 2>&1
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R24 pretool-rule-anchor: 长会话应注入 additionalContext"
-if grep -qE "规则锚定|禁止编造|VERIFIED" "$_ANCHOR_OUT"; then
-    pass "R24 pretool-rule-anchor 注入铁律提醒"
+log "[$TOTAL] R24 pretool-rule-anchor(合并): 高轮次应输出锚定"
+if grep -qE "规则锚定|禁止编造|VERIFIED|漂移" "$_ANCHOR_OUT"; then
+    pass "R24 pretool-rule-anchor(合并) 已通过 pretool-edit-scope 输出锚定"
 else
-    fail "R24 pretool-rule-anchor 未注入"
+    fail "R24 pretool-rule-anchor(合并) 未输出锚定"
 fi
-rm -f "$_ANCHOR_OUT" .omc/state/session-turns.json
+rm -f "$_ANCHOR_OUT" .omc/state/session-turns.json .omc/state/current-scope.txt
 
 # R23/R24/R25 subagent-guard: 危险 agent 无 max_turns → 默认放行 + additionalContext 提示
 _SG_OUT="/tmp/smoke-sg-$$.out"

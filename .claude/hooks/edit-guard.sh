@@ -3,17 +3,17 @@
 # Role: 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "edit_guard" || exit 0
+hc_enabled "edit_guard" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 READ_LOG="$STATE_DIR/read-tracker.txt"
 
-# 无人值守模式: 跳过 Read-before-Edit 门禁（exit 0 + additionalContext）
-UNATTENDED_FILE="$STATE_DIR/.unattended-mode"
-if [ -f "$UNATTENDED_FILE" ]; then
-    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 无人值守模式: 跳过 Read-before-Edit 检查"}}\n'
+# 统一模式检测: ghost/unattended 模式下跳过 Read-before-Edit 门禁
+MODE=$(is_mode_active "$STATE_DIR")
+if [ "$MODE" != "normal" ]; then
+    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ %s模式: 跳过 Read-before-Edit 检查"}}\n' "$MODE"
     exit 0
 fi
 
@@ -32,6 +32,7 @@ fi
 
 # 无路径 → 放行（fail-open）
 if [ -z "$FILE_PATH" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -49,7 +50,7 @@ for ext in $SOURCE_EXT; do
     esac
 done
 set +f
-[ "$_MATCH" = false ] && exit 0
+[ "$_MATCH" = false ] && { echo '{"continue": true}'; exit 0; }
 
 # 规范化路径
 REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null)
@@ -59,11 +60,13 @@ fi
 
 # Fail-open: 状态文件不存在 → 放行（read-tracker 可能未工作）
 if [ ! -f "$READ_LOG" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
 # 检查是否已读取（精确匹配整行）
 if grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
+    echo '{"continue": true}'
     exit 0
 fi
 

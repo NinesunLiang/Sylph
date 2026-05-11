@@ -38,6 +38,24 @@ for entry in $INJECT_FILES; do
 done
 set +f
 
+# 注入当前 Pipeline Step（C3 流程结构化）
+PIPELINE_STEP_SCRIPT="$PROJECT_ROOT/.claude/scripts/pipeline-step.sh"
+if [ -f "$PIPELINE_STEP_SCRIPT" ]; then
+    PIPELINE_CTX=$(bash "$PIPELINE_STEP_SCRIPT" inject 2>/dev/null)
+    if [ -n "$PIPELINE_CTX" ]; then
+        echo "$PIPELINE_CTX"
+    fi
+fi
+
+# 注入会话健康检查（抗衰减）
+HEALTH_SCRIPT="$PROJECT_ROOT/.claude/scripts/session-health-check.sh"
+if [ -f "$HEALTH_SCRIPT" ]; then
+    HEALTH_CTX=$(bash "$HEALTH_SCRIPT" inject 2>/dev/null)
+    if [ -n "$HEALTH_CTX" ]; then
+        echo "$HEALTH_CTX"
+    fi
+fi
+
 # LSP 提醒（从配置读取）
 LSP_HINT=$(hc_get "knowledge.lsp_hint" "")
 if [ -n "$LSP_HINT" ]; then
@@ -189,23 +207,34 @@ try:
         elif status != 'fixed':
             unfixed_errors[sig] = entry
 
-    if reopened_errors or unfixed_errors:
+    # Separate actionable vs historical (older than 7 days without new hits)
+    import time
+    now_ts = int(time.time())
+    seven_days = 7 * 86400
+    actionable = {}
+    historical = {}
+    for sig, e in (unfixed_errors | reopened_errors).items():
+        last_seen = e.get('last_seen', 0)
+        count = e.get('count', 1)
+        # entries with last_seen >7d and count>100 are historical artifacts
+        if last_seen > 0 and (now_ts - last_seen) > seven_days and count >= 10:
+            historical[sig] = e
+        else:
+            actionable[sig] = e
+
+    if actionable or historical:
         print("[错误记忆]")
-        if reopened_errors:
-            print("反复出现的错误:")
-            for sig, e in list(reopened_errors.items())[:3]:
+        print(f"  总计 {len(signatures)} 条签名, {len(actionable)} 活跃可操作, {len(historical)} 历史归档")
+        if actionable:
+            for sig, e in list(actionable.items())[:3]:
                 count = e.get('count', 1)
                 fix_count = e.get('fix_count', 0)
                 message = e.get('message', '(unknown)')[:80]
-                print(f" - [{count}次, 修过{fix_count}次] {message}")
+                print(f" - [×{count}, 修过{fix_count}次] {message}")
                 if e.get('fix_context'):
-                    print(f"  上次修复相关文件: {', '.join(e['fix_context'])}")
-        if unfixed_errors:
-            print("未解决的错误:")
-            for sig, e in list(unfixed_errors.items())[:3]:
-                count = e.get('count', 1)
-                message = e.get('message', '(unknown)')[:80]
-                print(f" - [{count}次] {message}")
+                    print(f"   修复相关文件: {', '.join(e['fix_context'])}")
+        if historical:
+            print(f"  ({len(historical)} 条为 >7天历史记录，不影响当前会话)")
         print("---")
 except Exception:
     pass
@@ -278,5 +307,15 @@ except Exception:
 " 2>/dev/null)
     if [ -n "$GOV_OUTPUT" ]; then
         echo "$GOV_OUTPUT"
+    fi
+fi
+
+# 注入 Retry Budget 状态（C9 修复上限追踪）
+RETRY_SCRIPT="$PROJECT_ROOT/.claude/scripts/retry-budget.sh"
+if [ -f "$RETRY_SCRIPT" ]; then
+    RETRY_CTX=$(bash "$RETRY_SCRIPT" check 2>&1)
+    RETRY_EXIT=$?
+    if [ $RETRY_EXIT -eq 2 ] && [ -n "$RETRY_CTX" ]; then
+        echo "$RETRY_CTX"
     fi
 fi

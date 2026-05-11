@@ -25,6 +25,7 @@ fi
 
 # 无路径 → 静默退出
 if [ -z "$FILE_PATH" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -35,7 +36,7 @@ if [ -z "$REAL_PATH" ]; then
 fi
 
 # 确保状态目录存在
-mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
+mkdir -p "$STATE_DIR" 2>/dev/null || { echo '{"continue": true}'; exit 0; }
 
 # 轮转：超过配置行数时归档
 ROTATION_LINE_COUNT=$(hc_get "read_tracker.rotation_line_count" "500")
@@ -54,7 +55,9 @@ fi
 
 # 去重写入（工具调用为顺序执行，竞态风险极低）
 if [ -f "$READ_LOG" ] && grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
+    echo '{"continue": true}'
     exit 0
 fi
 echo "$REAL_PATH" >> "$READ_LOG" 2>/dev/null
+echo '{"continue": true}'
 exit 0

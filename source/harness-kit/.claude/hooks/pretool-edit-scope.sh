@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围冻结拦截，阻止越界编辑 + 核心文件警告
-# Role: 范围冻结拦截，阻止越界编辑 + 核心文件警告
+# pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anchor）
+# Role: 范围文件匹配 + 自动加入 + 核心文件警告 + 长对话规则锚定（R40: 不再硬阻断越界编辑）
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "pretool_edit_scope" || exit 0
+hc_enabled "pretool_edit_scope" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # 解析 file_path
@@ -20,7 +20,7 @@ except:
 fi
 
 # 任何解析错误 → fail-open
-[ -z "$FILE_PATH" ] && exit 0
+[ -z "$FILE_PATH" ] && { echo '{"continue": true}'; exit 0; }
 BASENAME=$(basename "$FILE_PATH")
 
 # 保护文件警告（仅 stderr，不阻断）
@@ -38,6 +38,41 @@ set +f
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SCOPE_FILE="$PROJECT_ROOT/.omc/state/current-scope.txt"
+
+# ─── 规则锚定提醒函数（合并自 pretool-rule-anchor.sh）───
+rule_anchor_check() {
+    local turn_file="$PROJECT_ROOT/.omc/state/session-turns.json"
+    [ ! -f "$turn_file" ] && return
+    local current_turn=0
+    if command -v jq &>/dev/null; then
+        current_turn=$(jq -r '.count // 0' "$turn_file" 2>/dev/null || echo 0)
+    else
+        current_turn=$(grep -o '"count"[[:space:]]*:[[:space:]]*[0-9]*' "$turn_file" 2>/dev/null | sed 's/.*:[[:space:]]*//' | head -1)
+        [ -z "$current_turn" ] && current_turn=0
+    fi
+    [[ "$current_turn" =~ ^[0-9]+$ ]] || current_turn=0
+
+    local threshold=$(hc_get "rule_anchor.turn_threshold" "15")
+    local interval=$(hc_get "rule_anchor.interval" "5")
+    [ "$current_turn" -lt "$threshold" ] && return
+    local offset=$(( current_turn - threshold ))
+    [ "$interval" -gt 0 ] && [ $(( offset % interval )) -ne 0 ] && return
+
+    # 检测漂移信号词
+    local last_prompt="$PROJECT_ROOT/.omc/state/.last-user-prompt"
+    local drift_detected=false
+    if [ -f "$last_prompt" ]; then
+        for word in "顺手" "顺便" "另外也" "同时也" "顺带" "捎带"; do
+            grep -qF "$word" "$last_prompt" 2>/dev/null && { drift_detected=true; break; }
+        done
+    fi
+
+    if [ "$drift_detected" = true ]; then
+        echo "⚠️ [第${current_turn}轮·漂移预警] 检测到范围扩展词。只改当前任务文件，额外问题记 TODO。" >&2
+    else
+        echo "📌 [第${current_turn}轮·规则锚定] 长会话提醒：①file:line ②VERIFIED证据 ③git批准 ④范围冻结 ⑤3轮上限" >&2
+    fi
+}
 
 # ─── 耦合提醒函数（定义在调用之前）───
 coupling_remind() {
@@ -94,25 +129,24 @@ PYEOF
     fi
 }
 
-# ─── 删除保护：禁止 AI 删除 scope 文件（结构性 fail-open 修复） ───
-if [ "$BASENAME" = "current-scope.txt" ] && echo "$FILE_PATH" | grep -q "\.omc/state/"; then
-    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [Scope Gate] 禁止删除编辑范围文件 current-scope.txt。这是结构性安全控制，无法绕过。"}}\n'
-    exit 2
-fi
-
-# ─── 无范围文件 → fail-closed（结构性脆弱修复） ───
-# 原则：无 scope = 阻断，必须先声明编辑范围。auto-scope 只生成提醒，不自动创建 scope。
+# 无范围文件 → 尝试自动推导（仅输出提醒，不创建 scope 文件）
+# 原则：无 scope = 放行。auto-scope 不应本末倒置产生 scope 封锁。
 if [ ! -f "$SCOPE_FILE" ]; then
     AUTO_SCOPE="$PROJECT_ROOT/.claude/scripts/auto-scope.sh"
     if [ -f "$AUTO_SCOPE" ]; then
+        # 仅输出提醒，不创建 scope 文件
         AUTO_MSG=$(bash "$AUTO_SCOPE" 2>&1 || true)
+        echo "ℹ️  auto-scope: $AUTO_MSG" >&2
     fi
-    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [Scope Gate] 未找到编辑范围文件 current-scope.txt。当前编辑操作被阻断。\n\n请在 .omc/state/current-scope.txt 中声明允许编辑的文件/目录，格式：\n  ./path/to/file.go\n  ./**/*.go\n\n提示: %s"}}\n' \
-        "${AUTO_MSG:-运行 auto-scope.sh 获取建议范围}" >&2
-    exit 2
+    REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
+    coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
+    rule_anchor_check
+    echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+    echo '{"continue": true}'
+    exit 0
 fi
 
-# ─── 转为相对路径，逐行 glob 匹配范围 ───
+# 转为相对路径
 REL_PATH="${FILE_PATH#$PROJECT_ROOT/}"
 
 # 逐行 glob 匹配
@@ -121,16 +155,21 @@ while IFS= read -r pattern || [ -n "$pattern" ]; do
     # 同时匹配 REL_PATH（全路径）和 BASENAME（文件名），解决 auto-scope 只生成 basename 的问题
     [[ "$REL_PATH" == $pattern || "$BASENAME" == $pattern ]] && {
         coupling_remind "$REL_PATH" "$PROJECT_ROOT" 2>&1
+        rule_anchor_check
         # Record to session edit log
         echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+        echo '{"continue": true}'
         exit 0
     }
 done < "$SCOPE_FILE"
 
-# 全部不匹配 → 输出耦合提醒后阻断
+# 全部不匹配 → 自动加入 scope（非阻断）+ 耦合提醒
+# R40: 从"硬阻断+复制粘贴"改为"自动添加+非阻断提醒"
+# 用户预期是"AI 直接改文件"，不需要理解 scope 概念
 coupling_remind "$REL_PATH" "$PROJECT_ROOT"
-SCOPE_CONTENT=$(tr '\n' ' ' < "$SCOPE_FILE")
-echo "Scope Gate: ${REL_PATH} 不在编辑允许范围内。" >&2
-echo "复制下方内容执行，回车后说"继续"：" >&2
-echo "echo '${REL_PATH}' >> ${SCOPE_FILE}" >&2
-exit 2
+echo "ℹ️ [scope] ${REL_PATH} 自动加入编辑范围（之前未在 scope 中）" >&2
+echo "$REL_PATH" >> "$SCOPE_FILE" 2>/dev/null || true
+echo "$REL_PATH" >> "$PROJECT_ROOT/.omc/state/session-edit-log.txt" 2>/dev/null || true
+rule_anchor_check
+echo '{"continue": true}'
+exit 0

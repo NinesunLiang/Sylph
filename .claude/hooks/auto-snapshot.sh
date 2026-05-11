@@ -3,7 +3,7 @@
 # Role: 会话结束时自动保存状态快照（分支/轮次/未提交文件）
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "auto_snapshot" || exit 0
+hc_enabled "auto_snapshot" || { echo '{"continue": true}'; exit 0; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
@@ -450,4 +450,5 @@ os.rename(tmp, dump_path)
 print(f"Session dump written: {len(dump)} sections")
 PYEOF
 
+echo '{"continue": true}'
 exit 0

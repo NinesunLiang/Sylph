@@ -103,7 +103,7 @@ go.mod # 缺失 → "不适用"，重定向到通用调试grep "go-zero" go.mod 
 收集症状数据。使用 Task 工具在**单条消息中并行启动**以下 agent：
 **Agent A — 历史记录与已知模式**：- `readFile .claude/claude-next.md` → 提取根因相关条目（标题含 "反哺" / "根因" / "竞态" / "泄漏"），检查当前症状是否匹配已知模式（若匹配 → 标注"疑似已知模式: [条目标题]"，加速定位）- `git log --grep="[symptom keyword]"` → 历史修复记录- `git log --oneline -20` → 近期变更- 受影响区域的现有测试覆盖情况
 **Agent B — 故障链**：- 读取错误日志/堆栈跟踪- 追踪数据流：触发点 → 中间环节 → 失败点- 若怀疑并发问题：`go test -race -count=20 ./...`
-Go 特定症状检查：加载 `readFile("${CLAUDE_SKILL_DIR}/docs/go-root-cause-patterns.md")` 获取症状特定搜索命令（goroutine 泄漏、nil 指针、竞争条件、连接池、interface panic、go-zero 模式）。
+Go 特定症状检查：加载 `readFile("${CLAUDE_SKILL_DIR}/references/go-root-cause-patterns.md")` 获取症状特定搜索命令（goroutine 泄漏、nil 指针、竞争条件、连接池、interface panic、go-zero 模式）。
 **完成标准**：- ✅ 症状用一句话描述清楚- ✅ 影响范围已识别（package/module/service）- ✅ 时间线：[首次出现] → [修复1] → [复现1] → ... → [当前]- ✅ ≥1 条历史修复记录，含 commit hash 和结果- ✅ 故障链：[触发点] → [A] → [B] → ... → [失败点]- ✅ 复现已通过证据确认- ✅ 历史根因分析记录：是否存在对同一问题/同类问题的前序分析？ - 检查方式：`git log --grep="ROOT CAUSE" --oneline` + `rg "ROOT_CAUSE_TRIGGER" --include="*.go"` 搜索已有免疫痕迹 - [是 → 前序结论：[引用前序 Phase 3 根因一句话]，本次分析是否与其一致？[一致/矛盾（矛盾点：）/新角度（说明：）]] - [否 → 首次分析]- ❌ 无复现证据 → 输出"不适用"模板，重定向到 `/lx-debug-spec`
 
 ### 2. 断点隔离（阶段 2）
@@ -125,7 +125,7 @@ Phase 2 初始置信度：[N]/5
 ### 3. 五层 Why + 证据链（阶段 3 — 核心）
 **入口一致性检查**：Phase 3 调查对象必须 = Phase 1 故障链失败点。若不一致 → 暂停，与用户确认后再继续。
 5 层 Why，每层必须提供证据。
-加载置信度评分标准：`readFile("${CLAUDE_SKILL_DIR}/docs/confidence-scoring.md")`加载 Go 模式：`readFile("${CLAUDE_SKILL_DIR}/docs/go-root-cause-patterns.md")`
+加载置信度评分标准：`readFile("${CLAUDE_SKILL_DIR}/references/confidence-scoring.md")`加载 Go 模式：`readFile("${CLAUDE_SKILL_DIR}/references/go-root-cause-patterns.md")`
 **执行纪律**：- Why 1-5 按顺序执行，不可跳过- 每层 Why 格式： ``` Why [N]: [答案] Tool: [命令] 原始输出（≤3 行）: [粘贴实际输出] 证据类型: [LSP/Grep/race/pprof/git/AST] 解读: [从输出得出的结论] 反事实验证: 若此工具输出为空或结果相反，本层结论是否仍成立？[否=证据有效 / 是=⚠️ 证据不足，需：[补充什么]] 一致性: [✅ / ⚠️ 与 Why X 矛盾]
 Why [N]: [答案] Tool: [命令] 原始输出（≤3 行）: [粘贴实际输出] 证据类型: [LSP/Grep/race/pprof/git/AST] 解读: [从输出得出的结论] 反事实验证: 若此工具输出为空或结果相反，本层结论是否仍成立？[否=证据有效 / 是=⚠️ 证据不足，需：[补充什么]] 一致性: [✅ / ⚠️ 与 Why X 矛盾]
 
@@ -139,7 +139,7 @@ Why [N]: [答案] Tool: [命令] 原始输出（≤3 行）: [粘贴实际输出
   - 提前终止时必须填写：`提前终止理由：[置信度 N/25] + [条件 1/2/3 满足证据]`
 - 不确定时 → 以 "Speculative: ..." 为前缀 — 绝不将未验证内容陈述为事实
 - 无法提供工具输出 → 标注"需补充：[缺失证据]"，不进入下一层
-- 加载工具输出引用规则：`readFile("${CLAUDE_SKILL_DIR}/docs/tool-output-rules.md")`
+- 加载工具输出引用规则：`readFile("${CLAUDE_SKILL_DIR}/references/tool-output-rules.md")`
 **反事实检验**（已集成到每层 Why 格式的"反事实验证"字段中）：
 **此检查的落地方式**：在上述每层 Why 格式中作为必填字段执行，不可省略。
 **置信度评分**（每层 Why 后填写，最终必填）：
@@ -149,7 +149,7 @@ Why [N]: [答案] Tool: [命令] 原始输出（≤3 行）: [粘贴实际输出
 - ✅ 每层 Why 均有工具 + 原始输出 + 证据类型 + 解读
 - ✅ 根因用一句话陈述
 - ✅ 置信度 ≥ 18/25 → 进入阶段 4
-- ⚠️ 置信度 13-17 → 升级至 Oracle（升级前先用 `<remember priority>` 保存当前调查摘要防止上下文丢失）：`readFile("${CLAUDE_SKILL_DIR}/docs/oracle-escalation.md")`
+- ⚠️ 置信度 13-17 → 升级至 Oracle（升级前先用 `<remember priority>` 保存当前调查摘要防止上下文丢失）：`readFile("${CLAUDE_SKILL_DIR}/references/oracle-escalation.md")`
 - ❌ 置信度 < 13 → 调查中止，输出阻塞模板
 - ✅ 18-20 边界区间：需 2 个独立证据来源交叉验证
 - ✅ 修复层级：根因级或系统级（必须 ≥ 根因级）
@@ -170,8 +170,8 @@ Phase 3 关键证据：[最强证据的工具命令 + 一行输出摘要]
 加载 `@../../nodes/auto_fixer.md`，传入 `finding[]` + 修复策略。
 **入口：读取 CP-3 检查点**，确认 Phase 3 根因 = Phase 4 修复目标。若不一致 → 暂停，与用户确认。
 在根因级或系统级修复，绝不修复症状。
-加载反模式：`readFile("${CLAUDE_SKILL_DIR}/docs/anti-patterns.md")`加载修复循环规则：`readFile("${CLAUDE_SKILL_DIR}/docs/repair-loop-rules.md")`
-编写任何修复前，对照危险信号自检：`readFile("${CLAUDE_SKILL_DIR}/docs/checklists/danger-signals.md")`
+加载反模式：`readFile("${CLAUDE_SKILL_DIR}/references/anti-patterns.md")`加载修复循环规则：`readFile("${CLAUDE_SKILL_DIR}/references/repair-loop-rules.md")`
+编写任何修复前，对照危险信号自检：`readFile("${CLAUDE_SKILL_DIR}/references/checklists/danger-signals.md")`
 **反模式拦截**（自动拒绝以下做法）：- `time.Sleep()` → 必须使用 `sync.WaitGroup`/channel/context- 增大 `MaxOpenConns`/retries → 必须修复资源泄漏- 静默 `recover()` → 必须正确处理并记录日志- 仅在调用处检查 nil → 必须修复 nil 来源- 以症状级修复作为最终方案 → 中止，返回 `/lx-debug-spec`
 **完成标准**：- ✅ 修复轮次：[N]/3（超过 3 次 → 强制升级 Oracle）- ✅ 修复层级：根因级或系统级- ✅ 修复内容：具体变更，含 file:line 引用- ✅ 验证命令已执行，原始输出含退出码已引用- ✅ 原始问题：✅ | 类似问题：✅ | 回归：✅ | -race：✅/N/A- ✅ 跨阶段一致性：阶段 3 根因 = 阶段 4 修复目标- ✅ Why 链覆盖：修复指向被识别为根因的 Why 层- ❌ 任何反模式触发 → 拒绝修复，提供正确方案
 

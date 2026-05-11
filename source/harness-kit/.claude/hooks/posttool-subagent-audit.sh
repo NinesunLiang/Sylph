@@ -3,7 +3,7 @@
 # Role: 子 agent 执行后审计 content 用量，超限告警
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "subagent_audit" || { echo '{"continue": true}'; exit 0; }
+hc_enabled "posttool_subagent_audit" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then

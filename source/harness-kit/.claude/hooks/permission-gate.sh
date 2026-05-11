@@ -3,7 +3,7 @@
 # Role: 执行危险命令前检查权限申请格式
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "permission_gate" || exit 0
+hc_enabled "permission_gate" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # 提取 command 字段
@@ -19,7 +19,7 @@ except:
     pass" 2>/dev/null)
 fi
 
-[ -z "$COMMAND" ] && exit 0
+[ -z "$COMMAND" ] && { echo '{"continue": true}'; exit 0; }
 
 # 从 harness.yaml 读取 regex 模式（fallback 为内置默认值）
 GIT_COMMIT_RE=$(hc_get "permission_gate.git_commit_regex" 'git\s+(commit|add\s+--?all|\badd\b.*-A)')
@@ -81,29 +81,80 @@ if echo "$COMMAND" | grep -qE "$SCOPE_WRITE_RE"; then
 fi
 
 # 非危险命令 → 放行
-[ "$IS_DANGEROUS" = false ] && exit 0
+[ "$IS_DANGEROUS" = false ] && { echo '{"continue": true}'; exit 0; }
 
 # 危险命令已确认 → 先解析路径（无人值守 + 验证码共用）
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 
-# ─── 无人值守模式 ──────────────────────────────
-# 不执行，仅记录到 flywheel + skipped-errors.md，无验证码
-# exit 2 阻断命令执行，但跳过验证码审批流程
-UNATTENDED_FILE="$STATE_DIR/.unattended-mode"
-if [ -f "$UNATTENDED_FILE" ]; then
+# ─── 统一模式检测 + 缓存 ──────────────────────────
+# ghost/unattended 模式: 记录 flywheel + skipped-errors，不 exit 2
+# approved-ops 缓存: 5 分钟内相同签名自动放行（UX-2.3）
+MODE=$(is_mode_active "$STATE_DIR")
+CACHE_FILE="$STATE_DIR/approved-ops.json"
+
+# 检查缓存：相同命令签名在 5 分钟内是否已批准
+check_cache() {
+    local cmd_sig="$1"
+    if [ ! -f "$CACHE_FILE" ]; then
+        return 1
+    fi
+    python3 -c "
+import json, time, sys
+try:
+    d = json.load(open('$CACHE_FILE'))
+    sig = '$cmd_sig'
+    entry = d.get(sig)
+    if entry and time.time() - entry.get('ts', 0) < 300:
+        print('hit')
+    else:
+        print('miss')
+except:
+    print('miss')
+" 2>/dev/null | grep -q 'hit'
+}
+
+write_cache() {
+    local cmd_sig="$1"
+    local ts
+    ts=$(python3 -c "import time; print(int(time.time()))" 2>/dev/null)
+    python3 -c "
+import json, os
+try:
+    d = json.load(open('$CACHE_FILE'))
+except:
+    d = {}
+d['$cmd_sig'] = {'ts': $ts, 'type': '$DANGER_TYPE'}
+tmp = '$CACHE_FILE.tmp.$$'
+with open(tmp, 'w') as f:
+    json.dump(d, f)
+os.rename(tmp, '$CACHE_FILE')
+" 2>/dev/null
+}
+
+# 统一模式检测: ghost/unattended 降级为"记录+跳过"，不阻断
+if [ "$MODE" != "normal" ]; then
     echo "$(date +%Y-%m-%d),permission_gate_blocked_${DANGER_TYPE// /_},P0,carror-os" >> "$HOME/.claude/flywheel.log"
     SKIPPED_FILE="$STATE_DIR/skipped-errors.md"
     {
         echo ""
-        echo "## $(date '+%Y-%m-%d %H:%M:%S') — permission-gate blocked [${DANGER_TYPE}]"
+        echo "## $(date '+%Y-%m-%d %H:%M:%S') — permission-gate ${MODE} mode [${DANGER_TYPE}]"
         echo '```'
         echo "$COMMAND"
         echo '```'
     } >> "$SKIPPED_FILE"
-    echo "[无人值守] 已拦截 ${DANGER_TYPE}: ${COMMAND:0:120}..." >&2
-    exit 2
+    echo "[${MODE}] 已记录 ${DANGER_TYPE}: ${COMMAND:0:120}...（模式降级，不阻断）" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
+
+# 检查缓存：5 分钟内已批准的同签名操作 → 自动放行
+CMD_SIG=$(echo "$COMMAND" | head -c 120)
+if check_cache "$CMD_SIG"; then
+    echo "[权限缓存] 5 分钟内已批准的同签名操作: ${COMMAND:0:80}..." >&2
+    echo '{"continue": true}'
+    exit 0
 fi
 
 # ─── 随机验证码审批机制 ──────────────────────────
@@ -131,8 +182,11 @@ except:
                 FRESH="yes"
             fi
             if [ "$FRESH" = "yes" ]; then
-                # 验证码匹配 → 有效授权，清理并放行
+                # 验证码匹配 → 有效授权，清理并放行 + 写入缓存
+                CMD_SIG=$(echo "$COMMAND" | head -c 120)
+                write_cache "$CMD_SIG"
                 rm -f "$PERMISSION_MARKER" "$PERMISSION_REQUIRED"
+                echo '{"continue": true}'
                 exit 0
             fi
         fi

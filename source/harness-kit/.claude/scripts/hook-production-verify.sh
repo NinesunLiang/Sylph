@@ -220,11 +220,11 @@ fi
 
 echo ""
 echo "========================================"
-echo "E3: harness-smoke-test 66 case 回归"
+echo "E3: harness-smoke-test 90 case 回归"
 echo "========================================"
 if bash .claude/scripts/harness-smoke-test.sh >/dev/null 2>&1; then
     TOTAL=$((TOTAL+1))
-    echo "  🟢 harness-smoke 66/66 全绿"
+    echo "  🟢 harness-smoke 90/90 全绿"
 else
     TOTAL=$((TOTAL+1))
     FAILED=$((FAILED+1))

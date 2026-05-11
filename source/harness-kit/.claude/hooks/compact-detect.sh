@@ -7,6 +7,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Config gate: 从 harness.yaml 读取启停开关
 source "$SCRIPT_DIR/harness_config.sh" 2>/dev/null || true
+# 兜底：harness_config.sh 可能不存在，确保 hc_enabled 有定义
+if ! command -v hc_enabled &>/dev/null; then
+    hc_enabled() { return 0; }
+fi
 hc_enabled "compact_detect" || exit 0
 
 STATE_DIR="$PROJECT_ROOT/.omc/state"

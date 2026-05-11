@@ -148,10 +148,15 @@ except Exception:
 # Silent: don't noise stdout in Stop flow
 PYEOF
 
-# Layer 3: Write token-tracking-real.json from transcript (real token data)
+# Layer 3: Write token-tracking-real.json from transcript or DB (multi-platform)
 if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
-    python3 "$PROJECT_ROOT/.claude/scripts/token-transcript-parser.py" \
-        --transcript "$TRANSCRIPT" --write 2>/dev/null || true
+    # Claude Code: direct transcript path via Stop event
+    python3 "$PROJECT_ROOT/.claude/scripts/token_transcript_parser.py" \
+        --parser claude_code --transcript "$TRANSCRIPT" --write 2>/dev/null || true
+else
+    # Other platforms (OpenCode, etc.): auto-detect data source
+    python3 "$PROJECT_ROOT/.claude/scripts/token_transcript_parser.py" \
+        --write 2>/dev/null || true
 fi
 
 # Layer 4: State directory hygiene — 1-day shelf life for all files

@@ -128,7 +128,7 @@ hooks_enabled:
   skill_flywheel: true
   build_validator: true
   pretool_user_correction: true
-  pretool_rule_anchor: true
+  pretool_rule_anchor: false
   proactive_handoff: true
   context_guard: true
   privacy_gate: true
@@ -140,6 +140,7 @@ hooks_enabled:
   posttool_subagent_audit: true
   token_writer: true
   intent_tracker: true
+  fuzzy_block: true
   error_dna_auto_fix: true
   knowledge_condenser: true
   posttool_handoff_writer: true
@@ -174,6 +175,16 @@ rule_anchor:
 context_guard:
   warn_threshold: 50
   danger_threshold: 60
+
+ghost_mode:
+  default_expiry_hours: 3
+  default_poll_interval: 600
+
+unattended_mode:
+  default_expiry_hours: 6
+
+retry_budget:
+  max_retries: 3
 
 proactive_handoff:
   context_threshold: 50

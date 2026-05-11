@@ -237,3 +237,144 @@ hc_project_root() {
 hc_state_dir() {
     echo "$_HC_STATE_DIR"
 }
+
+# ══════════════════════════════════════════════════════════════════
+# 模式检测: Ghost Mode / Unattended Mode 统一入口
+# ══════════════════════════════════════════════════════════════════
+# 返回值:
+#   "ghost"      — ghost mode 激活未过期
+#   "unattended" — unattended mode 激活未过期
+#   "normal"     — 无激活模式
+#
+# 优先级: ghost > unattended > normal
+# 文件格式: JSON (ghost-mode.json / unattended-mode.json)
+# 旧文件兼容: ghost-mode.active / .unattended-mode（自动迁移）
+
+is_mode_active() {
+    local state_dir="$1"
+    [ -z "$state_dir" ] && state_dir="${_HC_STATE_DIR:-.omc/state}"
+    mkdir -p "$state_dir" 2>/dev/null
+    local now_epoch
+    now_epoch=$(date +%s 2>/dev/null || echo 0)
+
+    # ── 检查 ghost mode ──
+    local ghost_json="$state_dir/ghost-mode.json"
+    if [ -f "$ghost_json" ]; then
+        local expired
+        expired=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$ghost_json'))
+    expires = d.get('expires_at', '')
+    if not expires:
+        print('active')  # 无过期时间 → 永久激活
+    else:
+        from datetime import datetime
+        exp = datetime.fromisoformat(expires)
+        if datetime.now() < exp:
+            print('active')
+        else:
+            print('expired')
+except Exception:
+    print('invalid')" 2>/dev/null || echo 'invalid')
+        case "$expired" in
+            active) echo "ghost"; return ;;
+            expired) rm -f "$ghost_json" 2>/dev/null; echo "normal"; return ;;
+        esac
+    fi
+
+    # ── 兼容旧 ghost-mode.active（纯文件标记）──
+    if [ -f "$state_dir/ghost-mode.active" ]; then
+        echo "ghost"
+        return
+    fi
+
+    # ── 检查 unattended mode ──
+    local unattended_json="$state_dir/unattended-mode.json"
+    if [ -f "$unattended_json" ]; then
+        local expired
+        expired=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$unattended_json'))
+    expires = d.get('expires_at', '')
+    if not expires:
+        print('active')
+    else:
+        from datetime import datetime
+        exp = datetime.fromisoformat(expires)
+        if datetime.now() < exp:
+            print('active')
+        else:
+            print('expired')
+except Exception:
+    print('invalid')" 2>/dev/null || echo 'invalid')
+        case "$expired" in
+            active) echo "unattended"; return ;;
+            expired) rm -f "$unattended_json" 2>/dev/null; echo "normal"; return ;;
+        esac
+    fi
+
+    # ── 兼容旧 .unattended-mode（纯文件标记）──
+    if [ -f "$state_dir/.unattended-mode" ]; then
+        echo "unattended"
+        return
+    fi
+
+    echo "normal"
+}
+
+# ══════════════════════════════════════════════════════════════════
+# 模式状态更新: ghost-mode.json / unattended-mode.json 原子写入
+# ══════════════════════════════════════════════════════════════════
+
+# _mode_append_to_list <state_dir> <mode> <field> <json_value>
+# 原子追加 JSON 值到模式状态文件的列表字段。使用 tmp+rename 防止并发读取不一致。
+# 示例: _mode_append_to_list "$STATE_DIR" "ghost" "skipped_risks" '{"type":"rm -rf","command":"rm -rf /tmp","timestamp":"2026-05-11T12:00:00"}'
+_mode_append_to_list() {
+    local state_dir="$1" mode="$2" field="$3" json_value="$4"
+    local file="$state_dir/${mode}-mode.json"
+    [ ! -f "$file" ] && return 1
+    python3 -c "
+import json, os
+file = '$file'
+field = '$field'
+try:
+    value = json.loads('$json_value')
+except:
+    value = '$json_value'
+try:
+    d = json.load(open(file))
+except:
+    d = {}
+lst = d.get(field, [])
+lst.append(value)
+d[field] = lst
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null || true
+}
+
+# _mode_increment_field <state_dir> <mode> <field>
+# 原子递增模式状态文件的数字字段。
+_mode_increment_field() {
+    local state_dir="$1" mode="$2" field="$3"
+    local file="$state_dir/${mode}-mode.json"
+    [ ! -f "$file" ] && return 1
+    python3 -c "
+import json, os
+file = '$file'
+field = '$field'
+try:
+    d = json.load(open(file))
+except:
+    d = {}
+d[field] = d.get(field, 0) + 1
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null || true
+}

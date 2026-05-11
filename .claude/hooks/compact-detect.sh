@@ -7,6 +7,10 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Config gate: 从 harness.yaml 读取启停开关
 source "$SCRIPT_DIR/harness_config.sh" 2>/dev/null || true
+# 兜底：harness_config.sh 可能不存在，确保 hc_enabled 有定义
+if ! command -v hc_enabled &>/dev/null; then
+    hc_enabled() { return 0; }
+fi
 hc_enabled "compact_detect" || exit 0
 
 STATE_DIR="$PROJECT_ROOT/.omc/state"
@@ -83,6 +87,14 @@ if [ -f "$INJECT_AGENTS" ]; then
     echo ""
     echo "--- 治理框架纲要 ---"
     grep -E '^## |^### ' "$INJECT_AGENTS" 2>/dev/null | head -15
+fi
+
+# 注入 skill 关联图谱（C7 关联编排知识密度）
+SKILL_GRAPH="$PROJECT_ROOT/.claude/reference/skill-graph.md"
+if [ -f "$SKILL_GRAPH" ]; then
+    echo ""
+    echo "--- Skill 关联图谱 ---"
+    grep -E '^\|' "$SKILL_GRAPH" 2>/dev/null | head -20
 fi
 
 # 注入会话状态恢复

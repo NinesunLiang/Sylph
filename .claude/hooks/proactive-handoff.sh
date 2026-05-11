@@ -7,8 +7,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
 
 # ─── 1. Enhanced 门禁 ──────────────────────────────────────────────
-[ -f "$PROJECT_ROOT/.claude/profiles/enhanced/append-to-claude.md" ] || exit 0
-hc_enabled "proactive_handoff" || exit 0
+[ -f "$PROJECT_ROOT/.claude/profiles/enhanced/append-to-claude.md" ] || { echo '{"continue": true}'; exit 0; }
+hc_enabled "proactive_handoff" || { echo '{"continue": true}'; exit 0; }
 
 # ─── 2. 获取可配置阈值 ────────────────────────────────────────────
 CONTEXT_THRESHOLD=$(hc_get "proactive_handoff.context_threshold" "50")
@@ -19,10 +19,11 @@ PYTHON_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
 if [ ! -x "$PYTHON_SCRIPT" ]; then
     # degraded 状态：context_monitor.py 不可用，输出警告
     echo "[degraded] proactive-handoff.sh: context_monitor.py not found at $PYTHON_SCRIPT" >> "$PROJECT_ROOT/.omc/state/harness-degraded.log" 2>/dev/null
+    echo '{"continue": true}'
     exit 0
 fi
 
-RESULT=$(python3 "$PYTHON_SCRIPT" 2>/dev/null) || exit 0
+RESULT=$(python3 "$PYTHON_SCRIPT" 2>/dev/null) || { echo '{"continue": true}'; exit 0; }
 PCT=$(echo "$RESULT" | python3 -c "
 import sys, json
 try:
@@ -34,14 +35,14 @@ except:
 
 # 浮点数比较：< {阈值} 不触发
 PCT_INT=${PCT%.*}
-[ -z "$PCT_INT" ] && exit 0
-[ "$PCT_INT" -lt "$CONTEXT_THRESHOLD" ] 2>/dev/null && exit 0
+[ -z "$PCT_INT" ] && { echo '{"continue": true}'; exit 0; }
+[ "$PCT_INT" -lt "$CONTEXT_THRESHOLD" ] 2>/dev/null && { echo '{"continue": true}'; exit 0; }
 
 # ─── 3. 防重复触发（单会话仅一次） ───────────────────────────────
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR"
 HANDOFF_FIRED="$STATE_DIR/.proactive-handoff-fired"
-[ -f "$HANDOFF_FIRED" ] && exit 0
+[ -f "$HANDOFF_FIRED" ] && { echo '{"continue": true}'; exit 0; }
 
 # ─── 4. 检测 Step 完成 ─────────────────────────────────────────────
 DOC_ROOT=$(hc_get "workflow.doc_root" "rpe")
@@ -80,7 +81,7 @@ except:
     fi
 fi
 
-[ "$STEP_COMPLETED" = false ] && exit 0
+[ "$STEP_COMPLETED" = false ] && { echo '{"continue": true}'; exit 0; }
 
 # ─── 5. 触发主动交接 ───────────────────────────────────────────────
 touch "$HANDOFF_FIRED"
@@ -101,4 +102,5 @@ cat >&2 <<HANDOFF_MSG
 👉 Re-insp-Kernel-Design:1.2-ContextGuard_ProactiveHandoff
 HANDOFF_MSG
 
+echo '{"continue": true}'
 exit 0

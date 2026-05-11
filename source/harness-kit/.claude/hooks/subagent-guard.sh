@@ -3,7 +3,7 @@
 # Role: 约束子 agent 用量，防账单雪崩（软约束+事后对账）
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "subagent_guard" || exit 0
+hc_enabled "subagent_guard" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # R25: Task 工具 schema 没有 max_turns 字段，AI 无法在 tool_input 合法传入。
@@ -64,6 +64,7 @@ fi
 
 # Fail-open: 无法解析 agent 类型 → 放行
 if [ -z "$AGENT_TYPE" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 
@@ -80,6 +81,7 @@ set +f
 
 # 安全类型 → 放行
 if [ "$IS_DANGEROUS" = "false" ]; then
+    echo '{"continue": true}'
     exit 0
 fi
 

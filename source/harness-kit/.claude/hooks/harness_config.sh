@@ -237,3 +237,89 @@ hc_project_root() {
 hc_state_dir() {
     echo "$_HC_STATE_DIR"
 }
+
+# ══════════════════════════════════════════════════════════════════
+# 模式检测: Ghost Mode / Unattended Mode 统一入口
+# ══════════════════════════════════════════════════════════════════
+# 返回值:
+#   "ghost"      — ghost mode 激活未过期
+#   "unattended" — unattended mode 激活未过期
+#   "normal"     — 无激活模式
+#
+# 优先级: ghost > unattended > normal
+# 文件格式: JSON (ghost-mode.json / unattended-mode.json)
+# 旧文件兼容: ghost-mode.active / .unattended-mode（自动迁移）
+
+is_mode_active() {
+    local state_dir="$1"
+    [ -z "$state_dir" ] && state_dir="${_HC_STATE_DIR:-.omc/state}"
+    mkdir -p "$state_dir" 2>/dev/null
+    local now_epoch
+    now_epoch=$(date +%s 2>/dev/null || echo 0)
+
+    # ── 检查 ghost mode ──
+    local ghost_json="$state_dir/ghost-mode.json"
+    if [ -f "$ghost_json" ]; then
+        local expired
+        expired=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$ghost_json'))
+    expires = d.get('expires_at', '')
+    if not expires:
+        print('active')  # 无过期时间 → 永久激活
+    else:
+        from datetime import datetime
+        exp = datetime.fromisoformat(expires)
+        if datetime.now() < exp:
+            print('active')
+        else:
+            print('expired')
+except Exception:
+    print('invalid')" 2>/dev/null || echo 'invalid')
+        case "$expired" in
+            active) echo "ghost"; return ;;
+            expired) rm -f "$ghost_json" 2>/dev/null; echo "normal"; return ;;
+        esac
+    fi
+
+    # ── 兼容旧 ghost-mode.active（纯文件标记）──
+    if [ -f "$state_dir/ghost-mode.active" ]; then
+        echo "ghost"
+        return
+    fi
+
+    # ── 检查 unattended mode ──
+    local unattended_json="$state_dir/unattended-mode.json"
+    if [ -f "$unattended_json" ]; then
+        local expired
+        expired=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$unattended_json'))
+    expires = d.get('expires_at', '')
+    if not expires:
+        print('active')
+    else:
+        from datetime import datetime
+        exp = datetime.fromisoformat(expires)
+        if datetime.now() < exp:
+            print('active')
+        else:
+            print('expired')
+except Exception:
+    print('invalid')" 2>/dev/null || echo 'invalid')
+        case "$expired" in
+            active) echo "unattended"; return ;;
+            expired) rm -f "$unattended_json" 2>/dev/null; echo "normal"; return ;;
+        esac
+    fi
+
+    # ── 兼容旧 .unattended-mode（纯文件标记）──
+    if [ -f "$state_dir/.unattended-mode" ]; then
+        echo "unattended"
+        return
+    fi
+
+    echo "normal"
+}
