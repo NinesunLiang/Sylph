@@ -79,6 +79,64 @@ run_case "R29 context-guard: Read @ 95% 应放行 (诊断通道)" \
   "context-guard.sh" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
+# --- ghost/unattended mode 降级测试（P0 改造验证）---
+# 测试前清理任何残留
+rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/autonomous.active
+# R40: Ghost mode 下所有门禁降级为"记录+跳过"
+
+# ---- Setup: 创建活跃 ghost-mode.json ----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
+     'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
+json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+"
+# R40-1: Ghost mode 下 context-guard Write @ 95% 不应阻断（仅记录）
+echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
+run_case "R40 ghost mode: context-guard Write @ 95% 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
+  "context-guard.sh" 0 ""
+rm -f .omc/state/token-tracking-index.json
+
+# R40-2: Ghost mode 下 permission-gate rm -rf 不应阻断
+run_case "R40 ghost mode: permission-gate rm -rf 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
+  "permission-gate.sh" 0 "\[ghost\]"
+
+# R40-3: Ghost mode 下 edit-guard 未 Read 不应阻断
+run_case "R40 ghost mode: edit-guard 未 Read 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/test.go"}}' \
+  "edit-guard.sh" 0 ""
+
+# ---- Setup: 创建 inactive（已过期）ghost-mode.json ----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
+     'expires_at': '2020-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
+json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+"
+# R40-4: 过期 ghost mode 应恢复阻断（context-guard Write 恢复 hard block）
+echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
+run_case "R40 ghost mode expired: context-guard Write 恢复阻断" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
+  "context-guard.sh" 2 "Context Guard"
+rm -f .omc/state/token-tracking-index.json
+
+# ---- Setup: 创建活跃 unattended-mode.json ----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'unattended', 'goal': 'test',
+     'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
+json.dump(d, open('.omc/state/unattended-mode.json', 'w'))
+"
+# R40-5: Unattended mode 下 permission-gate 应降级
+run_case "R40 unattended mode: permission-gate rm -rf 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
+  "permission-gate.sh" 0 "\[unattended\]"
+
+# 测试完成后清理模式文件
+rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/autonomous.active
+
 # --- privacy-gate (R13 + R15 + R16) ---
 run_case "privacy-gate: Read .env 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":".env"}}' \
@@ -192,9 +250,9 @@ run_case "pretool-edit-scope: 无 scope 文件应放行" \
   "pretool-edit-scope.sh" 0 ""
 
 echo "auth.go" > .omc/state/current-scope.txt
-run_case "pretool-edit-scope: 越界文件应阻断" \
+run_case "pretool-edit-scope: 越界文件应自动加入范围" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/payment.go"}}' \
-  "pretool-edit-scope.sh" 2 "Scope Gate"
+  "pretool-edit-scope.sh" 0 "自动加入编辑范围"
 rm -f .omc/state/current-scope.txt
 
 # --- R24-S1: 8 个未覆盖 hook 的业务语义验收 ---
@@ -323,11 +381,11 @@ rm -f "$_SM_OUT"
 
 # --- R23: 新注册的 8 个 hook — 业务级验收（R24-S2 升级版） ---
 
-# R23/R24 lsp-suggest: 首次导出符号 Grep 应阻断（exit 2）+ 提示 LSP
+# UX-1.3 lsp-suggest: 首次导出符号 Grep 应警告（exit 0，不再阻断）
 rm -f .omc/state/lsp-suggested
-run_case "R23/R24 lsp-suggest: 首次 Grep 导出符号应阻断并提示 LSP" \
+run_case "UX-1.3 lsp-suggest: 首次 Grep 导出符号应提示 LSP（不阻断）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"SomeExportedSymbol"}}' \
-  "lsp-suggest.sh" 2 "LSP 建议|lsp_workspace_symbols"
+  "lsp-suggest.sh" 0 "LSP 建议|lsp_workspace_symbols"
 if [ -f .omc/state/lsp-suggested ]; then
     pass "R24 lsp-suggest 写入会话标记（首次后不再重提）"
 else
@@ -343,25 +401,27 @@ run_case "R23/R24 lsp-suggest: 非符号模式（含正则元字符）应放行"
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"func.*Foo"}}' \
   "lsp-suggest.sh" 0 ""
 
-# R23/R24 pretool-rule-anchor: 轮次 <15 应放行
+# R23/R24 pretool-rule-anchor → 已合并到 pretool-edit-scope.sh
+# 在 scope 匹配 + 高轮次时应输出规则锚定
 rm -f .omc/state/session-turns.json
-run_case "R23/R24 pretool-rule-anchor: 轮次低应放行" \
+echo "/tmp/x" > .omc/state/current-scope.txt
+run_case "R23/R24 pretool-rule-anchor(合并): 低轮次无锚定" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' \
-  "pretool-rule-anchor.sh" 0 ""
+  "pretool-edit-scope.sh" 0 ""
 
-# R24 pretool-rule-anchor: 轮次 >=15 应注入 additionalContext（规则锚定）
-echo '{"count": 15}' > .omc/state/session-turns.json
+# R24 pretool-rule-anchor(合并): 轮次 >=15 应输出规则锚定
+echo '{"count": 20}' > .omc/state/session-turns.json
 _ANCHOR_OUT="/tmp/smoke-anchor-$$.out"
-echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-rule-anchor.sh > "$_ANCHOR_OUT" 2>&1
+echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-edit-scope.sh > "$_ANCHOR_OUT" 2>&1
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R24 pretool-rule-anchor: 长会话应注入 additionalContext"
-if grep -qE "规则锚定|禁止编造|VERIFIED" "$_ANCHOR_OUT"; then
-    pass "R24 pretool-rule-anchor 注入铁律提醒"
+log "[$TOTAL] R24 pretool-rule-anchor(合并): 高轮次应输出锚定"
+if grep -qE "规则锚定|禁止编造|VERIFIED|漂移" "$_ANCHOR_OUT"; then
+    pass "R24 pretool-rule-anchor(合并) 已通过 pretool-edit-scope 输出锚定"
 else
-    fail "R24 pretool-rule-anchor 未注入"
+    fail "R24 pretool-rule-anchor(合并) 未输出锚定"
 fi
-rm -f "$_ANCHOR_OUT" .omc/state/session-turns.json
+rm -f "$_ANCHOR_OUT" .omc/state/session-turns.json .omc/state/current-scope.txt
 
 # R23/R24/R25 subagent-guard: 危险 agent 无 max_turns → 默认放行 + additionalContext 提示
 _SG_OUT="/tmp/smoke-sg-$$.out"

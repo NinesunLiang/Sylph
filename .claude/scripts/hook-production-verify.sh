@@ -220,15 +220,18 @@ fi
 
 echo ""
 echo "========================================"
-echo "E3: harness-smoke-test 66 case 回归"
+echo "E3: harness-smoke-test 回归"
 echo "========================================"
-if bash .claude/scripts/harness-smoke-test.sh >/dev/null 2>&1; then
+SMOKE_OUTPUT=$(bash .claude/scripts/harness-smoke-test.sh 2>&1)
+SMOKE_EXIT=$?
+SMOKE_RESULT=$(echo "$SMOKE_OUTPUT" | grep '^summary:' | tail -1)
+if [ $SMOKE_EXIT -eq 0 ]; then
     TOTAL=$((TOTAL+1))
-    echo "  🟢 harness-smoke 66/66 全绿"
+    echo "  🟢 harness-smoke $SMOKE_RESULT"
 else
     TOTAL=$((TOTAL+1))
     FAILED=$((FAILED+1))
-    echo "  🔴 harness-smoke 有 FAIL"
+    echo "  🔴 harness-smoke $SMOKE_RESULT"
 fi
 
 echo ""
