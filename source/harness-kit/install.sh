@@ -77,7 +77,7 @@ echo ""
 
 case "$INSTALL_MODE" in
     base|enhanced|full|harness|skills) ;;
-    *) log_error "未知模式：$INSTALL_MODE（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
+    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
 esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
@@ -91,7 +91,7 @@ HAS_BACKUP=false
 for file in CLAUDE.md AGENTS.md; do
     if [ -f "$file" ]; then
         cp "$file" "$BACKUP_DIR/"
-        log_info "已安全备份 $file（用户项目配置）"
+        log_info "已安全备份 ${file}（用户项目配置）"
         HAS_BACKUP=true
     fi
 done
@@ -174,7 +174,7 @@ extract_tar() {
         log_info "发现本地包，解压 $desc ($tar_file)..."
         tar -xzf "$SCRIPT_DIR/$tar_file" 2>/dev/null || { log_error "解压 $tar_file 失败"; exit 1; }
     else
-        log_warn "本地未找到 $tar_file，尝试从云端拉取 $desc..."
+        log_warn "本地未找到 ${tar_file}，尝试从云端拉取 ${desc}..."
         local download_url="$GITHUB_RELEASE_URL/$tar_file"
         if command -v curl &>/dev/null; then
             curl -sSL -o "/tmp/$tar_file" "$download_url" || { log_error "云端下载失败。请检查网络或 GITHUB_REPO 配置"; exit 1; }
@@ -224,7 +224,7 @@ INSTALL_DATE=$(date +%Y-%m-%d)
 if [ -f ".claude/kernel.md" ]; then
     if grep -q '{project_name}' ".claude/kernel.md" 2>/dev/null; then
         "${SED_INPLACE[@]}" "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
-        log_info "已填充 kernel.md 模板占位符（project=$PROJECT_NAME, date=$INSTALL_DATE）"
+        log_info "已填充 kernel.md 模板占位符（project=${PROJECT_NAME}, date=${INSTALL_DATE}）"
     fi
 fi
 
@@ -247,7 +247,7 @@ if [ "$HAS_BACKUP" = true ]; then
     for file in harness.yaml claude-next.md anti-patterns.md; do
         if [ -f "$BACKUP_DIR/.claude/$file" ]; then
             cp "$BACKUP_DIR/.claude/$file" ".claude/$file"
-            log_info "已恢复 .claude/$file（用户配置）"
+            log_info "已恢复 .claude/${file}（用户配置）"
         fi
     done
 
@@ -275,7 +275,7 @@ if [ "$HAS_BACKUP" = true ]; then
                 if [ "$old_sha" != "$new_sha" ]; then
                     # sha256 不同 → 用户修改过 → 恢复用户版
                     cp "$old_hook" "$new_hook"
-                    log_info "↩ .claude/hooks/$hook_name（检测到用户修改，已恢复）"
+                    log_info "↩ .claude/hooks/${hook_name}（检测到用户修改，已恢复）"
                 fi
             fi
         done < "$BACKUP_DIR/hooks-sha256.txt"
@@ -359,7 +359,10 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
         fi
     fi
 
-    if [ -n "$USER_CONTENT" ]; then
+    # 检测 AGENTS.md 是否已包含 Carror OS 内容（防止重复叠加）
+    if grep -q "Carror OS — AI Native Developer Operating System" "AGENTS.md" 2>/dev/null; then
+        log_info "AGENTS.md 已包含 Carror OS 治理框架，跳过合并（保留最新模板）"
+    elif [ -n "$USER_CONTENT" ]; then
         TEMPLATE=$(cat "AGENTS.md")
         # 降级 Carror OS 标题层级：# → ##，保留用户原始 # 的原创性
         DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
@@ -401,7 +404,7 @@ case "$INSTALL_MODE" in
         [ "$HOOKS" -ge 30 ] || { log_warn "hooks 不足（$HOOKS/30）"; ERRORS=$((ERRORS+1)); }
         ;;
 esac
-[ "$ACTUAL" -ge "$MIN" ] || { log_warn "文件数不足（$ACTUAL/$MIN）"; ERRORS=$((ERRORS+1)); }
+[ "$ACTUAL" -ge "${MIN}" ] || { log_warn "文件数不足（${ACTUAL}/${MIN}）"; ERRORS=$((ERRORS+1)); }
 echo ""
 [ "$ERRORS" -eq 0 ] \
     && log_info "✅ 安装成功！共 $ACTUAL 个文件，$HOOKS 个 hooks" \

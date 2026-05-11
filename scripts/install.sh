@@ -1,7 +1,7 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.1.9-stable | 日期：2026-05-09
+# 版本：v6.1.9-stable | 日期：2026-05-08
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -32,6 +32,23 @@ fi
 
 GITHUB_RELEASE_URL="https://github.com/$GITHUB_REPO/releases/download/$VERSION"
 
+# 跨平台兼容检测
+# D1-1: sed -i 语法差异（macOS BSD sed vs Linux GNU sed）
+if sed -i 's/hello/hello/' /dev/null 2>/dev/null; then
+    SED_INPLACE=("sed" "-i")
+else
+    SED_INPLACE=("sed" "-i" "")
+fi
+
+# D1-2: sha256sum 兼容（macOS 用 shasum -a 256）
+if command -v sha256sum &>/dev/null; then
+    SHA256_CMD="sha256sum"
+elif command -v shasum &>/dev/null; then
+    SHA256_CMD="shasum -a 256"
+else
+    SHA256_CMD=""  # 后续用到时 exit 99
+fi
+
 # Agentic UI: CLI flags 驱动，零交互提示
 UPGRADE_MODE="auto"  # auto | skip | force
 LANG_SPEC=""
@@ -60,7 +77,7 @@ echo ""
 
 case "$INSTALL_MODE" in
     base|enhanced|full|harness|skills) ;;
-    *) log_error "未知模式：$INSTALL_MODE（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
+    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
 esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
@@ -74,7 +91,7 @@ HAS_BACKUP=false
 for file in CLAUDE.md AGENTS.md; do
     if [ -f "$file" ]; then
         cp "$file" "$BACKUP_DIR/"
-        log_info "已安全备份 $file（用户项目配置）"
+        log_info "已安全备份 ${file}（用户项目配置）"
         HAS_BACKUP=true
     fi
 done
@@ -106,7 +123,7 @@ if [ -d ".claude" ]; then
 
         # ── hooks sha256 快照（后续对比用户是否修改过官方 hook） ──
         for f in .claude/hooks/*.sh; do
-            [ -f "$f" ] && sha256sum "$f" >> "$BACKUP_DIR/hooks-sha256.txt" 2>/dev/null
+            [ -f "$f" ] && $SHA256_CMD "$f" >> "$BACKUP_DIR/hooks-sha256.txt" 2>/dev/null
         done
 
         # ── 用户 settings.json 副本（用于 3-way merge） ──
@@ -157,7 +174,7 @@ extract_tar() {
         log_info "发现本地包，解压 $desc ($tar_file)..."
         tar -xzf "$SCRIPT_DIR/$tar_file" 2>/dev/null || { log_error "解压 $tar_file 失败"; exit 1; }
     else
-        log_warn "本地未找到 $tar_file，尝试从云端拉取 $desc..."
+        log_warn "本地未找到 ${tar_file}，尝试从云端拉取 ${desc}..."
         local download_url="$GITHUB_RELEASE_URL/$tar_file"
         if command -v curl &>/dev/null; then
             curl -sSL -o "/tmp/$tar_file" "$download_url" || { log_error "云端下载失败。请检查网络或 GITHUB_REPO 配置"; exit 1; }
@@ -206,8 +223,8 @@ PROJECT_NAME=$(basename "$(pwd)")
 INSTALL_DATE=$(date +%Y-%m-%d)
 if [ -f ".claude/kernel.md" ]; then
     if grep -q '{project_name}' ".claude/kernel.md" 2>/dev/null; then
-        sed -i '' "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
-        log_info "已填充 kernel.md 模板占位符（project=$PROJECT_NAME, date=$INSTALL_DATE）"
+        "${SED_INPLACE[@]}" "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
+        log_info "已填充 kernel.md 模板占位符（project=${PROJECT_NAME}, date=${INSTALL_DATE}）"
     fi
 fi
 
@@ -230,7 +247,7 @@ if [ "$HAS_BACKUP" = true ]; then
     for file in harness.yaml claude-next.md anti-patterns.md; do
         if [ -f "$BACKUP_DIR/.claude/$file" ]; then
             cp "$BACKUP_DIR/.claude/$file" ".claude/$file"
-            log_info "已恢复 .claude/$file（用户配置）"
+            log_info "已恢复 .claude/${file}（用户配置）"
         fi
     done
 
@@ -254,11 +271,11 @@ if [ "$HAS_BACKUP" = true ]; then
             old_hook="$BACKUP_DIR/.claude/hooks/$hook_name"
             new_hook=".claude/hooks/$hook_name"
             if [ -f "$old_hook" ] && [ -f "$new_hook" ]; then
-                new_sha=$(sha256sum "$new_hook" 2>/dev/null | awk '{print $1}')
+                new_sha=$($SHA256_CMD "$new_hook" 2>/dev/null | awk '{print $1}')
                 if [ "$old_sha" != "$new_sha" ]; then
                     # sha256 不同 → 用户修改过 → 恢复用户版
                     cp "$old_hook" "$new_hook"
-                    log_info "↩ .claude/hooks/$hook_name（检测到用户修改，已恢复）"
+                    log_info "↩ .claude/hooks/${hook_name}（检测到用户修改，已恢复）"
                 fi
             fi
         done < "$BACKUP_DIR/hooks-sha256.txt"
@@ -342,7 +359,10 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
         fi
     fi
 
-    if [ -n "$USER_CONTENT" ]; then
+    # 检测 AGENTS.md 是否已包含 Carror OS 内容（防止重复叠加）
+    if grep -q "Carror OS — AI Native Developer Operating System" "AGENTS.md" 2>/dev/null; then
+        log_info "AGENTS.md 已包含 Carror OS 治理框架，跳过合并（保留最新模板）"
+    elif [ -n "$USER_CONTENT" ]; then
         TEMPLATE=$(cat "AGENTS.md")
         # 降级 Carror OS 标题层级：# → ##，保留用户原始 # 的原创性
         DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
@@ -384,7 +404,7 @@ case "$INSTALL_MODE" in
         [ "$HOOKS" -ge 30 ] || { log_warn "hooks 不足（$HOOKS/30）"; ERRORS=$((ERRORS+1)); }
         ;;
 esac
-[ "$ACTUAL" -ge "$MIN" ] || { log_warn "文件数不足（$ACTUAL/$MIN）"; ERRORS=$((ERRORS+1)); }
+[ "$ACTUAL" -ge "${MIN}" ] || { log_warn "文件数不足（${ACTUAL}/${MIN}）"; ERRORS=$((ERRORS+1)); }
 echo ""
 [ "$ERRORS" -eq 0 ] \
     && log_info "✅ 安装成功！共 $ACTUAL 个文件，$HOOKS 个 hooks" \
@@ -425,6 +445,12 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
         cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
             && log_info "使用 Generic profile（base）→ .claude/harness.yaml"
     fi
+fi
+
+# 跨平台 CLI 配置自动生成（Qwen Code / Codex / Gemini / Cursor / OpenCode）
+if command -v python3 &>/dev/null && [ -f ".hooks/generate.py" ]; then
+    log_step "生成跨平台 CLI hooks 配置..."
+    python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（无可用平台）"
 fi
 
 echo ""

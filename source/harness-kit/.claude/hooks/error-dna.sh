@@ -182,6 +182,8 @@ NOISE_PATTERNS = [
     'Exit code 126',                           # permission denied (operational)
     'Exit code 127',                           # command not found (operational)
     'PreToolUse:Bash hook error',              # hook pipeline error (operational)
+    'verify_oma_interface_coverage',          # OMA verify script errors (operational)
+    'OMA 接口覆盖校验',                        # OMA 接口覆盖校验 banner (operational)
 ]
 is_noise = any(p in message for p in NOISE_PATTERNS)
 
