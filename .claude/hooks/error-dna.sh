@@ -182,6 +182,10 @@ NOISE_PATTERNS = [
     'Exit code 126',                           # permission denied (operational)
     'Exit code 127',                           # command not found (operational)
     'PreToolUse:Bash hook error',              # hook pipeline error (operational)
+    'PreToolUse:',                              # any PreToolUse hook error (operational)
+    'no matches found',                         # shell glob failure (operational)
+    'File content has changed since',           # concurrency guard (normal)
+    'Skill compact is not',                     # invalid skill name (operational)
     'verify_oma_interface_coverage',          # OMA verify script errors (operational)
     'OMA 接口覆盖校验',                        # OMA 接口覆盖校验 banner (operational)
 ]
