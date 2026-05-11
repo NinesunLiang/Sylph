@@ -79,6 +79,36 @@ except:
 " 2>/dev/null)
 fi
 
+# 收集本会话 lessons（claude-next 今日条目 + intent-tracker 矛盾记录）
+LESSONS=""
+CLAUDE_NEXT="$PROJECT_ROOT/.claude/claude-next.md"
+if [ -f "$CLAUDE_NEXT" ]; then
+    LESSONS=$(python3 -c "
+import re
+with open('$CLAUDE_NEXT') as f:
+    content = f.read()
+# 提取今日新加条目（含 @2026-05-11）
+today_entries = re.findall(r'^### \[(.+?)\] (.+)', content, re.MULTILINE)
+meta = re.findall(r'^<!-- @(\d{4}-\d{2}-\d{2}) hits:(\d+) -->', content, re.MULTILINE)
+if today_entries:
+    for t in today_entries[:5]:
+        print(f'· [{t[0]}] {t[1]}')
+" 2>/dev/null)
+fi
+
+CONTRADICTIONS=""
+CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
+if [ -f "$CONTRADICTION_LOG" ]; then
+    CONTRADICTIONS=$(python3 -c "
+import json
+with open('$CONTRADICTION_LOG') as f:
+    lines = [json.loads(l) for l in f if l.strip()]
+reverts = [l for l in lines if l.get('type') == 'revert' and l.get('session_id', l.get('sig', ''))]
+for r in reverts[-3:]:
+    print(f'· revert: {r.get(\"file\", \"\")[:60]}')
+" 2>/dev/null)
+fi
+
 # 写 handoff（覆盖式 — 始终最新状态）
 cat > "$HANDOFF_FILE" <<EOF
 # Session Handoff — ${TIMESTAMP}
@@ -98,6 +128,11 @@ cat > "$HANDOFF_FILE" <<EOF
 
 ## Token
 - ${CTX_INFO:-not available}
+
+## 本节 Lessons
+$(if [ -n "$LESSONS" ]; then echo "${LESSONS}"; else echo "(none recorded this session)"; fi)
+
+$(if [ -n "$CONTRADICTIONS" ]; then echo "## 矛盾记录\n${CONTRADICTIONS}"; fi)
 
 ## Next Steps
 (handoff auto-generated after TaskUpdate completed — \`inject-project-knowledge.sh\` auto-loads this on next SessionStart)

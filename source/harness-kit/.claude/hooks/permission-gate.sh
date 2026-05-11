@@ -144,6 +144,13 @@ if [ "$MODE" != "normal" ]; then
         echo "$COMMAND"
         echo '```'
     } >> "$SKIPPED_FILE"
+    # 同步写入模式 JSON 的 skipped_risks（修复 P0-3: JSON 字段死代码）
+    _TS=$(python3 -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
+    _ESCAPED_CMD=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$COMMAND" 2>/dev/null || echo "\"\"")
+    _RISK_JSON=$(python3 -c "import json; print(json.dumps({'type':'$DANGER_TYPE','command':${_ESCAPED_CMD},'timestamp':'$_TS'}))" 2>/dev/null)
+    if [ -n "$_RISK_JSON" ]; then
+        _mode_append_to_list "$STATE_DIR" "$MODE" "skipped_risks" "$_RISK_JSON"
+    fi
     echo "[${MODE}] 已记录 ${DANGER_TYPE}: ${COMMAND:0:120}...（模式降级，不阻断）" >&2
     echo '{"continue": true}'
     exit 0

@@ -15,8 +15,15 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 DNA_FILE="$STATE_DIR/error-dna.json"
 BUDGET_FILE="$STATE_DIR/retry-budget.json"
-MAX_RETRIES=3
 mkdir -p "$STATE_DIR"
+
+# 从 harness.yaml 读取 max_retries（通过缓存文件，不 source harness_config.sh 以兼容 set -u）
+MAX_RETRIES=3
+RETRY_CACHE="$STATE_DIR/.harness-cache"
+if [ -f "$RETRY_CACHE" ]; then
+    HC_MAX=$(grep -m1 "^retry_budget.max_retries=" "$RETRY_CACHE" 2>/dev/null | cut -d'=' -f2-)
+    [ -n "$HC_MAX" ] && MAX_RETRIES=$HC_MAX
+fi
 
 init_budget() {
   if [ ! -f "$BUDGET_FILE" ]; then

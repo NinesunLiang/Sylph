@@ -9,13 +9,16 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR" 2>/dev/null
 
+# source harness_config for hc_get defaults
+source "$SCRIPT_DIR/../hooks/harness_config.sh"
+
 MODE_FILE="$STATE_DIR/ghost-mode.json"
 
 case "${1:-status}" in
     on)
         DIRECTION="${2:-自主探索和修复系统问题}"
-        INTERVAL="${3:-600}"
-        EXPIRY_HOURS="${4:-3}"
+        INTERVAL="${3:-$(hc_get "ghost_mode.default_poll_interval" "600")}"
+        EXPIRY_HOURS="${4:-$(hc_get "ghost_mode.default_expiry_hours" "3")}"
         EXPIRES=$(python3 -c "from datetime import datetime,timedelta; print((datetime.now()+timedelta(hours=$EXPIRY_HOURS)).isoformat())" 2>/dev/null)
         # 原子写入 ghost-mode.json
         tmp="${MODE_FILE}.tmp.$$"
@@ -45,12 +48,9 @@ JSON
         if [ -f "$MODE_FILE" ]; then
             rm -f "$MODE_FILE"
         fi
-        # 清理所有信号文件
+        # 清理所有信号文件（仅清理 ghost 自身的，不误伤无人值守模式）
         rm -f "$STATE_DIR/ghost-mode.active" 2>/dev/null
         rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
-        rm -f "$STATE_DIR/.unattended-mode" 2>/dev/null
-        # 也清理 unattended-mode.json
-        rm -f "$STATE_DIR/unattended-mode.json" 2>/dev/null
         echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
         ;;
 
@@ -83,10 +83,14 @@ JSON
             exit 1
         fi
         python3 -c "
-import json
-d = json.load(open('$MODE_FILE'))
+import json, os
+file = '$MODE_FILE'
+d = json.load(open(file))
 d['$KEY'] = $VALUE
-json.dump(d, open('$MODE_FILE','w'), indent=2)
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
 " 2>/dev/null && echo "✅ 幽灵模式 $KEY 已更新为 $VALUE" || echo "❌ 更新失败"
         ;;
 
@@ -98,7 +102,10 @@ json.dump(d, open('$MODE_FILE','w'), indent=2)
         fi
         echo "=== 幽灵轮询 [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ==="
         DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('direction','?'))" 2>/dev/null)
+        RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+        SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
         echo "  方向: $DIR"
+        echo "  重试次数: $RETRY  已跳过风险: $SKIP"
         # 状态面板：检查活跃特征 + 未提交变更
         if [ -d "$PROJECT_ROOT/rpe" ]; then
             ACTIVE=$(ls "$PROJECT_ROOT/rpe/" 2>/dev/null | head -5 | tr '\n' ' ')
@@ -106,8 +113,18 @@ json.dump(d, open('$MODE_FILE','w'), indent=2)
         fi
         MODIFIED=$(cd "$PROJECT_ROOT" && git diff --name-only 2>/dev/null | head -10 | tr '\n' ' ')
         [ -n "$MODIFIED" ] && echo "  未提交变更: $MODIFIED"
-        BLOCKED=$(ls "$PROJECT_ROOT/.omc/state/skipped-errors.md" 2>/dev/null && wc -l < "$PROJECT_ROOT/.omc/state/skipped-errors.md" 2>/dev/null || echo 0)
-        echo "  已跳过风险数: ${BLOCKED}"
+        # 集成 retry-budget.sh 状态检查（P0-1）
+        RETRY_SCRIPT="$SCRIPT_DIR/retry-budget.sh"
+        if [ -f "$RETRY_SCRIPT" ]; then
+            RETRY_CTX=$(bash "$RETRY_SCRIPT" check 2>&1)
+            RETRY_EXIT=$?
+            if [ $RETRY_EXIT -eq 2 ] && [ -n "$RETRY_CTX" ]; then
+                echo "⚠️ [Retry Budget BLOCKED] 以下错误已达 3 次上限，需人工干预:"
+                echo "$RETRY_CTX" | head -5
+            elif [ $RETRY_EXIT -eq 0 ]; then
+                echo "  retry-budget: 正常"
+            fi
+        fi
         echo "  命令: 自主探索并修复 ${DIR}，发现问题自行修复（最多 3 次），无法处理的记录等待人工"
         ;;
 

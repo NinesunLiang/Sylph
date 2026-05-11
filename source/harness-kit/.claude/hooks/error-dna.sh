@@ -404,8 +404,28 @@ frequent = [(sig, info['count'], info.get('message', '')[:120])
 if frequent:
     frequent.sort(key=lambda x: -x[1])
     lines = ["[高频错误模式检测] 以下签名已出现 >=2 次:"]
+    # 按工具类型分组
+    tool_groups = {}
     for sig, count, msg in frequent:
-        lines.append(f'  · {sig[:20]} ×{count} — {msg}')
+        if 'Bash' in msg or 'bash' in msg:
+            tg = 'Bash'
+        elif 'Edit' in msg or 'edit' in msg:
+            tg = 'Edit'
+        elif 'Read' in msg or 'read' in msg:
+            tg = 'Read'
+        elif 'Write' in msg or 'write' in msg:
+            tg = 'Write'
+        elif 'Grep' in msg or 'grep' in msg:
+            tg = 'Grep'
+        else:
+            tg = 'Other'
+        if tg not in tool_groups:
+            tool_groups[tg] = []
+        tool_groups[tg].append((sig, count, msg))
+    for tg in sorted(tool_groups.keys()):
+        lines.append(f"  [{tg}]")
+        for sig, count, msg in tool_groups[tg][:3]:
+            lines.append(f'    · {sig[:20]} ×{count} — {msg}')
     print('|'.join(lines))
 PYEOF
 )

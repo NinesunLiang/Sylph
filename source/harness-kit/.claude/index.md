@@ -46,6 +46,19 @@
 # 查看错误记忆cat .omc/state/error-dna.json | python3 -c \ "import json,sys; [print(e['signature'][:60],'×',e['count']) \ for e in json.load(sys.stdin) if e.get('status')!='fixed']"
 ```
 
+## 执行模式（Ghost / 无人值守）
+
+| 模式 | 驱动 | 默认过期 | 适用场景 | 命令 |
+|------|------|---------|---------|------|
+| **Ghost** | 方向驱动，自由探索 | 3h | 代码体检/审计/巡检/架构漂移检测 | `ghost-mode.sh` |
+| **无人值守** | 目标驱动，执行到底 | 6h | 批量重构/功能开发/Bug 修复清单 | `lx-unattended-toggle.sh` |
+
+**Ghost Mode**：`ghost-mode on "方向" [间隔秒] [过期小时]` — AI 按方向自动探索和修复，每 N 秒轮询。所有门禁降级为"记录+跳过"。不会干扰用户。
+
+**无人值守模式**：`lx-unattended on "目标" [过期小时]` — AI 执行指定目标直到完成。`task-done` 标记进度，`report` 输出最终报告。所有门禁降级。
+
+**驱动方式**：手动执行或 `/loop <间隔> ghost-mode.sh poll` 自动轮询。
+
 ## Hooks 速查
 
 > 完整 34 个 hooks 列表见 `.claude/reference/hooks-table.md`（Read 按需查看）

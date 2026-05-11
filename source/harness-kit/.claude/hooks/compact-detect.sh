@@ -89,6 +89,14 @@ if [ -f "$INJECT_AGENTS" ]; then
     grep -E '^## |^### ' "$INJECT_AGENTS" 2>/dev/null | head -15
 fi
 
+# 注入 skill 关联图谱（C7 关联编排知识密度）
+SKILL_GRAPH="$PROJECT_ROOT/.claude/reference/skill-graph.md"
+if [ -f "$SKILL_GRAPH" ]; then
+    echo ""
+    echo "--- Skill 关联图谱 ---"
+    grep -E '^\|' "$SKILL_GRAPH" 2>/dev/null | head -20
+fi
+
 # 注入会话状态恢复
 echo ""
 echo "--- 当前会话状态 ---"

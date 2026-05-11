@@ -108,12 +108,25 @@ if not suggestions:
 
 # Sort by hits desc, then age desc
 suggestions.sort(key=lambda x: (-x[1], -x[2]))
-suggestions = suggestions[:5]
+suggestions = suggestions[:7]
 
 lines_out = [f"[knowledge-condenser] {len(suggestions)} 个高频模式可升华:"]
 for tag_display, hits, age, action, ln, in_kernel in suggestions:
     lines_out.append(f" · {tag_display} (hits:{hits}, {age}天) → {action}")
     lines_out.append(f"   证据: claude-next.md:{ln}, kernel.md: {in_kernel}")
+
+# === 自动归档：低命中 + 超龄条目（hits=1, age>30天）===
+old_low_hit = [(ln, desc[:60]) for tag, hits, entry_date, desc, ln in entries
+               if hits == 1 and entry_date and (today - entry_date).days > 30]
+if old_low_hit:
+    lines_out.append(f"[knowledge-condenser] {len(old_low_hit)} 条低命中超龄记录(hits=1, >30天):")
+    for ln, d in old_low_hit[:5]:
+        lines_out.append(f" · 行{ln}: {d}")
+    lines_out.append("  建议: 审查后从 claude-next.md 移除或标记为已归档")
+
+# === 总量告警：超过 40 条时建议整理 ===
+if len(entries) > 40:
+    lines_out.append(f"[knowledge-condenser] 警告: claude-next.md 当前 {len(entries)} 条，建议审查归档低价值条目至 <30 条")
 
 print('|'.join(lines_out))
 PYEOF

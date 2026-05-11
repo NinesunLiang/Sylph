@@ -323,3 +323,58 @@ except Exception:
 
     echo "normal"
 }
+
+# ══════════════════════════════════════════════════════════════════
+# 模式状态更新: ghost-mode.json / unattended-mode.json 原子写入
+# ══════════════════════════════════════════════════════════════════
+
+# _mode_append_to_list <state_dir> <mode> <field> <json_value>
+# 原子追加 JSON 值到模式状态文件的列表字段。使用 tmp+rename 防止并发读取不一致。
+# 示例: _mode_append_to_list "$STATE_DIR" "ghost" "skipped_risks" '{"type":"rm -rf","command":"rm -rf /tmp","timestamp":"2026-05-11T12:00:00"}'
+_mode_append_to_list() {
+    local state_dir="$1" mode="$2" field="$3" json_value="$4"
+    local file="$state_dir/${mode}-mode.json"
+    [ ! -f "$file" ] && return 1
+    python3 -c "
+import json, os
+file = '$file'
+field = '$field'
+try:
+    value = json.loads('$json_value')
+except:
+    value = '$json_value'
+try:
+    d = json.load(open(file))
+except:
+    d = {}
+lst = d.get(field, [])
+lst.append(value)
+d[field] = lst
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null || true
+}
+
+# _mode_increment_field <state_dir> <mode> <field>
+# 原子递增模式状态文件的数字字段。
+_mode_increment_field() {
+    local state_dir="$1" mode="$2" field="$3"
+    local file="$state_dir/${mode}-mode.json"
+    [ ! -f "$file" ] && return 1
+    python3 -c "
+import json, os
+file = '$file'
+field = '$field'
+try:
+    d = json.load(open(file))
+except:
+    d = {}
+d[field] = d.get(field, 0) + 1
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null || true
+}

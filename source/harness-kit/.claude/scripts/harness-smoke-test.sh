@@ -79,6 +79,64 @@ run_case "R29 context-guard: Read @ 95% 应放行 (诊断通道)" \
   "context-guard.sh" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
+# --- ghost/unattended mode 降级测试（P0 改造验证）---
+# 测试前清理任何残留
+rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/autonomous.active
+# R40: Ghost mode 下所有门禁降级为"记录+跳过"
+
+# ---- Setup: 创建活跃 ghost-mode.json ----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
+     'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
+json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+"
+# R40-1: Ghost mode 下 context-guard Write @ 95% 不应阻断（仅记录）
+echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
+run_case "R40 ghost mode: context-guard Write @ 95% 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
+  "context-guard.sh" 0 ""
+rm -f .omc/state/token-tracking-index.json
+
+# R40-2: Ghost mode 下 permission-gate rm -rf 不应阻断
+run_case "R40 ghost mode: permission-gate rm -rf 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
+  "permission-gate.sh" 0 "\[ghost\]"
+
+# R40-3: Ghost mode 下 edit-guard 未 Read 不应阻断
+run_case "R40 ghost mode: edit-guard 未 Read 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/test.go"}}' \
+  "edit-guard.sh" 0 ""
+
+# ---- Setup: 创建 inactive（已过期）ghost-mode.json ----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
+     'expires_at': '2020-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
+json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+"
+# R40-4: 过期 ghost mode 应恢复阻断（context-guard Write 恢复 hard block）
+echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
+run_case "R40 ghost mode expired: context-guard Write 恢复阻断" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
+  "context-guard.sh" 2 "Context Guard"
+rm -f .omc/state/token-tracking-index.json
+
+# ---- Setup: 创建活跃 unattended-mode.json ----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'unattended', 'goal': 'test',
+     'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
+json.dump(d, open('.omc/state/unattended-mode.json', 'w'))
+"
+# R40-5: Unattended mode 下 permission-gate 应降级
+run_case "R40 unattended mode: permission-gate rm -rf 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
+  "permission-gate.sh" 0 "\[unattended\]"
+
+# 测试完成后清理模式文件
+rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/autonomous.active
+
 # --- privacy-gate (R13 + R15 + R16) ---
 run_case "privacy-gate: Read .env 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":".env"}}' \

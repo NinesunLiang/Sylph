@@ -8,7 +8,7 @@ hc_enabled "context_guard" || { echo '{"continue": true}'; exit 0; }
 # R29: context-guard matcher 改为 Edit|Write, 开放诊断通道 (Read/Grep/Bash)。
 # 原则: "读是诊断, 写是破坏" — 高上下文时封锁写操作，但保留 Read/Grep 供诊断。
 # 逃生门: context-force-override 文件存在时跳过阻断 (配合 Bash 修复)。
-# 无人值守模式: .omc/state/.unattended-mode 存在时，不阻断仅记录 flywheel
+# Ghost/Unattended mode: is_mode_active() 检测到非 normal 模式时，不阻断仅记录 flywheel
 INPUT=$(cat)
 
 # 逃生舱盖: 标记文件存在时跳过阻断 (供诊断恢复使用)

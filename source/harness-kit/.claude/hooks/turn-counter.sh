@@ -97,7 +97,57 @@ except:
     if [ -f "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" ]; then
         CONTRADICTION_COUNT=$(grep -c '"contradiction": true' "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" 2>/dev/null || echo 0)
     fi
-    echo "健康: 轮$new_count ctx${CTX_PCT:-?}% err$ERROR_COUNT 矛$CONTRADICTION_COUNT"
+    # C8 可维护性: 三方漂移检测 — z 脚本存在+yaml 启用但 settings 未注册
+    DRIFT_COUNT=0
+    HARNESS_YAML="$PROJECT_ROOT/.claude/harness.yaml"
+    SETTINGS_JSON="$PROJECT_ROOT/.claude/settings.json"
+    if [ -f "$HARNESS_YAML" ] && [ -f "$SETTINGS_JSON" ]; then
+        DRIFT_COUNT=$(python3 -c "
+import os, re, json
+hook_dir = '$PROJECT_ROOT/.claude/hooks'
+yaml_path = '$HARNESS_YAML'
+settings_path = '$SETTINGS_JSON'
+disk_scripts = set(f.replace('.sh', '') for f in os.listdir(hook_dir) if f.endswith('.sh') and os.path.isfile(os.path.join(hook_dir, f)))
+yaml_enabled = set()
+try:
+    with open(yaml_path) as f:
+        for line in f:
+            m = re.match(r'^hooks_enabled\.(\w+):\s*true', line)
+            if m:
+                yaml_enabled.add(m.group(1))
+except: pass
+settings_scripts = set()
+try:
+    with open(settings_path) as f:
+        s = json.load(f)
+    for hook_list in ['hooks', 'preToolUse', 'postToolUse', 'preToolUseFailure', 'postToolUseFailure', 'sessionStart', 'userPromptSubmit', 'stop']:
+        for hook in s.get(hook_list, []):
+            if isinstance(hook, dict) and 'script' in hook:
+                name = os.path.basename(hook['script']).replace('.sh', '')
+                settings_scripts.add(name)
+except: pass
+# z = on disk + yaml enabled but missing from settings
+zombie = len((disk_scripts & yaml_enabled) - settings_scripts)
+# orphan = in settings but missing from disk
+orphan = len(settings_scripts - disk_scripts)
+print(f'{zombie}+{orphan}')
+" 2>/dev/null)
+    fi
+    # C5 工具生命周期: 追踪工具使用多样性 + 成功率
+    TOOL_DIVERSITY=0
+    TOOL_ERR_RATE=""
+    TOTAL_OPS_FILE="$STATE_DIR/total-ops.txt"
+    if [ -f "$ERROR_DNA_JSONL" ]; then
+        TOOL_DIVERSITY=$(grep -c '"error_type"' "$ERROR_DNA_JSONL" 2>/dev/null || echo 0)
+    fi
+    if [ -f "$TOTAL_OPS_FILE" ]; then
+        TOTAL_OPS=$(cat "$TOTAL_OPS_FILE" 2>/dev/null || echo 0)
+        if [ "$TOTAL_OPS" -gt 0 ] 2>/dev/null; then
+            ERR_RATE=$((TOOL_DIVERSITY * 100 / TOTAL_OPS))
+            TOOL_ERR_RATE="${ERR_RATE}%"
+        fi
+    fi
+    echo "健康: 轮$new_count ctx${CTX_PCT:-?}% err$ERROR_COUNT 矛$CONTRADICTION_COUNT z${DRIFT_COUNT:-?} 工具${TOOL_DIVERSITY} err${TOOL_ERR_RATE:-?}"
 
     echo "═══ ═══"
 fi

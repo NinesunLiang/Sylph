@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # lx-unattended-toggle.sh — 切换无人值守模式
-# 用法: lx-unattended on|off|status|set
+# 用法: lx-unattended on|off|status|set|report|poll|task-done
 # 无人值守模式: AI 按目标持续执行直到完成，不干扰人，默认 6h 过期
 # 向后兼容: 旧 .unattended-mode 文件标记仍可被 is_mode_active() 检测
 
@@ -9,14 +9,18 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR" 2>/dev/null
 
+# source harness_config for hc_get defaults
+source "$SCRIPT_DIR/../hooks/harness_config.sh"
+
 MODE_FILE="$STATE_DIR/unattended-mode.json"
 
 case "${1:-status}" in
     on)
         GOAL="${2:-目标任务未指定}"
-        EXPIRY_HOURS="${3:-6}"
+        EXPIRY_HOURS="${3:-$(hc_get "unattended_mode.default_expiry_hours" "6")}"
         EXPIRES=$(python3 -c "from datetime import datetime,timedelta; print((datetime.now()+timedelta(hours=$EXPIRY_HOURS)).isoformat())" 2>/dev/null)
-        cat > "$MODE_FILE" <<JSON
+        tmp="${MODE_FILE}.tmp.$$"
+        cat > "$tmp" <<JSON
 {
   "active": true,
   "mode": "unattended",
@@ -28,6 +32,7 @@ case "${1:-status}" in
   "completed_tasks": []
 }
 JSON
+        mv -f "$tmp" "$MODE_FILE" 2>/dev/null
         # 清理旧格式
         rm -f "$STATE_DIR/.unattended-mode" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
@@ -70,10 +75,14 @@ JSON
             exit 1
         fi
         python3 -c "
-import json
-d = json.load(open('$MODE_FILE'))
+import json, os
+file = '$MODE_FILE'
+d = json.load(open(file))
 d['$KEY'] = $VALUE
-json.dump(d, open('$MODE_FILE','w'), indent=2)
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
 " 2>/dev/null && echo "✅ 无人值守模式 $KEY 已更新为 $VALUE" || echo "❌ 更新失败"
         ;;
 
@@ -144,15 +153,44 @@ for r in risks: print(f'- {r}')
         echo "   请继续执行目标，完成后用 lx-unattended report 输出报告"
         ;;
 
+    task-done)
+        # 标记一项任务为已完成（修复 P0-3: JSON 字段死代码）
+        DESCRIPTION="${2:-未知任务}"
+        if [ ! -f "$MODE_FILE" ]; then
+            echo "❌ 无人值守模式未开启"
+            exit 1
+        fi
+        TS=$(python3 -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+        _TASK_JSON=$(python3 -c "import json; print(json.dumps({'description':'$DESCRIPTION','timestamp':'$TS'}))" 2>/dev/null)
+        python3 -c "
+import json, os
+file = '$MODE_FILE'
+try:
+    d = json.load(open(file))
+except:
+    d = {}
+tasks = d.get('completed_tasks', [])
+tasks.append(${_TASK_JSON:-'{}'})
+d['completed_tasks'] = tasks
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null
+        echo "✅ 已标记任务完成: $DESCRIPTION"
+        ;;
+
     *)
-        echo "用法: lx-unattended on|off|status|set|report"
+        echo "用法: lx-unattended on|off|status|set|report|poll|task-done"
         echo ""
         echo "子命令:"
-        echo "  lx-unattended on \"目标描述\" [过期小时=6]"
-        echo "  lx-unattended off"
-        echo "  lx-unattended status"
-        echo "  lx-unattended set <json_key> <json_value>"
+        echo "  lx-unattended on \"目标描述\" [过期小时=6] — 开启无人值守模式"
+        echo "  lx-unattended off — 关闭"
+        echo "  lx-unattended status — 查看状态"
+        echo "  lx-unattended set <json_key> <json_value> — 动态修改配置"
         echo "  lx-unattended report — 输出执行报告"
+        echo "  lx-unattended poll — 轮询入口（loop skill 调用）"
+        echo "  lx-unattended task-done \"描述\" — 标记任务完成"
         exit 1
         ;;
 esac

@@ -38,6 +38,15 @@ for entry in $INJECT_FILES; do
 done
 set +f
 
+# 注入 skill 关联图谱（C7 关联编排）
+SKILL_GRAPH="$PROJECT_ROOT/.claude/reference/skill-graph.md"
+if [ -f "$SKILL_GRAPH" ]; then
+    echo "[.claude/reference/skill-graph.md 线上]"
+    grep -E '^\|' "$SKILL_GRAPH" 2>/dev/null | head -16
+    echo "--- 完整图谱请Read .claude/reference/skill-graph.md"
+    echo ""
+fi
+
 # 注入当前 Pipeline Step（C3 流程结构化）
 PIPELINE_STEP_SCRIPT="$PROJECT_ROOT/.claude/scripts/pipeline-step.sh"
 if [ -f "$PIPELINE_STEP_SCRIPT" ]; then
@@ -238,6 +247,33 @@ try:
         print("---")
 except Exception:
     pass
+PYEOF
+fi
+
+# C5: Tool-level health summary (error rate by type)
+TOTAL_OPS_FILE="$PROJECT_ROOT/.omc/state/total-ops.txt"
+DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
+if [ -f "$DNA_JSONL" ] && [ -f "$TOTAL_OPS_FILE" ]; then
+    python3 - "$DNA_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF'
+import json, sys
+try:
+    jsonl_path, ops_path = sys.argv[1], sys.argv[2]
+    total_ops = int(open(ops_path).read().strip())
+    tool_types = {}
+    with open(jsonl_path) as f:
+        for line in f:
+            try:
+                rec = json.loads(line)
+                t = rec.get('error_type', 'unknown')
+                tool_types[t] = tool_types.get(t, 0) + 1
+            except: pass
+    if tool_types:
+        total_err = sum(tool_types.values())
+        rate = total_err * 100 // total_ops if total_ops > 0 else 0
+        print(f"[工具健康] 总操作: {total_ops}, 总错误: {total_err} ({rate}%)")
+        for t, c in sorted(tool_types.items(), key=lambda x: -x[1])[:5]:
+            print(f"  [{t}] ×{c}")
+except: pass
 PYEOF
 fi
 
