@@ -3,7 +3,6 @@ name: lx-oma-split
 
 description: 一人成军司令部 (One-Man Army) - 将需求拆解为正交的多个功能分支 (prd/{sub_prd}/{feature})，支持目录和单文件作为输入。
 
-complexity: intermediate
 version: v1.2.0
 harness_version: "6.1.9"
 model: sonnet
@@ -29,7 +28,7 @@ execution_mode: race
 ### 使用的通用节点
 | 节点 | 路径 | 用途 |
 |------|------|------|
-| interactive_prompt | `../../nodes/interactive_prompt.md` | 无参数时引导式问答 |
+| — | — | 本 skill 无外部节点依赖，拆解逻辑由 AI 自主执行 |
 
 ### 引用的通用 Schema
 | Schema | 路径 | 用途 |
@@ -214,15 +213,16 @@ EOF
 1. **feat-xxx**：负责...
 2. **feat-yyy**：负责...
 
-## 🚀 并发启动指令
+## 🚀 并发开发
 
-请打开 N 个终端，分别运行以下指令开始并发开发：
-```bash
-# 终端 1
-/lx-rpe prd/{sub_prd_name}/feat-xxx
-# 终端 2
-/lx-rpe prd/{sub_prd_name}/feat-yyy
-```
+共拆分出 N 个正交功能分支，可独立进入开发。
+
+每个 feature 目录在 `prd/{sub_prd_name}/feat-xxx/` 下，包含：
+- `prd.md` — 该 feature 的需求子集
+- `contracts/` — 接口契约定义
+- `mocks/` — Mock 数据
+
+直接进入对应目录开始开发即可。
 
 底层的 OMA 文件锁 (Micro-OS Mutex) 已就绪，冲突将自动挂起排队，尽情享受最高密度的并发生产力！
 
@@ -237,17 +237,15 @@ EOF
 📍 拆解完成，{N} 个 feature 已就绪。
 
 建议下一步:
-  1. /lx-rpe prd/{sub_prd_name}/feat-{name} — 推荐 ✓
-     说明：启动核心 feature 的 RPE 开发
-     适用场景：有依赖链上游的 feature，优先启动
+  1. /lx-rpe prd/{sub_prd_name}/feat-{name}
+     → 启动核心 feature 的 RPE 开发（建议先做依赖链上游的）
   2. 并行启动多个 /lx-rpe
-     说明：无依赖的 feature 可同时开始开发
-     适用场景：多个 feature 无相互依赖，可并行加速
-  3. /lx-oma-orch status
-     说明：查看管线全景，了解整体进度
-     适用场景：想了解当前 PRD 全貌
+     → 无依赖的 feature 可同时开始开发
+  3. /lx-orch status
+     → 查看管线全景，了解整体进度
   4. 自定义操作
      → 输入你想要的命令
+  ─── 或直接输入你想要的命令 ───
 
 推荐顺序:
   · 有依赖项的 feature → 优先启动（处于依赖链上游的）

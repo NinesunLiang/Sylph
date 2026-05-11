@@ -26,7 +26,7 @@
 <!-- 由 R17 审计填充 @2026-05-07 -->
 - **Hook 脚本**：snake-case（`context-guard.sh`、`completion-gate.sh`），与 harness.yaml key 保持连字符一致
 - **Python 脚本**：snake_case（`context_monitor.py`、`oma_lock_manager.py`）
-- **Skill 目录**：`lx-` 前缀（`lx-rpe`、`lx-oma-split`），SKILL.md 主文件
+- **Skill 目录**：`lx-` 前缀（`lx-oma-split`、`lx-code-review`），SKILL.md 主文件
 - **YAML key**：snake_case（`hooks_enabled.completion_gate`），与脚本调用一致
 - **版本号**：始终 `v6.1.9-stable` 格式，VERSION.json 无前缀 `6.1.9`
 

@@ -242,18 +242,17 @@ need_input → [reading → analyzing → generating → verifying] → done
 ```
 初始化路径（一次性，新项目启动）:
 
-  lx-oma-hier    →     lx-oma-split       →     lx-rpe
-  (主PRD→SubPRD)     (SubPRD→RPE)        (特性开发)
+  lx-oma-hier    →     lx-oma-split
+  (主PRD→SubPRD)     (SubPRD→Feature)
 
   用法:
     1. /lx-oma-hier docs/master-prd.md      # 拆出 Sub PRD
-    2. /lx-oma-split sub-prds/domain-xxx.md       # 拆出 feature RPE
-    3. /lx-rpe <feature-name>               # 启动特性开发
+    2. /lx-oma-split sub-prds/domain-xxx.md       # 拆出 Feature
 
 治理路径（长期，主 PRD 变更时）:
 
-  lx-oma-gov      →   lx-oma-split / lx-rpe
-  (reconcile/       (变更后重新拆解或直接开发)
+  lx-oma-gov      →   lx-oma-split
+  (reconcile/       (变更后重新拆解)
    propagate/
    audit)
 

@@ -233,14 +233,14 @@ prd/{sub_prd}/{feature}/
 
 ```
 初始化路径（一次性）:
-  lx-oma-hier  →  lx-oma-split  →  lx-rpe
-  (主PRD→SubPRD)  (SubPRD→RPE)  (特性开发)
+  lx-oma-hier  →  lx-oma-split
+  (主PRD→SubPRD)  (SubPRD→Feature)
 
 治理路径（持续）:
-  lx-oma-gov  →  lx-oma-split → lx-rpe
-  (reconcile/propagate)  (re-split)  (开发)
-              直接→ lx-rpe
-              (小变更直接通知开发)
+  lx-oma-gov  →  lx-oma-split
+  (reconcile/propagate)  (变更后重新拆解)
+              直接→ prd/{sub_prd}/{feature}
+              (小变更直接更新 feature prd.md)
 ```
 
 ### 调用时机

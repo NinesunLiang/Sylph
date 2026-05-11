@@ -213,15 +213,16 @@ EOF
 1. **feat-xxx**：负责...
 2. **feat-yyy**：负责...
 
-## 🚀 并发启动指令
+## 🚀 并发开发
 
-请打开 N 个终端，分别运行以下指令开始并发开发：
-```bash
-# 终端 1
-/lx-rpe prd/{sub_prd_name}/feat-xxx
-# 终端 2
-/lx-rpe prd/{sub_prd_name}/feat-yyy
-```
+共拆分出 N 个正交功能分支，可独立进入开发。
+
+每个 feature 目录在 `prd/{sub_prd_name}/feat-xxx/` 下，包含：
+- `prd.md` — 该 feature 的需求子集
+- `contracts/` — 接口契约定义
+- `mocks/` — Mock 数据
+
+直接进入对应目录开始开发即可。
 
 底层的 OMA 文件锁 (Micro-OS Mutex) 已就绪，冲突将自动挂起排队，尽情享受最高密度的并发生产力！
 

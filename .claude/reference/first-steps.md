@@ -7,9 +7,6 @@
 ```bash
 # 查看版本
 cat VERSION.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('version','?'))"
-
-# 查看健康状态 — 确认所有组件运转正常
-/lx-status
 ```
 
 ## Step 2: 提交第一个任务
@@ -27,20 +24,16 @@ cat VERSION.json | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.
 ## Step 3: 查看进度和状态
 
 ```bash
-# 健康面板 — 当前系统运行状态
-/lx-status
-
 # 查看当前所有活跃任务
 /omc-todo
 ```
 
 ## Step 4: 使用技能体系
 
-Carror OS 内置 23 个技能（skill），通过自然语言触发：
+Carror OS 内置多个技能（skill），通过自然语言触发：
 
 | 场景 | 触发语 | 说明 |
 |------|--------|------|
-| 系统性功能开发 | `/lx-rpe new 功能名 需求描述` | 9 步闭环开发流程 |
 | 代码审查 | 说"审查代码"或"review this" | 自动调用 lx-code-review |
 | PRD 拆解 | 说"拆解需求"或`/lx-oma-hier 路径` | 按功能域 MECE 拆解 |
 | 安全扫描 | 说"安全检查" | 自动调用 lx-security-review |
