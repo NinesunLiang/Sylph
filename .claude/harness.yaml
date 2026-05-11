@@ -164,7 +164,7 @@ skills_enabled:
   lx-prd: true
   lx-validate-skill: true
   lx-root-cause-analysis: true
-  lx-oma: true
+  lx-oma-split: true
   lx-oma-hier: true
   lx-race: true
 
