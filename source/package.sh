@@ -48,4 +48,4 @@ do [ -f "$SCRIPT_DIR/$F" ] && cp -f "$SCRIPT_DIR/$F" "$PACKAGES_DIR/"
 done
 [ -d "$SCRIPT_DIR/docs" ] && cp -r "$SCRIPT_DIR/docs" "$PACKAGES_DIR/"
 
-log_info "✅ 打包完成！v6.1.8-stable is fully loaded."
+log_info "✅ 打包完成！v6.1.9-stable is fully loaded."

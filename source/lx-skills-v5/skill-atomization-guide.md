@@ -2,7 +2,7 @@
 
 > **Carror OS — AI Native Developer Operating System**
 >
-> 版本: v6.1.8 | 最后更新: 2026-05-04
+> 版本: v6.1.9 | 最后更新: 2026-05-11
 
 ---
 
