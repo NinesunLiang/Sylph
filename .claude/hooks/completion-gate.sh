@@ -175,16 +175,26 @@ for d in details:
 
         if [ -n "$QUALITY_SCORE" ] && [ "$QUALITY_SCORE" -lt "$QUALITY_THRESHOLD" ] 2>/dev/null; then
             echo "⛔ COMPLETION BLOCKED: 证据质量评分 ${QUALITY_SCORE}% < ${QUALITY_THRESHOLD}% 最低要求。" >&2
-            echo "质量分解:" >&2
+            echo "质量分解与改进方向:" >&2
             python3 -c "
 content = '''$(cat "$CONSUMED" 2>/dev/null)'''
-import re; score=0; fl=len(re.findall(r'[\w./-]+\.[a-z]+:\d+', content))
-cmd=sum(1 for p in ['exit.code',r'PASS',r'FAIL','✅','❌','test','build'] if re.search(p,content,re.I))
-multi=sum(1 for p in [r'\d+%',r'\d+ms','coverage','all tests','edge.case'] if re.search(p,content,re.I))
-print(f'  file:line引用: {fl}处 (需≥3)')
-print(f'  测试/编译标记: {cmd}处 (需≥2)')
-print(f'  多方面验证:   {multi}处 (需≥2)')
-print(f'  >>> 改进: 添加 file:line 引用 + 具体命令输出 + 量化测试结果')
+import re
+fl = len(re.findall(r'[\w./-]+\.[a-z]+:\d+', content))
+cmd = sum(1 for p in ['exit.code',r'PASS',r'FAIL','✅','❌','test','build'] if re.search(p,content,re.I))
+multi = sum(1 for p in [r'\d+%',r'\d+ms','coverage','all tests','edge.case'] if re.search(p,content,re.I))
+quant = sum(1 for p in [r'\d+/\d+',r'\d+\.\d+'] if re.search(p,content))
+fl_s = min(fl / 3.0, 1.0) * 40
+cmd_s = min(cmd / 4.0, 1.0) * 30
+multi_s = min(multi / 3.0, 1.0) * 20
+quant_s = min(quant / 2.0, 1.0) * 10
+total = fl_s + cmd_s + multi_s + quant_s
+print(f'  总分分解: {total:.0f}/100 = file:line({fl_s:.0f}/40) + test/cmd({cmd_s:.0f}/30) + multi({multi_s:.0f}/20) + quant({quant_s:.0f}/10)')
+print(f'  具体统计: file:line={fl}处(需≥3)  test/cmd={cmd}处(需≥2)  multi={multi}处(需≥2)  quant={quant}处(需≥1)')
+# Find weakest area
+weakest = max([(40-fl_s, '添加更多 file:line 引用', fl < 3), (30-cmd_s, '补充命令输出/PASS/FAIL 等测试标记', cmd < 2), (20-multi_s, '增加多方面验证（覆盖率/百分比/边界值）', multi < 2), (10-quant_s, '添加量化数据（计数/比率/具体数值）', quant < 1)], key=lambda x: x[0])
+if weakest[2]:
+    print(f'  >>> 优先改进: {weakest[1]}')
+print(f'  通用改进: 引用 file:line 源码 + 使用 VERIFIED: 格式 + 附原始命令输出')
 " 2>/dev/null
             rm -f "$CONSUMED"
             auto_soft_block "证据质量评分过低（${QUALITY_SCORE}%）"
