@@ -50,12 +50,7 @@
             "type": "command",
             "command": "bash .claude/hooks/context-guard.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/pretool-edit-scope.sh",
@@ -65,6 +60,11 @@
             "type": "command",
             "command": "bash .claude/hooks/plan-gate.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-write-lock.sh",
+            "timeout": 10000
           }
         ]
       },
@@ -75,16 +75,6 @@
             "type": "command",
             "command": "bash .claude/hooks/lsp-suggest.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-write-lock.sh",
-            "timeout": 10000
           }
         ]
       },
@@ -136,16 +126,6 @@
         ]
       },
       {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-write-cite.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
         "matcher": "Read",
         "hooks": [
           {
@@ -166,16 +146,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/build-validator.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
             "timeout": 5000
           }
         ]
@@ -205,17 +175,32 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash .claude/hooks/posttool-write-cite.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-write-lock.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/proactive-handoff.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/intent-tracker.sh",
             "timeout": 3000
           }
         ]
@@ -229,26 +214,6 @@
             "timeout": 5000
           }
         ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/proactive-handoff.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/intent-tracker.sh",
-            "timeout": 3000
-          }
-        ]
       }
     ],
     "PostToolUseFailure": [
@@ -259,22 +224,12 @@
             "type": "command",
             "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/build-validator.sh",

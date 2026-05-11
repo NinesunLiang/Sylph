@@ -77,7 +77,7 @@ echo ""
 
 case "$INSTALL_MODE" in
     base|enhanced|full|harness|skills) ;;
-    *) log_error "未知模式：$INSTALL_MODE（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
+    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
 esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"

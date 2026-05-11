@@ -47,8 +47,8 @@ log "harness-smoke-test.sh @ $TS"
 log "========================================"
 
 # --- context-guard (R13 大小写 + R15 tool_name) ---
-# 清理可能残留的无人值守模式文件，防止干扰阻断测试
-rm -f .omc/state/.unattended-mode
+# 清理可能残留的无人值守/幽灵模式文件，防止干扰阻断测试
+rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "context-guard: Write @ 95% 应硬阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
