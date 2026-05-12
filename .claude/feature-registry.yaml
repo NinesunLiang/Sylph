@@ -303,3 +303,8 @@ skills:
   category: workflow
   description: Pipeline Orchestrator：管线编排与 Oracle 门禁裁决
   enabled_by_default: true
+- name: lx-varlock
+  type: gate
+  category: security
+  description: 隐私脱敏代理管理器：敏感信息（密码/API Key/Token）脱敏读写与代理执行
+  enabled_by_default: true

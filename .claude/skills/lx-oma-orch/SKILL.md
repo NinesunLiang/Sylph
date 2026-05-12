@@ -43,7 +43,6 @@ execution_mode: stepwise
 | `.claude/skills/lx-oma-hier/SKILL.md` | Level 1 分层拆解 |
 | `.claude/skills/lx-oma-split/SKILL.md` | Level 2 特性拆解 |
 | `.claude/skills/lx-oma-gov/SKILL.md` | 治理 reconcile/propagate |
-| `.claude/skills/lx-rpe/SKILL.md` | 特性级开发计划 |
 
 ### 状态机
 
@@ -116,7 +115,7 @@ Next actions:
 4. **skill 完成后**：
    - lx-oma-hier / lx-oma-split：直接更新 pipeline.yaml（它们不写 pipeline）
    - **lx-oma-gov：读取 `.omc/state/gov-latest-report.yaml`** 治理报告 → 根据 report 结果更新 pipeline.yaml
-   - lx-rpe：读取 state/progress.md 获取任务完成状态
+   - **已完成规划的 feautre**：读取 state/progress.md 获取各 feature 完成状态
 5. **人工确认阶段转换**：每次 advance 后输出转换结果供人工确认，不自动进入下一阶段
 
 **gov 阶段报告消费流程**：
@@ -142,25 +141,25 @@ hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe ──→ de
 
 **rpe → dev 边界特殊行为**：
 
-当 `advance` 检测到当前阶段为 rpe 且 dev 在 pending 状态时，**不调用任何子 skill**，改为输出并行开发启动面板：
+当 `advance` 检测到当前阶段为 rpe（即 feature 方案已完成）且 dev 在 pending 状态时，**不调用任何子 skill**，改为输出并行开发启动面板：
 
 ```
 ═══ DEV MODE — 并行开发就绪 ═══
 
-以下 4 个 feature 已完成方案，可并发开发：
+以下 4 个 feature 已完成方案，可并发开发。进入对应目录开始开发：
 
-  Terminal 1:  /lx-rpe prd/alert-engine/feat-alert-crud
-  Terminal 2:  /lx-rpe prd/alert-engine/feat-price-evaluation
-  Terminal 3:  /lx-rpe prd/alert-engine/feat-advanced-evaluation
-  Terminal 4:  /lx-rpe prd/alert-engine/feat-trigger-history
+  cd prd/alert-engine/feat-alert-crud && /lx-rpe .
+  cd prd/alert-engine/feat-price-evaluation && /lx-rpe .
+  cd prd/alert-engine/feat-advanced-evaluation && /lx-rpe .
+  cd prd/alert-engine/feat-trigger-history && /lx-rpe .
 
 各 feature 在独立目录下，OMA 文件锁（pretool-write-lock.sh）已激活，
 不同终端写不同目录不冲突。每个终端独立推进 9 步主循环。
 
-完成后运行 /lx-oma-orch dev status 查看各 feature 进度。
+完成后运行 /lx-oma-orch dev mark <feature-id> dev_done 标记完成。
 ```
 
-设置 `stages.dev = running`（不标记 completed — 等各 feature 独立完成后由 lx-rpe 或手动更新）。
+设置 `stages.dev = running`（不标记 completed — 等各 feature 独立完成后由用户或脚本手动更新）。
 
 `--force` 跳过 Oracle gate 检查（风险自负）。
 
@@ -195,7 +194,6 @@ hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe ──→ de
 | Sub PRD 拆解 | lx-oma-hier | `/lx-oma-orch run notification` → 调用 lx-oma-hier 拆解 notification |
 | Feature 拆解 | lx-oma-split | `/lx-oma-orch run alert-engine` → 调用 lx-oma-split 拆解 alert-engine |
 | 治理 | lx-oma-gov | `/lx-oma-orch run --gov reconcile` |
-| RPE 计划 | lx-rpe | `/lx-oma-orch run alert-engine --feature feat-alert-crud` |
 
 路由通过 `state/pipeline.yaml` 中的 `sub_prds[].path` 和 `features[].path` 解析路径，无需手敲。
 
@@ -209,23 +207,21 @@ hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe ──→ de
 ═══ Parallel Dev Dashboard ═══
 
 Ready (rpe_planned):
-  feat-alert-crud          🟢  /lx-rpe prd/alert-engine/feat-alert-crud
-  feat-price-evaluation    🟢  /lx-rpe prd/alert-engine/feat-price-evaluation
+  feat-alert-crud          🟢
+  feat-price-evaluation    🟢
 
 In Progress (in_dev):
   feat-advanced-evaluation 🔵  终端3  (started 2026-05-08)
 
 Complete (dev_done):
   feat-trigger-history     ✅  (completed 2026-05-08)
-
-Launch commands (copy & paste to new terminals):
-  /lx-rpe prd/alert-engine/feat-alert-crud
-  /lx-rpe prd/alert-engine/feat-price-evaluation
 ```
+
+各 feature 在独立目录下，进入目录即可继续开发。
 
 #### 5.2 dev mark <feature-id> <status>
 
-手动标记某个 feature 的 dev 进度（供 lx-rpe 或用户调用）：
+手动标记某个 feature 的 dev 进度（供用户调用）：
 
 `/lx-oma-orch dev mark feat-alert-crud dev_done`
 
@@ -315,7 +311,6 @@ grep "event: skill_error" .omc/state/oma-telemetry.yaml | wc -l
 | lx-oma-hier | orch (advance) | sub-prds/domain-{id}.md | state/pipeline.yaml | `sub_prds[].{id, path, status: hier_done}` | orch 读取 status 后推进 |
 | lx-oma-split | orch (advance) | sub-prds/domain-{id}.md + pipeline.yaml features[] | state/pipeline.yaml | `features[].{id, path, stage: oma_created}`, `sub_prds[].status=oma_done` | orch 读取后生成 og gate |
 | lx-oma-gov | orch (advance) | prd/{sub_prd}/{feature}/prd.md + master-prd.md | `.omc/state/gov-latest-report.yaml` | governance report (§2.2) | orch 读取 report → 更新 pipeline.yaml |
-| lx-rpe | 手动或 orch (run) | prd/{sub_prd}/{feature}/prd.md | state/progress.md (per feature) | tasks 进度状态 | orch 读取 state/progress.md 更新 pipeline |
 
 ### 数据流图
 
@@ -339,10 +334,10 @@ orch advance (gov 阶段)
   → 输出转换报告 → 等待人工 gate 裁决
 
 orch advance (rpe 阶段)
-  → 调 lx-rpe
-  → rpe 写 state/progress.md
-  → orch 读取 progress.md 汇总进度
-  → 输出转换报告 → 等待人工 gate 裁决
+  → rpe 阶段为并行开发准备阶段，不调子 skill
+  → 输出并行开发启动面板（见 §2 rpe→dev 边界）
+  → 设置 stages.dev = running
+  → 等待各 feature 独立完成后用户标记 dev_done
 ```
 
 ### 接口版本锁定

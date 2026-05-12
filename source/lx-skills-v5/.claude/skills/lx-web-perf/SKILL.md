@@ -6,7 +6,6 @@ version: v4.0.0
 
 description: "Web 性能审查：Bundle 分析 + Web Vitals 阈值 + Next.js 优化 + 渲染性能 + 网络性能 + 资产优化。6 大类别 24 条规则。适用于 React/Next.js 前端项目。"
 
-complexity: intermediate
 when_to_use: "Use after building frontend features or before deployment. Trigger: 'perf check', 'web perf', 'performance audit', 'bundle check', 'web vitals', 'lighthouse check'."
 
 model: sonnet
@@ -120,7 +119,7 @@ p
 |C2 未用 next/link | 替换为 `<Link>`|
 |D2 大列表无虚拟化 | 添加 `react-window` 或 `@tanstack/virtual`|
 |E1 请求瀑布 | 改为并行 `Promise.all()`|
-|F1 图片未优化 | 转换为 WebP/AVIF 格式 |\|
+|F1 图片未优化 | 转换为 WebP/AVIF 格式 |
 
 ### Step 6.5: Re-scan 验证
 加载 `@../../nodes/verifier.md`，传入 `fix_record[]` + 原始 `finding[]`。重新执行 Step 3 的全部 24 条规则。

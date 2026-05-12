@@ -6,7 +6,6 @@ version: v4.0.0
 
 description: "Scan staged Go code + dependencies for vulnerabilities, auto-fix, re-scan, and give commit verdict."
 
-complexity: intermediate
 when_to_use: "Use after 'git add' before commit, or when user says 'security review', 'security scan', 'pre-commit check'."
 
 model: sonnet
@@ -111,7 +110,7 @@ go.mod # 缺失 → "不适用"
 |SEC-05 敏感数据日志 | 脱敏或移除敏感字段|
 |SEC-06 路径穿越 | 添加 `filepath.Clean()` + 白名单校验|
 |SEC-07 缺失输入校验 | 添加 `Validate()` 方法|
-|SEC-12 默认 Client | 添加 `\&http.Client{Timeout: 30 * time.Second}` |\|
+|SEC-12 默认 Client | 添加 `\&http.Client{Timeout: 30 * time.Second}` |
 
 ### Step 6: Re-scan 验证
 加载 `@../../nodes/verifier.md`，传入 `fix_record[]` + 原始 `finding[]`。重新执行 Step 3 的全部 15 条规则 + `govulncheck ./...`。

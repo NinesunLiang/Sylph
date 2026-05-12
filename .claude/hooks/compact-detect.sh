@@ -109,6 +109,43 @@ if [ -f "$PROJECT_ROOT/.omc/state/todo-queue.md" ]; then
     head -10 "$PROJECT_ROOT/.omc/state/todo-queue.md" 2>/dev/null
 fi
 
+# 注入 session-dump 恢复上下文（E8 双层动态加载 — 第 2 层: compact 后恢复）
+SESSION_DUMP="$PROJECT_ROOT/.omc/state/session-dump.json"
+if [ -f "$SESSION_DUMP" ]; then
+    python3 -c "
+import json
+try:
+    with open('$SESSION_DUMP') as f:
+        d = json.load(f)
+except:
+    exit(0)
+
+parts = []
+gs = d.get('git_state', {})
+mf = gs.get('modified_files', [])
+if mf:
+    parts.append('▪ 更改文件（%d个）: %s' % (len(mf), ', '.join(mf[:4])))
+    if len(mf) > 4:
+        parts.append('  ... 共 %d 个' % len(mf))
+
+af = d.get('active_features', [])
+if af:
+    names = []
+    for a in af:
+        if isinstance(a, dict): names.append(str(a.get('name', a.get('feature', ''))))
+        else: names.append(str(a))
+    parts.append('▪ 活跃特性: %s' % ' | '.join(names[:3]))
+
+el = d.get('edit_log', [])
+if el:
+    parts.append('▪ 编辑文件: %d 个' % len(el))
+
+if parts:
+    for p in parts:
+        print(p)
+" 2>/dev/null || true
+fi
+
 echo ""
 echo "═══════════════════════════════════════════════"
 echo " 知识已恢复，继续当前任务。"

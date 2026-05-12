@@ -1,6 +1,6 @@
 # Carror OS 文档索引
 
-> **版本**：v6.1.8 | **更新日期**：2026-05-02
+> **版本**：v6.1.9 | **更新日期**：2026-05-13
 
 ---
 
@@ -8,79 +8,88 @@
 
 ```
 docs/
-├── marketing/          ← 宣发材料（预热 + 发布日使用）
-│   ├── manifesto.md              产品宣言（博客长文 / Medium / 知乎专栏）
-│   ├── README-draft.md           精简版（GitHub README 直接来源 / Product Hunt）
-│   ├── industry-benchmark.md     8 维度行业横评白皮书（vs 9 款竞品）
-│   ├── harness-landscape-2026.md Agent Harness 行业全景与定位分析
-│   └── launch-plan.md            5 周预热排期 + 发布日计划 + 6/1→9/1 社区路线图
+├── overview/            ← 产品概述
+│   ├── cn/                         中文版
+│   └── us/                         英文版
 │
-├── technical/          ← 技术文档（用户阅读 / 贡献者参考）
-│   ├── product-guide.md          产品指南（三阶段产品结构 + 全特性 + 安装验收）
-│   ├── migration.md              数据迁移与无损升级指南（参见 docs/governance/MIGRATION.md）
-│   ├── one-man-army.md           OMA 多终端并发架构深度解析
+├── marketing/           ← 宣发材料
+│   ├── cn/                         中文版
+│   ├── us/                         英文版
+│   └── archive/                    原始 Youdao 笔记归档
 │
-├── evaluation/         ← 评测与评分（参见 docs/technical/architecture-review.md）
+├── guides/              ← 用户引导
+│   ├── cn/                         中文版
+│   └── us/                         英文版
 │
+├── concepts/            ← 核心概念
+│   ├── cn/                         中文版
+│   └── us/                         英文版
 │
-├── internal/           ← 内部模板与参考（不对外发布）
-│   ├── ac-template.md            AC 验收条件模板
-│   ├── behavior-matrix.md        行为矩阵模板（TDD 用）
-│   ├── execution-modes.md        执行模式说明（stepwise/race）
-│   ├── execution-types.md        Bug/Feature/Refactor 路径定义
-│   ├── scoring-defense-amplify-governance.md  三维度能力评分（防御/AI 放大/长期治理）
-│   └── audit-v6.1.8.md           v6.1.8 质量审计报告
+├── governance/          ← 版本与治理
+│   ├── cn/                         中文版
+│   └── us/                         英文版
 │
-└── README.md           ← 本文件
-
-tests/                  ← 测试文档（独立于 docs）
-├── auto-feature-test.md          自动化特性验收手册（4 战区）
-├── auto-feature-test-log.md      自动化验收战报模板
-├── manual-acceptance-test.md     49 项全人工验收清单
-├── manual-acceptance-test-log.md 人工验收战报（含已填写记录）
-└── final-exam.md                 终极人工审判清单（Dogfooding 前置）
+├── technical/           ← 技术文档
+│   ├── cn/                         中文版
+│   └── us/                         英文版
+│
+├── internal/            ← 内部记录（不对外发布）
+│   ├── cn/                         中文版
+│   ├── us/                         英文版
+│   └── benchmark/                  安全基准扫描结果
+│
+├── test/                ← 交叉验证计划
+│   ├── cn/                         中文版
+│   └── us/                         英文版
+│
+├── tests/               ← 验收测试手册
+│   ├── cn/                         中文版
+│   └── us/                         英文版
+│
+├── reference/           ← 参考文档
+│   ├── cn/                         中文版
+│   └── us/                         英文版
+│
+├── pipeline-orchestration.md    ← PRD 管线编排（跨 skill 全生命周期）
+└── README.md            ← 本文件
 ```
 
 ---
 
-## 文档分类说明
+## 文档分类
 
-| 分类 | 用途 | 受众 |
-|------|------|------|
-| **marketing** | 预热宣发、社区投稿、发布日使用 | 外部用户、社区、媒体 |
-| **technical** | 产品使用、架构理解、贡献者参考 | 用户、开发者、贡献者 |
-| **evaluation** | 能力评分、竞品对比 | 内部评估、投资者、技术决策者 |
-| **internal** | Skill 内部模板、审计记录 | 仅内部使用 |
-| **tests** | 验收测试手册与战报 | QA、Dogfooding |
-
----
-
-## 重复文档处理记录
-
-| 原文件 | 处理 | 原因 |
-|--------|------|------|
-| `source/auto-feature-test.md` | 已删除 | 与根目录版本完全相同 |
-| `source/auto-feature-test-log.md` | 已删除 | 同上 |
-| `source/final-exam.md` | 已删除 | 同上 |
-| `source/manual-acceptance-test.md` | 已删除 | 同上 |
-| `source/manual-acceptance-test-log.md` | 已删除 | 同上 |
-| `packages/final-exam.md` | 已删除 | 同上 |
-| `editions.md` + `features-reference.md` | 合并为 `product-guide.md` | 内容 80% 重叠 |
-| `PRESS-KIT.md` | 重命名为 `README-draft.md` | 明确其 GitHub README 来源定位 |
-| `architecture-review.md` | 已整合 | 两个版本评分拼接 → 统一为一份连贯文档 |
+| 分类 | 用途 | 受众 | 语言 |
+|------|------|------|------|
+| **overview** | 产品概述 | 首次接触用户 | cn + us |
+| **marketing** | 宣发、社区投稿、发布日 | 外部用户、社区、媒体 | cn + us |
+| **guides** | 用户引导、快速上手 | 新手用户 | cn + us |
+| **concepts** | 核心概念解释 | 想深入理解的用户 | cn + us |
+| **governance** | 版本说明、特性参考 | 用户、贡献者 | cn + us |
+| **technical** | 架构分析、技术评估 | 开发者、技术决策者 | cn + us |
+| **internal** | 审计记录、模板 | 仅内部使用 | cn + us |
+| **test** | 交叉验证计划 | QA、Dogfooding | cn + us |
+| **tests** | 验收测试手册 | QA、Dogfooding | cn + us |
+| **reference** | 已知限制、反馈模板 | 所有用户 | cn + us |
 
 ---
 
-## 宣发材料与技术文档的关系
+## 文档关系
 
 ```
-manifesto.md ──────────── 完整版产品宣言（博客长文，深度叙事）
+manifesto.md ──────────── 完整版产品宣言
     ↓ 精简
-README-draft.md ────────── 精简版（GitHub README / Product Hunt / Show HN）
+README-draft.md ────────── 精简版（GitHub README / Product Hunt）
     ↓ 数据支撑
-industry-benchmark.md ─── 量化评分（8 维度 × 9 款竞品）
-    ↓ 行业视角
-harness-landscape-2026.md 行业趋势分析（Agent Harness 全景）
-    ↓ 执行计划
-launch-plan.md ─────────── 5 周预热排期 + 发布日计划
+industry-benchmark.md ─── 量化评分
+    ↓ 引导
+onboarding-guide.md ───── 首次使用引导（起点）
+    ↓ 深度
+first-10-minutes.md ───── 快速体验
+quickstart.md ─────────── 极速启动
+    ↓ 进阶
+for-experts.md ────────── Enhanced 版激活
+concepts/ ─────────────── 理解各机制原理
 ```
+
+> 每个文档维度均提供 **cn/**（中文）和 **us/**（英文）双语版本。
+> 无对应语种的文件将由 AI 优化翻译后补全。

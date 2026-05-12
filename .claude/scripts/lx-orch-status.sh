@@ -140,16 +140,16 @@ elif can_advance and current == 'rpe':
     if features_need_rpe:
         sample = features_need_rpe[0]
         available_actions.append((
-            f"/lx-rpe prd/{sample.split('/')[0]}/{sample.split('/')[1]}",
+            f"cd prd/{sample.split('/')[0]}/{sample.split('/')[1]}",
             f"启动 {sample} 的research/plan/开发9步闭环"
         ))
         available_actions.append((
-            "/lx-rpe status",
+            "/lx-oma-orch dev list",
             "查看所有RPE实例进度面板"
         ))
 elif can_advance and current == 'dev':
     available_actions.append((
-        "/lx-rpe status",
+        "/lx-oma-orch dev list",
         "查看所有开发中feature的进度"
     ))
 

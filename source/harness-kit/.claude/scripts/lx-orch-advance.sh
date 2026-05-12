@@ -148,11 +148,11 @@ elif current == 'gov':
     ]
 elif current == 'rpe':
     entries = [
-        ("/lx-rpe status", "查看 RPE 进度面板", "想了解各 feature 的开发进度"),
+        ("/lx-oma-orch dev list", "查看 RPE 进度面板", "想了解各 feature 的开发进度"),
     ]
 elif current == 'dev':
     entries = [
-        ("/lx-rpe status", "查看开发进度", "查看所有开发中 feature 的进度"),
+        ("/lx-oma-orch dev list", "查看开发进度", "查看所有开发中 feature 的进度"),
     ]
 entries.append(("自定义操作", "输入你想要的命令", ""))
 for i, (cmd, desc, scene) in enumerate(entries, 1):

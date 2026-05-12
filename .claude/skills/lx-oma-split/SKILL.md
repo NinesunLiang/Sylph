@@ -52,7 +52,7 @@ need_input → [reading → analyzing → scaffolding → verifying] → done
 | 接口校验脚本不存在 | 自动化校验 | 降级手动校验 |
 | lx-oma-hier 不可用 | 委托调用 | 告知用户手动执行 `/lx-oma-hier` 拆解 |
 
-## 1. 任务背景 (Context)你是”一人成军 (One-Man Army, OMA)”的战区总司令。开发者要求你读取一份需求文档（或一个目录下所有的文档），并将其拆解为多个**功能上绝对正交（MECE）**的子模块。后续，开发者会通过开启多个终端，分别为每个子模块运行独立的 `/lx-rpe prd/{sub_prd}/{feature}`，实现真正的并发协同开发。
+## 1. 任务背景 (Context)你是”一人成军 (One-Man Army, OMA)”的战区总司令。开发者要求你读取一份需求文档（或一个目录下所有的文档），并将其拆解为多个**功能上绝对正交（MECE）**的子模块。后续，开发者通过 OMA 管线提交 feature PRD 后，可选择 `/lx-oma-orch` 查看全景管线状态，或在各 `prd/{sub_prd}/{feature}` 目录中独立推进开发。
 
 输出遵循 OMA 文档体系：`prd/{sub_prd}/{feature}/{{prd.md, research.md, plan.md, ...}}`
 
@@ -237,10 +237,10 @@ EOF
 📍 拆解完成，{N} 个 feature 已就绪。
 
 建议下一步:
-  1. /lx-rpe prd/{sub_prd_name}/feat-{name}
-     → 启动核心 feature 的 RPE 开发（建议先做依赖链上游的）
-  2. 并行启动多个 /lx-rpe
-     → 无依赖的 feature 可同时开始开发
+  1. cd prd/{sub_prd_name}/feat-{name}
+     → 进入 feature 目录查看 prd.md，启动开发（建议先做依赖链上游的）
+  2. /lx-oma-orch dev list
+     → 查看所有 feature 的并行开发状态
   3. /lx-orch status
      → 查看管线全景，了解整体进度
   4. 自定义操作
@@ -250,7 +250,6 @@ EOF
 推荐顺序:
   · 有依赖项的 feature → 优先启动（处于依赖链上游的）
   · 无依赖的 feature   → 可并行启动
-  · 建议一次启动不超过 3 个 RPE 实例，避免上下文混
 ```
 
 ## 7. Pipeline 集成

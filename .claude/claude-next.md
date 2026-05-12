@@ -220,3 +220,10 @@
 3. "Sylph 没有什么什么" → 在 grep 之后必须 Read 验证，使用 `file:line` 引用
 4. 提建议前先问自己：这个功能在 completion-gate.sh / turn-counter.sh / inject-project-knowledge.sh / compact-detect.sh 中是否已实现？
 
+
+### [2026-05-13] 用户纠正: 不对
+@2026-05-13 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+

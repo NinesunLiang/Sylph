@@ -347,70 +347,72 @@ if check_index or sync_index:
 
 # === E. Source Mirror Consistency Check ===
 if check_source_mirror:
-    mirror_map = {
-        '.claude/hooks': 'source/harness-kit/.claude/hooks',
-        '.claude/scripts': 'source/harness-kit/.claude/scripts',
-    }
-    # 根级配置文件：动态发现 .json/.yaml 文件
-    # 排除本地专属文件（names.local.*, *local.json 等）
-    _EXCLUDED_CONFIG = {'settings.local.json', 'scheduled_tasks.json'}
-    config_files = {}
-    for _cf in glob.glob('.claude/*.json') + glob.glob('.claude/*.yaml'):
-        _name = os.path.basename(_cf)
-        if _name in _EXCLUDED_CONFIG:
-            continue
-        _mirror = os.path.join('source/harness-kit/.claude', _name)
-        config_files[_cf] = _mirror
-    mirror_issues = 0
-    for src_dir, mirror_dir in mirror_map.items():
-        if not os.path.isdir(mirror_dir):
-            issues.append(('🔴', mirror_dir, 'source mirror 目录不存在'))
-            continue
-        src_files = {}
-        for _ext in ['.sh', '.py', '.json', '.yaml', '.yml']:
-            for f in glob.glob(f'{src_dir}/*{_ext}'):
-                name = os.path.basename(f)
-            try:
-                with open(f, 'rb') as fh:
-                    h = hashlib.sha256(fh.read()).hexdigest()
-                src_files[name] = (f, h)
-            except Exception:
-                pass
-        for name, (fpath, src_hash) in src_files.items():
-            mpath = os.path.join(mirror_dir, name)
-            if not os.path.isfile(mpath):
-                issues.append(('🔴', name, f'source mirror 缺失: {mpath}'))
+    if not os.path.isdir('source'):
+        print('  ⚠️  source mirror 目录不存在（已废弃），跳过检查')
+    else:
+        mirror_map = {
+            '.claude/hooks': 'source/harness-kit/.claude/hooks',
+            '.claude/scripts': 'source/harness-kit/.claude/scripts',
+        }
+        # 根级配置文件：动态发现 .json/.yaml 文件
+        _EXCLUDED_CONFIG = {'settings.local.json', 'scheduled_tasks.json'}
+        config_files = {}
+        for _cf in glob.glob('.claude/*.json') + glob.glob('.claude/*.yaml'):
+            _name = os.path.basename(_cf)
+            if _name in _EXCLUDED_CONFIG:
+                continue
+            _mirror = os.path.join('source/harness-kit/.claude', _name)
+            config_files[_cf] = _mirror
+        mirror_issues = 0
+        for src_dir, mirror_dir in mirror_map.items():
+            if not os.path.isdir(mirror_dir):
+                issues.append(('🔴', mirror_dir, 'source mirror 目录不存在'))
+                continue
+            src_files = {}
+            for _ext in ['.sh', '.py', '.json', '.yaml', '.yml']:
+                for f in glob.glob(f'{src_dir}/*{_ext}'):
+                    name = os.path.basename(f)
+                try:
+                    with open(f, 'rb') as fh:
+                        h = hashlib.sha256(fh.read()).hexdigest()
+                    src_files[name] = (f, h)
+                except Exception:
+                    pass
+            for name, (fpath, src_hash) in src_files.items():
+                mpath = os.path.join(mirror_dir, name)
+                if not os.path.isfile(mpath):
+                    issues.append(('🔴', name, f'source mirror 缺失: {mpath}'))
+                    mirror_issues += 1
+                    continue
+                try:
+                    with open(mpath, 'rb') as fh:
+                        mh = hashlib.sha256(fh.read()).hexdigest()
+                    if src_hash != mh:
+                        issues.append(('🔴', name, f'source mirror 漂移 — sha256 不匹配'))
+                        mirror_issues += 1
+                except Exception:
+                    pass
+
+        # 根级配置文件校验（settings.json, harness.yaml）
+        for src_path, mirror_path in config_files.items():
+            fname = os.path.basename(src_path)
+            if not os.path.isfile(mirror_path):
+                issues.append(('🔴', fname, f'config mirror 缺失: {mirror_path}'))
                 mirror_issues += 1
                 continue
             try:
-                with open(mpath, 'rb') as fh:
+                with open(src_path, 'rb') as fh:
+                    src_hash = hashlib.sha256(fh.read()).hexdigest()
+                with open(mirror_path, 'rb') as fh:
                     mh = hashlib.sha256(fh.read()).hexdigest()
                 if src_hash != mh:
-                    issues.append(('🔴', name, f'source mirror 漂移 — sha256 不匹配'))
+                    issues.append(('🔴', fname, f'config mirror 漂移 — sha256 不匹配'))
                     mirror_issues += 1
             except Exception:
                 pass
 
-    # 根级配置文件校验（settings.json, harness.yaml）
-    for src_path, mirror_path in config_files.items():
-        fname = os.path.basename(src_path)
-        if not os.path.isfile(mirror_path):
-            issues.append(('🔴', fname, f'config mirror 缺失: {mirror_path}'))
-            mirror_issues += 1
-            continue
-        try:
-            with open(src_path, 'rb') as fh:
-                src_hash = hashlib.sha256(fh.read()).hexdigest()
-            with open(mirror_path, 'rb') as fh:
-                mh = hashlib.sha256(fh.read()).hexdigest()
-            if src_hash != mh:
-                issues.append(('🔴', fname, f'config mirror 漂移 — sha256 不匹配'))
-                mirror_issues += 1
-        except Exception:
-            pass
-
-    if mirror_issues == 0:
-        print(f'  ✅ source mirror 一致性: 全部一致')
+        if mirror_issues == 0:
+            print(f'  ✅ source mirror 一致性: 全部一致')
 
 result = {
     'disk_count': len(disk),
