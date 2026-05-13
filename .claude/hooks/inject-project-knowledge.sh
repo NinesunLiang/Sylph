@@ -157,6 +157,33 @@ rm -f "$PROJECT_ROOT/.omc/state/lsp-suggested"
 # 清除 Read 追踪日志（新会话重新追踪）
 rm -f "$PROJECT_ROOT/.omc/state/read-tracker.txt" "$PROJECT_ROOT/.omc/state/read-tracker.txt.lock"
 
+# 注上次 knowledge-condenser 报告（Stop hook 写入）
+KC_REPORT="$PROJECT_ROOT/.omc/state/knowledge-condenser-report.txt"
+if [ -f "$KC_REPORT" ]; then
+    echo "[knowledge-condenser 待处理建议]"
+    cat "$KC_REPORT"
+    echo "---"
+    rm -f "$KC_REPORT"
+fi
+
+# 注入上次 error-dna 回顾报告（Stop hook 写入）
+EDNA_REPORT="$PROJECT_ROOT/.omc/state/error-dna-retrospective.txt"
+if [ -f "$EDNA_REPORT" ]; then
+    echo "[error-dna 回顾]"
+    cat "$EDNA_REPORT"
+    echo "---"
+    rm -f "$EDNA_REPORT"
+fi
+
+# 注入飞轮废弃技能报告
+FLYWHEEL_DEP="$PROJECT_ROOT/.omc/state/flywheel-deprecated-skills.txt"
+if [ -f "$FLYWHEEL_DEP" ]; then
+    echo "[flywheel 废弃技能]"
+    cat "$FLYWHEEL_DEP"
+    echo "---"
+    rm -f "$FLYWHEEL_DEP"
+fi
+
 # 注入上次会话交接备忘录（优先于快照，内容更丰富）
 HANDOFF_FILE="$PROJECT_ROOT/.omc/state/session-handoff.md"
 HANDOFF_ENABLED=$(hc_get "session_handoff.enabled" "true")
