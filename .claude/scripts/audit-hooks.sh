@@ -207,7 +207,7 @@ if scan_internal:
 if check_index or sync_index:
     def _parse_index_table(content):
         hooks = {}
-        m = re.search(r'## Hooks 速查（共 \d+ 个）\n\|.*?\n\|.*?\n((?:\|.*?\n)+)', content)
+        m = re.search(r'\|.*?\n\|.*?\n((?:\|.*?\n)+)', content)
         if not m:
             return hooks
         for line in m.group(1).split('\n'):
@@ -242,7 +242,8 @@ if check_index or sync_index:
     def _yaml_key(s):
         return s[:-3].replace('-', '_') if s.endswith('.sh') else s.replace('-', '_')
 
-    with open('.claude/index.md') as f:
+    TABLE_PATH = '.claude/reference/hooks-table.md'
+    with open(TABLE_PATH) as f:
         index_src = f.read()
 
     cur_hooks = _parse_index_table(index_src)
@@ -250,16 +251,12 @@ if check_index or sync_index:
 
     # Parse disabled section from index.md
     cur_disabled = set()
-    dis_start = index_src.find('### 已注册但默认禁用的脚本')
-    if dis_start >= 0:
-        dis_end = index_src.find('\n### ', dis_start + 3)
-        if dis_end < 0:
-            dis_end = len(index_src)
-        for line in index_src[dis_start:dis_end].split('\n'):
-            if line.startswith('|') and not line.startswith('|---'):
-                parts = [p.strip() for p in line.split('|')]
-                if len(parts) >= 2 and parts[1] and parts[1].strip('`') not in ('脚本', 'Hook', '---'):
-                    cur_disabled.add(parts[1].strip('`'))
+    for line in index_src.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('- `'):
+            name = stripped.split('`')[1]
+            if name:
+                cur_disabled.add(name)
 
     # Build actual hooks data, split by yaml status
     act_rows = []
@@ -299,7 +296,7 @@ if check_index or sync_index:
     orphaned_in_disabled = cur_disabled - disabled_names
 
     if check_index:
-        print(f'\n=== index.md hooks 速查表对账 ===')
+        print(f'\n=== hooks 速查表对账 ===')
         print(f'  主表: {len(cur_names)} | 实际活跃: {len(active_names)}')
         print(f'  禁用区: {len(cur_disabled)} | 实际禁用: {len(disabled_names)}')
         issues_found = False
@@ -340,9 +337,9 @@ if check_index or sync_index:
 
         idx_section = re.compile(r'## Hooks 速查.*?(?=\n## |\Z)', re.DOTALL)
         new_index = idx_section.sub(new_table, index_src)
-        with open('.claude/index.md', 'w') as f:
+        with open(TABLE_PATH, 'w') as f:
             f.write(new_index)
-        print(f'\n  ✅ index.md hooks 表已同步（{len(act_rows)} 活跃 + {len(dis_rows)} 禁用）')
+        print(f'\n  ✅ {TABLE_PATH} hooks 表已同步（{len(act_rows)} 活跃 + {len(dis_rows)} 禁用）')
         print(f'  🔄 原表 {len(cur_names)} 个 → 新表 {len(active_names)} 个')
 
 # === E. Source Mirror Consistency Check ===
@@ -356,11 +353,13 @@ if check_source_mirror:
         }
         # 根级配置文件：动态发现 .json/.yaml 文件
         _EXCLUDED_CONFIG = {'settings.local.json', 'scheduled_tasks.json'}
+        # 根 AGENTS.md 和 CLAUDE.md 与 source 版本有意不同（元项目专属 vs 通用分发模板）
+        _INTENTIONAL_DIVERGENCE = {'AGENTS.md', 'CLAUDE.md'}
         config_files = {}
         for _cf in glob.glob('.claude/*.json') + glob.glob('.claude/*.yaml'):
             _name = os.path.basename(_cf)
-            if _name in _EXCLUDED_CONFIG:
-                continue
+            if _name in _EXCLUDED_CONFIG or _name in _INTENTIONAL_DIVERGENCE:
+                continue  # 前瞻性防御：若将来 .md 加入 config_files 检查，自动跳过
             _mirror = os.path.join('source/harness-kit/.claude', _name)
             config_files[_cf] = _mirror
         mirror_issues = 0
@@ -372,12 +371,12 @@ if check_source_mirror:
             for _ext in ['.sh', '.py', '.json', '.yaml', '.yml']:
                 for f in glob.glob(f'{src_dir}/*{_ext}'):
                     name = os.path.basename(f)
-                try:
-                    with open(f, 'rb') as fh:
-                        h = hashlib.sha256(fh.read()).hexdigest()
-                    src_files[name] = (f, h)
-                except Exception:
-                    pass
+                    try:
+                        with open(f, 'rb') as fh:
+                            h = hashlib.sha256(fh.read()).hexdigest()
+                        src_files[name] = (f, h)
+                    except Exception:
+                        pass
             for name, (fpath, src_hash) in src_files.items():
                 mpath = os.path.join(mirror_dir, name)
                 if not os.path.isfile(mpath):
@@ -413,6 +412,9 @@ if check_source_mirror:
 
         if mirror_issues == 0:
             print(f'  ✅ source mirror 一致性: 全部一致')
+        if _INTENTIONAL_DIVERGENCE:
+            div_str = ', '.join(sorted(_INTENTIONAL_DIVERGENCE))
+            print(f'  ℹ️  有意分歧（不参与 mirror 检查）: {div_str}')
 
 result = {
     'disk_count': len(disk),

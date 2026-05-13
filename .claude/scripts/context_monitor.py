@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
-import json, sys, os
-
+import json, sys, os, time
+from datetime import datetime
 from pathlib import Path
 
 
@@ -12,6 +12,82 @@ def get_project_root():
             return current
         current = current.parent
     return Path.cwd()
+
+
+def _project_transcript_dir(root):
+    """Resolve the Claude Code transcript directory for this project.
+
+    Claude Code normalizes the project path: dots, underscores, and
+    special chars are replaced with hyphens in the directory encoding.
+    """
+    home = Path.home()
+    # Match Claude Code's path encoding: replace . and _ with -
+    parts = [p.replace(".", "-").replace("_", "-") for p in root.resolve().parts]
+    encoded = "-".join(parts).lstrip("/")
+    return home / ".claude" / "projects" / encoded
+
+
+def get_real_context(transcript_dir):
+    """Parse transcript to get real context from API usage data.
+
+    Reads assistant messages in the latest transcript, extracts
+    usage.input_tokens from each API response. Always 1 turn behind
+    (the latest API call's usage is recorded after response).
+
+    Returns dict with current_context, context_pct, context_limit, or None.
+    """
+    if not transcript_dir.is_dir():
+        return None
+
+    # Find latest transcript for this session
+    transcripts = sorted(transcript_dir.glob("*.jsonl"),
+                         key=lambda x: x.stat().st_mtime, reverse=True)
+    if not transcripts:
+        return None
+
+    path = transcripts[0]
+    usage_seq = []
+    context_limit = 200000  # Claude default 200K context
+
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if entry.get("type") != "assistant":
+                    continue
+                msg = entry.get("message", {})
+                usage = msg.get("usage", {})
+                inp = usage.get("input_tokens", -1)
+                if inp < 0:
+                    continue
+                cache_read = usage.get("cache_read_input_tokens", 0)
+                cache_create = usage.get("cache_creation_input_tokens", 0)
+                context_used = inp + cache_read + cache_create
+                usage_seq.append(context_used)
+    except (OSError, json.JSONDecodeError):
+        return None
+
+    if not usage_seq:
+        return None
+
+    current_context = usage_seq[-1]
+    peak_context = max(usage_seq)
+    context_pct = round(current_context * 100 / context_limit, 1)
+
+    return {
+        "current_context": current_context,
+        "context_pct": context_pct,
+        "context_limit": context_limit,
+        "peak_context": peak_context,
+        "source": "transcript",
+        "last_updated": datetime.now().isoformat(),
+    }
 
 
 def _read_config(root):
@@ -49,33 +125,60 @@ def check_context():
         config.get("token_tracking.limit", "200000")
     )))
 
-    state_file = root / ".omc" / "state" / "token-tracking-index.json"
+    # ─── Layer 1: 真实上下文（从 transcript API usage 解析，落后 1 轮但准确）───
+    # CONTEXT_FORCE_HEURISTIC=1 跳过真实上下文，强制使用启发式文件（测试用）
+    real = None
+    if not os.environ.get("CONTEXT_FORCE_HEURISTIC"):
+        real = get_real_context(_project_transcript_dir(root))
+
     usage = 0
     limit = token_limit
+    source = "none"
 
-    if state_file.exists():
-        try:
-            with open(state_file, 'r') as f:
-                data = json.load(f)
-            usage = data.get("usage", 0)
-            limit = data.get("limit", 200000)
-        except Exception:
-            pass
+    if real is not None:
+        usage = real["current_context"]
+        limit = real["context_limit"]
+        source = "transcript (real)"
+    else:
+        # ─── Layer 2: 轮次估算（基于 turns × per_turn，与 transcript 趋势一致）───
+        # 累计计数器（token_writer.sh）会无边界增长，而真实上下文是每轮快照。
+        # 轮次模型：base_cost(25K 系统提示+知识注入) + turns × 1.5K(每轮平均增长)
+        turns_file = root / ".omc" / "state" / "session-turns.json"
+        turns = 0
+        if turns_file.exists():
+            try:
+                with open(turns_file) as f:
+                    _data = json.load(f)
+                turns = _data.get("count", 0)
+                # 会话过期防御：文件超过 5 分钟前修改 → 新会话未重置
+                file_age = time.time() - turns_file.stat().st_mtime
+                if file_age > 300 and turns > 0:
+                    turns = 0
+            except Exception:
+                pass
+
+        if turns > 0:
+            # 模型：25K 基础 + 每轮 1.5K
+            usage = min(25000 + turns * 1500, token_limit)
+            source = "heuristic (turn-estimated)"
+        else:
+            # ─── Layer 3: 终极兜底 — 旧累计计数器（无轮次文件时）───
+            state_file = root / ".omc" / "state" / "token-tracking-index.json"
+            if state_file.exists():
+                try:
+                    with open(state_file, 'r') as f:
+                        data = json.load(f)
+                    usage = data.get("usage", 0)
+                    limit = data.get("limit", 200000)
+                    file_age = time.time() - state_file.stat().st_mtime
+                    if file_age > 300 and usage > 0:
+                        usage = 0
+                except Exception:
+                    pass
+            source = "heuristic (cumulative)"
 
     if limit == 0:
         limit = 200000
-
-    # 会话过期防御：如果 state_file 的 last_updated 超过 5 分钟前，
-    # 说明这是一个新会话且 token_writer --reset 尚未运行（死锁保护）。
-    # 此时将 usage 视为 0，防止旧会话残留数据导致硬阻断。
-    if state_file.exists():
-        try:
-            import time
-            file_age = time.time() - state_file.stat().st_mtime
-            if file_age > 300 and data.get("usage", 0) > 0:
-                usage = 0
-        except Exception:
-            pass
 
     ratio = usage / limit
     warn_ratio = warn_pct / 100.0
@@ -101,6 +204,10 @@ def check_context():
         },
         "is_danger": ratio >= danger_ratio,
         "sweet_spot_warning": sweet_spot_msg,
+        "source": source,
+        "source_label": "真实上下文" if "transcript" in source else (
+            "轮次估算" if "turn" in source else "累计计数器兜底"
+        ),
     }
     print(json.dumps(output))
 

@@ -20,11 +20,6 @@
             "type": "command",
             "command": "bash .claude/hooks/permission-gate.sh",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-retry-check.sh",
-            "timeout": 3000
           }
         ]
       },
@@ -78,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/fuzzy-block.sh",
+            "command": "bash .claude/hooks/pretool-rule-anchor.sh",
             "timeout": 3000
           }
         ]
@@ -94,22 +89,22 @@
         ]
       },
       {
-        "matcher": "TaskUpdate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pre-completion-gate.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
         "matcher": "Task",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/subagent-guard.sh",
             "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -126,12 +121,27 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-handoff-writer.sh",
-            "timeout": 3000
-          },
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-completion-audit.sh",
-            "timeout": 3000
+            "command": "bash .claude/hooks/posttool-format-gate.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate|Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -167,16 +177,6 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-read-cite.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -217,11 +217,6 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-claim-audit.sh",
-            "timeout": 3000
           }
         ]
       },
@@ -246,22 +241,27 @@
         ]
       },
       {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-claim-audit.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/intent-tracker.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/proactive-handoff.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/intent-tracker.sh",
-            "timeout": 3000
           }
         ]
       }
@@ -323,6 +323,15 @@
             "type": "command",
             "command": "bash .claude/hooks/token_writer.sh --reset",
             "timeout": 3000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/ecosystem-probe.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -403,5 +412,14 @@
         ]
       }
     ]
-  }
+  },
+  "env": {
+    "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash[1m]"
+  },
+  "permissions": {
+    "defaultMode": "bypassPermissions"
+  },
+  "effortLevel": "high"
 }

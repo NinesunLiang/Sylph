@@ -36,6 +36,8 @@
 - **证据门禁优先**：错误修复后必须提供 VERIFIED 证据再标 completed
 - **Error DNA 捕获**：Bash 错误自动记录至 `error-dna.jsonl`，使用 `error_classifier.py` 分类
 - **修复 3 轮上限**：每轮记录根因假设，第 3 轮仍失败 → BLOCKED 升级
+- **禁止绕过门禁**：permission-gate/sensitive-edit 阻断时必须等待用户明确书面授权（输入"确认放行"），AI 不得代用户批准或自行写入批准标记（R42 安全漏洞修复）
+- **原生批准优先**：敏感文件编辑优先使用 `permissionDecision: ask` 原生对话框，CAPTCHA 文件机制作为回退
 
 ## 测试要求
 <!-- 由 R17 审计填充 @2026-05-07 -->

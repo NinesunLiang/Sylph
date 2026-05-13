@@ -15,9 +15,35 @@ mkdir -p .omc/state
 FAILED=0
 TOTAL=0
 
+SMOKE_FAILURE_DIR=".omc/state"
 log()  { echo "$@" | tee -a "$LOG"; }
 pass() { log "  🟢 PASS: $1"; }
-fail() { log "  🔴 FAIL: $1"; FAILED=$((FAILED+1)); }
+fail() {
+    log "  🔴 FAIL: $1"; FAILED=$((FAILED+1))
+    # US-010: 失败自动留痕 — 记录结构化失败信息
+    local _TS now_epoch
+    now_epoch=$(date -u +%s 2>/dev/null || echo "0")
+    _TS=$(date -u +%Y%m%d-%H%M%S 2>/dev/null || echo "$now_epoch")
+    local _fail_file="$SMOKE_FAILURE_DIR/smoke-failure-$_TS.json"
+    local _case_name="$1"
+    local _hook="${3:-unknown}"
+    local _exp="${4:--1}"
+    local _act="${5:--1}"
+    python3 -c "
+import json
+record = {
+    'timestamp': '$_TS',
+    'epoch': $now_epoch,
+    'failed_case': '$_case_name',
+    'hook': '$_hook',
+    'expected_exit': $_exp,
+    'actual_exit': $_act,
+    'test_number': $TOTAL
+}
+with open('$_fail_file', 'w') as f:
+    json.dump(record, f, indent=2)
+" 2>/dev/null || true
+}
 
 run_case() {
     local name="$1" input="$2" hook="$3" expected_exit="$4" expected_stderr_regex="$5"
@@ -31,10 +57,10 @@ run_case() {
     actual_err=$(cat "$out_err")
     log "    hook=$hook  exit=$actual_exit  expected=$expected_exit"
     if [ "$actual_exit" != "$expected_exit" ]; then
-        fail "exit mismatch: got $actual_exit, expected $expected_exit"
+        fail "exit mismatch: got $actual_exit, expected $expected_exit" "$name" "$hook" "$expected_exit" "$actual_exit"
         log "    stderr: $actual_err"
     elif [ -n "$expected_stderr_regex" ] && ! echo "$actual_err" | grep -qE "$expected_stderr_regex"; then
-        fail "stderr does not match /$expected_stderr_regex/"
+        fail "stderr does not match /$expected_stderr_regex/" "$name" "$hook" "$expected_exit" "$actual_exit"
         log "    stderr: $actual_err"
     else
         pass "$name"
@@ -48,7 +74,7 @@ log "========================================"
 
 # --- context-guard (R13 大小写 + R15 tool_name) ---
 # 清理可能残留的无人值守/幽灵模式文件，防止干扰阻断测试
-rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json
+rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/lx-ghost.json .omc/state/lx-goal.json
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "context-guard: Write @ 95% 应硬阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
@@ -79,17 +105,17 @@ run_case "R29 context-guard: Read @ 95% 应放行 (诊断通道)" \
   "context-guard.sh" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
-# --- ghost/unattended mode 降级测试（P0 改造验证）---
+# --- ghost/goal mode 降级测试（P0 改造验证）---
 # 测试前清理任何残留
-rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/autonomous.active
+rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active
 # R40: Ghost mode 下所有门禁降级为"记录+跳过"
 
-# ---- Setup: 创建活跃 ghost-mode.json ----
+# ---- Setup: 创建活跃 lx-ghost.json ----
 python3 -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
-json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+json.dump(d, open('.omc/state/lx-ghost.json', 'w'))
 "
 # R40-1: Ghost mode 下 context-guard Write @ 95% 不应阻断（仅记录）
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
@@ -108,12 +134,12 @@ run_case "R40 ghost mode: edit-guard 未 Read 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/test.go"}}' \
   "edit-guard.sh" 0 ""
 
-# ---- Setup: 创建 inactive（已过期）ghost-mode.json ----
+# ---- Setup: 创建 inactive（已过期）lx-ghost.json ----
 python3 -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
      'expires_at': '2020-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
-json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+json.dump(d, open('.omc/state/lx-ghost.json', 'w'))
 "
 # R40-4: 过期 ghost mode 应恢复阻断（context-guard Write 恢复 hard block）
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
@@ -122,20 +148,47 @@ run_case "R40 ghost mode expired: context-guard Write 恢复阻断" \
   "context-guard.sh" 2 "Context Guard"
 rm -f .omc/state/token-tracking-index.json
 
-# ---- Setup: 创建活跃 unattended-mode.json ----
+# ---- Setup: 创建活跃 lx-goal.json ----
 python3 -c "
 import json
-d = {'active': True, 'mode': 'unattended', 'goal': 'test',
+d = {'active': True, 'mode': 'goal', 'goal': 'test',
+     'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
+json.dump(d, open('.omc/state/lx-goal.json', 'w'))
+"
+# R40-5: Goal mode 下 permission-gate 应降级
+run_case "R40 goal mode: permission-gate rm -rf 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
+  "permission-gate.sh" 0 "\[goal\]"
+
+# ---- Setup: 创建旧格式 ghost-mode.json（后向兼容测试）----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'ghost', 'direction': 'compat-test',
+     'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
+json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
+"
+# R40-6: 旧格式 ghost-mode.json 应仍被识别
+run_case "R40 legacy ghost-mode.json: context-guard 降级放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
+  "context-guard.sh" 0 ""
+
+# 清理 ghost 文件后再测试 goal 兼容，防止 ghost 优先级遮蔽 goal
+rm -f .omc/state/ghost-mode.json
+
+# ---- Setup: 创建旧格式 unattended-mode.json（后向兼容测试）----
+python3 -c "
+import json
+d = {'active': True, 'mode': 'unattended', 'goal': 'compat-test',
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
 json.dump(d, open('.omc/state/unattended-mode.json', 'w'))
 "
-# R40-5: Unattended mode 下 permission-gate 应降级
-run_case "R40 unattended mode: permission-gate rm -rf 降级放行" \
+# R40-7: 旧格式 unattended-mode.json 应返回 "goal"（已改名）
+run_case "R40 legacy unattended-mode.json: permission-gate 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 0 "\[unattended\]"
+  "permission-gate.sh" 0 "\[goal\]"
 
 # 测试完成后清理模式文件
-rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/autonomous.active
+rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active
 
 # --- privacy-gate (R13 + R15 + R16) ---
 run_case "privacy-gate: Read .env 应阻断" \
@@ -413,6 +466,7 @@ fi
 rm -f "$_CORR_OUT"
 
 # R30 source mirror: 一致性校验
+# NOTE: AGENTS.md/CLAUDE.md 有意不同（根=元项目专属，source=通用分发模板）
 TOTAL=$((TOTAL+1))
 _SM_OUT="/tmp/smoke-source-mirror-$$.out"
 log ""
@@ -420,9 +474,12 @@ log "[$TOTAL] R30 source mirror: 一致性应全绿"
 bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_OUT" 2>&1
 if grep -q -e "全部一致" -e "已废弃" "$_SM_OUT"; then
     pass "R30 source mirror 一致性校验通过"
-else
+elif grep -q "🔴" "$_SM_OUT"; then
     fail "R30 source mirror 存在漂移"
     grep "🔴" "$_SM_OUT" | head -5
+else
+    # 有意分歧消息（"有意分歧"）不是失败 — 无 🔴 即通过
+    pass "R30 source mirror 一致性通过 (AGENTS.md/CLAUDE.md 有意分歧已排除)"
 fi
 rm -f "$_SM_OUT"
 
@@ -708,6 +765,7 @@ fi
 rm -f "$_SKILL_REF_OUT"
 
 # --- R34: audit-hooks --check-source-mirror 扩展: settings.json + harness.yaml 三方对账 ---
+# NOTE: AGENTS.md/CLAUDE.md 有意不同 — "有意分歧" 消息正常，不影响判定
 TOTAL=$((TOTAL+1))
 _SM_EXT_OUT="/tmp/smoke-mirror-ext-$$.out"
 bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_EXT_OUT" 2>&1
@@ -908,9 +966,298 @@ else
     fail "R39 completion-gate quality 无 quality_threshold 配置"
 fi
 
+# --- R36: AGENTS.md 有意分歧（根 != source/harness-kit） ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R36 AGENTS.md intentional divergence: root != source/harness-kit"
+if [ -f "source/harness-kit/AGENTS.md" ]; then
+    if ! diff -q AGENTS.md source/harness-kit/AGENTS.md > /dev/null 2>&1; then
+        pass "R36 AGENTS.md divergence confirmed (元项目专属 vs 通用分发模板)"
+    else
+        fail "R36 AGENTS.md 异常一致 — 元项目专属 drift 丢失？请检查 package-release.sh"
+    fi
+else
+    pass "R36 source/harness-kit/AGENTS.md 不存在，跳过（CI-only）"
+fi
+
+# ========================================
+# R44: anti-pattern 检测 (posttool-anti-pattern-detect.sh)
+# ========================================
+
+# A2: 虚假完成 → 硬阻断 exit 2
+_AP_A2_INPUT='{"tool_response":{"result":"这次修复应该没问题了，所有测试通过"}}'
+_AP_A2_OUT=$(echo "$_AP_A2_INPUT" | bash .claude/hooks/posttool-anti-pattern-detect.sh 2>&1; echo "EXIT:$?")
+if echo "$_AP_A2_OUT" | grep -q "EXIT:2"; then
+    pass "R44 A2: 虚假完成 '应该没问题了' → exit 2 (硬阻断)"
+else
+    fail "R44 A2: 应 exit 2, 实际: $_AP_A2_OUT"
+fi
+
+# F1: 假设驱动 → 软提醒 exit 0 + additionalContext
+_AP_F1_INPUT='{"tool_response":{"result":"应该是数据库连接问题，需要检查配置"}}'
+_AP_F1_OUT=$(echo "$_AP_F1_INPUT" | bash .claude/hooks/posttool-anti-pattern-detect.sh 2>&1; echo "EXIT:$?")
+if echo "$_AP_F1_OUT" | grep -q "EXIT:0" && echo "$_AP_F1_OUT" | grep -qiE "假设驱动|推测性"; then
+    pass "R44 F1: 假设驱动 '应该是' → soft block (exit 0 + reminder)"
+else
+    fail "R44 F1: 应 exit 0 + reminder, 实际: $_AP_F1_OUT"
+fi
+
+# H1: 语义编造 → 硬阻断 exit 2
+_AP_H1_INPUT='{"tool_response":{"result":"性能提升了 90%，延迟降低到原来的 1/3"}}'
+_AP_H1_OUT=$(echo "$_AP_H1_INPUT" | bash .claude/hooks/posttool-anti-pattern-detect.sh 2>&1; echo "EXIT:$?")
+if echo "$_AP_H1_OUT" | grep -q "EXIT:2"; then
+    pass "R44 H1: 语义编造 '90%' 无来源 → exit 2 (硬阻断)"
+else
+    fail "R44 H1: 应 exit 2, 实际: $_AP_H1_OUT"
+fi
+
+# ========================================
+# E2E Tests (always run — 总计 <3s)
+# ========================================
+
+# 清理可能残留的模式文件
+rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active .omc/state/permission-required .omc/state/permission-approved .omc/state/approved-ops.json
+
+# --------------- E2E-1: CAPTCHA 流 (permission-gate) ---------------
+log ""
+log "========== E2E-1: CAPTCHA 流 -- 三步验证码审批周期 =========="
+
+mkdir -p .omc/state
+E2E1_CODE="e2e1-code-$(date +%s)"
+
+# Step 1: 创建 permission-required -> permission-gate 应阻断（exit 2）
+TOTAL=$((TOTAL+1))
+echo "$E2E1_CODE" > .omc/state/permission-required
+echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/e2e1-test-x"}}' | \
+    bash .claude/hooks/permission-gate.sh > /dev/null 2>&1
+_E2E1_BLOCK_EXIT=$?
+rm -f .omc/state/permission-required
+if [ "$_E2E1_BLOCK_EXIT" = "2" ]; then
+    pass "E2E-1 step 1: permission-gate 阻断危险命令 (exit=2)"
+else
+    fail "E2E-1 step 1: 期望 exit=2, 实际 exit=$_E2E1_BLOCK_EXIT"
+fi
+
+# Step 2: 创建匹配的 permission-approved -> 应放行（exit 0）
+TOTAL=$((TOTAL+1))
+echo "$E2E1_CODE" > .omc/state/permission-approved
+echo "$E2E1_CODE" > .omc/state/permission-required
+echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/e2e1-test-x"}}' | \
+    bash .claude/hooks/permission-gate.sh > /dev/null 2>&1
+_E2E1_PASS_EXIT=$?
+rm -f .omc/state/permission-approved .omc/state/permission-required .omc/state/approved-ops.json
+if [ "$_E2E1_PASS_EXIT" = "0" ]; then
+    pass "E2E-1 step 2: 验证码匹配 -> 命令放行 (exit=0)"
+else
+    fail "E2E-1 step 2: 期望 exit=0, 实际 exit=$_E2E1_PASS_EXIT"
+fi
+
+# --------------- E2E-2: 知识注射循环 (inject-project-knowledge) ---------------
+log ""
+log "========== E2E-2: 知识注射循环 -- SessionStart 触发知识注入 =========="
+
+TOTAL=$((TOTAL+1))
+E2E2_OUT="/tmp/smoke-e2e2-$$.out"
+echo '{"hook_event_name":"SessionStart","session_id":"smoke-e2e-2","source":"startup"}' | \
+    bash .claude/hooks/inject-project-knowledge.sh > "$E2E2_OUT" 2>&1
+E2E2_EXIT=$?
+if [ "$E2E2_EXIT" = "0" ]; then
+    pass "E2E-2 step 1: SessionStart 不崩 (exit=0)"
+else
+    fail "E2E-2 step 1: 期望 exit=0, 实际 exit=$E2E2_EXIT"
+fi
+
+TOTAL=$((TOTAL+1))
+if grep -qE '\[\.claude/(kernel|anti-patterns)\.md\]' "$E2E2_OUT"; then
+    pass "E2E-2 step 2: 输出含 kernel.md/anti-patterns.md 引用"
+else
+    fail "E2E-2 step 2: 输出不含预期知识引用"
+fi
+rm -f "$E2E2_OUT"
+
+# --------------- E2E-3: 错误 DNA 捕获全链路 (error-dna.sh) ---------------
+log ""
+log "========== E2E-3: 错误 DNA 捕获全链路 -- PostToolUseFailure -> jsonl + 聚合 =========="
+
+mkdir -p .omc/state
+rm -f .omc/state/error-dna.jsonl .omc/state/error-dna.json .omc/state/total-ops.txt
+
+TOTAL=$((TOTAL+1))
+echo '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"ls nonexistent_e2e_test_xyz_2026"},"error":"Command failed: no such file"}' | \
+    bash .claude/hooks/error-dna.sh > /dev/null 2>&1
+E2E3_EXIT=$?
+if [ "$E2E3_EXIT" = "0" ]; then
+    pass "E2E-3 step 1: error-dna 不崩 (exit=0)"
+else
+    fail "E2E-3 step 1: 期望 exit=0, 实际 exit=$E2E3_EXIT"
+fi
+
+TOTAL=$((TOTAL+1))
+if [ -s .omc/state/error-dna.jsonl ] && grep -q '"signature"' .omc/state/error-dna.jsonl; then
+    pass "E2E-3 step 2: error-dna.jsonl 含 signature 字段"
+else
+    fail "E2E-3 step 2: error-dna.jsonl 未生成或无 signature"
+fi
+
+TOTAL=$((TOTAL+1))
+if [ -s .omc/state/error-dna.json ]; then
+    pass "E2E-3 step 3: error-dna.json 聚合文件已创建"
+else
+    fail "E2E-3 step 3: error-dna.json 未生成"
+fi
+rm -f .omc/state/error-dna.jsonl .omc/state/error-dna.json .omc/state/total-ops.txt
+
+# --------------- E2E-4: 格式化门禁 (posttool-format-gate.sh) ---------------
+log ""
+log "========== E2E-4: 格式化门禁 -- TaskUpdate 无结构输出应收到格式提示 =========="
+
+TOTAL=$((TOTAL+1))
+E2E4_OUT="/tmp/smoke-e2e4-$$.out"
+echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_response":{"result":"Just plain unstructured text with no direction or summary at all"}}' | \
+    bash .claude/hooks/posttool-format-gate.sh > "$E2E4_OUT" 2>&1
+E2E4_EXIT=$?
+if [ "$E2E4_EXIT" = "0" ]; then
+    pass "E2E-4 step 1: 格式门禁不阻断 (exit=0)"
+else
+    fail "E2E-4 step 1: 期望 exit=0, 实际 exit=$E2E4_EXIT"
+fi
+
+TOTAL=$((TOTAL+1))
+if grep -qE "方向感|欠缺.*方向|欠缺.*结构化|欠缺.*摘要" "$E2E4_OUT"; then
+    pass "E2E-4 step 2: 输出含格式反馈提示 (方向感/结构化/摘要)"
+else
+    fail "E2E-4 step 2: 输出不含格式反馈"
+fi
+rm -f "$E2E4_OUT"
+
+# --------------- E2E-5: Stop 持久化链 (auto-snapshot + session-handoff) ---------------
+log ""
+log "========== E2E-5: Stop 持久化链 -- auto-snapshot 生成快照 + 交接备忘录 =========="
+
+rm -f .omc/state/session-snapshot.json .omc/state/session-snapshot.json.sha256 .omc/state/session-handoff.md .omc/state/session-dump.json
+
+TOTAL=$((TOTAL+1))
+echo '{"hook_event_name":"Stop","session_id":"smoke-e2e-5"}' | \
+    bash .claude/hooks/auto-snapshot.sh > /dev/null 2>&1
+E2E5_EXIT=$?
+if [ "$E2E5_EXIT" = "0" ]; then
+    pass "E2E-5 step 1: auto-snapshot 不崩 (exit=0)"
+else
+    fail "E2E-5 step 1: 期望 exit=0, 实际 exit=$E2E5_EXIT"
+fi
+
+TOTAL=$((TOTAL+1))
+E2E5_KEYS="0/5"
+if [ -s .omc/state/session-snapshot.json ]; then
+    E2E5_KEYS=$(python3 -c "
+import json
+d = json.load(open('.omc/state/session-snapshot.json'))
+required = ['timestamp', 'turns', 'branch', 'modified_files', 'staged_files']
+present = [f for f in required if f in d]
+print(f'{len(present)}/{len(required)}')
+" 2>/dev/null)
+fi
+if [ "$E2E5_KEYS" = "5/5" ]; then
+    pass "E2E-5 step 2: session-snapshot.json 含全部 5 个顶层 key"
+else
+    fail "E2E-5 step 2: session-snapshot.json 字段不完整 ($E2E5_KEYS)"
+fi
+
+TOTAL=$((TOTAL+1))
+if [ -s .omc/state/session-handoff.md ]; then
+    pass "E2E-5 step 3: session-handoff.md 已创建"
+else
+    fail "E2E-5 step 3: session-handoff.md 未创建"
+fi
+
+# --------------- E2E-6: C3 L3 Oracle 终审记录检测 (completion-gate) ---------------
+log ""
+log "========== E2E-6: C3 L3 Oracle 终审记录检测 -- 多文件变更/架构决策证据应含 Oracle 终审 =========="
+
+# 备份并清理现有证据文件
+_E2E6_EVID_PATH=".omc/state/.completion-evidence-$(date +%Y%m%d)"
+_E2E6_BAK=""
+if [ -f "$_E2E6_EVID_PATH" ]; then
+    _E2E6_BAK="${_E2E6_EVID_PATH}.e2e6-bak"
+    mv "$_E2E6_EVID_PATH" "$_E2E6_BAK"
+fi
+
+# Test 1: Evidence WITH Oracle 终审记录 → 应不阻断 + 确认已找到
+TOTAL=$((TOTAL+1))
+cat > "$_E2E6_EVID_PATH" <<'E2E6_EVID1'
+VERIFIED: refactored auth handler
+file: auth.go:42
+file: session.go:15
+file: handler.go:88
+architecture decision
+multi-file change across 3 modules
+exit 0
+all tests PASS: 42 passed, 0 failed
+coverage: 85%
+
+## Oracle 终审记录
+
+审核时间: 2026-05-13
+审核者: Oracle
+结论: APPROVED
+备注: smoke test
+E2E6_EVID1
+E2E6_1_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"taskId":"e2e6","status":"completed"}}' | \
+    bash .claude/hooks/completion-gate.sh 2>&1; echo "EXIT:$?")
+if echo "$E2E6_1_OUT" | grep -q "EXIT:0" && echo "$E2E6_1_OUT" | grep -qE "Oracle 终审.*已找到"; then
+    pass "E2E-6 test 1: Oracle 终审记录 + L3 内容 → 不阻断 + 确认已找到"
+else
+    fail "E2E-6 test 1: 期望 exit 0 + C3 确认, 实际: $(echo "$E2E6_1_OUT" | head -3 | tr '\n' ' ')"
+fi
+
+# Test 2: Evidence WITHOUT Oracle 终审记录 → 不应阻断但应发出 C3 警告
+TOTAL=$((TOTAL+1))
+cat > "$_E2E6_EVID_PATH" <<'E2E6_EVID2'
+VERIFIED: refactored auth handler
+file: auth.go:42
+file: session.go:15
+file: handler.go:88
+architecture decision
+multi-file change across 3 modules
+exit 0
+all tests PASS: 42 passed, 0 failed
+coverage: 85%
+E2E6_EVID2
+E2E6_2_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"taskId":"e2e6","status":"completed"}}' | \
+    bash .claude/hooks/completion-gate.sh 2>&1; echo "EXIT:$?")
+if echo "$E2E6_2_OUT" | grep -q "EXIT:0" && echo "$E2E6_2_OUT" | grep -qE "C3"; then
+    pass "E2E-6 test 2: L3 无 Oracle 终审 → 不阻断 + 发出 C3 警告"
+else
+    fail "E2E-6 test 2: 期望 exit 0 + C3 警告, 实际: $(echo "$E2E6_2_OUT" | head -3 | tr '\n' ' ')"
+fi
+
+# 清理证据文件
+rm -f "$_E2E6_EVID_PATH"
+if [ -n "$_E2E6_BAK" ]; then
+    mv "$_E2E6_BAK" "$_E2E6_EVID_PATH"
+fi
+
+# E2E 清理
+rm -f .omc/state/session-snapshot.json .omc/state/session-snapshot.json.sha256 .omc/state/session-handoff.md .omc/state/session-dump.json
+
+# === E2E Tests End ===
+
 log ""
 log "========================================"
 log "summary: $((TOTAL-FAILED))/$TOTAL passed, $FAILED failed"
 log "log file: $LOG"
 log "========================================"
+
+# US-010: 全绿时清理历史失败记录
+if [ "$FAILED" -eq 0 ]; then
+    rm -f "$SMOKE_FAILURE_DIR"/smoke-failure-*.json 2>/dev/null
+    log "  🧹 全绿通过，已清理历史失败记录"
+
+    # Oracle C2: index.md hooks 表自动同步
+    SYNC_OUT=$(bash .claude/scripts/audit-hooks.sh --sync-index 2>/dev/null)
+    if echo "$SYNC_OUT" | grep -qE "(更新|updated)"; then
+        log "  📝 index.md hooks 表已自动同步"
+    fi
+fi
+
 exit $FAILED

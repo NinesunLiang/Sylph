@@ -1,13 +1,18 @@
 /**
  * carror-hooks-compat.ts — Carror OS OpenCode Hooks Compatibility Plugin
  *
- * 为 OMO claude-code-hooks 补充缺失的 SessionStart 和 PostToolUseFailure 事件映射。
- * OMO 处理 PreToolUse, PostToolUse, UserPromptSubmit, Stop, PreCompact 五个事件。
- * 本插件处理：
- *   - SessionStart (session.created) — 会话启动 hook
- *   - PostToolUseFailure (tool.execute.after + 失败检测) — 工具执行失败 hook
+ * OMO (oh-my-opencode@3.15.3) 原生从 .claude/settings.json 处理 5/7 事件：
+ *   PreToolUse, PostToolUse, UserPromptSubmit, Stop, PreCompact
+ * OMO 不处理（不在 normalizeHooksConfig 中）：
+ *   SessionStart, PostToolUseFailure
  *
- * 不修改 OMO 源码，不替换旧版 sylph-hooks.ts，保持 Claude Code 已验证的行为不变。
+ * 本插件补齐缺失的 2 个事件（通过 OpenCode Plugin API 的泛型 event 和
+ * tool.execute.after handler）：
+ *   - SessionStart (event handler, event.type === "session.created")
+ *   - PostToolUseFailure (tool.execute.after + exit code ≥0 检测)
+ *
+ * 不修改 OMO node_modules 源码，不替换旧版 sylph-hooks.ts/.disabled。
+ * 同一份 .claude/settings.json 在 CC 和 OMO 双平台运行。
  */
 
 import { execSync } from "child_process";
@@ -65,7 +70,8 @@ function execHook(
   command: string,
   stdinJson: string,
   timeout: number,
-  cwd: string
+  cwd: string,
+  env?: Record<string, string>
 ): { stdout: string; stderr: string; exitCode: number } {
   try {
     const result = execSync(command, {
@@ -74,6 +80,7 @@ function execHook(
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "pipe"],
       cwd,
+      env: env ? { ...process.env, ...env } : undefined,
     });
     return { stdout: result.trim(), stderr: "", exitCode: 0 };
   } catch (e: any) {
@@ -96,11 +103,14 @@ function matchesToolPattern(
 
 export default async () => {
   return {
-    "session.created": async (input: any) => {
+    event: async (input: { event: { type: string } }) => {
+      if (input.event?.type !== "session.created") return;
       const config = loadClaudeHooksConfig();
       if (!config?.SessionStart) return;
 
       const sessionId = input.sessionID || input.id || "";
+      const envExtra: Record<string, string> = {};
+      if (sessionId) envExtra.SESSION_ID = sessionId;
 
       const stdinData = {
         session_id: sessionId,
@@ -120,7 +130,8 @@ export default async () => {
             hook.command,
             JSON.stringify(stdinData),
             hook.timeout || 10000,
-            PROJECT_ROOT
+            PROJECT_ROOT,
+            envExtra
           );
           if (result.stdout) {
             outputs.push(result.stdout);
@@ -145,8 +156,13 @@ export default async () => {
 
     "tool.execute.after": async (input: any, output: any) => {
       // Detect tool failure: non-zero exit code, error field, or metadata.error
+      // Claude Code: metadata.exitCode; OpenCode: metadata.exit
       const metadata = output?.metadata;
-      const exitCode = metadata?.exitCode ?? output?.exitCode ?? 0;
+      const exitCode =
+        metadata?.exitCode ??
+        metadata?.exit ??
+        output?.exitCode ??
+        0;
       const toolFailed =
         exitCode !== 0 ||
         !!output?.error ||
@@ -158,13 +174,16 @@ export default async () => {
       if (!config?.PostToolUseFailure) return;
 
       const toolName = input?.tool || "";
+      const sessionId = input?.sessionID || "";
+      const envExtra: Record<string, string> = {};
+      if (sessionId) envExtra.SESSION_ID = sessionId;
 
       for (const matcher of config.PostToolUseFailure) {
         if (!matcher.hooks?.length) continue;
         if (!matchesToolPattern(matcher.matcher, toolName)) continue;
 
         const stdinData = {
-          session_id: input.sessionID || "",
+          session_id: sessionId,
           cwd: PROJECT_ROOT,
           hook_event_name: "PostToolUseFailure",
           tool_name: toolName,
@@ -182,7 +201,8 @@ export default async () => {
             hook.command,
             JSON.stringify(stdinData),
             hook.timeout || 5000,
-            PROJECT_ROOT
+            PROJECT_ROOT,
+            envExtra
           );
         }
       }

@@ -238,8 +238,19 @@ fi
 KNOWLEDGE_MIN_TURNS=$(hc_get "turn_counter.knowledge_inject_min_turns" "20")
 INDEX_FILE="$STATE_DIR/token-tracking-index.json"
 CTX_PCT=""
-if [ -f "$INDEX_FILE" ] && [ $(( new_count % 5 )) -eq 0 ]; then
-    CTX_PCT=$(python3 -c "
+CTX_SOURCE=""
+if [ $(( new_count % 5 )) -eq 0 ]; then
+    # 优先使用 context_monitor.py（读 transcript 真实数据，落后 1 轮但准确）
+    MONITOR_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
+    if [ -x "$MONITOR_SCRIPT" ]; then
+        MONITOR_OUT=$(python3 "$MONITOR_SCRIPT" 2>/dev/null)
+        CTX_PCT=$(echo "$MONITOR_OUT" | python3 -c "import sys,json; print(int(json.load(sys.stdin).get('percentage',0)))" 2>/dev/null)
+        CTX_SOURCE=$(echo "$MONITOR_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null)
+    fi
+    # 兜底：启发式计数器
+    if [ -z "$CTX_PCT" ] || [ "$CTX_PCT" -eq 0 ] 2>/dev/null; then
+        if [ -f "$INDEX_FILE" ]; then
+            CTX_PCT=$(python3 -c "
 import json
 try:
     d = json.load(open('$INDEX_FILE'))
@@ -248,17 +259,27 @@ try:
     print(int(usage * 100 / limit)) if limit > 0 else print(0)
 except:
     print(0)" 2>/dev/null)
+            CTX_SOURCE="heuristic"
+        fi
+    fi
 fi
 
 INJECT_INDEX="$PROJECT_ROOT/.claude/index.md"
 INJECT_KERNEL="$PROJECT_ROOT/.claude/kernel.md"
 INJECT_ANTI="$PROJECT_ROOT/.claude/anti-patterns.md"
 
+CTX_SOURCE_LABEL=""
+if [ "$CTX_SOURCE" = "heuristic" ]; then
+    CTX_SOURCE_LABEL=" [估算]"
+elif [ -n "$CTX_SOURCE" ]; then
+    CTX_SOURCE_LABEL=" [真实]"
+fi
+
 if [ -n "$CTX_PCT" ]; then
     # L3: 危机协议 — context > 80%
     if [ "$CTX_PCT" -ge 80 ] 2>/dev/null && [ $(( new_count % 5 )) -eq 0 ]; then
         echo ""
-        echo "═══ [轮次 $new_count] 上下文危机 — context ${CTX_PCT}% ═══"
+        echo "═══ [轮次 $new_count] 上下文危机 — context ${CTX_PCT}%${CTX_SOURCE_LABEL} ═══"
         echo "【仅 7 铁律】上下文使用率超过 80%，仅保留最低门禁规则："
         echo " 1. 禁止编造：技术断言必须引用 file:line"
         echo " 2. 用户裁定：验收/选型/冲突由用户决定，AI 不可自判"

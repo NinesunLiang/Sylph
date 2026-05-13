@@ -54,7 +54,8 @@ PYEOF
 )
 
 if [ -n "$PY_OUTPUT" ]; then
-    ESCAPED=$(echo "$PY_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-    echo "{\"continue\": true, \"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": ${ESCAPED}}}"
+    # Stop hook 不支持 additionalContext，stderr 输出会导致 JSON 校验错误
+    # 改为写入状态文件，由 inject-project-knowledge.sh 在下次 SessionStart 时读取
+    echo "$PY_OUTPUT" > "$PROJECT_ROOT/.omc/state/error-dna-retrospective.txt"
 fi
 exit 0

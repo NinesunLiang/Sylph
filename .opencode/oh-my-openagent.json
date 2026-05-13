@@ -1,0 +1,11 @@
+{
+  "$schema": "https://raw.githubusercontent.com/code-yeongyu/oh-my-openagent/master/assets/oh-my-openagent.schema.json",
+  "claude_code": {
+    "hooks": true,
+    "skills": true,
+    "mcp": false,
+    "commands": false,
+    "agents": false
+  },
+  "disabled_hooks": []
+}

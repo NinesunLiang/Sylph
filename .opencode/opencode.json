@@ -3,15 +3,5 @@
   "plugin": [
     "oh-my-openagent",
     ".opencode/plugins/carror-hooks-compat.ts"
-  ],
-  "oh-my-openagent": {
-    "claude_code": {
-      "hooks": true,
-      "skills": true,
-      "mcp": false,
-      "commands": false,
-      "agents": false
-    },
-    "disabled_hooks": []
-  }
+  ]
 }

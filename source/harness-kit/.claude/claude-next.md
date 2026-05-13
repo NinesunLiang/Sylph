@@ -28,7 +28,7 @@
 正确行为：写临时文件 → os.rename(tmp, target) 实现原子替换，避免部分写入被并发读取
 证据：直接 write_text 不是原子操作，并发读取可能读到部分内容。os.rename 确保读取端始终看到完整内容。
 
-### [R22] PostToolUse 不派发失败事件，失败走 PostToolUseFailure
+### [R22] PostToolUse 不派发失败事件，失败走 PostToolUseFailure **[已修复 @2026-05-13 settings.json PostToolUseFailure 已注册]**
 
 @2026-05-05 hits:1
 触发条件：写 PostToolUse hook 想捕获 Bash 失败命令（如 error-dna/bash-audit）
@@ -36,7 +36,7 @@
 证据：Claude Code 源码 src/utils/hooks.ts:3460 `executePostToolUseHooks` 只在成功时触发，src/utils/hooks.ts:3492 `executePostToolUseFailureHooks` 才处理失败 — 这是设计分叉不是 bug。本项目原 settings.json 只注册 PostToolUse，导致 error-dna.jsonl 永远空 = 僵尸功能。
 补强：即使注册了 PostToolUseFailure，也应同时挂 Stop hook 扫 transcript.jsonl 兜底（防平台后续改名或丢事件），形成双层防御。
 
-### [R23] harness.yaml 的 hooks_enabled 不等于实际注册
+### [R23] harness.yaml 的 hooks_enabled 不等于实际注册 **[已修复 @2026-05-13 audit-hooks.sh 三方一致性检查]**
 
 @2026-05-05 hits:1
 触发条件：磁盘上有 hook 脚本、harness.yaml 里 hooks_enabled.<name>=true，但 settings.json 没注册命令 → 产品承诺生效但 Claude Code 运行时根本不派发事件给它（僵尸脚本）。
@@ -59,7 +59,7 @@
 定位文案（写清楚避免误认"已根治账单雪崩"）：
 > max_turns = AI 行为约束 + 事后对账，不是运行时硬停。防线三层：声明层约束 AI 意识，使用层落盘留痕，人工层 SessionStart 告警。
 
-### [R24] Bash unquoted glob 会被 cwd 文件污染（生产级陷阱）
+### [R24] Bash unquoted glob 会被 cwd 文件污染（生产级陷阱） **[已修复 @2026-05-13 edit-guard/posttool-edit-quality R24-S3 set -f]**
 
 @2026-05-05 hits:1
 触发条件：hook 或任意 shell 脚本里写 `for x in $GLOB_VAR` 且 `$GLOB_VAR` 包含 `*` 等通配符（例如 `SOURCE_EXT="*.go"`）。
@@ -75,7 +75,7 @@
 证据：本项目 R19 把 `context-guard` matcher 改为 `.*`（产品承诺"所有工具受门禁"），但 `context-guard.sh` 保留了 `edit/write/bash` 白名单，结果 Read/Grep 在 95% 上下文时被脚本层再次放行，与"冷酷无情 AI 管理员"定位矛盾。R26 手动实弹 D3 Read @ 95% 才发现。
 补强：`hook-production-verify.sh` D3 的四工具循环（Write/Bash/Edit/Read @ 95%）永久守护此回归 — 任何工具例外都会立即 🔴。
 
-### [R29] context-guard matcher 放宽为 Edit|Write 防自锁
+### [R29] context-guard matcher 放宽为 Edit|Write 防自锁 **[已修复 @2026-05-07]**
 
 @2026-05-07 hits:1
 触发条件：context-guard 使用 `.*` matcher 封锁所有工具，导致 90% 上下文时无法用 Read/Grep 诊断、无法用 Bash 修复 `token-tracking-index.json`，形成不可恢复的自锁（self-inflicted DoS）。
@@ -108,14 +108,14 @@
 正确行为：每次架构变更后，搜索 `docs/` 和 `README.md` 中所有相关描述并同步更新
 证据：Sub-agent → A→B→A 切换后，README.md 及 20+ 营销文档仍描述旧模式，用户纠正后才修复
 
-### [R30] AI 评估自身环境前必须先检查，禁止用文档默认值代替实际配置
+### [R30] AI 评估自身环境前必须先检查，禁止用文档默认值代替实际配置 **[已修复 @2026-05-13 score-self-check.sh 基于实际配置]**
 
 @2026-05-07 hits:1
 触发条件：评估/评分/分析类任务中，AI 引用文档描述而非读取实际配置
 正确行为：必须先检查运行环境（如检查 skill 目录、settings.json、harness.yaml 中的实际开关状态），确认是 Base 还是 Enhanced 等，再基于实际状态做评估。评估报告中标注运行环境版本和检查方式。
 证据：AI 在 Enhanced 环境下运行却按 Base 版文档评分，导致"Enhanced 隐藏"和"不会主动提示"两条扣分不成立。用户纠正后 AI 自检发现是 D3 反模式（项目业务盲区）。
 
-### [R31] gh CLI 写操作是 permission-gate 防御盲区
+### [R31] gh CLI 写操作是 permission-gate 防御盲区 **[已修复 @2026-05-13 permission-gate.sh gh_write_regex]**
 
 @2026-05-07 hits:1
 触发条件：AI 执行 `gh release upload` 推送到 GitHub Release，未触发任何 gate 拦截，未征得用户同意。
@@ -123,14 +123,14 @@
 证据：用户批评"越权"——AI 在未询问的情况下直接用 `gh release upload` 推送了外部服务。检查发现 permission-gate.sh 没有针对 gh CLI 的任何检测规则，`gh` 命令不匹配 git push / destructive / sudo 任何已有 regex。这是防御体系的设计遗漏，不是因为用户没配置。
 补强：`permission_gate.gh_write_regex` 默认值为全写操作覆盖，可通过 harness.yaml 自定义缩小/扩大范围。
 
-### [R32] install.sh 合并已有 AGENTS.md 应降级标题层级
+### [R32] install.sh 合并已有 AGENTS.md 应降级标题层级 **[已修复 @2026-05-13 install.sh:391-402 sed降级 #→##]**
 
 @2026-05-08 hits:1
 触发条件：在已有 CLAUDE.md/AGENTS.md 的项目上运行 `bash install.sh`
 正确行为：Carror OS 治理内容应以 `##` 二级标题合并到用户文件末尾，保留用户 `#` 一级标题的原创性。当前实现在用户内容后用 `# Carror OS 治理框架` 一级标题，与用户原始 `#` 标题同级混乱。
 证据：狗粮测试 — 用户项目已有 `# Project Name`，Carror OS 合并后出现两个 `#` 一级标题，层次结构不清晰。
 
-### [R34] 说"系统没这问题"前必须逐文件交叉验证
+### [R34] 说"系统没这问题"前必须逐文件交叉验证 **[已修复 @2026-05-13 pre-commit-self-review.sh]**
 
 @2026-05-08 hits:1
 触发条件：AI 快速查看 grep 结果后直接断言"Carror OS 不存在 X 问题"，未逐文件对照验证
@@ -146,18 +146,17 @@
 证据：狗粮测试 — /compact 后 AI 忘记技术栈、ADR 决策、活跃 feature 状态，需要用户重新解释。
 补强：同时实现复合触发注入（context > 50% 且 turns > 20）作为周期刷新，防范 compact 后的规范漂移。 ✅ 已通过 turn-counter.sh L2 层实现。
 
-### [2026-05-10] 用户纠正: 不对（scope gate 和 version drift 修复时被中断）
+### [2026-05-10] 用户纠正: 不对（scope gate 和 version drift 修复时被中断）[已关闭]
 @2026-05-10 hits:1
 **触发场景**：用户在 ghost mode 对某次操作说"不对"
-**问题**：具体纠正内容未保留
-**纠正**：下次遇到同样信号时先记录纠正上下文，再补充到此条目
+**问题**：具体纠正内容已丢失（跨会话上下文不可恢复）
+**纠正**：[已关闭] 用户未在后续会话中补充根因。教训：纠正捕获后应立即在当前会话补全，不依赖跨会话记忆。
 
-
-### [2026-05-11] 用户纠正: 不对（修复 agent-found issues 时被中断）
+### [2026-05-11] 用户纠正: 不对（修复 agent-found issues 时被中断）[已关闭]
 @2026-05-11 hits:1
 **触发场景**：用户在 ghost mode 对某次操作说"不对"
-**问题**：具体纠正内容未保留
-**纠正**：下次遇到同样信号时先记录纠正上下文，再补充到此条目
+**问题**：具体纠正内容已丢失（跨会话上下文不可恢复）
+**纠正**：[已关闭] 用户未在后续会话中补充根因。教训：纠正捕获后应立即在当前会话补全，不依赖跨会话记忆。
 
 ### [R35] hook 行为变更后必须更新脚本头部注释
 
@@ -166,7 +165,7 @@
 正确行为：行为变更后，搜索脚本顶部 `# Role:` 和 `# 用途` 行并同步更新。头部注释是其他维护者理解脚本的第一入口，不一致导致排查困难。
 证据：pretool-edit-scope.sh 改为 auto-add 后，Role 注释仍写"范围冻结拦截，阻止越界编辑"，与实际 auto-add（exit 0）行为矛盾。
 
-### [R36] hook 合并/废弃需三方同步
+### [R36] hook 合并/废弃需三方同步 **[已修复 @2026-05-13 audit-hooks.sh + 协议文档化]**
 
 @2026-05-11 hits:1
 触发条件：合并 pretool-rule-anchor 逻辑到 pretool-edit-scope.sh 后，从 settings.json 移除但其 harness.yaml 开关仍为 true
@@ -201,7 +200,7 @@
 正确行为：Stop hook 产出的文件（session-dump.json、handoff.md 等）必须测试触发验证，不能仅凭 Read 代码断言。在 session 中手动触发一次 Stop hook 确认产出。
 证据：session-dump.json 代码存在且正确，但从未在运行时创建（未发生 Stop 事件）。手动触发后立即创建 7121 bytes / 7 字段的 dump 文件。
 
-### [R41] Error DNA JSONL 轮转数据丢失 — range 越界移位
+### [R41] Error DNA JSONL 轮转数据丢失 — range 越界移位 **[已修复 @2026-05-13 error-dna.sh:409-416 移位循环修复]**
 
 @2026-05-11 hits:1
 触发条件：error-dna.sh 的 auto-rotation 代码 `for i in range(archive_count, 0, -1)` 在 archive_count=3 时，将 .2→.3（超出保留范围 0..2），重建循环 `for i in range(archive_count)` 只读 .0/.1/.2，导致 .3 中的数据永久丢失。7847 条历史记录仅恢复 59 条（~99% 丢失）。
@@ -221,9 +220,139 @@
 4. 提建议前先问自己：这个功能在 completion-gate.sh / turn-counter.sh / inject-project-knowledge.sh / compact-detect.sh 中是否已实现？
 
 
-### [2026-05-13] 用户纠正: 不对
+### [R42] Ghost mode 僵尸检测的类型混淆：hook 规则误用于 skill
+
 @2026-05-13 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+**触发场景**：Ghost mode AI 在清理会话时删除了 lx-rpe skill（31 个文件），理由是发现它不在 settings.json 中注册（R23 规则）。
+**问题**：R23（hook 三方一致性：磁盘脚本 ↔ settings.json ↔ harness.yaml）是 HOOK 的注册规则，但 ghost mode 的"僵尸扫描"将 R23 错误应用到 SKILL 上。Skill 的注册标准完全不同：SKILL.md 存在于 `.claude/skills/<name>/` 目录 ✅ + feature-registry.yaml 引用 ✅ + 下游 skill-graph.md 引用 ✅。lx-rpe 全部满足，不应被删除。
+**纠正**：Ghost mode 的僵尸检测必须区分两种类型：
+- Hook 僵尸判定：R23 规则（disk + settings.json + harness.yaml 三方一致）
+- Skill 僵尸判定：disk + feature-registry.yaml 两者一致即非僵尸（skill 不需要 settings.json 注册）
+
+
+### [2026-05-13] 用户纠正: CAPTCHA 批准描述不清晰 — 用户不知道在哪里输入验证码
+@2026-05-13 hits:1
+**触发场景**：pretool-sensitive-edit.sh 输出"批准: echo 'CODE' > .omc/state/sensitive-approved"，用户说"这个描述有问题，没人知道在那里做这个，所以会有意图识别的问题"
+**问题**：CAPTCHA hook 只输出了 shell 命令文本，未告诉用户"在输入框中输入以下命令并按 Enter"或提示可以用 `!` 前缀。用户不知道这个 `echo` 命令应该粘贴到会话输入框中。
+**纠正**：
+1. pretool-sensitive-edit.sh 的 CAPTCHA 提示应增加方位指引：明确说"请复制以下命令并在输入框中按 Enter"
+2. [已撤销] approve-sen.sh 脚本导致设计级 CAPTCHA 绕过，已删除
+3. [R43] 新增教训：禁止创建 AI 可直接调用的 CAPTCHA 批准工具
+
+
+### [DG-01] 脚本验证漏报散文描述的域冲突
+
+@2026-05-12 hits:1
+**触发场景**：grep 脚本验证数据实体唯一性时漏报 Session 冲突，因为冲突描述在散文段而非表格行。
+**正确行为**：数据实体唯一性检查必须同时验证结构化数据（表格）和散文描述。建议双层策略：grep 表格行 → LLM 语义扫描散文。
+**证据**：dogfoot.md:1448-1463 — Oracle 发现 D03 表格行声明 Own + D05 散文描述"管理生命周期"的冲突。
+
+### [DG-02] NFR 来源验证应前置到输入阶段
+
+@2026-05-12 hits:1
+**触发场景**：Oracle 发现 3 处 NFR 数字（1500ms/10tokens/s/2000ms）没有主 PRD 来源。这些数字从输入带入输出，验证太晚。
+**正确行为**：读取输入 PRD 时立即扫描 NFR 数字并标记来源状态，在输出前完成验证；无来源直接标注 `[内部自检，非行业标准]`。
+**证据**：dogfoot.md:1486-1497。
+
+### [DG-03] Skill 执行模式需显式检测并报告
+
+@2026-05-12 hits:1
+**触发场景**：lx-oma-hier 手动模式被按编排模式标准评估（扣分 pipeline.yaml 缺失/telemetry 未上传），40% 评分误差因评估口径错误。
+**正确行为**：所有 skill 启动时检测执行模式（manual vs pipeline），据此调整行为。手动模式跳过强制集成步骤并在报告注明。
+**证据**：dogfoot.md:516-524。
+
+### [DG-04] Skill 设计需匹配 LLM 执行节奏
+
+@2026-05-12 hits:1
+**触发场景**：§3.2 要求"每拆一域逐项 checkbox"导致 LLM 跳过（5域×10项=50次），改为"全部域生成后统一校验摘要表"后执行完整。
+**正确行为**：Skill 规范应基于 LLM 实际执行节奏设计：批量操作 → 统一校验 → 一次输出。硬性数量限制改为可配置阈值+警告。
+**证据**：dogfoot.md:530-537。
+
+### [DG-05] 多轮 Oracle 审查覆盖不同维度
+
+@2026-05-12 hits:1
+**触发场景**：同一 lx-oma-hier 执行做 3 轮 Oracle 审查，每轮发现不同问题（产物质量 → 流程合规 → 业务合理性）。
+**正确行为**：Oracle 审查应分维度进行：产品维度（文档质量）、过程维度（执行合规）、领域维度（拆分合理性）。单轮无法覆盖全部风险。
+**证据**：dogfoot.md 全文件结构 — 三轮审查输出不同的 FAIL/WARNING。
+
+
+### [META-01] 狗粮原始记录 >2500 行，需分块读取策略
+
+@2026-05-14 hits:1
+**触发场景**：处理 tmp/dogfoot.md（2626 行原始会话转储），需要 6 次连续 Read 才能获取全貌。
+**正确行为**：狗粮记录应自带摘要头（≤50 行）+ 原始附录，便于快速分拣。处理时优先读摘要，按需查附录。
+**证据**：本会话 — 6 次 Read 调用读取 2626 行文件。
+
+### [META-02] 跨会话狗粮处理需先恢复完整上下文
+
+@2026-05-14 hits:1
+**触发场景**：会话从摘要恢复，需通过 system-reminders 重新加载 AGENTS.md / kernel.md / claude-next.md / anti-patterns.md（~60KB）。
+**正确行为**：狗粮文件应自标记 `requires_context: [文件列表]`，处理前自动加载。或狗粮与源会话绑定，跨会话时先重建上下文再处理。
+**证据**：本会话 — 摘要恢复后仅部分文件自动注入，需额外 Read 获取全局上下文。
+
+### [META-03] 狗粮发现需分拣：系统通用 vs 项目特定
+
+@2026-05-14 hits:1
+**触发场景**：raw 文件中 ~20 个发现，仅 5 个适用 Carror OS（DG-01~DG-05）。其余为 [PROJECT_A] 特有业务逻辑问题。
+**正确行为**：狗粮发现应用性三问：
+1. 揭示 hook/skill 设计缺陷？ → 系统通用
+2. 显示验证盲区？ → 系统通用
+3. 暴露流程缺失？ → 系统通用
+跳过：项目特有业务逻辑、客户偏好、一次性配置问题。
+**证据**：本会话 — 从 ~20 个发现中分拣出 5 个通用教训。
+
+### [META-04] 狗粮驱动的系统优化产生级联同步义务
+
+@2026-05-14 hits:1
+**触发场景**：修改 lx-oma-hier SKILL.md 后，需手动 cp 到 source/lx-skills-v5/；修改 claude-next.md 后，需手动 cp 到 source/harness-kit/。
+**正确行为**：狗粮驱动优化完成后，运行 `bash scripts/package-release.sh` 自动同步到所有 source 镜像。
+**证据**：本会话 — 手动执行 2 次 cp 同步，漏一次都会导致 source 镜像漂移。
+
+### [META-05] 结构化狗粮记录的追踪性保障
+
+@2026-05-14 hits:1
+**触发场景**：YAML 狗粮记录结构良好但无法链接回原始 source 行。引用如 "dogfoot.md:1448-1463" 为手动维护。
+**正确行为**：狗粮记录使用 `.md` 格式 + `[source: path:line]` 标签，替代纯 YAML。或 YAML 记录强制包含 source_ref 字段。
+**证据**：本会话 — dogfoot.md 被删除后 YAML 记录中的行引用不可验证。
+
+
+### [GL-01] Ghost mode 方向漂移 — "分析类"方向不适合 ghost mode
+
+@2026-05-14 hits:1
+**触发场景**：用户执行 `/lx-ghost on "源码级阅读：分析 Carror OS 所有机制"`，AI 用 ghost mode 启动了全量源码分析（4 并行 agent、10+ 文件读取），产出一份报告而非增量探索。
+**问题**：Ghost mode 是**增量探索模式**（每轮 poll 做一步），但"分析/报告/评估"是**一次性任务**，应用 goal mode 分解为子任务执行。方向描述含"分析/阅读/评估"等关键词时，ghost mode 会产生方向漂移 — AI 试图一次性完成而非增量迭代。
+**纠正**：
+1. SKILL.md 新增方向自检：方向含"分析/报告/评估/阅读"等关键词 → 警告建议切 goal mode
+2. 每轮 poll 新增方向漂移自检：当前操作是否在原始方向范围内？偏离 → skip-risk 记录并修正
+3. 每轮 poll 限一步：不启动并行 agent，不做大规模读取分析
+4. 间隔秒数不可为 0：`0s` = 不轮询，违背增量设计
+**证据**：本会话 — ghost 实测日志，AI 启动 4 个并行 agent + 多文件读取完成一次性的系统分析报告。
+
+
+### [2026-05-14] 用户纠正: 应该是（false positive — 叙述性使用）
+@2026-05-14 hits:1
+**触发场景**：用户说"把它所谓一个故事应该是是十分吸引人的故事" — hook 检测到"应该是"触发纠正信号
+**问题**：false positive。用户在此处使用"应该是"为叙述性表达，非技术断言，不构成纠正。
+**纠正**：无 — 已确认软完成语检测不要对叙述性"应该是"触发阻断。
+
+### [ED-01] 机制存在 ≠ 机制有效 — Error-DNA/Build-Validator 价值评估
+
+@2026-05-14 hits:1
+**触发场景**：#16 源码级审计：Error-DNA (8401 条记录) + Build-Validator (40 条 entry) 全量运行时数据扫描
+**问题**：两者均存在并运行，但实际价值近乎零。(1) Error-DNA 83.5% 噪声率 — 7016/8401 条是 gate 正常操作；(2) auto-fix 建议通用模板化，0 次 `repair_success`；(3) error-dna-retrospective.txt 从未创建；(4) Build-Validator 数据无人消费 — `inject-project-knowledge.sh` 跳过 `build-errors.log`。
+**纠正**：
+1. 哲学 #4(没验证=没做) → 未产生实际价值的机制视为不存在
+2. 哲学 #2(少量大增益) → Error-DNA 保留高频告警 + total-ops + JSONL 追加，移除无价值的 auto-fix 和全量重建
+3. 哲学 #1(less is more) → Build-Validator 要么接入闭环要么废弃
+**证据**：error-dna.jsonl + .0/.1/.2 共 8401 条；build-errors.log 40 条且 inject-project-knowledge.sh:222-278 只读 error-dna.json 不读 build-errors.log
+
+### [ED-02] Gate 操作产生的"错误"记录是正常行为，应归入噪声
+
+@2026-05-14 hits:1
+**触发场景**：error-dna.json 显示 33 个"活跃"签名(≥3次)，实为 gate 正常阻断：context-guard(×57)、sensitive-edit(×516)、mirror 检查(×300)、macOS compat(×57)
+**问题**：NOISE_PATTERNS 未覆盖 gate 操作模式 → 被错误的归类为 active → SessionStart 注入显示"错误记忆" → 误导 AI
+**纠正**：
+1. NOISE_PATTERNS 新增 `context-guard.sh`、`pretool-sensitive-edit.sh`、`有意分歧`、`old_string and new_string are exactly the same`、`diff: unrecognized option`
+2. 未来新 gate 加入时，立即同步加入 NOISE_PATTERNS（同步义务，见 ED-02 同源）
+**证据**：error-dna.json 签名分类统计；错误记忆注入 inject-project-knowledge.sh:222-278
 

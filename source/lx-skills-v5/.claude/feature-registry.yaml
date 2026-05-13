@@ -217,10 +217,10 @@ skills:
     category: test
     description: 浏览器可视化验收：多分辨率截图/视觉回归/交互流/跨浏览器
     enabled_by_default: true
-  - name: lx-golang-test
+  - name: lx-test-gen
     type: tester
     category: test
-    description: Go 测试代码生成：table-driven/mocks/HTTP handlers/benchmarks/fuzz
+    description: "语言无关通用测试生成：自动检测语言(Go/TS/Python/Rust/Java/Ruby)，路由到参数化/Mock/HTTP/benchmark/fuzz/race 模式"
     enabled_by_default: true
   - name: lx-perf-analysis
     type: tester
@@ -277,11 +277,6 @@ skills:
     category: workflow
     description: RPE 特性开发循环：TDD/代码审查/安全/验收/分级回滚
     enabled_by_default: true
-  - name: lx-prd
-    type: workflow
-    category: workflow
-    description: PRD 生产流水线：Discovery → Draft → Self-Eval → Expert Review → Polish
-    enabled_by_default: true
   - name: lx-validate-skill
     type: reviewer
     category: quality
@@ -301,4 +296,14 @@ skills:
     type: orchestrator
     category: workflow
     description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team/OMA Lock/race_manager.sh"
+    enabled_by_default: true
+  - name: lx-goal
+    type: workflow
+    category: automation
+    description: "目标模式 — 目标驱动自主执行。给 AI 具体目标，自动执行到完并输出报告。"
+    enabled_by_default: true
+  - name: lx-ghost
+    type: workflow
+    category: automation
+    description: "幽灵模式 — 方向驱动自主探索。给 AI 方向，AI 自主探索修复，不干扰人。"
     enabled_by_default: true

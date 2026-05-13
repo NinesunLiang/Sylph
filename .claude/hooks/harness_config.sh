@@ -239,16 +239,17 @@ hc_state_dir() {
 }
 
 # ══════════════════════════════════════════════════════════════════
-# 模式检测: Ghost Mode / Unattended Mode 统一入口
+# 模式检测: Ghost Mode / Goal Mode 统一入口
 # ══════════════════════════════════════════════════════════════════
 # 返回值:
-#   "ghost"      — ghost mode 激活未过期
-#   "unattended" — unattended mode 激活未过期
+#   "ghost"      — ghost mode 激活未过期（lx-ghost 方向驱动探索）
+#   "goal"       — goal mode 激活未过期（lx-goal 目标驱动执行）
 #   "normal"     — 无激活模式
 #
-# 优先级: ghost > unattended > normal
-# 文件格式: JSON (ghost-mode.json / unattended-mode.json)
-# 旧文件兼容: ghost-mode.active / .unattended-mode（自动迁移）
+# 优先级: ghost > goal > normal
+# 新文件格式: lx-ghost.json / lx-goal.json
+# 旧文件兼容: ghost-mode.json / ghost-mode.active / unattended-mode.json / .unattended-mode
+# lx-ghost vs lx-goal: ghost = 方向驱动（开放探索）, goal = 目标驱动（具体任务）
 
 is_mode_active() {
     local state_dir="$1"
@@ -257,21 +258,21 @@ is_mode_active() {
     local now_epoch
     now_epoch=$(date +%s 2>/dev/null || echo 0)
 
-    # ── 检查 ghost mode ──
-    local ghost_json="$state_dir/ghost-mode.json"
-    if [ -f "$ghost_json" ]; then
+    # ── 检查 lx-ghost mode（新格式）──
+    local ghost_new="$state_dir/lx-ghost.json"
+    if [ -f "$ghost_new" ]; then
         local expired
         expired=$(python3 -c "
 import json, sys
 try:
-    d = json.load(open('$ghost_json'))
+    d = json.load(open('$ghost_new'))
     expires = d.get('expires_at', '')
     if not expires:
-        print('active')  # 无过期时间 → 永久激活
+        print('active')
     else:
-        from datetime import datetime
+        from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
-        if datetime.now() < exp:
+        if datetime.now(timezone.utc) < exp:
             print('active')
         else:
             print('expired')
@@ -279,7 +280,33 @@ except Exception:
     print('invalid')" 2>/dev/null || echo 'invalid')
         case "$expired" in
             active) echo "ghost"; return ;;
-            expired) rm -f "$ghost_json" 2>/dev/null; echo "normal"; return ;;
+            expired) rm -f "$ghost_new" 2>/dev/null ;;
+        esac
+    fi
+
+    # ── 检查旧格式 ghost-mode.json（后向兼容）──
+    local ghost_old="$state_dir/ghost-mode.json"
+    if [ -f "$ghost_old" ]; then
+        local expired
+        expired=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$ghost_old'))
+    expires = d.get('expires_at', '')
+    if not expires:
+        print('active')
+    else:
+        from datetime import datetime, timezone
+        exp = datetime.fromisoformat(expires)
+        if datetime.now(timezone.utc) < exp:
+            print('active')
+        else:
+            print('expired')
+except Exception:
+    print('invalid')" 2>/dev/null || echo 'invalid')
+        case "$expired" in
+            active) echo "ghost"; return ;;
+            expired) rm -f "$ghost_old" 2>/dev/null ;;
         esac
     fi
 
@@ -289,14 +316,14 @@ except Exception:
         return
     fi
 
-    # ── 检查 unattended mode ──
-    local unattended_json="$state_dir/unattended-mode.json"
-    if [ -f "$unattended_json" ]; then
+    # ── 检查 lx-goal mode（新格式）──
+    local goal_new="$state_dir/lx-goal.json"
+    if [ -f "$goal_new" ]; then
         local expired
         expired=$(python3 -c "
 import json, sys
 try:
-    d = json.load(open('$unattended_json'))
+    d = json.load(open('$goal_new'))
     expires = d.get('expires_at', '')
     if not expires:
         print('active')
@@ -310,14 +337,40 @@ try:
 except Exception:
     print('invalid')" 2>/dev/null || echo 'invalid')
         case "$expired" in
-            active) echo "unattended"; return ;;
-            expired) rm -f "$unattended_json" 2>/dev/null; echo "normal"; return ;;
+            active) echo "goal"; return ;;
+            expired) rm -f "$goal_new" 2>/dev/null ;;
+        esac
+    fi
+
+    # ── 检查旧格式 unattended-mode.json（后向兼容）──
+    local goal_old="$state_dir/unattended-mode.json"
+    if [ -f "$goal_old" ]; then
+        local expired
+        expired=$(python3 -c "
+import json, sys
+try:
+    d = json.load(open('$goal_old'))
+    expires = d.get('expires_at', '')
+    if not expires:
+        print('active')
+    else:
+        from datetime import datetime
+        exp = datetime.fromisoformat(expires)
+        if datetime.now() < exp:
+            print('active')
+        else:
+            print('expired')
+except Exception:
+    print('invalid')" 2>/dev/null || echo 'invalid')
+        case "$expired" in
+            active) echo "goal"; return ;;
+            expired) rm -f "$goal_old" 2>/dev/null ;;
         esac
     fi
 
     # ── 兼容旧 .unattended-mode（纯文件标记）──
     if [ -f "$state_dir/.unattended-mode" ]; then
-        echo "unattended"
+        echo "goal"
         return
     fi
 
@@ -325,15 +378,29 @@ except Exception:
 }
 
 # ══════════════════════════════════════════════════════════════════
-# 模式状态更新: ghost-mode.json / unattended-mode.json 原子写入
+# 模式状态更新: lx-ghost.json / lx-goal.json 原子写入
 # ══════════════════════════════════════════════════════════════════
+
+# _mode_file_for <state_dir> <mode>
+# 返回模式状态文件路径，兼容新旧命名。
+# 新格式: ghost → lx-ghost.json, goal → lx-goal.json
+# 旧格式: ghost → ghost-mode.json, unattended → unattended-mode.json（回退）
+_mode_file_for() {
+    local state_dir="$1" mode="$2"
+    case "$mode" in
+        ghost) echo "$state_dir/lx-ghost.json" ;;
+        goal)  echo "$state_dir/lx-goal.json" ;;
+        unattended) echo "$state_dir/unattended-mode.json" ;;
+        *)     echo "$state_dir/${mode}-mode.json" ;;
+    esac
+}
 
 # _mode_append_to_list <state_dir> <mode> <field> <json_value>
 # 原子追加 JSON 值到模式状态文件的列表字段。使用 tmp+rename 防止并发读取不一致。
 # 示例: _mode_append_to_list "$STATE_DIR" "ghost" "skipped_risks" '{"type":"rm -rf","command":"rm -rf /tmp","timestamp":"2026-05-11T12:00:00"}'
 _mode_append_to_list() {
     local state_dir="$1" mode="$2" field="$3" json_value="$4"
-    local file="$state_dir/${mode}-mode.json"
+    local file="$(_mode_file_for "$state_dir" "$mode")"
     [ ! -f "$file" ] && return 1
     python3 -c "
 import json, os
@@ -361,7 +428,7 @@ os.rename(tmp, file)
 # 原子递增模式状态文件的数字字段。
 _mode_increment_field() {
     local state_dir="$1" mode="$2" field="$3"
-    local file="$state_dir/${mode}-mode.json"
+    local file="$(_mode_file_for "$state_dir" "$mode")"
     [ ! -f "$file" ] && return 1
     python3 -c "
 import json, os

@@ -17,11 +17,10 @@
 |5 | **修复上限** | 同一问题最多修 3 轮，第 3 轮失败 → BLOCKED，向用户汇报 | 停止重试，等待指令|
 |6 | **禁用词** | 禁止用"应该是/可能/通常"作为技术断言，必须标注置信度 | 重新表述|
 |7 | **隐私防线** | 绝对禁止读取 .env/私钥，禁止在 Bash 敲明文 Token | 强阻断 |
-**置信度标注格式（每个技术断言必须附带）：**
-- `[已验证: file:line]` — 从源码直接确认
-- `[已测试: 命令+输出]` — 运行验证通过
-- `[推断, 待确认]` — 基于上下文推理，未直接验证
+|8 | **反自我矛盾** | 新机制引入时必须检查：(a) 非 AI 可调用批准通道 (b) 域规则正确适用 (c) 新 hook 注册完整性。见 claude-next.md R42/R43 | 机制审计失败时回滚|
+**置信度标注格式（每个技术断言必须附带）：**- `[已验证: file:line]` — 从源码直接确认- `[已测试: 命令+输出]` — 运行验证通过- `[推断, 待确认]` — 基于上下文推理，未直接验证
 
+**反自我矛盾（新增自检工具）：** `bash .claude/scripts/pre-commit-self-review.sh [commit-msg]` — 提交前检查 (a) CAPTCHA 绕过 (b) 域规则误用 (c) 新 hook 注册完整性。见 claude-next.md R42/R43。exit 2 = 阻断，exit 0 = 通过。
 
 ---
 
@@ -40,7 +39,16 @@
 |`.omc/state/session-snapshot.json` | 会话快照（分支/轮次/未提交文件） | Stop hook|
 |`.omc/state/error-dna.json` | 错误模式库（签名/次数/修复上下文） | PostToolUse:Bash|
 |`.omc/state/todo-queue.md` | 当前 Todo 队列（FIFO，max 15） | 手动更新|
+|`.omc/state/dogfood/` | 狗粮记录（结构化 YAML + 故事） | 每次狗粮处理后|
 |`\~/.claude/flywheel.log` | 全局工作习惯日志 | Stop hook flush |
+
+## 飞轮故事
+
+> 一次真实的狗粮反哺 Carror OS 自身的完整记录。
+> 客户项目 → Oracle 审查 → 教训分拣 → lx-oma-hier v1.2.0→v1.3.0 → claude-next.md +10 条教训
+
+- [📖 飞轮初转（中文）](../docs/dogfooding/cn/flywheel-first-turn.md)
+- [📖 The First Turn of the Flywheel (English)](../docs/dogfooding/us/flywheel-first-turn.md)
 
 ## 当前状态快速查看
 
@@ -50,76 +58,7 @@
 # 查看错误记忆cat .omc/state/error-dna.json | python3 -c \ "import json,sys; [print(e['signature'][:60],'×',e['count']) \ for e in json.load(sys.stdin) if e.get('status')!='fixed']"
 ```
 
-## Hooks 速查（共 39 个）
-| Hook | 触发 | 作用|
-|------|------|------|
-|`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop Hook|
-|`build-validator` | PostToolUse / PostToolUseFailure | build-validator.sh — PostToolUse:Bash 构建失败自动记录 + 修复建议|
-|`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit Hook|
-|`completion-gate` | PostToolUse | completion-gate.sh — PostToolUse:TaskUpdate Hook|
-|`context-guard` | PreToolUse | context-guard.sh — PreToolUse:Edit|Write Hook (R29: 写操作阻断, 开放读通道)|
-|`edit-guard` | PreToolUse | edit-guard.sh — PreToolUse:Edit Hook|
-|`error-dna` | PostToolUse / PostToolUseFailure | PostToolUse hook: Capture structured error DNA for cross-session error memory|
-|`flywheel-report` | SessionStart | flywheel-report.sh — SessionStart Hook (RPE-017 enhanced)|
-|`inject-project-knowledge` | SessionStart | 项目级 SessionStart hook：注入 .claude/ 核心知识到 AI context|
-|`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep Hook|
-|`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash Hook|
-|`posttool-bash-audit` | PostToolUse / PostToolUseFailure | PostToolUse:Bash 权限上下文审计 - 只提醒不阻断|
-|`posttool-edit-quality` | PostToolUse | PostToolUse:Edit 代码风格自查 + 文档同步提醒 + 方案复用检测|
-|`posttool-subagent-audit` | PostToolUse | posttool-subagent-audit.sh — PostToolUse:Task Hook|
-|`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write Hook|
-|`posttool-write-lock` | PostToolUse | write-lock-release.sh (PostToolUse) — Carror OS OMA 并发锁释放|
-|`pretool-edit-scope` | PreToolUse | PreToolUse:Edit — 范围冻结拦截 + 核心文件警告 + 耦合提醒|
-|`pretool-user-correction` | UserPromptSubmit | pretool-user-correction.sh — UserPromptSubmit Hook|
-|`pretool-write-lock` | PreToolUse | write-lock-gate.sh (PreToolUse) — Carror OS OMA 并发锁前置拦截|
-|`privacy-gate` | PreToolUse | privacy-gate.sh — PreToolUse:Read / Grep / Bash Hook|
-|`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read Hook|
-|`skill-flywheel` | Stop | skill-flywheel.sh — Stop Hook|
-|`stop-drain` | Stop | stop-drain.sh — Stop hook 兜底重放|
-|`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task Hook|
-|`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit Hook|
-|`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate Hook（任务更新前门禁）|
-|`posttool-handoff-writer` | PostToolUse | posttool-handoff-writer.sh — PostToolUse:TaskUpdate Hook|
-|`posttool-claim-audit` | PostToolUse | posttool-claim-audit.sh — PostToolUse:Edit|Write Hook（铁律#1 强制校验）|
-|`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write Hook（矛盾检测）|
-|`token-writer` | PostToolUse / SessionStart | token_writer.sh — PostToolUse:.* + SessionStart Hook（Token 追踪）|
-|`error-dna-auto-fix` | Stop | error-dna-auto-fix.sh — Stop Hook（自动修复 Error DNA）|
-|`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop Hook（知识压缩）|
+## Hooks 速查（共 42 个）
 
-### 已注册但默认禁用的脚本（共 6 个）
-
-以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
-
-| 脚本 | 事件 | 说明 |
-|------|------|------|
-| plan-gate | PreToolUse | plan-gate.sh — PreToolUse:Edit Hook [DISABLED: harness.yaml 默认关闭] |
-| posttool-read-cite | PostToolUse | PostToolUse:Read 来源标注提醒 - 读取文件后提示引用规范 [已注册，默认禁用] |
-| proactive-handoff | PostToolUse | proactive-handoff.sh — PostToolUse Hook [已注册，harness.yaml 默认关闭] |
-| fuzzy-block | PreToolUse | fuzzy-block.sh — PreToolUse 模糊指令阻断 [主动注册但未激活，harness.yaml 默认关闭] |
-| pretool-retry-check | PreToolUse | pretool-retry-check.sh — PreToolUse:Bash 重试上限检查 [主动注册但未激活，harness.yaml 默认关闭] |
-| posttool-completion-audit | PostToolUse | posttool-completion-audit.sh — PostToolUse:TaskUpdate 证据质量独立审计 [主动注册但未激活，harness.yaml 默认关闭] |
-
-### 独立工具脚本（非 Hook）
-
-| 脚本 | 说明 |
-|------|------|
-| feature-probe.sh | L1-L4 证据验证工具，手动调用 |
-
-## Language Profile 选择
-
-```bash
-# Go 项目cp .claude/profiles/go/harness.yaml .claude/harness.yaml
-
-# Node.js / TypeScript 项目cp .claude/profiles/node/harness.yaml .claude/harness.yaml
-
-# Python 项目cp .claude/profiles/python/harness.yaml .claude/harness.yaml
-
-# 恢复 generic（任意语言）# 重新安装即可
-```
-
----
-> >
-> **第一次使用**：直接和 Claude Code 说出你要做的事，harness-kit 在后台保护你。
-> **积累 2 周后**：AI 开始记住你的习惯和踩过的坑。
-> **积累 3 个月后**：`.claude/` 成为你的数字分身，换项目 10 秒恢复。
+详见 `.claude/reference/hooks-table.md`（Read 查看）。
 

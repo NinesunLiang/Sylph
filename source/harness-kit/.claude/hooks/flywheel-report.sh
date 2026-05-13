@@ -117,64 +117,6 @@ warnings = [(evt, cnt) for evt, cnt in ranked
 if not warnings:
     sys.exit(0)
 
-# /dev/tty terminal summary (visible to user, not injected into AI context)
-compact = " | ".join(f"{evt}x{cnt}" for evt, cnt in warnings[:3])
-try:
-    with open('/dev/tty', 'w') as tty:
-        tty.write(f"\r[Flywheel] {compact}\n")
-except Exception:
-    pass
-
-# AC-17.3: Monthly trend comparison (printed to /dev/tty only)
-this_month_cutoff = cutoff
-prev_month_cutoff = (today - timedelta(days=60)).isoformat()
-this_month_counts = defaultdict(int)
-prev_month_counts = defaultdict(int)
-
-try:
-    with open(log_path) as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split(',')
-            if len(parts) < 3:
-                continue
-            d, evt = parts[0], parts[1]
-            sev = parts[2] if len(parts) > 2 else ''
-            if sev != 'P0':
-                continue
-            if is_suppressed(evt):
-                continue
-            if d >= this_month_cutoff:
-                this_month_counts[evt] += 1
-            elif d >= prev_month_cutoff:
-                prev_month_counts[evt] += 1
-except Exception:
-    pass
-
-trend_lines = []
-all_events = set(list(this_month_counts.keys()) + list(prev_month_counts.keys()))
-for evt in sorted(all_events):
-    this_c = this_month_counts.get(evt, 0)
-    prev_c = prev_month_counts.get(evt, 0)
-    diff = this_c - prev_c
-    if diff > 0:
-        trend_lines.append(f"{evt}: {prev_c} -> {this_c} (+{diff})")
-    elif diff < 0:
-        trend_lines.append(f"{evt}: {prev_c} -> {this_c} ({diff})")
-    elif this_c > 0:
-        trend_lines.append(f"{evt}: {this_c} (no change)")
-
-if trend_lines:
-    try:
-        with open('/dev/tty', 'w') as tty:
-            tty.write("\n[Flywheel Trend] (this month vs last month)\n")
-            for line in trend_lines[:5]:
-                tty.write(f"  {line}\n")
-    except Exception:
-        pass
-
 # AC-17.2: Write date-stamped report to persistent directory
 report_path = os.path.join(report_dir, f"flywheel-report-{today_str}.md")
 try:

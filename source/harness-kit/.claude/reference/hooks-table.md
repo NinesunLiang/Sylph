@@ -14,21 +14,26 @@
 |`error-dna` | PostToolUse/PostToolUseFailure:Bash | error-dna.sh — 结构化错误 DNA 捕获+symptom 分类|
 |`error-dna-auto-fix` | Stop | error-dna-auto-fix.sh — 自动修复建议生成|
 |`flywheel-report` | SessionStart | flywheel-report.sh — Flywheel P0 事件告警|
+|`fuzzy-block` | PreToolUse:.* | fuzzy-block.sh — 模糊指令硬阻断+无人值守降级|
 |`inject-project-knowledge` | SessionStart | 注入 .claude/ 核心知识+handoff next-step|
 |`intent-tracker` | PostToolUse:Edit/W | intent-tracker.sh — 声明矛盾检测+additionalContext|
 |`knowledge-condenser` | Stop | knowledge-condenser.sh — claude-next.md 压缩归档|
 |`lsp-suggest` | PreToolUse:Grep | lsp-suggest.sh — LSP 使用建议|
 |`permission-gate` | PreToolUse:Bash | permission-gate.sh — 危险命令拦截(git/rm/sudo/gh/scope)|
+|`pre-completion-gate` | PreToolUse:TaskUpdate | pre-completion-gate.sh — 前置完成门禁，阻止无证据 completed|
 |`plan-gate` | PreToolUse:Edit/W | plan-gate.sh — Plan 前置检查 [DISABLED: harness.yaml 默认关闭]|
 |`posttool-bash-audit` | PostToolUse/PostToolUseFailure:Bash | 权限上下文审计 — 只提醒不阻断|
+|`posttool-claim-audit` | PostToolUse:Edit|Write | 铁律 #1 禁止编造 — 验证 AI 代码断言基于真实读取|
+|`posttool-anti-pattern-detect` | PostToolUse:TaskUpdate\|Edit\|Write | posttool-anti-pattern-detect.sh — A2/F1/H1 反模式自动检测|
 |`posttool-edit-quality` | PostToolUse:Edit/W | 代码风格自查+文档同步提醒+方案复用检测|
+|`posttool-format-gate` | PostToolUse:TaskUpdate\|Edit\|Write | #5 以人为本 — 输出格式方向感+结构化+摘要检查|
 |`posttool-handoff-writer` | PostToolUse:TaskUpdate | 每次 TaskUpdate completed 写 handoff|
 |`posttool-read-cite` | PostToolUse:Read | Read 来源标注提醒 [默认禁用]|
 |`posttool-subagent-audit` | PostToolUse:Task | 子 agent 字节数审计→flywheel P0|
 |`posttool-write-cite` | PostToolUse:Write | Write 后自动记录引用|
 |`posttool-write-lock` | PostToolUse:Edit/W | write-lock-release.sh — OMA 并发锁释放|
 |`pretool-edit-scope` | PreToolUse:Edit/W | 范围冻结拦截+auto-scope 自动推导+耦合提醒|
-|`pretool-rule-anchor` | PreToolUse:Edit/W | 规则锚定提醒|
+|`pretool-sensitive-edit` | PreToolUse:Edit/W | #6 0信任 — 治理文件编辑 CAPTCHA 验证码门禁|
 |`pretool-user-correction` | UserPromptSubmit | 用户纠正信号检测+claude-next.md 自动记录|
 |`pretool-write-lock` | PreToolUse:Edit/W | write-lock-gate.sh — OMA 并发锁前置拦截|
 |`privacy-gate` | PreToolUse:Read/Grep/Bash | .env/私钥读取拦截|

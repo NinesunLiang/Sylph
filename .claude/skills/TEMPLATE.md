@@ -34,7 +34,7 @@ l
 |verifier | `../../nodes/verifier.md` | 验证修复（如适用）|
 |gate_checker | `../../nodes/gate_checker.md` | Gate 判定（如适用）|
 |report_generator | `../../nodes/report_generator.md` | 报告生成|
-|behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |
+|behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |\|
 ### 引用的通用 Schema
 | Schema | 路径 | 用途|
 |--------|------|------|
@@ -44,12 +44,12 @@ l
 |scan_report | `../../schemas/atomic/scan_report.yaml` | 报告|
 |fix_record | `../../schemas/atomic/fix_record.yaml` | 修复记录|
 |gate_result | `../../schemas/atomic/gate_result.yaml` | Gate 判定（如适用）|
-|verdict | `../../schemas/atomic/verdict.yaml` | 最终判定 |
+|verdict | `../../schemas/atomic/verdict.yaml` | 最终判定 |\|
 ### 引用的 task_sys 组件
 | 组件 | 路径 | 用途|
 |------|------|------|
 |统一交付 Schema | `../../task_sys/unified_delivery_schema.md` | 输出格式统一|
-|上下文守卫 | `../../task_sys/context_guard.md` | 长会话上下文总结 |
+|上下文守卫 | `../../task_sys/context_guard.md` | 长会话上下文总结 |\|
 ### 状态机
 > > 说明本 skill 的状态机类型：
 > - **scan→fix→re-scan 循环**（审查类）
@@ -63,7 +63,7 @@ l
 | 不做的操作 | 原因 | 推荐替代|
 |-----------|------|---------|
 |{不做的操作 1} | {原因} | 使用 {替代 skill}|
-|{不做的操作 2} | {原因} | 使用 {替代 skill} |
+|{不做的操作 2} | {原因} | 使用 {替代 skill} |\|
 ---
 ## 执行流程
 ### Step 0: 入口检查

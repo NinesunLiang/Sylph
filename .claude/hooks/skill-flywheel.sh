@@ -33,8 +33,8 @@ TS_ISO=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 # 消费 buffer
 rm -f "$BUFFER"
 
+# Stop hook 不输出到 stdout（会导致 JSON 解析冲突）
 LINES=$(echo "$BUFFER_CONTENT" | wc -l | tr -d ' ')
-echo "Flywheel flushed: ${LINES} entries → flywheel.log (${TS_ISO})"
 
 # === Analytics: compute per-skill frequency and deprecation detection ===
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
@@ -66,8 +66,8 @@ except Exception:
 PYEOF
 )
     if [ -n "$DEP_OUTPUT" ]; then
-        ESCAPED=$(echo "$DEP_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-        echo "{\"continue\": true, \"hookSpecificOutput\": {\"hookEventName\": \"Stop\", \"additionalContext\": ${ESCAPED}}}"
+        # Stop hook 不输出到 stderr（会导致 JSON 校验错误）
+        echo "$DEP_OUTPUT" > "$PROJECT_ROOT/.omc/state/flywheel-deprecated-skills.txt"
     fi
 fi
 

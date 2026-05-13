@@ -297,3 +297,13 @@ skills:
     category: workflow
     description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team/OMA Lock/race_manager.sh"
     enabled_by_default: true
+  - name: lx-goal
+    type: workflow
+    category: automation
+    description: "目标模式 — 目标驱动自主执行。给 AI 具体目标，自动执行到完并输出报告。"
+    enabled_by_default: true
+  - name: lx-ghost
+    type: workflow
+    category: automation
+    description: "幽灵模式 — 方向驱动自主探索。给 AI 方向，AI 自主探索修复，不干扰人。"
+    enabled_by_default: true

@@ -28,7 +28,7 @@ GIT_PUSH_RE=$(hc_get "permission_gate.git_push_regex" 'git\s+push\b')
 DESTRUCTIVE_RE=$(hc_get "permission_gate.destructive_regex" '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b')
 SUDO_RE=$(hc_get "permission_gate.sudo_regex" '^\s*sudo\b|sudo\s')
 GH_WRITE_RE=$(hc_get "permission_gate.gh_write_regex" 'gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))')
-SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt')
+SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|sensitive-approved')
 
 # 危险命令检测
 IS_DANGEROUS=false
@@ -216,8 +216,8 @@ esac
 APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "perm-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
 
-PERMISSION_FILE="${PROJECT_ROOT}/.omc/state/permission-approved"
 echo "Permission Gate: ${SEVERITY} 级别操作 — ${DANGER_TYPE}" >&2
-echo '复制这一行并粘贴到输入框（含 ! 前缀）：' >&2
-echo "! echo '${APPROVAL_CODE}' > ${PERMISSION_FILE}" >&2
+echo "🚫 危险操作已阻断！" >&2
+echo "请在对话中输入「确认放行」来批准本条操作。" >&2
+echo "AI 不得自行绕过门禁 — 必须等待人类明确书面授权。" >&2
 exit 2

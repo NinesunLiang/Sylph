@@ -166,6 +166,7 @@ message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
 # E5: Noise classification — known operational patterns that are not actionable
 # Note: Keep as substring `in` matching (not regex). These patterns are also used
 # retroactively during aggregation to re-classify pre-noise-era records.
+# 20 active entries (removed 3 over-broad: PreToolUse:, =======, summary:) Item 4 fix
 NOISE_PATTERNS = [
     'File has not been read yet',             # edit-guard enforcement (normal)
     "doesn't want to proceed",                 # user tool rejection (normal)
@@ -182,14 +183,20 @@ NOISE_PATTERNS = [
     'Exit code 126',                           # permission denied (operational)
     'Exit code 127',                           # command not found (operational)
     'PreToolUse:Bash hook error',              # hook pipeline error (operational)
-    'PreToolUse:',                              # any PreToolUse hook error (operational)
+    # 'PreToolUse:' — REMOVED: over-broad, masks real hook bugs (Item 4 fix)
     'no matches found',                         # shell glob failure (operational)
     'File content has changed since',           # concurrency guard (normal)
     'Skill compact is not',                     # invalid skill name (operational)
     'verify_oma_interface_coverage',          # OMA verify script errors (operational)
     'OMA 接口覆盖校验',                        # OMA 接口覆盖校验 banner (operational)
-    '=======',                                 # harness-smoke/test separator (operational)
-    'summary:',                                # test summary line (operational)
+    # ED-02: Gate 操作是正常行为，非错误
+    'context-guard.sh',                        # context-guard 阻断 (正常 gate 操作)
+    'pretool-sensitive-edit.sh',              # sensitive-edit 阻断 (正常 gate 操作)
+    '有意分歧',                                # mirror 检查信息 (正常同步约束)
+    'old_string and new_string are exactly the same',  # Edit no-op (正常操作)
+    'diff: unrecognized option',               # macOS compat (已知兼容问题)
+    # '=======' — REMOVED: over-broad (Item 4 fix)
+    # 'summary:' — REMOVED: over-broad (Item 4 fix)
 ]
 is_noise = any(p in message for p in NOISE_PATTERNS)
 
@@ -454,13 +461,13 @@ try:
 except Exception:
     pass
 
-# === Oracle Q2-A: additionalContext for high-frequency errors (>=2 occurrences) ===
+# === Oracle Q2-A: additionalContext for high-frequency errors (>=1 occurrences) ===
 frequent = [(sig, info['count'], info.get('message', '')[:120])
             for sig, info in aggregated.items()
-            if info['count'] >= 2 and info.get('status') not in ('fixed', 'noise')]
+            if info['count'] >= 1 and info.get('status') not in ('fixed', 'noise')]
 if frequent:
     frequent.sort(key=lambda x: -x[1])
-    lines = ["[高频错误模式检测] 以下签名已出现 >=2 次:"]
+    lines = ["[高频错误模式检测] 以下签名已出现 >=1 次:"]
     # 按工具类型分组
     tool_groups = {}
     for sig, count, msg in frequent:

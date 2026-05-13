@@ -22,7 +22,7 @@ turn_counter: todo_refresh_interval: 10 todo_max_items: 15\
 fuzzy_detection: fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"\
 lsp_suggest: enabled: true\
 subagent_guard: dangerous_types: "executor designer scientist"\
-completion_gate: min_evidence_chars: 20 required_keyword: "VERIFIED" quality_threshold: 65\
+completion_gate: min_evidence_chars: 20 required_keyword: "VERIFIED" quality_threshold: 0.6\
 bash_audit: dangerous_patterns: "git commit git push git reset --hard rm -rf rm -r pkill kill"\
 permission_gate: git_commit_regex: 'git\s+(commit|add\s+--?all|\badd\b.*-A)' git_push_force_regex: 'git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force' git_push_regex: 'git\s+push\b' destructive_regex: '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b' sudo_regex: '^\s*sudo\b|sudo\s' permission_keywords: "当前任务 申请理由 permission 需要权限"\
 sublimation: count_threshold: 20 age_days: 10 hit_threshold: 5\
@@ -30,6 +30,6 @@ correction_detector: signals: "不对 错了 你搞错了 应该是 重新来"\
 session_handoff: enabled: true max_adr_lines: 10 max_todo_lines: 10 max_lessons: 3\
 error_dna: enabled: true max_entries: 100\
 coupling: enabled: true min_co_change: 3 max_history_commits: 200 max_coupled_files: 5\
-hooks_enabled: completion_gate: true subagent_guard: true pretool_edit_scope: true edit_guard: true lsp_suggest: true posttool_read_cite: false posttool_bash_audit: true posttool_write_cite: true permission_gate: true auto_snapshot: true posttool_edit_quality: true inject_project_knowledge: true plan_gate: false turn_counter: true read_tracker: true error_dna: true skill_flywheel: true build_validator: true user_correction_detector: true rule_anchor: false proactive_handoff: false posttool_claim_audit: true intent_tracker: true error_dna_auto_fix: true knowledge_condenser: true posttool_handoff_writer: true fuzzy_block: false retry_budget_check: false posttool_completion_audit: false compact_detect: true context_guard: true posttool_subagent_audit: true posttool_write_lock: true pre_completion_gate: true pretool_write_lock: true privacy_gate: true stop_drain: true token_writer: true\
+hooks_enabled: completion_gate: true context_guard: true subagent_guard: true pretool_edit_scope: true edit_guard: true lsp_suggest: true posttool_read_cite: false posttool_bash_audit: true posttool_write_cite: true permission_gate: true auto_snapshot: true posttool_edit_quality: true inject_project_knowledge: true plan_gate: false turn_counter: true read_tracker: true error_dna: true error_dna_auto_fix: true knowledge_condenser: true posttool_claim_audit: true intent_tracker: true posttool_handoff_writer: true posttool_output_format: true pretool_sensitive_edit: true skill_flywheel: true build_validator: true user_correction_detector: true rule_anchor: true proactive_handoff: false\
 rule_anchor: turn_threshold: 15 interval: 5\
 build_validator: log_file: ".omc/state/build-errors.log" max_log_entries: 50

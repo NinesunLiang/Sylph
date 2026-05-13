@@ -24,13 +24,16 @@
 |`plan-gate` | PreToolUse:Edit/W | plan-gate.sh — Plan 前置检查 [DISABLED: harness.yaml 默认关闭]|
 |`posttool-bash-audit` | PostToolUse/PostToolUseFailure:Bash | 权限上下文审计 — 只提醒不阻断|
 |`posttool-claim-audit` | PostToolUse:Edit|Write | 铁律 #1 禁止编造 — 验证 AI 代码断言基于真实读取|
+|`posttool-anti-pattern-detect` | PostToolUse:TaskUpdate\|Edit\|Write | posttool-anti-pattern-detect.sh — A2/F1/H1 反模式自动检测|
 |`posttool-edit-quality` | PostToolUse:Edit/W | 代码风格自查+文档同步提醒+方案复用检测|
+|`posttool-format-gate` | PostToolUse:TaskUpdate\|Edit\|Write | #5 以人为本 — 输出格式方向感+结构化+摘要检查|
 |`posttool-handoff-writer` | PostToolUse:TaskUpdate | 每次 TaskUpdate completed 写 handoff|
 |`posttool-read-cite` | PostToolUse:Read | Read 来源标注提醒 [默认禁用]|
 |`posttool-subagent-audit` | PostToolUse:Task | 子 agent 字节数审计→flywheel P0|
 |`posttool-write-cite` | PostToolUse:Write | Write 后自动记录引用|
 |`posttool-write-lock` | PostToolUse:Edit/W | write-lock-release.sh — OMA 并发锁释放|
 |`pretool-edit-scope` | PreToolUse:Edit/W | 范围冻结拦截+auto-scope 自动推导+耦合提醒|
+|`pretool-sensitive-edit` | PreToolUse:Edit/W | #6 0信任 — 治理文件编辑 CAPTCHA 验证码门禁|
 |`pretool-user-correction` | UserPromptSubmit | 用户纠正信号检测+claude-next.md 自动记录|
 |`pretool-write-lock` | PreToolUse:Edit/W | write-lock-gate.sh — OMA 并发锁前置拦截|
 |`privacy-gate` | PreToolUse:Read/Grep/Bash | .env/私钥读取拦截|

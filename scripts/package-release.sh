@@ -20,8 +20,8 @@ HARNESS_SRC="source/harness-kit"
 LX_SRC="source/lx-skills-v5"
 
 # ─── Step 1: root -> source/harness-kit ───
+# NOTE: AGENTS.md 有意不复制（根=元项目专属，source=通用分发模板）
 log_step "1/4 同步 root -> source/harness-kit..."
-cp AGENTS.md "$HARNESS_SRC/AGENTS.md"
 cp CLAUDE.md "$HARNESS_SRC/CLAUDE.md"
 rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
 rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
@@ -34,6 +34,7 @@ cp .claude/anti-patterns.md "$HARNESS_SRC/.claude/anti-patterns.md"
 cp .claude/claude-next.md   "$HARNESS_SRC/.claude/claude-next.md"
 rsync -a --delete --exclude=node_modules .cursor/  "$HARNESS_SRC/.cursor/"
 rsync -a --delete --exclude=node_modules .opencode/ "$HARNESS_SRC/.opencode/"
+rsync -a --delete --exclude=node_modules .hooks/     "$HARNESS_SRC/.hooks/"
 # 清理运行时状态 和 lx-skills 专属内容
 rm -f "$HARNESS_SRC/.omc/state/"*.json "$HARNESS_SRC/.omc/state/"*.txt 2>/dev/null || true
 rm -rf "$HARNESS_SRC/.claude/nodes" "$HARNESS_SRC/.claude/profiles" \
@@ -73,7 +74,7 @@ log_step "3/4 构建 harness-kit..."
 cd "$HARNESS_SRC"
 tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
   --exclude=.omc --exclude=node_modules --exclude='*.pyc' \
-  AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/
+  AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/
 cd "$PROJECT_DIR"
 H_CONTAM=$(tar tzf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
   | grep -cE '\.claude/(nodes|profiles|schemas|skills|task_sys)/' || true)

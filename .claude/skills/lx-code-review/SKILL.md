@@ -125,7 +125,7 @@ t
 |H3 类型断言无 comma-ok | 改为 `v, ok := i.(Type)`|
 |H4 slice 无边界检查 | 添加 `if len(items) == 0`|
 |H5 资源未释放 | 添加 `defer resource.Close(ctx)`|
-|H6 无超时 | 添加 `context.WithTimeout` |
+|H6 无超时 | 添加 `context.WithTimeout` |\|
 **修复规则**：优先复用现有组件；匹配项目风格；每个问题最多 2 次修复尝试。
 
 ### Step 6.5: Re-scan 验证
@@ -146,7 +146,7 @@ t
 | 触发条件 | 执行命令|
 |---------|---------|
 |P0 问题存在 | `echo "$(date +%Y-%m-%d),code_quality_p0,P0,$(basename $(pwd))" >> ~/.claude/flywheel-buffer.jsonl`|
-|P1 问题存在 | `echo "$(date +%Y-%m-%d),code_quality_p1,P1,$(basename $(pwd))" >> ~/.claude/flywheel-buffer.jsonl` |
+|P1 问题存在 | `echo "$(date +%Y-%m-%d),code_quality_p1,P1,$(basename $(pwd))" >> ~/.claude/flywheel-buffer.jsonl` |\|
 
 ### Step 7: 输出报告
 加载 `@../../nodes/report_generator.md`，传入 `scan_report` + `verdict`。
@@ -155,7 +155,11 @@ t
 ## 跨 Skill 联动
 | 方向 | Skill | 触发条件 | 数据契约|
 |------|-------|---------|---------|
+|下游传至 | `/lx-golang-test` | P0/P1 中发现的未测试路径 | 传递：未覆盖函数名 + 问题场景|
 |下游传至 | `/lx-security-review` | 审查通过后 → 安全扫描 | 传递：审查通过的文件列表|
+|下游传至 | `/lx-debug-spec` | Auto-fix 失败（blocked） | 传递：规则号 + 问题描述 + 失败尝试 + 代码位置|
+|上游来自 | `/lx-tdd-spec` | 规格完成 → 实现完成 → 代码审查 | 接收：实现文件列表|
+|关联 | `/lx-perf-analysis` | E 类别发现严重性能问题 | 传递：性能问题位置 + 初步诊断 |\|
 
 ## 错误恢复与升级路径
 | 场景 | 恢复动作|
@@ -164,7 +168,7 @@ t
 |git 不可用 | 回退到 `$ARGUMENTS` 指定的文件列表扫描|
 |review-rules.md 缺失 | AI 使用通用规则执行扫描|
 |go-style-guide.md 缺失 | 使用本 Skill 内置规范，降级通知用户|
-|2 次修复失败 + 根因不明 | 升级至 `/lx-debug-spec` |
+|2 次修复失败 + 根因不明 | 升级至 `/lx-debug-spec` |\|
 
 ## 中止条件- 过滤后无 Go 文件 → "无变更"报告- 非 Go 项目（无 go.mod）→ "不适用"- 全部命中为误报 → "通过"报告- 待确认项超过 5 个 → 暂停，请求用户输入
 

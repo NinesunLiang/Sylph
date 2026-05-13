@@ -450,5 +450,49 @@ os.rename(tmp, dump_path)
 print(f"Session dump written: {len(dump)} sections")
 PYEOF
 
+# ─── 配置变更自动回归检测（US-009）────────────────────
+# 检测 harness.yaml 或 settings.json 修改时间是否变化
+REG_BASELINE="$STATE_DIR/.regression-baseline.txt"
+REG_CHANGED=false
+
+for CFG in "$PROJECT_ROOT/.claude/harness.yaml" "$PROJECT_ROOT/.claude/settings.json"; do
+    [ ! -f "$CFG" ] && continue
+    CFG_MTIME=$(stat -f "%m" "$CFG" 2>/dev/null || echo "0")
+    CFG_NAME=$(basename "$CFG")
+    BASELINE_MTIME=""
+    if [ -f "$REG_BASELINE" ]; then
+        BASELINE_MTIME=$(grep "^${CFG_NAME}=" "$REG_BASELINE" 2>/dev/null | cut -d= -f2)
+    fi
+    if [ -n "$BASELINE_MTIME" ] && [ "$CFG_MTIME" != "$BASELINE_MTIME" ]; then
+        REG_CHANGED=true
+        break
+    fi
+done
+
+if [ "$REG_CHANGED" = true ]; then
+    echo "  ⚙️ 配置变更检测: 触发自动化回归校验" >&2
+    REG_TS=$(date -u +%Y%m%d-%H%M%S)
+    REG_OUT="$STATE_DIR/auto-regression-$REG_TS.json"
+
+    # 后台运行回归（nohup 防 Stop hook 退出后进程被 kill）
+    nohup bash -c "
+    SMOKE_OUTPUT=\$(bash '$PROJECT_ROOT/.claude/scripts/harness-smoke-test.sh' 2>&1)
+    SMOKE_SUM=\$(echo \"\$SMOKE_OUTPUT\" | grep 'summary:' | tail -1)
+    AUDIT_OUTPUT=\$(bash '$PROJECT_ROOT/.claude/scripts/audit-hooks.sh' 2>&1)
+    AUDIT_RED=\$(echo \"\$AUDIT_OUTPUT\" | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo '-')
+    AUDIT_YELLOW=\$(echo \"\$AUDIT_OUTPUT\" | grep -oE '🟡 次要: [0-9]+' | grep -oE '[0-9]+' || echo '-')
+    echo '{\"timestamp\":\"$REG_TS\",\"trigger\":\"config_change\",\"smoke\":\"'\$SMOKE_SUM'\",\"audit_red\":\"'\$AUDIT_RED'\",\"audit_yellow\":\"'\$AUDIT_YELLOW'\"}' > '$REG_OUT'
+    echo '  ✔ 回归结果: \$SMOKE_SUM  audit: \$AUDIT_RED🔴 \$AUDIT_YELLOW🟡'
+    " > "$STATE_DIR/.regression-run-$REG_TS.log" 2>&1 &
+
+    # 更新基线
+    for CFG in "$PROJECT_ROOT/.claude/harness.yaml" "$PROJECT_ROOT/.claude/settings.json"; do
+        [ ! -f "$CFG" ] && continue
+        CFG_MTIME=$(stat -f "%m" "$CFG" 2>/dev/null || echo "0")
+        CFG_NAME=$(basename "$CFG")
+        echo "${CFG_NAME}=${CFG_MTIME}"
+    done > "$REG_BASELINE"
+fi
+
 echo '{"continue": true}'
 exit 0

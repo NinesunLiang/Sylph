@@ -3,7 +3,7 @@ name: lx-oma-hier
 
 description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma-split 拆解为特性级 RPE。
 
-version: v1.2.0
+version: v1.3.0
 harness_version: "6.1.9"
 model: sonnet
 argument-hint: "<path> [output_dir]"
@@ -69,15 +69,29 @@ need_input → [reading → analyzing → generating → verifying] → done
 
 入参是一条路径（`<path>`），由调用者附在触发语后（如 `/lx-oma-hier docs/prd-v3/` 或 `/lx-oma-hier master-prd.md`）。
 
+### 2.1 执行模式检测
+
+首先检测是否传入 `--pipeline` 参数：
+- **编排模式**（含 `--pipeline`）：强制执行 §8 Pipeline 集成（写入 pipeline.yaml、telemetry）
+- **手动模式**（无 `--pipeline`）：跳过 pipeline.yaml 写入，telemetry 按环境可用性决定，并在报告注明模式
+
+### 2.2 输出路径优先级
+
+输出目录按以下优先级确定：
+
+1. **kernel.md 约定路径**：搜索项目 `.claude/kernel.md` 中 `OMA 路径约定` 节 → 若有约定则优先遵循（如 `main_prds/{sub_prd}/prd.md`）
+2. **用户显式指定**：第二个参数 `<output_dir>` 指定的路径
+3. **默认路径**：`sub-prds/`（输入的同级目录）
+
+> 路径确定后必须向用户显式报告（"输出到：{路径}"），输出目录已存在时询问是否覆盖或指定新路径。
+
+### 2.3 输入读取
+
 1. 使用 Glob/Read 检查该路径。
 2. 如果是文件，直接读取内容。
 3. 如果是目录，读取该目录下所有 `.md` 文件内容作为上下文。
 4. 如果有图片（`.png/.jpg/.svg` 等），在 `Read` 读取时描述其内容结构。
 5. 如果未提供路径，向用户询问目标。
-
-输出目录默认 `sub-prds/`，可接受第二个参数指定目录：
-- `/lx-oma-hier <input>` → 输出到 `sub-prds/`
-- `/lx-oma-hier <input> <output_dir>` → 输出到 `<output_dir>/`
 
 ## 3. MECE 功能域拆解（Level 1）
 
@@ -85,35 +99,53 @@ need_input → [reading → analyzing → generating → verifying] → done
 
 ### 3.1 拆解方法论
 
-1. **识别核心业务实体**：从 PRD 中提取主体概念（如：用户、订单、支付、商品、通知...）
+1. **识别核心业务实体**：从 PRD 中提取主体概念（如：用户、订单、支付、商品、通知...）。**在生成任何文档前，必须显式输出实体归属表**，格式：
+   ```markdown
+   ## 核心业务实体识别
+   | 实体名 | 候选归属域 | 归属理由 |
+   |--------|-----------|---------|
+   | {实体} | {域} | {引用 PRD 原文章节} |
+   ```
+   > 实体识别输出后，再检查实体冲突（同一实体被多个域候选），确认无冲突后再进入下一步。
+
 2. **按职责聚类**：围绕每个实体，聚合其相关功能
-3. **正交性校验**：每两个域之间检查——有没有功能重叠？有没有数据交叉？
+
+3. **正交性校验**：每两个域之间检查——有没有功能重叠？有没有数据交叉？引用 PRD 原文章节作为证据
+
 4. **边界确认**：明确每个域"管什么/不管什么"
 
-### 3.2 MECE 检查表
+### 3.2 MECE 校验（统一摘要表）
 
-每拆出一个域，逐项标记：
+所有域生成后，统一输出 MECE 校验摘要表（不逐域输出 checkbox）：
 
-**正交性验证（必须全绿）：**
-- [ ] 与已拆出的所有域无职责重叠（对照 PRD 原文逐条核查）
-- [ ] 该域内部功能内聚（高内聚 — 所有功能围绕同一业务实体）
-- [ ] 该域对外暴露的接口明确（低耦合 — ≤5 个对外接口）
-- [ ] 该域可绑 Mock 数据独立验证（输入/输出有明确契约）
+**正交性矩阵**：对每两个域检查职责重叠，引用 PRD 原文章节作为证据
+```markdown
+| 域对 | 潜在重叠点 | 裁决 |
+|------|-----------|------|
+| D01 vs D02 | {检查项} | 不重叠 ✅（引用 PRD 原文 §X）|
+```
 
-**边界清晰度验证：**
-- [ ] "负责"清单完整覆盖该域所有职责
-- [ ] "不负责"清单明确排除了与其他域的重叠区
-- [ ] 每个接口至少有一个调用方和一个实现方（无孤儿接口）
+**数据实体唯一 Own 验证**：确认无两个域同时声明"拥有"同一实体（同时检查表格行和散文描述）
+```markdown
+| 实体名 | Own 方 | 其他域声明 | 冲突状态 |
+|--------|--------|-----------|---------|
+```
 
-**数据实体验证：**
-- [ ] 本域 Own 的实体不被其他域同时 Own（唯一数据主控）
-- [ ] 本域 Read 的实体在其他域中有明确的 Own 方
-- [ ] 实体 CRUD 操作类型完整（C/R/U/D 若适用则必须列出）
+**接口耦合度**：记录各域对外接口数，数量超标（>10）记录警告但标记为合理（业务复杂度决定）
+```markdown
+| 域 | 对外接口数 | 评估 |
+|----|-----------|------|
+```
+
+**孤儿接口检查**：每个接口至少有一个已知调用方
+**NFR 来源校验**：逐条确认 NFR 数字有主 PRD 章节来源；无来源则标注 `[内部自检，非行业标准]`
 
 ### 3.3 依赖分析
 
 拆解完成后，绘制域间依赖图：
 - A → B：A 依赖 B 的接口
+- 区分**服务依赖**（运行时依赖对方服务） vs **代码依赖**（import/复用组件，不要求对方运行）
+- INDEX.md 依赖表增加「依赖类型」列
 - 识别循环依赖（需合并或重新切分）
 - 标注无依赖的域（可优先开发）
 
@@ -242,17 +274,18 @@ need_input → [reading → analyzing → generating → verifying] → done
 ```
 初始化路径（一次性，新项目启动）:
 
-  lx-oma-hier    →     lx-oma-split
-  (主PRD→SubPRD)     (SubPRD→Feature)
+  lx-oma-hier    →     lx-oma-split       →     lx-rpe
+  (主PRD→SubPRD)     (SubPRD→RPE)        (特性开发)
 
   用法:
     1. /lx-oma-hier docs/master-prd.md      # 拆出 Sub PRD
-    2. /lx-oma-split sub-prds/domain-xxx.md       # 拆出 Feature
+    2. /lx-oma-split sub-prds/domain-xxx.md       # 拆出 feature RPE
+    3. /lx-rpe <feature-name>               # 启动特性开发
 
 治理路径（长期，主 PRD 变更时）:
 
-  lx-oma-gov      →   lx-oma-split
-  (reconcile/       (变更后重新拆解)
+  lx-oma-gov      →   lx-oma-split / lx-rpe
+  (reconcile/       (变更后重新拆解或直接开发)
    propagate/
    audit)
 
@@ -343,19 +376,21 @@ need_input → [reading → analyzing → generating → verifying] → done
 
 本 skill 与 `state/pipeline.yaml` 状态机配合，支持 `/lx-oma-orch` 编排。
 
-### 入口检查（编排模式）
+### 入口检查
 
-当调用者传入 `--pipeline <sub_prd_id>` 参数时：
+当调用者传入 `--pipeline <sub_prd_id>` 参数时（编排模式）：
 1. 读取 `state/pipeline.yaml`
 2. 检查该 sub_prd 的 `status` 是否为 `hier_done` 或更早
 3. 若不是 `hier` 级状态 → 跳过（可能已被 lx-oma-split 拆解过）
 4. 读取 sub_prd 的 `path` 作为输入路径
 
-若未传入 `--pipeline` 参数，按原有交互模式执行（手动指定路径）。
+若未传入 `--pipeline` 参数（手动模式），按原有交互模式执行（手动指定路径）：
+- 跳过 pipeline.yaml 写入
+- 在报告中注明当前执行模式
 
-### 出口写入（编排/手动模式均执行）
+### 出口写入
 
-拆解完成后，更新 `state/pipeline.yaml`：
+编排模式下，拆解完成后更新 `state/pipeline.yaml`：
 - 为每个 Sub PRD 写入 `sub_prds[].{id, path, status: hier_done, oracle: pending, features: []}`
 - 设置 `stages.hier = completed`
 - 新增 Oracle gate 条目：`{id: og-NNN, from_stage: hier_done, to_stage: oma_ready, status: pending}`
@@ -363,6 +398,12 @@ need_input → [reading → analyzing → generating → verifying] → done
 ## 9. 可观测性契约
 
 本 skill 遵循 OMA 系列统一可观测性规范，详见 `lx-oma-orch/SKILL.md` §可观测性契约。
+
+### 环境前置检查
+
+写入 telemetry 前检查环境：
+- `.omc/state/` 目录存在？ → 正常写入
+- 目录不存在？ → **静默跳过**，在报告末尾注明"§9 遥测跳过（.omc/state/ 不存在）"
 
 ### 本 skill 特定采集点
 
@@ -394,16 +435,39 @@ need_input → [reading → analyzing → generating → verifying] → done
 
 ## 11. 人工审核门禁
 
-hier → oma 阶段转换前，**必须**执行人工审核：
+hier → oma 阶段转换前，**必须**执行人工审核。每次执行完成后（无论是否编排模式），必须输出审核清单：
 
 ```
-审核清单：
-[ ] Sub PRD 边界是否正交（无重叠）？
-[ ] 每个 Sub PRD 的接口契约是否完整？
-[ ] 数据实体唯一性满足（无两个域同时 Own 同一实体）？
-[ ] 依赖图无循环依赖？
-[ ] INDEX.md 中所有文件存在？
+## §11 人工审核门禁
+
+> 以下清单由人工逐项确认后，方可执行 `/lx-oma-split`
+
+[ ] 1. Sub PRD 边界正交（无职责重叠）？
+        → {引用 MECE 摘要结果}
+
+[ ] 2. 每个 Sub PRD 的接口契约可落地？
+        → {引用接口检查结果}
+
+[ ] 3. 数据实体唯一性满足（无两个域同时 Own 同一实体）？
+        → {引用实体 Own 表结果}
+
+[ ] 4. 依赖图无循环依赖？
+        → {引用依赖分析结果}
+
+[ ] 5. INDEX.md 中所有文件存在且路径正确？
+        → {引用文件清单结果}
+
+[ ] 6. §3.2 摘要中所有 ⚠️/❌ 冲突项已完成裁决？
+        → {逐项说明}
 ```
 
-人工确认后，运行 `/lx-oma-orch gate og-NNN approve` 推进。
+### 待裁决项
+
+如有未裁决的冲突（Oracle 发现的 FAIL/WARNING），列出待裁决项：
+
+| 编号 | 问题 | 影响域 | 本次裁决 |
+|------|------|--------|---------|
+| OQ-NNN | {问题描述} | {域} | {✅已裁决 / ⏳待定} |
+
+所有待裁决项清零后，执行 `/lx-oma-orch gate og-NNN approve` 推进到 oma 阶段。
 

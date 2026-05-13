@@ -166,6 +166,7 @@ message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
 # E5: Noise classification — known operational patterns that are not actionable
 # Note: Keep as substring `in` matching (not regex). These patterns are also used
 # retroactively during aggregation to re-classify pre-noise-era records.
+# 20 active entries (removed 3 over-broad: PreToolUse:, =======, summary:) Item 4 fix
 NOISE_PATTERNS = [
     'File has not been read yet',             # edit-guard enforcement (normal)
     "doesn't want to proceed",                 # user tool rejection (normal)
@@ -182,14 +183,20 @@ NOISE_PATTERNS = [
     'Exit code 126',                           # permission denied (operational)
     'Exit code 127',                           # command not found (operational)
     'PreToolUse:Bash hook error',              # hook pipeline error (operational)
-    'PreToolUse:',                              # any PreToolUse hook error (operational)
+    # 'PreToolUse:' — REMOVED: over-broad, masks real hook bugs (Item 4 fix)
     'no matches found',                         # shell glob failure (operational)
     'File content has changed since',           # concurrency guard (normal)
     'Skill compact is not',                     # invalid skill name (operational)
     'verify_oma_interface_coverage',          # OMA verify script errors (operational)
     'OMA 接口覆盖校验',                        # OMA 接口覆盖校验 banner (operational)
-    '=======',                                 # harness-smoke/test separator (operational)
-    'summary:',                                # test summary line (operational)
+    # ED-02: Gate 操作是正常行为，非错误
+    'context-guard.sh',                        # context-guard 阻断 (正常 gate 操作)
+    'pretool-sensitive-edit.sh',              # sensitive-edit 阻断 (正常 gate 操作)
+    '有意分歧',                                # mirror 检查信息 (正常同步约束)
+    'old_string and new_string are exactly the same',  # Edit no-op (正常操作)
+    'diff: unrecognized option',               # macOS compat (已知兼容问题)
+    # '=======' — REMOVED: over-broad (Item 4 fix)
+    # 'summary:' — REMOVED: over-broad (Item 4 fix)
 ]
 is_noise = any(p in message for p in NOISE_PATTERNS)
 
@@ -343,95 +350,7 @@ if exit_code != 0 and command:
         json.dump(budget, _bf, indent=2, ensure_ascii=False)
     os.rename(_btmp, budget_path)
 
-# === Auto-fix: generate fix strategy for known error types ===
-# Track fix_attempts in the aggregated state (incremented per suggestion emission)
-_fix_suggestions = []
-_error_entry = aggregated.get(signature, {})
-_fix_count = _error_entry.get('fix_count', 0)
-_repair_command = ''
 
-if error_type == 'build':
-    cmd_lower_fix = cmd_clean.lower()
-    if 'go build' in cmd_lower_fix or 'go test' in cmd_lower_fix:
-        _fix_suggestions.append("运行 `go mod tidy` 后重试")
-        _fix_suggestions.append("检查是否有未使用的 import 或未定义的变量")
-        _repair_command = 'go mod tidy && go build ./...'
-    elif 'tsc' in cmd_lower_fix or 'npm run build' in cmd_lower_fix or 'npm build' in cmd_lower_fix:
-        _fix_suggestions.append("运行 `npm install` 确保依赖完整")
-        _fix_suggestions.append("检查 `npx tsc --noEmit` 的完整错误列表")
-        _repair_command = 'npm install && npx tsc --noEmit'
-elif error_type == 'dependency':
-    cmd_lower_fix = cmd_clean.lower()
-    if 'npm' in cmd_lower_fix or 'node' in cmd_lower_fix:
-        _fix_suggestions.append("运行 `npm install` 或检查 package.json 中的版本约束")
-        _repair_command = 'npm install'
-    elif 'go' in cmd_lower_fix:
-        _fix_suggestions.append("运行 `go mod tidy` 后重试")
-        _repair_command = 'go mod tidy'
-elif error_type == 'git':
-    _fix_suggestions.append("检查 .git/index.lock 是否存在并清理")
-    _fix_suggestions.append("确认 git HEAD 未 detached 且分支名正确")
-    _repair_command = 'rm -f .git/index.lock && git status'
-elif error_type == 'lint':
-    _fix_suggestions.append("运行 `git diff` 查看最近的改动区域")
-    _fix_suggestions.append("检查是否有格式或命名规范违规")
-elif error_type == 'test':
-    cmd_lower_fix = cmd_clean.lower()
-    if 'go test' in cmd_lower_fix:
-        _fix_suggestions.append("检查测试文件中的语法错误或 import 循环")
-        _fix_suggestions.append("运行 `go test -count=1 ./...` 重新执行（禁用缓存）")
-        _repair_command = 'go test -count=1 ./...'
-elif error_type == 'runtime':
-    _fix_suggestions.append("检查脚本执行权限和语法错误")
-    cmd_lower_fix = cmd_clean.lower()
-    if './' in cmd_lower_fix or '.sh' in cmd_lower_fix:
-        _repair_command = 'chmod +x ' + cmd_lower_fix.split()[-1]
-elif error_type == 'network':
-    _fix_suggestions.append("检查网络连接状态和 URL 正确性")
-    _fix_suggestions.append("检查是否有必要的认证令牌")
-
-if _fix_suggestions and _fix_count < 3:
-    # Track fix_attempt (increment fix_count)
-    if signature in aggregated:
-        aggregated[signature]['fix_count'] = _fix_count + 1
-        if _repair_command:
-            aggregated[signature]['repair_command'] = _repair_command
-
-    _fix_lines = [f"[error-dna auto-fix] 签名 {signature[:12]} 类型 {error_type} — 建议修复策略:"]
-    for suggestion in _fix_suggestions:
-        _fix_lines.append(f"  · {suggestion}")
-    if _repair_command:
-        _fix_lines.append(f"  ▶ 可执行修复: `{_repair_command}`")
-    if _fix_count >= 2:
-        _fix_lines.append(f"  ⚠️ 已尝试 {_fix_count + 1}/3 次，超过 3 次将不再自动建议")
-    print('|'.join(_fix_lines))
-
-# C9 auto-rollback: When fix_count >= 3 and error still active, suggest stash rollback
-if _fix_count >= 3:
-    _fix_lines = [f"[C9 auto-rollback] 签名 {signature[:12]} 已失败 {_fix_count} 次，建议回滚:"]
-    _fix_lines.append(f"  · 运行 git stash 撤销当前更改，从已知可用状态重试")
-    _fix_lines.append(f"  · 记录回滚原因到 .omc/state/rollback-log.jsonl")
-    # Write rollback suggestion to rollback log
-    _rl_path = os.path.join(state_dir, 'rollback-log.jsonl')
-    _rl_record = {
-        'ts': ts,
-        'signature': signature,
-        'fix_count': _fix_count,
-        'cmd': cmd_clean[:200],
-        'suggestion': 'git stash or reset',
-    }
-    try:
-        with open(_rl_path, 'a') as _rl_f:
-            _rl_f.write(json.dumps(_rl_record, ensure_ascii=False) + '\n')
-        _fix_lines.append(f"  ▶ 已记录到 {_rl_path}")
-    except:
-        pass
-    print('|'.join(_fix_lines))
-
-# Re-write with updated fix_count and repair metadata
-if _fix_suggestions and _fix_count < 3:
-    with open(json_path, 'w') as f:
-        json.dump(merged, f, indent=2, ensure_ascii=False)
 
 # === AC-1.5: auto-rotation, configurable size & archive count ===
 try:
@@ -454,13 +373,13 @@ try:
 except Exception:
     pass
 
-# === Oracle Q2-A: additionalContext for high-frequency errors (>=2 occurrences) ===
+# === Oracle Q2-A: additionalContext for high-frequency errors (>=1 occurrences) ===
 frequent = [(sig, info['count'], info.get('message', '')[:120])
             for sig, info in aggregated.items()
-            if info['count'] >= 2 and info.get('status') not in ('fixed', 'noise')]
+            if info['count'] >= 1 and info.get('status') not in ('fixed', 'noise')]
 if frequent:
     frequent.sort(key=lambda x: -x[1])
-    lines = ["[高频错误模式检测] 以下签名已出现 >=2 次:"]
+    lines = ["[高频错误模式检测] 以下签名已出现 >=1 次:"]
     # 按工具类型分组
     tool_groups = {}
     for sig, count, msg in frequent:

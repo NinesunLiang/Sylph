@@ -340,10 +340,34 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
     log_info "用户资产恢复完成"
 fi
 
+# ─── OpenCode + OMO 检测（后续多处引用）────────────────────
+HAS_OPCODE=false; HAS_OMO=false
+command -v opencode &>/dev/null && HAS_OPCODE=true
+npm list -g oh-my-opencode &>/dev/null && HAS_OMO=true
+
 if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     mkdir -p .opencode/plugins
     cp -r "$SCRIPT_DIR/opencode-plugins/"* .opencode/plugins/
     log_info "OpenCode plugins 已安装（.opencode/plugins/）"
+fi
+
+# ─── OpenCode + OMO 依赖检测（独立于插件目录是否存在）─────────
+if $HAS_OPCODE && ! $HAS_OMO; then
+    log_warn "检测到 OpenCode 但未安装 oh-my-opencode (OMO)"
+    echo ""
+    echo "   💡 推荐安装 OMO 以获得完整 hooks 能力:"
+    echo "      npm install -g oh-my-opencode"
+    echo ""
+    echo "   📊 能力差异 (OpenCode):"
+    echo "      无 OMO:    SessionStart + PostToolUseFailure =  2/7 事件 (29%)"
+    echo "      有 OMO:    PreToolUse/PostToolUse/UserPromptSubmit"
+    echo "                + Stop/PreCompact + SessionStart"
+    echo "                + PostToolUseFailure                =  7/7 事件 (100%)"
+    echo ""
+    echo "   ℹ️  Claude Code 用户无需额外安装: 原生支持全部 7 事件"
+    echo ""
+elif $HAS_OPCODE && $HAS_OMO; then
+    log_info "OpenCode + oh-my-opencode 已就绪，hooks 全能力可用 (7/7)"
 fi
 
 # ─── 用户治理文件合并迁移 ──────────────────────────────────────
@@ -451,6 +475,14 @@ fi
 if command -v python3 &>/dev/null && [ -f ".hooks/generate.py" ]; then
     log_step "生成跨平台 CLI hooks 配置..."
     python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（无可用平台）"
+
+    # ─── 后处理: 禁用跨平台生成的旧版 sylph-hooks.ts ──────────
+    # carror-hooks-compat.ts 是 OMO 兼容策略的权威文件
+    # sylph-hooks.ts 是旧版, 与 carror-hooks-compat 功能重叠
+    if [ -f ".opencode/plugins/sylph-hooks.ts" ] && [ -f ".opencode/plugins/carror-hooks-compat.ts" ]; then
+        mv ".opencode/plugins/sylph-hooks.ts" ".opencode/plugins/sylph-hooks.ts.disabled" 2>/dev/null
+        log_info "旧版 sylph-hooks.ts 已禁用（.disabled），carror-hooks-compat.ts 优先"
+    fi
 fi
 
 echo ""
@@ -469,5 +501,8 @@ else
     echo " - 参阅 .claude/CARROR-OS-FEATURES.md 获取完整武器库说明。"
 fi
 echo " 🔀 切换项目语言规范：bash .claude/profiles/merge-profile.sh <go|node|python|rust>"
+if $HAS_OPCODE && ! $HAS_OMO; then
+    echo " ⚡ OpenCode 用户：运行 npm install -g oh-my-opencode 解锁完整 7/7 hooks"
+fi
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"

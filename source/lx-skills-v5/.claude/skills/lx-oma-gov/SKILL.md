@@ -4,7 +4,7 @@ name: lx-oma-gov
 description: OMA PRD 治理 — 在 `prd/{sub_prd}/{feature}` 变更时通过 reconcile/propagate 机制增量同步，处理冲突裁决、漂移检测，保持 OMA 文档体系一致性
 
 version: v1.2.0
-harness_version: "6.1.9"
+harness_version: "6.1.8"
 model: sonnet
 argument-hint: "init [path] | reconcile [path] | resolve <CONFLICT-ID> <verdict> [--reason] | propagate --dry-run|--execute [path] | status | audit [path]"
 when_to_use: |
@@ -233,14 +233,14 @@ prd/{sub_prd}/{feature}/
 
 ```
 初始化路径（一次性）:
-  lx-oma-hier  →  lx-oma-split
-  (主PRD→SubPRD)  (SubPRD→Feature)
+  lx-oma-hier  →  lx-oma-split  →  lx-rpe
+  (主PRD→SubPRD)  (SubPRD→RPE)  (特性开发)
 
 治理路径（持续）:
-  lx-oma-gov  →  lx-oma-split
-  (reconcile/propagate)  (变更后重新拆解)
-              直接→ prd/{sub_prd}/{feature}
-              (小变更直接更新 feature prd.md)
+  lx-oma-gov  →  lx-oma-split → lx-rpe
+  (reconcile/propagate)  (re-split)  (开发)
+              直接→ lx-rpe
+              (小变更直接通知开发)
 ```
 
 ### 调用时机

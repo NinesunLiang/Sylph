@@ -81,6 +81,8 @@ manifesto.md ──────────── 完整版产品宣言
 README-draft.md ────────── 精简版（GitHub README / Product Hunt）
     ↓ 数据支撑
 industry-benchmark.md ─── 量化评分
+    ↓ 官方评分框架
+technical/scoring-framework.md ── C/E/G/U 四维评分框架（本项目官方维度）
     ↓ 引导
 onboarding-guide.md ───── 首次使用引导（起点）
     ↓ 深度

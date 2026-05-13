@@ -24,22 +24,11 @@ triggers:
 
 ## 原子化声明
 
-### 使用的通用节点
-| 节点 | 路径 | 用途 |
-|------|------|------|
-| behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 |
-| scanner | `../../nodes/scanner.md` | 安全扫描 |
+### 使用的通用节点| 节点 | 路径 | 用途 ||------|------|------|| behavior_rules | `../../nodes/behavior_rules.md` | 行为约束 || scanner | `../../nodes/scanner.md` | 安全扫描 |
 
-### scripts/（确定性执行层）
-| 脚本 | 用途 | 调用时机 |
-|------|------|---------|
-| `scripts/commit_convention.py` | commit 规范管理（learn/validate/show/reset）| Gate 0 |
-| `scripts/get_changed_files.py` | 获取相对于 prod-commit 的变更文件 | Gate 1 前 |
+### scripts/（确定性执行层）| 脚本 | 用途 | 调用时机 ||------|------|---------|| `scripts/commit_convention.py` | commit 规范管理（learn/validate/show/reset）| Gate 0 || `scripts/get_changed_files.py` | 获取相对于 prod-commit 的变更文件 | Gate 1 前 |
 
-### references/（按需加载）
-| 文件 | 加载时机 |
-|------|---------|
-| `references/commit-convention-guide.md` | commit 规范学习和管理指南 |
+### references/（按需加载）| 文件 | 加载时机 ||------|---------|| `references/commit-convention-guide.md` | commit 规范学习和管理指南 |
 
 ---
 
