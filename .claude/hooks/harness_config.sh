@@ -328,9 +328,9 @@ try:
     if not expires:
         print('active')
     else:
-        from datetime import datetime
+        from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
-        if datetime.now() < exp:
+        if datetime.now(timezone.utc) < exp:
             print('active')
         else:
             print('expired')
