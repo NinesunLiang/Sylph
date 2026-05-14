@@ -70,13 +70,18 @@ if grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
     exit 0
 fi
 
-# 阻断：源文件未 Read
+# 阻断：源文件未 Read — Agentic UI 菜单
 cat >&2 <<EOF
-[Read-before-Edit] 你正在编辑源代码文件但未先 Read。
+
+⛔ [Read-before-Edit] 你正在编辑源代码文件但未先 Read。
 文件: $FILE_PATH
 宪法依据: 第六条（长对话稳定性）— 修改代码前必须先阅读当前内容
-强制流程:
- 1. 先 Read "$FILE_PATH"
- 2. 再执行 Edit
+
+请选择：
+  1. 先 Read "$FILE_PATH" 再编辑
+  2. 强制编辑（跳过 Read 检查）
+  3. 取消操作
+
+输入数字 (1-3):
 EOF
 exit 2

@@ -68,7 +68,13 @@ def get_real_context(transcript_dir):
                     continue
                 cache_read = usage.get("cache_read_input_tokens", 0)
                 cache_create = usage.get("cache_creation_input_tokens", 0)
-                context_used = inp + cache_read + cache_create
+                # Schema detection: some API variants report input_tokens as total
+                # (including cache_read), others report it as new-only.
+                # If input_tokens >= cache_read_input_tokens, it likely includes cache.
+                if cache_read > 0 and inp >= cache_read:
+                    context_used = inp + cache_create  # cache_read already in inp
+                else:
+                    context_used = inp + cache_read + cache_create
                 usage_seq.append(context_used)
     except (OSError, json.JSONDecodeError):
         return None

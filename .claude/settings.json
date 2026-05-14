@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/edit-guard.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/edit-guard.sh",
             "timeout": 5000
           }
         ]
@@ -18,8 +18,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/permission-gate.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/permission-gate.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-retry-check.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -28,7 +33,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/privacy-gate.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/privacy-gate.sh",
             "timeout": 3000
           }
         ]
@@ -38,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/context-guard.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/context-guard.sh",
             "timeout": 3000
           }
         ]
@@ -48,12 +53,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-edit-scope.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-edit-scope.sh",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/plan-gate.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/plan-gate.sh",
             "timeout": 3000
           }
         ]
@@ -63,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/lsp-suggest.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/lsp-suggest.sh",
             "timeout": 3000
           }
         ]
@@ -73,17 +78,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-rule-anchor.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-write-lock.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-write-lock.sh",
             "timeout": 10000
           }
         ]
@@ -93,17 +88,37 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/subagent-guard.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/subagent-guard.sh",
             "timeout": 3000
           }
         ]
       },
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-sensitive-edit.sh",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/fuzzy-block.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pre-completion-gate.sh",
             "timeout": 5000
           }
         ]
@@ -115,12 +130,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/completion-gate.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/completion-gate.sh",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-handoff-writer.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-handoff-writer.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-completion-audit.sh",
             "timeout": 5000
           }
         ]
@@ -130,7 +150,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-format-gate.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-format-gate.sh",
             "timeout": 5000
           }
         ]
@@ -140,7 +160,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-anti-pattern-detect.sh",
             "timeout": 5000
           }
         ]
@@ -150,7 +170,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
           }
         ]
@@ -160,7 +180,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-write-cite.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-write-cite.sh",
             "timeout": 5000
           }
         ]
@@ -170,12 +190,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/read-tracker.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/read-tracker.sh",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-read-cite.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-read-cite.sh",
             "timeout": 3000
           }
         ]
@@ -185,7 +205,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.sh",
             "timeout": 5000
           }
         ]
@@ -195,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/error-dna.sh",
             "timeout": 3000
           }
         ]
@@ -205,7 +225,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh --increment",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/token_writer.sh",
             "timeout": 3000
           }
         ]
@@ -215,7 +235,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-edit-quality.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
           }
         ]
@@ -225,7 +245,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-write-lock.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-write-lock.sh",
             "timeout": 3000
           }
         ]
@@ -235,7 +255,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-subagent-audit.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-subagent-audit.sh",
             "timeout": 5000
           }
         ]
@@ -245,12 +265,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-claim-audit.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-claim-audit.sh",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/intent-tracker.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/intent-tracker.sh",
             "timeout": 5000
           }
         ]
@@ -260,7 +280,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/proactive-handoff.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/proactive-handoff.sh",
             "timeout": 5000
           }
         ]
@@ -272,7 +292,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/error-dna.sh",
             "timeout": 3000
           }
         ]
@@ -282,17 +302,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
           }
         ]
@@ -303,7 +313,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/inject-project-knowledge.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/inject-project-knowledge.sh",
             "timeout": 10000
           }
         ]
@@ -312,7 +322,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/flywheel-report.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/flywheel-report.sh",
             "timeout": 5000
           }
         ]
@@ -321,7 +331,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh --reset",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/token_writer.sh",
             "timeout": 3000
           }
         ]
@@ -330,7 +340,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/ecosystem-probe.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/ecosystem-probe.sh",
             "timeout": 5000
           }
         ]
@@ -341,7 +351,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.sh",
             "timeout": 5000
           }
         ]
@@ -350,7 +360,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/stop-drain.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/stop-drain.sh",
             "timeout": 10000
           }
         ]
@@ -359,7 +369,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/skill-flywheel.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/skill-flywheel.sh",
             "timeout": 5000
           }
         ]
@@ -368,7 +378,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/knowledge-condenser.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/knowledge-condenser.sh",
             "timeout": 5000
           }
         ]
@@ -379,7 +389,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-user-correction.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-user-correction.sh",
             "timeout": 3000
           }
         ]
@@ -388,7 +398,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/turn-counter.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/turn-counter.sh",
             "timeout": 3000
           }
         ]
@@ -397,7 +407,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/compact-detect.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/compact-detect.sh",
             "timeout": 3000
           }
         ]

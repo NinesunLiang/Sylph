@@ -272,6 +272,8 @@ try:
     else:
         from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) < exp:
             print('active')
         else:
@@ -298,6 +300,8 @@ try:
     else:
         from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) < exp:
             print('active')
         else:
@@ -330,6 +334,8 @@ try:
     else:
         from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
         if datetime.now(timezone.utc) < exp:
             print('active')
         else:

@@ -10,6 +10,8 @@ complexity: beginner
 when_to_use: "Use when user says 'todo', 'quick fix', 'small bug', 'add todo', 'todo list', or wants to handle a minor task without full RPE flow."
 
 model: sonnet
+triggers:
+  - "/lx-todo"
 
 argument-hint: "add 🐛 P1 <desc> | do [#id] | next | list | review"
 

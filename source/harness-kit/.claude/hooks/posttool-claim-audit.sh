@@ -4,7 +4,15 @@
 # Role: 铁律 #1 enforce — AI 不能编造没读过的代码事实
 
 source "$(dirname "$0")/harness_config.sh"
-hc_enabled "posttool_claim_audit" || exit 0
+hc_enabled "posttool_claim_audit" || { echo '{"continue": true}'; exit 0; }
+
+# Mode detection: ghost/goal 降级为 log+skip
+_MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
+if [ "$_MODE" != "normal" ]; then
+    echo "[$_MODE] posttool-claim-audit 已记录（模式降级，不阻断）" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
 
 INPUT=$(cat)
 TOOL_NAME="$1"

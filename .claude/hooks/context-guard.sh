@@ -61,6 +61,10 @@ PYTHON_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
 if [ -x "$PYTHON_SCRIPT" ]; then
     RESULT=$(CONTEXT_WARN_THRESHOLD="$WARN_PCT" CONTEXT_DANGER_THRESHOLD="$DANGER_PCT" \
         python3 "$PYTHON_SCRIPT" 2>/dev/null)
+    SOURCE=$(echo "$RESULT" | python3 -c "
+import sys, json
+d = json.load(sys.stdin)
+print(d.get('source', ''))" 2>/dev/null)
     IS_DANGER=$(echo "$RESULT" | python3 -c "
 import sys, json
 d = json.load(sys.stdin)
@@ -70,7 +74,10 @@ import sys, json
 d = json.load(sys.stdin)
 print(d.get('percentage', 0))" 2>/dev/null)
 
-    if [ "$IS_DANGER" = "true" ]; then
+    # Only trust real transcript data for blocking decisions.
+    # Heuristic fallbacks (turns/cumulative) are unreliable for guard decisions
+    # — prefer false negative (don't block) over false positive (wrong block).
+    if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" = "transcript (real)" ]; then
         echo "$(date +%Y-%m-%d),context_guard_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
         if [ "$BLOCK_WRITES" = "true" ] && [ "$MODE" = "normal" ]; then
             cat >&2 <<EOF
@@ -88,6 +95,14 @@ EOF
             exit 0
         fi
     fi
+fi
+
+# Heuristic danger warning: transcript unavailable but context estimated high
+# Inform user without blocking (false negative > false positive for heuristic data)
+if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" != "transcript (real)" ]; then
+    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文估算占比 %s%%。来源: %s。无法读取 transcript，阻断已跳过。请检查 transcript 目录或手动 /compact。%s"}}\n' \
+        "$PCT" "$SOURCE" "$([ "$MODE" != "normal" ] && echo " [${MODE} mode]" || echo '')"
+    exit 0
 fi
 
 # Sweet-spot / Hand-off Alert: inject into AI context via additionalContext

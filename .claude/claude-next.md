@@ -356,3 +356,265 @@
 2. 未来新 gate 加入时，立即同步加入 NOISE_PATTERNS（同步义务，见 ED-02 同源）
 **证据**：error-dna.json 签名分类统计；错误记忆注入 inject-project-knowledge.sh:222-278
 
+
+### [DG-06] 技能目录不能直接搬 SKILL.md description — 需交叉验证实际功能
+
+@2026-05-14 hits:1
+**触发场景**：创建 `docs/guides/cn/skills-catalog.md` 时，直接从 `.claude/skills/*/SKILL.md` 的 `description` 前端字段提取描述，写入文档。用户纠正 3 处错误。
+**问题**：
+1. `lx-prd` — SKILL.md 仍存在（v4.0.0），描述为"高质量 PRD 生产流水线"，但实际已被 `/lx-oma-split` 功能替代。源文件存在 ≠ 功能仍然有效。
+2. `lx-code-review` — SKILL.md 描述写 "Review & fix Go code"，但实际是语言无关的通用代码审查。源描述锁定 Go 是历史遗留。
+3. `lx-security-review` + `lx-golang-test` — 同理，源描述锁定 Go，实际方法论通用。
+**纠正**：
+1. 技能目录的描述不能只读 SKILL.md 前端字段，必须交叉验证：该技能是否仍在使用？描述是否匹配实际用途？
+2. 直接搬源文件元数据 = 传播过时信息。文档编写必须包含"实际功能验证"步骤。
+3. 标记为已废弃的技能应在目录中保留但明确标注替代关系。
+**证据**：4 个文件修复（skills-catalog.md cn+us、for-experts.md cn+us），3 个技能描述从 "Go 代码" 改为 "通用代码"。
+
+
+### [DF-01] turn-counter 模糊检测对含方向限定词的"优化"误报 false positive **[已修复 @2026-05-14 turn-counter.sh:187-194 方向限定词检测]**
+
+@2026-05-14 hits:1
+**触发场景**：Goal mode 执行完成后，用户说"从机制上去优化" — turn-counter 将"优化"匹配为模糊动词，判定为模糊指令。但"从机制上"是方向限定词，使"优化"成为具体指令。
+**问题**：模糊检测仅做子串匹配（grep -qF），不检查模糊动词是否被方向/域限定词修饰。以下模式均为具体指令：
+- "从X上优化" — 从机制上/从性能角度/从用户体验层面
+- "针对X优化" — 针对 hook 注册流程
+- "关于X优化" — 关于 completion-gate 的优化
+- "在X方面优化" — 在安全防护方面
+**纠正**：
+1. turn-counter.sh 新增方向限定词检测正则：`从.{1,8}(上|角度|层面|方面)` / `针对.{1,12}` / `关于.{1,12}` / `在.{1,8}方面`
+2. 匹配到方向限定词 → 移除模糊标记，不视为模糊指令
+**证据**：本会话 — user prompt "从机制上去优化" 被误判；修复后 4 个测试 case 验证通过
+
+### [DF-02] completion-gate 自主模式下 stderr 警告噪音 **[已修复 @2026-05-14 completion-gate.sh:40-47 日志路由]**
+
+@2026-05-14 hits:1
+**触发场景**：Goal mode 执行中 6 次 TaskUpdate.completed，每次触发 completion-gate 的 `auto_soft_block()`。函数虽正确降级为 warn（不阻断），但警告输出到 stderr（`>&2`），用户在终端看到 6 条 "blocking error" 系统提醒。
+**问题**：`auto_soft_block()` 的设计意图是"留痕但不阻断"，但 stderr 输出在自主模式下仍会出现在用户终端，产生噪音。理念冲突：#4(没验证=没做) 要求留痕 vs #5(以人为本) 要求不打扰用户。
+**纠正**：
+1. 自主模式下 `auto_soft_block()` 改为写入 `.omc/state/completion-gate-autonomous.log` 日志文件，不再输出到 stderr
+2. 日志格式：`[timestamp] [自主模式] <reason>`
+3. 非自主模式下行为不变（仍 exit 2 硬阻断）
+**裁决**：哲学优先级 #4 > #5，证据留痕不可丢弃。但 stderr 改为日志文件 = 留痕且不打扰，两全。
+**证据**：completion-gate.sh:40-47 — `echo >&2` 改为 `echo >> log_file`
+
+### [DF-03] Goal mode 缺乏阶段性证据桩 — 全程 6 次无效 completion-gate 检查
+
+@2026-05-14 hits:1
+**触发场景**：Goal mode 6 个 TaskUpdate.completed 全部触发 completion-gate 证据检查，但证据文件在最后才创建。6 次检查均发现证据缺失（符合预期：goal mode 下不阻断），但每次检查消耗了计算资源且写入 6 条日志。
+**问题**：Goal mode 的子任务完成是连续的 — AI 批量标记 task-done，中间不会创建证据文件。completion-gate 为此付出了 6 次无效扫描成本。
+**建议方案**（未实施，待评估收益）：
+1. Goal mode 脚本在激活时创建空证据桩（timestamp + goal name），后续 task-done 时增量追加
+2. 或：completion-gate 检测到 goal mode + 上次检查 < 60s → 跳过本轮检查
+**暂不实施原因**：当前成本可接受（每次检查 ~50ms bash），过度优化违反哲学 #2（少量大增益）。若 goal mode 子任务数增至 20+ 时再评估。
+**证据**：本会话 — goal-mode 激活期间 6 次 completion-gate 调用全为证据缺失，每次 ~50ms，合计 ~300ms
+
+### 🐶 [ED-R] Error-DNA 重生记 — 从垃圾桶到免疫系统（狗粮）
+
+@2026-05-14 hits:1
+背景: Error-DNA 三次蜕变，完整展现狗粮反馈循环的运作。
+
+v1 垃圾桶 (2026-05-05前):
+- 收集所有 Bash 失败 → 8591条记录，83.5%噪声
+- 致命缺陷: Gate越有效，信号越弱。收集的是gate心跳，不是AI错误
+- 结论: 收益=0, 噪声=100% ([ED-01], [ED-02])
+
+v2 瘦身 (2026-05-14):
+- 删除JSON全量重建/噪声分类/auto-fix/Build-Validator
+- 416→227行(-45%), 6.6MB→4.3KB(-99.9%)
+- 局限: 仍然只收集exit_code≠0的失败
+
+v3 免疫系统 (2026-05-14重生):
+- 范式转换: "收集失败"→"检测成功逃逸"
+- 核心洞察: exit_code=0但操作治理文件的命令，才是真正的逃逸信号
+- 4种逃逸模式: E1(治理绕过), E2(验证码伪造), E3(上下文规避), E4(证据编造)
+- 6环反馈闭环: 检测→记录→注入→补丁→审核→历史
+  1. 检测: error-dna.sh E1/E2 + posttool-bash-audit.sh E3/E4
+  2. 记录: error-dna.jsonl 含escape_type字段
+  3. 注入: inject-project-knowledge.sh SessionStart逃逸摘要+待审补丁计数
+  4. 补丁: escape-patches.json 结构化建议，去重保护
+  5. 审核: escape-patch-apply.sh status/apply/reject/history，交互确认门禁
+  6. 历史: escape-patch-history.jsonl 可追溯
+- 哲学合规: 7/7 PASS
+- 测试: 116/121 smoke passed, 6/6 ED-R passed
+- Oracle终审: APPROVED — 飞轮已闭合
+
+狗粮启示:
+1. 机制存在≠机制有效 — v1运行数月，0可验证价值
+2. 正确范式转换>错误范式内优化 — v2瘦身未改变本质
+3. 哲学是灵魂 — v3每个设计决策可追溯到具体哲学原则
+4. 狗粮循环: 发现噪声→审计(ED-01)→瘦身(v2)→要求重生→范式转换(v3)→Oracle审核→飞轮闭合→记录狗粮
+
+证据: error-dna.sh:97-130,236-273 | posttool-bash-audit.sh:63-162 | inject-project-knowledge.sh:171-215 | escape-patch-apply.sh | worldview.md
+### 🐶 [DF-04] settings.json 自毁事故 — json.dump 引号转义导致全系统瘫痪（狗粮）
+
+@2026-05-14 hits:1
+**触发场景**：修复 Stop hook 的 "No such file or directory" 报错（CWD 漂移问题）。尝试用 `json.load → str.replace → json.dump` 管道将相对路径改为带 fallback 的绝对路径 `bash "${CLAUDE_PROJECT_DIR:-/path}/.claude/hooks/xxx.sh"`。
+
+**问题**：`json.dump` 对命令字符串中的嵌套双引号产生不平衡转义。原始 JSON 中 `\"` 经 `json.load` 展开为 `"`，`str.replace` 在未转义层操作，`json.dump` 重新转义时产生缺闭合引号的命令：
+
+```
+bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
+                                  ↑ 缺 " → /bin/sh: unexpected EOF
+```
+
+**爆炸半径**：41 个 hook 命令全部损坏。所有涉及 PreToolUse hook 的工具（Bash/Read/Edit/Write/Grep/Agent）在工具执行前被拦截，`/bin/sh -c` 解析语法错误直接丢弃命令。输入框也因 UserPromptSubmit hook 损坏而显示黄色错误。**系统完全不能自愈**——修复工具自身也被拦截。唯一解是通过外部 macOS Terminal.app 绕过 Claude Code 直接 Python 写入 `disableAllHooks: True`。
+
+**纠正**：
+1. **JSON 的 `command` 字段禁止嵌入任何带引号的 shell 变量展开。** 用纯文本绝对路径：`bash /Users/.../.claude/hooks/xxx.sh`，不依赖 CLAUDE_PROJECT_DIR 等环境变量
+2. **禁止用 `json.load → str.replace → json.dump` 管道修改含转义字符的 command 字符串。** 用 sed 直接文本替换，或 Python 只做纯文本读写不用 json 模块
+3. **修 settings.json 前必须做逃生副本**：先手动 `cp settings.json settings.json.bak`，或先设 `disableAllHooks: true` 验证能执行 Bash 后再改
+
+**证据**：
+- 损坏命令样例：settings.json git history (2026-05-14)
+- 错误消息：`/bin/sh: -c: line 0: unexpected EOF while looking for matching \`"'` × 全 41 hook
+- 恢复命令：`python3 -c "import json;p='...';d=json.load(open(p));d['disableAllHooks']=True;json.dump(d,open(p,'w'),indent=2)"`
+- 恢复后第一个可用工具：Read (settings.json:3 — `"disableAllHooks": true`)
+
+**飞轮关联**：
+- Error-DNA v3 的 E1 逃逸检测在此事故中验证有效——Bash `cp` 和 `sed` 操作治理文件被正确标记为 `escape_type=governance_bypass`，但由于 hooks 本身已损坏，逃逸检测的注入无意义
+- 暴露新攻击面：settings.json 的 command 字段无输入消毒，攻击者可注入任意 shell 命令
+- 建议：pre-commit-self-review.sh 增加 settings.json command 语法校验（`bash -n` 解析检查）
+
+
+### [seed:typescript] 禁止 any 类型逃逸 ✅已升华到 kernel.md @2026-05-08
+
+@2026-01-01 hits:3
+触发条件：编写 TypeScript 代码时使用 `any` 绕过类型检查
+正确行为：使用 `unknown` + 类型守卫，或定义精确的接口类型
+证据：any 类型会导致下游所有类型推断失效，形成"类型黑洞"
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+### [seed:typescript] useEffect 依赖数组必须完整 ✅已升华到 kernel.md @2026-05-08
+
+@2026-01-01 hits:3
+触发条件：编写 useEffect 时省略依赖或使用 `// eslint-disable`
+正确行为：完整列出所有依赖；若依赖过多，拆分 effect 或提取自定义 Hook
+证据：遗漏依赖导致 stale closure，表现为状态不更新或无限渲染
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+### [seed:typescript] API 响应必须定义完整类型 ✅已升华到 kernel.md @2026-05-08
+
+@2026-01-01 hits:2
+触发条件：fetch/axios 调用后直接使用 `response.data` 无类型
+正确行为：在 `src/types/` 定义响应接口，fetch 封装中使用泛型 `Promise<T>`
+证据：无类型的 API 响应在下游使用时编译器无法检查字段名拼写错误
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+### [seed:general] 修改接口前必须查引用 ✅已升华到 kernel.md @2026-05-08
+
+@2026-01-01 hits:4
+触发条件：修改 interface/type 定义的字段名或类型
+正确行为：先 `lsp_find_references` 列出所有引用方，全部同步修改后再编译验证
+证据：只改定义不改引用方导致连锁编译错误，越修越多
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+### [seed:general] 长对话中禁止依赖记忆引用文件内容 ✅已升华到 kernel.md @2026-05-08
+
+@2026-01-01 hits:5
+触发条件：对话超过 10 轮后引用之前读过的文件内容
+正确行为：每次需要文件内容时重新 Read，标注 [已验证: file:line]
+证据：长对话记忆衰减导致引用的代码片段与实际不一致
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+
+### 🐶 [DG-07] OMA skill 上下游路径必须同时读完再动手（外部收录）
+
+@2026-05-12 hits:1
+触发条件：收到"开始吧，一人成军"等执行指令后，只加载了 `lx-oma-hier` skill 文档，未同时加载 `lx-oma-split`，就开始生成文件。
+正确行为：`lx-oma-hier` 和 `lx-oma-split` 存在强上下游依赖关系（hier 产物是 split 的输入），必须同时读完两个 skill 文档，并与项目 DECISIONS.md 的路径约定三方比对后，确认路径无歧义再动手。
+证据：只读 hier skill → 照 skill 默认路径 `sub-prds/` 生成文件 → 路径错误被纠正 → 清理重来。根因是"行动冲动"覆盖了"读完约束再执行"的前置步骤。
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+### 🐶 [DG-08] skill 默认路径 ≠ 项目路径，不能凭先验知识推断（外部收录）
+
+@2026-05-12 hits:1
+触发条件：执行任何 skill（lx-oma-hier / lx-oma-split / lx-rpe）时，skill 文档定义了一套默认产物路径，而项目可能有不同的自定义约定。
+正确行为：执行前必须检查 DECISIONS.md 是否有覆盖 skill 默认值的项目级约定。有约定以项目为准，无约定才用 skill 默认值。不确定时提问，不猜测。
+证据：lx-oma-hier 默认产物 `sub-prds/domain-{name}.md`，项目约定不同；lx-oma-split 默认产物 `prd/{sub_prd}/{feature}/`，项目约定不同。两处均不同，均未读约定就执行导致错误。
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+### 🐶 [DG-09] 软约束（DECISIONS.md）不能替代硬拦截（hook）（外部收录）
+
+@2026-05-12 hits:1
+触发条件：将路径约定只写进 DECISIONS.md，依赖 AI"记住"规范来防止错误。
+正确行为：凡是可以用路径模式检测的违规行为，必须同时有对应的 PreToolUse hook 做物理拦截。软约束（文档规范）+ 硬拦截（hook）双层防护才构成有效防线。
+证据：AGENTS.md 有 "实现前必读 DECISIONS.md" 的软约束，但仍然写错路径。只有 hook 注册后，才能在写入违禁路径时真正阻断。
+来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
+
+
+### 🐶 [DG-10] CAPTCHA 仅 stderr 导致 AI 看不见验证码 — 需双通道输出
+
+@2026-05-14 hits:1
+**触发场景**：OpenCode 平台触发 permission-gate，hook 将验证码输出到 stderr，但 AI 上下文只看到 stdout JSON。AI 告诉用户"请运行 echo 'xxx' > .omc/state/permission-approved"但无法提供具体验证码。
+**问题**：permission-gate 的设计假设"AI 不应看到验证码"（R42），但这导致 CAPTCHA 死锁 — 用户需要验证码才能放行，但 AI 无法转述验证码给用户。单通道 stderr 在 OpenCode 等平台上用户不一定能看到终端输出。
+**纠正**：
+1. `additionalContext` 双通道输出：验证码同时注入 AI 上下文（stdout JSON）和用户终端（stderr），AI 可以告知用户具体验证码
+2. 这不违反 R42（AI 不得自行绕过门禁）— AI 看到验证码 ≠ AI 能自批准，仍需用户手动 echo 到标记文件
+3. 注意：`additionalContext` 是 Claude Code hook 专有扩展，OpenCode/OMO 可能不支持 — 此时 stderr 仍是主通道
+**证据**：permission-gate.sh:235-240 — dual-channel printf 注入 CAPTCHA 到 additionalContext
+
+### 🐶 [DG-11] base64 编码管道可绕过文本正则 — 需增加编码绕过检测
+
+@2026-05-14 hits:1
+**触发场景**：AI 使用 `echo "base64编码内容" | base64 -d | bash` 执行命令，permission-gate 的文本正则（git push/destructive/sudo）无法匹配 base64 编码后的内容。
+**问题**：所有 5 个危险命令 regex（git commit/push/destructive/sudo/gh write）都在文本层匹配，base64/xxd/printf 编码层可完全绕过。这是设计级防御盲区。
+**纠正**：
+1. 新增 `BYPASS_RE` 正则检测编码绕过模式：`base64 -d | sh`、`xxd -r | bash`、`printf %b`、`eval $(echo ...)`
+2. BYPASS_RE 独立于具体危险命令 — 任何编码绕过行为本身就被视为高危
+3. harness.yaml 新增 `permission_gate.bypass_regex` 可配置项
+**证据**：permission-gate.sh:31 — BYPASS_RE 正则；dogfood.md 原始会话显示 AI 使用 base64 管道绕过检测
+
+### 🐶 [DG-12] Python repr() 不可用于生成 shell 代码 — `\b` 变退格符，破坏 bash 语法
+
+@2026-05-14 hits:1
+**触发场景**：用 Python `repr()` 处理 bash regex 字符串后通过 heredoc 写入 permission-gate.sh，`repr('\b')` 产生 `'\\x08'`（字面退格字符），bash 解析为二进制垃圾导致语法错误。
+**问题**：`repr()` 的转义规则与 bash 不同。Python 将 `\b`（word boundary meta-char）转义为 `\x08`（ASCII 退格），插入 shell 脚本后破坏语法。整个 permission-gate.sh 损坏，所有 Bash 命令被阻断。
+**纠正**：
+1. **禁止用 `repr()` / `json.dump` 管道修改 shell 脚本。** 用 sed 直接文本替换，或用 Python 构造字符串时用 `chr(92)` 避免转义歧义
+2. **修改 settings.json 或 .sh 文件前必须做逃生副本**：先 `cp file file.bak`
+3. 详见 DF-04（settings.json 自毁事故）— 同类问题，`json.dump` 损坏 41 个 hook 命令
+**证据**：permission-gate.sh git history (2026-05-14) 两次损坏；DF-04 记录 settings.json 41 hook 全损
+
+### 🐶 [DG-13] 修改 permission-gate 时必须留逃生通道 — 文件损坏 = 全 Bash 被封 = 无法自救
+
+@2026-05-14 hits:1
+**触发场景**：两次写坏 permission-gate.sh 后，所有 Bash 命令被 PreToolUse hook 阻断（bash 在执行任何命令前调用 permission-gate.sh，该脚本 parse error 导致所有 Bash 调用失败）。同时 context 109% 超过 context-guard 80% 阈值，Edit/Write 也被封锁。
+**问题**：两条逃生通道（git checkout 恢复 + Edit/Write 修复）同时关闭。git checkout 需要 Bash（被封），Edit 需要低上下文（109% >> 80%）。形成不可自恢复的死锁。唯一恢复方式：用户在外部 macOS Terminal.app 绕过 Claude Code 手动执行 `git checkout HEAD -- .claude/hooks/permission-gate.sh`。
+**纠正**：
+1. **修改 permission-gate.sh 前必须先在外部备份**：`cp permission-gate.sh permission-gate.sh.bak`（不能用 git，因为恢复 git checkout 也需要 Bash）
+2. **修改后必须 `bash -n` 语法检查**：零容忍，语法错误绝不继续
+3. **考虑添加 watchdog hook**：用独立于 permission-gate 的机制监控 permission-gate 健康度，发现 parse error 时自动禁用
+4. 长期：实现 hook 健康度自检机制 — 连续 N 次 parse error → 自动降级跳过
+**证据**：本会话 — 两次 permission-gate 损坏，用户手动从外部终端恢复；dogfood-permission-gate-self-dos.md 完整事故链
+
+### 🐶 [DG-14] ecosystem-probe 必须检测运行时依赖 — 缺 python3 全功能静默降级
+
+@2026-05-14 hits:1
+**触发场景**：用户指出 OpenCode 的 permission-gate 输出 `xxxxxxxx` 而不是真实 token，根因是 OpenCode 环境缺 python3。但 install.sh 没有前置检测，ecosystem-probe 也没有检测 python3 依赖。38 个 hook、127 处 python3 调用在缺失时静默降级，用户不知道能力打折。
+**问题**：ecosystem-probe 初版只检测平台（Claude Code/OpenCode）和 OMO 家族，不检测运行时依赖（python3/python3-secrets）。安装时和 SessionStart 时都不告知用户缺失了什么、如何修复。
+**纠正**：
+1. ecosystem-probe.sh 扩展为全家桶探针：平台 + OMO家族 + python3 + python3-secrets + 缺失依赖一键安装建议
+2. 输出格式：`<ecosystem-probe>` XML 标签，AI 和用户皆可解析
+3. 软建议：缺 python3 → 提示 brew/apt install；缺 secrets → 提示升级 python3
+**证据**：ecosystem-probe.sh:76-101 — 运行时依赖检测；install.sh:84-128 — 安装时预检
+
+### 🐶 [DG-15] install.sh 缺少前置依赖检测 — 安装时应告知用户缺什么
+
+@2026-05-14 hits:1
+**触发场景**：用户说"为什么没有探针？安装Carror OS的时候就应该知道用户有没有python3了，开始就应该推荐安装（最好提供一键安装能力）"。检查 install.sh 发现它只在 line 309 和 line 475 使用 python3（带 `command -v` 兜底），但从未在安装开始时主动检测并告知用户。
+**问题**：install.sh 的 38 个 hook 依赖 python3，但安装时不检测。用户在不知情的情况下安装了功能降级的 Carror OS。等到 permission-gate 在 OpenCode 上输出 `xxxxxxxx` 时才发现，此时已过数天。
+**纠正**：
+1. install.sh 新增 pre-flight 依赖检测段（line 84-128）：python3 版本 + secrets 模块 + jq 可选加速器
+2. 缺失时打印平台感知的一键安装命令（brew/apt/yum/pacman）
+3. 不阻断安装 — Carror OS 有降级方案（5-level cascade），但明确告知用户能力打折
+**证据**：install.sh:84-128 — 预检段；本会话 — 用户明确要求"开始就应该推荐安装"
+
+
+### 🐶 [PH-01] 好的生态是成长出来的，不是设计出来的（外部收录）
+
+@2026-05-14 hits:1
+触发条件：思考项目机制体系的形成过程
+正确行为：在项目描述中强调生态的有机成长属性——机制是从真实踩坑中长出来的（狗粮驱动），不是预先设计的蓝图。每一条 claude-next.md 的 R/DG/DF 条目背后都是一次真实事故，每一个 hook 的存在都可以追溯到一次"差点出事"的瞬间。
+证据：Carror OS 的 40+ hook、16 条反模式、7 条哲学、8 条铁律——没有一条是凭空设计。全部是从数百小时的狗粮会话中提炼出来的教训结晶。
+来源：外部收录 — 用户对项目哲学的总结

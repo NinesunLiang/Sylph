@@ -137,6 +137,7 @@ print(f'{zombie}+{orphan}')
     TOOL_DIVERSITY=0
     TOOL_ERR_RATE=""
     TOTAL_OPS_FILE="$STATE_DIR/total-ops.txt"
+    ERROR_DNA_JSONL="$STATE_DIR/error-dna.jsonl"
     if [ -f "$ERROR_DNA_JSONL" ]; then
         TOOL_DIVERSITY=$(grep -c '"error_type"' "$ERROR_DNA_JSONL" 2>/dev/null || echo 0)
     fi
@@ -184,6 +185,14 @@ if [ -f "$FUZZY_CHECK" ]; then
         done
         set +f
 
+        if [ "$HAS_FUZZY_VERB" = true ]; then
+            # DF-01: 方向限定词检测 — "从机制上优化"有具体方向，非模糊指令
+            # 模式: "从X上/角度/层面/方面" / "针对X" / "关于X" / "在X方面" = 具体方向
+            if echo "$PROMPT" | grep -qE '(从.{1,8}(上|角度|层面|方面)|针对.{1,12}|关于.{1,12}|在.{1,8}方面)'; then
+                HAS_FUZZY_VERB=false
+                FUZZY_VERB=""
+            fi
+        fi
         if [ "$HAS_FUZZY_VERB" = true ]; then
             # 仅短+无结构化内容的提示才视为模糊指令（长提示含模板/表格是明确指令）
             PROMPT_LEN=${#PROMPT}

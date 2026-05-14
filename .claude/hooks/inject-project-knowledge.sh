@@ -166,13 +166,61 @@ if [ -f "$KC_REPORT" ]; then
     rm -f "$KC_REPORT"
 fi
 
-# 注入上次 error-dna 回顾报告（Stop hook 写入）
-EDNA_REPORT="$PROJECT_ROOT/.omc/state/error-dna-retrospective.txt"
-if [ -f "$EDNA_REPORT" ]; then
-    echo "[error-dna 回顾]"
-    cat "$EDNA_REPORT"
-    echo "---"
-    rm -f "$EDNA_REPORT"
+# error-dna-retrospective.txt: REMOVED — file never created in production (ED-01)
+
+# 注入 Error-DNA 逃逸检测摘要（最近 24h）
+DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
+ESCAPE_ENABLED=$(hc_get "escape_detection.enabled" "true")
+if [ "$ESCAPE_ENABLED" = "true" ] && [ -f "$DNA_JSONL" ]; then
+    ESC_SUMMARY=$(python3 - "$DNA_JSONL" <<'ESCEOF'
+import json, sys, time
+
+jsonl_path = sys.argv[1]
+now_ts = int(time.time())
+window = 86400  # 24h
+escapes = {'governance_bypass': [], 'captcha_forgery': []}
+
+try:
+    with open(jsonl_path) as f:
+        for line in f:
+            try:
+                rec = json.loads(line.strip())
+                if not rec: continue
+                et = rec.get('escape_type', '')
+                if et in escapes:
+                    if now_ts - rec.get('ts', 0) < window:
+                        escapes[et].append(rec)
+            except: pass
+
+    total = sum(len(v) for v in escapes.values())
+    if total == 0: sys.exit(0)
+
+    print(f"[Error-DNA 逃逸检测] 最近 24h 检测到 {total} 次逃逸行为:")
+    if escapes['governance_bypass']:
+        print(f"  E1(治理绕过): {len(escapes['governance_bypass'])}次")
+        for e in escapes['governance_bypass'][-3:]:
+            print(f"    · {e.get('message', '')[:120]}")
+    if escapes['captcha_forgery']:
+        print(f"  E2(验证码伪造): {len(escapes['captcha_forgery'])}次")
+        for e in escapes['captcha_forgery'][-3:]:
+            print(f"    · {e.get('message', '')[:120]}")
+    import os as _os
+    _pp = _os.path.join(_os.path.dirname(jsonl_path), 'escape-patches.json')
+    if _os.path.exists(_pp):
+        try:
+            with open(_pp) as _pf:
+                _ap = json.load(_pf)
+            _pend = sum(1 for p in _ap.values() if p.get('status') == 'pending')
+            if _pend:
+                print(f"  ⚠️ {_pend} 条补丁待审 → bash .claude/scripts/escape-patch-apply.sh status")
+        except: pass
+except: pass
+ESCEOF
+)
+    if [ -n "$ESC_SUMMARY" ]; then
+        echo "$ESC_SUMMARY"
+        echo "---"
+    fi
 fi
 
 # 注入飞轮废弃技能报告

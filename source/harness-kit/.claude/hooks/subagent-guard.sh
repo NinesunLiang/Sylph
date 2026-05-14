@@ -4,6 +4,15 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "subagent_guard" || { echo '{"continue": true}'; exit 0; }
+
+# Mode detection: ghost/goal 降级为 log+skip
+_MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
+if [ "$_MODE" != "normal" ]; then
+    echo "[$_MODE] subagent-guard 已记录（模式降级，不阻断）" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
+
 INPUT=$(cat)
 
 # R25: Task 工具 schema 没有 max_turns 字段，AI 无法在 tool_input 合法传入。
@@ -85,20 +94,39 @@ if [ "$IS_DANGEROUS" = "false" ]; then
     exit 0
 fi
 
-# 危险类型 + 有 max_turns（非空、非 null、非 0）→ 放行
-# 默认兜底: 即使 AI 未声明也会用 DEFAULT_MAX_TURNS 放行（见文件头逻辑）
+# 危险类型 + 显式 max_turns → 直接放行
 if [ -n "$MAX_TURNS" ] && [ "$MAX_TURNS" != "null" ] && [ "$MAX_TURNS" != "0" ]; then
-    if [ "$EFFECTIVE_SOURCE" = "default" ]; then
-        # 走默认值，以 additionalContext 提醒（不阻断）
-        printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "[Subagent Guard] %s 未显式声明 max_turns，已使用默认上限 %s 轮。如需其他上限请在 description/prompt 写 max_turns=N。"}}\n' "$AGENT_TYPE" "$MAX_TURNS"
+    if [ "$EFFECTIVE_SOURCE" != "default" ]; then
+        echo '{"continue": true}'
+        exit 0
     fi
-    exit 0
+    # 默认值 → Agentic UI 菜单，让用户确认或调整
+    cat >&2 <<EOF
+
+⛔ [Subagent Guard] 子 agent "${AGENT_TYPE}" 未显式声明 max_turns，将使用默认上限 ${DEFAULT_MAX_TURNS} 轮。
+建议: executor ≤25, designer ≤20, scientist ≤15
+
+请选择：
+  1. 继续（使用默认上限 ${DEFAULT_MAX_TURNS} 轮）
+  2. 降级为 haiku（最安全）
+  3. 取消操作
+
+输入数字 (1-3):
+EOF
+    exit 2
 fi
 
 # 兜底阻断：MAX_TURNS 为 0 / null 的异常情况
 cat >&2 <<EOF
-[Subagent Guard] 子 agent "$AGENT_TYPE" 的 max_turns 无效 (value=$MAX_TURNS)。
+
+⛔ [Subagent Guard] 子 agent "${AGENT_TYPE}" 的 max_turns 无效 (value=${MAX_TURNS})。
 建议: executor ≤25, designer ≤20, scientist ≤15
-  在 description/prompt 声明 max_turns=N 覆盖默认值 $DEFAULT_MAX_TURNS
+
+请选择：
+  1. 降级为 haiku（最安全）
+  2. 强制放行（使用默认上限 ${DEFAULT_MAX_TURNS} 轮）
+  3. 取消操作
+
+输入数字 (1-3):
 EOF
 exit 2

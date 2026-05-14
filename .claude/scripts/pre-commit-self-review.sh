@@ -323,6 +323,75 @@ else
 fi
 echo ""
 
+
+# ============================================================
+# Check (d): settings.json command 语法校验 — DF-04 防止 shell 引号损坏
+# 检测模式：所有 hook command 必须通过 bash -n 语法检查
+# ============================================================
+echo "--- Check (d): settings.json command 语法校验 ---"
+
+D_PASS=true
+D_FAILURES=""
+
+# 仅在 settings.json 在 staged 变更中时做深度校验
+if echo "$STAGED_FILES" | grep -q 'settings\.json' || [ -f ".claude/settings.json" ]; then
+    if command -v python3 &>/dev/null; then
+        # 提取所有 command 字符串并做 bash -n 语法检查
+        BAD_CMDS=$(python3 -c "
+import json, subprocess, tempfile, os
+with open('.claude/settings.json') as f:
+    data = json.load(f)
+bad = []
+for event, matchers in data.get('hooks', {}).items():
+    if isinstance(matchers, list):
+        for m in matchers:
+            for h in m.get('hooks', []):
+                cmd = h.get('command', '')
+                if not cmd:
+                    continue
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.sh', delete=False) as tf:
+                    tf.write('#!/usr/bin/env bash\n')
+                    tf.write(cmd + '\n')
+                    tf.flush()
+                    tf_path = tf.name
+                try:
+                    r = subprocess.run(['bash', '-n', tf_path], capture_output=True, text=True, timeout=5)
+                    if r.returncode != 0:
+                        bad.append(f'{cmd[:80]}  ->  {r.stderr.strip()[:100]}')
+                except Exception as e:
+                    bad.append(f'{cmd[:80]}  ->  parse error: {e}')
+                finally:
+                    os.unlink(tf_path)
+if bad:
+    for b in bad[:10]:
+        print(b)
+" 2>/dev/null)
+
+        if [ -n "$BAD_CMDS" ]; then
+            D_PASS=false
+            D_FAILURES="${D_FAILURES}  以下 settings.json command 未通过 bash -n 语法检查:
+${BAD_CMDS}
+
+  DF-04: 损坏的 shell 语法会导致 hook 无法执行，系统完全不能自愈
+  修复: 用纯文本绝对路径 'bash /path/to/script.sh' 替代含引号变量展开
+"
+            HAS_BLOCKING=true
+        fi
+    else
+        echo "  ⚠️ SKIP (d): python3 不可用，跳过 command 语法校验"
+    fi
+else
+    echo "  ⏭️ SKIP (d): settings.json 未变更，跳过 command 语法校验"
+fi
+
+if [ "$D_PASS" = true ] && [ -z "$D_FAILURES" ]; then
+    echo "  ✅ PASS (d): settings.json command 语法校验通过"
+elif [ -n "$D_FAILURES" ]; then
+    echo "  🔴 FAIL (d): settings.json command 语法错误"
+    echo "${D_FAILURES}"
+fi
+echo ""
+
 # ============================================================
 # Final verdict
 # ============================================================

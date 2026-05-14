@@ -4,6 +4,9 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_bash_audit" || { echo '{"continue": true}'; exit 0; }
+_ed_val="$(hc_get 'escape_detection' 'true')"; _ed_val="${_ed_val%\\}"
+[ "$_ed_val" = "true" ] || { echo '{"continue": true}'; exit 0; }
+
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then
@@ -60,6 +63,107 @@ elif echo "$COMMAND" | grep -qE "^pkill|^kill| pkill | kill "; then
     AUDIT_MSG="进程信号已发送。确认目标进程正确"
 fi
 
+# === Escape Pattern E4: Evidence fabrication detection ===
+# Pattern: completion-gate blocks recorded → AI echo "VERIFIED" to evidence file → TaskUpdate(completed)
+# Signal: gate blocks in recent jsonl + current command writes evidence + no build/test commands in between
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+STATE_DIR="$PROJECT_ROOT/.omc/state"
+EV_DNA_JSONL="$STATE_DIR/error-dna.jsonl"
+ESCAPE_E4_MSG=""
+if [ -f "$EV_DNA_JSONL" ]; then
+    ESCAPE_E4_MSG=$(python3 - "$EV_DNA_JSONL" "$COMMAND" <<'E4EOF'
+import json, sys, re
+
+jsonl_path = sys.argv[1]
+current_cmd = sys.argv[2]
+
+try:
+    recent_entries = []
+    with open(jsonl_path) as f:
+        for line in f:
+            try:
+                rec = json.loads(line.strip())
+                if rec:
+                    recent_entries.append(rec)
+            except:
+                pass
+
+    recent = recent_entries[-20:]
+
+    # Detect: completion-gate block recorded
+    gate_blocks = [r for r in recent
+                   if r.get('error_type') == 'gate_operation'
+                   and ('completion' in r.get('message', '').lower()
+                        or 'evidence' in r.get('message', '').lower())]
+
+    # Detect: current command is creating/writing evidence file
+    is_evidence_write = bool(re.search(
+        r'VERIFIED|completion-evidence|\.completion-evidence|echo.*VERIFIED|echo.*PASS',
+        current_cmd))
+
+    # Detect: build/test commands in recent entries
+    build_cmds = [r for r in recent
+                  if r.get('error_type') in ('build', 'test')
+                  or any(x in r.get('cmd', '') for x in ['go build', 'go test', 'npm test', 'cargo build'])]
+
+    if len(gate_blocks) >= 1 and is_evidence_write and len(build_cmds) == 0:
+        print(f"[E4] 可能证据编造: completion-gate 最近阻断({len(gate_blocks)}次)，当前命令写入证据文件，但最近{len(recent)}条记录中无编译/测试命令。")
+        print(f"  建议: 验证 AI 实际执行了测试，而非仅 echo VERIFIED 伪造完成证据。")
+    else:
+        print("")
+except Exception:
+    print("")
+E4EOF
+)
+fi
+
+# === Escape Pattern E3: Context evasion via subagent ===
+# Pattern: context-guard blocks (high context) → immediate Task subagent creation
+ESCAPE_E3_MSG=""
+if [ -f "$EV_DNA_JSONL" ]; then
+    ESCAPE_E3_MSG=$(python3 - "$EV_DNA_JSONL" "$COMMAND" <<'E3EOF'
+import json, sys, re
+
+jsonl_path = sys.argv[1]
+current_cmd = sys.argv[2]
+
+try:
+    recent_entries = []
+    with open(jsonl_path) as f:
+        for line in f:
+            try:
+                rec = json.loads(line.strip())
+                if rec:
+                    recent_entries.append(rec)
+            except:
+                pass
+
+    recent = recent_entries[-10:]
+
+    # Check for context-guard blocks in recent history
+    ctx_blocks = [r for r in recent
+                  if ('context' in r.get('message', '').lower()
+                      or 'context' in r.get('error_type', '').lower())
+                  and ('guard' in r.get('message', '').lower()
+                       or 'guard' in r.get('cmd', '').lower())]
+
+    # Detect if current command is creating a subagent (Task tool via Bash)
+    is_subagent = bool(re.search(
+        r'task.*(create|execute|run|spawn)|subagent|sub_agent|start_agent|delegate',
+        current_cmd, re.IGNORECASE))
+
+    if len(ctx_blocks) >= 1 and is_subagent:
+        print(f"[E3] 可能的上下文规避: context-guard 最近阻断({len(ctx_blocks)}次)后立即创建子 agent。")
+        print(f"  建议: 检查 AI 是否通过子 agent 绕过上下文限制。")
+    else:
+        print("")
+except Exception:
+    print("")
+E3EOF
+)
+fi
+
 # === C1 反模式检测: 编译错误盲修 ===
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -111,12 +215,12 @@ print(len(data.get('signatures', [])))" 2>/dev/null)
     fi
 fi
 
-# Merge messages and output
+# Merge all messages and output
 COMBINED_MSG=""
 [ -n "$AUDIT_MSG" ] && COMBINED_MSG="$AUDIT_MSG"
-if [ -n "$ANTI_PATTERN_MSG" ]; then
-    [ -n "$COMBINED_MSG" ] && COMBINED_MSG="${COMBINED_MSG} | ${ANTI_PATTERN_MSG}" || COMBINED_MSG="$ANTI_PATTERN_MSG"
-fi
+[ -n "$ANTI_PATTERN_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ANTI_PATTERN_MSG}"
+[ -n "$ESCAPE_E4_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ESCAPE_E4_MSG}"
+[ -n "$ESCAPE_E3_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ESCAPE_E3_MSG}"
 
 if [ -z "$COMBINED_MSG" ]; then
     echo '{"continue": true}'

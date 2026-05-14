@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# pretool-sensitive-edit.sh — PreToolUse:Edit|Write — 治理文件编辑验证码门禁（哲学 #6 物化）
-# Role: 对 CLAUDE.md/AGENTS.md/harness.yaml/settings.json 等治理文件的 Edit/Write 要求用户 CAPTCHA 确认
+# pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）
+# Role: 对 CLAUDE.md/AGENTS.md/harness.yaml/settings.json 等治理文件的 Edit/Write/Bash 要求用户 CAPTCHA 确认
 # 哲学 #6：先天对 AI 0 信任 — 治理文件变更须经用户显式授权
+# Bash 支持 (DF-04): 扫描命令字符串中的文件操作目标，检测 sed/tee/>/>>/cp/mv 操作治理文件路径
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_sensitive_edit" || { echo '{"continue": true}'; exit 0; }
@@ -31,6 +32,27 @@ try:
     print(ti.get('file_path', ti.get('path', '')))
 except:
     pass" 2>/dev/null)
+fi
+
+# Bash 工具：从命令字符串提取操作的文件路径（E1 逃逸检测）
+if [ -z "$FILE_PATH" ] && command -v jq &>/dev/null; then
+    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+    if [ "$TOOL_NAME" = "Bash" ]; then
+        BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+        # 扫描命令中的治理文件路径（sed/tee/>/>>/cp/mv/cat/echo 操作）
+        for _pat in CLAUDE.md AGENTS.md harness.yaml settings.json kernel.md anti-patterns.md; do
+            case "$BASH_CMD" in
+                *"$_pat"*) FILE_PATH="$_pat"; break ;;
+            esac
+        done
+        # 也检测 .claude/hooks/ 和 .claude/scripts/ 的修改
+        if [ -z "$FILE_PATH" ]; then
+            case "$BASH_CMD" in
+                *".claude/hooks/"*) FILE_PATH="$(echo "$BASH_CMD" | grep -o '[^ ]*\.claude/hooks/[^ ]*' | head -1)" ;;
+                *".claude/scripts/"*) FILE_PATH="$(echo "$BASH_CMD" | grep -o '[^ ]*\.claude/scripts/[^ ]*' | head -1)" ;;
+            esac
+        fi
+    fi
 fi
 
 [ -z "$FILE_PATH" ] && { echo '{"continue": true}'; exit 0; }
@@ -93,8 +115,7 @@ echo "🔴 敏感文件编辑: $_BASE" >&2
 echo "验证码: $APPROVAL_CODE" >&2
 echo "方法 A — 在输入框中按 Enter 执行：" >&2
 echo "  ! echo '$APPROVAL_CODE' > .omc/state/sensitive-approved" >&2
-echo "方法 B — 在终端中直接运行：" >&2
-echo "  approve-sen" >&2
+echo "(approve-sen 命令已废弃 — 仅方法 A 可用)" >&2
 echo "AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）。" >&2
 exit 2
 

@@ -129,11 +129,6 @@ try:
     for evt, cnt in warnings[:5]:
         projs = ', '.join(sorted(project_map[evt]))[:50] if project_map[evt] else '-'
         report_lines.append(f"- **{evt}**: {cnt} occurrences (P0, projects: {projs})")
-    if trend_lines:
-        report_lines.append("")
-        report_lines.append("## Monthly Trend (this vs last month)")
-        for line in trend_lines[:5]:
-            report_lines.append(f"- {line}")
     report_lines.append("")
     with open(report_path, 'w') as f:
         f.write("\n".join(report_lines))

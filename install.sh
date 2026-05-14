@@ -82,6 +82,52 @@ esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
 
+# ─── 预检：运行时依赖检测 ──────────────────────────────────────
+echo ""
+log_step "正在检测运行时依赖..."
+
+MISSING_DEPS=0
+
+# python3 检测
+if command -v python3 &>/dev/null; then
+    PY_VER=$(python3 --version 2>&1 || echo "未知版本")
+    log_info "python3 已安装: $PY_VER"
+    if python3 -c "import secrets" 2>/dev/null; then
+        log_info "python3 secrets 模块可用 (Python >= 3.6)"
+    else
+        log_warn "python3 缺少 secrets 模块 (Python < 3.6)"
+        log_warn "  permission-gate 随机验证码将使用降级方案 (od urandom / openssl / shell fallback)"
+        MISSING_DEPS=$((MISSING_DEPS + 1))
+    fi
+else
+    echo -e "${RED}[DEPS]${NC} python3 未安装 — Carror OS 的 38 个 hook (permission-gate/error-dna/token-tracking 等) 依赖它"
+    echo ""
+    echo "   🔧 一键安装 python3:"
+    echo "      macOS:         brew install python3"
+    echo "      Debian/Ubuntu: sudo apt install -y python3"
+    echo "      RHEL/CentOS:   sudo yum install -y python3"
+    echo "      Arch:          sudo pacman -S python3"
+    echo ""
+    echo "   📦 安装后可重新运行: bash install.sh $INSTALL_MODE"
+    echo ""
+    MISSING_DEPS=$((MISSING_DEPS + 1))
+fi
+
+# jq 检测（可选加速器）
+if command -v jq &>/dev/null; then
+    log_info "jq 已安装 (JSON 解析加速)"
+else
+    log_info "jq 未安装 (将使用 python3 回退解析 JSON，功能不受影响)"
+fi
+
+# 汇总
+if [ "$MISSING_DEPS" -gt 0 ]; then
+    echo -e "${YELLOW}[DEPS]${NC} ⚠️  检测到 $MISSING_DEPS 个依赖缺失"
+    echo -e "${YELLOW}[DEPS]${NC} Carror OS 已为所有缺失依赖准备了降级方案，安装可继续。"
+    echo -e "${YELLOW}[DEPS]${NC} 但为获得最佳体验和加密级随机验证码，建议安装后补全依赖。"
+fi
+echo ""
+
 # ─── 无损热更新机制 (Safe In-Place Upgrade) ──────────────────
 BACKUP_DIR=$(mktemp -d)
 # 注意：不使用 trap EXIT 删除备份。中途失败时保留备份文件供 rollback 使用。

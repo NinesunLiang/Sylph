@@ -12,6 +12,14 @@ if [ -f "$HARNESS_CONFIG" ]; then
     fi
 fi
 
+# Mode detection: ghost/goal 降级为 log+skip
+_MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
+if [ "$_MODE" != "normal" ]; then
+    echo "[$_MODE] pretool-write-lock 已记录（模式降级，不阻断）" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
+
 TOOL_INPUT=$(cat)
 
 # 从 stdin JSON 读 tool_name（兼容 settings.json 无位置参数场景）

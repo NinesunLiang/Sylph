@@ -12,6 +12,15 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "retry_budget_check" || { echo '{"continue": true}'; exit 0; }
+
+# Mode detection: ghost/goal 降级为 log+skip
+_MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
+if [ "$_MODE" != "normal" ]; then
+    echo "[$_MODE] pretool-retry-check 已记录（模式降级，不阻断）" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
+
 INPUT=$(cat)
 
 # 仅检查 Bash 命令（重试只发生在命令执行失败时）
@@ -53,8 +62,19 @@ except Exception:
 ")
     PY_EXIT=$?
     if [ $PY_EXIT -eq 2 ] && [ -n "$EXCEEDED" ]; then
-        echo "[Retry Budget] BLOCKED — 存在超过重试上限的错误:" >&2
-        echo "$EXCEEDED" >&2
+        cat >&2 <<EOF
+
+⛔ [Retry Budget] 存在超过重试上限的重复失败:
+
+${EXCEEDED}
+
+请选择：
+  1. 重置重试计数并重试
+  2. 升级到 lx-task-spec（结构化处理）
+  3. 取消操作
+
+输入数字 (1-3):
+EOF
         exit 2
     fi
 fi

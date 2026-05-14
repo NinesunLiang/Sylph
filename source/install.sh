@@ -82,6 +82,52 @@ esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
 
+# ─── 预检：运行时依赖检测 ──────────────────────────────────────
+echo ""
+log_step "正在检测运行时依赖..."
+
+MISSING_DEPS=0
+
+# python3 检测
+if command -v python3 &>/dev/null; then
+    PY_VER=$(python3 --version 2>&1 || echo "未知版本")
+    log_info "python3 已安装: $PY_VER"
+    if python3 -c "import secrets" 2>/dev/null; then
+        log_info "python3 secrets 模块可用 (Python >= 3.6)"
+    else
+        log_warn "python3 缺少 secrets 模块 (Python < 3.6)"
+        log_warn "  permission-gate 随机验证码将使用降级方案 (od urandom / openssl / shell fallback)"
+        MISSING_DEPS=$((MISSING_DEPS + 1))
+    fi
+else
+    echo -e "${RED}[DEPS]${NC} python3 未安装 — Carror OS 的 38 个 hook (permission-gate/error-dna/token-tracking 等) 依赖它"
+    echo ""
+    echo "   🔧 一键安装 python3:"
+    echo "      macOS:         brew install python3"
+    echo "      Debian/Ubuntu: sudo apt install -y python3"
+    echo "      RHEL/CentOS:   sudo yum install -y python3"
+    echo "      Arch:          sudo pacman -S python3"
+    echo ""
+    echo "   📦 安装后可重新运行: bash install.sh $INSTALL_MODE"
+    echo ""
+    MISSING_DEPS=$((MISSING_DEPS + 1))
+fi
+
+# jq 检测（可选加速器）
+if command -v jq &>/dev/null; then
+    log_info "jq 已安装 (JSON 解析加速)"
+else
+    log_info "jq 未安装 (将使用 python3 回退解析 JSON，功能不受影响)"
+fi
+
+# 汇总
+if [ "$MISSING_DEPS" -gt 0 ]; then
+    echo -e "${YELLOW}[DEPS]${NC} ⚠️  检测到 $MISSING_DEPS 个依赖缺失"
+    echo -e "${YELLOW}[DEPS]${NC} Carror OS 已为所有缺失依赖准备了降级方案，安装可继续。"
+    echo -e "${YELLOW}[DEPS]${NC} 但为获得最佳体验和加密级随机验证码，建议安装后补全依赖。"
+fi
+echo ""
+
 # ─── 无损热更新机制 (Safe In-Place Upgrade) ──────────────────
 BACKUP_DIR=$(mktemp -d)
 # 注意：不使用 trap EXIT 删除备份。中途失败时保留备份文件供 rollback 使用。
@@ -195,7 +241,7 @@ case "$INSTALL_MODE" in
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
-        for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill lx-race; do
+        for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-status lx-validate-skill lx-race; do
             rm -rf .claude/skills/$s
         done
         log_info "已精简为 10 个静默门禁 Skill。"
@@ -340,10 +386,34 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
     log_info "用户资产恢复完成"
 fi
 
+# ─── OpenCode + OMO 检测（后续多处引用）────────────────────
+HAS_OPCODE=false; HAS_OMO=false
+command -v opencode &>/dev/null && HAS_OPCODE=true
+npm list -g oh-my-opencode &>/dev/null && HAS_OMO=true
+
 if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     mkdir -p .opencode/plugins
     cp -r "$SCRIPT_DIR/opencode-plugins/"* .opencode/plugins/
     log_info "OpenCode plugins 已安装（.opencode/plugins/）"
+fi
+
+# ─── OpenCode + OMO 依赖检测（独立于插件目录是否存在）─────────
+if $HAS_OPCODE && ! $HAS_OMO; then
+    log_warn "检测到 OpenCode 但未安装 oh-my-opencode (OMO)"
+    echo ""
+    echo "   💡 推荐安装 OMO 以获得完整 hooks 能力:"
+    echo "      npm install -g oh-my-opencode"
+    echo ""
+    echo "   📊 能力差异 (OpenCode):"
+    echo "      无 OMO:    SessionStart + PostToolUseFailure =  2/7 事件 (29%)"
+    echo "      有 OMO:    PreToolUse/PostToolUse/UserPromptSubmit"
+    echo "                + Stop/PreCompact + SessionStart"
+    echo "                + PostToolUseFailure                =  7/7 事件 (100%)"
+    echo ""
+    echo "   ℹ️  Claude Code 用户无需额外安装: 原生支持全部 7 事件"
+    echo ""
+elif $HAS_OPCODE && $HAS_OMO; then
+    log_info "OpenCode + oh-my-opencode 已就绪，hooks 全能力可用 (7/7)"
 fi
 
 # ─── 用户治理文件合并迁移 ──────────────────────────────────────
@@ -451,6 +521,14 @@ fi
 if command -v python3 &>/dev/null && [ -f ".hooks/generate.py" ]; then
     log_step "生成跨平台 CLI hooks 配置..."
     python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（无可用平台）"
+
+    # ─── 后处理: 禁用跨平台生成的旧版 sylph-hooks.ts ──────────
+    # carror-hooks-compat.ts 是 OMO 兼容策略的权威文件
+    # sylph-hooks.ts 是旧版, 与 carror-hooks-compat 功能重叠
+    if [ -f ".opencode/plugins/sylph-hooks.ts" ] && [ -f ".opencode/plugins/carror-hooks-compat.ts" ]; then
+        mv ".opencode/plugins/sylph-hooks.ts" ".opencode/plugins/sylph-hooks.ts.disabled" 2>/dev/null
+        log_info "旧版 sylph-hooks.ts 已禁用（.disabled），carror-hooks-compat.ts 优先"
+    fi
 fi
 
 echo ""
@@ -469,5 +547,8 @@ else
     echo " - 参阅 .claude/CARROR-OS-FEATURES.md 获取完整武器库说明。"
 fi
 echo " 🔀 切换项目语言规范：bash .claude/profiles/merge-profile.sh <go|node|python|rust>"
+if $HAS_OPCODE && ! $HAS_OMO; then
+    echo " ⚡ OpenCode 用户：运行 npm install -g oh-my-opencode 解锁完整 7/7 hooks"
+fi
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"

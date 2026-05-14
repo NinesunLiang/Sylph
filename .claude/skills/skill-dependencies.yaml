@@ -45,7 +45,7 @@ pipeline:
 # orchestrator: 该 skill 被哪个编排器协调
 skills:
   - id: lx-oma-hier
-    version: v1.2.0
+    version: v1.3.0
     type: pipeline
     consumes: [master_prd]
     provides: [sub_prd_domains]

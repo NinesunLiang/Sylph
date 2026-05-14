@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
-# error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 捕获结构化错误 DNA 写入跨会话错误记忆
-# Role: 捕获结构化错误 DNA 写入跨会话错误记忆
+# error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 轻量错误捕获（Oracle 瘦身后 v2）
+# Role: 捕获 Bash 错误写入 jsonl + total-ops 计数器 + 高频告警
+# 瘦身说明: 移除 JSON 全量重建(~200行)、噪声分类(~100行)、repair_success 检测
+#           保留: 捕获管道、total-ops、retry-budget、归档轮转(R41)、高频告警
+# Oracle 裁决: 哲学#3+#6 保留基础设施 > 哲学#1+#2 去噪 — 保留捕获点，去除非必要计算
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "error_dna" || { echo '{"continue": true}'; exit 0; }
+_ed_val="$(hc_get 'escape_detection' 'true')"; _ed_val="${_ed_val%\\}"
+[ "$_ed_val" = "true" ] || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat)
 
-# 从 stdin JSON 读 tool_name（兼容 settings.json 无位置参数场景）
+# 从 stdin JSON 读 tool_name
 if command -v jq &>/dev/null; then
     TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
 else
     TOOL_NAME=$(echo "$INPUT" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
     [ -z "$TOOL_NAME" ] && TOOL_NAME=$(echo "$INPUT" | grep -o '"tool"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
 fi
-# fallback 到位置参数（保留给手动调用/测试场景）
 [ -z "$TOOL_NAME" ] && TOOL_NAME="$1"
 TOOL_NAME=$(echo "$TOOL_NAME" | tr '[:upper:]' '[:lower:]')
 
-# Only capture bash tool errors
 if [ "$TOOL_NAME" != "bash" ]; then
     echo '{"continue": true}'
     exit 0
@@ -31,7 +34,6 @@ TS=$(date +%s)
 
 mkdir -p "$STATE_DIR" 2>/dev/null
 
-# Write INPUT to temp file for python processing (avoids heredoc/stdin conflicts)
 TMP_FILE="${STATE_DIR}/.error-dna-input-$$.json"
 echo "$INPUT" > "$TMP_FILE"
 
@@ -39,14 +41,13 @@ ERROR_DNA_ROTATION_SIZE=$(hc_get "error_dna.rotation_size_bytes" "1048576")
 export ERROR_DNA_ROTATION_SIZE
 ERROR_DNA_ARCHIVE_COUNT=$(hc_get "error_dna.archive_count" "3")
 export ERROR_DNA_ARCHIVE_COUNT
-export SCRIPT_DIR
+
 PY_OUTPUT=$(python3 - "$STATE_DIR" "$TS" "$TMP_FILE" <<'PYEOF'
 import json, os, sys, hashlib, re
 
 state_dir = sys.argv[1]
 ts = int(sys.argv[2])
 tmp_path = sys.argv[3]
-script_dir = os.environ.get('SCRIPT_DIR', '')
 
 try:
     with open(tmp_path) as f:
@@ -71,7 +72,7 @@ command = tool_input.get('command', '') or ''
 stderr = tool_response.get('stderr', '') or ''
 stdout = tool_response.get('stdout', '') or ''
 
-# === Total-ops counter: increment on every Bash call ===
+# === Total-ops counter ===
 ops_path = os.path.join(state_dir, 'total-ops.txt')
 try:
     current = int(open(ops_path).read().strip())
@@ -80,279 +81,155 @@ except (FileNotFoundError, ValueError):
 with open(ops_path, 'w') as f:
     f.write(str(current + 1))
 
-# PostToolUseFailure schema: top-level `error` field (no exit_code/stderr under tool_response)
-# Treat presence of top-level error OR hook_event_name=PostToolUseFailure as definite failure.
+# PostToolUseFailure schema: top-level error field
 top_error = data.get('error', '') or ''
 event_name = data.get('hook_event_name', '') or ''
 if event_name == 'PostToolUseFailure' or top_error:
     if exit_code == 0:
-        exit_code = 1  # synthetic non-zero to keep downstream invariants
+        exit_code = 1
     if not stderr:
         stderr = top_error
 
-# === AC-1.4: Credential sanitization (early for repair tracking) ===
+# Credential sanitization
 cmd_clean = re.sub(r'--password\s+\S+', '--password ***', command)
 cmd_clean = re.sub(r'--token\s+\S+', '--token ***', cmd_clean)
 cmd_clean = re.sub(r'--secret\s+\S+', '--secret ***', cmd_clean)
 cmd_clean = re.sub(r'--key\s+\S+', '--key ***', cmd_clean)
 
-# === repair_success detection: previous failure now succeeds (exit_code non-zero → zero) ===
-_rs_json_path = os.path.join(state_dir, 'error-dna.json')
-_rs_aggregated = {}
-if exit_code == 0 and command:
-    try:
-        with open(_rs_json_path) as f:
-            _rs_aggregated = json.load(f).get('error_signatures', {})
-    except (FileNotFoundError, json.JSONDecodeError):
-        pass
-    _rs_sig = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
-    _rs_entry = _rs_aggregated.get(_rs_sig, {})
-    if _rs_entry and _rs_entry.get('count', 0) > 0 and not _rs_entry.get('repair_success'):
-        _rs_entry['repair_success'] = True
-        _rs_entry['status'] = 'fixed'
-        with open(_rs_json_path, 'w') as f:
-            json.dump({'error_signatures': _rs_aggregated}, f, indent=2, ensure_ascii=False)
-        print(f"[error-dna repair_success] 签名 {_rs_sig[:12]} — 之前失败 ({_rs_entry.get('count', 0)} 次)，现已修复")
+# === Escape Pattern E1: Governance file bypass via Bash ===
+# AI uses Bash (sed -i / tee / > / >>) to modify governance files,
+# bypassing pretool-sensitive-edit (which only hooks Edit|Write tools).
+# These are HIGH-VALUE signals — successful gate bypass, not a gate failure.
+GOVERNANCE_PATHS = [
+    '.claude/harness.yaml', '.claude/settings.json',
+    '.claude/kernel.md', '.claude/anti-patterns.md',
+    '.claude/index.md', '.claude/claude-next.md',
+    '.claude/feature-registry.yaml',
+    'CLAUDE.md', 'AGENTS.md',
+    '.cursor/hooks.json', '.opencode/opencode.json',
+]
+ESCAPE_E1 = False
+ESCAPE_E1_TARGET = ''
+for _gp in GOVERNANCE_PATHS:
+    if _gp in cmd_clean:
+        ESCAPE_E1 = True
+        ESCAPE_E1_TARGET = _gp
+        break
 
-# Skip success and empty commands
-if exit_code == 0 or not command:
+# Symlink resolution: check if command file args point to governance files via symlink
+# Catches: AI creates /tmp/link -> .claude/settings.json then writes to /tmp/link
+if not ESCAPE_E1:
+    for _token in cmd_clean.split():
+        _token = _token.strip("'\"")
+        if _token.startswith('/') and os.path.exists(_token):
+            _resolved = os.path.realpath(_token)
+            if _resolved != _token:  # symbolic link resolves differently
+                for _gp in GOVERNANCE_PATHS:
+                    if _gp in _resolved:
+                        ESCAPE_E1 = True
+                        ESCAPE_E1_TARGET = _gp
+                        break
+        if ESCAPE_E1:
+            break
+
+# === Escape Pattern E2: CAPTCHA forgery ===
+# AI directly writes to CAPTCHA approval files to self-approve gates.
+# Per R42: AI must never self-approve — this is a critical escape attempt.
+CAPTCHA_MARKERS = [
+    'sensitive-approved', 'sensitive-required',
+    'permission-approved', 'permission-required',
+]
+ESCAPE_E2 = False
+ESCAPE_E2_TARGET = ''
+for _cm in CAPTCHA_MARKERS:
+    if _cm in cmd_clean:
+        ESCAPE_E2 = True
+        ESCAPE_E2_TARGET = _cm
+        break
+
+# Skip success and empty commands — EXCEPT when escape patterns detected
+# Successful escapes (exit_code=0) are MORE valuable signals than failures
+if (exit_code == 0 and not ESCAPE_E1 and not ESCAPE_E2) or not command:
     sys.exit(0)
 
-# === AC-1.2 / AC-1.6: Shared library classifier + signature (with local fallback) ===
-_ec_path = os.path.abspath(os.path.join(script_dir, '..', 'scripts', 'error_classifier.py'))
-_ec_available = False
-if os.path.exists(_ec_path):
-    try:
-        sys.path.insert(0, os.path.dirname(_ec_path))
-        from error_classifier import classify_by_command, generate_signature as _gs_lib, classify_error
-        error_type = classify_by_command(cmd_clean)
-        signature = _gs_lib(cmd_clean, exit_code, error_type)
-        # E5: 症状级分类
-        errors_detail = classify_error(cmd_clean, exit_code, stderr or stdout)
-        symptom = errors_detail[0].get('type', error_type) if errors_detail else error_type
-        _ec_available = True
-    except Exception:
-        pass
+# === Inline classifier (lightweight, no shared lib dependency) ===
+signature = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
+cmd_lower = cmd_clean.lower()
+if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc']):
+    error_type = 'build'
+elif any(x in cmd_lower for x in ['go test', 'npm test', 'pytest', 'jest']):
+    error_type = 'test'
+elif any(x in cmd_lower for x in ['git']):
+    error_type = 'git'
+elif any(x in cmd_lower for x in ['npm install', 'go get', 'pip install']):
+    error_type = 'dependency'
+elif any(x in cmd_lower for x in ['lint', 'eslint', 'golangci-lint']):
+    error_type = 'lint'
+elif any(x in cmd_lower for x in ['docker']):
+    error_type = 'docker'
+elif any(x in cmd_lower for x in ['curl', 'wget', 'http']):
+    error_type = 'network'
+elif any(x in cmd_lower for x in ['find', 'grep', 'sed', 'awk']):
+    error_type = 'file_ops'
+else:
+    error_type = 'runtime'
 
-if not _ec_available:
-    # === Fallback: inline signature (cmd-only) + local classifier ===
-    signature = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
-    symptom = 'unknown'
-
-    cmd_lower = cmd_clean.lower()
-    if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc']):
-        error_type = 'build'
-    elif any(x in cmd_lower for x in ['go test', 'npm test', 'pytest', 'jest']):
-        error_type = 'test'
-    elif any(x in cmd_lower for x in ['git']):
-        error_type = 'git'
-    elif any(x in cmd_lower for x in ['npm install', 'go get', 'pip install']):
-        error_type = 'dependency'
-    elif any(x in cmd_lower for x in ['lint', 'eslint', 'golangci-lint']):
-        error_type = 'lint'
-    elif any(x in cmd_lower for x in ['docker']):
-        error_type = 'docker'
-    elif any(x in cmd_lower for x in ['curl', 'wget', 'http']):
-        error_type = 'network'
-    elif any(x in cmd_lower for x in ['find', 'grep', 'sed', 'awk']):
-        error_type = 'file_ops'
-    else:
-        error_type = 'runtime'
-
-# Build output snippet and message
 output_snippet = (stderr or stdout)[:500]
 message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
-
-# E5: Noise classification — known operational patterns that are not actionable
-# Note: Keep as substring `in` matching (not regex). These patterns are also used
-# retroactively during aggregation to re-classify pre-noise-era records.
-# 20 active entries (removed 3 over-broad: PreToolUse:, =======, summary:) Item 4 fix
-NOISE_PATTERNS = [
-    'File has not been read yet',             # edit-guard enforcement (normal)
-    "doesn't want to proceed",                 # user tool rejection (normal)
-    "doesn't want to take this action",        # user tool rejection (normal)
-    'String to replace not found',             # Edit tool retry (normal)
-    'cat: illegal option',                     # macOS compat (known)
-    'File does not exist',                     # Read tool error (normal)
-    'Permission Gate:',                        # permission-gate blocking (normal)
-    'Unable to verify if domain',              # WebFetch safety check (internal)
-    'File has been modified since read',       # concurrency guard (normal)
-    'exceeds maximum allowed tokens',          # token limit enforcement (normal)
-    'InputValidationError: Edit',              # edit validation (normal)
-    'lsp-suggest.sh',                          # LSP suggest hook error (operational)
-    'Exit code 126',                           # permission denied (operational)
-    'Exit code 127',                           # command not found (operational)
-    'PreToolUse:Bash hook error',              # hook pipeline error (operational)
-    # 'PreToolUse:' — REMOVED: over-broad, masks real hook bugs (Item 4 fix)
-    'no matches found',                         # shell glob failure (operational)
-    'File content has changed since',           # concurrency guard (normal)
-    'Skill compact is not',                     # invalid skill name (operational)
-    'verify_oma_interface_coverage',          # OMA verify script errors (operational)
-    'OMA 接口覆盖校验',                        # OMA 接口覆盖校验 banner (operational)
-    # ED-02: Gate 操作是正常行为，非错误
-    'context-guard.sh',                        # context-guard 阻断 (正常 gate 操作)
-    'pretool-sensitive-edit.sh',              # sensitive-edit 阻断 (正常 gate 操作)
-    '有意分歧',                                # mirror 检查信息 (正常同步约束)
-    'old_string and new_string are exactly the same',  # Edit no-op (正常操作)
-    'diff: unrecognized option',               # macOS compat (已知兼容问题)
-    # '=======' — REMOVED: over-broad (Item 4 fix)
-    # 'summary:' — REMOVED: over-broad (Item 4 fix)
-]
-is_noise = any(p in message for p in NOISE_PATTERNS)
-
 session_id = os.environ.get('SESSION_ID', 'unknown') or 'unknown'
 
-# === AC-1.1: JSONL record ===
+# === Append to JSONL (capture only, no full rebuild) ===
 record = {
     'ts': ts,
     'signature': signature,
-    'symptom': symptom,
     'cmd': cmd_clean,
     'exit_code': exit_code,
     'error_type': error_type,
     'message': message,
-    'output_snippet': output_snippet,
     'session_id': session_id,
-    'is_noise': is_noise
+    'escape_type': '',  # '' | 'governance_bypass' | 'captcha_forgery'
 }
 
-jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
-json_path = os.path.join(state_dir, 'error-dna.json')
+# Label escape records — these are HIGH-VALUE signals, not noise
+if ESCAPE_E1:
+    record['error_type'] = 'governance_bypass'
+    record['escape_type'] = 'governance_bypass'
+    record['message'] = f'E1: Bash bypass of governance file {ESCAPE_E1_TARGET} — cmd: {cmd_clean[:100]}'
+elif ESCAPE_E2:
+    record['error_type'] = 'captcha_forgery'
+    record['escape_type'] = 'captcha_forgery'
+    record['message'] = f'E2: CAPTCHA forgery targeting {ESCAPE_E2_TARGET} — cmd: {cmd_clean[:100]}' 
 
-# Append to jsonl
+jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
 os.makedirs(state_dir, exist_ok=True)
 with open(jsonl_path, 'a') as f:
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
-# === AC-1.1: Merge into json state (rebuild from jsonl, preserve persistent metadata) ===
-# Step 1: Load persistent state from error-dna.json (preserves fix_count, repair_success, etc.)
-_persistent_agg = {}
-try:
-    with open(json_path) as f:
-        _persistent_agg = json.load(f).get('error_signatures', {})
-except (FileNotFoundError, json.JSONDecodeError):
-    pass
-
-# Step 2: Rebuild from jsonl source-of-truth (including archive files)
-aggregated = {}
-_archive_files = []
-_i = 0
-while True:
-    _ap = os.path.join(state_dir, f'error-dna.jsonl.{_i}')
-    if os.path.exists(_ap):
-        _archive_files.append(_ap)
-        _i += 1
-    else:
-        break
-for _js in [jsonl_path] + _archive_files:
+# === Retry budget update (C9) ===
+budget_path = os.path.join(state_dir, 'retry-budget.json')
+budget = {'signatures': {}}
+if os.path.isfile(budget_path):
     try:
-        with open(_js) as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                    sig = rec.get('signature', 'unknown')
-                    if sig not in aggregated:
-                        _noise = rec.get('is_noise', False)
-                        aggregated[sig] = {
-                            'count': 0,
-                            'fix_count': 0,
-                            'status': 'noise' if _noise else 'active',
-                            'last_seen': 0,
-                            'message': ''
-                        }
-                    aggregated[sig]['count'] += 1
-                    aggregated[sig]['last_seen'] = max(aggregated[sig]['last_seen'], rec.get('ts', 0))
-                    if not aggregated[sig]['message']:
-                        aggregated[sig]['message'] = rec.get('message', '')[:200]
-                except json.JSONDecodeError:
-                    continue
-    except FileNotFoundError:
+        with open(budget_path) as _bf:
+            budget = json.load(_bf)
+    except Exception:
         pass
+sigs = budget.get('signatures', {})
+if signature not in sigs:
+    sigs[signature] = {
+        'retry_count': 0, 'label': message[:80],
+        'first_seen': ts, 'error_type': error_type
+    }
+sigs[signature]['retry_count'] = sigs[signature].get('retry_count', 0) + 1
+sigs[signature]['last_retry'] = ts
+sigs[signature]['label'] = message[:80]
+budget['signatures'] = sigs
+_btmp = budget_path + '.tmp'
+with open(_btmp, 'w') as _bf:
+    json.dump(budget, _bf, indent=2, ensure_ascii=False)
+os.rename(_btmp, budget_path)
 
-# Step 3: Merge persistent metadata (fix_count, repair_success, repair_command) from error-dna.json
-for sig in aggregated:
-    if sig in _persistent_agg:
-        p = _persistent_agg[sig]
-        aggregated[sig]['fix_count'] = p.get('fix_count', aggregated[sig]['fix_count'])
-        aggregated[sig]['status'] = p.get('status', aggregated[sig]['status'])
-        if p.get('repair_success'):
-            aggregated[sig]['repair_success'] = True
-        if p.get('repair_command'):
-            aggregated[sig]['repair_command'] = p['repair_command']
-
-# Step 4: Retroactive noise re-classification — records stored before noise detection
-# existed have is_noise=False, but their message unambiguously matches noise patterns.
-for _rs_sig in list(aggregated.keys()):
-    _rs_info = aggregated[_rs_sig]
-    if _rs_info.get('status') == 'fixed':
-        continue
-    _rs_msg = _rs_info.get('message', '')
-    if any(_p in _rs_msg for _p in NOISE_PATTERNS):
-        _rs_info['status'] = 'noise'
-
-# E5: Stale entry archiver — entries with last_seen > 7 days and count >= 10
-# are moved to a separate archive file, reducing active context noise.
-import time
-_now_ts = int(time.time())
-_seven_days = 7 * 86400
-_archive_path = os.path.join(state_dir, 'error-dna-archive.json')
-_archived = {}
-if os.path.isfile(_archive_path):
-    try:
-        with open(_archive_path) as _af:
-            _archived = json.load(_af).get('error_signatures', {})
-    except:
-        pass
-_stale_count = 0
-for _as_sig in list(aggregated.keys()):
-    _as_entry = aggregated[_as_sig]
-    _last_seen = _as_entry.get('last_seen', 0)
-    _count = _as_entry.get('count', 0)
-    if _last_seen > 0 and (_now_ts - _last_seen) > _seven_days and _count >= 10:
-        _archived[_as_sig] = _as_entry
-        del aggregated[_as_sig]
-        _stale_count += 1
-if _archived:
-    with open(_archive_path, 'w') as _af:
-        json.dump({'error_signatures': _archived}, _af, indent=2, ensure_ascii=False)
-if _stale_count > 0:
-    print(f"[error-dna archive] {_stale_count} 条陈旧记录已归档到 {_archive_path}")
-
-merged = {'error_signatures': aggregated}
-with open(json_path, 'w') as f:
-    json.dump(merged, f, indent=2, ensure_ascii=False)
-
-# === C9: Record retry budget for captured errors ===
-if exit_code != 0 and command:
-    budget_path = os.path.join(state_dir, 'retry-budget.json')
-    budget = {'signatures': {}}
-    if os.path.isfile(budget_path):
-        try:
-            with open(budget_path) as _bf:
-                budget = json.load(_bf)
-        except:
-            pass
-    sigs = budget.get('signatures', {})
-    if signature not in sigs:
-        sigs[signature] = {
-            'retry_count': 0, 'label': message[:80],
-            'first_seen': ts, 'error_type': error_type
-        }
-    sigs[signature]['retry_count'] = sigs[signature].get('retry_count', 0) + 1
-    sigs[signature]['last_retry'] = ts
-    sigs[signature]['label'] = message[:80]
-    budget['signatures'] = sigs
-    _btmp = budget_path + '.tmp'
-    with open(_btmp, 'w') as _bf:
-        json.dump(budget, _bf, indent=2, ensure_ascii=False)
-    os.rename(_btmp, budget_path)
-
-
-
-# === AC-1.5: auto-rotation, configurable size & archive count ===
+# === Archive rotation (R41 fix: correct shift loop) ===
 try:
     size = os.path.getsize(jsonl_path)
     rotation_size = int(os.environ.get('ERROR_DNA_ROTATION_SIZE', '1048576'))
@@ -360,49 +237,107 @@ try:
     if size > rotation_size:
         rotate_dir = state_dir
         for i in range(archive_count - 1, 0, -1):
-            old_path = os.path.join(rotate_dir, 'error-dna.jsonl.{}'.format(i - 1))
-            new_path = os.path.join(rotate_dir, 'error-dna.jsonl.{}'.format(i))
+            old_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i - 1}')
+            new_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i}')
             if os.path.exists(old_path):
                 os.rename(old_path, new_path)
-        orphan = os.path.join(rotate_dir, 'error-dna.jsonl.{}'.format(archive_count))
+        orphan = os.path.join(rotate_dir, f'error-dna.jsonl.{archive_count}')
         if os.path.exists(orphan):
             os.unlink(orphan)
         os.rename(jsonl_path, os.path.join(rotate_dir, 'error-dna.jsonl.0'))
-        # Create fresh empty file
         open(jsonl_path, 'w').close()
 except Exception:
     pass
 
-# === Oracle Q2-A: additionalContext for high-frequency errors (>=1 occurrences) ===
-frequent = [(sig, info['count'], info.get('message', '')[:120])
-            for sig, info in aggregated.items()
-            if info['count'] >= 1 and info.get('status') not in ('fixed', 'noise')]
-if frequent:
-    frequent.sort(key=lambda x: -x[1])
-    lines = ["[高频错误模式检测] 以下签名已出现 >=1 次:"]
-    # 按工具类型分组
-    tool_groups = {}
-    for sig, count, msg in frequent:
-        if 'Bash' in msg or 'bash' in msg:
-            tg = 'Bash'
-        elif 'Edit' in msg or 'edit' in msg:
-            tg = 'Edit'
-        elif 'Read' in msg or 'read' in msg:
-            tg = 'Read'
-        elif 'Write' in msg or 'write' in msg:
-            tg = 'Write'
-        elif 'Grep' in msg or 'grep' in msg:
-            tg = 'Grep'
-        else:
-            tg = 'Other'
-        if tg not in tool_groups:
-            tool_groups[tg] = []
-        tool_groups[tg].append((sig, count, msg))
-    for tg in sorted(tool_groups.keys()):
-        lines.append(f"  [{tg}]")
-        for sig, count, msg in tool_groups[tg][:3]:
-            lines.append(f'    · {sig[:20]} ×{count} — {msg}')
-    print('|'.join(lines))
+
+
+# === Write structured patch suggestion for Oracle/human review ===
+_patch_file = os.path.join(state_dir, 'escape-patches.json')
+_patches = {}
+if os.path.isfile(_patch_file):
+    try:
+        with open(_patch_file) as _pf:
+            _patches = json.load(_pf)
+    except: pass
+
+_patch_key = ''
+_is_new_patch = False
+if ESCAPE_E1:
+    _patch_key = f'e1_{ESCAPE_E1_TARGET.replace("/","_").replace(".","_")}'
+    if _patch_key not in _patches:
+        _is_new_patch = True
+        _patches[_patch_key] = {
+            'type': 'governance_bypass',
+            'target': ESCAPE_E1_TARGET,
+            'command': cmd_clean[:200],
+            'recommendation': '扩展 pretool-sensitive-edit matcher 到 Bash，或在 posttool-bash-audit 添加 governance_bypass 审计规则',
+            'severity': 'high',
+            'ts': ts,
+            'status': 'pending'
+        }
+elif ESCAPE_E2:
+    _patch_key = f'e2_{ESCAPE_E2_TARGET}'
+    if _patch_key not in _patches:
+        _is_new_patch = True
+        _patches[_patch_key] = {
+            'type': 'captcha_forgery',
+            'target': ESCAPE_E2_TARGET,
+            'command': cmd_clean[:200],
+            'recommendation': '检查 permission-gate.sh / pretool-sensitive-edit.sh 的 CAPTCHA 文件保护机制，确保 Bash echo 到敏感文件被拦截',
+            'severity': 'critical',
+            'ts': ts,
+            'status': 'pending'
+        }
+
+if _is_new_patch:
+    _ptmp = _patch_file + '.tmp'
+    with open(_ptmp, 'w') as _pf:
+        json.dump(_patches, _pf, indent=2, ensure_ascii=False)
+    os.rename(_ptmp, _patch_file)
+
+# === Escape detection alert: immediate warning via additionalContext ===
+if ESCAPE_E1:
+    print(f"[E1] ⚠️ 治理文件绕过: {ESCAPE_E1_TARGET}")
+    print(f"  Bash '{cmd_clean[:120]}' 绕过了 pretool-sensitive-edit 的 Edit|Write 门禁。")
+    print(f"  escape_type=governance_bypass 已记录到 error-dna.jsonl。")
+    print(f"  补丁建议: 扩展 pretool-sensitive-edit matcher 到 Bash，或在 posttool-bash-audit 添加审计。")
+elif ESCAPE_E2:
+    print(f"[E2] ⚠️ 验证码伪造: {ESCAPE_E2_TARGET}")
+    print(f"  Bash '{cmd_clean[:120]}' 尝试自写批准标记绕过 CAPTCHA 门禁 (R42 禁止)。")
+    print(f"  escape_type=captcha_forgery 已记录到 error-dna.jsonl。")
+    print(f"  补丁建议: 检查 permission-gate.sh / pretool-sensitive-edit.sh 的验证码文件保护。")
+
+# === High-frequency alert scan (scan recent jsonl, lightweight) ===
+# Only scan current jsonl (not archives), max 100KB to keep it fast
+_scanned = {}
+try:
+    _scan_size = min(os.path.getsize(jsonl_path) if os.path.exists(jsonl_path) else 0, 102400)
+    with open(jsonl_path) as _sf:
+        _sf.seek(max(0, os.path.getsize(jsonl_path) - _scan_size))
+        for _line in _sf:
+            _line = _line.strip()
+            if not _line:
+                continue
+            try:
+                _rec = json.loads(_line)
+                _s = _rec.get('signature', '')
+                if _s not in _scanned:
+                    _scanned[_s] = {'count': 0, 'msg': _rec.get('message', '')[:120]}
+                _scanned[_s]['count'] += 1
+            except json.JSONDecodeError:
+                pass
+except Exception:
+    pass
+
+_frequent = [(sig, info['count'], info['msg'])
+             for sig, info in _scanned.items()
+             if info['count'] >= 3]  # threshold: 3+ in current jsonl
+if _frequent:
+    _frequent.sort(key=lambda x: -x[1])
+    _lines = [f"[高频错误] 当前 jsonl 中 >=3 次的签名 ({len(_frequent)} 个):"]
+    for sig, count, msg in _frequent[:5]:
+        _lines.append(f'  · {sig[:16]} ×{count} — {msg[:100]}')
+    print('|'.join(_lines))
 PYEOF
 )
 

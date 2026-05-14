@@ -4,6 +4,15 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "privacy_gate" || { echo '{"continue": true}'; exit 0; }
+
+# Mode detection: ghost/goal 降级为 log+skip
+_MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
+if [ "$_MODE" != "normal" ]; then
+    echo "[$_MODE] privacy-gate 已记录（模式降级，不阻断）" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
+
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then

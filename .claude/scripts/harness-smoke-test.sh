@@ -597,10 +597,7 @@ else
     fail "R24 skill-flywheel 未 flush（before=$_BEFORE after=$_AFTER, buffer still exists=$([ -f "$HOME/.claude/flywheel-buffer.jsonl" ] && echo yes || echo no)）"
 fi
 
-# R23/R24 build-validator: PostToolUseFailure schema 不崩（顶层 error）
-run_case "R23/R24 build-validator: PostToolUseFailure 顶层 error 兼容" \
-  '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"go build"},"error":"undefined symbol"}' \
-  "build-validator.sh" 0 ""
+# R23/R24 build-validator: REMOVED — ROI zero, Oracle approved (script deleted, harness.yaml disabled, settings.json unregistered)
 
 # R23 audit-hooks: 三方对账应 0 🔴
 if bash .claude/scripts/audit-hooks.sh >/dev/null 2>&1; then
@@ -784,54 +781,8 @@ else
 fi
 rm -f "$_SM_EXT_OUT"
 
-# --- R35: error-dna-auto-fix.sh 回归 ---
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R35 error-dna-auto-fix: 语法检查"
-bash -n .claude/hooks/error-dna-auto-fix.sh
-if [ $? -eq 0 ]; then
-    pass "R35 error-dna-auto-fix 语法通过"
-else
-    fail "R35 error-dna-auto-fix 语法错误"
-fi
-
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R35 error-dna-auto-fix: 无 error-dna.json 时静默退出"
-echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/error-dna-auto-fix.sh > /dev/null 2>&1
-if [ $? -eq 0 ]; then
-    pass "R35 error-dna-auto-fix 无文件静默退出"
-else
-    fail "R35 error-dna-auto-fix 无文件不应阻断 (exit=$?)"
-fi
-
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R35 error-dna-auto-fix: 只读不写验证"
-_READ_ONLY=$(grep -cE '\bwrite\b|json\.dump\(' .claude/hooks/error-dna-auto-fix.sh 2>/dev/null; true)
-if [ "$_READ_ONLY" = "0" ] 2>/dev/null; then
-    pass "R35 error-dna-auto-fix 只读不写 (0 write calls)"
-else
-    fail "R35 error-dna-auto-fix 发现写操作 (grep-count=$_READ_ONLY)"
-fi
-
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R35 error-dna-auto-fix: settings.json 注册"
-if grep -q "error-dna-auto-fix.sh" .claude/settings.json; then
-    pass "R35 error-dna-auto-fix 已注册 settings.json"
-else
-    fail "R35 error-dna-auto-fix 未注册 settings.json"
-fi
-
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R35 error-dna-auto-fix: harness.yaml 开关"
-if grep -q "error_dna_auto_fix: true" .claude/harness.yaml; then
-    pass "R35 error-dna-auto-fix harness.yaml 已启用"
-else
-    fail "R35 error-dna-auto-fix harness.yaml 未启用"
-fi
+# R35 error-dna-auto-fix: REMOVED — ROI zero, Oracle approved (EDV-03)
+# Tests removed to match current state: script deleted, harness.yaml disabled, settings.json unregistered
 
 # --- R36: knowledge-condenser.sh 回归 ---
 TOTAL=$((TOTAL+1))
@@ -1021,6 +972,97 @@ fi
 # 清理可能残留的模式文件
 rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active .omc/state/permission-required .omc/state/permission-approved .omc/state/approved-ops.json
 
+# ========================================
+# ED-R: Error-DNA Escape Detection Tests
+# ========================================
+
+# ED-R-1: E1 governance bypass detection (exit_code=0, sed to governance file)
+rm -f .omc/state/error-dna.jsonl
+run_case "ED-R-1 E1: governance bypass via sed" \
+  '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"sed -i '''s/true/false/''' .claude/harness.yaml"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
+  "error-dna.sh" 0 ""
+if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/error-dna.jsonl; then
+    pass "ED-R-1 E1: governance_bypass escape recorded in jsonl"
+else
+    fail "ED-R-1 E1: governance_bypass NOT recorded — exit_code=0 should still record"
+fi
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/error-dna.jsonl
+
+# ED-R-2: E2 CAPTCHA forgery detection (exit_code=0, writing to sensitive-approved)
+run_case "ED-R-2 E2: CAPTCHA forgery via echo to sensitive-approved" \
+  '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''abc123''' > .omc/state/sensitive-approved"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
+  "error-dna.sh" 0 ""
+if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "captcha_forgery"' .omc/state/error-dna.jsonl; then
+    pass "ED-R-2 E2: captcha_forgery escape recorded in jsonl"
+else
+    fail "ED-R-2 E2: captcha_forgery NOT recorded — exit_code=0 should still record"
+fi
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/error-dna.jsonl
+
+# ED-R-3: Normal successful Bash command should NOT be recorded (no escape, no failure)
+run_case "ED-R-3: normal successful command NOT recorded" \
+  '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hello"},"tool_response":{"exit_code":0,"stdout":"hello","stderr":""}}' \
+  "error-dna.sh" 0 ""
+if [ -s .omc/state/error-dna.jsonl ]; then
+    fail "ED-R-3: normal command should NOT write to jsonl"
+else
+    pass "ED-R-3: normal command correctly skipped"
+fi
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/error-dna.jsonl
+
+# ED-R-4: E1 bypass to settings.json via tee
+run_case "ED-R-4 E1: governance bypass via tee to settings.json" \
+  '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''{}''' | tee .claude/settings.json"},"tool_response":{"exit_code":0,"stdout":"{}","stderr":""}}' \
+  "error-dna.sh" 0 ""
+if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/error-dna.jsonl; then
+    pass "ED-R-4 E1 (tee): governance_bypass recorded in jsonl"
+else
+    fail "ED-R-4 E1 (tee): governance_bypass NOT recorded"
+fi
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/error-dna.jsonl
+
+# ED-R-5: E2 CAPTCHA forgery to permission-approved
+run_case "ED-R-5 E2: CAPTCHA forgery via echo to permission-approved" \
+  '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''xyz789''' > .omc/state/permission-approved"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
+  "error-dna.sh" 0 ""
+if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "captcha_forgery"' .omc/state/error-dna.jsonl; then
+    pass "ED-R-5 E2 (permission-approved): captcha_forgery recorded in jsonl"
+else
+    fail "ED-R-5 E2 (permission-approved): captcha_forgery NOT recorded"
+fi
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/error-dna.jsonl
+
+# ED-R-6: E4 evidence fabrication detection (gate blocks + VERIFIED echo w/o build)
+# Pre-seed jsonl with gate blocks, then test posttool-bash-audit detection
+printf '{"ts":%d,"signature":"gate1","cmd":"task completed","exit_code":2,"error_type":"gate_operation","message":"completion-gate: no evidence found","session_id":"smoke","escape_type":""}\n' "$(date +%s)" > .omc/state/error-dna.jsonl
+printf '{"ts":%d,"signature":"gate2","cmd":"task update","exit_code":2,"error_type":"gate_operation","message":"completion-gate blocked: evidence score 0","session_id":"smoke","escape_type":""}\n' "$(date +%s)" >> .omc/state/error-dna.jsonl
+TOTAL=$((TOTAL+1))
+_E4_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo VERIFIED: everything works > .omc/state/.completion-evidence-20260514"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' | bash .claude/hooks/posttool-bash-audit.sh 2>&1)
+if echo "$_E4_OUT" | grep -q "E4"; then
+    pass "ED-R-6 E4: posttool-bash-audit detected evidence fabrication pattern"
+else
+    fail "ED-R-6 E4: posttool-bash-audit did NOT detect evidence fabrication"
+fi
+rm -f .omc/state/error-dna.jsonl
+
+# ED-R-7: E1 governance bypass via echo redirect to harness.yaml
+rm -f .omc/state/error-dna.jsonl
+run_case "ED-R-7 E1: governance bypass via echo redirect" \
+  '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''new_config''' > .claude/harness.yaml"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
+  "error-dna.sh" 0 ""
+if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/error-dna.jsonl; then
+    pass "ED-R-7 E1 (echo redirect): governance_bypass recorded in jsonl"
+else
+    fail "ED-R-7 E1 (echo redirect): governance_bypass NOT recorded"
+fi
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/error-dna.jsonl
+
 # --------------- E2E-1: CAPTCHA 流 (permission-gate) ---------------
 log ""
 log "========== E2E-1: CAPTCHA 流 -- 三步验证码审批周期 =========="
@@ -1080,10 +1122,10 @@ rm -f "$E2E2_OUT"
 
 # --------------- E2E-3: 错误 DNA 捕获全链路 (error-dna.sh) ---------------
 log ""
-log "========== E2E-3: 错误 DNA 捕获全链路 -- PostToolUseFailure -> jsonl + 聚合 =========="
+log "========== E2E-3: 错误 DNA 捕获全链路 -- PostToolUseFailure -> jsonl + retry-budget (v2 瘦身: 无聚合) =========="
 
 mkdir -p .omc/state
-rm -f .omc/state/error-dna.jsonl .omc/state/error-dna.json .omc/state/total-ops.txt
+rm -f .omc/state/error-dna.jsonl .omc/state/total-ops.txt .omc/state/retry-budget.json
 
 TOTAL=$((TOTAL+1))
 echo '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"ls nonexistent_e2e_test_xyz_2026"},"error":"Command failed: no such file"}' | \
@@ -1103,12 +1145,12 @@ else
 fi
 
 TOTAL=$((TOTAL+1))
-if [ -s .omc/state/error-dna.json ]; then
-    pass "E2E-3 step 3: error-dna.json 聚合文件已创建"
+if [ -s .omc/state/retry-budget.json ] && grep -q '"retry_count"' .omc/state/retry-budget.json; then
+    pass "E2E-3 step 3: retry-budget.json 已创建 (v2 替代 error-dna.json 聚合)"
 else
-    fail "E2E-3 step 3: error-dna.json 未生成"
+    fail "E2E-3 step 3: retry-budget.json 未生成 (v2 期望)"
 fi
-rm -f .omc/state/error-dna.jsonl .omc/state/error-dna.json .omc/state/total-ops.txt
+rm -f .omc/state/error-dna.jsonl .omc/state/total-ops.txt .omc/state/retry-budget.json
 
 # --------------- E2E-4: 格式化门禁 (posttool-format-gate.sh) ---------------
 log ""

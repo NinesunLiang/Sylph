@@ -270,9 +270,11 @@ try:
     if not expires:
         print('active')
     else:
-        from datetime import datetime
+        from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
-        if datetime.now() < exp:
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < exp:
             print('active')
         else:
             print('expired')
@@ -296,9 +298,11 @@ try:
     if not expires:
         print('active')
     else:
-        from datetime import datetime
+        from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
-        if datetime.now() < exp:
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < exp:
             print('active')
         else:
             print('expired')
@@ -328,9 +332,11 @@ try:
     if not expires:
         print('active')
     else:
-        from datetime import datetime
+        from datetime import datetime, timezone
         exp = datetime.fromisoformat(expires)
-        if datetime.now() < exp:
+        if exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        if datetime.now(timezone.utc) < exp:
             print('active')
         else:
             print('expired')

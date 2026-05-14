@@ -24,11 +24,18 @@ if [ "$(is_mode_active "$PROJECT_ROOT/.omc/state")" != "normal" ]; then
     exit 0
 fi
 
-# 硬阻断：标记存在 + 非自主模式 → exit 2
+# 硬阻断：标记存在 + 非自主模式 → Agentic UI 菜单
 FUZZY_MSG_ESCAPED=$(echo "$WARNING_MSG" | head -c 200)
-echo "⛔ 模糊指令阻断: 指令不明确，无法执行具体工具调用。" >&2
-echo "原因: ${FUZZY_MSG_ESCAPED}" >&2
-echo "必须: 先向用户要求澄清具体目标，不允许推测执行。" >&2
-echo "解决: 用户提供明确指令后，系统会自动放行。" >&2
+cat >&2 <<EOF
+
+⛔ 模糊指令阻断: 指令不明确，无法执行具体工具调用。
+原因: ${FUZZY_MSG_ESCAPED}
+
+请选择：
+  1. 向用户澄清具体目标
+  2. 按当前理解继续执行
+
+输入数字 (1-2):
+EOF
 rm -f "$FUZZY_MARKER"
 exit 2

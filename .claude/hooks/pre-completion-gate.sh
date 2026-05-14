@@ -38,10 +38,17 @@ fi
 # 检查证据文件
 EVIDENCE_FILE="$PROJECT_ROOT/.omc/state/.completion-evidence-$(date +%Y%m%d)"
 if [ ! -f "$EVIDENCE_FILE" ]; then
-    echo "⛔ 前置门禁阻断: 调用 TaskUpdate(completed) 但无证据文件。" >&2
-    echo "要求: 必须先运行验证并向 ${EVIDENCE_FILE} 写入结构化证据。" >&2
-    echo "格式示例:" >&2
-    echo '  echo "VERIFIED: go build ./... → exit 0, all tests PASS" > '"$EVIDENCE_FILE" >&2
+    cat >&2 <<EOF
+
+⛔ 前置门禁阻断: 调用 TaskUpdate(completed) 但无证据文件。
+
+请选择：
+  1. 运行验证并写入证据到 ${EVIDENCE_FILE}
+  2. 强制完成（无证据）
+  3. 继续工作（不标记完成）
+
+输入数字 (1-3):
+EOF
     exit 2
 fi
 
@@ -55,8 +62,17 @@ except:
     print('no')" 2>/dev/null)
 
 if [ "$FRESH" != "yes" ]; then
-    echo "⛔ 前置门禁阻断: 证据文件已过期（超过 5 分钟）。请重新运行验证。" >&2
-    rm -f "$EVIDENCE_FILE"
+    cat >&2 <<EOF
+
+⛔ 前置门禁阻断: 证据文件已过期（超过 5 分钟）。
+
+请选择：
+  1. 重新运行验证并写入新证据到 ${EVIDENCE_FILE}
+  2. 强制完成（跳过新鲜度检查）
+  3. 继续工作（不标记完成）
+
+输入数字 (1-3):
+EOF
     exit 2
 fi
 

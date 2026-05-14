@@ -88,7 +88,7 @@ class BaseParser(ABC):
         peak_context = max(u["context_used"] for u in usage_seq)
         current_context = usage_seq[-1]["context_used"]
         session_start_cost = usage_seq[0]["context_used"]
-        total_context_used = total_input + total_cache_read + total_cache_create
+        total_context_used = sum(u["context_used"] for u in usage_seq)
 
         # Compact detection: consecutive context_used drop > 30%
         compact_events = 0
@@ -145,8 +145,10 @@ class ClaudeCodeParser(BaseParser):
 
     def _find_transcripts(self) -> list[Path]:
         """Find transcript files for current project, sorted by mtime DESC."""
-        encoded_cwd = "-".join(PROJECT_DIR.resolve().parts).lstrip("/")
-        transcript_dir = HOME / ".claude" / "projects" / encoded_cwd
+        # Match Claude Code's path encoding: replace . and _ with -
+        parts = [p.replace(".", "-").replace("_", "-") for p in PROJECT_DIR.resolve().parts]
+        encoded = "-".join(parts).lstrip("/")
+        transcript_dir = HOME / ".claude" / "projects" / encoded
 
         if not transcript_dir.exists():
             # Fallback: search all project dirs
@@ -194,14 +196,18 @@ class ClaudeCodeParser(BaseParser):
                 cache_create = usage.get("cache_creation_input_tokens", 0)
                 output = usage.get("output_tokens", 0)
 
-                # Claude Code always uses Claude API — fixed 200k limit
-                # (transcript model field may show proxy/custom name)
+                # Schema detection: some API variants report input_tokens as total
+                # (including cache_read), others report it as new-only.
+                if cache_read > 0 and inp >= cache_read:
+                    ctx = inp + cache_create
+                else:
+                    ctx = inp + cache_read + cache_create
                 usage_seq.append({
                     "input_tokens": inp,
                     "cache_read_input_tokens": cache_read,
                     "cache_creation_input_tokens": cache_create,
                     "output_tokens": output,
-                    "context_used": inp + cache_read + cache_create,
+                    "context_used": ctx,
                 })
 
         if not usage_seq:
@@ -317,12 +323,18 @@ class OpenCodeParser(BaseParser):
                 cache_create = tokens.get("cache", {}).get("write", 0)
                 output = tokens.get("output", 0)
 
+                # Schema detection: some API variants report input_tokens as total
+                # (including cache_read), others report it as new-only.
+                if cache_read > 0 and inp >= cache_read:
+                    ctx = inp + cache_create
+                else:
+                    ctx = inp + cache_read + cache_create
                 usage_seq.append({
                     "input_tokens": inp,
                     "cache_read_input_tokens": cache_read,
                     "cache_creation_input_tokens": cache_create,
                     "output_tokens": output,
-                    "context_used": inp + cache_read + cache_create,
+                    "context_used": ctx,
                 })
 
             if not usage_seq:

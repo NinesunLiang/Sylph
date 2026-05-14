@@ -37,9 +37,10 @@ if [ -f "$PROJECT_ROOT/.omc/state/autonomous.active" ] || \
 fi
 
 # 自主模式降级：exit 2 → warn + exit 0（仍检查证据用于留痕，但不阻断操作）
+# DF-02: 自主模式下 stderr 警告写入日志，不干扰用户终端
 auto_soft_block() {
     if [ "$AUTONOMOUS" = true ]; then
-        echo "⚠️ [自主模式] $1" >&2
+        echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] [自主模式] $1" >> "$PROJECT_ROOT/.omc/state/completion-gate-autonomous.log"
         echo '{"continue": true}'
         exit 0
     fi
