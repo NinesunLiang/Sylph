@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.1.9-stable | 日期：2026-05-08
+# 版本：v6.2.0 | 日期：2026-05-14
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.1.9-stable"
+DEFAULT_VERSION="v6.2.0"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -429,9 +429,30 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
         fi
     fi
 
-    # 检测 AGENTS.md 是否已包含 Carror OS 内容（防止重复叠加）
-    if grep -q "Carror OS — AI 行为治理框架\|Harness 治理框架" "AGENTS.md" 2>/dev/null; then
-        log_info "AGENTS.md 已包含 Carror OS 治理框架，跳过合并（保留最新模板）"
+    # 检测用户旧 AGENTS.md 是否已包含 Carror OS 内容（防重复叠加）
+    # 注意：必须检查 BACKUP 中的用户旧内容，不能检查刚解压的新模板
+    USER_HAD_CAROR=false
+    if [ -n "$USER_CONTENT" ] && echo "$USER_CONTENT" | grep -q "Carror OS\|Harness 治理框架" 2>/dev/null; then
+        USER_HAD_CAROR=true
+    fi
+
+    if [ "$USER_HAD_CAROR" = true ]; then
+        # 用户已有 Carror OS → 智能替换：去掉旧 Carror OS 段，追加新版
+        log_info "检测到用户 AGENTS.md 已含旧版 Carror OS，执行智能替换..."
+        # 去掉旧 Carror OS 分隔线和之后的所有内容
+        USER_ONLY=$(echo "$USER_CONTENT" | sed '/^## ═════════.*Carror OS\|^## Carror OS 治理框架\|^# Carror OS — AI 行为治理框架/,$ d')
+        TEMPLATE=$(cat "AGENTS.md")
+        DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
+        {
+            echo "$USER_ONLY"
+            echo ""
+            echo "## ════════════════════════════════════════════"
+            echo "## Carror OS 治理框架"
+            echo "## ════════════════════════════════════════════"
+            echo ""
+            echo "$DEMOTED"
+        } > AGENTS.md
+        log_info "已合并 → AGENTS.md：旧 Carror OS 段已替换为新版，用户原创内容保留"
     elif [ -n "$USER_CONTENT" ]; then
         TEMPLATE=$(cat "AGENTS.md")
         # 降级 Carror OS 标题层级：# → ##，保留用户原始 # 的原创性
@@ -520,7 +541,7 @@ fi
 # 跨平台 CLI 配置自动生成（Qwen Code / Codex / Gemini / Cursor / OpenCode）
 if command -v python3 &>/dev/null && [ -f ".hooks/generate.py" ]; then
     log_step "生成跨平台 CLI hooks 配置..."
-    python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（无可用平台）"
+    timeout 30 python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（超时或无可用平台）"
 
     # ─── 后处理: 禁用跨平台生成的旧版 sylph-hooks.ts ──────────
     # carror-hooks-compat.ts 是 OMO 兼容策略的权威文件
@@ -552,3 +573,5 @@ if $HAS_OPCODE && ! $HAS_OMO; then
 fi
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"
+log_info "✅ 安装完成。退出安装模式。"
+exit 0
