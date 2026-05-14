@@ -526,9 +526,14 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
     if [ -n "$LANG_SPEC" ]; then
         log_info "使用 $LANG_SPEC profile"
         case "$LANG_SPEC" in
-            go|node|python|rust) CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_SPEC" 2>/dev/null \
-                && log_info "✅ 已合并 base + $LANG_SPEC profile → .claude/harness.yaml" \
-                || log_warn "merge 失败，保留 generic harness.yaml" ;;
+            go|node|python|rust)
+                if command -v python3 &>/dev/null; then
+                    CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_SPEC" 2>/dev/null \
+                        && log_info "✅ 已合并 base + $LANG_SPEC profile → .claude/harness.yaml" \
+                        || log_warn "merge 失败，保留 generic harness.yaml"
+                else
+                    log_info "python3 不可用，跳过 profile merge → 使用 generic harness.yaml"
+                fi
             generic|*) cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
                 && log_info "使用 Generic profile（base）→ .claude/harness.yaml" ;;
         esac
