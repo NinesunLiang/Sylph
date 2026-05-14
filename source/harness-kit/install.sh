@@ -544,7 +544,7 @@ else
     echo " ⚔️ 增强版已就绪 (Enhanced Edition)！"
     echo " - 使用 /lx-status 查看健康监控面板。"
     echo " - 使用 /lx-rpe 或 /lx-todo 开始任务驱动。"
-    echo " - 参阅 .claude/CARROR-OS-FEATURES.md 获取完整武器库说明。"
+    echo " - 参阅 .claude/index.md 获取完整武器库导航。"
 fi
 echo " 🔀 切换项目语言规范：bash .claude/profiles/merge-profile.sh <go|node|python|rust>"
 if $HAS_OPCODE && ! $HAS_OMO; then
