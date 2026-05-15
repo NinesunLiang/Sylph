@@ -227,12 +227,29 @@ print(len(data.get('signatures', [])))" 2>/dev/null)
     fi
 fi
 
+# === Hook-Skill 运行时桥: 检测模式 → 建议对应 skill ===
+SKILL_ROUTE_MSG=""
+if echo "$AUDIT_MSG" | grep -q "git commit\|git push"; then
+    SKILL_ROUTE_MSG="[Hook-Skill桥] Git 操作已执行。建议: /lx-pre-commit 验证提交质量 → /lx-pre-push 推送前门禁"
+elif echo "$AUDIT_MSG" | grep -q "递归删除\|rm -rf\|destructive"; then
+    SKILL_ROUTE_MSG="[Hook-Skill桥] 危险删除操作。建议: 确认操作范围 → /lx-sync 检查变更后一致性"
+elif [ -n "$ESCAPE_E4_MSG" ]; then
+    SKILL_ROUTE_MSG="[Hook-Skill桥] 证据编造检测。建议: 运行实际测试 → /lx-test-gen 生成测试 → 重新验证"
+elif [ -n "$ESCAPE_E3_MSG" ]; then
+    SKILL_ROUTE_MSG="[Hook-Skill桥] 上下文规避检测。建议: /compact 释放上下文 → 重新评估是否需要子 agent"
+elif [ -n "$ANTI_PATTERN_MSG" ] && echo "$ANTI_PATTERN_MSG" | grep -q "C1"; then
+    SKILL_ROUTE_MSG="[Hook-Skill桥] 编译错误盲修(C1)。建议: /lx-stepwise 逐步攻坚 → 收集全部错误 → 从根错误开始修复"
+elif [ -n "$ANTI_PATTERN_MSG" ]; then
+    SKILL_ROUTE_MSG="[Hook-Skill桥] 反模式检测。建议: /lx-code-review 审查代码 → 对照 anti-patterns.md 检查"
+fi
+
 # Merge all messages and output
 COMBINED_MSG=""
 [ -n "$AUDIT_MSG" ] && COMBINED_MSG="$AUDIT_MSG"
 [ -n "$ANTI_PATTERN_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ANTI_PATTERN_MSG}"
 [ -n "$ESCAPE_E4_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ESCAPE_E4_MSG}"
 [ -n "$ESCAPE_E3_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ESCAPE_E3_MSG}"
+[ -n "$SKILL_ROUTE_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${SKILL_ROUTE_MSG}"
 
 if [ -z "$COMBINED_MSG" ]; then
     echo '{"continue": true}'

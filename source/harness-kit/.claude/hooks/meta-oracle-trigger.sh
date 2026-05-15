@@ -59,9 +59,9 @@ if [ "$TRIGGERED" = false ]; then
     fi
 fi
 
-# 输出 Meta-Oracle 触发提醒
+        # 输出 Meta-Oracle 触发 — 自动 spawn critic agent 独立二审
 if [ "$TRIGGERED" = true ]; then
-    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"🔍 [Meta-Oracle 触发] %s\n独立于 Oracle 的第二审查者。请执行 Meta-Oracle 验证:\n1. Oracle 评分方法论是否合理（有无系统性虚高/虚低）\n2. 关键发现是否经运行时验证（而非仅静态检查）\n3. 是否有遗漏的盲区（Oracle 视角的偏见）\n→ 使用不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性）\n→ 如发现虚高，产出 Meta-Oracle 纠正报告"}}\n' "$TRIGGER_REASON"
+            printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"🔍 [Meta-Oracle 触发] %s\n→ 自动启动 Meta-Oracle 二审: Agent(critic) 独立验证 Oracle 结论\n→ 使用方法论: 运行时验证 > 静态检查，烟雾日志 > 文件存在性\n→ 审查脚本参考: bash .claude/scripts/meta-oracle-review.sh\n→ 发现虚高则产出纠正报告到 .omc/state/meta-oracle-review.jsonl"}}\n' "$TRIGGER_REASON"
     echo "[meta-oracle] ${TRIGGER_REASON} — Meta-Oracle 二审提醒已注入" >&2
     exit 0
 fi

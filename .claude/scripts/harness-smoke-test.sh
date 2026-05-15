@@ -1304,6 +1304,13 @@ if [ "$FAILED" -eq 0 ]; then
     SYNC_OUT=$(bash .claude/scripts/audit-hooks.sh --sync-index 2>/dev/null)
     if echo "$SYNC_OUT" | grep -qE "(更新|updated)"; then
         log "  📝 index.md hooks 表已自动同步"
+    # 三源统一: feature-registry 完整性检查
+    REG_OUT=$(bash .claude/scripts/audit-hooks.sh --check-registry 2>/dev/null)
+    if echo "$REG_OUT" | grep -q "🟡" 2>/dev/null; then
+        log "  ⚠️ feature-registry 漂移项: $(echo "$REG_OUT" | grep -c "🟡" 2>/dev/null || echo 0)"
+    else
+        log "  ✅ feature-registry 四源一致 (disk/settings/harness/registry)"
+    fi
     fi
 fi
 

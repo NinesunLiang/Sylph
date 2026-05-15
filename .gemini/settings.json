@@ -62,6 +62,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash .claude/hooks/posttool-subagent-audit.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash .claude/hooks/posttool-write-lock.sh",
             "timeout": 3
           }
@@ -141,6 +150,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash .claude/hooks/subagent-guard.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash .claude/hooks/pretool-edit-scope.sh",
             "timeout": 3,
             "decision": "deny"
@@ -163,6 +181,15 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/skill-flywheel.sh",
             "timeout": 5
           }
         ]
