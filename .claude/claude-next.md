@@ -616,3 +616,10 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 触发条件：用户 grep harness-kit.ts/sylph-hooks.ts 找 hook 关键词，得出 OpenCode ~45% 误判。实际执行路径是 OMO 原生 (5/7 事件) + carror-hooks-compat.ts (2/7 事件) → 读 settings.json。
 正确行为：废弃文件标注废弃原因 + 现代替代方案 + install.sh 自动禁用。形式存在 ≠ 功能有效（哲学 #4 的 ED 延伸）。
 证据：harness-kit.ts.disabled + sylph-hooks.ts.disabled 文件头废弃声明 — 本会话
+
+### [2026-05-16] 用户纠正: 不对
+@2026-05-16 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+

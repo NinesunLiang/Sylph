@@ -21,7 +21,7 @@ source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 MODE_FILE="$STATE_DIR/lx-ghost.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作方向描述自动激活
-_KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|retry"
+_KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|hard-boundary-hit|retry"
 if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
     exec bash "$0" on "$@"
 fi
@@ -74,11 +74,12 @@ JSON
             INT=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('cycle_interval_seconds','?'))" 2>/dev/null)
             RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
             SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+            HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
             echo "📋 幽灵模式 (lx-ghost): 🟢 开启中"
             echo "   方向: $DIR"
             echo "   间隔: ${INT}s"
             echo "   过期: $EXP"
-            echo "   重试: $RETRY  跳过风险: $SKIP"
+            echo "   重试: $RETRY  跳过风险: $SKIP  硬边界: $HARD"
         elif [ -f "$STATE_DIR/ghost-mode.json" ]; then
             echo "📋 幽灵模式 (旧格式 ghost-mode.json): 🟡 兼容中"
             echo "   建议执行 lx-ghost off && lx-ghost on \"方向\" 迁移到新格式"
@@ -143,7 +144,7 @@ except: print('no')" 2>/dev/null)
         RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
         SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
         echo "  方向: $DIR"
-        echo "  重试次数: $RETRY  已跳过风险: $SKIP"
+        echo "  重试次数: $RETRY  已跳过风险: $SKIP  硬边界: $(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)"
 
         # 状态面板：检查活跃特征 + 未提交变更
         if [ -d "$PROJECT_ROOT/rpe" ]; then
@@ -198,6 +199,34 @@ os.rename(tmp, file)
 " 2>/dev/null && echo "📝 已记录跳过的风险: $DESCRIPTION" || echo "❌ 记录失败"
         ;;
 
+    hard-boundary-hit)
+        # 记录硬边界拦截项（rm / git写 / 敏感文件 / API Key）
+        DESCRIPTION="${2:-未知硬边界}"
+        REASON="${3:-未知原因}"
+        HUMAN_ACTION="${4:-请人工审阅并决定是否执行}"
+        if [ ! -f "$MODE_FILE" ]; then
+            echo "❌ 幽灵模式未开启"
+            exit 1
+        fi
+        python3 -c "
+import json, os
+file = '$MODE_FILE'
+d = json.load(open(file))
+hits = d.get('hard_boundary_hits', [])
+hits.append({
+    'description': '$DESCRIPTION',
+    'reason': '$REASON',
+    'human_action': '$HUMAN_ACTION',
+    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+})
+d['hard_boundary_hits'] = hits
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null && echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)" || echo "❌ 记录失败"
+        ;;
+
     retry)
         # 增加重试计数（供 retry-budget 对接）
         if [ ! -f "$MODE_FILE" ]; then
@@ -217,7 +246,7 @@ os.rename(tmp, file)
         ;;
 
     *)
-        echo "用法: lx-ghost on|off|status|set|poll|skip-risk|retry"
+        echo "用法: lx-ghost on|off|status|set|poll|skip-risk|hard-boundary-hit|retry"
         echo ""
         echo "子命令:"
         echo "  lx-ghost on \"方向描述\" [间隔秒数=600] [过期小时=3]"
@@ -228,6 +257,7 @@ os.rename(tmp, file)
         echo "  lx-ghost set <json_key> <json_value>"
         echo "  lx-ghost poll                    (loop skill 轮询入口)"
         echo "  lx-ghost skip-risk \"描述\"       (记录跳过的风险)"
+        echo "  lx-ghost hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  (记录硬边界拦截)"
         echo "  lx-ghost retry                   (重试计数 +1)"
         echo ""
         echo "驱动方式:"

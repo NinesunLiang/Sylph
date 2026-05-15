@@ -27,6 +27,7 @@ SCAN_INTERNAL=false
 CHECK_INDEX=false
 SYNC_INDEX=false
 CHECK_SOURCE_MIRROR=false
+CHECK_REGISTRY=false
 for arg in "$@"; do
     case "$arg" in
         --json) JSON_OUT=true ;;
