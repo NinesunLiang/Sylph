@@ -73,8 +73,8 @@ bashpython3 .claude/skills/lx-pre-push/scripts/get_changed_files.py \ --prod-com
 
 ### Gate 2 — 测试覆盖 + 安全扫描
 AI 根据 Gate 1 的项目类型判断执行：
-**Go 项目**：- 调用 `Invoke the Skill tool with skill: "lx-security-review"` 传入变更文件- 执行 `go test -race -coverprofile=coverage.out ./...`，检查覆盖率
-**前端项目**：- `npm audit --production`- 调用 `Invoke the Skill tool with skill: "lx-security-review"`
+**Go 项目**：- 安全扫描：检查 OWASP Top 10 漏洞 + 依赖审计（lx-security-review 已废弃，AI 直接执行安全审查）- 执行 `go test -race -coverprofile=coverage.out ./...`，检查覆盖率
+**前端项目**：- `npm audit --production`- 安全扫描：AI 直接审查 OWASP 常见前端漏洞（XSS/CSRF/依赖注入）
 安全扫描：🔴=0 才能通过，🟡 记录不阻塞。
 
 ### Gate 3 — 最终判定

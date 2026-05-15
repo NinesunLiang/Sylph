@@ -25,7 +25,9 @@ log_step "1/4 同步 root -> source/harness-kit..."
 cp CLAUDE.md "$HARNESS_SRC/CLAUDE.md"
 rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
 rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
-rsync -a --delete .claude/references/  "$HARNESS_SRC/.claude/references/"
+rsync -a --delete .claude/reference/   "$HARNESS_SRC/.claude/reference/"
+# 清理历史遗留的 references/ 目录（已合并到 reference/）
+rm -rf "$HARNESS_SRC/.claude/references"
 cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"
 # 将开发机绝对路径替换为占位符，install.sh 安装时还原为实际项目路径
 sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
@@ -60,7 +62,7 @@ rsync -a --delete --exclude=__pycache__ --exclude='.omc/state/hud-*' \
 rsync -a --delete .claude/task_sys/ "$LX_SRC/.claude/task_sys/"
 # 清理治理层内容 和 运行时状态
 rm -rf "$LX_SRC/.claude/hooks" "$LX_SRC/.claude/scripts" \
-       "$LX_SRC/.claude/references" "$LX_SRC/.claude/plans" \
+       "$LX_SRC/.claude/reference" "$LX_SRC/.claude/plans" \
        "$LX_SRC/.claude/state" "$LX_SRC/.claude/.omc" 2>/dev/null || true
 rm -f "$LX_SRC/.claude/settings.json" "$LX_SRC/.claude/harness.yaml" \
       "$LX_SRC/.claude/kernel.md" "$LX_SRC/.claude/index.md" \

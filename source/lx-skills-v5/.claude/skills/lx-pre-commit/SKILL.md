@@ -66,7 +66,7 @@ bashpython3 .claude/skills/lx-pre-commit/scripts/run_checks.py \ --type {type} -
 **降级策略**：| 场景 | 降级 ||------|------|| 脚本执行失败 | 直接调用 `go build ./...` / `npm test`，手动判断 || 测试框架未检测到 | 询问用户确认测试命令 |
 
 ### Step 2 — 代码审查（自动调用）
-按项目类型路由：- Go → `Invoke the Skill tool with skill: "lx-code-review"`- 前端 → `Invoke the Skill tool with skill: "lx-react-review"`
+按项目类型路由：- Go → `Invoke the Skill tool with skill: "lx-code-review"`- 前端 → `Invoke the Skill tool with skill: "lx-code-review"`（lx-react-review 已废弃，代码审查统一使用 lx-code-review）
 P0 问题：加载 `@../../nodes/auto_fixer.md` 修复 → 重跑 Step 1。P1+ 问题：列出，不阻塞提交。
 
 ### Step 3 — 输出概览

@@ -179,7 +179,7 @@ Phase 3 关键证据：[最强证据的工具命令 + 一行输出摘要]
 ### 5. 免疫防护 + 验证（阶段 5）
 通过三重防护使复现成为不可能。
 **三重强制防护**：
-1. **测试防护**：根因攻击测试（模拟根因输入） - 调用 `/lx-golang-test`，传入目标 package、测试类型（race/unit/benchmark）、根因场景 - 并发根因：`go test -race -count=50`
+1. **测试防护**：根因攻击测试（模拟根因输入） - 调用 `/lx-test-gen`（lx-golang-test 已废弃，统一使用 lx-test-gen），传入目标 package、测试类型（race/unit/benchmark）、根因场景 - 并发根因：`go test -race -count=50`
 2. **验证防护**：编译期 + 运行时约束 - Interface 约束：`var _ InterfaceName = (*ConcreteType)(nil)` - 运行时：`context.WithTimeout`、输入校验
 3. **监控防护**：在关键路径添加告警日志 - goroutine 泄漏：`runtime.NumGoroutine()` 定期检查 - 性能根因：`go test -bench=BenchmarkTarget -benchmem` 基准回归对比（修复前 vs 修复后）
 **自动化验证**（强制执行顺序）：1. IDENTIFY: what command proves immunity works2. RUN: execute full command including attack injection3. READ: read complete output, check exit code + failure count + race report4. VERIFY: does output confirm defense intercepted root cause trigger?5. CLAIM: only claim immunity after evidence confirms
