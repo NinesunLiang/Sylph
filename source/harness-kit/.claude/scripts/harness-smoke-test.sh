@@ -77,13 +77,15 @@ log "========================================"
 rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/lx-ghost.json .omc/state/lx-goal.json
 export CONTEXT_FORCE_HEURISTIC=1
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
-run_case "context-guard: Write @ 95% 应硬阻断" \
+# R29: heuristic 数据不用于阻断决策（仅 transcript real 触发硬阻断）
+# 烟雾测试使用 token-tracking-index.json 假数据 → SOURCE="heuristic" → warn-only, exit 0
+run_case "context-guard: Write @ 95% heuristic 应告警不阻断 (R29)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 2 "(Context Guard 硬阻断|9[0-9]\.)"
+  "context-guard.sh" 0 "告警|warn|9[0-9]"
 
-run_case "context-guard: Edit @ 95% 应硬阻断（大写）" \
+run_case "context-guard: Edit @ 95% heuristic 应告警不阻断 (R29)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 2 "Context Guard"
+  "context-guard.sh" 0 "告警|warn|9[0-9]"
 
 run_case "context-guard: Bash @ 95% 应放行 (R29 诊断通道)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' \
@@ -145,9 +147,9 @@ json.dump(d, open('.omc/state/lx-ghost.json', 'w'))
 "
 # R40-4: 过期 ghost mode 应恢复阻断（context-guard Write 恢复 hard block）
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
-run_case "R40 ghost mode expired: context-guard Write 恢复阻断" \
+run_case "R40 ghost mode expired: context-guard Write heuristic 告警不阻断 (R29)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 2 "Context Guard"
+  "context-guard.sh" 0 "告警|warn|Context"
 rm -f .omc/state/token-tracking-index.json
 
 # ---- Setup: 创建活跃 lx-goal.json ----
@@ -215,31 +217,31 @@ run_case "privacy-gate: 正常 Read 不拦" \
   "privacy-gate.sh" 0 ""
 
 # --- error-dna (R17 position args → stdin) ---
-rm -f .omc/state/error-dna.jsonl
+rm -f .omc/state/error-signals.jsonl
 run_case "error-dna: PostToolUse Bash 失败应落盘（R17 无位置参数场景）" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"go build"},"tool_response":{"stderr":"undefined: X","exit_code":1}}' \
   "error-dna.sh" 0 ""
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"signature"' .omc/state/error-dna.jsonl; then
-    pass "error-dna.jsonl 已落盘且含 signature"
+if [ -s .omc/state/error-signals.jsonl ] && grep -q '"signature"' .omc/state/error-signals.jsonl; then
+    pass "error-signals.jsonl (v3) 已落盘且含 signature"
 else
-    fail "error-dna.jsonl 未落盘或无 signature"
+    fail "error-dna.jsonl 未落盘或无 signature (v3: 普通错误写 error-signals.jsonl)"
 fi
 TOTAL=$((TOTAL+1))
-rm -f .omc/state/error-dna.jsonl
+rm -f .omc/state/error-signals.jsonl
 
 run_case "error-dna: Edit 工具不应触发" \
   '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{}}' \
   "error-dna.sh" 0 ""
 
 # --- R22: PostToolUseFailure schema (顶层 error 字段，无 tool_response) ---
-rm -f .omc/state/error-dna.jsonl
+rm -f .omc/state/error-signals.jsonl
 run_case "error-dna: PostToolUseFailure schema 应落盘（R22 顶层 error）" \
   '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"false"},"error":"Command failed with exit code 1","is_interrupt":false}' \
   "error-dna.sh" 0 ""
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"signature"' .omc/state/error-dna.jsonl; then
-    pass "R22 error-dna.jsonl 已落盘（PostToolUseFailure schema）"
+if [ -s .omc/state/error-signals.jsonl ] && grep -q '"signature"' .omc/state/error-signals.jsonl; then
+	    pass "R22 error-signals.jsonl (v3) 已落盘（PostToolUseFailure schema）"
 else
-    fail "R22 error-dna.jsonl 未落盘（PostToolUseFailure schema）"
+    fail "R22 error-dna.jsonl 未落盘 (v3: PostToolUseFailure 写 error-signals.jsonl)"
 fi
 TOTAL=$((TOTAL+1))
 rm -f .omc/state/error-dna.jsonl
@@ -253,10 +255,10 @@ rm -f .omc/state/error-dna.jsonl
 run_case "stop-drain: 扫 transcript 补录失败 tool_use（R22）" \
   "$(printf '{"hook_event_name":"Stop","session_id":"smoke-R22","transcript_path":"%s"}' "$TRANSCRIPT_FAKE")" \
   "stop-drain.sh" 0 ""
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"origin": "stop-drain"' .omc/state/error-dna.jsonl; then
-    pass "R22 stop-drain 补录成功（origin=stop-drain）"
+if [ -s .omc/state/error-signals.jsonl ] && grep -q '"origin": "stop-drain"' .omc/state/error-signals.jsonl; then
+    pass "R22 stop-drain (v3) 补录成功（origin=stop-drain → error-signals.jsonl）"
 else
-    fail "R22 stop-drain 未补录"
+    fail "R22 stop-drain 未补录 (v3: stop-drain 写 error-signals.jsonl)"
 fi
 TOTAL=$((TOTAL+1))
 rm -f .omc/state/error-dna.jsonl "$TRANSCRIPT_FAKE"
@@ -1039,8 +1041,8 @@ rm -f .omc/state/error-dna.jsonl
 
 # ED-R-6: E4 evidence fabrication detection (gate blocks + VERIFIED echo w/o build)
 # Pre-seed jsonl with gate blocks, then test posttool-bash-audit detection
-printf '{"ts":%d,"signature":"gate1","cmd":"task completed","exit_code":2,"error_type":"gate_operation","message":"completion-gate: no evidence found","session_id":"smoke","escape_type":""}\n' "$(date +%s)" > .omc/state/error-dna.jsonl
-printf '{"ts":%d,"signature":"gate2","cmd":"task update","exit_code":2,"error_type":"gate_operation","message":"completion-gate blocked: evidence score 0","session_id":"smoke","escape_type":""}\n' "$(date +%s)" >> .omc/state/error-dna.jsonl
+printf '{"ts":%d,"signature":"gate1","cmd":"task completed","exit_code":2,"error_type":"gate_operation","message":"completion-gate: no evidence found","session_id":"smoke","escape_type":""}\n' "$(date +%s)" > .omc/state/error-signals.jsonl
+printf '{"ts":%d,"signature":"gate2","cmd":"task update","exit_code":2,"error_type":"gate_operation","message":"completion-gate blocked: evidence score 0","session_id":"smoke","escape_type":""}\n' "$(date +%s)" >> .omc/state/error-signals.jsonl
 TOTAL=$((TOTAL+1))
 _E4_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo VERIFIED: everything works > .omc/state/.completion-evidence-20260514"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' | bash .claude/hooks/posttool-bash-audit.sh 2>&1)
 if echo "$_E4_OUT" | grep -q "E4"; then
@@ -1138,10 +1140,10 @@ else
 fi
 
 TOTAL=$((TOTAL+1))
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"signature"' .omc/state/error-dna.jsonl; then
-    pass "E2E-3 step 2: error-dna.jsonl 含 signature 字段"
+if [ -s .omc/state/error-signals.jsonl ] && grep -q '"signature"' .omc/state/error-signals.jsonl; then
+	    pass "E2E-3 step 2: error-signals.jsonl (v3) 含 signature 字段"
 else
-    fail "E2E-3 step 2: error-dna.jsonl 未生成或无 signature"
+    fail "E2E-3 step 2: error-dna.jsonl 未生成 (v3: 应写 error-signals.jsonl)"
 fi
 
 TOTAL=$((TOTAL+1))

@@ -87,7 +87,8 @@ print(d.get('percentage', 0))" 2>/dev/null)
                 "为防止灾难性幻觉、指令遗忘或代码损毁，已强制拦截写入操作。诊断工具 (Read/Grep/Bash) 可正常使用。请运行 '/compact' 压缩会话或手动重置 token 追踪。${MODE_LABEL}"
             exit 2
         else
-            # 非写工具: 仅记录 flywheel + 告警, 不阻断
+            # 非写工具 或 heuristic 数据: 告警到 stderr + 不阻断
+            echo "⚠️ [Context Guard] 上下文占比 ${PCT}%${MODE_LABEL} — heuristic 源不触发硬阻断，已告警记录" >&2
             printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文占比 %s%%。超出危险阈值。请考虑 /compact。诊断操作未阻断。"}}\n' \
                 "$PCT"
             exit 0
@@ -98,6 +99,7 @@ fi
 # Heuristic danger warning: transcript unavailable but context estimated high
 # Inform user without blocking (false negative > false positive for heuristic data)
 if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" != "transcript (real)" ]; then
+    echo "⚠️ [Context Guard] 上下文占比 ${PCT}% (${SOURCE}) — heuristic 源告警不阻断" >&2
     printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文估算占比 %s%%。来源: %s。无法读取 transcript，阻断已跳过。请检查 transcript 目录或手动 /compact。%s"}}\n' \
         "$PCT" "$SOURCE" "$([ "$MODE" != "normal" ] && echo " [${MODE} mode]" || echo '')"
     exit 0

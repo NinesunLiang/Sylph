@@ -72,25 +72,33 @@ STATE_DIR="$PROJECT_ROOT/.omc/state"
 EV_DNA_JSONL="$STATE_DIR/error-dna.jsonl"
 EV_SIGNALS_JSONL="$STATE_DIR/error-signals.jsonl"
 ESCAPE_E4_MSG=""
-if [ -f "$EV_DNA_JSONL" ]; then
-    ESCAPE_E4_MSG=$(python3 - "$EV_DNA_JSONL" "$COMMAND" <<'E4EOF'
+# v3: gate 操作记录在 error-signals.jsonl, 逃逸记录在 error-dna.jsonl — 双源扫描
+E4_SCAN_FILES=""
+[ -f "$EV_SIGNALS_JSONL" ] && E4_SCAN_FILES="$E4_SCAN_FILES $EV_SIGNALS_JSONL"
+[ -f "$EV_DNA_JSONL" ] && E4_SCAN_FILES="$E4_SCAN_FILES $EV_DNA_JSONL"
+if [ -n "$E4_SCAN_FILES" ]; then
+    ESCAPE_E4_MSG=$(python3 - "$E4_SCAN_FILES" "$COMMAND" <<'E4EOF'
 import json, sys, re
 
-jsonl_path = sys.argv[1]
+scan_list = sys.argv[1].strip().split()
 current_cmd = sys.argv[2]
 
 try:
-    recent_entries = []
-    with open(jsonl_path) as f:
-        for line in f:
-            try:
-                rec = json.loads(line.strip())
-                if rec:
-                    recent_entries.append(rec)
-            except:
-                pass
+    all_entries = []
+    for jsonl_path in scan_list:
+        try:
+            with open(jsonl_path) as f:
+                for line in f:
+                    try:
+                        rec = json.loads(line.strip())
+                        if rec:
+                            all_entries.append(rec)
+                    except:
+                        pass
+        except:
+            pass
 
-    recent = recent_entries[-20:]
+    recent = sorted(all_entries, key=lambda r: r.get('ts', r.get('timestamp', 0)), reverse=True)[:20]
 
     # Detect: completion-gate block recorded
     gate_blocks = [r for r in recent
