@@ -34,10 +34,11 @@ for arg in "$@"; do
         --check-index) CHECK_INDEX=true ;;
         --sync-index) SYNC_INDEX=true ;;
         --check-source-mirror) CHECK_SOURCE_MIRROR=true ;;
+        --check-registry) CHECK_REGISTRY=true ;;
     esac
 done
 
-python3 - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" "$CHECK_SOURCE_MIRROR" <<'PYEOF'
+python3 - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" "$CHECK_SOURCE_MIRROR" "$CHECK_REGISTRY" <<'PYEOF'
 import json, os, re, sys, glob, hashlib
 
 json_out = sys.argv[1].lower() == 'true'
@@ -45,6 +46,7 @@ scan_internal = sys.argv[2].lower() == 'true'
 check_index = sys.argv[3].lower() == 'true'
 sync_index = sys.argv[4].lower() == 'true'
 check_source_mirror = sys.argv[5].lower() == 'true'
+check_registry = sys.argv[6].lower() == 'true' if len(sys.argv) > 6 else 'false'
 
 # === A. Disk ===
 disk = set()
@@ -437,6 +439,40 @@ if check_source_mirror:
         if _INTENTIONAL_DIVERGENCE:
             div_str = ', '.join(sorted(_INTENTIONAL_DIVERGENCE))
             print(f'  ℹ️  有意分歧（不参与 mirror 检查）: {div_str}')
+
+# === H. feature-registry 完整性检查 (--check-registry) ===
+if check_registry:
+    registry_hooks = set()
+    registry_skills = set()
+    try:
+        import yaml
+        with open('.claude/feature-registry.yaml') as f:
+            reg_data = yaml.safe_load(f)
+        for entry in (reg_data if isinstance(reg_data, list) else reg_data.get('hooks',[]) if isinstance(reg_data, dict) else []):
+            if isinstance(entry, dict) and entry.get('type') == 'hook':
+                registry_hooks.add(entry.get('name', ''))
+            elif isinstance(entry, dict):
+                registry_skills.add(entry.get('name', ''))
+    except Exception:
+        pass  # yaml unavailable or parse error — skip check
+
+    # Hooks in settings.json but not in registry
+    all_registered = set(registered.keys())
+    # Convert disk names (posttool-bash-audit.sh) to yaml keys (posttool_bash_audit) for comparison
+    registered_keys = set()
+    for r in all_registered:
+        rk = script_to_yaml_key(r)
+        if rk:
+            registered_keys.add(rk)
+    missing_in_registry = [k for k in sorted(registered_keys) if k and k not in registry_hooks and k not in ('harness_config','feature_probe')]
+    orphan_in_registry = [h for h in sorted(registry_hooks) if h and h not in registered_keys and h not in ('harness_config','feature_probe')]
+
+    if missing_in_registry:
+        for k in missing_in_registry:
+            issues.append(('🟡', k, '已注册(settings.json)但 feature-registry 缺少条目'))
+    if orphan_in_registry:
+        for k in orphan_in_registry:
+            issues.append(('🟡', k, 'feature-registry 有条目但 settings.json 未注册'))
 
 result = {
     'disk_count': len(disk),

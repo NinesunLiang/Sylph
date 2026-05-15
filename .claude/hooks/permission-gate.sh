@@ -20,7 +20,12 @@ except:
     pass" 2>/dev/null)
 fi
 
-[ -z "$COMMAND" ] && { echo '{"continue": true}'; exit 0; }
+# 命令提取失败 → fail-closed: 不确定时阻断，不允许静默放行
+if [ -z "$COMMAND" ]; then
+    echo "⛔ [Permission Gate] 无法解析命令文本 — 安全门禁默认阻断。请在终端手动执行或确认命令。" >&2
+    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Permission Gate] 命令提取失败，安全门禁默认阻断。请人类在终端手动执行此命令，或明确确认放行。"}}\n'
+    exit 2
+fi
 
 # 从 harness.yaml 读取 regex 模式（fallback 为内置默认值）
 GIT_COMMIT_RE=$(hc_get "permission_gate.git_commit_regex" 'git\s+(commit|add\s+--?all|\badd\b.*-A)')
@@ -36,12 +41,25 @@ SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|
 IS_DANGEROUS=false
 DANGER_TYPE=""
 
-# git commit 检测
+# git commit 检测 — token 模式: AI 永不代提交，用户必须在自己的终端手动执行
 if echo "$COMMAND" | grep -qE "$GIT_COMMIT_RE"; then
-    # 排除只读操作
     if echo "$COMMAND" | grep -qvE 'git\s+commit\s+--dry-run|git\s+commit\s+--help'; then
-        IS_DANGEROUS=true
-        DANGER_TYPE="git commit"
+        # 生成验证 token 并强制用户在终端执行
+        COMMIT_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
+        cat >&2 <<EOF
+
+🔐 [Permission Gate] Git Commit — 强制终端执行模式
+
+AI 不被允许执行 git commit。请复制以下命令到您自己的终端执行：
+
+  ${COMMAND}
+
+验证 Token: ${COMMIT_TOKEN}
+
+EOF
+        printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Permission Gate] Git commit 已阻断。AI 永远不能代执行 git commit。请人类在自己的终端中执行命令（Token: %s）。执行后可继续其他操作。"}}
+' "$COMMIT_TOKEN"
+        exit 2
     fi
 fi
 

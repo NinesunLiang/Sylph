@@ -52,9 +52,9 @@ fi
 
 AUDIT_MSG=""
 if echo "$COMMAND" | grep -q "git commit"; then
-    AUDIT_MSG="Git提交已执行。确认: 编译验证通过 + 用户已批准(§1.4)"
+    AUDIT_MSG="Git提交已执行。如未经显式CAPTCHA授权则为门禁绕过事件，请审查。"
 elif echo "$COMMAND" | grep -q "git push"; then
-    AUDIT_MSG="Git推送已执行。确认: 用户已明确批准推送操作"
+    AUDIT_MSG="Git推送已执行。如未经显式CAPTCHA授权则为门禁绕过事件，请审查。"
 elif echo "$COMMAND" | grep -q "git reset --hard"; then
     AUDIT_MSG="⚠️ 硬重置已执行。请确认操作符合用户指令"
 elif echo "$COMMAND" | grep -qE "rm -rf|rm -r"; then

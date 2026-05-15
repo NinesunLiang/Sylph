@@ -162,7 +162,6 @@ hooks:
   description: Meta-Oracle 自动触发 — 检测 Oracle ACCEPT/高分时提醒 AI 执行独立二审。哲学#4+#6 物化
   enabled_by_default: true
   evidence_level: L3
-
 - name: harness_config
   type: shared
   category: utility
@@ -263,6 +262,246 @@ hooks:
   type: gate
   category: quality
   description: 重试预算检查，同签名 3 轮上限阻断
+  enabled_by_default: true
+  evidence_level: L3
+- name: compact_detect
+  type: hook
+  category: observability
+  description: 压缩检测 — /compact 前保存 token 使用量
+  enabled_by_default: true
+  evidence_level: L3
+- name: edit_guard
+  type: hook
+  category: quality
+  description: 编辑门禁 — Edit/Write 前验证文件已被 Read
+  enabled_by_default: true
+  evidence_level: L3
+- name: error_dna
+  type: hook
+  category: observability
+  description: Error-DNA v3 — 双管道错误记录 + 逃逸检测免疫系统
+  enabled_by_default: true
+  evidence_level: L3
+- name: intent_tracker
+  type: hook
+  category: observability
+  description: 意图追踪 — 追踪 AI 操作意图偏离
+  enabled_by_default: true
+  evidence_level: L3
+- name: lsp_suggest
+  type: hook
+  category: quality
+  description: LSP 建议 — 检测抽象符号引用时建议 LSP 工具
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_anti_pattern_detect
+  type: hook
+  category: quality
+  description: 反模式检测 — PostToolUse AI 输出自动匹配 16 条反模式
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_claim_audit
+  type: hook
+  category: quality
+  description: 'Claim 审计 — 铁律#1 强制校验: AI 编造未读 file:line 引用时硬阻断'
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_completion_audit
+  type: hook
+  category: audit
+  description: Completion 审计 — TaskUpdate 审计完成证据质量
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_edit_quality
+  type: hook
+  category: quality
+  description: 编辑质量 — Edit 后产出自查清单
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_handoff_writer
+  type: hook
+  category: knowledge
+  description: 交接写入 — Stop 时自动写入 session 交接
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_subagent_audit
+  type: hook
+  category: audit
+  description: 子代理审计 — PostToolUse Task 审计子代理用量
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_write_lock
+  type: hook
+  category: quality
+  description: Write 锁 — PostToolUse Write 更新 OMA 锁
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool_ask_guard
+  type: hook
+  category: security
+  description: Ask 防护 — 检测 AI 在 CAPTCHA 中的自问自答绕过
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool_sensitive_edit
+  type: hook
+  category: security
+  description: 敏感编辑 — 治理文件 Edit/Write/Bash 需 CAPTCHA 确认
+  enabled_by_default: true
+  evidence_level: L3
+- name: user_correction_detector
+  type: hook
+  category: quality
+  description: 用户纠正检测 — 检测用户"不对"/"应该是"等纠正信号
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool_write_lock
+  type: hook
+  category: quality
+  description: Write 预锁 — PreToolUse Write 获取 OMA 锁
+  enabled_by_default: true
+  evidence_level: L3
+- name: privacy_gate
+  type: hook
+  category: security
+  description: 隐私门禁 — 拦截 .env/密钥文件读取 + 明文 Token 检测
+  enabled_by_default: true
+  evidence_level: L3
+- name: proactive_handoff
+  type: hook
+  category: knowledge
+  description: 主动交接 — PostToolUse 写入 session 交接信息
+  enabled_by_default: false
+  evidence_level: L3
+- name: read_tracker
+  type: hook
+  category: observability
+  description: Read 追踪 — PostToolUse Read 落盘追踪记录
+  enabled_by_default: true
+  evidence_level: L3
+- name: retry_budget_check
+  type: hook
+  category: quality
+  description: 重试预算 — 检测 3 轮修复上限触发
+  enabled_by_default: true
+  evidence_level: L3
+- name: skill_flywheel
+  type: hook
+  category: observability
+  description: Skill 飞轮 — 追踪 skill 使用统计写入 flywheel
+  enabled_by_default: true
+  evidence_level: L3
+- name: stop_drain
+  type: hook
+  category: knowledge
+  description: Stop 补录 — 扫描 transcript 补录遗漏的失败 tool_use
+  enabled_by_default: true
+  evidence_level: L3
+- name: subagent_guard
+  type: hook
+  category: security
+  description: 子代理防护 — Task 创建时检查 max_turns + agent 安全类型
+  enabled_by_default: true
+  evidence_level: L3
+- name: turn_counter
+  type: hook
+  category: observability
+  description: 轮次计数 — UserPromptSubmit 统计会话轮次 + 定时注入锚点
+  enabled_by_default: true
+  evidence_level: L3
+- name: user_correction_detector
+  type: hook
+  category: quality
+  description: 用户纠正检测器 — 同 pretool_user_correction
+  enabled_by_default: true
+  evidence_level: L3
+- name: auto_snapshot
+  type: hook
+  category: observability
+  description: 自动快照 — Stop 时保存会话快照 + 交接备忘录
+  enabled_by_default: true
+  evidence_level: L3
+- name: completion_gate
+  type: hook
+  category: quality
+  description: 完成门禁 — TaskUpdate completed 时强制验证证据文件
+  enabled_by_default: true
+  evidence_level: L3
+- name: context_guard
+  type: hook
+  category: security
+  description: '上下文防护 — 高占比时阻断写操作 (R29: transcript real 触发)'
+  enabled_by_default: true
+  evidence_level: L3
+- name: flywheel_report
+  type: hook
+  category: observability
+  description: 飞轮报告 — SessionStart 输出 P0 告警摘要
+  enabled_by_default: true
+  evidence_level: L3
+- name: fuzzy_block
+  type: hook
+  category: quality
+  description: 模糊指令阻断 — 检测模糊动词+无明确目标时硬阻断
+  enabled_by_default: true
+  evidence_level: L3
+- name: inject_project_knowledge
+  type: hook
+  category: knowledge
+  description: 知识注入 — SessionStart 注入核心治理文件摘要
+  enabled_by_default: true
+  evidence_level: L3
+- name: knowledge_condenser
+  type: hook
+  category: knowledge
+  description: 知识凝结 — Stop 时扫描高频教训+建议升华至 kernel.md
+  enabled_by_default: true
+  evidence_level: L3
+- name: permission_gate
+  type: hook
+  category: security
+  description: 权限门禁 — git commit token 模式 + 危险命令 CAPTCHA
+  enabled_by_default: true
+  evidence_level: L3
+- name: plan_gate
+  type: hook
+  category: quality
+  description: 计划门禁 — 进入计划模式前验证调研充分性
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_bash_audit
+  type: hook
+  category: audit
+  description: Bash 审计 — PostToolUse Bash 后审计权限上下文+E1-E4 逃逸检测
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_output_format
+  type: hook
+  category: quality
+  description: 输出格式门禁 — TaskUpdate 无结构输出提供格式提示
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool_read_cite
+  type: hook
+  category: quality
+  description: Read 引用 — PostToolUse Read 后落盘 read-tracker (默认禁用)
+  enabled_by_default: false
+  evidence_level: L3
+- name: posttool_write_cite
+  type: hook
+  category: quality
+  description: Write 引用 — PostToolUse Write 后检查引用完整性
+  enabled_by_default: true
+  evidence_level: L3
+- name: pre_completion_gate
+  type: hook
+  category: quality
+  description: 预完成门禁 — TaskUpdate 前预检证据
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool_edit_scope
+  type: hook
+  category: quality
+  description: 范围冻结 — 拦截越界编辑操作
   enabled_by_default: true
   evidence_level: L3
 skills:

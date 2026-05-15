@@ -1,16 +1,21 @@
 /**
  * carror-hooks-compat.ts — Carror OS OpenCode Hooks Compatibility Plugin
  *
- * OMO (oh-my-opencode@3.15.3) 原生从 .claude/settings.json 处理 3/7 事件：
+ * OMO (oh-my-opencode) 原生从 .claude/settings.json 处理 3/7 事件：
  *   PreToolUse, PostToolUse, PreCompact
  * OMO 不处理（实测 2026-05-15 确认）：
  *   SessionStart, PostToolUseFailure, UserPromptSubmit, Stop
  *
+ * OpenCode 事件体系 vs Claude Code hook 事件：
+ *   CC UserPromptSubmit → OC message.updated / tui.prompt.append
+ *   CC Stop              → OC session.idle
+ *   CC PreCompact        → OC session.compacted (OMO 已处理)
+ *
  * 本插件补齐缺失的 4 个事件：
- *   - SessionStart     (event handler, event.type === "session.created")
- *   - PostToolUseFailure (tool.execute.after + exit code ≠ 0 检测)
- *   - UserPromptSubmit (event handler, event.type === "user.prompt.submit")
- *   - Stop             (event handler, event.type === "session.closing")
+ *   - SessionStart         (event handler, session.created)
+ *   - PostToolUseFailure   (tool.execute.after + exit code ≠ 0 检测)
+ *   - UserPromptSubmit     (event handler, message.updated)
+ *   - Stop                 (event handler, session.idle)
  *
  * 不修改 OMO node_modules 源码，不替换旧版 sylph-hooks.ts/.disabled。
  * 同一份 .claude/settings.json 在 CC 和 OMO 双平台运行。
@@ -162,14 +167,8 @@ export default async () => {
       }
 
       // ── UserPromptSubmit ─────────────────────────────────────
-      // OpenCode fires events like "user.prompt.submit" / "message.received"
-      // when the user sends a message. Try several known patterns.
-      const isUserPrompt =
-        eventType === "user.prompt.submit" ||
-        eventType === "message.received" ||
-        eventType === "user.message" ||
-        eventType === "prompt.submit";
-      if (isUserPrompt && config.UserPromptSubmit) {
+      // CC UserPromptSubmit ≈ OC message.updated / tui.prompt.append
+      if ((eventType === "message.updated" || eventType === "tui.prompt.append") && config.UserPromptSubmit) {
         const sessionId = input.sessionID || input.id || "";
         const envExtra: Record<string, string> = {};
         if (sessionId) envExtra.SESSION_ID = sessionId;
@@ -204,13 +203,8 @@ export default async () => {
       }
 
       // ── Stop ──────────────────────────────────────────────────
-      // Fires when session is about to close / compact
-      const isStop =
-        eventType === "session.closing" ||
-        eventType === "session.stop" ||
-        eventType === "session.compact" ||
-        eventType === "pre-compact";
-      if (isStop && config.Stop) {
+      // CC Stop ≈ OC session.idle
+      if (eventType === "session.idle" && config.Stop) {
         const sessionId = input.sessionID || input.id || "";
         const envExtra: Record<string, string> = {};
         if (sessionId) envExtra.SESSION_ID = sessionId;
