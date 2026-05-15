@@ -12,14 +12,20 @@
 #   #7 文档优先: 完成时自动生成报告文档
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR" 2>/dev/null
 
 # source harness_config for hc_get defaults
-source "$SCRIPT_DIR/../hooks/harness_config.sh"
+source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 
 MODE_FILE="$STATE_DIR/lx-goal.json"
+
+# 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
+_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|retry"
+if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
+    exec bash "$0" on "$@"
+fi
 
 case "${1:-status}" in
     on)

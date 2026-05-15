@@ -327,7 +327,7 @@ TOTAL=$((TOTAL+1))
 
 # R24 completion-gate: status=completed 且无证据应硬阻断
 # 注意：证据文件可能被当前会话刷新过，先判断证据 freshness 是否生效
-_EVID_PATH=".omc/state/.completion-evidence-$(date +%Y%m%d)"
+_EVID_PATH=".omc/state/.completion-evidence-$(date +%Y%m%d-%H%M)"
 _EVID_BAK=""
 if [ -f "$_EVID_PATH" ]; then
     _EVID_BAK="${_EVID_PATH}.smoke-bak"
@@ -1220,7 +1220,7 @@ log ""
 log "========== E2E-6: C3 L3 Oracle 终审记录检测 -- 多文件变更/架构决策证据应含 Oracle 终审 =========="
 
 # 备份并清理现有证据文件
-_E2E6_EVID_PATH=".omc/state/.completion-evidence-$(date +%Y%m%d)"
+_E2E6_EVID_PATH=".omc/state/.completion-evidence-$(date +%Y%m%d-%H%M)"
 _E2E6_BAK=""
 if [ -f "$_E2E6_EVID_PATH" ]; then
     _E2E6_BAK="${_E2E6_EVID_PATH}.e2e6-bak"

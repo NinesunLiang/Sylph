@@ -50,7 +50,7 @@ auto_soft_block() {
 
 # 检查证据文件是否存在（AI 必须先运行验证并写入证据文件才能标记完成）
 EVIDENCE_DIR=$(hc_get "completion_gate.evidence_dir" ".omc/state")
-EVIDENCE_FILE="$PROJECT_ROOT/$EVIDENCE_DIR/.completion-evidence-$(date +%Y%m%d-%H%M%S)"
+EVIDENCE_FILE="$PROJECT_ROOT/$EVIDENCE_DIR/.completion-evidence-$(date +%Y%m%d-%H%M)"
 EVIDENCE_FRESHNESS_SEC=$(hc_get "completion_gate.evidence_freshness_sec" "300")
 if [ -f "$EVIDENCE_FILE" ]; then
     # 证据文件存在，检查是否在 ${EVIDENCE_FRESHNESS_SEC} 秒内写入
@@ -121,7 +121,7 @@ except:
 import re
 c = '''$CONTENT'''
 sources = 0
-if re.search(r'[\w./-]+\.[a-z]+:\d+', c): sources += 1  # A: file:line
+if re.search(r'[\w./-]+\.[a-zA-Z]+:\d+', c): sources += 1  # A: file:line
 if re.search(r'(exit\.code|PASS|FAIL|✅|❌|build|test|\d+ passed|\d+ failed)', c, re.I): sources += 1  # B: test
 if re.search(r'(\d+/\d+|\d+\.\d+%|edge.case|coverage|regression|\d+ms)', c, re.I): sources += 1  # C: quant
 print(sources)

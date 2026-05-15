@@ -238,11 +238,11 @@ C8_SOURCE="维护脚本存在性 ($C8_COUNT/$C8_TOTAL = $C8_SCORE)"
 echo "  C8: $C8_SCORE ($C8_SOURCE)" >&2
 
 # ── C9: 错误恢复 ──
-# 检查: error-dna.sh + error-dna-auto-fix.sh + error-dna.jsonl
+# 检查: error-dna.sh + escape-patch-apply.sh + error-dna.jsonl
 C9_COUNT=0
 C9_TOTAL=3
 [ -f "$HOOK_DIR/error-dna.sh" ] && C9_COUNT=$((C9_COUNT + 1))
-[ -f "$HOOK_DIR/error-dna-auto-fix.sh" ] && C9_COUNT=$((C9_COUNT + 1))
+[ -f "$SCRIPT_DIR/escape-patch-apply.sh" ] && C9_COUNT=$((C9_COUNT + 1))
 # Check error-dna.jsonl has entries
 DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
 if [ -f "$DNA_JSONL" ]; then

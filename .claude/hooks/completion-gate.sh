@@ -121,7 +121,7 @@ except:
 import re
 c = '''$CONTENT'''
 sources = 0
-if re.search(r'[\w./-]+\.[a-z]+:\d+', c): sources += 1  # A: file:line
+if re.search(r'[\w./-]+\.[a-zA-Z]+:\d+', c): sources += 1  # A: file:line
 if re.search(r'(exit\.code|PASS|FAIL|✅|❌|build|test|\d+ passed|\d+ failed)', c, re.I): sources += 1  # B: test
 if re.search(r'(\d+/\d+|\d+\.\d+%|edge.case|coverage|regression|\d+ms)', c, re.I): sources += 1  # C: quant
 print(sources)

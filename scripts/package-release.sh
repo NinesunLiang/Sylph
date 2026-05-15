@@ -4,7 +4,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$SCRIPT_DIR/.."
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -27,6 +27,8 @@ rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
 rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
 rsync -a --delete .claude/references/  "$HARNESS_SRC/.claude/references/"
 cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"
+# 将开发机绝对路径替换为占位符，install.sh 安装时还原为实际项目路径
+sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
 cp .claude/harness.yaml     "$HARNESS_SRC/.claude/harness.yaml"
 cp .claude/kernel.md        "$HARNESS_SRC/.claude/kernel.md"
 cp .claude/index.md         "$HARNESS_SRC/.claude/index.md"

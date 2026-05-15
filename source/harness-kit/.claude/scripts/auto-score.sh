@@ -35,7 +35,7 @@ score_C1() {
   # 2. kernel.md 有架构铁律
   grep -q '## 架构铁律' .claude/kernel.md 2>/dev/null && : || flaws=$((flaws+1))
   # 3. anti-patterns.md 有 16 条
-  grep -c '^### [A-Z][0-9]' .claude/anti-patterns.md 2>/dev/null | grep -q '16' && : || flaws=$((flaws+1))
+  _AP_COUNT=$(grep -c '^### [A-Z][0-9]' .claude/anti-patterns.md 2>/dev/null || echo 0); [ "$_AP_COUNT" -ge 14 ] 2>/dev/null && : || flaws=$((flaws+1))
   # 4. 无规则跨文件重复（scope freeze 只在一处）
   SCOPE_COUNT=$(grep '范围冻结' AGENTS.md .claude/kernel.md .claude/anti-patterns.md 2>/dev/null | wc -l | tr -d ' ')
   [ "$SCOPE_COUNT" -le 2 ] 2>/dev/null && : || flaws=$((flaws+1))

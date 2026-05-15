@@ -36,7 +36,7 @@ TOOL=$(echo "$TOOL" | tr '[:upper:]' '[:lower:]')
 # 1. 检查读取/搜索的文件名
 CHECK_PATH="$FILE_PATH$PATTERN"
 if [ -n "$CHECK_PATH" ]; then
-    if echo "$CHECK_PATH" | grep -iE '\.env|\.pem|\.key|id_rsa|credentials\.json|secret\.ya?ml|auth\.json' > /dev/null; then
+    if echo "$CHECK_PATH" | grep -iE '\.env|\.pem|\.key|\.p12|\.pfx|\.jks|id_rsa|credentials\.(json|ya?ml)|secret[es]?\.ya?ml|auth\.json|kubeconfig' > /dev/null; then
         echo "$(date +%Y-%m-%d),privacy_gate_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
         agentic_status danger \
             "Privacy Gate 触发" \

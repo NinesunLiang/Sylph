@@ -91,12 +91,16 @@ for tag, hits, entry_date, desc, ln in entries:
         action = "更新 kernel.md（规则已存在但需补证据）"
     elif hits >= 5 and age >= 10 and not found_in_kernel:
         action = "升华至 kernel.md"
+    elif hits >= 3 and age >= 7 and found_in_kernel:
+        action = "更新 kernel.md（修表述/补证据）"
+    elif hits >= 3 and age >= 7 and not found_in_kernel:
+        action = "升华至 kernel.md"
     elif hits >= 3 and age >= 5 and found_in_kernel:
         action = "更新 kernel.md（修表述/补证据）"
     elif hits >= 3 and age >= 5 and not found_in_kernel:
         action = "建议升华，待确认"
     elif hits >= 3 and age < 5:
-        action = "待稳定后再升华（仅 {age} 天）"
+        action = f"待稳定后再升华（仅 {age} 天）"
     else:
         continue
 

@@ -274,6 +274,15 @@ if [ -f ".claude/kernel.md" ]; then
     fi
 fi
 
+# ─── 路径重写：将 settings.json 中的开发机路径替换为用户实际项目路径 ───
+if [ -f ".claude/settings.json" ]; then
+    if grep -q '__PROJECT_ROOT__' ".claude/settings.json" 2>/dev/null; then
+        USER_PROJECT_DIR="$(pwd)"
+        "${SED_INPLACE[@]}" "s|__PROJECT_ROOT__|$USER_PROJECT_DIR|g" ".claude/settings.json"
+        log_info "已重写 settings.json 路径为实际项目目录（${USER_PROJECT_DIR}）"
+    fi
+fi
+
 # ─── 恢复用户态资产 ──────────────────────────────────────────
 if [ "$HAS_BACKUP" = true ]; then
     log_step "正在恢复用户配置与记忆资产..."

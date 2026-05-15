@@ -88,8 +88,15 @@ try:
 except FileNotFoundError:
     pass
 
-# Script → harness.yaml key 映射（按命名约定推断）
+# Script → harness.yaml key 映射（按命名约定推断 + 显式覆盖）
+SCRIPT_KEY_OVERRIDES = {
+    'posttool-format-gate.sh': 'posttool_output_format',
+    'pretool-retry-check.sh': 'retry_budget_check',
+    'pretool-user-correction.sh': 'user_correction_detector',
+}
 def script_to_yaml_key(script):
+    if script in SCRIPT_KEY_OVERRIDES:
+        return SCRIPT_KEY_OVERRIDES[script]
     # foo.sh → foo; posttool-bash-audit.sh → posttool_bash_audit
     base = script[:-3] if script.endswith('.sh') else script
     return base.replace('-', '_')

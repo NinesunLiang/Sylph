@@ -4,6 +4,7 @@ version: v1.0.0
 description: 逐步攻坚模式 — 高难度 bug 单步推进，每步需验证，不可跳过。与 lx-race 互补（race 并行快处理，stepwise 串行深攻坚）。
 category: infrastructure
 type: orchestrator
+execution_mode: stepwise
 enabled_by_default: true
 harness_version: "6.2.0"
 evidence_level: L3

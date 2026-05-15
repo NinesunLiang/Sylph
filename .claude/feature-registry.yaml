@@ -267,7 +267,7 @@ skills:
 - name: lx-code-review
   type: reviewer
   category: review
-  description: 通用代码审查：8 类别 39 规则，含错误处理/并发安全/接口设计/性能，语言无关
+  description: 通用代码审查：8 类别 39 规则，含错误处理/并发安全/接口设计/性能。方法论文本通用，当前实现含 Go 特定规则
   enabled_by_default: true
 - name: lx-react-review
   type: reviewer
@@ -295,7 +295,7 @@ skills:
   type: reviewer
   category: deprecated
   description: 'DEPRECATED (Oracle 审计 2026-05-15): 安全扫描：OWASP Top 10 漏洞检测 + 依赖审计 +
-    密钥泄露扫描，语言无关'
+    密钥泄露扫描。方法论文本通用，当前实现含 Go 特定检测 (govulncheck)'
   enabled_by_default: false
 - name: lx-varlock
   type: guard
