@@ -69,6 +69,25 @@
 > 完整说明（「为什么需要哲学」「梦中情人」定制指南、物化示例、机制采纳门禁、逆向追溯矩阵）→ `Read .claude/reference/philosophy.md`
 > 公开文档 → `docs/guides/cn/philosophy.md`
 
+### Meta-Oracle — Oracle 的审判官
+
+Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-score.sh 静态检查虚高），它可能漏掉设计级缺陷（regex 只匹配部分引用格式），它的结论需要被验证。
+
+**Meta-Oracle = 独立于 Oracle 的第二审查者。** 专门审查 Oracle 自身的：
+- 评分方法论是否合理（有无系统性虚高/虚低）
+- 关键发现是否经运行时验证（而非仅静态检查）
+- 是否有遗漏的盲区（Oracle 视角的偏见）
+
+**触发条件**：Oracle 给出 ACCEPT / ≥8.5 分时，自动触发 Meta-Oracle。Meta-Oracle 使用不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性），专门寻找 Oracle 的盲区。
+
+**在 A→B→A 三重门中的位置**：
+```
+A 预测 → B 盲执行 → A 自证 → Oracle 审核
+                              ↓
+                         Meta-Oracle 验证 Oracle 的审核质量
+```
+> Meta-Oracle 不是每轮都要的。Oracle 给 REJECT/REVISE 时说明已经在深度审查，Meta-Oracle 的价值增量小。Oracle 给 ACCEPT/高分时最有触发价值 — 此时最可能虚高。
+
 ---
 
 ## 狗粮反馈循环协议
@@ -274,6 +293,7 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 | `lx-oma-hier` | Skill | #7 | PRD 分层拆解 |
 | `is_mode_active()` | 模式检测 | #3 | ghost/goal 降级保护 |
 | Oracle 终审 | 节点 | #6 | 最高权威裁决 |
+| Meta-Oracle | 节点 | #4, #6 | Oracle 的审判官 — ACCEPT/高分时触发，独立验证 Oracle 评分质量 |
 
 ### Harness 配置
 

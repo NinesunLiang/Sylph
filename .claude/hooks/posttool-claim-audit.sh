@@ -45,8 +45,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 READ_LOG="$STATE_DIR/read-tracker.txt"
 
-# 提取所有 file:line 引用（如 kernel.go:42, .claude/hooks/plan-gate.sh:15）
-CLAIMED_FILES=$(echo "$INPUT" | grep -oE '\.[/a-zA-Z0-9_.-]+\.[a-z]+:[0-9]+' | sed 's|^\./||' || true)
+# 提取所有 file:line 引用（AGENTS.md:42, kernel.go:15, .claude/hooks/plan-gate.sh:15）
+# 修复: 不再要求以 . 开头（之前漏掉了 AGENTS.md:42 等裸文件名引用）
+CLAIMED_FILES=$(echo "$INPUT" | grep -oE '(\.?/)?[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+' | sed 's|^\./||' || true)
 if [ -z "$CLAIMED_FILES" ]; then
     exit 0
 fi
