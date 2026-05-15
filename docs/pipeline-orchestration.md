@@ -1,7 +1,7 @@
 # Pipeline Orchestration — 4-Skill 管线编排
 
-> Smart Trading Alerts PRD 全生命周期管理
-> 从想法 → Sub PRD → Feature PRD → 治理 → 开发计划
+> PRD 全生命周期管理
+> 从主 PRD → Sub PRD → Feature PRD → 治理 → 开发计划
 
 ---
 

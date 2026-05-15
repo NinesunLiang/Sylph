@@ -4,7 +4,7 @@ name: lx-code-review
 
 version: v4.0.0
 
-description: "Review & fix Go code: 8 categories, 39 rules covering error handling, go-zero patterns, concurrency, interface design, performance, robustness, observability."
+description: "Review & fix code: 8 categories, 39 rules covering error handling, concurrency, interface design, performance, robustness, observability. Language-agnostic methodology, framework-aware."
 
 when_to_use: "Use after writing Go code, before tests/commit. Trigger: 'review code', 'code review', 'check quality', 'review my changes'."
 
@@ -19,7 +19,8 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
-role: "Go code quality reviewer — 8 categories, 39 rules"
+status: stable
+role: "Code quality reviewer — 8 categories, 39 rules"
 execution_mode: stepwise
 
 triggers:
@@ -76,9 +77,8 @@ triggers:
 加载 `@../../nodes/behavior_rules.md`，应用审查阶段行为约束。
 
 ```bash
-s
-t
--f .claude/kernel.md && echo "kernel=yes" || echo "kernel=no"test -f .claude/go-style-guide.md && echo "styleguide=yes" || echo "styleguide=no"
+test -f .claude/kernel.md && echo "kernel=yes" || echo "kernel=no"
+test -f .claude/go-style-guide.md && echo "styleguide=yes" || echo "styleguide=no"
 ```
 
 缺失 → 输出引导信息，**不阻塞**（AI 使用内置通用规则 fallback）。

@@ -4,7 +4,7 @@ name: lx-golang-test
 
 version: v4.0.0
 
-description: "Generate Go test code via pattern routing: table-driven, mocks, HTTP handlers, benchmarks, fuzz, race detection."
+description: "DEPRECATED (Oracle 审计 2026-05-15): Generate Go test code via pattern routing: table-driven, mocks, HTTP handlers, benchmarks, fuzz, race detection."
 
 complexity: intermediate
 when_to_use: "Use when user needs Go test code for functions, interfaces, HTTP handlers, benchmarks, or fuzz tests."
@@ -22,6 +22,7 @@ paths:
  - "*_test.go"
 
 harness_version: ">=1.1.0"
+status: draft
 role: "Go test code generator — pattern-based test scaffolding"
 execution_mode: stepwise
 
@@ -82,9 +83,7 @@ triggers:
 ### Step 0: 入口检查
 
 ```bash
-l
-s
-go.mod # 缺失 → "不适用"
+ls go.mod 2>/dev/null || echo "不适用: 非 Go 项目"
 ```
 
 ### Step 1: 解析测试目标

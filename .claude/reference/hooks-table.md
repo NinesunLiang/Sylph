@@ -1,56 +1,50 @@
-# Hooks 速查表
-
-> 参考文件 — 非自动注入，Run Read 手动查看
-
-
+## Hooks 速查（共 38 个）
 | Hook | 触发 | 作用|
 |------|------|------|
-|`auto-snapshot` | PostToolUse/Stop | auto-snapshot.sh — 会话快照+error-dna+handoff 持久化|
-|`build-validator` | PostToolUse/PostToolUseFailure | build-validator.sh — 构建失败自动记录+修复建议|
-|`compact-detect` | UserPromptSubmit | compact-detect.sh — /compact 检测+知识重新注入|
-|`completion-gate` | PostToolUse:TaskUpdate | completion-gate.sh — 证据质量评分+软语检测+阻断虚假完成|
-|`context-guard` | PreToolUse:Edit/W | context-guard.sh — 上下文阈值阻断(R29: Edit/W 防自锁)|
-|`edit-guard` | PreToolUse:Edit | edit-guard.sh — Edit 钩子守卫|
-|`error-dna` | PostToolUse/PostToolUseFailure:Bash | error-dna.sh — 结构化错误 DNA 捕获+symptom 分类|
-|`error-dna-auto-fix` | Stop | error-dna-auto-fix.sh — 自动修复建议生成|
-|`flywheel-report` | SessionStart | flywheel-report.sh — Flywheel P0 事件告警|
-|`fuzzy-block` | PreToolUse:.* | fuzzy-block.sh — 模糊指令硬阻断+无人值守降级|
-|`inject-project-knowledge` | SessionStart | 注入 .claude/ 核心知识+handoff next-step|
-|`intent-tracker` | PostToolUse:Edit/W | intent-tracker.sh — 声明矛盾检测+additionalContext|
-|`knowledge-condenser` | Stop | knowledge-condenser.sh — claude-next.md 压缩归档|
-|`lsp-suggest` | PreToolUse:Grep | lsp-suggest.sh — LSP 使用建议|
-|`permission-gate` | PreToolUse:Bash | permission-gate.sh — 危险命令拦截(git/rm/sudo/gh/scope)|
-|`pre-completion-gate` | PreToolUse:TaskUpdate | pre-completion-gate.sh — 前置完成门禁，阻止无证据 completed|
-|`plan-gate` | PreToolUse:Edit/W | plan-gate.sh — Plan 前置检查 [DISABLED: harness.yaml 默认关闭]|
-|`posttool-bash-audit` | PostToolUse/PostToolUseFailure:Bash | 权限上下文审计 — 只提醒不阻断|
-|`posttool-claim-audit` | PostToolUse:Edit|Write | 铁律 #1 禁止编造 — 验证 AI 代码断言基于真实读取|
-|`posttool-anti-pattern-detect` | PostToolUse:TaskUpdate\|Edit\|Write | posttool-anti-pattern-detect.sh — A2/F1/H1 反模式自动检测|
-|`posttool-edit-quality` | PostToolUse:Edit/W | 代码风格自查+文档同步提醒+方案复用检测|
-|`posttool-format-gate` | PostToolUse:TaskUpdate\|Edit\|Write | #5 以人为本 — 输出格式方向感+结构化+摘要检查|
-|`posttool-handoff-writer` | PostToolUse:TaskUpdate | 每次 TaskUpdate completed 写 handoff|
-|`posttool-read-cite` | PostToolUse:Read | Read 来源标注提醒 [默认禁用]|
-|`posttool-subagent-audit` | PostToolUse:Task | 子 agent 字节数审计→flywheel P0|
-|`posttool-write-cite` | PostToolUse:Write | Write 后自动记录引用|
-|`posttool-write-lock` | PostToolUse:Edit/W | write-lock-release.sh — OMA 并发锁释放|
-|`pretool-edit-scope` | PreToolUse:Edit/W | 范围冻结拦截+auto-scope 自动推导+耦合提醒|
-|`pretool-sensitive-edit` | PreToolUse:Edit/W | #6 0信任 — 治理文件编辑 CAPTCHA 验证码门禁|
-|`pretool-user-correction` | UserPromptSubmit | 用户纠正信号检测+claude-next.md 自动记录|
-|`pretool-write-lock` | PreToolUse:Edit/W | write-lock-gate.sh — OMA 并发锁前置拦截|
-|`privacy-gate` | PreToolUse:Read/Grep/Bash | .env/私钥读取拦截|
-|`proactive-handoff` | PostToolUse:Write/Edit | 主动交接建议 [默认禁用]|
-|`read-tracker` | PostToolUse:Read | 文件读取追踪日志|
-|`skill-flywheel` | Stop | skill-flywheel.sh — skill 调用统计|
-|`stop-drain` | Stop | stop-drain.sh — 兜底重放|
-|`subagent-guard` | PreToolUse:Task | 子 agent 用量软约束+事后对账|
-|`token_writer` | PostToolUse/UserPromptSubmit/SessionStart/Stop | token 用量追踪(--increment/--reset)|
-|`turn-counter` | UserPromptSubmit | 轮次统计+模糊指令检测+规范漂移锚定|
+|`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
+|`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit — 检测 /compact 命令，保存 compact 前 usage 供 token|
+|`completion-gate` | PostToolUse | completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件|
+|`context-guard` | PreToolUse | context-guard.sh — PreToolUse:Edit|Write — 基于真实 token 百分比阻断写操作，防止上下文溢出|
+|`ecosystem-probe` | SessionStart | ecosystem-probe.sh — SessionStart — 生态探针|
+|`edit-guard` | PreToolUse | edit-guard.sh — PreToolUse:Edit — 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁|
+|`error-dna` | PostToolUse / PostToolUseFailure | error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 轻量错误捕获（Oracle 瘦身后 v2|
+|`flywheel-report` | SessionStart | flywheel-report.sh — SessionStart — 读取飞轮日志，生成 30 天频率摘要注入会话|
+|`fuzzy-block` | PreToolUse | fuzzy-block.sh — PreToolUse — 模糊指令硬阻断（C1 指令清晰度门禁）|
+|`inject-project-knowledge` | SessionStart | inject-project-knowledge.sh — SessionStart — 注入 .claude/ 核心知识到 AI context|
+|`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
+|`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥3)，输出升华建议|
+|`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
+|`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
+|`plan-gate` | PreToolUse | plan-gate.sh — PreToolUse:Edit|Write [默认关闭] — 编辑前检查是否跳过规划阶段|
+|`posttool-anti-pattern-detect` | PostToolUse | posttool-anti-pattern-detect.sh — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测|
+|`posttool-bash-audit` | PostToolUse / PostToolUseFailure | posttool-bash-audit.sh — PostToolUse:Bash / PostToolUseFailure:Bash — Bash 执行后审计|
+|`posttool-claim-audit` | PostToolUse | posttool-claim-audit.sh — PostToolUse:Edit|Write — 铁律 #1「禁止编造」强制校验|
+|`posttool-completion-audit` | PostToolUse | posttool-completion-audit.sh — PostToolUse — 独立验证 evidence 质量（E3/E7 防御纵深）|
+|`posttool-edit-quality` | PostToolUse | posttool-edit-quality.sh — PostToolUse:Edit|Write — 编辑后自查代码风格、文档同步、方案复用检测|
+|`posttool-format-gate` | PostToolUse | posttool-format-gate.sh — PostToolUse:TaskUpdate — 以人为本输出格式门禁（哲学 #5 物化）|
+|`posttool-handoff-writer` | PostToolUse | posttool-handoff-writer.sh — PostToolUse:TaskUpdate — 每次 Task 完成后写 handoff|
+|`posttool-subagent-audit` | PostToolUse | posttool-subagent-audit.sh — PostToolUse:Task — 子 agent 执行后审计 content 用量，超限告警|
+|`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式|
+|`posttool-write-lock` | PostToolUse | posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁|
+|`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
+|`pretool-ask-guard` | PreToolUse | pretool-ask-guard.sh — PreToolUse:AskUserQuestion — 哲学先行门禁，拦截"多此一问"|
+|`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
+|`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
+|`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|
+|`pretool-user-correction` | UserPromptSubmit | pretool-user-correction.sh — UserPromptSubmit — 检测用户纠正信号，强制记录到 claude-next.md|
+|`pretool-write-lock` | PreToolUse | pretool-write-lock.sh — PreToolUse:Edit|Write — 写操作前获取 OMA 并发锁，防止多终端冲突|
+|`privacy-gate` | PreToolUse | privacy-gate.sh — PreToolUse:Bash|Read|Grep — 防止隐私数据泄露（DLP 门禁）|
+|`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit|
+|`skill-flywheel` | Stop | skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）|
+|`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
+|`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
+|`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|
 
-## 默认禁用的脚本（共 3 个）
-- `plan-gate` — harness.yaml 默认关闭
-- `posttool-read-cite` — harness.yaml 默认关闭
-- `proactive-handoff` — Enhanced only，默认关闭
+### 已注册但默认禁用的脚本（共 2 个）
 
-## 独立工具脚本（非 Hook）
-| 脚本 | 说明 |
-|------|------|
-| feature-probe.sh | L1-L4 证据验证工具，手动调用 |
+以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
+
+| 脚本 | 事件 | 说明 |
+|------|------|------|
+| posttool-read-cite | PostToolUse | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
+| proactive-handoff | PostToolUse | proactive-handoff.sh — PostToolUse:Write|Edit — 主动会话交接（上下文阈值触发） |

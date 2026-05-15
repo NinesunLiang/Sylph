@@ -6,6 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
 hc_enabled "completion_gate" || { echo '{"continue": true}'; exit 0; }
+source "$SCRIPT_DIR/agentic-ui.sh"
 INPUT=$(cat)
 
 # 提取 status 字段
@@ -215,7 +216,9 @@ print(f'  通用改进: 引用 file:line 源码 + 使用 VERIFIED: 格式 + 附�
         fi
 
         # P3.4: 质量评分透明输出（通过时也展示评分）
-        echo "✅ 证据通过. 质量评分: ${QUALITY_SCORE}/100 (阈值 ${QUALITY_THRESHOLD})" >&2
+        agentic_status success \
+            "证据通过" \
+            "质量评分: ${QUALITY_SCORE}/100 (阈值 ${QUALITY_THRESHOLD})"
         python3 -c "
 content = '''$(cat "$CONSUMED" 2>/dev/null)'''
 import re
@@ -223,7 +226,7 @@ fl = len(re.findall(r'[\w./-]+\.[a-z]+:\d+', content))
 cmd = sum(1 for p in ['exit.code',r'PASS',r'FAIL','✅','❌','test','build'] if re.search(p,content,re.I))
 multi = sum(1 for p in [r'\d+%',r'\d+ms','coverage','all tests','edge.case'] if re.search(p,content,re.I))
 quant = sum(1 for p in [r'\d+/\d+',r'\d+\.\d+'] if re.search(p,content))
-print(f'  file:line={fl}  test/cmd={cmd}  multi-aspect={multi}  quant={quant}')
+print(f'{AGENTIC_UI_INDENT}file:line={fl}  test/cmd={cmd}  multi-aspect={multi}  quant={quant}')
 " 2>/dev/null
 
         # --- C3: L3 复杂度检测 — Oracle 终审记录检查 ---

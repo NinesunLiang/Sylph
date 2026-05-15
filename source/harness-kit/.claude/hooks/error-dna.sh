@@ -43,7 +43,7 @@ ERROR_DNA_ARCHIVE_COUNT=$(hc_get "error_dna.archive_count" "3")
 export ERROR_DNA_ARCHIVE_COUNT
 
 PY_OUTPUT=$(python3 - "$STATE_DIR" "$TS" "$TMP_FILE" <<'PYEOF'
-import json, os, sys, hashlib, re
+import json, os, sys, hashlib, re, glob, time
 
 state_dir = sys.argv[1]
 ts = int(sys.argv[2])
@@ -147,9 +147,12 @@ for _cm in CAPTCHA_MARKERS:
         ESCAPE_E2_TARGET = _cm
         break
 
-# Skip success and empty commands — EXCEPT when escape patterns detected
-# Successful escapes (exit_code=0) are MORE valuable signals than failures
-if (exit_code == 0 and not ESCAPE_E1 and not ESCAPE_E2) or not command:
+# A方案: 只记录 E1/E2 逃逸信号 + 高频告警扫描路径
+# 丢弃非逃逸的 exit_code≠0 普通错误（847/875 = 96.8% 噪音）
+# 逃逸检测(exit_code=0 的 E1/E2) 是最有价值的信号 — 成功绕过门禁
+if not ESCAPE_E1 and not ESCAPE_E2:
+    sys.exit(0)
+if not command:
     sys.exit(0)
 
 # === Inline classifier (lightweight, no shared lib dependency) ===
@@ -295,6 +298,31 @@ if _is_new_patch:
         json.dump(_patches, _pf, indent=2, ensure_ascii=False)
     os.rename(_ptmp, _patch_file)
 
+# B方案: 30天 pending 补丁自动过期 + 7天 archive 清理
+_PATCH_EXPIRY_SEC = 30 * 86400
+_ARCHIVE_MAX_AGE_SEC = 7 * 86400
+_now = int(ts)
+_patches_updated = False
+for _pk, _pv in list(_patches.items()):
+    if _pv.get('status') == 'pending' and (_now - _pv.get('ts', 0)) > _PATCH_EXPIRY_SEC:
+        _pv['status'] = 'expired'
+        _patches_updated = True
+if _patches_updated:
+    _ptmp = _patch_file + '.tmp'
+    with open(_ptmp, 'w') as _pf:
+        json.dump(_patches, _pf, indent=2, ensure_ascii=False)
+    os.rename(_ptmp, _patch_file)
+
+# 7天 archive 清理
+import glob as _glob
+for _af in _glob.glob(os.path.join(state_dir, 'error-dna.jsonl.*')):
+    try:
+        _af_age = _now - os.path.getmtime(_af)
+        if _af_age > _ARCHIVE_MAX_AGE_SEC:
+            os.unlink(_af)
+    except Exception:
+        pass
+
 # === Escape detection alert: immediate warning via additionalContext ===
 if ESCAPE_E1:
     print(f"[E1] ⚠️ 治理文件绕过: {ESCAPE_E1_TARGET}")
@@ -329,9 +357,18 @@ try:
 except Exception:
     pass
 
+# ED-02 同步义务: 高频扫描排除 gate 操作 — context-guard/permission-gate 等阻断是正常行为非错误
+_GATE_SIG_PATTERNS = [
+    'context-guard.sh', 'pretool-sensitive-edit.sh', 'permission-gate.sh',
+    'pre-completion-gate.sh', 'edit-guard.sh', 'pretool-edit-scope.sh',
+    'fuzzy-block.sh', 'subagent-guard.sh', 'privacy-gate.sh'
+]
+def _is_gate_operation(msg):
+    return any(p in msg for p in _GATE_SIG_PATTERNS)
+
 _frequent = [(sig, info['count'], info['msg'])
              for sig, info in _scanned.items()
-             if info['count'] >= 3]  # threshold: 3+ in current jsonl
+             if info['count'] >= 3 and not _is_gate_operation(info['msg'])]
 if _frequent:
     _frequent.sort(key=lambda x: -x[1])
     _lines = [f"[高频错误] 当前 jsonl 中 >=3 次的签名 ({len(_frequent)} 个):"]

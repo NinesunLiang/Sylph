@@ -31,6 +31,45 @@ session_handoff: enabled: true max_adr_lines: 10 max_todo_lines: 10 max_lessons:
 error_dna: enabled: true max_entries: 100\
 escape_detection: true\
 coupling: enabled: true min_co_change: 3 max_history_commits: 200 max_coupled_files: 5\
-hooks_enabled: completion_gate: true context_guard: true subagent_guard: true pretool_edit_scope: true edit_guard: true lsp_suggest: true posttool_read_cite: false posttool_bash_audit: true posttool_write_cite: true permission_gate: true auto_snapshot: true posttool_edit_quality: true inject_project_knowledge: true plan_gate: false turn_counter: true read_tracker: true error_dna: true knowledge_condenser: true posttool_claim_audit: true intent_tracker: true posttool_handoff_writer: true posttool_output_format: false pretool_sensitive_edit: true skill_flywheel: true build_validator: false user_correction_detector: true rule_anchor: false proactive_handoff: false ecosystem_probe: true fuzzy_block: true retry_budget_check: true pre_completion_gate: true posttool_completion_audit: true posttool_subagent_audit: true posttool_write_lock: true pretool_write_lock: true anti_pattern_detect: true compact_detect: true stop_drain: true\
+hooks_enabled:
+  anti_pattern_detect: true
+  auto_snapshot: true
+  compact_detect: true
+  completion_gate: true
+  context_guard: true
+  ecosystem_probe: true
+  edit_guard: true
+  error_dna: true
+  fuzzy_block: true
+  inject_project_knowledge: true
+  intent_tracker: true
+  knowledge_condenser: true
+  lsp_suggest: true
+  permission_gate: true
+  plan_gate: true
+  posttool_bash_audit: true
+  posttool_claim_audit: true
+  posttool_completion_audit: true
+  posttool_edit_quality: true
+  posttool_handoff_writer: true
+  posttool_output_format: true
+  posttool_read_cite: false
+  posttool_subagent_audit: true
+  posttool_write_cite: true
+  posttool_write_lock: true
+  pre_completion_gate: true
+  pretool_edit_scope: true
+  pretool_sensitive_edit: true
+  pretool_write_lock: true
+  pretool_ask_guard: true
+  privacy_gate: true
+  proactive_handoff: false
+  read_tracker: true
+  retry_budget_check: true
+  skill_flywheel: true
+  stop_drain: true
+  subagent_guard: true
+  turn_counter: true
+  user_correction_detector: true
 rule_anchor: turn_threshold: 15 interval: 5\
 # build_validator: REMOVED — ROI zero, Oracle approved

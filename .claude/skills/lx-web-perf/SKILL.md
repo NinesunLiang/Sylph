@@ -4,7 +4,7 @@ name: lx-web-perf
 
 version: v4.0.0
 
-description: "Web 性能审查：Bundle 分析 + Web Vitals 阈值 + Next.js 优化 + 渲染性能 + 网络性能 + 资产优化。6 大类别 24 条规则。适用于 React/Next.js 前端项目。"
+description: "DEPRECATED (Oracle 审计 2026-05-15): Web 性能审查：Bundle 分析 + Web Vitals 阈值 + Next.js 优化 + 渲染性能 + 网络性能 + 资产优化。6 大类别 24 条规则。适用于 React/Next.js 前端项目。"
 
 when_to_use: "Use after building frontend features or before deployment. Trigger: 'perf check', 'web perf', 'performance audit', 'bundle check', 'web vitals', 'lighthouse check'."
 
@@ -27,6 +27,7 @@ paths:
  - "package.json"
 
 harness_version: ">=1.1.0"
+status: draft
 role: "Web performance auditor — bundle analysis, Web Vitals, Next.js optimization"
 execution_mode: stepwise
 
@@ -83,9 +84,7 @@ triggers:
 加载 `@../../nodes/behavior_rules.md`，应用审查阶段行为约束。
 
 ```bash
-e
-p
-'"next"\|"react"' package.json 2>/dev/null # 缺失 → "不适用"
+grep -E '"next"|"react"' package.json 2>/dev/null || echo "不适用: 非前端项目"
 ```
 
 ### Step 1: 解析审查目标

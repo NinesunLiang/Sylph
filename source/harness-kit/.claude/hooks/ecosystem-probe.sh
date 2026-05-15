@@ -87,6 +87,17 @@ MISSING_DEPS=""
 # ── 输出探针信息（AI 可见）──
 cat <<PROBE
 
+# ── 模型上下文窗口检测 ──
+CTX_LIMIT_FILE="$PROJECT_ROOT/.omc/state/model-context-limit"
+if [ -f "$CTX_LIMIT_FILE" ]; then
+    CTX_LIMIT=$(cat "$CTX_LIMIT_FILE" 2>/dev/null)
+    CTX_LIMIT="${CTX_LIMIT:-unset}"
+else
+    CTX_LIMIT="unset"
+fi
+
+cat <<PROBE
+
 <ecosystem-probe>
 platform:   $PLATFORM
 omo:        $OMO
@@ -96,6 +107,7 @@ gemini:     $GEMINI
 hook_layer: $HOOK_LAYER
 python3:    $PYTHON3_OK
 py_secrets: $PYTHON3_HAS_SECRETS
+context_limit: ${CTX_LIMIT}
 missing:    ${MISSING_DEPS:-none}
 </ecosystem-probe>
 PROBE

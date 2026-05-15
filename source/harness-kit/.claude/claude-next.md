@@ -9,11 +9,11 @@
 
 ## 待验证规则
 
+> 📦 已归档条目见 [.claude/archive/lessons-archive.md](.claude/archive/lessons-archive.md)（20 条：13 已修复 + 2 已关闭 + 5 seed）
+
+
 <!-- 条目格式（严格遵循，升华检测依赖此格式）: --><!-- ## [来源] 标题 --><!-- @YYYY-MM-DD hits:1 --><!-- 触发条件 + 行为 + 证据 --><!-- --><!-- 规则: --><!-- 1. 新增条目必须带 @日期 hits:1 元数据行 --><!-- 2. 再次遇到同一教训时，hits +1 而非新增重复条目 --><!-- 3. 升华条件(自动检测): 条目≥20 | 年龄≥10天 | hits≥5 -->
 
-<!-- 以下 5 条 seed 规则于 2026-05-11 标记为已升华（规则精神已融入 kernel.md §禁止行为），保留注释供追溯参考，不再作为活跃验证项。
-     已另外归档到 claude-next.md 升华记录区以减小注入体积。
--->
 ### [rpe-014] OMA Lock 增强 — os.rename 解决 TOCTOU
 
 @2026-05-04 hits:1
@@ -28,21 +28,6 @@
 正确行为：写临时文件 → os.rename(tmp, target) 实现原子替换，避免部分写入被并发读取
 证据：直接 write_text 不是原子操作，并发读取可能读到部分内容。os.rename 确保读取端始终看到完整内容。
 
-### [R22] PostToolUse 不派发失败事件，失败走 PostToolUseFailure **[已修复 @2026-05-13 settings.json PostToolUseFailure 已注册]**
-
-@2026-05-05 hits:1
-触发条件：写 PostToolUse hook 想捕获 Bash 失败命令（如 error-dna/bash-audit）
-正确行为：必须在 settings.json 同时注册 `PostToolUse` 和 `PostToolUseFailure` 两个事件名。失败事件的 JSON schema 不同：没有 `tool_response.exit_code`/`stderr`，改为顶层 `error: string` + `is_interrupt: boolean`。hook 脚本要双轨兼容。
-证据：Claude Code 源码 src/utils/hooks.ts:3460 `executePostToolUseHooks` 只在成功时触发，src/utils/hooks.ts:3492 `executePostToolUseFailureHooks` 才处理失败 — 这是设计分叉不是 bug。本项目原 settings.json 只注册 PostToolUse，导致 error-dna.jsonl 永远空 = 僵尸功能。
-补强：即使注册了 PostToolUseFailure，也应同时挂 Stop hook 扫 transcript.jsonl 兜底（防平台后续改名或丢事件），形成双层防御。
-
-### [R23] harness.yaml 的 hooks_enabled 不等于实际注册 **[已修复 @2026-05-13 audit-hooks.sh 三方一致性检查]**
-
-@2026-05-05 hits:1
-触发条件：磁盘上有 hook 脚本、harness.yaml 里 hooks_enabled.<name>=true，但 settings.json 没注册命令 → 产品承诺生效但 Claude Code 运行时根本不派发事件给它（僵尸脚本）。
-正确行为：三方必须齐一：(A) 磁盘脚本存在、(B) settings.json 有对应事件 + matcher 注册、(C) harness.yaml 开关打开。任一缺失就是漂移。
-证据：本轮发现 12 个脚本中 8 个属于"A+C 有但 B 缺"（lsp-suggest / pretool-rule-anchor / pretool-write-lock / subagent-guard / posttool-edit-quality / posttool-write-lock / flywheel-report / skill-flywheel），另 1 个属于"B 有但 C=false"的反向漂移（proactive-handoff）。
-兜底：已添加 `.claude/scripts/audit-hooks.sh`，Claude Code 升级改事件名时一键发现；已纳入 harness-smoke 回归。
 
 ### [R25] subagent-guard max_turns 只能"软约束+事后对账"，不能硬停
 
@@ -59,13 +44,6 @@
 定位文案（写清楚避免误认"已根治账单雪崩"）：
 > max_turns = AI 行为约束 + 事后对账，不是运行时硬停。防线三层：声明层约束 AI 意识，使用层落盘留痕，人工层 SessionStart 告警。
 
-### [R24] Bash unquoted glob 会被 cwd 文件污染（生产级陷阱） **[已修复 @2026-05-13 edit-guard/posttool-edit-quality R24-S3 set -f]**
-
-@2026-05-05 hits:1
-触发条件：hook 或任意 shell 脚本里写 `for x in $GLOB_VAR` 且 `$GLOB_VAR` 包含 `*` 等通配符（例如 `SOURCE_EXT="*.go"`）。
-正确行为：进入这类循环前 `set -f` 禁用 pathname expansion，循环结束 `set +f` 恢复；或用数组 + `"${arr[@]}"` 完全避开 word splitting。
-证据：bash 对未加引号的变量先做 word splitting、再做 pathname expansion。配置里的 `*.go` 如果 cwd 刚好存在 `main.go`，整个 glob 会被展开成具体文件名（只剩 `main.go`），后续 case 匹配就只对 basename=main.go 生效，其他所有 .go 都漏过。本项目 cwd 有 `main.go`，导致 `edit-guard.sh` / `posttool-edit-quality.sh` / `posttool-read-cite.sh` 三个 hook 在真实项目目录下形同虚设（smoke 刚好用 `main.go` 做样例才侥幸绿）。
-补强：harness-smoke 的 R18 回归 case 改为 `/Users/demo/project/src/main.go`（真实全路径）+ `/tmp/notes.txt`（非源文件），避免未来再出现"靠 cwd 巧合通过测试"。
 
 ### [R26] hook 脚本内白名单 vs settings.json matcher 一致性陷阱
 
@@ -75,18 +53,6 @@
 证据：本项目 R19 把 `context-guard` matcher 改为 `.*`（产品承诺"所有工具受门禁"），但 `context-guard.sh` 保留了 `edit/write/bash` 白名单，结果 Read/Grep 在 95% 上下文时被脚本层再次放行，与"冷酷无情 AI 管理员"定位矛盾。R26 手动实弹 D3 Read @ 95% 才发现。
 补强：`hook-production-verify.sh` D3 的四工具循环（Write/Bash/Edit/Read @ 95%）永久守护此回归 — 任何工具例外都会立即 🔴。
 
-### [R29] context-guard matcher 放宽为 Edit|Write 防自锁 **[已修复 @2026-05-07]**
-
-@2026-05-07 hits:1
-触发条件：context-guard 使用 `.*` matcher 封锁所有工具，导致 90% 上下文时无法用 Read/Grep 诊断、无法用 Bash 修复 `token-tracking-index.json`，形成不可恢复的自锁（self-inflicted DoS）。
-正确行为：context-guard matcher 改用 `Edit|Write`，保留对写操作的物理阻断，但开放 Read/Grep/Bash 作为诊断恢复通道。原则："读是诊断，写是破坏"。
-逃生门：同时在脚本内实现 `context-force-override` 标记文件机制 — 文件存在时跳过阻断，由 Bash 创建（因为 Bash 已不再被 context-guard 封锁）。
-证据：
-- `.*` matcher + exit 2 = 所有工具被拦 → 无法修复导致自锁的 index 文件 → 死锁
-- 修改后 D3 测试改为：Write/Edit → expect exit 2，Read/Bash → expect exit 0
-- permission-gate.sh（Bash matcher）仍独立守护危险命令（rm -rf, git push --force），安全边界不丢失
-
-补强：harness-smoke-test 新增 context-force-override 逃生门测试 case；hook-production-verify D3 改为两路断言。
 
 ### [R27] 报告中任何百分比/评分必须有行业标准来源 URL 或 file:line
 
@@ -98,8 +64,6 @@
 
 ---
 
-<!-- 已升华到 kernel.md 的条目（实际已合并到 kernel.md §禁止行为的核心原则，具体规则保留在 claude-next.md 供参考） -->
-<!-- 格式: - 标题 → 归宿（如 kernel.md §X.X）@日期 -->
 
 ### [R28] 废弃架构描述必须随实现同步更新
 
@@ -108,55 +72,6 @@
 正确行为：每次架构变更后，搜索 `docs/` 和 `README.md` 中所有相关描述并同步更新
 证据：Sub-agent → A→B→A 切换后，README.md 及 20+ 营销文档仍描述旧模式，用户纠正后才修复
 
-### [R30] AI 评估自身环境前必须先检查，禁止用文档默认值代替实际配置 **[已修复 @2026-05-13 score-self-check.sh 基于实际配置]**
-
-@2026-05-07 hits:1
-触发条件：评估/评分/分析类任务中，AI 引用文档描述而非读取实际配置
-正确行为：必须先检查运行环境（如检查 skill 目录、settings.json、harness.yaml 中的实际开关状态），确认是 Base 还是 Enhanced 等，再基于实际状态做评估。评估报告中标注运行环境版本和检查方式。
-证据：AI 在 Enhanced 环境下运行却按 Base 版文档评分，导致"Enhanced 隐藏"和"不会主动提示"两条扣分不成立。用户纠正后 AI 自检发现是 D3 反模式（项目业务盲区）。
-
-### [R31] gh CLI 写操作是 permission-gate 防御盲区 **[已修复 @2026-05-13 permission-gate.sh gh_write_regex]**
-
-@2026-05-07 hits:1
-触发条件：AI 执行 `gh release upload` 推送到 GitHub Release，未触发任何 gate 拦截，未征得用户同意。
-正确行为：`gh` 的写操作（release upload/create、pr create/merge、secret set、repo create/delete 等）必须经 permission-gate 拦截，与 git push / rm -rf 同级对待。已新增 `permission_gate.gh_write_regex` 配置，默认匹配 release、pr、issue、repo、variable、secret、workflow 等 gh 写子命令。
-证据：用户批评"越权"——AI 在未询问的情况下直接用 `gh release upload` 推送了外部服务。检查发现 permission-gate.sh 没有针对 gh CLI 的任何检测规则，`gh` 命令不匹配 git push / destructive / sudo 任何已有 regex。这是防御体系的设计遗漏，不是因为用户没配置。
-补强：`permission_gate.gh_write_regex` 默认值为全写操作覆盖，可通过 harness.yaml 自定义缩小/扩大范围。
-
-### [R32] install.sh 合并已有 AGENTS.md 应降级标题层级 **[已修复 @2026-05-13 install.sh:391-402 sed降级 #→##]**
-
-@2026-05-08 hits:1
-触发条件：在已有 CLAUDE.md/AGENTS.md 的项目上运行 `bash install.sh`
-正确行为：Carror OS 治理内容应以 `##` 二级标题合并到用户文件末尾，保留用户 `#` 一级标题的原创性。当前实现在用户内容后用 `# Carror OS 治理框架` 一级标题，与用户原始 `#` 标题同级混乱。
-证据：狗粮测试 — 用户项目已有 `# Project Name`，Carror OS 合并后出现两个 `#` 一级标题，层次结构不清晰。
-
-### [R34] 说"系统没这问题"前必须逐文件交叉验证 **[已修复 @2026-05-13 pre-commit-self-review.sh]**
-
-@2026-05-08 hits:1
-触发条件：AI 快速查看 grep 结果后直接断言"Carror OS 不存在 X 问题"，未逐文件对照验证
-正确行为：声称系统不存在某问题前，必须逐文件 Read 并交叉对比，引用具体行号作为证据。否则只能说"未验证，不确定"。Grep 看一遍不等于验证。
-证据：用户强调 Oracle 狗粮发现的 C2 不一是"实战数据"，而我在看了几个 grep 结果后就声称本系统没这个问题，构成 F1 假设驱动反模式。应直接逐文件对照 AGENTS.md / qa-checklist.md / index.md 的 C2 定义行号才能断言。
-
-### [R33] compact-detect.sh 必须注入知识，不能只记 token **[已修复 @2026-05-12]**
-
-@2026-05-08 hits:1
-触发条件：用户在会话中执行 /compact 后继续工作
-正确行为：compact-detect.sh 必须在保存 compact state 后，立即通过 echo/additionalContext 注入项目知识摘要（index.md 铁律 + AGENTS.md 纲要 + 当前 step 状态），防止 AI 失忆。
-**修复状态**: ✅ 已实现（compact-detect.sh:58-117）。现在注入 index.md 铁律速查、kernel.md 架构铁律、AGENTS.md 治理纲要、skill 关联图谱、会话状态恢复（handoff + todo）。同时已实现复合触发注入（turn-counter.sh L2 层：context > 50% 且 turns > 20）。
-证据：狗粮测试 — /compact 后 AI 忘记技术栈、ADR 决策、活跃 feature 状态，需要用户重新解释。
-补强：同时实现复合触发注入（context > 50% 且 turns > 20）作为周期刷新，防范 compact 后的规范漂移。 ✅ 已通过 turn-counter.sh L2 层实现。
-
-### [2026-05-10] 用户纠正: 不对（scope gate 和 version drift 修复时被中断）[已关闭]
-@2026-05-10 hits:1
-**触发场景**：用户在 ghost mode 对某次操作说"不对"
-**问题**：具体纠正内容已丢失（跨会话上下文不可恢复）
-**纠正**：[已关闭] 用户未在后续会话中补充根因。教训：纠正捕获后应立即在当前会话补全，不依赖跨会话记忆。
-
-### [2026-05-11] 用户纠正: 不对（修复 agent-found issues 时被中断）[已关闭]
-@2026-05-11 hits:1
-**触发场景**：用户在 ghost mode 对某次操作说"不对"
-**问题**：具体纠正内容已丢失（跨会话上下文不可恢复）
-**纠正**：[已关闭] 用户未在后续会话中补充根因。教训：纠正捕获后应立即在当前会话补全，不依赖跨会话记忆。
 
 ### [R35] hook 行为变更后必须更新脚本头部注释
 
@@ -165,12 +80,6 @@
 正确行为：行为变更后，搜索脚本顶部 `# Role:` 和 `# 用途` 行并同步更新。头部注释是其他维护者理解脚本的第一入口，不一致导致排查困难。
 证据：pretool-edit-scope.sh 改为 auto-add 后，Role 注释仍写"范围冻结拦截，阻止越界编辑"，与实际 auto-add（exit 0）行为矛盾。
 
-### [R36] hook 合并/废弃需三方同步 **[已修复 @2026-05-13 audit-hooks.sh + 协议文档化]**
-
-@2026-05-11 hits:1
-触发条件：合并 pretool-rule-anchor 逻辑到 pretool-edit-scope.sh 后，从 settings.json 移除但其 harness.yaml 开关仍为 true
-正确行为：合并/废弃 hook 需要同步更新 3 个文件：(A) settings.json — 移除事件注册，(B) harness.yaml — 设 enabled=false 或移除条目，(C) smoke tests — 更新对应用例预期
-证据：合并后 audit-hooks 检测为 zombie（磁盘脚本存在 + harness enabled，但 settings 无注册），二次修复才关闭 harness.yaml 开关。
 
 ### [R37] ghost mode 下需豁免模糊指令检测
 
@@ -199,13 +108,6 @@
 触发条件：auto-snapshot.sh 中 session-dump.json 写入逻辑经代码审查确认，但文件一直不存在
 正确行为：Stop hook 产出的文件（session-dump.json、handoff.md 等）必须测试触发验证，不能仅凭 Read 代码断言。在 session 中手动触发一次 Stop hook 确认产出。
 证据：session-dump.json 代码存在且正确，但从未在运行时创建（未发生 Stop 事件）。手动触发后立即创建 7121 bytes / 7 字段的 dump 文件。
-
-### [R41] Error DNA JSONL 轮转数据丢失 — range 越界移位 **[已修复 @2026-05-13 error-dna.sh:409-416 移位循环修复]**
-
-@2026-05-11 hits:1
-触发条件：error-dna.sh 的 auto-rotation 代码 `for i in range(archive_count, 0, -1)` 在 archive_count=3 时，将 .2→.3（超出保留范围 0..2），重建循环 `for i in range(archive_count)` 只读 .0/.1/.2，导致 .3 中的数据永久丢失。7847 条历史记录仅恢复 59 条（~99% 丢失）。
-正确行为：移位循环应为 `for i in range(archive_count - 1, 0, -1)`，移位后 `os.unlink(orphan)` 删除超出保留范围的归档文件。重建循环应遍历所有实际存在的归档文件（含 .3 等），不受 archive_count 硬限制。
-证据：实际数据 — 3 个归档文件含 7847 条记录/296 个唯一签名，但之前聚合文件仅 59 条签名。修复后重建恢复 296 个签名。详见 error-dna.sh:409-416。
 
 
 ### [2026-05-12] 用户纠正: 不对（AI 对 Sylph 理解浅薄，浮于文档表面）
@@ -372,32 +274,6 @@
 **证据**：4 个文件修复（skills-catalog.md cn+us、for-experts.md cn+us），3 个技能描述从 "Go 代码" 改为 "通用代码"。
 
 
-### [DF-01] turn-counter 模糊检测对含方向限定词的"优化"误报 false positive **[已修复 @2026-05-14 turn-counter.sh:187-194 方向限定词检测]**
-
-@2026-05-14 hits:1
-**触发场景**：Goal mode 执行完成后，用户说"从机制上去优化" — turn-counter 将"优化"匹配为模糊动词，判定为模糊指令。但"从机制上"是方向限定词，使"优化"成为具体指令。
-**问题**：模糊检测仅做子串匹配（grep -qF），不检查模糊动词是否被方向/域限定词修饰。以下模式均为具体指令：
-- "从X上优化" — 从机制上/从性能角度/从用户体验层面
-- "针对X优化" — 针对 hook 注册流程
-- "关于X优化" — 关于 completion-gate 的优化
-- "在X方面优化" — 在安全防护方面
-**纠正**：
-1. turn-counter.sh 新增方向限定词检测正则：`从.{1,8}(上|角度|层面|方面)` / `针对.{1,12}` / `关于.{1,12}` / `在.{1,8}方面`
-2. 匹配到方向限定词 → 移除模糊标记，不视为模糊指令
-**证据**：本会话 — user prompt "从机制上去优化" 被误判；修复后 4 个测试 case 验证通过
-
-### [DF-02] completion-gate 自主模式下 stderr 警告噪音 **[已修复 @2026-05-14 completion-gate.sh:40-47 日志路由]**
-
-@2026-05-14 hits:1
-**触发场景**：Goal mode 执行中 6 次 TaskUpdate.completed，每次触发 completion-gate 的 `auto_soft_block()`。函数虽正确降级为 warn（不阻断），但警告输出到 stderr（`>&2`），用户在终端看到 6 条 "blocking error" 系统提醒。
-**问题**：`auto_soft_block()` 的设计意图是"留痕但不阻断"，但 stderr 输出在自主模式下仍会出现在用户终端，产生噪音。理念冲突：#4(没验证=没做) 要求留痕 vs #5(以人为本) 要求不打扰用户。
-**纠正**：
-1. 自主模式下 `auto_soft_block()` 改为写入 `.omc/state/completion-gate-autonomous.log` 日志文件，不再输出到 stderr
-2. 日志格式：`[timestamp] [自主模式] <reason>`
-3. 非自主模式下行为不变（仍 exit 2 硬阻断）
-**裁决**：哲学优先级 #4 > #5，证据留痕不可丢弃。但 stderr 改为日志文件 = 留痕且不打扰，两全。
-**证据**：completion-gate.sh:40-47 — `echo >&2` 改为 `echo >> log_file`
-
 ### [DF-03] Goal mode 缺乏阶段性证据桩 — 全程 6 次无效 completion-gate 检查
 
 @2026-05-14 hits:1
@@ -475,47 +351,6 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 - Error-DNA v3 的 E1 逃逸检测在此事故中验证有效——Bash `cp` 和 `sed` 操作治理文件被正确标记为 `escape_type=governance_bypass`，但由于 hooks 本身已损坏，逃逸检测的注入无意义
 - 暴露新攻击面：settings.json 的 command 字段无输入消毒，攻击者可注入任意 shell 命令
 - 建议：pre-commit-self-review.sh 增加 settings.json command 语法校验（`bash -n` 解析检查）
-
-
-### [seed:typescript] 禁止 any 类型逃逸 ✅已升华到 kernel.md @2026-05-08
-
-@2026-01-01 hits:3
-触发条件：编写 TypeScript 代码时使用 `any` 绕过类型检查
-正确行为：使用 `unknown` + 类型守卫，或定义精确的接口类型
-证据：any 类型会导致下游所有类型推断失效，形成"类型黑洞"
-来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
-
-### [seed:typescript] useEffect 依赖数组必须完整 ✅已升华到 kernel.md @2026-05-08
-
-@2026-01-01 hits:3
-触发条件：编写 useEffect 时省略依赖或使用 `// eslint-disable`
-正确行为：完整列出所有依赖；若依赖过多，拆分 effect 或提取自定义 Hook
-证据：遗漏依赖导致 stale closure，表现为状态不更新或无限渲染
-来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
-
-### [seed:typescript] API 响应必须定义完整类型 ✅已升华到 kernel.md @2026-05-08
-
-@2026-01-01 hits:2
-触发条件：fetch/axios 调用后直接使用 `response.data` 无类型
-正确行为：在 `src/types/` 定义响应接口，fetch 封装中使用泛型 `Promise<T>`
-证据：无类型的 API 响应在下游使用时编译器无法检查字段名拼写错误
-来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
-
-### [seed:general] 修改接口前必须查引用 ✅已升华到 kernel.md @2026-05-08
-
-@2026-01-01 hits:4
-触发条件：修改 interface/type 定义的字段名或类型
-正确行为：先 `lsp_find_references` 列出所有引用方，全部同步修改后再编译验证
-证据：只改定义不改引用方导致连锁编译错误，越修越多
-来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
-
-### [seed:general] 长对话中禁止依赖记忆引用文件内容 ✅已升华到 kernel.md @2026-05-08
-
-@2026-01-01 hits:5
-触发条件：对话超过 10 轮后引用之前读过的文件内容
-正确行为：每次需要文件内容时重新 Read，标注 [已验证: file:line]
-证据：长对话记忆衰减导致引用的代码片段与实际不一致
-来源：外部收录 — 其他用户的 claude-next.md 互操作狗粮
 
 
 ### 🐶 [DG-07] OMA skill 上下游路径必须同时读完再动手（外部收录）
@@ -618,3 +453,79 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 正确行为：在项目描述中强调生态的有机成长属性——机制是从真实踩坑中长出来的（狗粮驱动），不是预先设计的蓝图。每一条 claude-next.md 的 R/DG/DF 条目背后都是一次真实事故，每一个 hook 的存在都可以追溯到一次"差点出事"的瞬间。
 证据：Carror OS 的 40+ hook、16 条反模式、7 条哲学、8 条铁律——没有一条是凭空设计。全部是从数百小时的狗粮会话中提炼出来的教训结晶。
 来源：外部收录 — 用户对项目哲学的总结
+
+### [2026-05-15] 用户纠正: 不对 — 三项改进完成前不应停下问用户
+
+@2026-05-15 hits:1
+**触发场景**：验证 Part C 完成后 AI 问"需要我执行 package-release.sh 同步到 source mirror 吗？"，用户说"不对，你先讲你的方案和验收文档提交 oracle agent 进行审核"
+**问题**：AI 在没有 Oracle 终审的情况下就想进入下一步（package-release），跳过了哲学 #6 的核心步骤 — 自证前必须先经独立审计
+**纠正**：
+1. 完成声称后应立即提交 Oracle critic 做独立源码级验证，不自证
+2. Oracle 终审发现 MAJOR 问题（profiles/base 未同步）— 证明了独立审计的价值
+3. 哲学 #4(没验证=没做) 和 #6(0信任) 在关键路径上必须严格执行，不跳过
+
+
+### 🐶 [DG-16] 修改配置模板时必须同步所有 profile 变体
+
+@2026-05-15 hits:1
+触发条件：修复 harness.yaml 但遗漏 profiles/base/harness.yaml 同步
+正确行为：修改 harness.yaml 后必须检查 profiles/base/harness.yaml 是否一致，关键字段（hooks_enabled 块、build_validator 移除、优化默认值）必须同步
+证据：Oracle critic 发现 profiles/base 仍含旧格式（\ 延续符、21 vs 38 开关、plan_gate=false、build_validator 死代码）— Dogfood 2026-05-15 OA-04
+
+### 🐶 [DG-17] 程序化校验优于文档约定 — harness.yaml 需格式校验门禁
+
+@2026-05-15 hits:1
+触发条件：hc_enabled 单行 YAML 格式 bug 导致 38 个开关数年死代码，从无人察觉
+正确行为：pre-commit-self-review.sh 应增加 YAML 多行格式校验；audit-hooks.sh 应增加开关实际生效性检查（对比声明值 vs 运行时读数）
+证据：parse_yaml_simple() line-by-line 解析对单行格式静默降级，hc_enabled default return 0(true) 掩盖所有 false 值 — 本会话 Part C
+
+### 🐶 [DG-18] Oracle 终审必须由独立 agent (critic) 执行 — AI 自证不可信
+
+@2026-05-15 hits:1
+触发条件：AI 声称三项全部完成，Oracle critic 发现 profiles/base 未同步的 MAJOR 问题
+正确行为：所有非 trivial 变更完成后必须提交 Oracle critic agent 做独立源码级验证，不依赖 AI 自我验收声明。哲学 #6(0信任) 的操作层物化
+证据：Oracle 终审 33 次 tool call，发现预测 #3(profiles/base sync gap) 正确 — Dogfood 2026-05-15
+
+### 🐶 [DG-19] 狗粮驱动优化后必须同步到 source mirror + 写狗粮记录
+
+@2026-05-15 hits:1
+触发条件：三项改进完成后 source/harness-kit 和 profiles/base 存在漂移
+正确行为：狗粮驱动优化完成后三步走：(1) 运行 package-release.sh 同步 source mirror → (2) 写结构化狗粮记录 (.omc/state/dogfood/) → (3) 新教训写入 claude-next.md
+证据：smoke test R30/R34 source mirror 漂移失败 — 本会话
+
+
+### 🐶 [DG-20] Oracle 多轮审查比单轮更有效 — 每轮聚焦不同维度
+
+@2026-05-15 hits:1
+触发条件：Oracle 一审发现 5 项（1C+4M），二审发现 5 项完全不同的 MAJOR（文档漂移/R39预算/registry不全/竞态/F1E5不一致）
+正确行为：重大审计必须至少 2 轮 Oracle 审查。第二轮注入修正后的设计上下文，消除第一轮已知偏差。两轮发现完全不重叠证明了多轮审查的价值。
+证据：一审 findings (A→B→A/plan-gate/completion-gate/permission-gate/E5) vs 二审 findings (hooks-table/R39/feature-registry/intent-tracker/F1E5) — 零重叠 — Dogfood 2026-05-15 Full Cycle
+
+### 🐶 [DG-21] Oracle 发现必须经「设计意图审视」— AI 初判在理解上下文后可能大幅降级
+
+@2026-05-15 hits:1
+触发条件：一审 5 项发现经用户审视后 4 项是正确的设计决策（A→B→A 设计预留、completion-gate Pre+Post 互补、permission-gate 已接受风险、E5 warning 正确默认），仅 1 项是真正需要修复的 bug（plan-gate 已修）
+正确行为：Oracle 发现必须先经过设计意图审视环节。AI 初次 CRITICAL/MAJOR 判定在理解完整设计上下文后可能大幅降级。不直接将 Oracle 输出当作修复清单。
+证据：一审 1C+4M → 用户审视后 → 0C+0M（5 项全部降级或确认已修复）— Dogfood 2026-05-15 Phase:用户修正设计理解
+
+### 🐶 [DG-22] 文档漂移需自动同步 — hooks-table/feature-registry/harness.yaml 三源独立维护
+
+@2026-05-15 hits:1
+触发条件：Oracle 二审发现 hooks-table 含 2 条已删除脚本、feature-registry 缺 14 条 hook、harness.yaml 曾含 build_validator 死代码
+正确行为：三源（hooks-table + feature-registry + harness.yaml hooks_enabled）应在每次 hook 变更后自动同步。建议 audit-hooks.sh --sync-index 作为 pre-commit hook 强制执行，或在 lx-sync skill 中增加三源一致性检查。
+证据：hooks-table.md:9,16 幽灵条目 / feature-registry.yaml 缺失 14 条目 / harness.yaml build_validator 残留 — Dogfood 2026-05-15 Fix #1, #3
+
+### 🐶 [DG-23] 哲学 #4 的 Oracle 物化：AI 修复 → 写验收报告 → Oracle 审查 → 修正 → 终审 → 完成
+
+@2026-05-15 hits:1
+触发条件：本次 Oracle 审计从初始到 ACCEPT 的标准闭环：3 轮审查 × 2 agent = 6 次独立验证，累计 76 次 tool call
+正确行为：建立标准流程：AI 修复 → 生成验收报告 → 提交 Oracle critic → 根据反馈修正 → Oracle 终审 → 标记完成。每一步都必须有独立 agent 验证，不自证。
+证据：Oracle 审计完整旅程 86.6→93.65(C)/99.10(E) — Dogfood 2026-05-15 Full Cycle
+
+
+### 🐶 [DG-24] 哲学 #1 适用于哲学模块自身 — 核心在 AGENTS.md 一句话说清，深度进 reference
+
+@2026-05-15 hits:1
+触发条件：用户质疑哲学体系放在 AGENTS.md 噪声是否过大，AGENTS.md 是否会无限膨胀
+正确行为：哲学模块遵循自己的渐进式披露原则 — AGENTS.md 保留 22 行紧凑表（哲学名+一句话+优先级+可定制说明），深度内容（物化示例/冲突裁决/门禁三问/逆向追溯/~130 行）移到 reference/philosophy.md 按需加载。任何 AGENTS.md 中超过 30 行的章节都应考虑分离。
+证据：分离前 ~110 行全量注入 → 分离后 ~22 行 + Read 按需。节省 ~88 行注入预算。— Dogfood 2026-05-15 Philosophy Separation

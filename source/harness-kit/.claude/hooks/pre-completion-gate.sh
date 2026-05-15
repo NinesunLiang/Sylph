@@ -4,7 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pre_completion_gate" || { echo '{"continue": true}'; exit 0; }
-
+source "$(dirname "$0")/agentic-ui.sh"
 INPUT=$(cat)
 
 # 提取 status 字段
@@ -38,18 +38,12 @@ fi
 # 检查证据文件
 EVIDENCE_FILE="$PROJECT_ROOT/.omc/state/.completion-evidence-$(date +%Y%m%d)"
 if [ ! -f "$EVIDENCE_FILE" ]; then
-    cat >&2 <<EOF
-
-⛔ 前置门禁阻断: 调用 TaskUpdate(completed) 但无证据文件。
-
-请选择：
-  1. 运行验证并写入证据到 ${EVIDENCE_FILE}
-  2. 强制完成（无证据）
-  3. 继续工作（不标记完成）
-
-输入数字 (1-3):
-EOF
-    exit 2
+    agentic_menu \
+        "前置完成门禁" \
+        "调用 TaskUpdate(completed) 但无证据文件" \
+        "运行验证并写入证据" "生成证据到 ${EVIDENCE_FILE}" \
+        "强制完成" "跳过证据检查，直接标记完成"
+    exit 0  # agentic_menu 已 exit 2，此行仅为语法占位
 fi
 
 # 检查证据文件新鲜度
@@ -62,18 +56,12 @@ except:
     print('no')" 2>/dev/null)
 
 if [ "$FRESH" != "yes" ]; then
-    cat >&2 <<EOF
-
-⛔ 前置门禁阻断: 证据文件已过期（超过 5 分钟）。
-
-请选择：
-  1. 重新运行验证并写入新证据到 ${EVIDENCE_FILE}
-  2. 强制完成（跳过新鲜度检查）
-  3. 继续工作（不标记完成）
-
-输入数字 (1-3):
-EOF
-    exit 2
+    agentic_menu \
+        "前置完成门禁" \
+        "证据文件已过期（超过 5 分钟）" \
+        "重新运行验证并写入新证据" "生成新鲜证据到 ${EVIDENCE_FILE}" \
+        "强制完成" "跳过新鲜度检查，直接标记完成"
+    exit 0  # agentic_menu 已 exit 2，此行仅为语法占位
 fi
 
 echo '{"continue": true}'

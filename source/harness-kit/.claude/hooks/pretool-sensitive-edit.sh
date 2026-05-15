@@ -6,6 +6,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_sensitive_edit" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 INPUT=$(cat)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -111,11 +112,9 @@ fi
 APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "sen-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$SENSITIVE_REQUIRED"
 
-echo "🔴 敏感文件编辑: $_BASE" >&2
-echo "验证码: $APPROVAL_CODE" >&2
-echo "方法 A — 在输入框中按 Enter 执行：" >&2
-echo "  ! echo '$APPROVAL_CODE' > .omc/state/sensitive-approved" >&2
-echo "(approve-sen 命令已废弃 — 仅方法 A 可用)" >&2
-echo "AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）。" >&2
-exit 2
+agentic_captcha \
+    "敏感文件编辑: $_BASE" \
+    "$APPROVAL_CODE" \
+    ".omc/state/sensitive-approved" \
+    "治理文件变更须经用户显式授权。AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）。"
 

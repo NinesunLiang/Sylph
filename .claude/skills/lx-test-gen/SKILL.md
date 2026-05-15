@@ -7,6 +7,7 @@ when_to_use: "Use when user needs test code for functions, interfaces, HTTP hand
 model: sonnet
 argument-hint: "<function/handler/module name> [test type]"
 harness_version: ">=1.1.0"
+status: stable
 role: "Language-agnostic test code generator — pattern-based test scaffolding"
 execution_mode: stepwise
 triggers:

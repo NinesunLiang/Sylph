@@ -47,7 +47,18 @@ def get_real_context(transcript_dir):
 
     path = transcripts[0]
     usage_seq = []
-    context_limit = 200000  # Claude default 200K context
+    # Configurable context limit: env > persist file > 200K default
+    _limit = os.environ.get('CONTEXT_TOKEN_LIMIT', '')
+    if not _limit:
+        _limit_file = Path(os.environ.get('CLAUDE_PROJECT_DIR', '')) / '.omc' / 'state' / 'model-context-limit'
+        if not _limit_file.exists():
+            _limit_file = Path.home() / '.claude' / 'model-context-limit'
+        if _limit_file.exists():
+            try:
+                _limit = _limit_file.read_text().strip()
+            except Exception:
+                _limit = ''
+    context_limit = int(_limit) if _limit else int(os.environ.get('CONTEXT_TOKEN_LIMIT', '200000'))
 
     try:
         with open(path) as f:

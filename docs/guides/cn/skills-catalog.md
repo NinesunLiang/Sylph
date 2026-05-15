@@ -1,6 +1,9 @@
 # 技能目录
 
-> 基于源码 `.claude/skills/` 实测提取。共 25 个 `lx-` 技能，按功能域分类。
+> **所属层级**: 3-机制(血肉层) — 27 个 Skill 能力目录
+
+
+> 基于源码 `.claude/skills/` 实测提取。共 28 个 `lx-` 技能，按功能域分类。成熟度标注: mature(5) / stable(15) / draft(7)。
 
 ## 分类速查
 
@@ -10,7 +13,7 @@
 | [OMA 管线](#oma-管线) | 4 | PRD→拆解→编排→治理 |
 | [质量门禁](#质量门禁) | 2 | 提交前/推送前检查 |
 | [任务管理](#任务管理) | 4 | todo→task-spec→RPE→PRD |
-| [代码审查](#代码审查) | 4 | Go/React/安全/性能审查 |
+| [代码审查](#代码审查) | 4 | 通用代码/React/安全/性能审查 |
 | [测试](#测试) | 6 | 测试生成/TDD/调试/可视化 |
 | [基础设施](#基础设施) | 3 | 状态面板/隐私代理/蜂群 |
 
@@ -109,6 +112,8 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | `/lx-status` | 健康面板 v3.0：Token 节省/任务通过率/拦截错误/知识点 4 面板 + audit 摘要 |
 | `/lx-varlock` | 隐私脱敏代理。敏感信息（密码/API Key/Token）绝不泄露到 AI 上下文 |
 | `/lx-race` | 蜂群协调层：注册子任务→派发→收集→报告。复用 team 调度+OMA Lock |
+| `/lx-stepwise` | 逐步攻坚模式：高难度 bug 单步推进，每步需验证，不可跳过 | | [lx-stepwise](../../.claude/skills/lx-stepwise/SKILL.md) |
+| `/lx-sync` | 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐等 6 项 | | [lx-sync](../../.claude/skills/lx-sync/SKILL.md) |
 | `/lx-validate-skill` | 验收新 skill 是否遵循原子化架构规则（11 项检查） |
 
 ---

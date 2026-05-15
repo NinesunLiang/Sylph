@@ -13,6 +13,7 @@ model: sonnet
 argument-hint: "[--skip-review]"
 
 harness_version: ">=1.1.0"
+status: stable
 role: "Pre-commit quality gate — compile, test, lint, coverage check"
 execution_mode: stepwise
 
@@ -43,6 +44,16 @@ bashpython3 .claude/skills/lx-pre-commit/scripts/detect_project.py
 ```
 
 读取 JSON → `type`（go/node/python/rust）+ `runner`（vitest/jest/npm）。未知类型 → 输出"无法识别项目类型，请手动指定" → 停止。
+
+### Step 0.5 — Skill 合规校验（检测到 skill 变更时自动执行）
+
+若 git diff 中包含 `.claude/skills/` 目录变更，自动运行：
+
+```bash
+python3 .claude/skills/lx-validate-skill/scripts/validate_skill.py --skills-dir .claude/skills
+```
+
+exit 0 → 继续。exit 1 → 报告违规项，不阻塞提交但警告。
 
 ### Step 1 — 运行门禁检查
 

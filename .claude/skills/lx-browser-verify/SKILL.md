@@ -4,7 +4,7 @@ name: lx-browser-verify
 
 version: v4.0.0
 
-description: "Browser visual verification & acceptance testing via Playwright. 5 categories, 24 check items covering multi-resolution screenshots, visual regression, interactive flows, cross-browser checks, responsive layout, and dark mode verification."
+description: "DEPRECATED (Oracle 审计 2026-05-15): Browser visual verification & acceptance testing via Playwright. 5 categories, 24 check items covering multi-resolution screenshots, visual regression, interactive flows, cross-browser checks, responsive layout, and dark mode verification."
 
 complexity: intermediate
 when_to_use: "Use after frontend implementation to visually verify rendering. Trigger: 'browser verify', 'visual check', 'screenshot check', 'visual regression', 'responsive verify', 'browser test'."
@@ -28,6 +28,7 @@ paths:
  - "*.css"
 
 harness_version: ">=1.1.0"
+status: draft
 role: "Browser visual verification & acceptance testing via Playwright"
 execution_mode: stepwise
 
@@ -82,9 +83,7 @@ triggers:
 加载 `@../../nodes/behavior_rules.md`，应用验证阶段行为约束。
 
 ```bash
-e
-p
-'"playwright"' package.json 2>/dev/null # 缺失 → "不适用"
+grep '"playwright"' package.json 2>/dev/null || echo "不适用: 缺少 playwright 依赖"
 ```
 
 ### Step 1: 解析验证目标

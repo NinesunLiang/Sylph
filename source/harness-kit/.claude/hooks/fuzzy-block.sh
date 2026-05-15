@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "fuzzy_block" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 FUZZY_MARKER="$PROJECT_ROOT/.omc/state/.fuzzy-block-active"
@@ -26,16 +27,10 @@ fi
 
 # 硬阻断：标记存在 + 非自主模式 → Agentic UI 菜单
 FUZZY_MSG_ESCAPED=$(echo "$WARNING_MSG" | head -c 200)
-cat >&2 <<EOF
-
-⛔ 模糊指令阻断: 指令不明确，无法执行具体工具调用。
-原因: ${FUZZY_MSG_ESCAPED}
-
-请选择：
-  1. 向用户澄清具体目标
-  2. 按当前理解继续执行
-
-输入数字 (1-2):
-EOF
+agentic_menu_two \
+    "模糊指令阻断" \
+    "指令不明确，无法执行具体工具调用。原因: ${FUZZY_MSG_ESCAPED}" \
+    "向用户澄清具体目标" "暂停执行，向用户提问明确后再继续" \
+    "按当前理解继续执行" "接受风险，按 AI 理解的意图继续"
 rm -f "$FUZZY_MARKER"
-exit 2
+exit 0  # agentic_menu_two 已 exit 2，此行仅为语法占位

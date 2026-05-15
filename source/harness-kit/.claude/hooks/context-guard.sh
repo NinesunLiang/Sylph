@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "context_guard" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 
 # R29: context-guard matcher 改为 Edit|Write, 开放诊断通道 (Read/Grep/Bash)。
 # 原则: "读是诊断, 写是破坏" — 高上下文时封锁写操作，但保留 Read/Grep 供诊断。
@@ -80,13 +81,10 @@ print(d.get('percentage', 0))" 2>/dev/null)
     if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" = "transcript (real)" ]; then
         echo "$(date +%Y-%m-%d),context_guard_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
         if [ "$BLOCK_WRITES" = "true" ] && [ "$MODE" = "normal" ]; then
-            cat >&2 <<EOF
-
-🚫 [Context Guard 硬阻断] 当前会话上下文占比已达 ${PCT}%（危险阈值: ${DANGER_PCT}%，警告阈值: ${WARN_PCT}%）！
-
-为了防止灾难性的幻觉、指令遗忘或代码损毁，已强制拦截了写入操作。诊断工具 (Read/Grep/Bash) 可正常使用。请先诊断上下文状态，然后运行 '/compact' 压缩会话或手动重置 token 追踪。
-
-EOF
+            agentic_status block \
+                "Context Guard 硬阻断" \
+                "当前会话上下文占比已达 ${PCT}%（危险阈值: ${DANGER_PCT}%，警告阈值: ${WARN_PCT}%）！" \
+                "为防止灾难性幻觉、指令遗忘或代码损毁，已强制拦截写入操作。诊断工具 (Read/Grep/Bash) 可正常使用。请运行 '/compact' 压缩会话或手动重置 token 追踪。"
             exit 2
         else
             # 非写工具 或 ghost/unattended 模式: 仅记录 flywheel + 告警, 不阻断
