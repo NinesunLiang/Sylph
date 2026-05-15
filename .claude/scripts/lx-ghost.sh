@@ -53,8 +53,8 @@ JSON
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
         echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
-        echo "   调用 /loop ${INTERVAL}s lx-ghost poll 驱动探索轮次"
-        echo "   或 /lx-ghost on \"继续\" — 在同一次会话内继续探索"
+        echo "   使用 CronCreate 驱动（无 10 轮上限，持续到过期或手动停止）"
+        echo "   停止: /lx-ghost off 或 CronDelete <job-id>"
         ;;
 
     off)

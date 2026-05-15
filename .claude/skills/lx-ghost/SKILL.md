@@ -57,6 +57,15 @@ AI 检查方向适合性：
 
 人类确认后激活，开始轮询。从此不再询问任何问题。
 
+**激活后立即执行**：
+1. 运行 `bash .claude/scripts/lx-ghost.sh on "方向" [间隔秒] [过期小时]`
+2. 调用 CronCreate 注册轮询作业（非 /loop，无 10 轮上限）：
+   - cron 表达式: `*/N * * * *`（N = 间隔分钟数，最少 1 分钟）
+   - prompt: `根据 lx-ghost.json 方向做一步探索，更新状态。方向: {方向描述}`
+   - recurring: true
+   - durable: false
+3. 告知用户 CronCreate job ID，可随时 CronDelete 停止
+
 ---
 
 ## 全自动轮询
