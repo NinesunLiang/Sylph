@@ -13,6 +13,7 @@ model: sonnet
 argument-hint: "[set | list | rm | run | read | write]"
 
 harness_version: ">=1.4.0"
+status: stable
 role: "Privacy desensitization proxy manager for sensitive data"
 execution_mode: stepwise
 

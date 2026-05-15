@@ -34,7 +34,7 @@ CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
 
 # Python 内联处理逻辑：会话级编辑计数 + 内容哈希追踪 + revert 检测
 python3 - "$FILE_PATH" "$CONTRADICTION_LOG" <<'PYEOF'
-import sys, json, hashlib, os, time
+import sys, json, hashlib, os, time, fcntl
 
 file_path = sys.argv[1]
 log_path = sys.argv[2]
@@ -159,9 +159,12 @@ record = {
     'type': contradiction_type,
 }
 
-# Append to log
+# Append to log (atomic flock to prevent concurrent write interleaving)
 with open(log_path, 'a') as f:
+    fcntl.flock(f.fileno(), fcntl.LOCK_EX)
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
+    f.flush()
+    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 # Output additionalContext for level 2+ (real contradiction)
 if contradiction_level >= 2:

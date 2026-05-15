@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "edit_guard" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -71,17 +72,8 @@ if grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
 fi
 
 # 阻断：源文件未 Read — Agentic UI 菜单
-cat >&2 <<EOF
-
-⛔ [Read-before-Edit] 你正在编辑源代码文件但未先 Read。
-文件: $FILE_PATH
-宪法依据: 第六条（长对话稳定性）— 修改代码前必须先阅读当前内容
-
-请选择：
-  1. 先 Read "$FILE_PATH" 再编辑
-  2. 强制编辑（跳过 Read 检查）
-  3. 取消操作
-
-输入数字 (1-3):
-EOF
-exit 2
+agentic_menu \
+    "Read-before-Edit" \
+    "文件: ${FILE_PATH} — 宪法第六条: 修改代码前必须先阅读当前内容" \
+    "先 Read 再编辑" "Read ${FILE_PATH} 后再进行编辑操作" \
+    "强制编辑" "跳过 Read 检查，直接编辑"

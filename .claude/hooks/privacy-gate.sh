@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "privacy_gate" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 
 # Mode detection: ghost/goal 降级为 log+skip
 _MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
@@ -37,9 +38,10 @@ CHECK_PATH="$FILE_PATH$PATTERN"
 if [ -n "$CHECK_PATH" ]; then
     if echo "$CHECK_PATH" | grep -iE '\.env|\.pem|\.key|id_rsa|credentials\.json|secret\.ya?ml|auth\.json' > /dev/null; then
         echo "$(date +%Y-%m-%d),privacy_gate_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
-        echo "👉 Re-insp-Kernel-Design:1.1-PrivacyGate" >&2
-        echo "🚫 [Privacy Gate 触发] 禁止直接读取包含配置、凭据或密钥的敏感文件（$CHECK_PATH）。" >&2
-        echo "请通过本地环境变量注入，或安装增强版 (lx-skills) 启用 \`lx-varlock\` 脱敏代理进行安全读取。绝不能让明文泄漏到 AI 上下文中。" >&2
+        agentic_status danger \
+            "Privacy Gate 触发" \
+            "禁止直接读取包含配置、凭据或密钥的敏感文件（${CHECK_PATH}）。" \
+            "请通过本地环境变量注入，或安装增强版 (lx-skills) 启用 lx-varlock 脱敏代理进行安全读取。绝不能让明文泄漏到 AI 上下文中。"
         exit 2
     fi
 fi
@@ -64,7 +66,10 @@ for p in patterns:
 " 2>/dev/null)
     if [ "$TOKEN_HIT" = "hit" ]; then
         echo "$(date +%Y-%m-%d),privacy_gate_token_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
-        echo "🚫 [Privacy Gate 触发] 检测到在命令中包含了明文 API Key 或 Token！这是严重的数据泄露风险。请立即停止并在独立终端配置 varlock，然后使用 \`python3 .claude/skills/lx-varlock/scripts/varlock.py run \"命令 {你的变量名}\"\` 来安全执行。" >&2
+        agentic_status danger \
+            "Privacy Gate 触发" \
+            "检测到在命令中包含明文 API Key 或 Token！这是严重的数据泄露风险。" \
+            "请立即停止并在独立终端配置 varlock 后安全执行。绝不能让明文泄漏到 AI 上下文中。"
         exit 2
     fi
 fi

@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "permission_gate" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 INPUT=$(cat)
 
 # 提取 command 字段
@@ -226,17 +227,8 @@ APPROVAL_CODE=$(
 [ -z "$APPROVAL_CODE" ] && APPROVAL_CODE=$(printf '%08x' "$(( ($$ * $(date +%s) * $RANDOM) & 0xFFFFFFFF ))")
 echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
 
-echo "Permission Gate: ${SEVERITY} 级别操作 — ${DANGER_TYPE}" >&2
-echo "验证码: ${APPROVAL_CODE}" >&2
-echo "🚫 危险操作已阻断！" >&2
-echo "请在输入框中输入以下命令并按 Enter 执行：" >&2
-echo "  ! echo '${APPROVAL_CODE}' > .omc/state/permission-approved" >&2
-echo "" >&2
-echo "  非 Claude Code 平台（OpenCode 等）去掉 ! 前缀即可" >&2
-echo "" >&2
-echo "AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）。" >&2
-# DG-10: dual-channel output injects CAPTCHA code into AI-visible additionalContext
-# 注意: additionalContext 是 Claude Code hook 专有扩展，OpenCode/OMO 可能不支持。
-# 这不影响安全性 — AI 不应看到验证码（R42），仅用户通过 stderr 获取即可。
-printf '{"continue":false,"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"⛔ Permission Gate [%s]: %s blocked. CAPTCHA: %s | User run: echo '"'"'%s'"'"' > .omc/state/permission-approved"}}\n' "$SEVERITY" "$DANGER_TYPE" "$APPROVAL_CODE" "$APPROVAL_CODE"
-exit 2
+agentic_captcha \
+    "Permission Gate: ${SEVERITY} ${DANGER_TYPE}" \
+    "$APPROVAL_CODE" \
+    ".omc/state/permission-approved" \
+    "🚫 危险操作已阻断！AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）。"

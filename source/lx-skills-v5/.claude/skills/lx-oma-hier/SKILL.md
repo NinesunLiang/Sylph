@@ -4,7 +4,8 @@ name: lx-oma-hier
 description: 分层 PRD 拆解 — 将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock 数据/内部闭环），再委托 lx-oma-split 拆解为特性级 RPE。
 
 version: v1.3.0
-harness_version: "6.1.9"
+harness_version: "6.2.0"
+status: stable
 model: sonnet
 argument-hint: "<path> [output_dir]"
 when_to_use: |

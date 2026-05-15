@@ -335,12 +335,15 @@ if check_index or sync_index:
         if st_text:
             new_table += f"\n{st_text}"
 
-        idx_section = re.compile(r'## Hooks 速查.*?(?=\n## |\Z)', re.DOTALL)
+        idx_section = re.compile(r'#{1,2} Hooks 速查.*?(?=\n#{1,2} |\Z)', re.DOTALL)
         new_index = idx_section.sub(new_table, index_src)
-        with open(TABLE_PATH, 'w') as f:
-            f.write(new_index)
-        print(f'\n  ✅ {TABLE_PATH} hooks 表已同步（{len(act_rows)} 活跃 + {len(dis_rows)} 禁用）')
-        print(f'  🔄 原表 {len(cur_names)} 个 → 新表 {len(active_names)} 个')
+        if new_index == index_src:
+            print(f'\n  ❌ {TABLE_PATH} hooks 表同步失败 — 标题匹配异常，请检查文件格式')
+        else:
+            with open(TABLE_PATH, 'w') as f:
+                f.write(new_index)
+            print(f'\n  ✅ {TABLE_PATH} hooks 表已同步（{len(act_rows)} 活跃 + {len(dis_rows)} 禁用）')
+            print(f'  🔄 原表 {len(cur_names)} 个 → 新表 {len(active_names)} 个')
 
 # === E. Source Mirror Consistency Check ===
 if check_source_mirror:

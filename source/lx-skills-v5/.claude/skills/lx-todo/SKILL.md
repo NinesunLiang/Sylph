@@ -18,6 +18,7 @@ paths:
  - "*"
 
 harness_version: ">=1.1.0"
+status: mature
 role: "Lightweight single-terminal fix-verify-close workflow for small tasks"
 execution_mode: stepwise
 

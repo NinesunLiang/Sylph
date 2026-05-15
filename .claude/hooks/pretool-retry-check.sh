@@ -12,6 +12,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "retry_budget_check" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 
 # Mode detection: ghost/goal 降级为 log+skip
 _MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
@@ -62,20 +63,12 @@ except Exception:
 ")
     PY_EXIT=$?
     if [ $PY_EXIT -eq 2 ] && [ -n "$EXCEEDED" ]; then
-        cat >&2 <<EOF
-
-⛔ [Retry Budget] 存在超过重试上限的重复失败:
-
-${EXCEEDED}
-
-请选择：
-  1. 重置重试计数并重试
-  2. 升级到 lx-task-spec（结构化处理）
-  3. 取消操作
-
-输入数字 (1-3):
-EOF
-        exit 2
+        agentic_menu \
+            "Retry Budget" \
+            "存在超过重试上限的重复失败: ${EXCEEDED}" \
+            "重置重试计数并重试" "清除错误签名计数，重新尝试" \
+            "升级到 lx-task-spec" "启动结构化任务处理流程"
+        exit 0  # agentic_menu 已 exit 2，此行仅为语法占位
     fi
 fi
 

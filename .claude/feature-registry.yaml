@@ -347,12 +347,6 @@ skills:
   category: debug
   description: 根因分析：Five Whys/证据链/置信度评分/免疫防御
   enabled_by_default: true
-- name: lx-oma
-  type: orchestrator
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): DEPRECATED — 已拆分为 lx-oma-hier/lx-oma-split/lx-oma-gov/lx-oma-orch
-    四技能管线'
-  enabled_by_default: false
 - name: lx-race
   type: orchestrator
   category: infrastructure

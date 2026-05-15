@@ -14,6 +14,7 @@ model: haiku
 argument-hint: "[--json | --watch]"
 
 harness_version: ">=1.4.0"
+status: draft
 role: "Carror OS health dashboard — system status panel"
 execution_mode: race
 
@@ -45,7 +46,14 @@ triggers:
 1. 直接使用 **Bash 工具** 运行脚本（ANSI 颜色码由 Bash 工具渲染）：
 
 ```bash
-python3 .claude/skills/lx-validate-skill/scripts/carror_dashboard.py
+# 检查依赖 skill 脚本是否存在
+if [ -f ".claude/skills/lx-validate-skill/scripts/carror_dashboard.py" ]; then
+    python3 .claude/skills/lx-validate-skill/scripts/carror_dashboard.py
+else
+    echo "⚠️ carror_dashboard.py 缺失（lx-validate-skill 未安装或已移除）"
+    echo "   降级: 手动读取状态文件..."
+    python3 .claude/scripts/audit_dashboard.py --summary 2>/dev/null || echo "   audit_dashboard.py 也不可用"
+fi
 ```
 
 carror_dashboard.py 渲染 4 面板健康仪表盘 + Audit 摘要（5 源聚合状态），全部内联输出。

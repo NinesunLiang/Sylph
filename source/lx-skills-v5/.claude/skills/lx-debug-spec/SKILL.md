@@ -4,7 +4,7 @@ name: lx-debug-spec
 
 version: v4.0.0
 
-description: "Debug Go code via root-cause investigation → hypothesis verification → fix → regression. Evidence before fix."
+description: "DEPRECATED (Oracle 审计 2026-05-15): Debug Go code via root-cause investigation → hypothesis verification → fix → regression. Evidence before fix."
 
 complexity: intermediate
 when_to_use: "Use when user says 'debug', 'fix bug', test failure, CI broken, intermittent error, race condition, or after failed fixes."
@@ -22,6 +22,7 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+status: mature
 role: "Root-cause debugger for Go — structured investigation protocol"
 execution_mode: stepwise
 

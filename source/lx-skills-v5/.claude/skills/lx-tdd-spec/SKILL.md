@@ -4,7 +4,7 @@ name: lx-tdd-spec
 
 version: v4.0.0
 
-description: "Generate testable spec & acceptance criteria for new features/APIs via behavior matrix + GWT."
+description: "DEPRECATED (Oracle 审计 2026-05-15): Generate testable spec & acceptance criteria for new features/APIs via behavior matrix + GWT."
 
 complexity: intermediate
 when_to_use: "Use when user describes a new feature/module/API and needs structured spec + verifiable ACs."
@@ -20,6 +20,7 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+status: stable
 role: "Test spec & acceptance criteria generator for new features"
 execution_mode: stepwise
 

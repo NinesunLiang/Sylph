@@ -3,6 +3,14 @@
 # Role: 根据 .claude/anti-patterns.md 自动检测 A2/F1/H1 反模式输出
 # 哲学 #6：先天对 AI 0 信任 — 自动化检测语义层面的反模式
 # 哲学 #4：没通过验证等于没做 — A2 虚假完成硬阻断
+#
+# 阻断策略设计理由 (Oracle 审计 2026-05-15):
+#   A2/H1 → hard block (exit 2): 铁律 #1 违反，可机械验证（软完成语 + 无证据 / 百分比 + 无来源）
+#   F1  → hard block (exit 2): 铁律 #1 违反，可机械验证（推测词 + 无 file:line）
+#   与 E5 RCA (completion-gate.sh:warning-only) 的区别:
+#     E5 检测"缺失的流程步骤"(RCA 是否包含)，主观判断 → warning
+#     F1 检测"断言缺乏证据支撑"(是否有 file:line)，客观可验证 → hard block
+#   一致性原则: 可机械验证的铁律违反 → hard block；需主观判断的流程缺失 → warning
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "anti_pattern_detect" || { echo '{"continue": true}'; exit 0; }

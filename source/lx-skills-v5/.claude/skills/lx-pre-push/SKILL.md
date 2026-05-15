@@ -13,6 +13,7 @@ model: sonnet
 argument-hint: "<prod-commit-hash>"
 
 harness_version: ">=1.1.0"
+status: stable
 role: "Pre-push quality gate — commit message validation, diff sanity check"
 execution_mode: stepwise
 

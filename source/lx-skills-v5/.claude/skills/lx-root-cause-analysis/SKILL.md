@@ -22,6 +22,7 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
+status: mature
 role: "Five Whys root cause analysis for recurring Go bugs"
 execution_mode: stepwise
 

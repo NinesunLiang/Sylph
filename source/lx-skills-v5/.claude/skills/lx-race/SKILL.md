@@ -1,9 +1,10 @@
 ---
 name: lx-race
-description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team skill 调度 + OMA Lock 写锁 + race_manager.sh 状态跟踪。不做调度引擎，只做协调。"
+description: "蜂群协调层 — 快速并行处理简单同构任务。goal/ghost 模式自动路由至此。注册子任务 → 派发多 agent → 收集 → 报告。基础机制，非可选 skill。"
 complexity: intermediate
 version: v1.0.0
 harness_version: ">=1.4.0"
+status: stable
 model: sonnet
 when_to_use: "Use when tasks have multiple independent sub-tasks that can run in parallel; when lx-task-spec identifies independent sub-tasks and routes to race mode; when user says '/lx-race' or '蜂群/并行执行'."
 role: "Swarm coordinator — sub-task registration, dispatch, collection, conflict resolution"

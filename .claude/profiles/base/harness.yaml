@@ -30,6 +30,26 @@ correction_detector: signals: "不对 错了 你搞错了 应该是 重新来"\
 session_handoff: enabled: true max_adr_lines: 10 max_todo_lines: 10 max_lessons: 3\
 error_dna: enabled: true max_entries: 100\
 coupling: enabled: true min_co_change: 3 max_history_commits: 200 max_coupled_files: 5\
-hooks_enabled: completion_gate: true subagent_guard: true pretool_edit_scope: true edit_guard: true lsp_suggest: true posttool_read_cite: false posttool_bash_audit: true posttool_write_cite: true permission_gate: true auto_snapshot: true posttool_edit_quality: true inject_project_knowledge: true plan_gate: false turn_counter: true read_tracker: true error_dna: true skill_flywheel: true build_validator: true user_correction_detector: true rule_anchor: true proactive_handoff: false\
-rule_anchor: turn_threshold: 15 interval: 5\
-build_validator: log_file: ".omc/state/build-errors.log" max_log_entries: 50
+hooks_enabled:
+  auto_snapshot: true
+  completion_gate: true
+  edit_guard: true
+  error_dna: true
+  inject_project_knowledge: true
+  lsp_suggest: true
+  permission_gate: true
+  plan_gate: true
+  posttool_bash_audit: true
+  posttool_edit_quality: true
+  posttool_output_format: true
+  posttool_read_cite: false
+  posttool_write_cite: true
+  pretool_edit_scope: true
+  privacy_gate: true
+  proactive_handoff: false
+  read_tracker: true
+  skill_flywheel: true
+  subagent_guard: true
+  turn_counter: true
+  user_correction_detector: true
+# build_validator: REMOVED — ROI zero, Oracle approved

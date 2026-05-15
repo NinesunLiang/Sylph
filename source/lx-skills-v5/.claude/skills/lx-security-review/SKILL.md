@@ -4,7 +4,7 @@ name: lx-security-review
 
 version: v4.0.0
 
-description: "Scan staged Go code + dependencies for vulnerabilities, auto-fix, re-scan, and give commit verdict."
+description: "DEPRECATED (Oracle 审计 2026-05-15): Scan staged code + dependencies for vulnerabilities, auto-fix, re-scan, and give commit verdict. Language-agnostic security methodology."
 
 when_to_use: "Use after 'git add' before commit, or when user says 'security review', 'security scan', 'pre-commit check'."
 
@@ -19,7 +19,8 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
-role: "Security vulnerability scanner for Go code and dependencies"
+status: stable
+role: "Security vulnerability scanner for code and dependencies"
 execution_mode: stepwise
 
 triggers:
@@ -78,9 +79,7 @@ triggers:
 加载 `@../../nodes/behavior_rules.md`，应用扫描阶段行为约束。
 
 ```bash
-l
-s
-go.mod # 缺失 → "不适用"
+ls go.mod 2>/dev/null || echo "不适用: 非 Go 项目"
 ```
 
 ### Step 1: 解析扫描目标

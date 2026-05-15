@@ -947,13 +947,13 @@ else
     fail "R44 A2: 应 exit 2, 实际: $_AP_A2_OUT"
 fi
 
-# F1: 假设驱动 → 软提醒 exit 0 + additionalContext
+# F1: 假设驱动 → 硬阻断 exit 2（铁律 #1 违反，可机械验证）
 _AP_F1_INPUT='{"tool_response":{"result":"应该是数据库连接问题，需要检查配置"}}'
 _AP_F1_OUT=$(echo "$_AP_F1_INPUT" | bash .claude/hooks/posttool-anti-pattern-detect.sh 2>&1; echo "EXIT:$?")
-if echo "$_AP_F1_OUT" | grep -q "EXIT:0" && echo "$_AP_F1_OUT" | grep -qiE "假设驱动|推测性"; then
-    pass "R44 F1: 假设驱动 '应该是' → soft block (exit 0 + reminder)"
+if echo "$_AP_F1_OUT" | grep -q "EXIT:2" && echo "$_AP_F1_OUT" | grep -qiE "假设驱动|推测性"; then
+    pass "R44 F1: 假设驱动 '应该是' → hard block (exit 2)"
 else
-    fail "R44 F1: 应 exit 0 + reminder, 实际: $_AP_F1_OUT"
+    fail "R44 F1: 应 exit 2, 实际: $_AP_F1_OUT"
 fi
 
 # H1: 语义编造 → 硬阻断 exit 2

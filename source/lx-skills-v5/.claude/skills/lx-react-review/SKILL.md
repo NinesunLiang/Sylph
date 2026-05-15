@@ -4,7 +4,7 @@ name: lx-react-review
 
 version: v4.0.0
 
-description: "React/Next.js 及前端框架代码审查：渲染性能、Hooks 规则、组件设计、状态管理、TypeScript 质量。适用于 React/Vue/Svelte 等现代前端项目。"
+description: "DEPRECATED (Oracle 审计 2026-05-15): React/Next.js 及前端框架代码审查：渲染性能、Hooks 规则、组件设计、状态管理、TypeScript 质量。适用于 React/Vue/Svelte 等现代前端项目。"
 
 when_to_use: "Use after writing React/Next.js components. Trigger: 'react review', 'component review', 'check react', 'review component'."
 
@@ -21,6 +21,7 @@ paths:
  - "*.ts"
 
 harness_version: ">=1.1.0"
+status: draft
 role: "React/Next.js code quality reviewer — component patterns, hooks, performance"
 execution_mode: stepwise
 
@@ -77,9 +78,7 @@ triggers:
 加载 `@../../nodes/behavior_rules.md`，应用审查阶段行为约束。
 
 ```bash
-e
-p
-'"react"' package.json 2>/dev/null # 缺失 → "不适用"
+grep '"react"' package.json 2>/dev/null || echo "不适用: 非 React 项目"
 ```
 
 ### Step 1: 解析审查目标

@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "subagent_guard" || { echo '{"continue": true}'; exit 0; }
+source "$(dirname "$0")/agentic-ui.sh"
 
 # Mode detection: ghost/goal 降级为 log+skip
 _MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
@@ -101,32 +102,16 @@ if [ -n "$MAX_TURNS" ] && [ "$MAX_TURNS" != "null" ] && [ "$MAX_TURNS" != "0" ];
         exit 0
     fi
     # 默认值 → Agentic UI 菜单，让用户确认或调整
-    cat >&2 <<EOF
-
-⛔ [Subagent Guard] 子 agent "${AGENT_TYPE}" 未显式声明 max_turns，将使用默认上限 ${DEFAULT_MAX_TURNS} 轮。
-建议: executor ≤25, designer ≤20, scientist ≤15
-
-请选择：
-  1. 继续（使用默认上限 ${DEFAULT_MAX_TURNS} 轮）
-  2. 降级为 haiku（最安全）
-  3. 取消操作
-
-输入数字 (1-3):
-EOF
-    exit 2
+    agentic_menu \
+        "Subagent Guard: ${AGENT_TYPE}" \
+        "子 agent 未显式声明 max_turns，将使用默认上限 ${DEFAULT_MAX_TURNS} 轮。建议: executor ≤25, designer ≤20, scientist ≤15" \
+        "继续执行" "使用默认上限 ${DEFAULT_MAX_TURNS} 轮" \
+        "降级为 haiku" "最安全的执行策略"
 fi
 
 # 兜底阻断：MAX_TURNS 为 0 / null 的异常情况
-cat >&2 <<EOF
-
-⛔ [Subagent Guard] 子 agent "${AGENT_TYPE}" 的 max_turns 无效 (value=${MAX_TURNS})。
-建议: executor ≤25, designer ≤20, scientist ≤15
-
-请选择：
-  1. 降级为 haiku（最安全）
-  2. 强制放行（使用默认上限 ${DEFAULT_MAX_TURNS} 轮）
-  3. 取消操作
-
-输入数字 (1-3):
-EOF
-exit 2
+agentic_menu \
+    "Subagent Guard: ${AGENT_TYPE}" \
+    "子 agent 的 max_turns 无效 (value=${MAX_TURNS})。建议: executor ≤25, designer ≤20, scientist ≤15" \
+    "降级为 haiku" "最安全的执行策略" \
+    "强制放行" "使用默认上限 ${DEFAULT_MAX_TURNS} 轮"

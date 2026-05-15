@@ -14,6 +14,7 @@ paths:
   - "rpe/**/*.md"
   - "prd/**/*.md"
 harness_version: ">=1.1.0"
+status: mature
 role: "RPE-driven feature development — 9-step closed loop with quality gates"
 execution_mode: stepwise
 ---

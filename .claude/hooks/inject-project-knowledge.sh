@@ -15,6 +15,10 @@ fi
 # 从配置读取注入文件列表
 INJECT_FILES=$(hc_get_list "knowledge.inject_files" "index.md:full kernel.md:full claude-next.md:summary style-guide.md:summary")
 
+# R39: 注入预算强制 (~120 行 / ~3KB)，超出时 stderr 告警
+R39_BUDGET_LINES=120
+r39_used=0
+
 set -f
 for entry in $INJECT_FILES; do
     # 解析 filename:mode 格式
@@ -25,10 +29,13 @@ for entry in $INJECT_FILES; do
     [ ! -f "$FILE_PATH" ] && continue
 
     if [ "$MODE" = "full" ]; then
+        FILE_LINES=$(wc -l < "$FILE_PATH" | tr -d ' ')
+        r39_used=$((r39_used + FILE_LINES + 2))
         echo "[.claude/$FILE_NAME]"
         cat "$FILE_PATH"
         echo ""
     elif [ "$MODE" = "summary" ]; then
+        r39_used=$((r39_used + 35))
         LINES=$(wc -l < "$FILE_PATH" | tr -d ' ')
         echo "[.claude/$FILE_NAME ${LINES}行] 章节:"
         grep "^##" "$FILE_PATH" | head -30
@@ -37,6 +44,11 @@ for entry in $INJECT_FILES; do
     fi
 done
 set +f
+
+# R39: 预算超限告警（不阻断，仅 stderr 通知）
+if [ $r39_used -gt $R39_BUDGET_LINES ]; then
+    echo "⚠️ [R39 注入预算] 预估 ~${r39_used} 行 > ${R39_BUDGET_LINES} 行上限。建议归档不常用内容到 reference/ 或降级为 summary 模式。" >&2
+fi
 
 # 注入 skill 关联图谱（C7 关联编排）
 SKILL_GRAPH="$PROJECT_ROOT/.claude/reference/skill-graph.md"

@@ -4,7 +4,7 @@ name: lx-prd
 
 version: v4.0.0
 
-description: "高质量 PRD 生产流水线（RPE 模式）：Discovery → Uncertainty Scan → Draft → Self-Eval → Expert Review → Polish。含专家循环优化、飞轮设计、差距扫盲、无虚构约束。"
+description: "DEPRECATED (Oracle 审计 2026-05-15): 高质量 PRD 生产流水线（RPE 模式）：Discovery → Uncertainty Scan → Draft → Self-Eval → Expert Review → Polish。含专家循环优化、飞轮设计、差距扫盲、无虚构约束。"
 
 complexity: intermediate
 when_to_use: "Use when user says 'lx-prd', '写prd', '写 prd', '产品需求文档', '需求文档', 'PRD', 'prd', 'write prd', '帮我写一个prd', '生成prd'."
@@ -26,6 +26,7 @@ paths:
  - "docs/**/*.md"
 
 harness_version: ">=1.1.0"
+status: draft
 role: "PRD production pipeline — specification authoring and quality review"
 execution_mode: stepwise
 
