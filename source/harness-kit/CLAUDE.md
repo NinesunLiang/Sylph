@@ -11,7 +11,7 @@
 
 > 以下内容仅 Claude Code 平台生效（OpenCode 等平台忽略此节）
 
-- Hook 配置: `.claude/harness.yaml`（30 个 hook 脚本注册、27 默认激活，另有 2 个独立工具脚本）
+- Hook 配置: `.claude/harness.yaml`（38 个 hook 默认激活、43 个磁盘脚本，另有 2 个独立工具脚本）
 - 代码风格: `.claude/kernel.md`
 - 学习笔记: `.claude/claude-next.md`
 <!-- harness-kit:governance-end -->

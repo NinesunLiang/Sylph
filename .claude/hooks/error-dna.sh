@@ -147,11 +147,9 @@ for _cm in CAPTCHA_MARKERS:
         ESCAPE_E2_TARGET = _cm
         break
 
-# A方案: 只记录 E1/E2 逃逸信号 + 高频告警扫描路径
-# 丢弃非逃逸的 exit_code≠0 普通错误（847/875 = 96.8% 噪音）
-# 逃逸检测(exit_code=0 的 E1/E2) 是最有价值的信号 — 成功绕过门禁
-if not ESCAPE_E1 and not ESCAPE_E2:
-    sys.exit(0)
+# 双 pipeline: E1/E2 逃逸 → error-dna.jsonl (高价值信号)
+#              普通错误 + gate 事件 → error-signals.jsonl (C5/C9/E3 消费, 7天清除)
+# 哲学 #2(少量大增益): 逃逸和错误分轨，各取所需，互不污染
 if not command:
     sys.exit(0)
 
@@ -194,21 +192,29 @@ record = {
 }
 
 # Label escape records — these are HIGH-VALUE signals, not noise
+is_escape = False
 if ESCAPE_E1:
     record['error_type'] = 'governance_bypass'
     record['escape_type'] = 'governance_bypass'
     record['message'] = f'E1: Bash bypass of governance file {ESCAPE_E1_TARGET} — cmd: {cmd_clean[:100]}'
+    is_escape = True
 elif ESCAPE_E2:
     record['error_type'] = 'captcha_forgery'
     record['escape_type'] = 'captcha_forgery'
-    record['message'] = f'E2: CAPTCHA forgery targeting {ESCAPE_E2_TARGET} — cmd: {cmd_clean[:100]}' 
+    record['message'] = f'E2: CAPTCHA forgery targeting {ESCAPE_E2_TARGET} — cmd: {cmd_clean[:100]}'
+    is_escape = True
 
-jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
+# 双 pipeline: escape → error-dna.jsonl, 普通错误+gate → error-signals.jsonl
+if is_escape:
+    jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
+else:
+    jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
+
 os.makedirs(state_dir, exist_ok=True)
 with open(jsonl_path, 'a') as f:
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
-# === Retry budget update (C9) ===
+# === Retry budget update (C9) — 所有记录，恢复完整追踪 ===
 budget_path = os.path.join(state_dir, 'retry-budget.json')
 budget = {'signatures': {}}
 if os.path.isfile(budget_path):
@@ -232,25 +238,37 @@ with open(_btmp, 'w') as _bf:
     json.dump(budget, _bf, indent=2, ensure_ascii=False)
 os.rename(_btmp, budget_path)
 
-# === Archive rotation (R41 fix: correct shift loop) ===
-try:
-    size = os.path.getsize(jsonl_path)
-    rotation_size = int(os.environ.get('ERROR_DNA_ROTATION_SIZE', '1048576'))
-    archive_count = int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3'))
-    if size > rotation_size:
-        rotate_dir = state_dir
-        for i in range(archive_count - 1, 0, -1):
-            old_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i - 1}')
-            new_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i}')
-            if os.path.exists(old_path):
-                os.rename(old_path, new_path)
-        orphan = os.path.join(rotate_dir, f'error-dna.jsonl.{archive_count}')
-        if os.path.exists(orphan):
-            os.unlink(orphan)
-        os.rename(jsonl_path, os.path.join(rotate_dir, 'error-dna.jsonl.0'))
-        open(jsonl_path, 'w').close()
-except Exception:
-    pass
+# === Archive rotation (escape jsonl only, R41 fix) ===
+if is_escape:
+    try:
+        size = os.path.getsize(jsonl_path)
+        rotation_size = int(os.environ.get('ERROR_DNA_ROTATION_SIZE', '1048576'))
+        archive_count = int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3'))
+        if size > rotation_size:
+            rotate_dir = state_dir
+            for i in range(archive_count - 1, 0, -1):
+                old_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i - 1}')
+                new_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i}')
+                if os.path.exists(old_path):
+                    os.rename(old_path, new_path)
+            orphan = os.path.join(rotate_dir, f'error-dna.jsonl.{archive_count}')
+            if os.path.exists(orphan):
+                os.unlink(orphan)
+            os.rename(jsonl_path, os.path.join(rotate_dir, 'error-dna.jsonl.0'))
+            open(jsonl_path, 'w').close()
+    except Exception:
+        pass
+
+# error-signals.jsonl: 7天自动清除（轻量，无需轮转）
+if not is_escape:
+    try:
+        signals_path = jsonl_path
+        _sig_max_age = 7 * 86400
+        _sig_size = os.path.getsize(signals_path) if os.path.exists(signals_path) else 0
+        if _sig_size > 524288:  # >512KB → 清空重启
+            os.unlink(signals_path)
+    except Exception:
+        pass
 
 
 
@@ -335,40 +353,38 @@ elif ESCAPE_E2:
     print(f"  escape_type=captcha_forgery 已记录到 error-dna.jsonl。")
     print(f"  补丁建议: 检查 permission-gate.sh / pretool-sensitive-edit.sh 的验证码文件保护。")
 
-# === High-frequency alert scan (scan recent jsonl, lightweight) ===
-# Only scan current jsonl (not archives), max 100KB to keep it fast
+# === High-frequency alert scan (scan both pipelines, lightweight) ===
 _scanned = {}
-try:
-    _scan_size = min(os.path.getsize(jsonl_path) if os.path.exists(jsonl_path) else 0, 102400)
-    with open(jsonl_path) as _sf:
-        _sf.seek(max(0, os.path.getsize(jsonl_path) - _scan_size))
-        for _line in _sf:
-            _line = _line.strip()
-            if not _line:
-                continue
-            try:
-                _rec = json.loads(_line)
-                _s = _rec.get('signature', '')
-                if _s not in _scanned:
-                    _scanned[_s] = {'count': 0, 'msg': _rec.get('message', '')[:120]}
-                _scanned[_s]['count'] += 1
-            except json.JSONDecodeError:
-                pass
-except Exception:
-    pass
+_signals_path = os.path.join(state_dir, 'error-signals.jsonl')
+_scan_paths = [jsonl_path]  # current record's pipeline
+if os.path.exists(_signals_path) and _signals_path != jsonl_path:
+    _scan_paths.append(_signals_path)
 
-# ED-02 同步义务: 高频扫描排除 gate 操作 — context-guard/permission-gate 等阻断是正常行为非错误
-_GATE_SIG_PATTERNS = [
-    'context-guard.sh', 'pretool-sensitive-edit.sh', 'permission-gate.sh',
-    'pre-completion-gate.sh', 'edit-guard.sh', 'pretool-edit-scope.sh',
-    'fuzzy-block.sh', 'subagent-guard.sh', 'privacy-gate.sh'
-]
-def _is_gate_operation(msg):
-    return any(p in msg for p in _GATE_SIG_PATTERNS)
+for _sp in _scan_paths:
+    try:
+        _scan_size = min(os.path.getsize(_sp) if os.path.exists(_sp) else 0, 102400)
+        with open(_sp) as _sf:
+            _sf.seek(max(0, os.path.getsize(_sp) - _scan_size))
+            for _line in _sf:
+                _line = _line.strip()
+                if not _line:
+                    continue
+                try:
+                    _rec = json.loads(_line)
+                    _s = _rec.get('signature', '')
+                    if _s not in _scanned:
+                        _scanned[_s] = {'count': 0, 'msg': _rec.get('message', '')[:120]}
+                    _scanned[_s]['count'] += 1
+                except json.JSONDecodeError:
+                    pass
+    except Exception:
+        pass
 
+# 高频扫描: 信号文件中的 gate 操作是 E3/C5 的正常输入，不过滤
+# 逃逸文件已天然过滤（只有 E1/E2），无需额外 gate 排除
 _frequent = [(sig, info['count'], info['msg'])
              for sig, info in _scanned.items()
-             if info['count'] >= 3 and not _is_gate_operation(info['msg'])]
+             if info['count'] >= 3]
 if _frequent:
     _frequent.sort(key=lambda x: -x[1])
     _lines = [f"[高频错误] 当前 jsonl 中 >=3 次的签名 ({len(_frequent)} 个):"]

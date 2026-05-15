@@ -14,23 +14,71 @@
 
 # 3. 仅用 base：cp profiles/base/harness.yaml .claude/harness.yaml
 
-\
-workflow: doc_root: "rpe" executor_doc: "executor.md" plan_doc: "plan.md" research_doc: "research.md"\
-task_decomposition: require_step_file: true step_file_path: ".claude/{YYYY-M-D}/{task}_step.md" substep_format: "[ ] {描述} → 验收标准" timeout_minutes: 10 max_different_approaches: 3 on_exceed_attempts: "record_in_step_file_and_continue" sync_rule: "complete_one_mark_one" circuit_breaker_states: "Closed → Open → Half-Open" half_open_retry: true rollback_declaration: "required_for_strict_mode"\
-knowledge: inject_files: - "index.md:full" - "kernel.md:full" - "claude-next.md:summary" - "anti-patterns.md:summary" snapshot_expiry_sec: 86400\
-turn_counter: todo_refresh_interval: 10 todo_max_items: 15\
-fuzzy_detection: fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"\
-lsp_suggest: enabled: true\
-subagent_guard: dangerous_types: "executor designer scientist"\
-completion_gate: min_evidence_chars: 20 required_keyword: "VERIFIED" quality_threshold: 0.6\
-bash_audit: dangerous_patterns: "git commit git push git reset --hard rm -rf rm -r pkill kill"\
-permission_gate: git_commit_regex: 'git\s+(commit|add\s+--?all|\badd\b.*-A)' git_push_force_regex: 'git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force' git_push_regex: 'git\s+push\b' destructive_regex: '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b' sudo_regex: '^\s*sudo\b|sudo\s' permission_keywords: "当前任务 申请理由 permission 需要权限"\
-sublimation: count_threshold: 20 age_days: 10 hit_threshold: 5\
-correction_detector: signals: "不对 错了 你搞错了 应该是 重新来"\
-session_handoff: enabled: true max_adr_lines: 10 max_todo_lines: 10 max_lessons: 3\
-error_dna: enabled: true max_entries: 100\
-escape_detection: true\
-coupling: enabled: true min_co_change: 3 max_history_commits: 200 max_coupled_files: 5\
+workflow:
+  doc_root: "rpe"
+  executor_doc: "executor.md"
+  plan_doc: "plan.md"
+  research_doc: "research.md"
+task_decomposition:
+  require_step_file: true
+  step_file_path: ".claude/{YYYY-M-D}/{task}_step.md"
+  substep_format: "[ ] {描述} → 验收标准"
+  timeout_minutes: 10
+  max_different_approaches: 3
+  on_exceed_attempts: "record_in_step_file_and_continue"
+  sync_rule: "complete_one_mark_one"
+  circuit_breaker_states: "Closed → Open → Half-Open"
+  half_open_retry: true
+  rollback_declaration: "required_for_strict_mode"
+knowledge:
+  inject_files:
+    - "index.md:full"
+    - "kernel.md:full"
+    - "claude-next.md:summary"
+    - "anti-patterns.md:summary"
+  snapshot_expiry_sec: 86400
+turn_counter:
+  todo_refresh_interval: 10
+  todo_max_items: 15
+fuzzy_detection:
+  fuzzy_verbs: "继续 优化 修复 改进 完善 处理一下 看一下 搞一下"
+lsp_suggest:
+  enabled: true
+subagent_guard:
+  dangerous_types: "executor designer scientist"
+completion_gate:
+  min_evidence_chars: 20
+  required_keyword: "VERIFIED"
+  quality_threshold: 0.6
+bash_audit:
+  dangerous_patterns: "git commit git push git reset --hard rm -rf rm -r pkill kill"
+permission_gate:
+  git_commit_regex: 'git\s+(commit|add\s+--?all|\badd\b.*-A)'
+  git_push_force_regex: 'git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force'
+  git_push_regex: 'git\s+push\b'
+  destructive_regex: '\brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b'
+  sudo_regex: '^\s*sudo\b|sudo\s'
+  permission_keywords: "当前任务 申请理由 permission 需要权限"
+sublimation:
+  count_threshold: 20
+  age_days: 10
+  hit_threshold: 5
+correction_detector:
+  signals: "不对 错了 你搞错了 应该是 重新来"
+session_handoff:
+  enabled: true
+  max_adr_lines: 10
+  max_todo_lines: 10
+  max_lessons: 3
+error_dna:
+  enabled: true
+  max_entries: 100
+escape_detection: true
+coupling:
+  enabled: true
+  min_co_change: 3
+  max_history_commits: 200
+  max_coupled_files: 5
 hooks_enabled:
   anti_pattern_detect: true
   auto_snapshot: true
@@ -71,5 +119,7 @@ hooks_enabled:
   subagent_guard: true
   turn_counter: true
   user_correction_detector: true
-rule_anchor: turn_threshold: 15 interval: 5\
+rule_anchor:
+  turn_threshold: 15
+  interval: 5
 # build_validator: REMOVED — ROI zero, Oracle approved

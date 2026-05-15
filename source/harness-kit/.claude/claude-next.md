@@ -529,3 +529,25 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 触发条件：用户质疑哲学体系放在 AGENTS.md 噪声是否过大，AGENTS.md 是否会无限膨胀
 正确行为：哲学模块遵循自己的渐进式披露原则 — AGENTS.md 保留 22 行紧凑表（哲学名+一句话+优先级+可定制说明），深度内容（物化示例/冲突裁决/门禁三问/逆向追溯/~130 行）移到 reference/philosophy.md 按需加载。任何 AGENTS.md 中超过 30 行的章节都应考虑分离。
 证据：分离前 ~110 行全量注入 → 分离后 ~22 行 + Read 按需。节省 ~88 行注入预算。— Dogfood 2026-05-15 Philosophy Separation
+
+
+### 🐶 [DG-25] 验证机制本身需要被验证 — 静默失败 + 虚假 ✅ 是最危险的 bug
+
+@2026-05-15 hits:1
+触发条件：Oracle 审计发现 `audit-hooks.sh --sync-index` 自创建以来从未真正工作 — regex 与生成标题格式不匹配，但每次打印 ✅
+正确行为：所有自动化工具必须区分「成功执行」和「声称成功」。任何 ✅ 输出必须有对应的副作用验证（如检查文件是否实际变更）。no-match 时必须输出 ❌ 而非静默返回。
+证据：audit-hooks.sh:338 regex `# Hooks 速查表` 与生成标题 `## Hooks 速查（共 38 个）` 不匹配，但 340 行无错误检测 → Oracle 发现后新增 no-match → ❌ 输出 — Dogfood 2026-05-15 Final
+
+### 🐶 [DG-26] 生成格式和匹配正则应同源定义 — 两人维护就漂移
+
+@2026-05-15 hits:1
+触发条件：--sync-index 生成标题 `## Hooks 速查（共 N 个）` 和匹配 regex `## Hooks 速查表` 由不同代码路径维护，不同步
+正确行为：生成格式和匹配正则必须定义在同一个常量或变量中，或在 smoke test 中交叉验证它们一致。不应依赖人工记忆保持同步。
+证据：line 323 生成 `f"## Hooks 速查（共 {len} 个）"` vs line 338 匹配 `# Hooks 速查表` — Dogfood 2026-05-15 Final
+
+### 🐶 [DG-27] Oracle ADVERSARIAL 模式是有效深度审查触发器 — REJECT 阻止了虚假 ACCEPT
+
+@2026-05-15 hits:1
+触发条件：Oracle 升级至 ADVERSARIAL（≥1 CRITICAL + ≥3 MAJOR），发现声称修复的 --sync-index 实际未修复
+正确行为：Oracle 的 REJECT 裁决是正确且必要的 — 阻止了「所有修复完成」的虚假声明。升级条件（CRITICAL + MAJOR 阈值 → ADVERSARIAL）是有效的深度审查触发器。
+证据：Oracle R5 发现第一版 regex 修复方向错误（只能匹配旧格式，生成新格式后二次运行又失败）— Dogfood 2026-05-15 Final
