@@ -20,7 +20,7 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
-status: stable
+status: deprecated
 role: "Test spec & acceptance criteria generator for new features"
 execution_mode: stepwise
 

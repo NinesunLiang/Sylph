@@ -395,6 +395,14 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
     log_info "用户资产恢复完成"
 fi
 
+# ─── 清理废弃 OpenCode 插件（v6.1.x 遗留，已被 OMO 原生 + carror-hooks-compat.ts 替代）──
+for legacy_plugin in harness-kit.ts sylph-hooks.ts harness-config.ts; do
+    if [ -f ".opencode/plugins/$legacy_plugin" ]; then
+        mv ".opencode/plugins/$legacy_plugin" ".opencode/plugins/${legacy_plugin}.disabled" 2>/dev/null
+        log_info "已禁用废弃插件 ${legacy_plugin} → ${legacy_plugin}.disabled"
+    fi
+done
+
 # ─── OpenCode + OMO 检测（后续多处引用）────────────────────
 HAS_OPCODE=false; HAS_OMO=false
 command -v opencode &>/dev/null && HAS_OPCODE=true

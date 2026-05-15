@@ -156,6 +156,13 @@ hooks:
   description: 生态探针，检测运行平台（CC/OC）与 OMO 安装状态，AI 据此调整策略
   enabled_by_default: true
   evidence_level: L2
+- name: meta_oracle_trigger
+  type: hook
+  category: quality
+  description: Meta-Oracle 自动触发 — 检测 Oracle ACCEPT/高分时提醒 AI 执行独立二审。哲学#4+#6 物化
+  enabled_by_default: true
+  evidence_level: L3
+
 - name: harness_config
   type: shared
   category: utility

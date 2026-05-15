@@ -22,7 +22,7 @@ paths:
  - "*_test.go"
 
 harness_version: ">=1.1.0"
-status: draft
+status: deprecated
 role: "Go test code generator — pattern-based test scaffolding"
 execution_mode: stepwise
 

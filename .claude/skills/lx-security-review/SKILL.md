@@ -19,7 +19,7 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
-status: stable
+status: deprecated
 role: "Security vulnerability scanner for code and dependencies"
 execution_mode: stepwise
 

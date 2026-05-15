@@ -80,16 +80,16 @@ print(d.get('percentage', 0))" 2>/dev/null)
     # — prefer false negative (don't block) over false positive (wrong block).
     if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" = "transcript (real)" ]; then
         echo "$(date +%Y-%m-%d),context_guard_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
-        if [ "$BLOCK_WRITES" = "true" ] && [ "$MODE" = "normal" ]; then
+        if [ "$BLOCK_WRITES" = "true" ]; then
             agentic_status block \
                 "Context Guard 硬阻断" \
                 "当前会话上下文占比已达 ${PCT}%（危险阈值: ${DANGER_PCT}%，警告阈值: ${WARN_PCT}%）！" \
-                "为防止灾难性幻觉、指令遗忘或代码损毁，已强制拦截写入操作。诊断工具 (Read/Grep/Bash) 可正常使用。请运行 '/compact' 压缩会话或手动重置 token 追踪。"
+                "为防止灾难性幻觉、指令遗忘或代码损毁，已强制拦截写入操作。诊断工具 (Read/Grep/Bash) 可正常使用。请运行 '/compact' 压缩会话或手动重置 token 追踪。${MODE_LABEL}"
             exit 2
         else
-            # 非写工具 或 ghost/unattended 模式: 仅记录 flywheel + 告警, 不阻断
-            printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文占比 %s%%。超出危险阈值。请考虑 /compact。诊断操作未阻断。%s"}}\n' \
-                "$PCT" "$([ "$MODE" != "normal" ] && echo " [${MODE} mode: 已记录，未阻断]" || echo '')"
+            # 非写工具: 仅记录 flywheel + 告警, 不阻断
+            printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文占比 %s%%。超出危险阈值。请考虑 /compact。诊断操作未阻断。"}}\n' \
+                "$PCT"
             exit 0
         fi
     fi

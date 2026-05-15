@@ -50,7 +50,7 @@ run_case() {
     TOTAL=$((TOTAL+1))
     log ""
     log "[$TOTAL] $name"
-    local out_err="/tmp/smoke-$$-err"
+    local out_err="$(mktemp /tmp/smoke-err-XXXXX)"
     echo "$input" | bash ".claude/hooks/$hook" >/dev/null 2>"$out_err"
     local actual_exit=$?
     local actual_err
@@ -411,7 +411,7 @@ fi
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R38 posttool-claim-audit: 未读 claim 应阻断"
-_CLAIM_OUT="/tmp/smoke-claim-$$.out"
+_CLAIM_OUT="$(mktemp /tmp/smoke-claim-XXXXX.out)"
 echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/claim-test.go","new_content":"Reference: ./src/nonexistent_claim_file_test.go:42"}}' | \
     bash .claude/hooks/posttool-claim-audit.sh Edit > "$_CLAIM_OUT" 2>&1
 _CLAIM_EXIT=$?

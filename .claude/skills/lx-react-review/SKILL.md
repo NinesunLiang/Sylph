@@ -21,7 +21,7 @@ paths:
  - "*.ts"
 
 harness_version: ">=1.1.0"
-status: draft
+status: deprecated
 role: "React/Next.js code quality reviewer — component patterns, hooks, performance"
 execution_mode: stepwise
 

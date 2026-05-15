@@ -9,7 +9,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh" 2>/dev/null || true
 # 兜底：harness_config.sh 可能不存在，确保 hc_enabled 有定义
 if ! command -v hc_enabled &>/dev/null; then
-    hc_enabled() { return 0; }
+    hc_enabled() { return 1; }  # m-5: 配置缺失时默认禁用，安全优先
 fi
 hc_enabled "compact_detect" || exit 0
 

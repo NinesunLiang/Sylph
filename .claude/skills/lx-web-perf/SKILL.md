@@ -27,7 +27,7 @@ paths:
  - "package.json"
 
 harness_version: ">=1.1.0"
-status: draft
+status: deprecated
 role: "Web performance auditor — bundle analysis, Web Vitals, Next.js optimization"
 execution_mode: stepwise
 
