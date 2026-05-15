@@ -239,8 +239,9 @@
             "timeout": 3000
           },
           {
-            "command": "bash ${CLAUDE_PROJECT_DIR}/.claude/hooks/meta-oracle-trigger.sh",
-            "hookName": "meta-oracle-trigger"
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/meta-oracle-trigger.sh",
+            "hookName": "meta-oracle-trigger",
+            "type": "command"
           }
         ]
       },

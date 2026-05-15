@@ -174,6 +174,75 @@ EOF
     echo "" >&2
 }
 
+# ── 结构化摘要表 ──────────────────────────────────────────
+
+# agentic_table title headers rows...
+# 输出对齐的结构化表格到 stderr
+# headers: "H1|H2|H3"  rows: "v1|v2|v3" "v4|v5|v6" ...
+agentic_table() {
+    local title="$1"
+    local header="$2"
+    shift 2
+    local rows=("$@")
+
+    # Parse headers and rows
+    IFS='|' read -ra HDR <<< "$header"
+    local NC=${#HDR[@]}
+
+    # Calculate column widths
+    local widths=()
+    for ((c=0; c<NC; c++)); do
+        widths[$c]=${#HDR[$c]}
+    done
+    for row in "${rows[@]}"; do
+        IFS='|' read -ra COLS <<< "$row"
+        for ((c=0; c<NC; c++)); do
+            [ "${#COLS[$c]}" -gt "${widths[$c]}" ] && widths[$c]=${#COLS[$c]}
+        done
+    done
+
+    # Build separator
+    local sep="+"
+    for ((c=0; c<NC; c++)); do
+        sep+=$(printf '%*s' "${widths[$c]}" '' | tr ' ' '-')
+        [ $c -lt $((NC-1)) ] && sep+="+"
+    done
+    sep+="+"
+
+    cat >&2 <<EOF
+
+${ICON_INFO} ${title}
+${sep}
+EOF
+    # Header row
+    printf "|" >&2
+    for ((c=0; c<NC; c++)); do
+        printf " %-${widths[$c]}s |" "${HDR[$c]}" >&2
+    done
+    printf "\n" >&2
+    echo "${sep}" >&2
+    # Data rows
+    for row in "${rows[@]}"; do
+        IFS='|' read -ra COLS <<< "$row"
+        printf "|" >&2
+        for ((c=0; c<NC; c++)); do
+            printf " %-${widths[$c]}s |" "${COLS[$c]:-}" >&2
+        done
+        printf "\n" >&2
+    done
+    echo "${sep}" >&2
+    echo "" >&2
+}
+
+# ── 步骤进度指示 ──────────────────────────────────────────
+
+# agentic_progress step total description
+# 输出 "[1/5] Compiling..." 风格的步骤进度
+agentic_progress() {
+    local step="$1" total="$2" description="$3"
+    printf "${ICON_INFO} [%d/%d] %s...\n" "${step}" "${total}" "${description}" >&2
+}
+
 # ── additionalContext 辅助 ─────────────────────────────────
 
 # agentic_context message — 注入 AI 可见上下文（非阻断）

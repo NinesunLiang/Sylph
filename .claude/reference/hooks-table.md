@@ -1,4 +1,4 @@
-## Hooks 速查（共 38 个）
+## Hooks 速查（共 39 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -14,6 +14,7 @@
 |`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
 |`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥3)，输出升华建议|
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
+|`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Oracle ACCEPT/高分时自动触发 Meta-Oracle 二审提醒|
 |`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
 |`plan-gate` | PreToolUse | plan-gate.sh — PreToolUse:Edit|Write [默认关闭] — 编辑前检查是否跳过规划阶段|
 |`posttool-anti-pattern-detect` | PostToolUse | posttool-anti-pattern-detect.sh — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测|
@@ -38,7 +39,6 @@
 |`skill-flywheel` | Stop | skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）|
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
 |`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
-|`token_writer` | PostToolUse / UserPromptSubmit / SessionStart / Stop | token_writer.sh — 令牌用量追踪，context-guard 消费 |
 |`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|
 
 ### 已注册但默认禁用的脚本（共 2 个）
