@@ -28,7 +28,7 @@ Carror OS 的拦截器分为两类：
 - **Gate（门禁）**：阻断后需要用户明确授权才放行（CAPTCHA 验证码机制）
 - **Guard（守卫）**：自动判定，无需用户交互（如范围冻结、上下文监控）
 
-当前共 11 个活跃门禁/守卫：
+当前共 14 个活跃门禁/守卫：
 
 ### 执行安全
 
@@ -79,7 +79,20 @@ Hook: `context-guard.sh`
 Hook: `plan-gate.sh`
 
 **pretool-ask-guard（哲学先行门禁）**
-铁律 #8 的物化。拦截"多此一问"：AI 在问人之前，若哲学已覆盖该问题（如"需要我提交吗？"），阻断提问并强制 AI 直接执行。
+铁律 #8 的物化。拦截"多此一问"
+### 防御纵深
+
+**fuzzy-block（模糊指令阻断）**
+拦截含模糊动词（"继续""优化""修复"）但无明确目标的指令。强制 AI 在行动前澄清目标，防止方向错误浪费轮次。
+Hook: `fuzzy-block.sh`
+
+**pretool-retry-check（重试预算守卫）**
+阻断超过上限（3 次）的重复失败命令。同一命令连续失败 3 次 → 强制 AI 换方案，防止死循环。
+Hook: `pretool-retry-check.sh`
+
+**pretool-write-lock（并发写锁守卫）**
+写操作前获取 OMA 并发锁，防止多 Agent/多终端同时写同一文件。配合 posttool-write-lock 在写完成后释放。
+Hook: `pretool-write-lock.sh`：AI 在问人之前，若哲学已覆盖该问题（如"需要我提交吗？"），阻断提问并强制 AI 直接执行。
 Hook: `pretool-ask-guard.sh`
 
 ---
@@ -107,3 +120,6 @@ Hook: `pretool-ask-guard.sh`
 | context-guard | `context-guard.sh` | Guard |
 | plan-gate | `plan-gate.sh` | Gate |
 | pretool-ask-guard | `pretool-ask-guard.sh` | Gate |
+| fuzzy-block | `fuzzy-block.sh` | Guard |
+| pretool-retry-check | `pretool-retry-check.sh` | Guard |
+| pretool-write-lock | `pretool-write-lock.sh` | Guard |
