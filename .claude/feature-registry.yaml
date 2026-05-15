@@ -405,3 +405,8 @@ skills:
   description: 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐、重复
     key、引用完整性
   enabled_by_default: true
+- name: update-carror-os
+  type: workflow
+  category: workflow
+  description: Carror OS 安装/更新：备份 AGENTS.md → 安装 → 恢复 → 验证 4 步闭环
+  enabled_by_default: true

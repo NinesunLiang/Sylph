@@ -12,7 +12,7 @@
 
 ---
 
-## Harness 治理框架（Base 版本 v6.1.9）
+## Harness 治理框架（Base 版本 v6.2.0）
 
 > Base 版本 = 新项目拿来就能用，零配置，有防御不碍事
 > 增强功能（task-spec / 节点系统 / 验收机制）见 [Enhanced 激活指南](#enhanced-激活可选)
@@ -248,6 +248,25 @@
 - 禁止对 L2+ 变更使用"自测通过=完成"的快捷路径
 
 **Oracle 审核留痕**: 每次审核结果记录到 `.omc/state/oracle-verdicts.md`，含变更描述、Oracle verdict、P0 数量和修复状态。
+
+### Meta-Oracle — Oracle 的审判官
+
+Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-score.sh 静态检查虚高），它可能漏掉设计级缺陷（regex 只匹配部分引用格式），它的结论需要被验证。
+
+**Meta-Oracle = 独立于 Oracle 的第二审查者。** 专门审查 Oracle 自身的：
+- 评分方法论是否合理（有无系统性虚高/虚低）
+- 关键发现是否经运行时验证（而非仅静态检查）
+- 是否有遗漏的盲区（Oracle 视角的偏见）
+
+**触发条件**：Oracle 给出 ACCEPT / ≥8.5 分时，自动触发 Meta-Oracle。Meta-Oracle 使用不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性），专门寻找 Oracle 的盲区。
+
+**在 A→B→A 三重门中的位置**：
+```
+A 预测 → B 盲执行 → A 自证 → Oracle 审核
+                              ↓
+                         Meta-Oracle 验证 Oracle 的审核质量
+```
+> Meta-Oracle 不是每轮都要的。Oracle 给 REJECT/REVISE 时说明已经在深度审查，Meta-Oracle 的价值增量小。Oracle 给 ACCEPT/高分时最有触发价值 — 此时最可能虚高。
 
 ## 会话初始化
 
@@ -606,6 +625,7 @@ AI 申请权限时，**必须**说明当前任务和理由：
 | `is_mode_active()` | 模式检测 | #3 | ghost/goal 降级保护 |
 | Oracle 终审 | 节点 | #6 | 最高权威裁决 |
 | Oracle 终审要求 | 协议 | #4, #6 | 声称完成前强制独立 Oracle 审核，自证不可信 |
+| Meta-Oracle | 节点 | #4, #6 | Oracle 的审判官 — ACCEPT/高分时触发，独立验证 Oracle 评分质量 |
 
 ---
 

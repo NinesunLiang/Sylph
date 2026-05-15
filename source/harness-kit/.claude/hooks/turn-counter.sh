@@ -13,7 +13,7 @@ mkdir -p "$STATE_DIR"
 
 # 保存用户原始输入（供模糊指令检测使用）
 FUZZY_CHECK="$STATE_DIR/.last-user-prompt"
-tee "$FUZZY_CHECK" > /dev/null
+tee "$FUZZY_CHECK"
 
 current_count=0
 if [ -f "$STATE_FILE" ]; then

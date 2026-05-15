@@ -50,7 +50,7 @@ auto_soft_block() {
 
 # 检查证据文件是否存在（AI 必须先运行验证并写入证据文件才能标记完成）
 EVIDENCE_DIR=$(hc_get "completion_gate.evidence_dir" ".omc/state")
-EVIDENCE_FILE="$PROJECT_ROOT/$EVIDENCE_DIR/.completion-evidence-$(date +%Y%m%d)"
+EVIDENCE_FILE="$PROJECT_ROOT/$EVIDENCE_DIR/.completion-evidence-$(date +%Y%m%d-%H%M%S)"
 EVIDENCE_FRESHNESS_SEC=$(hc_get "completion_gate.evidence_freshness_sec" "300")
 if [ -f "$EVIDENCE_FILE" ]; then
     # 证据文件存在，检查是否在 ${EVIDENCE_FRESHNESS_SEC} 秒内写入

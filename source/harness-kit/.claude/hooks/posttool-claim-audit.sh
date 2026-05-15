@@ -45,8 +45,9 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 READ_LOG="$STATE_DIR/read-tracker.txt"
 
-# 提取所有 file:line 引用（如 kernel.go:42, .claude/hooks/plan-gate.sh:15）
-CLAIMED_FILES=$(echo "$INPUT" | grep -oE '\.[/a-zA-Z0-9_.-]+\.[a-z]+:[0-9]+' | sed 's|^\./||' || true)
+# 提取所有 file:line 引用（AGENTS.md:42, kernel.go:15, .claude/hooks/plan-gate.sh:15）
+# 修复: 不再要求以 . 开头（之前漏掉了 AGENTS.md:42 等裸文件名引用）
+CLAIMED_FILES=$(echo "$INPUT" | grep -oE '(\.?/)?[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+' | sed 's|^\./||' || true)
 if [ -z "$CLAIMED_FILES" ]; then
     exit 0
 fi
@@ -92,7 +93,7 @@ while IFS= read -r claimed; do
 done <<< "$CLAIMED_FILES"
 
 if [ -n "$VIOLATIONS" ]; then
-    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1] 以下代码引用无读取证据（AI 不得编造未读内容）:\n'"$VIOLATIONS"'宪法: "禁止编造" — 必须引用 file:line，找不到则 BLOCKED\n请确认以上文件已被 Read。如未读请先执行 Read 再编辑。"}}\n'
+    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1] 以下代码引用无读取证据（AI 不得编造未读内容）:\n'"$VIOLATIONS"'宪法: "禁止编造" — 必须引用 file:line，找不到则 BLOCKED\n请确认以上文件已被 Read。如未读请先执行 Read 再编辑。"}}\n'
     exit 2
 fi
 

@@ -551,3 +551,25 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 触发条件：Oracle 升级至 ADVERSARIAL（≥1 CRITICAL + ≥3 MAJOR），发现声称修复的 --sync-index 实际未修复
 正确行为：Oracle 的 REJECT 裁决是正确且必要的 — 阻止了「所有修复完成」的虚假声明。升级条件（CRITICAL + MAJOR 阈值 → ADVERSARIAL）是有效的深度审查触发器。
 证据：Oracle R5 发现第一版 regex 修复方向错误（只能匹配旧格式，生成新格式后二次运行又失败）— Dogfood 2026-05-15 Final
+
+
+### 🐶 [DG-28] Meta-Oracle 是必要的 — Oracle 自己也需被验证
+
+@2026-05-15 hits:1
+触发条件：Oracle 给 9.28/10 ACCEPT，meta-Oracle 独立验证发现虚高 0.8-1.3 分，context-guard exit 2 烟雾测试误判 + claim-audit regex 设计级漏报未被 Oracle 发现
+正确行为：关键评分必须经第二 Oracle 独立验证。单 Oracle 的静态检查方法论（auto-score.sh）有已知 bug（C7 默认满分、C2 grep 误匹配、C4 平凡通过），会系统性虚高。Meta-Oracle 用运行时验证（烟雾日志 + live 测试 + 正则交叉检查）纠正了虚高。
+证据：Meta-Oracle 发现 3 个 Oracle 漏掉的问题（context-guard 烟雾误判、claim-audit regex `\.` 漏裸文件名、tools-only 盲区）— 本会话
+
+### 🐶 [DG-29] 正则表达式设计级漏报是第二常见 bug（仅次于 YAML 格式错误）
+
+@2026-05-15 hits:1
+触发条件：posttool-claim-audit.sh 的 file:line 正则 `'\./[/a-zA-Z0-9_.-]+\.[a-z]+:[0-9]+'` 要求以 `.` 开头，导致 `AGENTS.md:42`、`kernel.md:15` 等裸文件名引用全部漏报
+正确行为：正则涉及安全门禁（铁律 #1 禁止编造）时，必须测试至少 4 种路径格式：裸文件名(`AGENTS.md:42`)、相对路径(`./src/main.go:15`)、绝对路径(`/Users/x/project/file.go:42`)、点路径(`.claude/hooks/foo.sh:15`)
+证据：修复前 regex 只匹配 `.` 开头的路径，铁律 #1 的主要引用格式（裸文件名 AGENTS.md:42）完全漏报 — posttool-claim-audit.sh:49
+
+### 🐶 [DG-30] 「看起来在运行」≠「真的在生效」— claim-audit hook 注册了 38 个开关，但核心正则从未匹配过主流引用格式
+
+@2026-05-15 hits:1
+触发条件：posttool-claim-audit 注册在 settings.json、harness.yaml、三方一致性检查全绿，但核心 regex 设计级漏报意味着铁律 #1 的自动化检测实际效果远低于预期
+正确行为：门禁三问不仅适用于机制采纳，也适用于机制内关键参数的验证。对安全门禁的关键正则，应有专项测试覆盖常见格式。
+证据：hook 全绿但 regex 只匹配 ~20% 引用格式 — 本会话 DG-29

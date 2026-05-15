@@ -70,6 +70,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 EV_DNA_JSONL="$STATE_DIR/error-dna.jsonl"
+EV_SIGNALS_JSONL="$STATE_DIR/error-signals.jsonl"
 ESCAPE_E4_MSG=""
 if [ -f "$EV_DNA_JSONL" ]; then
     ESCAPE_E4_MSG=$(python3 - "$EV_DNA_JSONL" "$COMMAND" <<'E4EOF'
@@ -121,8 +122,11 @@ fi
 # === Escape Pattern E3: Context evasion via subagent ===
 # Pattern: context-guard blocks (high context) → immediate Task subagent creation
 ESCAPE_E3_MSG=""
-if [ -f "$EV_DNA_JSONL" ]; then
-    ESCAPE_E3_MSG=$(python3 - "$EV_DNA_JSONL" "$COMMAND" <<'E3EOF'
+# 优先扫描 error-signals.jsonl（context-guard 阻断记录主源），备选 error-dna.jsonl
+_E3_FILE=""
+[ -f "$EV_SIGNALS_JSONL" ] && _E3_FILE="$EV_SIGNALS_JSONL" || { [ -f "$EV_DNA_JSONL" ] && _E3_FILE="$EV_DNA_JSONL"; }
+if [ -n "$_E3_FILE" ]; then
+    ESCAPE_E3_MSG=$(python3 - "$_E3_FILE" "$COMMAND" <<'E3EOF'
 import json, sys, re
 
 jsonl_path = sys.argv[1]

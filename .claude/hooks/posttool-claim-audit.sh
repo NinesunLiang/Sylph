@@ -93,7 +93,7 @@ while IFS= read -r claimed; do
 done <<< "$CLAIMED_FILES"
 
 if [ -n "$VIOLATIONS" ]; then
-    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1] 以下代码引用无读取证据（AI 不得编造未读内容）:\n'"$VIOLATIONS"'宪法: "禁止编造" — 必须引用 file:line，找不到则 BLOCKED\n请确认以上文件已被 Read。如未读请先执行 Read 再编辑。"}}\n'
+    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1] 以下代码引用无读取证据（AI 不得编造未读内容）:\n'"$VIOLATIONS"'宪法: "禁止编造" — 必须引用 file:line，找不到则 BLOCKED\n请确认以上文件已被 Read。如未读请先执行 Read 再编辑。"}}\n'
     exit 2
 fi
 

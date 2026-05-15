@@ -117,6 +117,7 @@ hooks_enabled:
   skill_flywheel: true
   stop_drain: true
   subagent_guard: true
+  token_writer: true
   turn_counter: true
   user_correction_detector: true
 rule_anchor:

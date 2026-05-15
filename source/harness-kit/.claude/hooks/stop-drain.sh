@@ -30,7 +30,8 @@ transcript = os.environ.get('TRANSCRIPT', '')
 session_id = os.environ.get('SESSION_ID', 'unknown')
 state_dir = os.environ.get('STATE_DIR', '')
 
-jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
+# stop-drain 记录的是 transcript 恢复的错误（非逃逸），写入 error-signals.jsonl
+jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
 
 # Load existing signatures to dedupe
 seen = set()

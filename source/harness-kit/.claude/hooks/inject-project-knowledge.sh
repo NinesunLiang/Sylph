@@ -337,23 +337,26 @@ except Exception:
 PYEOF
 fi
 
-# C5: Tool-level health summary (error rate by type)
+# C5: Tool-level health summary (双 pipeline — escape + signals)
 TOTAL_OPS_FILE="$PROJECT_ROOT/.omc/state/total-ops.txt"
 DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
-if [ -f "$DNA_JSONL" ] && [ -f "$TOTAL_OPS_FILE" ]; then
-    python3 - "$DNA_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF'
-import json, sys
+SIGNALS_JSONL="$PROJECT_ROOT/.omc/state/error-signals.jsonl"
+if [ -f "$TOTAL_OPS_FILE" ]; then
+    python3 - "$DNA_JSONL" "$SIGNALS_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF'
+import json, sys, os
 try:
-    jsonl_path, ops_path = sys.argv[1], sys.argv[2]
+    dna_path, signals_path, ops_path = sys.argv[1], sys.argv[2], sys.argv[3]
     total_ops = int(open(ops_path).read().strip())
     tool_types = {}
-    with open(jsonl_path) as f:
-        for line in f:
-            try:
-                rec = json.loads(line)
-                t = rec.get('error_type', 'unknown')
-                tool_types[t] = tool_types.get(t, 0) + 1
-            except: pass
+    for jp in [dna_path, signals_path]:
+        if os.path.exists(jp):
+            with open(jp) as f:
+                for line in f:
+                    try:
+                        rec = json.loads(line)
+                        t = rec.get('error_type', 'unknown')
+                        tool_types[t] = tool_types.get(t, 0) + 1
+                    except: pass
     if tool_types:
         total_err = sum(tool_types.values())
         rate = total_err * 100 // total_ops if total_ops > 0 else 0
