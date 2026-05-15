@@ -22,7 +22,7 @@ paths:
  - "go.mod"
 
 harness_version: ">=1.1.0"
-status: mature
+status: deprecated
 role: "Root-cause debugger for Go — structured investigation protocol"
 execution_mode: stepwise
 

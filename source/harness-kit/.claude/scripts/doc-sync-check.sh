@@ -20,7 +20,7 @@ fi
 
 while IFS=':' read -r file line_num rest; do
     # Extract file path from [已验证: path:line] or [已验证: path]
-    FILE_REF=$(echo "$rest" | sed -n 's/.*\[已验证: *\([^: ]*\)[[:space:]]*\(.*\)\].*/\1/p')
+    FILE_REF=$(echo "$rest" | sed -n 's/.*\[已验证: *\([^: ]*\)[[:space:]]*\([^]]*\)\].*/\1/p')
 
     if [ -z "$FILE_REF" ]; then
         continue

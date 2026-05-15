@@ -6,13 +6,8 @@ source "$(dirname "$0")/harness_config.sh"
 hc_enabled "privacy_gate" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
 
-# Mode detection: ghost/goal 降级为 log+skip
-_MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
-if [ "$_MODE" != "normal" ]; then
-    echo "[$_MODE] privacy-gate 已记录（模式降级，不阻断）" >&2
-    echo '{"continue": true}'
-    exit 0
-fi
+# C-3: privacy-gate 在所有模式下保持活跃 — 凭据泄露零容忍
+# ghost/goal 模式也不例外: .env/密钥泄露在任何模式下都是严重安全事件
 
 INPUT=$(cat)
 

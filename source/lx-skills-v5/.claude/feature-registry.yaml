@@ -1,309 +1,419 @@
-# Carror OS Feature Registry
-# 统一特性目录，hooks + skills 全部可切换
-# Generated: 2026-05-04
-
 version: 1
-
 hooks:
-  - name: permission-gate
-    type: gate
-    category: security
-    description: 危险命令拦截 (rm -rf, DROP TABLE, git push --force)
-    enabled_by_default: true
-    evidence_level: L3
-  - name: privacy-gate
-    type: gate
-    category: security
-    description: 敏感文件/DLP 保护，防止 .env/私钥泄露
-    enabled_by_default: true
-    evidence_level: L3
-  - name: subagent-guard
-    type: gate
-    category: security
-    description: 子代理类型安全门禁，限制 executor/designer/scientist
-    enabled_by_default: true
-    evidence_level: L3
-  - name: preTool-edit-scope
-    type: guard
-    category: quality
-    description: 编辑范围预检，防止修改非目标文件
-    enabled_by_default: true
-    evidence_level: L3
-  - name: edit-guard
-    type: guard
-    category: quality
-    description: 编辑内容质量门禁，拦截空/越界编辑
-    enabled_by_default: true
-    evidence_level: L3
-  - name: lsp-suggest
-    type: monitor
-    category: observability
-    description: LSP 诊断建议注入
-    enabled_by_default: true
-    evidence_level: L3
-  - name: postTool-read-cite
-    type: monitor
-    category: audit
-    description: 读取后引用标注
-    enabled_by_default: false
-    evidence_level: L3
-  - name: postTool-bash-audit
-    type: audit
-    category: audit
-    description: bash 命令审计日志
-    enabled_by_default: true
-    evidence_level: L3
-  - name: postTool-write-cite
-    type: monitor
-    category: audit
-    description: 写入后引用标注
-    enabled_by_default: true
-    evidence_level: L3
-  - name: auto-snapshot
-    type: monitor
-    category: knowledge
-    description: 自动会话快照（根据 turn 间隔）
-    enabled_by_default: true
-    evidence_level: L3
-  - name: postTool-edit-quality
-    type: guard
-    category: quality
-    description: 编辑后质量检查
-    enabled_by_default: true
-    evidence_level: L3
-  - name: inject-project-knowledge
-    type: injector
-    category: knowledge
-    description: 会话启动时注入 kernel.md / claude-next.md / anti-patterns.md
-    enabled_by_default: true
-    evidence_level: L3
-  - name: plan-gate
-    type: gate
-    category: delivery
-    description: 非琐碎任务强制 planning
-    enabled_by_default: false
-    evidence_level: L3
-  - name: turn-counter
-    type: monitor
-    category: observability
-    description: 轮次计数器，控制 todo 刷新间隔
-    enabled_by_default: true
-    evidence_level: L3
-  - name: read-tracker
-    type: monitor
-    category: observability
-    description: 读取跟踪，记录已读取文件
-    enabled_by_default: true
-    evidence_level: L3
-  - name: error-dna
-    type: monitor
-    category: observability
-    description: 错误 DNA 分析，跟踪错误模式
-    enabled_by_default: true
-    evidence_level: L3
-  - name: skill-flywheel
-    type: monitor
-    category: runtime
-    description: Skill 飞轮，技能使用统计和优化建议
-    enabled_by_default: true
-    evidence_level: L3
-  - name: build-validator
-    type: gate
-    category: quality
-    description: 编译验证门禁，自动检查构建状态
-    enabled_by_default: true
-    evidence_level: L3
-  - name: pretool-user-correction
-    type: monitor
-    category: quality
-    description: 用户纠正检测，触发纠正学习
-    enabled_by_default: true
-    evidence_level: L3
-  - name: pretool-rule-anchor
-    type: monitor
-    category: knowledge
-    description: 规则锚点，turn 间隔注入防漂移提醒
-    enabled_by_default: true
-    evidence_level: L3
-  - name: proactive-handoff
-    type: gate
-    category: delivery
-    description: 主动交接，长会话自动总结并建议重置
-    enabled_by_default: false
-    evidence_level: L3
-  - name: completion-gate
-    type: gate
-    category: delivery
-    description: 假完成拦截，要求 VERIFIED 证据
-    enabled_by_default: true
-    evidence_level: L3
-  - name: context-guard
-    type: gate
-    category: runtime
-    description: 上下文守卫，50% 甜点区警告 + 80% 硬阻断写/执行操作
-    enabled_by_default: true
-    evidence_level: L3
-  - name: pretool-write-lock
-    type: gate
-    category: audit
-    description: 写入前锁定检查，防止并发写入冲突
-    enabled_by_default: true
-    evidence_level: L3
-  - name: posttool-write-lock
-    type: gate
-    category: audit
-    description: 写入后锁定释放，清理锁定状态
-    enabled_by_default: true
-    evidence_level: L3
-  - name: flywheel-report
-    type: monitor
-    category: runtime
-    description: 飞轮报告生成，输出技能使用统计
-    enabled_by_default: true
-    evidence_level: L3
-  - name: feature-probe
-    type: monitor
-    category: observability
-    description: 特性探针，验证 feature 的 L1-L4 证据链
-    enabled_by_default: true
-    evidence_level: L3
-  - name: harness_config
-    type: shared
-    category: utility
-    description: 共享配置读取器，所有 hook source 的工具库
-    enabled_by_default: true
-    evidence_level: L3
-  - name: token_writer
-    type: monitor
-    category: observability
-    description: 写入 token 追踪索引，由 context-guard 调用
-    enabled_by_default: true
-    evidence_level: L3
-  - name: oma_lock
-    type: gate
-    category: runtime
-    description: OMA 并发写锁门禁，多 Agent 写同一文件时排队互斥
-    enabled_by_default: true
-    evidence_level: L3
+- name: permission-gate
+  type: gate
+  category: security
+  description: 危险命令拦截 (rm -rf, DROP TABLE, git push --force)
+  enabled_by_default: true
+  evidence_level: L3
+- name: privacy-gate
+  type: gate
+  category: security
+  description: 敏感文件/DLP 保护，防止 .env/私钥泄露
+  enabled_by_default: true
+  evidence_level: L3
+- name: subagent-guard
+  type: gate
+  category: security
+  description: 子代理类型安全门禁，限制 executor/designer/scientist
+  enabled_by_default: true
+  evidence_level: L3
+- name: preTool-edit-scope
+  type: guard
+  category: quality
+  description: 编辑范围预检，防止修改非目标文件
+  enabled_by_default: true
+  evidence_level: L3
+- name: edit-guard
+  type: guard
+  category: quality
+  description: 编辑内容质量门禁，拦截空/越界编辑
+  enabled_by_default: true
+  evidence_level: L3
+- name: lsp-suggest
+  type: monitor
+  category: observability
+  description: LSP 诊断建议注入
+  enabled_by_default: true
+  evidence_level: L3
+- name: postTool-read-cite
+  type: monitor
+  category: audit
+  description: 读取后引用标注
+  enabled_by_default: false
+  evidence_level: L3
+- name: postTool-bash-audit
+  type: audit
+  category: audit
+  description: bash 命令审计日志
+  enabled_by_default: true
+  evidence_level: L3
+- name: postTool-write-cite
+  type: monitor
+  category: audit
+  description: 写入后引用标注
+  enabled_by_default: true
+  evidence_level: L3
+- name: auto-snapshot
+  type: monitor
+  category: knowledge
+  description: 自动会话快照（根据 turn 间隔）
+  enabled_by_default: true
+  evidence_level: L3
+- name: postTool-edit-quality
+  type: guard
+  category: quality
+  description: 编辑后质量检查
+  enabled_by_default: true
+  evidence_level: L3
+- name: inject-project-knowledge
+  type: injector
+  category: knowledge
+  description: 会话启动时注入 kernel.md / claude-next.md / anti-patterns.md
+  enabled_by_default: true
+  evidence_level: L3
+- name: plan-gate
+  type: gate
+  category: delivery
+  description: 非琐碎任务强制 planning
+  enabled_by_default: false
+  evidence_level: L3
+- name: turn-counter
+  type: monitor
+  category: observability
+  description: 轮次计数器，控制 todo 刷新间隔
+  enabled_by_default: true
+  evidence_level: L3
+- name: read-tracker
+  type: monitor
+  category: observability
+  description: 读取跟踪，记录已读取文件
+  enabled_by_default: true
+  evidence_level: L3
+- name: error-dna
+  type: monitor
+  category: observability
+  description: 错误 DNA 分析，跟踪错误模式
+  enabled_by_default: true
+  evidence_level: L3
+- name: skill-flywheel
+  type: monitor
+  category: runtime
+  description: Skill 飞轮，技能使用统计和优化建议
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool-user-correction
+  type: monitor
+  category: quality
+  description: 用户纠正检测，触发纠正学习
+  enabled_by_default: true
+  evidence_level: L3
+- name: proactive-handoff
+  type: gate
+  category: delivery
+  description: 主动交接，长会话自动总结并建议重置
+  enabled_by_default: false
+  evidence_level: L3
+- name: completion-gate
+  type: gate
+  category: delivery
+  description: 假完成拦截，要求 VERIFIED 证据
+  enabled_by_default: true
+  evidence_level: L3
+- name: context-guard
+  type: gate
+  category: runtime
+  description: 上下文守卫，50% 甜点区警告 + 80% 硬阻断写/执行操作
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool-write-lock
+  type: gate
+  category: audit
+  description: 写入前锁定检查，防止并发写入冲突
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-write-lock
+  type: gate
+  category: audit
+  description: 写入后锁定释放，清理锁定状态
+  enabled_by_default: true
+  evidence_level: L3
+- name: flywheel-report
+  type: monitor
+  category: runtime
+  description: 飞轮报告生成，输出技能使用统计
+  enabled_by_default: true
+  evidence_level: L3
+- name: feature-probe
+  type: monitor
+  category: observability
+  description: 特性探针，验证 feature 的 L1-L4 证据链
+  enabled_by_default: true
+  evidence_level: L3
+- name: ecosystem_probe
+  type: probe
+  category: observability
+  description: 生态探针，检测运行平台（CC/OC）与 OMO 安装状态，AI 据此调整策略
+  enabled_by_default: true
+  evidence_level: L2
+- name: meta_oracle_trigger
+  type: hook
+  category: quality
+  description: Meta-Oracle 自动触发 — 检测 Oracle ACCEPT/高分时提醒 AI 执行独立二审。哲学#4+#6 物化
+  enabled_by_default: true
+  evidence_level: L3
 
+- name: harness_config
+  type: shared
+  category: utility
+  description: 共享配置读取器，所有 hook source 的工具库
+  enabled_by_default: true
+  evidence_level: L3
+- name: token_writer
+  type: monitor
+  category: observability
+  description: 写入 token 追踪索引，由 context-guard 调用
+  enabled_by_default: true
+  evidence_level: L3
+- name: oma_lock
+  type: gate
+  category: runtime
+  description: OMA 并发写锁门禁，多 Agent 写同一文件时排队互斥
+  enabled_by_default: true
+  evidence_level: L3
+- name: fuzzy-block
+  type: gate
+  category: quality
+  description: 模糊指令硬阻断，C1 指令清晰度门禁
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool-sensitive-edit
+  type: gate
+  category: security
+  description: 治理文件编辑 CAPTCHA 验证码门禁，Edit/Write/Bash 全覆盖
+  enabled_by_default: true
+  evidence_level: L3
+- name: pre-completion-gate
+  type: gate
+  category: delivery
+  description: 前置完成门禁，阻止无证据 TaskUpdate(completed)，节省浪费轮次
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-anti-pattern-detect
+  type: gate
+  category: quality
+  description: 反模式检测，A2/F1/G1/H1 四类阻断（虚假完成/假设驱动/伪诚信/语义作弊）
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-claim-audit
+  type: audit
+  category: audit
+  description: 铁律
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-subagent-audit
+  type: audit
+  category: audit
+  description: 子 agent 字节数审计，超阈值写入 flywheel P0
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-completion-audit
+  type: audit
+  category: audit
+  description: 完成声明审计，交叉验证 TaskUpdate 与实际产物
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-handoff-writer
+  type: monitor
+  category: knowledge
+  description: 完成时自动写交接备忘录，session-handoff 持久化
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-output-format
+  type: guard
+  category: quality
+  description: 输出格式方向感检查，哲学
+  enabled_by_default: true
+  evidence_level: L3
+- name: intent-tracker
+  type: monitor
+  category: quality
+  description: 声明矛盾检测，编辑抖动/内容回退追踪
+  enabled_by_default: true
+  evidence_level: L3
+- name: compact-detect
+  type: monitor
+  category: runtime
+  description: /compact 检测 + 铁律/kernel/AGENTS/skill-graph/session-handoff 全量重注
+  enabled_by_default: true
+  evidence_level: L3
+- name: knowledge-condenser
+  type: monitor
+  category: knowledge
+  description: claude-next.md 压缩归档，长期会话知识密度管理
+  enabled_by_default: true
+  evidence_level: L3
+- name: stop-drain
+  type: monitor
+  category: runtime
+  description: Stop hook 兜底重放，确保会话结束持久化
+  enabled_by_default: true
+  evidence_level: L3
+- name: retry-budget-check
+  type: gate
+  category: quality
+  description: 重试预算检查，同签名 3 轮上限阻断
+  enabled_by_default: true
+  evidence_level: L3
 skills:
-  - name: lx-status
-    type: monitor
-    category: observability
-    description: 健康面板：执行效率、自愈力和渐进式披露 Token 节省
-    enabled_by_default: true
-  - name: lx-code-review
-    type: reviewer
-    category: review
-    description: Go 代码审查：8 类别 39 规则，含错误处理/并发/接口/性能
-    enabled_by_default: true
-  - name: lx-react-review
-    type: reviewer
-    category: review
-    description: React/Next.js 前端代码审查：渲染性能/Hooks/组件/状态/TS质量
-    enabled_by_default: true
-  - name: lx-style-guide
-    type: reviewer
-    category: review
-    description: Tailwind CSS 规范 + Design Token 一致性 + 响应式断点验证
-    enabled_by_default: true
-  - name: lx-web-perf
-    type: reviewer
-    category: review
-    description: Web 性能审查：Bundle 分析/Web Vitals/Next.js 优化/渲染/网络/资产
-    enabled_by_default: true
-  - name: lx-browser-verify
-    type: tester
-    category: test
-    description: 浏览器可视化验收：多分辨率截图/视觉回归/交互流/跨浏览器
-    enabled_by_default: true
-  - name: lx-test-gen
-    type: tester
-    category: test
-    description: "语言无关通用测试生成：自动检测语言(Go/TS/Python/Rust/Java/Ruby)，路由到参数化/Mock/HTTP/benchmark/fuzz/race 模式"
-    enabled_by_default: true
-  - name: lx-perf-analysis
-    type: tester
-    category: test
-    description: Go 性能分析：CPU/内存 profiling/goroutine 泄漏/benchmark
-    enabled_by_default: true
-  - name: lx-frontend-test
-    type: tester
-    category: test
-    description: 前端测试模板：系统化调试报告输出
-    enabled_by_default: true
-  - name: lx-security-review
-    type: reviewer
-    category: security
-    description: 安全扫描：Go 代码 + 依赖漏洞扫描/自动修复/提交判定
-    enabled_by_default: true
-  - name: lx-varlock
-    type: guard
-    category: security
-    description: 隐私脱敏代理管理器：密码/API Key/Token 明文保护
-    enabled_by_default: true
-  - name: lx-todo
-    type: workflow
-    category: workflow
-    description: 轻量 TODO 工作流：capture/triage/fix/verify/close 5步循环
-    enabled_by_default: true
-  - name: lx-task-spec
-    type: workflow
-    category: workflow
-    description: 任务驱动机制：引导问答 x3 → 结构化输入 → 规划 → 执行 → 验收
-    enabled_by_default: true
-  - name: lx-tdd-spec
-    type: workflow
-    category: workflow
-    description: 可测试规格生成：行为矩阵 + GWT 验收标准
-    enabled_by_default: true
-  - name: lx-debug-spec
-    type: workflow
-    category: workflow
-    description: 调试规格：根因调查 → 假设验证 → 修复 → 回归测试
-    enabled_by_default: true
-  - name: lx-pre-commit
-    type: gate
-    category: workflow
-    description: 提交前质量门禁：类型检测 → 编译 → 测试 → 代码审查
-    enabled_by_default: true
-  - name: lx-pre-push
-    type: gate
-    category: workflow
-    description: 推送前深度门禁：commit message 校验 → 测试覆盖 → 安全扫描
-    enabled_by_default: true
-  - name: lx-rpe
-    type: workflow
-    category: workflow
-    description: RPE 特性开发循环：TDD/代码审查/安全/验收/分级回滚
-    enabled_by_default: true
-  - name: lx-validate-skill
-    type: reviewer
-    category: quality
-    description: Skill 验收：frontmatter/原子化声明/节点引用/11 项规则检查
-    enabled_by_default: true
-  - name: lx-root-cause-analysis
-    type: analyzer
-    category: debug
-    description: 根因分析：Five Whys/证据链/置信度评分/免疫防御
-    enabled_by_default: true
-  - name: lx-oma
-    type: orchestrator
-    category: workflow
-    description: 一人成军司令部：需求拆解为正交功能分支，支持目录/单文件输入
-    enabled_by_default: true
-  - name: lx-race
-    type: orchestrator
-    category: workflow
-    description: "蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team/OMA Lock/race_manager.sh"
-    enabled_by_default: true
-  - name: lx-goal
-    type: workflow
-    category: automation
-    description: "目标模式 — 目标驱动自主执行。给 AI 具体目标，自动执行到完并输出报告。"
-    enabled_by_default: true
-  - name: lx-ghost
-    type: workflow
-    category: automation
-    description: "幽灵模式 — 方向驱动自主探索。给 AI 方向，AI 自主探索修复，不干扰人。"
-    enabled_by_default: true
+- name: lx-status
+  type: monitor
+  category: observability
+  description: 健康面板：执行效率、自愈力和渐进式披露 Token 节省
+  enabled_by_default: true
+- name: lx-code-review
+  type: reviewer
+  category: review
+  description: 通用代码审查：8 类别 39 规则，含错误处理/并发安全/接口设计/性能。方法论文本通用，当前实现含 Go 特定规则
+  enabled_by_default: true
+- name: lx-react-review
+  type: reviewer
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): React/Next.js 前端代码审查：渲染性能/Hooks/组件/状态/TS质量'
+  enabled_by_default: false
+- name: lx-web-perf
+  type: reviewer
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): Web 性能审查：Bundle 分析/Web Vitals/Next.js
+    优化/渲染/网络/资产'
+  enabled_by_default: false
+- name: lx-browser-verify
+  type: tester
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 浏览器可视化验收：多分辨率截图/视觉回归/交互流/跨浏览器'
+  enabled_by_default: false
+- name: lx-test-gen
+  type: tester
+  category: test
+  description: 语言无关通用测试生成：自动检测语言(Go/TS/Python/Rust/Java/Ruby)，路由到参数化/Mock/HTTP/benchmark/fuzz/race
+    模式
+  enabled_by_default: true
+- name: lx-security-review
+  type: reviewer
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 安全扫描：OWASP Top 10 漏洞检测 + 依赖审计 +
+    密钥泄露扫描。方法论文本通用，当前实现含 Go 特定检测 (govulncheck)'
+  enabled_by_default: false
+- name: lx-varlock
+  type: guard
+  category: security
+  description: 隐私脱敏代理管理器：密码/API Key/Token 明文保护
+  enabled_by_default: true
+- name: lx-todo
+  type: workflow
+  category: workflow
+  description: 轻量 TODO 工作流：capture/triage/fix/verify/close 5步循环
+  enabled_by_default: true
+- name: lx-task-spec
+  type: workflow
+  category: workflow
+  description: 任务驱动机制：引导问答 x3 → 结构化输入 → 规划 → 执行 → 验收
+  enabled_by_default: true
+- name: lx-tdd-spec
+  type: workflow
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 可测试规格生成：行为矩阵 + GWT 验收标准'
+  enabled_by_default: false
+- name: lx-debug-spec
+  type: workflow
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 调试规格：根因调查 → 假设验证 → 修复 → 回归测试'
+  enabled_by_default: false
+- name: lx-pre-commit
+  type: gate
+  category: workflow
+  description: 提交前质量门禁：类型检测 → 编译 → 测试 → 代码审查
+  enabled_by_default: true
+- name: lx-pre-push
+  type: gate
+  category: workflow
+  description: 推送前深度门禁：commit message 校验 → 测试覆盖 → 安全扫描
+  enabled_by_default: true
+- name: lx-rpe
+  type: workflow
+  category: workflow
+  description: RPE 特性开发循环：TDD/代码审查/安全/验收/分级回滚
+  enabled_by_default: true
+- name: lx-validate-skill
+  type: reviewer
+  category: quality
+  description: Skill 验收：frontmatter/原子化声明/节点引用/11 项规则检查
+  enabled_by_default: true
+- name: lx-root-cause-analysis
+  type: analyzer
+  category: debug
+  description: 根因分析：Five Whys/证据链/置信度评分/免疫防御
+  enabled_by_default: true
+- name: lx-race
+  type: orchestrator
+  category: infrastructure
+  description: 蜂群协调层 — 快速并行处理简单同构任务。注册子任务 → 派发多 agent → 收集 → 报告。基础机制，非可选 skill。
+  enabled_by_default: true
+- name: lx-stepwise
+  type: orchestrator
+  category: infrastructure
+  description: 逐步攻坚模式 — 高难度 bug 单步推进（隔离→定位→方案→修复→加固），每步验证。与 lx-race 互补。
+  enabled_by_default: true
+- name: lx-goal
+  type: workflow
+  category: automation
+  description: 目标模式 — 目标驱动自主执行。给 AI 具体目标，自动执行到完并输出报告。
+  enabled_by_default: true
+- name: lx-ghost
+  type: workflow
+  category: automation
+  description: 幽灵模式 — 方向驱动自主探索。给 AI 方向，AI 自主探索修复，不干扰人。
+  enabled_by_default: true
+- name: lx-golang-test
+  type: tester
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): Go 测试生成：table-driven/mock/HTTP
+    handler/benchmark/fuzz/race 模式'
+  enabled_by_default: false
+- name: lx-prd
+  type: workflow
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 高质量 PRD 生产流水线：Discovery → Uncertainty
+    Scan → Draft → Self-Eval → Expert Review → Polish'
+  enabled_by_default: false
+- name: lx-oma-hier
+  type: orchestrator
+  category: workflow
+  description: 分层 PRD 拆解：将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD
+  enabled_by_default: true
+- name: lx-oma-split
+  type: orchestrator
+  category: workflow
+  description: 一人成军司令部：Sub PRD 拆解为 feature 级 RPE，MECE 正交
+  enabled_by_default: true
+- name: lx-oma-gov
+  type: orchestrator
+  category: workflow
+  description: PRD 治理：漂移检测、冲突裁决、增量同步
+  enabled_by_default: true
+- name: lx-oma-orch
+  type: orchestrator
+  category: workflow
+  description: 管线编排器：状态查看/阶段推进/Oracle 门禁/并行开发管理
+  enabled_by_default: true
+- name: lx-sync
+  type: reviewer
+  category: quality
+  description: 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐、重复
+    key、引用完整性
+  enabled_by_default: true
+- name: update-carror-os
+  type: workflow
+  category: workflow
+  description: Carror OS 安装/更新：备份 AGENTS.md → 安装 → 恢复 → 验证 4 步闭环
+  enabled_by_default: true

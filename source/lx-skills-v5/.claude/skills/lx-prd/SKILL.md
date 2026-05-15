@@ -26,7 +26,7 @@ paths:
  - "docs/**/*.md"
 
 harness_version: ">=1.1.0"
-status: draft
+status: deprecated
 role: "PRD production pipeline — specification authoring and quality review"
 execution_mode: stepwise
 

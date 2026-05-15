@@ -60,7 +60,12 @@ PYEOF
         echo "───────────────────────────────────────"
         echo ""
         echo "确认应用补丁？输入 'yes' 确认:"
-        read -r CONFIRM
+        if [ -t 0 ]; then
+            read -r CONFIRM
+        else
+            echo "❌ 非交互式终端，拒绝自动应用补丁"
+            exit 1
+        fi
         [ "$CONFIRM" != "yes" ] && { echo "❌ 已取消"; exit 0; }
 
         python3 - "$PATCH_FILE" "$KEY" "$HISTORY_FILE" <<'PYEOF'
@@ -84,7 +89,11 @@ PYEOF
         KEY="${2:-}"
         [ -z "$KEY" ] && { echo "❌ 用法: escape-patch-apply.sh reject <key>"; exit 1; }
         echo "拒绝原因（可选）:"
-        read -r REASON
+        if [ -t 0 ]; then
+            read -r REASON
+        else
+            REASON="非交互式环境，无手动原因"
+        fi
         python3 - "$PATCH_FILE" "$KEY" "$HISTORY_FILE" "${REASON:-无}" <<'PYEOF'
 import json, sys, time
 patch_file, key, history_file = sys.argv[1], sys.argv[2], sys.argv[3]

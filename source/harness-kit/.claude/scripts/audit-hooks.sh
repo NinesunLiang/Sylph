@@ -69,24 +69,36 @@ except Exception as e:
     print(f'ERROR: cannot read settings.json: {e}')
     sys.exit(99)
 
-# === C. harness.yaml hooks_enabled (简易解析) ===
+# === C. harness.yaml hooks_enabled (yaml 库解析，回退到行解析) ===
 yaml_enabled = {}  # yaml_key -> bool
 try:
-    in_section = False
+    import yaml
     with open('.claude/harness.yaml') as f:
-        for line in f:
-            if line.startswith('hooks_enabled:'):
-                in_section = True
-                continue
-            if in_section:
-                if line and not line.startswith(' ') and not line.startswith('\t'):
-                    in_section = False
+        data = yaml.safe_load(f)
+    raw = data.get('hooks_enabled', {}) if isinstance(data, dict) else {}
+    for k, v in raw.items():
+        if isinstance(v, bool):
+            yaml_enabled[k] = v
+except Exception:
+    # 回退: 简易行解析 (兼容 yaml 库缺失或格式损坏)
+    try:
+        in_section = False
+        with open('.claude/harness.yaml') as f:
+            for line in f:
+                # 跳过注释行
+                clean = line.split('#')[0].rstrip()
+                if clean.startswith('hooks_enabled:'):
+                    in_section = True
                     continue
-                m = re.match(r'\s+(\S+):\s*(true|false)', line)
-                if m:
-                    yaml_enabled[m.group(1)] = (m.group(2) == 'true')
-except FileNotFoundError:
-    pass
+                if in_section:
+                    if clean and not clean[0] in (' ', '\t'):
+                        in_section = False
+                        continue
+                    m = re.match(r'\s+(\S+):\s*(true|false)', clean)
+                    if m:
+                        yaml_enabled[m.group(1)] = (m.group(2) == 'true')
+    except FileNotFoundError:
+        pass
 
 # Script → harness.yaml key 映射（按命名约定推断 + 显式覆盖）
 SCRIPT_KEY_OVERRIDES = {

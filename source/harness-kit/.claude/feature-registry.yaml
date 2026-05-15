@@ -102,22 +102,10 @@ hooks:
   description: Skill 飞轮，技能使用统计和优化建议
   enabled_by_default: true
   evidence_level: L3
-- name: build-validator
-  type: gate
-  category: quality
-  description: 编译验证门禁，自动检查构建状态
-  enabled_by_default: true
-  evidence_level: L3
 - name: pretool-user-correction
   type: monitor
   category: quality
   description: 用户纠正检测，触发纠正学习
-  enabled_by_default: true
-  evidence_level: L3
-- name: pretool-rule-anchor
-  type: monitor
-  category: knowledge
-  description: 规则锚点，turn 间隔注入防漂移提醒
   enabled_by_default: true
   evidence_level: L3
 - name: proactive-handoff
@@ -168,6 +156,13 @@ hooks:
   description: 生态探针，检测运行平台（CC/OC）与 OMO 安装状态，AI 据此调整策略
   enabled_by_default: true
   evidence_level: L2
+- name: meta_oracle_trigger
+  type: hook
+  category: quality
+  description: Meta-Oracle 自动触发 — 检测 Oracle ACCEPT/高分时提醒 AI 执行独立二审。哲学#4+#6 物化
+  enabled_by_default: true
+  evidence_level: L3
+
 - name: harness_config
   type: shared
   category: utility
@@ -186,6 +181,90 @@ hooks:
   description: OMA 并发写锁门禁，多 Agent 写同一文件时排队互斥
   enabled_by_default: true
   evidence_level: L3
+- name: fuzzy-block
+  type: gate
+  category: quality
+  description: 模糊指令硬阻断，C1 指令清晰度门禁
+  enabled_by_default: true
+  evidence_level: L3
+- name: pretool-sensitive-edit
+  type: gate
+  category: security
+  description: 治理文件编辑 CAPTCHA 验证码门禁，Edit/Write/Bash 全覆盖
+  enabled_by_default: true
+  evidence_level: L3
+- name: pre-completion-gate
+  type: gate
+  category: delivery
+  description: 前置完成门禁，阻止无证据 TaskUpdate(completed)，节省浪费轮次
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-anti-pattern-detect
+  type: gate
+  category: quality
+  description: 反模式检测，A2/F1/G1/H1 四类阻断（虚假完成/假设驱动/伪诚信/语义作弊）
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-claim-audit
+  type: audit
+  category: audit
+  description: 铁律
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-subagent-audit
+  type: audit
+  category: audit
+  description: 子 agent 字节数审计，超阈值写入 flywheel P0
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-completion-audit
+  type: audit
+  category: audit
+  description: 完成声明审计，交叉验证 TaskUpdate 与实际产物
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-handoff-writer
+  type: monitor
+  category: knowledge
+  description: 完成时自动写交接备忘录，session-handoff 持久化
+  enabled_by_default: true
+  evidence_level: L3
+- name: posttool-output-format
+  type: guard
+  category: quality
+  description: 输出格式方向感检查，哲学
+  enabled_by_default: true
+  evidence_level: L3
+- name: intent-tracker
+  type: monitor
+  category: quality
+  description: 声明矛盾检测，编辑抖动/内容回退追踪
+  enabled_by_default: true
+  evidence_level: L3
+- name: compact-detect
+  type: monitor
+  category: runtime
+  description: /compact 检测 + 铁律/kernel/AGENTS/skill-graph/session-handoff 全量重注
+  enabled_by_default: true
+  evidence_level: L3
+- name: knowledge-condenser
+  type: monitor
+  category: knowledge
+  description: claude-next.md 压缩归档，长期会话知识密度管理
+  enabled_by_default: true
+  evidence_level: L3
+- name: stop-drain
+  type: monitor
+  category: runtime
+  description: Stop hook 兜底重放，确保会话结束持久化
+  enabled_by_default: true
+  evidence_level: L3
+- name: retry-budget-check
+  type: gate
+  category: quality
+  description: 重试预算检查，同签名 3 轮上限阻断
+  enabled_by_default: true
+  evidence_level: L3
 skills:
 - name: lx-status
   type: monitor
@@ -195,23 +274,24 @@ skills:
 - name: lx-code-review
   type: reviewer
   category: review
-  description: 通用代码审查：8 类别 39 规则，含错误处理/并发安全/接口设计/性能，语言无关
+  description: 通用代码审查：8 类别 39 规则，含错误处理/并发安全/接口设计/性能。方法论文本通用，当前实现含 Go 特定规则
   enabled_by_default: true
 - name: lx-react-review
   type: reviewer
-  category: review
-  description: React/Next.js 前端代码审查：渲染性能/Hooks/组件/状态/TS质量
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): React/Next.js 前端代码审查：渲染性能/Hooks/组件/状态/TS质量'
+  enabled_by_default: false
 - name: lx-web-perf
   type: reviewer
-  category: review
-  description: Web 性能审查：Bundle 分析/Web Vitals/Next.js 优化/渲染/网络/资产
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): Web 性能审查：Bundle 分析/Web Vitals/Next.js
+    优化/渲染/网络/资产'
+  enabled_by_default: false
 - name: lx-browser-verify
   type: tester
-  category: test
-  description: 浏览器可视化验收：多分辨率截图/视觉回归/交互流/跨浏览器
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 浏览器可视化验收：多分辨率截图/视觉回归/交互流/跨浏览器'
+  enabled_by_default: false
 - name: lx-test-gen
   type: tester
   category: test
@@ -220,9 +300,10 @@ skills:
   enabled_by_default: true
 - name: lx-security-review
   type: reviewer
-  category: security
-  description: 安全扫描：OWASP Top 10 漏洞检测 + 依赖审计 + 密钥泄露扫描，语言无关
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 安全扫描：OWASP Top 10 漏洞检测 + 依赖审计 +
+    密钥泄露扫描。方法论文本通用，当前实现含 Go 特定检测 (govulncheck)'
+  enabled_by_default: false
 - name: lx-varlock
   type: guard
   category: security
@@ -240,14 +321,14 @@ skills:
   enabled_by_default: true
 - name: lx-tdd-spec
   type: workflow
-  category: workflow
-  description: 可测试规格生成：行为矩阵 + GWT 验收标准
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 可测试规格生成：行为矩阵 + GWT 验收标准'
+  enabled_by_default: false
 - name: lx-debug-spec
   type: workflow
-  category: workflow
-  description: 调试规格：根因调查 → 假设验证 → 修复 → 回归测试
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 调试规格：根因调查 → 假设验证 → 修复 → 回归测试'
+  enabled_by_default: false
 - name: lx-pre-commit
   type: gate
   category: workflow
@@ -273,15 +354,15 @@ skills:
   category: debug
   description: 根因分析：Five Whys/证据链/置信度评分/免疫防御
   enabled_by_default: true
-- name: lx-oma
-  type: orchestrator
-  category: workflow
-  description: DEPRECATED — 已拆分为 lx-oma-hier/lx-oma-split/lx-oma-gov/lx-oma-orch 四技能管线
-  enabled_by_default: false
 - name: lx-race
   type: orchestrator
-  category: workflow
-  description: 蜂群协调层：注册子任务 → 派发 → 收集 → 报告。复用 team/OMA Lock/race_manager.sh
+  category: infrastructure
+  description: 蜂群协调层 — 快速并行处理简单同构任务。注册子任务 → 派发多 agent → 收集 → 报告。基础机制，非可选 skill。
+  enabled_by_default: true
+- name: lx-stepwise
+  type: orchestrator
+  category: infrastructure
+  description: 逐步攻坚模式 — 高难度 bug 单步推进（隔离→定位→方案→修复→加固），每步验证。与 lx-race 互补。
   enabled_by_default: true
 - name: lx-goal
   type: workflow
@@ -295,15 +376,16 @@ skills:
   enabled_by_default: true
 - name: lx-golang-test
   type: tester
-  category: test
-  description: Go 测试生成：table-driven/mock/HTTP handler/benchmark/fuzz/race 模式
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): Go 测试生成：table-driven/mock/HTTP
+    handler/benchmark/fuzz/race 模式'
+  enabled_by_default: false
 - name: lx-prd
   type: workflow
-  category: workflow
-  description: 高质量 PRD 生产流水线：Discovery → Uncertainty Scan → Draft → Self-Eval → Expert
-    Review → Polish
-  enabled_by_default: true
+  category: deprecated
+  description: 'DEPRECATED (Oracle 审计 2026-05-15): 高质量 PRD 生产流水线：Discovery → Uncertainty
+    Scan → Draft → Self-Eval → Expert Review → Polish'
+  enabled_by_default: false
 - name: lx-oma-hier
   type: orchestrator
   category: workflow
@@ -323,4 +405,15 @@ skills:
   type: orchestrator
   category: workflow
   description: 管线编排器：状态查看/阶段推进/Oracle 门禁/并行开发管理
+  enabled_by_default: true
+- name: lx-sync
+  type: reviewer
+  category: quality
+  description: 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐、重复
+    key、引用完整性
+  enabled_by_default: true
+- name: update-carror-os
+  type: workflow
+  category: workflow
+  description: Carror OS 安装/更新：备份 AGENTS.md → 安装 → 恢复 → 验证 4 步闭环
   enabled_by_default: true

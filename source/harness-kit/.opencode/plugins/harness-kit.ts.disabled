@@ -1,12 +1,23 @@
 /**
- * harness-kit.ts — Carror OS OpenCode Plugin (Legacy)
+ * harness-kit.ts — Carror OS OpenCode Plugin (DEPRECATED)
+ *
+ * ⛔ 已废弃 (2026-05-15): 不要启用此文件。
  *
  * 版本：v1.0.1 | 对应 Claude Code harness-kit v6.1.8
+ * 当前 Carror OS: v6.2.0+
  *
- * 注意：新的 .opencode/plugins/sylph-hooks.ts 由 generate.py 自动生成，
- * 覆盖全部 13 个 OpenCode 可移植 hook。本文件为补充实现，提供一些
- * 旧版工具函数的 OpenCode 等价。
+ * 现代架构：hook 执行路径只有一条 —
+ *   OMO 原生 (PreToolUse/PostToolUse/UserPromptSubmit/Stop/PreCompact)
+ *   + carror-hooks-compat.ts (SessionStart/PostToolUseFailure)
+ *   → 读 .claude/settings.json → 执行 hook 脚本
  *
+ * 不需要 ts 侧"实现 hook 处理器"。所有 hook（含 v6.2.0 新增的 12 个）
+ * 自动通过 settings.json 注册被 OMO 原生执行。
+ *
+ * 如果你看到此文件为 .ts（非 .disabled）：请立即重命名为 .ts.disabled。
+ * shell hooks 已经在跑，不需要这个文件。
+ *
+ * 旧注释:
  * - auto-generated hook 注册请使用 sylph-hooks.ts（由 python3 .hooks/generate.py install 生成）
  * - 本文件保留以兼容旧版工作流 */
 

@@ -28,7 +28,7 @@ paths:
  - "*.css"
 
 harness_version: ">=1.1.0"
-status: draft
+status: deprecated
 role: "Browser visual verification & acceptance testing via Playwright"
 execution_mode: stepwise
 

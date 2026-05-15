@@ -396,6 +396,9 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
 fi
 
 # ─── 清理废弃 OpenCode 插件（v6.1.x 遗留，已被 OMO 原生 + carror-hooks-compat.ts 替代）──
+# 为什么禁用：OMO 原生从 settings.json 执行 5/7 事件的所有 hook，
+# carror-hooks-compat.ts 补齐 SessionStart/PostToolUseFailure。
+# 这些旧 ts 文件手动转发 hook，不仅重复而且不覆盖新 hook。
 for legacy_plugin in harness-kit.ts sylph-hooks.ts harness-config.ts; do
     if [ -f ".opencode/plugins/$legacy_plugin" ]; then
         mv ".opencode/plugins/$legacy_plugin" ".opencode/plugins/${legacy_plugin}.disabled" 2>/dev/null

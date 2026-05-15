@@ -52,6 +52,7 @@ JSON
         touch "$STATE_DIR/autonomous.active"
         echo "✅ 目标模式已开启 — 目标: $GOAL, ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
+        echo "   使用 CronCreate 跨会话恢复（无 10 轮上限）"
         echo "   任务逐项标记: lx-goal task-done \"完成项描述\""
         echo "   完成后输出报告: lx-goal report"
         ;;
@@ -185,7 +186,7 @@ for t in tasks:
         ;;
 
     poll)
-        # 目标模式轮询入口 — 由 loop skill / ralph-loop 调用
+        # 目标模式轮询入口 — 由 CronCreate / ralph-loop 调用（无 10 轮上限）
         POLL_FILE="$MODE_FILE"
         if [ ! -f "$POLL_FILE" ]; then
             if [ -f "$STATE_DIR/unattended-mode.json" ]; then
@@ -333,13 +334,13 @@ os.rename(tmp, file)
         echo "  lx-goal status"
         echo "  lx-goal set <json_key> <json_value>"
         echo "  lx-goal report                    输出执行报告"
-        echo "  lx-goal poll                      轮询入口（loop skill 调用）"
+        echo "  lx-goal poll                      轮询入口（CronCreate 调用）"
         echo "  lx-goal task-done \"描述\"          标记任务完成"
         echo "  lx-goal skip-risk \"描述\"          记录跳过的风险"
         echo "  lx-goal retry                     重试计数 +1"
         echo ""
         echo "驱动方式:"
-        echo "  /loop 600s lx-goal poll            (定时轮询)"
+        echo "  使用 CronCreate 调度 lx-goal poll   (跨会话恢复，无 10 轮上限)"
         echo "  /ralph-loop:ralph-loop \"...\"       (自愈循环)"
         echo ""
         echo "与 lx-ghost 的区别:"
