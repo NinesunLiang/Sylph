@@ -573,3 +573,46 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 触发条件：posttool-claim-audit 注册在 settings.json、harness.yaml、三方一致性检查全绿，但核心 regex 设计级漏报意味着铁律 #1 的自动化检测实际效果远低于预期
 正确行为：门禁三问不仅适用于机制采纳，也适用于机制内关键参数的验证。对安全门禁的关键正则，应有专项测试覆盖常见格式。
 证据：hook 全绿但 regex 只匹配 ~20% 引用格式 — 本会话 DG-29
+
+
+### 🐶 [DG-31] 开发机绝对路径进入分布式包 → 下游用户所有 hooks 失效（CRITICAL）
+
+@2026-05-15 hits:1
+触发条件：用户 curl 安装 Carror OS 后，settings.json 中所有 hook command 指向 /Users/lucas.liang/...
+正确行为：package-release.sh 打包前将开发机路径替换为 __PROJECT_ROOT__ 占位符，install.sh 安装时替换为用户实际项目路径。三层验证：root 真实路径 / source 占位符 / package 占位符。
+证据：修复前 package 含 45 处 /Users/lucas.liang/... → 修复后 45 处 __PROJECT_ROOT__ — 本会话
+
+### 🐶 [DG-32] PROJECT_DIR 非 canonicalized 导致 sed 路径替换静默失败
+
+@2026-05-15 hits:1
+触发条件：package-release.sh 用 PROJECT_DIR="$SCRIPT_DIR/.."（文本拼接 "scripts/.."），sed 用此值匹配 settings.json 中的真实路径失败
+正确行为：PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)" — canonicalized 路径
+证据：第一次 package rebuild 后 source settings.json 仍含 45 处硬编码，sed 实际未替换 — 本会话
+
+### 🐶 [DG-33] .claude/reference/ 和 .claude/references/ 双目录分裂 — philosophy.md 漏出发行包
+
+@2026-05-15 hits:1
+触发条件：philosophy.md 在 .claude/reference/ (单数)，但 package-release.sh 只 rsync .claude/references/ (复数)
+正确行为：合并为单目录 .claude/reference/，统一 8 个参考文件，清理历史残留
+证据：修复前 package 无 philosophy.md → 修复后 .claude/reference/philosophy.md (142 行) — 本会话
+
+### 🐶 [DG-34] Meta-Oracle 在分发版 AGENTS.md 缺失 — 哲学闭环断裂
+
+@2026-05-15 hits:1
+触发条件：Meta-Oracle 是根 AGENTS.md 元项目补充，未同步到 source/harness-kit/AGENTS.md。下游用户只有 Oracle 终审，没有 Oracle 的审判官。
+正确行为：通用哲学机制（非元项目专属）必须同步到 source mirror。补全 Meta-Oracle 章节 + 逆向追溯矩阵行。
+证据：source/harness-kit/AGENTS.md 从 635 → 655 行，新增 Meta-Oracle 章节 — 本会话
+
+### 🐶 [DG-35] /loop 内置 10 轮上限破坏 lx-ghost/lx-goal 无人值守语义
+
+@2026-05-15 hits:1
+触发条件：ghost/goal 模式通过 /loop 驱动 poll，10 轮后暂停问"是否继续"，3 小时无人值守场景断裂
+正确行为：两个 skill 改用 CronCreate 直接注册 cron 作业（无轮次上限），cron 触发 poll 直到过期或手动停止
+证据：SKILL.md + shell 脚本切换驱动方式 — 本会话
+
+### 🐶 [DG-36] 废弃 opencode 插件混淆用户能力评估 — 形式存在 ≠ 功能有效
+
+@2026-05-15 hits:1
+触发条件：用户 grep harness-kit.ts/sylph-hooks.ts 找 hook 关键词，得出 OpenCode ~45% 误判。实际执行路径是 OMO 原生 (5/7 事件) + carror-hooks-compat.ts (2/7 事件) → 读 settings.json。
+正确行为：废弃文件标注废弃原因 + 现代替代方案 + install.sh 自动禁用。形式存在 ≠ 功能有效（哲学 #4 的 ED 延伸）。
+证据：harness-kit.ts.disabled + sylph-hooks.ts.disabled 文件头废弃声明 — 本会话
