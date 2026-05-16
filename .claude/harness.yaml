@@ -105,6 +105,7 @@ hooks_enabled:
   stop_drain: true
   subagent_guard: true
   token_writer: true
+  skill_usage_tracker: true
   turn_counter: true
   user_correction_detector: true
 rule_anchor:

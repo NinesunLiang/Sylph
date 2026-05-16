@@ -427,6 +427,15 @@
             "timeout": 3000
           }
         ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/skill-usage-tracker.sh",
+            "timeout": 2000
+          }
+        ]
       }
     ]
   },

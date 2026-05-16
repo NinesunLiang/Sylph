@@ -403,6 +403,12 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 - name: turn_counter
+  - name: skill_usage_tracker
+    type: observer
+    category: infrastructure
+    description: 无侵入 skill 使用率追踪 — 检测 /lx-xxx 命令调用，追加 JSONL 记录
+    enabled_by_default: true
+
   type: hook
   category: observability
   description: 轮次计数 — UserPromptSubmit 统计会话轮次 + 定时注入锚点

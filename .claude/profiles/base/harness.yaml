@@ -33,6 +33,7 @@ subagent_guard:
 completion_gate:
   min_evidence_chars: 20
   required_keyword: VERIFIED
+  quality_threshold: 0.6
 bash_audit:
   dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
 permission_gate:
@@ -42,7 +43,7 @@ permission_gate:
   destructive_regex: \brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b
   sudo_regex: ^\s*sudo\b|sudo\s
   gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
-  bypass_regex: base64\s+(-d|--decode).*\|.*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|.*\b(bash|sh)\b|printf\s+["\x27\\047]%[bdh]|eval\s+\$\(echo
+  bypass_regex: base64\s+(-d|--decode).*\|.*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|.*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
   scope_write_regex: current-scope\.txt|sensitive-approved
 sublimation:
   count_threshold: 20
@@ -58,6 +59,7 @@ session_handoff:
 error_dna:
   enabled: true
   max_entries: 100
+escape_detection: true
 coupling:
   enabled: true
   min_co_change: 3
@@ -103,5 +105,9 @@ hooks_enabled:
   stop_drain: true
   subagent_guard: true
   token_writer: true
+  skill_usage_tracker: true
   turn_counter: true
   user_correction_detector: true
+rule_anchor:
+  turn_threshold: 15
+  interval: 5

@@ -14,7 +14,7 @@
 |`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
 |`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥3)，输出升华建议|
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
-|`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Oracle ACCEPT/高分时自动触发 Meta-Oracle 二审提醒|
+|`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Meta-Oracle 最后守门员自动触发（G1-G4）|
 |`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
 |`plan-gate` | PreToolUse | plan-gate.sh — PreToolUse:Edit|Write [默认关闭] — 编辑前检查是否跳过规划阶段|
 |`posttool-anti-pattern-detect` | PostToolUse | posttool-anti-pattern-detect.sh — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测|
