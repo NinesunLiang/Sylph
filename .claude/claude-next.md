@@ -792,3 +792,24 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 2. 新增 G1_MARKETING_CLAIM 模式 —— 营销文档的数值断言有独立的检测路径和违规信息
 3. 未来新增 AI 输出模式（如演讲稿、对外声明、发布说明）时，需评估现有门禁在该模式下的有效性
 **证据**：posttool-claim-audit.sh:48-58 的 exit 0 使 G1 对不含 file:line 的所有文件完全隐身。修复后的 G1 独立执行路径已通过测试。
+
+### 🐶 [DG-46] 自主模式激活必须走脚本，手动 touch 一个文件不够 (@LuangSir)
+
+@{today} hits:1
+触发条件：AI 手动创建 autonomous.active 而未调用 lx-goal.sh on
+正确行为：始终用 `bash .claude/skills/lx-goal/scripts/lx-goal.sh on "目标"` 激活。该脚本同时创建 lx-goal.json（给 is_mode_active()）和 autonomous.active（给 completion-gate）。手动 touch 一个文件 → 半个系统仍在 normal mode → agentic_menu 照弹不误。另外 lx-goal.sh 的 PROJECT_ROOT 路径曾存在 off-by-one bug（../../.. 停在 .claude/ 而非项目根），导致 lx-goal.json 创建到错误目录，is_mode_active() 永远返回 normal。
+证据：本会话 — AI 两次手动 touch autonomous.active 均被 agentic_menu 打断。is_mode_active() 读 lx-goal.json，不读 autonomous.active。lx-goal.sh 路径已修复为 ../../../..（4 级）同时修复 source mirror 中 lx-ghost.sh 的同源 bug。
+
+### 🐶 [DG-47] 决策链写在文档里 ≠ 编码在机制里 — 必须物理注入 AI 上下文 (@LuangSir)
+
+@{today} hits:1
+触发条件：AI 在自主模式下仍做出需要人工确认的决策，尽管 SKILL.md 已写明决策链 Philosophy→Iron Rules→Oracle→Meta-Oracle→Human
+正确行为：关键行为约束必须：(1) 写成独立 reference 文件 (2) SessionStart 时由 inject-project-knowledge.sh 检测 is_mode_active() 并注入全文 (3) 模式激活脚本 (lx-goal.sh/lx-ghost.sh) stdout 输出决策链。注入点不能在条件块内（如 session-dump 存在性检查），否则首次会话不注入。注入机制须经 Oracle+Meta-Oracle 双重审核。
+证据：autonomous-decision-chain.md（70 行决策矩阵 + 5 级链）+ inject-project-knowledge.sh:511-528 + lx-goal.sh:58-64 + Oracle C1(注入嵌套在 session-dump 块内) → REVISE → Meta-Oracle ACCEPT-WITH-RESERVATIONS → MAJOR #1/#2 修复
+
+### 🐶 [DG-48] is_mode_active() 检测了但没用 = 死代码 — 模式检测必须实际改变行为 (@LuangSir)
+
+@{today} hits:1
+触发条件：hook 调用了 is_mode_active() 获取模式变量，但在所有 agentic_menu 分支前从未检查该变量
+正确行为：任何 hook 调用 is_mode_active() 后，必须在所有交互式弹出分支前检查 MODE != "normal"。非 normal → 跳过 agentic_menu，直接 echo continue + exit 0。只赋值变量但不读变量 = 死代码 = 开发者假安全感 = 自主模式形同虚设。
+证据：subagent-guard.sh:10（_MODE=）→ 旧 105/113（agentic_menu 无检查）；edit-guard.sh:15（MODE=）→ 旧 75（agentic_menu 无检查）；pretool-retry-check.sh:18（_MODE=）→ 旧 66（agentic_menu 无检查）。三处均已修复，bash -n 全部通过。

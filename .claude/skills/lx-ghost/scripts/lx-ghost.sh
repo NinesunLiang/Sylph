@@ -52,9 +52,17 @@ JSON
         # 清理旧格式文件
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
         echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
-        echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
+        echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   调用 /loop ${INTERVAL}s lx-ghost poll 驱动探索轮次"
         echo "   或 /lx-ghost on \"继续\" — 在同一次会话内继续探索"
+        echo ""
+        # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）
+        DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
+        if [ -f "$DECISION_CHAIN" ]; then
+            echo "[.claude/reference/autonomous-decision-chain.md]"
+            cat "$DECISION_CHAIN"
+            echo ""
+        fi
         ;;
 
     off)

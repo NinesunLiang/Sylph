@@ -1,4 +1,4 @@
-## Hooks 速查（共 39 个）
+## Hooks 速查（共 40 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -37,6 +37,7 @@
 |`privacy-gate` | PreToolUse | privacy-gate.sh — PreToolUse:Bash|Read|Grep — 防止隐私数据泄露（DLP 门禁）|
 |`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit|
 |`skill-flywheel` | Stop | skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）|
+|`skill-usage-tracker` | UserPromptSubmit | skill-usage-tracker.sh — UserPromptSubmit — 记录 skill 调用频率|
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
 |`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
 |`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|

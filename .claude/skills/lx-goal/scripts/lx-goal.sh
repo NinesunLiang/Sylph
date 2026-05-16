@@ -51,9 +51,17 @@ JSON
         # 创建 autonomous.active 信号供 completion-gate 等降级
         touch "$STATE_DIR/autonomous.active"
         echo "✅ 目标模式已开启 — 目标: $GOAL, ${EXPIRY_HOURS}h 过期"
-        echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
+        echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   任务逐项标记: lx-goal task-done \"完成项描述\""
         echo "   完成后输出报告: lx-goal report"
+        echo ""
+        # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）
+        DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
+        if [ -f "$DECISION_CHAIN" ]; then
+            echo "[.claude/reference/autonomous-decision-chain.md]"
+            cat "$DECISION_CHAIN"
+            echo ""
+        fi
         ;;
 
     off)

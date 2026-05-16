@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 MODE_FILE="$STATE_DIR/lx-goal.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
-_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|retry"
+_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|retry"
 if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
     exec bash "$0" on "$@"
 fi
@@ -54,6 +54,14 @@ JSON
         echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
         echo "   任务逐项标记: lx-goal task-done \"完成项描述\""
         echo "   完成后输出报告: lx-goal report"
+        echo ""
+        # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）
+        DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
+        if [ -f "$DECISION_CHAIN" ]; then
+            echo "[.claude/reference/autonomous-decision-chain.md]"
+            cat "$DECISION_CHAIN"
+            echo ""
+        fi
         ;;
 
     off)
@@ -72,11 +80,12 @@ JSON
             EXP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
             DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
             SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+            HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
             RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
             echo "📋 目标模式 (lx-goal): 🟢 开启中"
             echo "   目标: $GOAL"
             echo "   过期: $EXP"
-            echo "   已完成: $DONE  跳过风险: $SKIP  重试: $RETRY"
+            echo "   已完成: $DONE  跳过风险: $SKIP  硬边界: $HARD  重试: $RETRY"
         elif [ -f "$STATE_DIR/unattended-mode.json" ]; then
             echo "📋 目标模式 (旧格式 unattended-mode.json): 🟡 兼容中"
             echo "   建议执行 lx-goal off && lx-goal on \"目标\" 迁移到新格式"
@@ -127,6 +136,7 @@ os.rename(tmp, file)
         GOAL=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
         DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
         SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+        HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
         RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
         SKIP_LIST=$(python3 -c "
 import json
@@ -135,6 +145,19 @@ risks = d.get('skipped_risks', [])
 for r in risks:
     desc = r.get('description', r) if isinstance(r, dict) else r
     print(f'- {desc}')
+" 2>/dev/null)
+        HARD_LIST=$(python3 -c "
+import json
+d = json.load(open('$MODE_FILE'))
+hits = d.get('hard_boundary_hits', [])
+for h in hits:
+    desc = h.get('description', '?')
+    reason = h.get('reason', '?')
+    human = h.get('human_action', '?')
+    print(f'- **操作**: {desc}')
+    print(f'  **原因**: {reason}')
+    print(f'  **需人类执行**: {human}')
+    print()
 " 2>/dev/null)
         TASK_LIST=$(python3 -c "
 import json
@@ -161,6 +184,7 @@ for t in tasks:
             echo "## 执行摘要"
             echo "- 已完成任务数: $DONE"
             echo "- 跳过风险数: $SKIP"
+            echo "- 硬边界拦截数: $HARD"
             echo "- 重试次数: $RETRY"
             echo ""
             echo "## 已完成任务"
@@ -177,8 +201,15 @@ for t in tasks:
                 echo "无"
             fi
             echo ""
+            echo "## ⚠️ 需人类介入项（硬边界）"
+            if [ -n "$HARD_LIST" ]; then
+                echo "$HARD_LIST"
+            else
+                echo "无"
+            fi
+            echo ""
             echo "## 验证状态"
-            echo "VERIFIED: 报告生成完毕（$DONE 项完成，$SKIP 项风险跳过，$RETRY 次重试）"
+            echo "VERIFIED: 报告生成完毕（$DONE 项完成，$SKIP 项风险跳过，$HARD 项硬边界拦截，$RETRY 次重试）"
         } > "$REPORT_FILE"
         echo "✅ 报告已生成: $REPORT_FILE"
         cat "$REPORT_FILE"
@@ -220,10 +251,11 @@ except: print('no')" 2>/dev/null)
         GOAL=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('goal','?'))" 2>/dev/null)
         DONE=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
         SKIP=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+        HARD=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
         RETRY=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
         echo "🔄 目标轮询 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "   目标: $GOAL"
-        echo "   已完成: $DONE  已跳过风险: $SKIP  重试次数: $RETRY"
+        echo "   已完成: $DONE  已跳过风险: $SKIP  硬边界: $HARD  重试次数: $RETRY"
 
         # 集成 retry-budget.sh 状态检查
         RETRY_SCRIPT="$SCRIPT_DIR/retry-budget.sh"
@@ -299,6 +331,40 @@ os.rename(tmp, file)
 " 2>/dev/null && echo "📝 已记录跳过的风险: $DESCRIPTION" || echo "❌ 记录失败"
         ;;
 
+    hard-boundary-hit)
+        # 记录硬边界拦截项（rm / git写 / 敏感文件 / API Key）
+        # 这些是物理禁区，绝不可执行，必须报告人类介入
+        DESCRIPTION="${2:-未知硬边界}"
+        REASON="${3:-未知原因}"
+        HUMAN_ACTION="${4:-请人工审阅并决定是否执行}"
+        TASK_FILE="$MODE_FILE"
+        if [ ! -f "$TASK_FILE" ]; then
+            if [ -f "$STATE_DIR/unattended-mode.json" ]; then
+                TASK_FILE="$STATE_DIR/unattended-mode.json"
+            else
+                echo "❌ 目标模式未开启"
+                exit 1
+            fi
+        fi
+        python3 -c "
+import json, os
+file = '$TASK_FILE'
+d = json.load(open(file))
+hits = d.get('hard_boundary_hits', [])
+hits.append({
+    'description': '$DESCRIPTION',
+    'reason': '$REASON',
+    'human_action': '$HUMAN_ACTION',
+    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+})
+d['hard_boundary_hits'] = hits
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null && echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)" || echo "❌ 记录失败"
+        ;;
+
     retry)
         # 增加重试计数
         TASK_FILE="$MODE_FILE"
@@ -323,7 +389,7 @@ os.rename(tmp, file)
         ;;
 
     *)
-        echo "用法: lx-goal on|off|status|set|report|poll|task-done|skip-risk|retry"
+        echo "用法: lx-goal on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|retry"
         echo ""
         echo "子命令:"
         echo "  lx-goal on \"目标描述\" [过期小时=6]"
@@ -336,6 +402,7 @@ os.rename(tmp, file)
         echo "  lx-goal poll                      轮询入口（loop skill 调用）"
         echo "  lx-goal task-done \"描述\"          标记任务完成"
         echo "  lx-goal skip-risk \"描述\"          记录跳过的风险"
+        echo "  lx-goal hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  记录硬边界拦截"
         echo "  lx-goal retry                     重试计数 +1"
         echo ""
         echo "驱动方式:"

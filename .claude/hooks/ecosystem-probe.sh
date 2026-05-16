@@ -37,7 +37,7 @@ detect_omo_family() {
         OMO=true; HOOK_LAYER="full"
     fi
     # Codex CLI
-    if command -v codex &>/dev/null || npm list -g @anthropic-ai/codex &>/dev/null 2>&1 || [ -f "$HOME/.codex/config.json" ] 2>/dev/null; then
+    if command -v codex &>/dev/null || npm list -g @openai/codex &>/dev/null 2>&1 || [ -f "$HOME/.codex/config.json" ] 2>/dev/null; then
         CODEX=true
     fi
     # Gemini CLI

@@ -506,9 +506,12 @@ if parts:
         print(p)
     print('--- 完整 dump: Read .omc/state/session-dump.json')
 " 2>/dev/null || true
+fi
 
 # ─── 自主模式决策链注入 ───
 # 当 goal/ghost 模式激活时，将决策链注入 AI 上下文
+# 哲学 #3(先守护): 决策链提供硬边界保护 
+# 哲学 #4(没验证=没做): 决策链强制 Oracle/Meta-Oracle 验证
 # 哲学 #5(以人为本): 减少心智负担 — AI 自主决策，人仅在最后审核
 # 哲学 #6(0信任): 决策链物理注入上下文，不依赖 AI 记忆
 STATE_DIR="$PROJECT_ROOT/.omc/state"
@@ -519,6 +522,7 @@ if [ "$CURRENT_MODE" != "normal" ]; then
         echo "[.claude/reference/autonomous-decision-chain.md]"
         cat "$DECISION_CHAIN"
         echo ""
+    else
+        echo "⚠️ [自主模式] 决策链文件缺失: $DECISION_CHAIN" >&2
     fi
-fi
 fi

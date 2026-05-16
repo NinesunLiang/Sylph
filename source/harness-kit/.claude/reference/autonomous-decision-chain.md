@@ -2,6 +2,16 @@
 
 > **This file is injected into AI context whenever goal/ghost mode is active.**
 > Every decision during autonomous execution follows this chain. No exceptions.
+>
+> **Phase 0** = the one-time human clarification window when a ghost/goal mode command is first issued. Phase 0 closes once the human confirms and autonomous execution begins. After Phase 0, no further questions are permitted.
+>
+> **If autonomous mode expires mid-task**: the chain is no longer authoritative. Revert to standard interaction mode. Notify the human if work was interrupted.
+
+## How to Use (matrix first, chain second)
+
+1. **Situation Matrix first** — check if your exact scenario matches a row below. If yes, follow that row's action.
+2. **Chain second** — if no matrix row matches, use the 5-level decision chain.
+3. **Tiebreaker** — when matrix and chain conflict, the matrix wins (it encodes specific, hard-won lessons).
 
 ## The Chain (always in order)
 
