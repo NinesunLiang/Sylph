@@ -112,15 +112,10 @@ Bash 被拦 → AI 弹 AskUserQuestion
 | Skill | Q1 目标提示 | Q2 选项 | Q3 示例 |
 |-------|-----------|--------|--------|
 | lx-code-review | 审查什么？ | 全量+验证 / 深度分析 / 快速扫描 | 并发安全 |
-| lx-security-review | 扫描什么？ | 全量+验证 / 深度分析 / 快速扫描 | SQL 注入 |
-| lx-react-review | 审查什么？ | 全量+验证 / 深度分析 / 快速扫描 | hooks 规则 |
 | lx-frontend-test | 测试什么？ | 单元 / E2E / 全量 | 表单交互 |
-| lx-golang-test | 测试什么？ | 单元 / 基准 / 全量 | table-driven |
 | lx-perf-analysis | 分析什么？ | CPU / 内存 / Goroutine / 全域 | 内存分配 |
 | lx-rpe | 什么功能？ | 完整 RPE 流程 | — |
-| lx-debug-spec | 什么错误？ | 快速定位 / 深度根因 / 修复+回归 | — |
 | lx-root-cause-analysis | 什么 bug？ | 5-Why / 完整免疫 | — |
-| lx-prd | 什么产品？ | 完整 PRD / 轻量版 | — |
 | lx-oma-gov | 治理什么？ | reconcil / propagate / audit | 冲突 ID |
 | lx-oma-hier | 拆解什么？ | 文件 / 目录路径 | 输出目录 |
 | lx-oma-orch | 管线操作？ | status / advance / gate | — |

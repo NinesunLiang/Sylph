@@ -36,7 +36,6 @@ Carror OS 内置多个技能（skill），通过自然语言触发：
 |------|--------|------|
 | 代码审查 | 说"审查代码"或"review this" | 自动调用 lx-code-review |
 | PRD 拆解 | 说"拆解需求"或`/lx-oma-hier 路径` | 按功能域 MECE 拆解 |
-| 安全扫描 | 说"安全检查" | 自动调用 lx-security-review |
 | 技术调研 | 说"研究一下"或"research" | 自动阅读代码 + 输出调研文档 |
 
 ## Step 5: 理解防御机制

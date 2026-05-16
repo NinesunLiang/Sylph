@@ -10,7 +10,6 @@ L3：业务流水线
   lx-oma-hier → lx-oma-split → lx-oma-gov → lx-oma-orch
 
 L2：专业能力
-  lx-code-review / lx-react-review / lx-security-review / lx-web-perf
 
 L1：基础设施
   lx-pre-commit / lx-pre-push

@@ -58,7 +58,7 @@ if [ "$TODO_INTERVAL" -gt 0 ] && [ $(( new_count % TODO_INTERVAL )) -eq 0 ]; the
     fi
 
     # ─── Todo 队列（只当有活跃项时显示） ──────────────────────────
-    PENDING=$(grep -cE '\[ \]|\[·\]' "$TODO_FILE" 2>/dev/null || echo 0)
+    PENDING=$(grep -cE '\[ \]|\[·\]' "$TODO_FILE" 2>/dev/null); PENDING="${PENDING:-0}"
     if [ -f "$TODO_FILE" ] && [ "$PENDING" -gt 0 ]; then
         echo "[待办: ${PENDING}项]"
         grep -E '\[ \]|\[·\]' "$TODO_FILE" 2>/dev/null | head -5
@@ -95,7 +95,7 @@ except:
     print(0)" 2>/dev/null)
     fi
     if [ -f "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" ]; then
-        CONTRADICTION_COUNT=$(grep -c '"contradiction": true' "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" 2>/dev/null || echo 0)
+        CONTRADICTION_COUNT=$(grep -c '"contradiction": true' "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" 2>/dev/null); CONTRADICTION_COUNT="${CONTRADICTION_COUNT:-0}"
     fi
     # C8 可维护性: 三方漂移检测 — z 脚本存在+yaml 启用但 settings 未注册
     DRIFT_COUNT=0
@@ -139,7 +139,7 @@ print(f'{zombie}+{orphan}')
     TOTAL_OPS_FILE="$STATE_DIR/total-ops.txt"
     ERROR_DNA_JSONL="$STATE_DIR/error-dna.jsonl"
     if [ -f "$ERROR_DNA_JSONL" ]; then
-        TOOL_DIVERSITY=$(grep -c '"error_type"' "$ERROR_DNA_JSONL" 2>/dev/null || echo 0)
+        TOOL_DIVERSITY=$(grep -c '"error_type"' "$ERROR_DNA_JSONL" 2>/dev/null); TOOL_DIVERSITY="${TOOL_DIVERSITY:-0}"
     fi
     if [ -f "$TOTAL_OPS_FILE" ]; then
         TOTAL_OPS=$(cat "$TOTAL_OPS_FILE" 2>/dev/null || echo 0)
@@ -207,7 +207,7 @@ if [ -f "$FUZZY_CHECK" ]; then
             LATEST_EXEC_CHECK=$(find "$PROJECT_ROOT/$DOC_ROOT" -name "$EXEC_DOC" -type f 2>/dev/null | xargs ls -t 2>/dev/null | head -1)
             INCOMPLETE_COUNT=0
             if [ -n "$LATEST_EXEC_CHECK" ]; then
-                INCOMPLETE_COUNT=$(grep -cE '🔄|⏳|进行中|in.progress' "$LATEST_EXEC_CHECK" 2>/dev/null || echo 0)
+                INCOMPLETE_COUNT=$(grep -cE '🔄|⏳|进行中|in.progress' "$LATEST_EXEC_CHECK" 2>/dev/null); INCOMPLETE_COUNT="${INCOMPLETE_COUNT:-0}"
             fi
 
             # 收集具体上下文：活跃 feature / scope 状态 + git 最近修改

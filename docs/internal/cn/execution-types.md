@@ -14,7 +14,6 @@
 2. 根因判断（30 秒规则）：
    ├─ 明显（满足以下任一）→ 直接修复（最小化变更）：
    │  · 缺 nil 检查 / 漏 error / 类型错误 / 边界缺失
-   └─ 不明显 → /lx-debug-spec 轻量模式：
       仅 Phase 1（定位）+ Phase 4（修复），max 2 轮
 3. go build ./... 编译通过
 4. 症状/根因自检（lx-todo 特有）：
@@ -53,7 +52,6 @@
 1. 确认测试覆盖：
    go test -v ./affected/package 2>&1 | tail -5
    ├─ 有测试 → 继续
-   └─ 无测试 → /lx-golang-test 先补核心测试 → 再重构
 2. 小步重构，每步 go build ./... 编译通过
 2a. 引用重构变更（必须粘贴修改前后的关键代码各 ≤3 行，标注文件:行号）
 3. 运行已有测试：go test ./affected/package

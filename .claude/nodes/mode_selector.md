@@ -160,5 +160,4 @@ task_characteristics:
 | execution_mode | skills | 公共门禁 |
 |---------------|--------|---------|
 | **race** | lx-oma-split, lx-race, lx-status | 子任务 MECE 检查, 聚合报告, 失败隔离 |
-| **stepwise** | lx-browser-verify, lx-code-review, lx-debug-spec, lx-golang-test, lx-oma-gov, lx-oma-hier, lx-pre-commit, lx-pre-push, lx-prd, lx-react-review, lx-root-cause-analysis, lx-rpe, lx-security-review, lx-task-spec, lx-tdd-spec, lx-todo, lx-validate-skill, lx-varlock, lx-web-perf | 阶段 entry/exit, 回滚方案, 证据验证 |
 | **stepwise** (hybrid) | lx-oma-orch | 外层 stepwise, 内部可 dispatch race |

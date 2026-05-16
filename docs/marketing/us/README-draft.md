@@ -89,8 +89,6 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 |----------|--------|--------------|
 | Task Pipelines | `lx-rpe`, `lx-task-spec`, `lx-todo` | Full-cycle: Research → Plan → Execute, auto-scaling by complexity |
 | Code Quality | `lx-code-review`, `lx-pre-commit`, `lx-pre-push` | Automated review + CI gates |
-| Security | `lx-security-review`, `lx-varlock` | Vulnerability scanning + DLP transparent proxy |
-| Deep Debug | `lx-root-cause-analysis`, `lx-debug-spec` | 5-Why tracing + concurrent debugging |
 | Monitoring | `lx-status` | Health dashboard: token savings, error recovery, task graphs |
 
 ---

@@ -17,10 +17,7 @@
 | `lx-pre-commit` | 提交前质量门禁总控，包含类型检测、增量编译、测试与代码审查。 | 终端输入 `/lx-pre-commit` 或集成至 Git Hook |
 | `lx-pre-push` | 推送前安全与合规门禁，包含 `ANK-1.5.6.16` Commit 格式校验。 | 终端输入 `/lx-pre-push` |
 | `lx-code-review` | 语言无关的通用代码审查（附带 Auto-fix）。 | 门禁自动唤醒 / 主动调用 |
-| `lx-react-review` | 前端/React 专属审查。 | 门禁自动唤醒 / 主动调用 |
-| `lx-security-review`| 安全扫描，结合底层工具检测硬编码和漏洞。 | 门禁自动唤醒 / 主动调用 |
 | `lx-style-guide` | 样式规范审查。 | 门禁自动唤醒 / 主动调用 |
-| `lx-web-perf` | Web 性能审查。 | 门禁自动唤醒 / 主动调用 |
 | `lx-validate-skill` | Skill 验收审查。frontmatter/原子化声明/节点引用 11 项规则检查。 | 主动调用 |
 
 ---
@@ -45,11 +42,6 @@
 ### 2. 高阶诊断与生成 (Diagnostics & Generation)
 
 * **/lx-root-cause-analysis**：5-Why 根因追溯。
-* **/lx-debug-spec**：深水区并发调试。
-* **/lx-prd**：自动化产品需求文档生成。
-* **/lx-tdd-spec**：TDD 测试驱动场景生成。
-* **/lx-browser-verify**：Playwright E2E 浏览器验收。
-* **/lx-golang-test** & **/lx-frontend-test**：语言专属的自动化测试框架。
 * **/lx-perf-analysis**：Go 性能分析。CPU/内存 profiling、goroutine 泄漏检测、benchmark 分析。
 
 ### 3. 专业运维与监控 (Specialized Tools)

@@ -18,10 +18,7 @@
 | `lx-pre-commit` | Pre-commit quality gate: type checking, incremental build, tests, code review | `/lx-pre-commit` or Git Hook |
 | `lx-pre-push` | Pre-push security & compliance gate, `ANK-1.5.6.16` commit format validation | `/lx-pre-push` |
 | `lx-code-review` | Language-agnostic code review with auto-fix | Auto-triggered / manual |
-| `lx-react-review` | Frontend/React-specific review | Auto-triggered / manual |
-| `lx-security-review` | Security scan: hardcoded secrets, vulnerability detection | Auto-triggered / manual |
 | `lx-style-guide` | Style convention review | Auto-triggered / manual |
-| `lx-web-perf` | Web performance review | Auto-triggered / manual |
 | `lx-validate-skill` | Skill acceptance review: frontmatter, atomization declarations, 11-rule node reference check | Manual |
 
 ---
@@ -43,11 +40,6 @@
 ### 2. Advanced Diagnostics & Generation
 
 * **/lx-root-cause-analysis**: 5-Why root cause tracing.
-* **/lx-debug-spec**: Deep-concurrency debugging.
-* **/lx-prd**: Automated PRD generation.
-* **/lx-tdd-spec**: TDD test scenario generation.
-* **/lx-browser-verify**: Playwright E2E browser acceptance.
-* **/lx-golang-test & /lx-frontend-test**: Language-specific test automation frameworks.
 * **/lx-perf-analysis**: Go performance analysis — CPU/memory profiling, goroutine leak detection, benchmark analysis.
 
 ### 3. Specialized Operations & Monitoring

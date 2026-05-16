@@ -245,6 +245,17 @@ Launch commands (copy & paste to new terminals):
 
 裁决逻辑由外部 Oracle 节点（`oracle_terminal.md`）完成，本 skill 只负责编排和状态维护。
 
+### Meta-Oracle 最后守门（G2 触发）
+
+当整个管线到达最终阶段（所有 Oracle gate 已 approved，dev 阶段 completed），且任务涉及 PRD/方案的最后一步（G2 触发条件），应触发 Meta-Oracle 做最高级终审：
+
+1. **触发时机**：`stages.dev = completed` + 所有 `oracle_gates[].status = approved`
+2. **执行方式**：运行 `bash .claude/scripts/meta-oracle-review.sh G2`，spawn opus critic agent（独立上下文）
+3. **门禁类型**：软门禁 — Meta-Oracle 给出 ACCEPT/ADVISORY/REJECT 裁决
+4. **留痕**：裁决写入 `.omc/state/meta-oracle-verdicts.md`
+
+> Meta-Oracle 消耗巨大（opus + 独立上下文），仅在管线最终完成时触发一次。日常阶段推进只走 Oracle 常规门禁。
+
 ---
 
 ## Pipeline 更新契约

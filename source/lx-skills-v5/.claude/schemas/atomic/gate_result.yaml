@@ -6,7 +6,6 @@
 
 # Description: Gate 判定结果，被 3+ skill 复用
 
-# Consumers: lx-pre-commit, lx-pre-push, lx-security-review
 
 
 gate_name:

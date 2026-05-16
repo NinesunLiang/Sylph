@@ -1,6 +1,41 @@
 # claude-next.md — AI 学习笔记
 
 > >
+
+### 🐶 [DG-32] 单审查者不够 — Oracle + Meta-Oracle 双签是安全审查的最低配置
+
+@2026-05-16 hits:1
+触发条件：关键安全机制（permission-gate, claim-audit）变更后仅通过 Oracle 一审
+正确行为：安全机制变更必须通过 Oracle + Meta-Oracle 两个独立 agent 的双重验收。Oracle 一审发现 2C/3M 但漏掉了 3 项 Meta-Oracle 发现的问题。Meta-Oracle 也漏掉了 Oracle 二审发现的 2 个 regression。两者互补才接近完整覆盖。
+证据：本会话 — permission-gate 经历 3 轮 Oracle + 2 轮 Meta-Oracle 才通过，累计发现 6C/8M/6m
+
+### 🐶 [DG-33] AI 修复 bug 会引入更危险的 regression — 修复后必须独立重审
+
+@2026-05-16 hits:1
+触发条件：AI 重构 permission-gate 的 check_cache 函数（修复 C2 字符串注入）
+正确行为：AI 修复 → 独立 agent 重审（不能自证"修好了"）。AI 修 C2 时消除了注入但忘记 sys.exit()，导致 check_cache 永远返回 success → 第一次 CAPTCHA 后所有危险命令自动放行。Oracle ADVERSARIAL 二审捕获。
+证据：permission-gate 二审 — Oracle 发现新 C1(exit code bug) + 新 C2(stdout 污染)
+
+### 🐶 [DG-34] 静态分析 ≠ 运行时验证 — 严重性必须经过实弹测试校准
+
+@2026-05-16 hits:1
+触发条件：Oracle 判 Python 字符串注入为 CRITICAL
+正确行为：Meta-Oracle 运行时验证 → 注入导致 Python 语法错误 → cache miss → 需要 CAPTCHA（fail-closed，更安全非更宽松）→ 降级至 MAJOR。安全审查需要区分"代码质量缺陷"和"安全漏洞"。
+证据：Meta-Oracle 二审 — C2 从 CRITICAL 降级为 MAJOR
+
+### 🐶 [DG-35] 同一 reviewer 不同轮次可能矛盾 — 多轮审查 + 上下文评估
+
+@2026-05-16 hits:1
+触发条件：Oracle 一审判 cat\b 太宽松 (M1)，三审判 cat\s+\w 太严格 (FAIL)
+正确行为：审查建议不是绝对正确。cat\b 的宽松排除比 cat\s+\w 的严格误杀更安全。在不同上下文中同一个 reviewer 给出相反建议，恰好说明多轮审查和独立二审的价值。
+证据：Oracle 一审 M1 vs 三审 Fix 3 FAIL
+
+### 🐶 [DG-36] grep -c || echo 0 — bash 中经典的静默失败双输出 bug
+
+@2026-05-16 hits:1
+触发条件：`VAR=$(grep -c pattern || echo 0)` — grep -c 输出 "0" 并 exit 1，|| echo 0 追加第二个 "0"
+正确行为：`VAR=$(grep -c pattern 2>/dev/null); VAR="${VAR:-0}"` — $() 已捕获 grep 的 "0" 输出，不需要 || echo 0。双重输出 "0\n0" 导致 [ "$VAR" -eq 0 ] 整数比较失败，G1 伪诚信检测静默跳过。
+证据：Meta-Oracle 运行时验证 — claim-audit.sh:99 的 G1 检测在 0 匹配时永不触发
 > 由 harness-kit 自动生成
 > 记录 AI 协作过程中积累的项目特有经验和教训
 > 新经验默认进入此文件，验证稳定后可升华到 kernel.md
@@ -616,3 +651,144 @@ bash "${CLAUDE_PROJECT_DIR:-...}/.claude/hooks/xxx.sh
 触发条件：用户 grep harness-kit.ts/sylph-hooks.ts 找 hook 关键词，得出 OpenCode ~45% 误判。实际执行路径是 OMO 原生 (5/7 事件) + carror-hooks-compat.ts (2/7 事件) → 读 settings.json。
 正确行为：废弃文件标注废弃原因 + 现代替代方案 + install.sh 自动禁用。形式存在 ≠ 功能有效（哲学 #4 的 ED 延伸）。
 证据：harness-kit.ts.disabled + sylph-hooks.ts.disabled 文件头废弃声明 — 本会话
+
+### 🐶 [DG-37] OpenCode 插件 stdout 泄漏必须阻塞 — process.stdout.write 会破坏 UI
+
+@2026-05-16 hits:1
+触发条件：OpenCode 插件在 hook handler 中调用 `process.stdout.write()`，且 hook 脚本（如 inject-project-knowledge.sh）产生大量 stdout 输出（~500+ 行）。
+正确行为：OpenCode 插件进程中 stdout 会被捕获并渲染到对话 UI。hook stdout 是内部协议响应（JSON continue/block），不是展示内容。插件应仅通过 stderr 做 debug log，绝不写 stdout。
+证据：carror-hooks-compat.ts L158-166 的 `process.stdout.write(combined + "\n")` 导致 SessionStart 时 inject-project-knowledge.sh 的全文注入内容 + flywheel-report + ecosystem-probe + token_writer 的 stdout 全部泄漏到对话 UI，造成 ~44 行乱码覆盖正常对话。修复：删除 stdout.write → 仅保留 log()（stderr）。同时修复 ecosystem-probe.sh 的 heredoc bug（第一个 `cat <<PROBE` 未闭合导致 shell 源码被当作文本输出）。
+
+### [2026-05-16] 用户纠正: 不对
+@2026-05-16 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+
+
+### 🐶 [DG-38] Meta-Oracle 从 Oracle 评分验证器升级为最后守门员（核武器级定位）
+
+@2026-05-16 hits:1
+**触发场景**：用户执行 `/lx-goal "Mate-Oracle是新加入Carror OS的核武器级别的人物，请源码级别的浏览项目，给予它Mate-Oracle 合适的位置..."`，要求 Meta-Oracle 从"Oracle 的审判官"（仅验证 Oracle 评分）升级为覆盖架构决策、PRD 终审、Release 门禁的最后守门员。
+**问题**：
+1. Meta-Oracle 之前仅定义为 Oracle 评分验证器（G3），未在架构决策（G1）、PRD 终审（G2）、Release（G4）触发
+2. 公开文档（stories/guides/dogfooding）零覆盖 Meta-Oracle
+3. Oracle vs Meta-Oracle 的分工边界模糊 — 两者都叫"守门员"但未说清谁是最后防线
+4. Meta-Oracle hook 仅做提醒，无实际门禁执行力
+**纠正**：
+1. **4 触发点 G1-G4**：架构决策终审 → PRD/方案最后一步 → Oracle ACCEPT+高分 → Release 门禁
+2. **分工明确化**：Oracle = 常规守门员（硬门禁，每阶段），Meta-Oracle = 最后守门员（软门禁，~5% 任务触发）
+3. **软门禁协议**：ACCEPT/ADVISORY/REJECT 三级裁决，REJECT 可覆写但需书面理由，连续 2 次 REJECT 升级为事实阻断
+4. **执行方式**：opus critic agent（独立上下文），运行时验证 > 静态检查
+5. **Pipeline 集成**：lx-oma-orch（G2 管线最终阶段）、lx-oma-hier（G1 架构决策）、package-release.sh（G4 发布前检查）
+6. **Hook 扩展**：meta-oracle-trigger.sh 从仅 G3 扩展到 G1-G4 全部触发点
+7. **文档同步**：AGENTS.md（root + source）、philosophy.md、oracle_terminal.md、story-11.md、for-experts.md 全部更新
+**变更文件**（14 个）：
+- 核心治理: AGENTS.md（root + source/harness-kit）、philosophy.md（root + source）
+- 机制: meta-oracle-trigger.sh、meta-oracle-review.sh、oracle_terminal.md
+- Pipeline: lx-oma-orch/SKILL.md、lx-oma-hier/SKILL.md
+- Release: package-release.sh
+- 公开文档: story-11.md、for-experts.md、philosophy.md（docs/guides/cn/）
+- 狗粮: claude-next.md（本记录）
+**哲学追溯**：#4(没验证=没做) + #6(0信任) — Oracle 的结论也需要被验证，关键节点需要最高级独立审查
+**证据**：本会话 — 14 个文件修改，Meta-Oracle 从 5 行定义扩展为 G1-G4 完整体系
+
+
+### 🐶 [DG-39] 言出法随是可验证的生态能力 — skillify+learner 从空壳到完整实现
+
+@2026-05-16 hits:1
+**触发场景**：用户说「言出法随，只是Carror OS是生态的表现之一」。当时 skillify 和 learner 是 OMC 空壳，无本地实现。
+**执行过程**：用户 4 次决策（表达想法 → 决定执行 → 纠正方向 → 要求记录），其余全部由 Carror OS 自主完成 — 3 个 Explore agent 并行探索架构 → Plan agent 设计 11 步计划 → 全自动创建 2 个 SKILL.md + 3 个 Python 脚本 + 4 个参考文档 → 跑 lx-validate-skill（两个 skill 均通过 11/11 规则）→ 注册到 feature-registry.yaml + skills-catalog.md。
+**关键数据**：二十分钟，11 个文件，0 行用户代码，用户干预 4 次。
+**纠正**：
+1. 生态不是「预装了多少功能」— 是系统能不能从使用中长出新能力
+2. skillify 和 learner 是生态的自生长机制 — 描述需求 → 自动产出通过验证的完整 skill
+3. 营销文档（launch-series.md 5 篇 + PRESS-KIT.md + manifesto.md）全部聚焦于防御，零覆盖创造/生长叙事 — 已在 launch-series.md 第1篇增加「不只防御：它会生长」章节，在 PRESS-KIT.md 增加第 5 项关键能力
+**哲学追溯**：#2(少量大增益) — 两个 skill 解锁无限扩展能力；#4(没验证=没做) — 每个 skill 通过 11 条规则自动化验证；#1(The Less, The More) — 用户只做 4 次决策
+**证据**：lx-skillify/SKILL.md:280 行, lx-learner/SKILL.md:303 行, 3 个 Python 脚本语法通过, validate-skill.sh: 两个均 PASS
+
+
+### 🐶 [DG-40] 营销只讲盾不讲剑 — 缺失整个创造叙事
+
+@2026-05-16 hits:1
+**触发场景**：用户要求检查宣发文件中是否有「言出法随」相关描述
+**问题**：搜索 docs/marketing/ 全部文件 — "言出法随"零匹配、"自生长"零匹配、skillify/learner 仅在技术指南 skills-catalog.md 中出现。launch-series.md（5 篇）、PRESS-KIT.md、manifesto.md、launch-plan.md — 全部聚焦于防御能力（hook/gate/护栏）。没有任何营销文件描述「描述需求 → 系统自动产出完整 skill」的能力
+**纠正**：
+1. launch-series.md 第1篇 — 新增「不只防御：它会生长」章节，用 2026-05-16 狗粮记录作为真实案例
+2. PRESS-KIT.md — 新增第 5 项关键能力：「你说一句话，它长出你需要的技能」
+3. 营销叙事从纯「盾」扩展为「盾+剑」— 防御保证安全底线，生态保证能力边界持续生长
+**证据**：launch-series.md:60-100, PRESS-KIT.md:86-100 — 本次会话更新
+
+
+### 🐶 [DG-41] 狗粮反馈循环在单次对话中完整闭合
+
+@2026-05-16 hits:1
+**触发场景**：用户说「这个作为狗粮之一」→ 要求写狗粮记录 → 检查宣发文件 → 更新营销文档
+**闭合链条**：
+1. 问题发现（DG-39: skillify+learner 是空壳）
+2. 机制创建（11 个文件，两个完整 skill）
+3. 验证（lx-validate-skill 11/11 PASS）
+4. 记录（dogfood-20260516-skillify-learner.yaml）
+5. 反哺营销（launch-series.md + PRESS-KIT.md 更新）
+6. 教训写入（本记录）
+**证据**：6 环全部在同一会话中完成，不是纸上流程 — 是真实执行的狗粮闭环
+
+
+### 🐶 [DG-42] Meta-Oracle 自审 — 核武器审查自身定位，证明存在价值
+
+@2026-05-16 hits:1
+**触发场景**：完成 Meta-Oracle G1-G4 定位后，用户问「Meta-Oracle 自己认可自己的位置吗」→ spawn opus critic agent（独立上下文）做 Meta-Oracle 自我审查
+**审查过程**：28 次 tool call，14 个文件交叉验证，运行时方法（grep 定义漂移 → 检查执行链路 → 验证文件存在性 → smoke test 尝试）
+**审查发现**（2 MAJOR + 5 MINOR）：
+- **MAJOR #1: G1 三源定义漂移** — AGENTS.md（≥2 子系统）、lx-oma-hier（≥3 功能域）、trigger.sh（任意架构关键词）三个来源的 G1 触发条件不一致，最坏情况下 AI 在闲聊中提到「架构决策」即触发 G1
+- **MAJOR #2: 反馈闭环断裂** — 触发 hook 存在，方法论脚本存在，但从触发到实际执行审查的链路缺失。meta-oracle-review.sh 只输出文本不执行检查；package-release.sh G4 只打印横幅不实际调用审查脚本
+- MINOR: settings.json 缺 timeout、PostToolUse .* 匹配过宽（95% 空跑）、G4 脚本未被实际调用、verdict/overrides 文件未创建、oracle_terminal.md 措辞循环
+**审查裁决**：ACCEPT-WITH-RESERVATIONS（设计自洽 8/10，边界清晰 9/10，过度设计 7/10，文档一致 8/10，可执行性 6/10）
+**立即修复**：
+1. G1 漂移：lx-oma-hier 对齐 AGENTS.md 权威源（≥2），trigger.sh 增加不可逆检测（三步过滤：架构语境 → Oracle ACCEPT → 不可逆/多子系统）
+2. G4 闭环：package-release.sh 实际调用 meta-oracle-review.sh G4 + 运行 audit-hooks + smoke-test + VERSION 检查
+3. settings.json 新增 timeout: 3000
+4. 创建 .omc/state/meta-oracle-verdicts.md 和 meta-oracle-overrides.md 桩文件
+**狗粮启示**：
+1. Meta-Oracle 的价值在第一次运行就被证明 — 如果不是这次自审，G1 三源漂移和 G4 空壳会在发布后才发现
+2. Meta-Oracle 不是装饰品 — 它用不同的方法论（运行时验证 > 静态检查）发现了文档层面无法察觉的定义漂移
+3. 「核武器审查核武器自身」不是悖论 — 是自指验证，与「编译器编译自己」同理
+4. 反馈闭环不仅是技术问题也是哲学问题 — 软门禁的设计正确，但触发→执行链路的物理断裂需要硬连接
+**证据**：Meta-Oracle critic agent 28 次 tool call 的完整审查报告；14 文件交叉验证；G1 漂移 before/after 对比；G4 package-release.sh before/after 对比
+
+
+### 🐶 [DG-43] AI 在营销/说服模式下输出更不严谨的断言 — 语义门禁必须覆盖非技术语境
+
+@2026-05-16 hits:1
+**触发场景**：AI 在营销文档中写「减少 95.6% 上下文浪费」，数字来源是 SessionStart 注入量对比（不是会话级节省），AI 凭探索 agent 返回的信息脑补含义后直接写入，未读原文验证。
+**问题**：AI 在写营销文案时进入「说服模式」——使用自然语言数值断言（95.6%、868+ 次），不产生 file:line 引用格式。posttool-claim-audit.sh 的 G1 检查依赖 file:line 存在来触发，营销文案不含 file:line → CLAIMED_FILES 为空 → `exit 0` → G1 永不执行。整个语义门禁对营销文档是透明墙。
+**纠正**：
+1. posttool-claim-audit.sh G1 数值断言检查独立于 file:line 存在性（不再被早期退出吃掉）
+2. 新增 G1_MARKETING_CLAIM 专用检测 — 营销文档中的数值断言必须有来源或 `[内部自检]`
+3. 扩展检测模式覆盖中文营销语言（减少/提升/节省/降低 X%、X倍、1/X）
+4. 门禁设计必须考虑 AI 在不同语境（技术文档/营销文案/叙事故事）下的输出特征差异
+**证据**：本会话 — AI 两次在营销文档中写无来源数字，用户纠正「为什么你能违反，这个是关键；违法后的道歉一文不值」→ 发现 posttool-claim-audit.sh 设计级盲区 → 修复后 exit 2 拦截无来源数字
+
+
+### 🐶 [DG-44] 跨 agent 信息链不可信 — 子 agent 返回的数据视为 [推断，待确认]
+
+@2026-05-16 hits:1
+**触发场景**：探索 agent 返回摘要中写「868+ hook 拦截事件」和「95.6% 上下文节省」，AI 直接写入营销文档。实际校验：868 是 skipped-errors.md 日期标题数，真实拦截事件 = 41；95.6% 是注入量缩减，不是「上下文浪费」。
+**问题**：AI 把子 agent 的输出当作「已验证数据」直接引用，跳过了读源文件的步骤。这是反模式 F1（假设驱动）+ 跨 agent 信任链污染 —— 子 agent 摘要中的「95.6%」和「868+」看起来像精确数据，实际是子 agent 自己对数据的解读（同样可能有误差）。
+**纠正**：
+1. 子 agent 返回的数值/统计/声明在写入任何文件前必须读源文件验证
+2. 子 agent 返回的数据默认标记为 `[推断，待确认]`，不直接当作事实
+3. 探索 agent → 返回摘要 → AI 引用 → 写入文件 → 中间必须读原文
+**证据**：本会话 —「868 次拦截」和「95.6% 上下文浪费」均来源于探索 agent 输出，AI 未读源文件即写入。Oracle 验证：实际拦截 = 41（非 868），benchmark 实测 = 14-53%（非 95.6%）。868/95.6% 从子 agent 输出到营销文档的链条中无任何验证环节。
+
+
+### 🐶 [DG-45] 语义门禁的防御面必须覆盖所有 AI 输出模式 — 不能假定 AI 始终在技术文档语境
+
+@2026-05-16 hits:1
+**触发场景**：posttool-claim-audit.sh 的 G1 检查自创建以来未对营销文档触发过一次 —— 因为营销文案不含 file:line 格式，CLAIMED_FILES 永远为空，G1 永远被跳过。
+**问题**：Carror OS 的所有 gate 都假设 AI 在「写代码/写技术文档」的语境下工作，此时 file:line 格式自然会出现。但营销文案是完全不同的语境 —— AI 在「说服模式」而非「验证模式」，写的是自然语言断言而非结构化引用，现有的 regex 全部失效。这是 DG-29 的同类问题（正则设计级漏报），但不是漏报引用格式，而是漏报**整个输出模式**。
+**纠正**：
+1. 门禁不应依赖特定格式（如 file:line）的必然存在 —— 关键检查（如数值断言来源）必须独立于格式假设
+2. 新增 G1_MARKETING_CLAIM 模式 —— 营销文档的数值断言有独立的检测路径和违规信息
+3. 未来新增 AI 输出模式（如演讲稿、对外声明、发布说明）时，需评估现有门禁在该模式下的有效性
+**证据**：posttool-claim-audit.sh:48-58 的 exit 0 使 G1 对不含 file:line 的所有文件完全隐身。修复后的 G1 独立执行路径已通过测试。

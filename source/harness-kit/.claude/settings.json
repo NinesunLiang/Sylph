@@ -241,7 +241,8 @@
           {
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/meta-oracle-trigger.sh",
             "hookName": "meta-oracle-trigger",
-            "type": "command"
+            "type": "command",
+            "timeout": 3000
           }
         ]
       },

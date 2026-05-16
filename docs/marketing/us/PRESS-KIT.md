@@ -104,6 +104,37 @@ Three-layer anti-drift mechanism running automatically — no manual `/compact` 
 
 ---
 
+## Model Cost Freedom: High-End Reliability with Affordable Models
+
+**The real bottleneck in AI coding isn't model intelligence — it's reliability.**
+
+90% of daily development tasks — CRUD, refactoring, bug fixes, test writing — don't need a top-tier model's deep reasoning. They need a disciplined system: don't fabricate file:line references, don't claim "done" without verification, don't drift from the goal mid-task.
+
+| Setup | Model Cost (per 1M tokens) | Reliability Mechanism |
+|-------|---------------------------|----------------------|
+| Opus 4.6 bare (CLAUDE.md only) | ~$15 | Model self-discipline |
+| **DeepSeek v4 Flash + Carror OS** | ~$0.27 | **Physical hook enforcement + dual review** |
+| **DeepSeek v4 Pro + Carror OS** | ~$1.10 | **Physical hook enforcement + dual review** |
+
+> DeepSeek v4 Flash costs less than **1/50th** of Opus. Pro costs less than **1/13th**.
+
+Carror OS bridges the model capability gap on three fronts:
+
+1. **Discipline compensates for intelligence** — 41 explicit hook-blocked events (recorded in `skipped-errors.md`), all discipline issues (false completion, dangerous commands, context drift), not intelligence problems. A smarter model makes the same mistakes.
+
+2. **Dual review compensates for blind spots** — Oracle + Meta-Oracle independent agent review system. Two review rounds found **zero overlapping** issues. Compute trades for coverage, filling single-model review gaps.
+
+3. **Memory compensates for forgetting** — 76 battle-tested lessons accumulate across sessions. The knowledge-condenser automatically sublimates high-frequency lessons into permanent rules. Knowledge grows with usage time, independent of model version.
+
+**Who benefits most:**
+- **Individual developers** — DeepSeek v4 Flash pricing, near-Opus daily reliability
+- **Small teams / startups** — Cover 90% of daily tasks with DeepSeek v4 Pro, reserve Opus for architecture decisions and complex algorithms
+- **Anyone AI-bill-conscious** — Carror OS progressive loading + context compaction saves 14%-53% tokens in real sessions (20-turn measured data, `benchmark-report.md:178-179`)
+
+> **The model is the engine. Carror OS is the brakes, seatbelts, and airbags.** A family car with safety systems gets you home more reliably than a race car with no brakes.
+
+---
+
 ## Differentiation
 
 The following designs have **no known comparable implementations** in the open-source community:

@@ -87,7 +87,6 @@
 ### 前端项目
 1. 按设计逐文件实现。关键决策点主动说一句
 2. 每个文件后 `npx tsc --noEmit` 增量编译
-3. 全部完成后 → 调用 lx-pre-commit（tsc → lx-react-review → npm test → 补测）
 4. 门禁通过后 → 生成实现文档写入 executor.md
 
 **编译失败处理**：第 1 次修复 → 第 2 次分析设计 → 第 3 次回 Step 2
@@ -115,7 +114,6 @@
 → 全部 yes → **go** | 任一 no → 先解决再进入 Step 4
 
 ### Go 项目
-调用 `Skill("lx-security-review")` → 降级链：security-review → govulncheck + 基础扫描
 
 ### 前端项目
 三层：npm audit → ESLint security → 静态模式扫描（eval/innerHTML/硬编码密钥）

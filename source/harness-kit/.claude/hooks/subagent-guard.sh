@@ -101,6 +101,11 @@ if [ -n "$MAX_TURNS" ] && [ "$MAX_TURNS" != "null" ] && [ "$MAX_TURNS" != "0" ];
         echo '{"continue": true}'
         exit 0
     fi
+    if [ "$_MODE" != "normal" ]; then
+        echo "[subagent-guard] 自主模式: 使用默认上限 ${DEFAULT_MAX_TURNS} 轮" >&2
+        echo '{"continue": true}'
+        exit 0
+    fi
     # 默认值 → Agentic UI 菜单，让用户确认或调整
     agentic_menu \
         "Subagent Guard: ${AGENT_TYPE}" \
@@ -109,6 +114,11 @@ if [ -n "$MAX_TURNS" ] && [ "$MAX_TURNS" != "null" ] && [ "$MAX_TURNS" != "0" ];
         "降级为 haiku" "最安全的执行策略"
 fi
 
+if [ "$_MODE" != "normal" ]; then
+    echo "[subagent-guard] 自主模式: max_turns 无效，使用默认上限 ${DEFAULT_MAX_TURNS} 轮" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
 # 兜底阻断：MAX_TURNS 为 0 / null 的异常情况
 agentic_menu \
     "Subagent Guard: ${AGENT_TYPE}" \

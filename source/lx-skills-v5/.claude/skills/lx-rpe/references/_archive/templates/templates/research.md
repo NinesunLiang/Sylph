@@ -18,6 +18,5 @@ Status: Draft / In Review / Approved
 
 ## 6. 建议路径- 推荐方向：- 备选方向：- 不建议方向及原因：
 
-## 外部 Skill 触发规则| 触发条件 | 调用 Skill | 传入参数 ||---|---|---|| Research 发现安全风险 | /lx-security-review | 风险描述 || Executor 遇到棘手 bug（修复 ≥2 次失败） | /lx-debug-spec | 错误描述 + 复现步骤 || bug 反复出现或系统性 | /lx-root-cause-analysis | 直接原因 + 复发证据 || Plan 批准后需生成测试框架 | /lx-golang-test | AC 列表 || Executor 完成后需验收 | /lx-pre-commit | 修复文件列表 + 测试命令 || 内存泄漏且棘手 | /lx-perf-analysis | 服务名 + 现象 + 压测参数 |
 
 ## Gate-R 检查（强制）- [ ] 链路完整且可解释（来源已标注，非纯推断）- [ ] 约束完整（技术/业务/合规三类均已评估）- [ ] 风险可解释并有缓解（含触发条件）- [ ] 未决问题已处理或阻断已标注- [ ] 待验证假设含证伪处置规则- [ ] （Handover）进度快照已核实

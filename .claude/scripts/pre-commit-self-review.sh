@@ -79,6 +79,7 @@ if echo "$ALL_DIFF" | grep -nE 'sensitive-approved|permission-approved' | grep -
 fi
 
 # 2. 检测新脚本中是否包含 "approve" / "auto-approve" / "bypass" 等批准语义
+set -f  # R24: prevent glob expansion
 for script_path in $NEW_SCRIPT_FILES; do
     if [ ! -f "$script_path" ]; then
         continue
@@ -106,6 +107,7 @@ for script_path in $NEW_SCRIPT_FILES; do
         HAS_BLOCKING=true
     fi
 done
+set +f  # R24: restore glob expansion
 
 # 4. 检测 .zshrc/.bashrc 中是否添加批准绕过
 if echo "$NEW_FILES" | grep -qE '\.(zshrc|bashrc|bash_profile|zprofile)$'; then
@@ -156,6 +158,7 @@ if echo "$ALL_DIFF" | grep -nE '(settings\.json|harness\.yaml).*skill' > /dev/nu
 fi
 
 # 2. 检测新文件中是否用 hook 注册逻辑检查 skill 文件
+	set -f  # R24: prevent glob expansion
 for script_path in $NEW_SCRIPT_FILES; do
     if [ ! -f "$script_path" ]; then
         continue
@@ -184,6 +187,7 @@ for script_path in $NEW_SCRIPT_FILES; do
         HAS_BLOCKING=true
     fi
 done
+	set +f  # R24: restore glob expansion
 
 # 4. 检测 ghost mode 相关变更中是否有域混淆
 if echo "$ALL_DIFF" | grep -qiE 'zombie.*(scan|detect|clean|remov)' && echo "$ALL_DIFF" | grep -qE 'settings\.json'; then
@@ -229,6 +233,7 @@ HOOK_ALL_FILES=$(echo -e "${HOOK_NEW_FILES}\n${HOOK_MODIFIED_FILES}" | sort -u |
 # 排除 harness_config.sh（它是共享库，不是 hook）
 HOOK_ALL_FILES=$(echo "$HOOK_ALL_FILES" | grep -v 'harness_config\.sh$')
 
+set -f  # R24: prevent glob expansion
 for hook_path in $HOOK_ALL_FILES; do
     hook_name=$(basename "$hook_path" .sh)
     yaml_key=$(echo "$hook_name" | tr '-' '_')
@@ -293,12 +298,14 @@ for hook_path in $HOOK_ALL_FILES; do
         HAS_WARNING=true
     fi
 done
+	set +f  # R24: restore glob expansion
 
 # 2. 检测 harness.yaml 自身的变更（手动关闭开关但脚本仍在）
 if echo "$STAGED_FILES" | grep -q 'harness\.yaml'; then
     # 检查是否有 hooks_enabled 设置为 false 但脚本仍在 settings.json 注册
     YAML_DISABLED=$(grep -E '^\s+\w+:\s*false' .claude/harness.yaml 2>/dev/null | grep -oE '^\s+\w+' | tr -d ' ' || echo "")
     if [ -n "$YAML_DISABLED" ]; then
+        set -f  # R24: prevent glob expansion
         for yk in $YAML_DISABLED; do
             script_name=$(echo "$yk" | tr '_' '-').sh
             if [ -f ".claude/hooks/$script_name" ] && ! echo "$script_name" | grep -q 'harness_config\.sh'; then
@@ -312,6 +319,7 @@ if echo "$STAGED_FILES" | grep -q 'harness\.yaml'; then
                 fi
             fi
         done
+        set +f  # R24: restore glob expansion
     fi
 fi
 

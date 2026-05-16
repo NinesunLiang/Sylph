@@ -72,7 +72,6 @@
 |:-----|:----:|:-----|:-----|
 | Skill 工作流引擎 | **8.5** | 24 skills × SKILL.md，lx-rpe 9 步状态机 + lx-oma-hier 分层编排 | 三层路由（rpe → task-spec → todo），覆盖大型特性到零散修复。分层 PRD 拆解经 Oracle 专家评审验证 |
 | A→B→A 交叉验证 | **8.5** | `completion-gate.sh:4` 处引用，subagent_reviewer.py 零上下文独立审查 | 打破 AI 自我证实偏差。但验证质量受 Sub-agent 推理能力限制，非保证最优 |
-| 代码审查 Skill | **7.5** | lx-code-review 39 条规则 + lx-style-guide + lx-security-review | 覆盖全面（安全/风格/性能/React），但规则是静态 MD 文件，无类型系统级保障 |
 | 任务自动化 | **8.0** | lx-rpe + lx-task-spec + lx-todo 三模式 | 端到端 PRD→RPE→交付 全链路贯通。扣分：并行 RPE 在预研阶段 |
 | 工具链集成 | **7.0** | LSP 集成 + build-validator + 语言测试 Skill（Go/Node/Python/Frontend） | Git 集成强（9.0），LSP 低于 Cursor IDE 原生体验（8.0），CI/CD 非核心（5.0） |
 | 可扩展性 | **8.0** | 三层 Skill 模板 + Schema 注册表 + 6 平台适配 + 四语言 profile | lx-oma-hier 创建验证了扩展机制可用。但 Skill 创建指南完善度可强化 |

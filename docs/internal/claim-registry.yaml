@@ -47,12 +47,13 @@ claims:
     alternative: null
 
   - id: C006
-    claim: "渐进式披露节省 ~19,280 tokens/session (~75%)"
-    status: downgraded
-    evidence: ".claude/scripts/loading_benchmark.py"
-    evidence_level: L2
-    blockers: ["数字为 tiktoken estimate（非 Claude 官方 tokenizer），需标注 estimate 级别"]
-    alternative: "渐进式披露实测 L1 ~7,500 tokens vs Full ~173,000 tokens = 95.6% 节省 (tiktoken estimate)"
+    claim: "渐进式披露减少 SessionStart 上下文注入"
+    status: implemented
+    evidence: "docs/technical/cn/benchmark-report.md:52-58"
+    evidence_level: L1
+    blockers: []
+    alternative: null
+    note: "SessionStart L1 注入 7,539 tokens vs 全量 172,994 tokens = 95.6% 注入量缩减。注意：这不是会话级节省。实际 20 轮会话节省：~14%（无压缩）~53%（含 compact），见 benchmark-report.md:178-179"
 
   - id: C007
     claim: "6 大 CLI 平台适配"

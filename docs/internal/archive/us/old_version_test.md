@@ -543,7 +543,6 @@ fi
 
 ## Fourth Round Full Scan Supplement (Final Round)
 
-**Scan Scope**: Remaining lx-skills (lx-pre-commit/lx-pre-push/lx-tdd-spec etc.), install script mechanism (Safe In-Place/Three-Stage Rocket/non-destructive hot-update), competitor comparison data sources, all key numeric claims (scores/hook counts/skill counts/thresholds), OWASP/BDD claims, 50% sweet spot mechanism details.
 
 ---
 
@@ -580,7 +579,6 @@ rows = [9.5, 9.8, 10.0, 9.7, 10.0, 9.8, 9.5, 9.8, 9.0, 9.6, 9.8, 10.0, 9.3]
 Total Skills: 23
 Base mode removed: 13
 Actually retained: 10
-Retained 10: lx-code-review lx-mirror lx-oma lx-perf-analysis lx-pre-commit lx-pre-push lx-react-review lx-security-review lx-style-guide lx-web-perf
 ```
 - Code and actual deletion logic show 10 retained, but install.sh:87 outputs "6" to the user
 - Consequently, architecture-review.md:103 also claims "19 Skills," actual source directory count is 23 (excluding TEMPLATE.md and VERSION)

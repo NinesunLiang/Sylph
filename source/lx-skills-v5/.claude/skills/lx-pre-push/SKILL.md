@@ -73,7 +73,6 @@ bashpython3 .claude/skills/lx-pre-push/scripts/get_changed_files.py \ --prod-com
 
 ### Gate 2 — 测试覆盖 + 安全扫描
 AI 根据 Gate 1 的项目类型判断执行：
-**Go 项目**：- 安全扫描：检查 OWASP Top 10 漏洞 + 依赖审计（lx-security-review 已废弃，AI 直接执行安全审查）- 执行 `go test -race -coverprofile=coverage.out ./...`，检查覆盖率
 **前端项目**：- `npm audit --production`- 安全扫描：AI 直接审查 OWASP 常见前端漏洞（XSS/CSRF/依赖注入）
 安全扫描：🔴=0 才能通过，🟡 记录不阻塞。
 
@@ -89,7 +88,6 @@ Gate 0 Commit格式：✅ {N} commits 全部通过Gate 1 变更范围： {N} 文
 ## 降级策略
 | 场景 | 主路径 | 降级路径|
 |------|--------|---------|
-|lx-security-review 不可用 | 调用 skill | 执行 `govulncheck ./...`，标注"[降级扫描]"|
 |prod-commit 无效 | 脚本报错 | 提示用户重新提供，说明获取方法|
 |测试超时 | 等待 | 120s 后标注"[测试超时，建议手动验证]"，不阻塞 |
 

@@ -155,15 +155,12 @@ export default async () => {
           }
         }
 
-        if (outputs.length > 0) {
-          const combined = outputs.join("\n---\n");
-          try {
-            process.stdout.write(combined + "\n");
-          } catch {
-            // stdout may not be writable at session.created time
-          }
-          log(`SessionStart: ${outputs.length} hooks executed`);
-        }
+        // IMPORTANT: Do NOT write hook stdout to process.stdout.
+        // OpenCode captures plugin process stdout and renders it in the
+        // conversation UI, causing garbled display when SessionStart hooks
+        // produce large output (e.g. inject-project-knowledge.sh, ~500+ lines).
+        // Hook stdout is for internal protocol responses (JSON continue/block).
+        log(`SessionStart: ${outputs.length} hooks executed`);
       }
 
       // ── UserPromptSubmit ─────────────────────────────────────

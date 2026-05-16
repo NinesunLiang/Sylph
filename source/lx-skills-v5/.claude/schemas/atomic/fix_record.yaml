@@ -6,7 +6,6 @@
 
 # Description: 修复记录，被 4+ skill 复用
 
-# Consumers: lx-code-review, lx-security-review, lx-todo, lx-debug-spec
 
 
 finding_id:

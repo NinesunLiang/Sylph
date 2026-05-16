@@ -63,7 +63,6 @@
 
 **用户审阅迭代循环**：用户备注 → AI 回应 → Gate-P 自检 → 归纳确认
 
-**Gate-R 附加检查**：自动调 lx-code-review（Go）或 lx-react-review（前端）评审 plan.md。P0/P1 必须修复。
 
 **上下文锚点**（前置条件）：
 ```

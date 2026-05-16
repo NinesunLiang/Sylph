@@ -69,7 +69,6 @@ User input rm -rf /var/www
 |:---------|:-----:|:---------|:------------|
 | Skill workflow engine | **8.5** | 24 skills x SKILL.md, lx-rpe 9-step state machine + lx-oma-hier hierarchical orchestration | Three-layer routing (rpe -> task-spec -> todo), covering large features to scattered fixes. Hierarchical PRD decomposition verified by Oracle expert review |
 | A->B->A cross-validation | **8.5** | Referenced at `completion-gate.sh:4`, subagent_reviewer.py zero-context independent review | Breaks AI self-verification bias. However, verification quality is limited by sub-agent reasoning capability, not guaranteed optimal |
-| Code review skill | **7.5** | lx-code-review 39 rules + lx-style-guide + lx-security-review | Comprehensive coverage (security/style/performance/React), but rules are static MD files, no type-system-level guarantees |
 | Task automation | **8.0** | lx-rpe + lx-task-spec + lx-todo three modes | End-to-end PRD->RPE->delivery full chain connected. Deduction: parallel RPE still in research phase |
 | Toolchain integration | **7.0** | LSP integration + build-validator + language test skills (Go/Node/Python/Frontend) | Git integration strong (9.0), LSP below native Cursor IDE experience (8.0), CI/CD not core (5.0) |
 | Extensibility | **8.0** | Three-layer skill template + Schema registry + 6 platforms + four-language profile | lx-oma-hier creation verified extension mechanism. But skill creation guide completeness can be improved |

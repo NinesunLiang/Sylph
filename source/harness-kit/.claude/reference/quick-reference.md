@@ -7,7 +7,6 @@
 | 提需求 | 直接说，AI 自动判断难度选择 skill |
 | 代码审查 | "审查代码"或`/lx-code-review` |
 | 拆解需求 | `/lx-oma-hier 路径` — 按功能域拆分 |
-| 安全检查 | "安全检查"或`/lx-security-review` |
 | 提交代码 | 说"提交" → AI 报告变更 → 你确认 → 自动 commit |
 | 打包发布 | 说"打包"或`bash install.sh` |
 

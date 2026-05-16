@@ -1,12 +1,10 @@
 ---
 
-name: lx-prd
 
 version: v4.0.0
 
 description: "高质量 PRD 生产流水线（RPE 模式）：Discovery → Uncertainty Scan → Draft → Self-Eval → Expert Review → Polish。含专家循环优化、飞轮设计、差距扫盲、无虚构约束。"
 
-when_to_use: "Use when user says 'lx-prd', '写prd', '写 prd', '产品需求文档', '需求文档', 'PRD', 'prd', 'write prd', '帮我写一个prd', '生成prd'."
 
 model: sonnet
 
@@ -28,7 +26,6 @@ harness_version: ">=1.1.0"
 
 ---
 
-# lx-prd — 高质量 PRD 生产流水线（RPE 模式 v2.9）
 
 ## 原子化声明
 
@@ -418,14 +415,10 @@ markdown
 
 ## 关联 Skill 编排
 >
-> lx-prd 是需求链的**源头**，Gate-E 通过后输出的 PRD 可直接作为下游 Skill 的输入。
 > **缺失处理**：调用下游 Skill 前先检测是否存在，缺失时自动降级到替补 Skill，替补不可用时内联执行。
-| 关系 | 首选 Skill | 缺失时替补 | 替补均不可用 | 触发条件 | 输入数据契约（lx-prd 提供）|
 |------|-----------|-----------|------------|---------|--------------------------|
-|下游 | `lx-tdd-spec` | `oh-my-claudecode:tdd` | 内联生成 GWT 表（嵌入 PRD 附录） | Gate-E 通过后，用户说"生成测试规格" | `二、2.1 用户故事 + AC`（F-XX 功能块）|
 |下游 | `lx-rpe` | `oh-my-claudecode:ralph` | `oh-my-claudecode:autopilot` | PRD 交付后进入开发阶段 | `二、2.2 功能列表（P0）` + `三、3.1 架构总览` + `附录 A`|
 |下游 | `lx-code-review` | `oh-my-claudecode:code-review` | 内联执行 Phase 3 Self-Eval 同等检查 | 开发完成后代码审查 | `三、3.4 ADR 表`（架构决策约束）|
-|上游 | 用户/产品规划 | — | — | 用户触发 `lx-prd new` | 功能名称 + 业务背景（自然语言） |
 **Skill 可用性检测（调用前执行）**：
 ```
 检测顺序：
@@ -434,15 +427,12 @@ markdown
 3. 替补也不可用 → 内联执行，声明： "⚠️ [首选Skill] 和 [替补Skill] 均不可用，将在当前上下文内联执行等价逻辑"
 
 ```
-**数据传递示例**（lx-prd → lx-tdd-spec，含降级）：
 ```
 
 # 首选路径
-lx-tdd-spec
 输入：rpe/{product-name}/prd.md 中的「二、2.1 用户故事」章节
 契约字段：功能ID(F-XX)、用户故事三要素、AC 触发/成功/失败条件
 
-# 降级路径（lx-tdd-spec 缺失时）
 oh-my-claudecode:tdd
 输入：同上，补充说明"以下 AC 来自 PRD F-XX"
 
@@ -456,7 +446,6 @@ oh-my-claudecode:tdd
 |v2.4 | 2026-04-17 | P0/P1 修复 8 项（Phase 2-E 命名/路径/风险章节/附录模板/根因/Gate计数等）|
 |v2.5 | 2026-04-17 | 新增 Skill 健康度评估框架（6维×10分=60分制）|
 |v2.6 | 2026-04-17 | P0 结构拆分：891→400行，模板迁移到 references/；Gate-1.5→Gate-U；新增 lite 入口；Phase 1 补 BLOCKED 格式|
-|v2.7 | 2026-04-17 | 修复 P0 流程图矛盾：补充 45-59/60-74 分段修复节点，与 Phase 3 文字表格对齐；删除冗余嵌套目录 lx-prd/lx-prd/|
 |v2.8 | 2026-04-17 | 修复 P1 三项：补充 AI 角色声明（C2）；Phase 1.5 新增症状类 Q 项分类（E5）；新增关联 Skill 编排章节含下游数据契约（C7）|
 |v2.9 | 2026-04-17 | 关联 Skill 兼容处理：三条下游链路均补充替补 Skill（oh-my-claudecode 系列）及内联兜底逻辑，新增可用性检测三步协议 |
 ## 降级策略

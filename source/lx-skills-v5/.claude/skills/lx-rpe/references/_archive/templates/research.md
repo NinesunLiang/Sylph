@@ -40,10 +40,7 @@ Status: Draft / In Review / Approved
 
 ## 外部 Skill 触发规则| 触发条件 | 调用 Skill | 传入参数 |
 |---|---|---|
-| Research 发现安全风险 | /lx-security-review | 风险描述 |
-| Executor 遇到棘手 bug（修复 ≥2 次失败） | /lx-debug-spec | 错误描述 + 复现步骤 |
 | bug 反复出现或系统性 | /lx-root-cause-analysis | 直接原因 + 复发证据 |
-| Plan 批准后需生成测试框架 | /lx-golang-test | AC 列表 |
 | Executor 完成后需验收 | /lx-pre-commit | 修复文件列表 + 测试命令 |
 | 内存泄漏且棘手 | /lx-perf-analysis | 服务名 + 现象 + 压测参数 |
 

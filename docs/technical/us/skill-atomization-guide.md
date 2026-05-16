@@ -110,8 +110,6 @@ Skills should declare their state machine type and specify whether they referenc
 
 | Type | Description | Example |
 |------|-------------|---------|
-| **scan→fix→re-scan loop** | Review-type Skills | lx-code-review, lx-security-review |
-| **analyze→generate→verify flow** | Generation-type Skills | lx-tdd-spec, lx-rpe |
 | **Gate type** | Gate chain | lx-pre-commit, lx-pre-push |
 | **Custom X-phase** | Does not reference orchestrator.md | Must explain why |
 

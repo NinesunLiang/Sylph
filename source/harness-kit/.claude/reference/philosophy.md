@@ -138,5 +138,5 @@ Carror OS 的 7 条哲学就是它的"性格" — 定义了它面对任何情况
 | `audit-hooks.sh` | 脚本 | #4 | 三方一致性审计 |
 | `harness-smoke-test.sh` | 脚本 | #4 | 回归验证 |
 | Oracle 终审 | 节点 | #6 | 最高权威裁决 |
-| Meta-Oracle | 节点 | #4, #6 | Oracle 的审判官 — 独立验证 Oracle 评分质量，防止虚高 |
+| Meta-Oracle | 节点 | #4, #6 | 最后守门员（核武器级终审）— G1-G4 触发，独立于 Oracle 的最高审查权威，软门禁。珍惜使用，非必要不触发 |
 | Oracle 终审 | 节点 | #6 | 最高权威裁决 |

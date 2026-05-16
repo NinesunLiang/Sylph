@@ -52,13 +52,10 @@ Input task
 | lx-race | **Race** | Explicit swarm coordination |
 | lx-oma-split | **Race** | MECE decomposition → parallel RPE |
 | lx-rpe | **Stepwise** | 9-step closed loop with gates |
-| lx-prd | **Stepwise** | 6-phase pipeline with gates |
 | lx-root-cause-analysis | **Stepwise** | 5-phase depth-first reasoning |
 | lx-todo | **Stepwise** | 5-step linear workflow |
-| lx-debug-spec | **Stepwise** | Multi-phase debugging protocol |
 | lx-task-spec | **Stepwise** | Task spec → plan → execute cycle |
 | lx-code-review | **Stepwise** | Scan → fix → verify → report |
-| lx-security-review | **Stepwise** | Scan → fix → re-scan → report |
 | lx-oma-hier | **Stepwise** | Read → analyze → generate → verify |
 | lx-oma-gov | **Stepwise** | Reconcile → verify → propagate cycle |
 | lx-oma-orch | **Race/Stepwise hybrid** | Status (read-only) + Advance (stepwise) + Run (race dispatch) |

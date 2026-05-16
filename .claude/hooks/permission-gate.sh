@@ -37,6 +37,25 @@ GH_WRITE_RE=$(hc_get "permission_gate.gh_write_regex" 'gh\s+(release\s+(upload|c
 BYPASS_RE=$(hc_get "permission_gate.bypass_regex" $'base64\\s+(-d|--decode).*\\|.*\\b(bash|sh|dash|zsh)\\b|xxd\\s+-r.*\\|.*\\b(bash|sh)\\b|printf\\s+[\\"\\x27\\\\047]%[bdh]|eval\\s+\\\\$\\(echo')
 SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|sensitive-approved')
 
+# C1: encoding bypass detection (DG-11) — 无条件硬阻断，任何模式都不允许
+if echo "$COMMAND" | grep -qE "$BYPASS_RE"; then
+    BYPASS_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
+    cat >&2 <<EOF
+
+🚫 [Permission Gate] 编码绕过检测 — 强制终端执行模式
+
+检测到编码执行绕过企图 (base64|xxd|printf|eval 管道)。AI 不被允许执行编码命令。
+请复制以下命令到您自己的终端执行：
+
+  ${COMMAND}
+
+验证 Token: ${BYPASS_TOKEN}
+
+EOF
+    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Permission Gate] 编码绕过检测触发。AI 永远不能执行编码/动态执行命令。请人类在自己的终端中执行（Token: %s）。"}}\n' "$BYPASS_TOKEN"
+    exit 2
+fi
+
 # 危险命令检测
 IS_DANGEROUS=false
 DANGER_TYPE=""
@@ -72,10 +91,22 @@ elif echo "$COMMAND" | grep -qE "$GIT_PUSH_RE" && ! echo "$COMMAND" | grep -qE '
     DANGER_TYPE="git push"
 fi
 
-# 删除操作检测（-i 忽略大小写，覆盖 DROP TABLE / TRUNCATE 等 SQL 大写形式）
+# 删除/破坏性操作检测 — token 模式: AI 永不代执行，用户必须在自己的终端手动执行
 if echo "$COMMAND" | grep -iqE "$DESTRUCTIVE_RE"; then
-    IS_DANGEROUS=true
-    DANGER_TYPE="destructive operation"
+    DESTROY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
+    cat >&2 <<EOF
+
+🚫 [Permission Gate] 破坏性操作 — 强制终端执行模式
+
+AI 不被允许执行破坏性操作。请复制以下命令到您自己的终端执行：
+
+  ${COMMAND}
+
+验证 Token: ${DESTROY_TOKEN}
+
+EOF
+    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Permission Gate] 破坏性操作已阻断。AI 永远不能代执行 rm/drop/truncate/delete。请人类在自己的终端中执行命令（Token: %s）。执行后可继续其他操作。"}}\n' "$DESTROY_TOKEN"
+    exit 2
 fi
 
 # sudo 检测
@@ -120,37 +151,40 @@ check_cache() {
     if [ ! -f "$CACHE_FILE" ]; then
         return 1
     fi
-    python3 -c "
+    python3 - "$cmd_sig" "$CACHE_FILE" <<'CACHEPY' >/dev/null
 import json, time, sys
 try:
-    d = json.load(open('$CACHE_FILE'))
-    sig = '$cmd_sig'
+    sig = sys.argv[1]
+    d = json.load(open(sys.argv[2]))
     entry = d.get(sig)
     if entry and time.time() - entry.get('ts', 0) < 300:
-        print('hit')
-    else:
-        print('miss')
+        sys.exit(0)  # cache hit
+    sys.exit(1)      # cache miss
 except:
-    print('miss')
-" 2>/dev/null | grep -q 'hit'
+    sys.exit(1)      # parse error → miss
+CACHEPY
 }
 
 write_cache() {
     local cmd_sig="$1"
     local ts
     ts=$(python3 -c "import time; print(int(time.time()))" 2>/dev/null)
-    python3 -c "
-import json, os
+    python3 - "$cmd_sig" "$CACHE_FILE" "$ts" "$DANGER_TYPE" <<'CACHEPY'
+import json, os, sys
+sig = sys.argv[1]
+cache_file = sys.argv[2]
+ts = sys.argv[3]
+dtype = sys.argv[4]
 try:
-    d = json.load(open('$CACHE_FILE'))
+    d = json.load(open(cache_file))
 except:
     d = {}
-d['$cmd_sig'] = {'ts': $ts, 'type': '$DANGER_TYPE'}
-tmp = '$CACHE_FILE.tmp.$$'
+d[sig] = {'ts': int(ts), 'type': dtype}
+tmp = cache_file + '.tmp.' + str(os.getpid())
 with open(tmp, 'w') as f:
     json.dump(d, f)
-os.rename(tmp, '$CACHE_FILE')
-" 2>/dev/null
+os.rename(tmp, cache_file)
+CACHEPY
 }
 
 # 统一模式检测: ghost/unattended 降级为"记录+跳过"，不阻断

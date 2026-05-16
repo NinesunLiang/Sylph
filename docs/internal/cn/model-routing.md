@@ -26,26 +26,18 @@
 ### model: sonnet（标准技能 — 默认档位）
 | Skill | 行数 | 复杂度 | 理由 |
 |-------|------|--------|------|
-| lx-browser-verify | — | intermediate | 浏览器端到端验证 |
 | lx-code-review | — | intermediate | 代码审查，标准分析 |
-| lx-debug-spec | — | intermediate | Debug 流程引导 |
-| lx-golang-test | — | intermediate | Go 测试执行 |
 | lx-oma-gov | — | intermediate | PRD 治理 |
 | lx-oma-hier | — | intermediate | 分层拆解 |
 | lx-oma-orch | — | intermediate | 管线编排 |
 | lx-oma-split | — | intermediate | OMA 拆解 |
-| lx-prd | — | intermediate | PRD 管理 |
 | lx-pre-commit | — | intermediate | 预提交门禁 |
 | lx-pre-push | — | intermediate | 推送前门禁 |
 | lx-race | — | intermediate | 竞态检测 |
-| lx-react-review | — | intermediate | React 审查 |
 | lx-root-cause-analysis | 212 | intermediate | 根因分析，标准 RCA |
 | lx-rpe | 212 | intermediate | 9 步闭环（重构后已精简） |
-| lx-security-review | — | intermediate | 安全审查 |
 | lx-task-spec | — | intermediate | 结构化任务 |
-| lx-tdd-spec | — | intermediate | TDD 流程 |
 | lx-todo | — | intermediate | Todo 管理 |
-| lx-web-perf | — | intermediate | Web 性能分析 |
 
 ---
 

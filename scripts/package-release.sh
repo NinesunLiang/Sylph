@@ -19,6 +19,74 @@ PKG_DIR="$PROJECT_DIR/packages"
 HARNESS_SRC="source/harness-kit"
 LX_SRC="source/lx-skills-v5"
 
+# ─── G4 Meta-Oracle Release 门禁（打包前最后守门）───
+log_step "G4 Meta-Oracle Release 门禁检查..."
+META_ORACLE_SCRIPT="$PROJECT_DIR/.claude/scripts/meta-oracle-review.sh"
+G4_PASSED=true
+
+if [ -x "$META_ORACLE_SCRIPT" ]; then
+    echo ""
+    echo "╔══════════════════════════════════════════════════════════════╗"
+    echo "║  🔍 G4 Meta-Oracle — Release 最后守门员                    ║"
+    echo "║  软门禁: 自动执行检查，发现问题报告但不阻断                  ║"
+    echo "╚══════════════════════════════════════════════════════════════╝"
+    echo ""
+
+    # 1. source mirror 一致性检查
+    if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
+        log_info "[G4.1] source mirror 一致性检查..."
+        if bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1; then
+            log_info "  ✅ source mirror 一致"
+        else
+            log_warn "  ⚠️  source mirror 漂移检测到不一致项"
+            G4_PASSED=false
+        fi
+    fi
+
+    # 2. harness smoke test
+    SMOKE_TEST="$PROJECT_DIR/.claude/scripts/harness-smoke-test.sh"
+    if [ -x "$SMOKE_TEST" ]; then
+        log_info "[G4.2] harness-smoke-test..."
+        SMOKE_OUTPUT=$(bash "$SMOKE_TEST" 2>&1)
+        SMOKE_EXIT=$?
+        FAIL_COUNT=$(echo "$SMOKE_OUTPUT" | grep -c 'FAIL\|🔴' 2>/dev/null || echo "0")
+        if [ "$SMOKE_EXIT" -eq 0 ] && [ "$FAIL_COUNT" -eq 0 ]; then
+            log_info "  ✅ smoke test 全绿"
+        else
+            log_warn "  ⚠️  smoke test 有 ${FAIL_COUNT} 项失败"
+            G4_PASSED=false
+        fi
+    fi
+
+    # 3. VERSION.json 一致性
+    if [ -f "$PROJECT_DIR/VERSION.json" ]; then
+        log_info "[G4.3] VERSION.json 一致性..."
+        VER=$(python3 -c "import json; print(json.load(open('$PROJECT_DIR/VERSION.json'))['version'])" 2>/dev/null)
+        if [ -n "$VER" ] && [ "$VER" = "$VERSION" ]; then
+            log_info "  ✅ VERSION.json 一致 ($VER)"
+        else
+            log_warn "  ⚠️  VERSION.json 不一致或读取失败"
+            G4_PASSED=false
+        fi
+    fi
+
+    # 4. 调用 meta-oracle-review.sh G4 输出审查方法论
+    log_info "[G4.4] Meta-Oracle 审查方法注入..."
+    bash "$META_ORACLE_SCRIPT" G4 2>&1
+
+    # 汇总
+    echo ""
+    if [ "$G4_PASSED" = true ]; then
+        log_info "G4 Meta-Oracle: ✅ 全部自动检查通过"
+    else
+        log_warn "G4 Meta-Oracle: ⚠️  有检查项未通过 — 软门禁不阻断，但强烈建议修复后再发布"
+        log_warn "  覆写 REJECT 需记录理由到 .omc/state/meta-oracle-overrides.md"
+    fi
+else
+    log_warn "Meta-Oracle 审查脚本不存在，跳过 G4 门禁"
+fi
+echo ""
+
 # ─── Step 1: root -> source/harness-kit ───
 # NOTE: AGENTS.md 有意不复制（根=元项目专属，source=通用分发模板）
 log_step "1/4 同步 root -> source/harness-kit..."

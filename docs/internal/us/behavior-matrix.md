@@ -1,4 +1,3 @@
-# Behavior Matrix Template (lx-tdd-spec)
 
 ## Format
 

@@ -6,7 +6,6 @@
 
 # Description: 上下文收集摘要，被 4+ skill 复用
 
-# Consumers: lx-tdd-spec, lx-browser-verify, lx-debug-spec, lx-root-cause-analysis
 
 
 sources:

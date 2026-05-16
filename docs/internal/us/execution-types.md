@@ -14,7 +14,6 @@ This skill's fix cap is **2 rounds** (stricter than the general 3-round limit, s
 2. Root cause judgment (30-second rule):
    |- Obvious (any of the following) -> Direct fix (minimal change):
    |  . Missing nil check / missed error / type error / boundary missing
-   \- Not obvious -> /lx-debug-spec lightweight mode:
       Phase 1 (locate) + Phase 4 (fix) only, max 2 rounds
 3. go build ./... compiles
 4. Symptom/root cause self-check (lx-todo specific):
@@ -53,7 +52,6 @@ This skill's fix cap is **2 rounds** (stricter than the general 3-round limit, s
 1. Confirm test coverage:
    go test -v ./affected/package 2>&1 | tail -5
    |- Tests exist -> Continue
-   \- No tests -> /lx-golang-test add core tests first -> then refactor
 2. Small-step refactor, go build ./... after each step
 2a. Reference refactoring changes (must paste <=3 lines of key code before and after each, annotated with file:line)
 3. Run existing tests: go test ./affected/package

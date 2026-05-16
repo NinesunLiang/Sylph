@@ -31,7 +31,6 @@
 | C1 | Instruction Clarity | 15 | **9** | All 23 skills have identity/role + triggers frontmatter, support /lx-{name} launch |
 | C2 | Context Completeness | 15 | **8** | Skills generally have scope (what to do/not do); context_collector node present |
 | C3 | Process Structuring | 15 | **9** | lx-rpe(6 step) / lx-task-spec / lx-todo phase divisions; all skills have execution_mode + mode_selector |
-| C4 | Output Standardization | **8** | review_report.yaml (lx-code-review/lx-react-review/lx-security-review), gov_report.yaml (lx-oma-gov), task_spec.yaml (lx-task-spec) all have schema + confidence field |
 | C5 | Tool Lifecycle | **7** | Scripts all in skill-local dir (build_and_test.py, detect_project.py, validate_skill.py etc.); schemas/atomic/9 files exist |
 | C6 | Knowledge Density | **7** | lx-rpe (1151 lines) is dense; lx-code-review is thin. Avg ~240 lines/skill |
 | C7 | Correlation Orchestration | **8** | orchestrator.md + state_transitions.yaml = shared contract, Oracle ruled PASS |
@@ -54,7 +53,6 @@
 | E2 | Hallucination Output | 20 | **8** | AH-Guard three-layer defense (completion-gate/context-guard/A-B-A). v2 Runtime Confidence Protocol (three confidence tiers + pre-output verification). completion-gate A-B-A upgraded to complexity gating (Oracle Q1). But no runtime semantic validation (hook architecture limit) |
 | E3 | False Completion | 15 | **8** | verifier node + verdict schema; hooks `completion-gate.sh` verification. But only ~30% skills reference verifier |
 | E4 | Inertial Execution | 12 | **7** | hooks `permission-gate.sh` / `pretool-write-lock.sh` have interception. Long flows (lx-rpe) have no mid-way rollback |
-| E5 | Symptom Confusion | 10 | **7** | lx-root-cause-analysis / lx-debug-spec have RCA methodology. build-validator enhanced with file:line extraction (TS) |
 | E6 | Self-Contradiction | 13 | **7** | lx-rpe has protocol-table / phase-transition-rules. No cross-skill consistency check |
 | E7 | Overconfidence | 10 | **7** | v2 Runtime Confidence Protocol (high/medium/low). verdict.yaml v2 + all output schemas contain confidence field. Pre-output verification step requires >50% low to flag |
 | E8 | Context Forgetting | 10 | **7** | hooks `read-tracker.sh` / `compact-detect.sh` have tracking. May lose session context >10k tokens |
@@ -134,7 +132,6 @@
 
 | Type | Skill | Reference File |
 |------|-------|----------------|
-| Schema | lx-browser-verify / lx-code-review etc. 15 | `schemas/atomic/finding.yaml` (doesn't exist) |
 | Script | lx-oma-split | `scripts/verify_oma_interface_coverage.py` (doesn't exist) |
 | Script | lx-rpe / lx-pre-commit etc. | `scripts/...` (doesn't exist) |
 | Node | lx-oma-orch | `nodes/oracle.md` (only oracle_terminal.md exists) |

@@ -44,7 +44,7 @@ write_scope() {
         done
     } > "$tmpfile"
     mv "$tmpfile" "$SCOPE_FILE"
-    echo "[auto-scope] wrote $(echo "$1" | grep -c . || echo 0) entries to current-scope.txt"
+    echo "[auto-scope] wrote $(echo "$1" | grep -c . 2>/dev/null; true) entries to current-scope.txt"
 }
 
 EXTRACTED=""

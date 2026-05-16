@@ -242,6 +242,7 @@ hooks:
       - codex
       - gemini
       - qwen
+      - opencode
 
   auto_snapshot:
     description: "Auto-preserve state after tool calls and at turn end"
@@ -257,6 +258,7 @@ hooks:
       - codex
       - gemini
       - qwen
+      - opencode
 
   user_correction_detector:
     description: "Detect user correction patterns and log to claude-next.md"
@@ -286,6 +288,7 @@ hooks:
       - codex
       - gemini
       - qwen
+      - opencode
 
   error_dna:
     description: "Record error DNA for cross-session error pattern detection"
@@ -300,6 +303,7 @@ hooks:
       - codex
       - gemini
       - qwen
+      - opencode
 
   turn_counter:
     description: "Track conversation turns, inject todo queue at intervals, detect fuzzy commands"
@@ -325,6 +329,51 @@ hooks:
     blocking: true
     timeout: 10000
     strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  subagent_guard:
+    description: "Restrict dangerous subagent types — enforces max_turns on executor/designer/scientist (stdin JSON, platform-agnostic)"
+    events:
+      - tool:before
+    script: "subagent-guard.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "warn"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  subagent_audit:
+    description: "Post-hoc subagent usage audit and high-usage flywheel alerting (stdin JSON, platform-agnostic)"
+    events:
+      - tool:after
+    script: "posttool-subagent-audit.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "audit"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  skill_flywheel:
+    description: "Flush flywheel buffer on stop — per-skill frequency analytics and deprecation detection (file-based, platform-agnostic)"
+    events:
+      - stop
+    script: "skill-flywheel.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "track"
     platforms:
       - claude_code
       - codex
@@ -425,26 +474,14 @@ hooks:
       - opencode
 
 # ── Claude Code Specific ──────────────────────────────────────────────────
-# These hooks depend on Claude Code's internal tool pipeline (LSP, subagent,
-# skill, plan systems). Not portable to other platforms.
+# These hooks depend on Claude Code's internal tool pipeline (LSP, plan mode,
+# Read/Edit tool protocol). Not portable to other platforms.
 claude_specific:
   lsp_suggest:
     description: "Suggest LSP goto-definition before grep — depends on LSP tool"
     events: [tool:before]
     script: "lsp-suggest.sh"
     reason: "LSP tools are Claude Code internal"
-
-  subagent_guard:
-    description: "Restrict dangerous subagent types — depends on subagent system"
-    events: [tool:before]
-    script: "subagent-guard.sh"
-    reason: "Subagent API is Claude Code internal"
-
-  skill_flywheel:
-    description: "Pre-warm skills for faster execution — depends on skill system"
-    events: [session:start]
-    script: "skill-flywheel.sh"
-    reason: "Skill system is Claude Code internal"
 
   plan_gate:
     description: "Plan mode enforcement — depends on plan mode API"
@@ -481,9 +518,3 @@ claude_specific:
     events: [tool:after]
     script: "posttool-read-cite.sh"
     reason: "Read tool input/output format is Claude Code specific"
-
-  subagent_audit:
-    description: "Post-hoc subagent usage audit and high-usage flywheel alerting"
-    events: [tool:after]
-    script: "posttool-subagent-audit.sh"
-    reason: "Subagent/Task API is Claude Code internal"

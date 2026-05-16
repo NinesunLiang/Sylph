@@ -229,7 +229,7 @@ fi
 
 # === Hook-Skill 运行时桥: 检测模式 → 建议对应 skill ===
 SKILL_ROUTE_MSG=""
-if echo "$AUDIT_MSG" | grep -q "git commit\|git push"; then
+if echo "$AUDIT_MSG" | grep -qE "Git提交|Git推送"; then
     SKILL_ROUTE_MSG="[Hook-Skill桥] Git 操作已执行。建议: /lx-pre-commit 验证提交质量 → /lx-pre-push 推送前门禁"
 elif echo "$AUDIT_MSG" | grep -q "递归删除\|rm -rf\|destructive"; then
     SKILL_ROUTE_MSG="[Hook-Skill桥] 危险删除操作。建议: 确认操作范围 → /lx-sync 检查变更后一致性"

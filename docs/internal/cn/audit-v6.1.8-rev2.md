@@ -32,7 +32,6 @@
 | C1 | 指令清晰度 | 15 | **9** | ✅ 全部 23 skills 有 identity/role + triggers frontmatter，支持 /lx-{name} 启动 |
 | C2 | 上下文完整度 | 15 | **8** | Skills 普遍有 scope（做什么/不做什么）；context_collector node ✅ |
 | C3 | 流程结构化 | 15 | **9** | lx-rpe(6 step) / lx-task-spec / lx-todo 阶段划分；全部 skills 有 execution_mode + mode_selector |
-| C4 | 输出规范化 | **8** | review_report.yaml（lx-code-review/lx-react-review/lx-security-review）、gov_report.yaml（lx-oma-gov）、task_spec.yaml（lx-task-spec）全部有 schema + confidence 字段 |
 | C5 | 工具生命周期 | **7** | Scripts 全部在 skill-local dir（build_and_test.py, detect_project.py, validate_skill.py 等）；schemas/atomic/9个文件存在 |
 | C6 | 知识密度 | **7** | lx-rpe(1151行) 密度高；lx-code-review 偏薄。平均 ~240 行/skill |
 | C7 | 关联编排 | **8** | ✅ orchestrator.md + state_transitions.yaml = 共享契约，Oracle 已裁定 PASS |
@@ -55,7 +54,6 @@
 | E2 | 幻觉输出 | 20 | **8** | ✅ AH-Guard 三层防御（completion-gate/context-guard/A-B-A）。v2 Runtime Confidence Protocol（置信度三档+输出前校验）。completion-gate A-B-A 已升级为复杂度门控（Oracle Q1）。但无运行时语义校验（hook 架构限制）|
 | E3 | 虚假完成 | 15 | **8** | verifier node + verdict schema；hooks `completion-gate.sh` 验收。但只有 ~30% skills 引用 verifier |
 | E4 | 惯性执行 | 12 | **7** | hooks `permission-gate.sh` / `pretool-write-lock.sh` 有拦截。长流程（lx-rpe）无中途回退 |
-| E5 | 症状混淆 | 10 | **7** | lx-root-cause-analysis / lx-debug-spec 有 RCA 方法论。build-validator 已增强 file:line 提取（TS）|
 | E6 | 自我矛盾 | 13 | **7** | lx-rpe 有 protocol-table / phase-transition-rules。无跨 skill 一致性检查 |
 | E7 | 过度自信 | 10 | **7** | ✅ v2 Runtime Confidence Protocol（high/medium/low 三档）。verdict.yaml v2 + 所有 output schema 含 confidence 字段。预输出校验步骤要求 >50% low 则标记 |
 | E8 | 上下文遗忘 | 10 | **7** | hooks `read-tracker.sh` / `compact-detect.sh` 有追踪。session context >10k tokens 时可能丢失 |
@@ -134,7 +132,6 @@
 ### Broken References（需修复）
 | 类型 | Skill | 引用文件 |
 |------|-------|----------|
-| Schema | lx-browser-verify / lx-code-review 等 15个 | `schemas/atomic/finding.yaml`（不存在）|
 | Script | lx-oma-split | `scripts/verify_oma_interface_coverage.py`（不存在）|
 | Script | lx-rpe / lx-pre-commit 等 | `scripts/...`（不存在）|
 | Node | lx-oma-orch | `nodes/oracle.md`（只有 oracle_terminal.md）|

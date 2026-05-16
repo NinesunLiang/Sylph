@@ -89,8 +89,6 @@ curl -fsSL https://raw.githubusercontent.com/sylph/carror-os/main/install.sh | b
 |----------|--------|--------------|
 | 任务流水线 | `lx-rpe`, `lx-task-spec`, `lx-todo` | 全周期：调研 → 规划 → 执行，按复杂度自动伸缩 |
 | 代码质量 | `lx-code-review`, `lx-pre-commit`, `lx-pre-push` | 自动审查 + CI 门禁 |
-| 安全 | `lx-security-review`, `lx-varlock` | 漏洞扫描 + DLP 透明代理 |
-| 深度调试 | `lx-root-cause-analysis`, `lx-debug-spec` | 5-Why 追踪 + 并发调试 |
 | 监控 | `lx-status` | 健康面板：Token 节省、错误恢复、任务图谱 |
 
 ---

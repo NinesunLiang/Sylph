@@ -124,17 +124,10 @@
 | lx-goal | 8 |
 | lx-race | 7 |
 | lx-code-review | 14 |
-| lx-security-review | 14 |
-| lx-react-review | 14 |
-| lx-web-perf | 14 |
-| lx-browser-verify | 14 |
 | lx-test-gen | 14 |
 | lx-todo | 14 |
 | lx-task-spec | 14 |
 | lx-rpe | 14 |
-| lx-prd | 14 |
-| lx-tdd-spec | 14 |
-| lx-debug-spec | 14 |
 | lx-status | 14 |
 | lx-varlock | 14 |
 | lx-pre-commit | 10, 14 |

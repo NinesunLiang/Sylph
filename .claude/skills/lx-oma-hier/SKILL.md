@@ -472,3 +472,35 @@ hier → oma 阶段转换前，**必须**执行人工审核。每次执行完成
 
 所有待裁决项清零后，执行 `/lx-oma-orch gate og-NNN approve` 推进到 oma 阶段。
 
+---
+
+## 12. Meta-Oracle G1 架构决策终审
+
+> **G1 触发条件**（详见 `AGENTS.md §Meta-Oracle G1`）：hier 拆解涉及 ≥2 子系统（功能域）+ 不可逆的架构变更时，应触发 Meta-Oracle 最后守门。AGENTS.md 为权威定义，本文件为操作层补充。
+
+### 触发判定
+
+以下场景满足 G1 触发条件（满足任一项即可）：
+1. 拆解的功能域 ≥2 个，且域间存在不可逆的接口契约依赖（变更后无法单独回滚）
+2. 架构决策涉及核心数据模型的重组（实体归属跨越多个域，且无法简单撤销）
+3. 拆解方案会影响下游 lx-oma-split 的 feature 拆分方式（不可逆的结构性影响）
+
+> 常规的 1 域拆解或可逆调整不需要 Meta-Oracle。G1 触发判定有模糊时，默认不触发（保守策略，珍惜 Meta-Oracle 资源）。
+
+### 执行方式
+
+1. **时机**：§11 人工审核门禁通过后，Oracle gate og-NNN approved 后
+2. **命令**：`bash .claude/scripts/meta-oracle-review.sh G1`
+3. **执行**：spawn opus critic agent（独立上下文），审查架构决策的跨子系统影响
+4. **门禁**：软门禁 — Meta-Oracle 给出 ACCEPT/ADVISORY/REJECT 裁决
+5. **留痕**：裁决写入 `.omc/state/meta-oracle-verdicts.md`
+
+### G1 专项审查清单
+
+- [ ] 跨子系统影响分析是否完整（所有下游域是否已识别）
+- [ ] 不可逆性评估（架构变更后能否回滚？回滚成本？）
+- [ ] 接口契约是否与所有相关 feature 的预期一致
+- [ ] 是否与现有哲学/铁律冲突
+- [ ] 数据实体归属是否有跨域冲突（DG-01 类问题）
+
+> **珍惜使用**：G1 仅在架构决策涉及多子系统且不可逆时触发。常规的 1-2 域拆解不需要 Meta-Oracle。消耗巨大（opus + 独立上下文），非必要不使用。

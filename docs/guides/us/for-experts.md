@@ -28,7 +28,6 @@ curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh 
 | `/lx-todo` | L1 | Lightweight 5-step loop: capture → triage → fix → verify → close (≤3 files). |
 | `/lx-task-spec` | L2 | 3 guided questions → AC-driven, medium complexity, no full PRD needed. |
 | `/lx-rpe` | L3 | Research → Plan → Execute pipeline with 50% context handoff and A/B blind review. |
-| `/lx-prd` | L3 | ~~PRD production pipeline~~ Replaced by `/lx-oma-split`. |
 
 ### OMA One-Man Army Pipeline
 
@@ -51,19 +50,12 @@ curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh 
 | Skill | Target | Rules |
 | :---- | :----- | :---- |
 | `/lx-code-review` | General code | 8 categories, 39 rules (error handling, concurrency, interfaces, performance, observability). |
-| `/lx-react-review` | React/Next.js/Vue/Svelte | Render/Hooks/Components/State/TS. |
-| `/lx-security-review` | General code + deps | Vulnerability scan → auto-fix → re-scan. |
-| `/lx-web-perf` | Frontend projects | 6 categories, 24 rules (Bundle/Web Vitals/Rendering/Network/Assets). |
 
 ### Testing & Debugging
 
 | Skill | What It Does |
 | :---- | :----------- |
 | `/lx-test-gen` | Language-agnostic test generation (Go/TS/Python auto-detection). |
-| `/lx-tdd-spec` | Behavior matrix → testable specs + GWT acceptance criteria. |
-| `/lx-golang-test` | Pattern-routed test generation: table-driven, mocks, HTTP handlers, benchmarks, fuzz, race (methodology-agnostic). |
-| `/lx-browser-verify` | Playwright visual acceptance: 5 categories, 24 items. |
-| `/lx-debug-spec` | Root cause investigation → hypothesis verification → fix → regression. |
 | `/lx-root-cause-analysis` | 5-Why root cause tracing + evidence chains + confidence scoring. |
 
 ### Infrastructure

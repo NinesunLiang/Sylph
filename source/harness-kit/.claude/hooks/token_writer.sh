@@ -212,5 +212,9 @@ cat > "$SAVINGS_FILE" <<EOF
 }
 EOF
 
-echo '{"continue": true}'
+# SessionStart (passive mode): no protocol response needed — stdout is noise
+# Only emit protocol response for --reset / --increment (tool-use contexts)
+if [ "${1:-}" = "--reset" ] || [ "${1:-}" = "--increment" ]; then
+    echo '{"continue": true}'
+fi
 exit 0

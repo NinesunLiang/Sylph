@@ -63,6 +63,11 @@ except Exception:
 ")
     PY_EXIT=$?
     if [ $PY_EXIT -eq 2 ] && [ -n "$EXCEEDED" ]; then
+        if [ "$_MODE" != "normal" ]; then
+            echo "[pretool-retry-check] 自主模式: 重置重试计数并继续" >&2
+            echo '{"continue": true}'
+            exit 0
+        fi
         agentic_menu \
             "Retry Budget" \
             "存在超过重试上限的重复失败: ${EXCEEDED}" \

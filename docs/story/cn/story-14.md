@@ -1,6 +1,8 @@
 # 圣器锻造所 — 工匠的工具箱
 
 > 防御再强也只是盾。要创造东西，还需要剑——那些能产出代码、测试、审查、验证的技能。在 Carror OS 的前哨站和审计庭之外，有一批圣器锻造师，日夜打造着工坊的精良工具。
+>
+> **2026-05-16 更新**：本文描述的 8 个领域专用 skill（lx-browser-verify、lx-react-review、lx-golang-test、lx-web-perf、lx-prd、lx-debug-spec、lx-security-review、lx-tdd-spec）已于 v6.2.0 从 Carror OS 核心移除。它们属于用户项目层面，不属于 AI 治理框架范围。本文作为历史叙事保留，记录 Carror OS 曾经探索过的方向。
 
 ---
 

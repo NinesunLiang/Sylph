@@ -110,8 +110,6 @@ Skill 应声明其状态机类型，并说明是否引用 `orchestrator.md`：
 
 | 类型 | 描述 | 示例 |
 |------|------|------|
-| **scan→fix→re-scan 循环** | 审查类 Skill | lx-code-review, lx-security-review |
-| **analyze→generate→verify 流程** | 生成类 Skill | lx-tdd-spec, lx-rpe |
 | **门禁型** | Gate 链 | lx-pre-commit, lx-pre-push |
 | **私有 X 阶段** | 不引用 orchestrator.md | 需说明原因 |
 

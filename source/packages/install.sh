@@ -195,7 +195,6 @@ case "$INSTALL_MODE" in
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
-        for s in lx-rpe lx-todo lx-task-spec lx-tdd-spec lx-debug-spec lx-root-cause-analysis lx-prd lx-browser-verify lx-golang-test lx-frontend-test lx-varlock lx-status lx-validate-skill lx-race; do
             rm -rf .claude/skills/$s
         done
         log_info "已精简为 10 个静默门禁 Skill。"

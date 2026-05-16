@@ -38,7 +38,6 @@ Carror OS proposes **"Guard First, Arm Later"** — progressive delivery across 
 | Capability | Includes | Description |
 |:-----------|:---------|:------------|
 | **Commit Gates (Skills)** | `lx-pre-commit`, `lx-pre-push` | User says "run pre-commit" — gates handle the rest |
-| **Auto Review (Skills)** | `lx-code-review`, `lx-react-review`, `lx-security-review`, `lx-style-guide`, `lx-web-perf` | Automatically invoked as part of pre-commit pipeline, no manual invocation needed |
 | **Deep Analysis (Skills)** | `lx-oma`, `lx-perf-analysis`, `lx-race` | Concurrent lock management, performance analysis, race detection — silent background operation |
 
 ### Level 3 — Enhanced Edition
@@ -50,8 +49,6 @@ Carror OS proposes **"Guard First, Arm Later"** — progressive delivery across 
 |:-----------|:-----------------|:------------|
 | **Large Feature Pipeline** | `lx-rpe` | Research → Plan → Execute with 50% sweet-spot handoff and A→B→A adversarial verification |
 | **Medium/Small Task Driver** | `lx-task-spec`, `lx-todo` | AC-driven medium tasks and ≤3 file quick bug fix loops |
-| **Advanced Diagnostics & Generation** | `lx-root-cause-analysis`, `lx-debug-spec`, `lx-prd`, `lx-tdd-spec`, `lx-browser-verify` | 5-Why analysis, deep concurrency debugging, PRD/TDD auto-generation |
-| **Specialized Testing & Monitoring** | `lx-golang-test`, `lx-frontend-test`, `lx-varlock`, `lx-status`, `lx-validate-skill` | Language-specific test frameworks, DLP transparent proxy, health monitoring dashboard |
 
 ---
 

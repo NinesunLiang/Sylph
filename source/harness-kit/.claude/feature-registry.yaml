@@ -515,34 +515,12 @@ skills:
   category: review
   description: 通用代码审查：8 类别 39 规则，含错误处理/并发安全/接口设计/性能。方法论文本通用，当前实现含 Go 特定规则
   enabled_by_default: true
-- name: lx-react-review
-  type: reviewer
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): React/Next.js 前端代码审查：渲染性能/Hooks/组件/状态/TS质量'
-  enabled_by_default: false
-- name: lx-web-perf
-  type: reviewer
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): Web 性能审查：Bundle 分析/Web Vitals/Next.js
-    优化/渲染/网络/资产'
-  enabled_by_default: false
-- name: lx-browser-verify
-  type: tester
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): 浏览器可视化验收：多分辨率截图/视觉回归/交互流/跨浏览器'
-  enabled_by_default: false
 - name: lx-test-gen
   type: tester
   category: test
   description: 语言无关通用测试生成：自动检测语言(Go/TS/Python/Rust/Java/Ruby)，路由到参数化/Mock/HTTP/benchmark/fuzz/race
     模式
   enabled_by_default: true
-- name: lx-security-review
-  type: reviewer
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): 安全扫描：OWASP Top 10 漏洞检测 + 依赖审计 +
-    密钥泄露扫描。方法论文本通用，当前实现含 Go 特定检测 (govulncheck)'
-  enabled_by_default: false
 - name: lx-varlock
   type: guard
   category: security
@@ -558,16 +536,6 @@ skills:
   category: workflow
   description: 任务驱动机制：引导问答 x3 → 结构化输入 → 规划 → 执行 → 验收
   enabled_by_default: true
-- name: lx-tdd-spec
-  type: workflow
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): 可测试规格生成：行为矩阵 + GWT 验收标准'
-  enabled_by_default: false
-- name: lx-debug-spec
-  type: workflow
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): 调试规格：根因调查 → 假设验证 → 修复 → 回归测试'
-  enabled_by_default: false
 - name: lx-pre-commit
   type: gate
   category: workflow
@@ -613,18 +581,6 @@ skills:
   category: automation
   description: 幽灵模式 — 方向驱动自主探索。给 AI 方向，AI 自主探索修复，不干扰人。
   enabled_by_default: true
-- name: lx-golang-test
-  type: tester
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): Go 测试生成：table-driven/mock/HTTP
-    handler/benchmark/fuzz/race 模式'
-  enabled_by_default: false
-- name: lx-prd
-  type: workflow
-  category: deprecated
-  description: 'DEPRECATED (Oracle 审计 2026-05-15): 高质量 PRD 生产流水线：Discovery → Uncertainty
-    Scan → Draft → Self-Eval → Expert Review → Polish'
-  enabled_by_default: false
 - name: lx-oma-hier
   type: orchestrator
   category: workflow
@@ -656,3 +612,19 @@ skills:
   category: workflow
   description: Carror OS 安装/更新：备份 AGENTS.md → 安装 → 恢复 → 验证 4 步闭环
   enabled_by_default: true
+- name: lx-skillify
+  type: workflow
+  category: automation
+  description: Skill 自动生成器 — 6 阶段管道：澄清→分析→生成→支撑文件→验证→注册
+  enabled_by_default: true
+- name: lx-learner
+  type: workflow
+  category: automation
+  description: 技能学习者 — 从对话模式检测、提议并提取可重用 lx-* skill，附带来源文档
+  enabled_by_default: true
+- name: lx-dogfood
+  type: workflow
+  category: workflow
+  description: 主动投喂狗粮 — 事故发生时趁热记录，处理完毕时提炼教训，让 Carror OS 越用越聪明
+  enabled_by_default: true
+  evidence_level: L3

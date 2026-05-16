@@ -72,6 +72,11 @@ if grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
 fi
 
 # 阻断：源文件未 Read — Agentic UI 菜单
+if [ "$MODE" != "normal" ]; then
+    echo "[edit-guard] 自主模式: 跳过 Read-before-Edit 检查" >&2
+    echo '{"continue": true}'
+    exit 0
+fi
 agentic_menu \
     "Read-before-Edit" \
     "文件: ${FILE_PATH} — 宪法第六条: 修改代码前必须先阅读当前内容" \

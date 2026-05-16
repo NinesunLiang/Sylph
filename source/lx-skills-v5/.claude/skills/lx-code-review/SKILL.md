@@ -155,10 +155,6 @@ test -f .claude/go-style-guide.md && echo "styleguide=yes" || echo "styleguide=n
 ## 跨 Skill 联动
 | 方向 | Skill | 触发条件 | 数据契约|
 |------|-------|---------|---------|
-|下游传至 | `/lx-test-gen` | P0/P1 中发现的未测试路径 | 传递：未覆盖函数名 + 问题场景 (lx-golang-test 已废弃)|
-|下游传至 | AI 直接安全审查 | 审查通过后 → 安全扫描 | 传递：审查通过的文件列表 (lx-security-review 已废弃)|
-|下游传至 | AI 直接调试 | Auto-fix 失败（blocked） | 传递：规则号 + 问题描述 + 失败尝试 + 代码位置 (lx-debug-spec 已废弃)|
-|上游来自 | AI 直接规格输入 | 规格完成 → 实现完成 → 代码审查 | 接收：实现文件列表 (lx-tdd-spec 已废弃)|
 |关联 | AI 直接性能分析 | E 类别发现严重性能问题 | 传递：性能问题位置 + 初步诊断 |\|
 
 ## 错误恢复与升级路径
@@ -168,7 +164,6 @@ test -f .claude/go-style-guide.md && echo "styleguide=yes" || echo "styleguide=n
 |git 不可用 | 回退到 `$ARGUMENTS` 指定的文件列表扫描|
 |review-rules.md 缺失 | AI 使用通用规则执行扫描|
 |go-style-guide.md 缺失 | 使用本 Skill 内置规范，降级通知用户|
-|2 次修复失败 + 根因不明 | 升级至 `/lx-debug-spec` |\|
 
 ## 中止条件- 过滤后无 Go 文件 → "无变更"报告- 非 Go 项目（无 go.mod）→ "不适用"- 全部命中为误报 → "通过"报告- 待确认项超过 5 个 → 暂停，请求用户输入
 

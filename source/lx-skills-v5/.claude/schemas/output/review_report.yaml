@@ -1,6 +1,5 @@
 # review_report.yaml
 # Schema: 代码审查/安全审查报告输出契约
-# Referenced by: lx-code-review, lx-react-review, lx-security-review
 # 用途：标准化审查发现项的输出格式，确保每个 finding 可追溯、可复验
 version: "1.0"
 fields:

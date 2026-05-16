@@ -71,7 +71,6 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | `/lx-todo` | L1 | 轻量 5 步循环：捕获→分诊→修复→验证→关闭。≤3 文件 |
 | `/lx-task-spec` | L2 | 中等复杂度。3 问引导 → AC 驱动 → 澄清→规划→执行→验收 |
 | `/lx-rpe` | L3 | 完整 RPE 驱动 feature 开发循环：TDD→审查→安全→验收 |
-| `/lx-prd` | L3 | ~~PRD 生产管线~~ 已被 `/lx-oma-split` 替代 |
 
 **选择指南**：
 - 修个 typo / 单行 bug → `/lx-todo`
@@ -86,9 +85,6 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | 技能 | 审查对象 | 规则数 |
 |------|----------|--------|
 | `/lx-code-review` | 通用代码 | 8 类 39 条（错误处理/并发/接口/性能/可观测性） |
-| `/lx-react-review` | React/Next.js/Vue/Svelte | 渲染性能/Hooks/组件设计/状态管理/TS 质量 |
-| `/lx-security-review` | 通用代码 + 依赖 | 漏洞扫描→自动修复→重新扫描→提交裁决 |
-| `/lx-web-perf` | 前端项目 | 6 类 24 条（Bundle/Web Vitals/Next.js/渲染/网络/资产） |
 
 ---
 
@@ -97,10 +93,6 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | 技能 | 一句话 |
 |------|--------|
 | `/lx-test-gen` | 语言无关测试生成。自动检测语言（Go/TS/Python），路由到对应模式 |
-| `/lx-tdd-spec` | 从行为矩阵生成可测试规格 + GWT 验收条件 |
-| `/lx-golang-test` | 测试模式路由：table-driven/mock/HTTP handler/benchmark/fuzz/race（方法论通用，Go 实现） |
-| `/lx-browser-verify` | Playwright 可视化验收。5 类 24 项（多分辨率/视觉回归/交互流/跨浏览器） |
-| `/lx-debug-spec` | 根因调查→假设验证→修复→回归。证据先于修复 |
 | `/lx-root-cause-analysis` | 5-Why 根因追踪，证据链+置信度评分+免疫防御 |
 
 ---
@@ -115,6 +107,15 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | `/lx-stepwise` | 逐步攻坚模式：高难度 bug 单步推进，每步需验证，不可跳过 | | [lx-stepwise](../../.claude/skills/lx-stepwise/SKILL.md) |
 | `/lx-sync` | 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐等 6 项 | | [lx-sync](../../.claude/skills/lx-sync/SKILL.md) |
 | `/lx-validate-skill` | 验收新 skill 是否遵循原子化架构规则（11 项检查） |
+
+---
+
+## 技能创建
+
+| 技能 | 一句话 | 触发词 |
+|------|--------|--------|
+| `/skillify` | 将自然语言描述转化为生产级 lx-* skill（6 阶段管道） | `skillify`、`创建 skill`、`生成 skill` |
+| `/learner` | 从对话中检测重复模式并提取为可重用 lx-* skill，附带来源文档 | `learner`、`extract skill`、`从对话中学习` |
 
 ---
 
@@ -137,10 +138,6 @@ OMA 管线流 →
     → /lx-pre-push (推送前)
 
 质量保障四件套 →
-  /lx-code-review + /lx-react-review (代码审查)
-  /lx-security-review (安全)
-  /lx-web-perf (性能)
-  /lx-test-gen + /lx-golang-test (测试)
 
 自主执行 →
   /lx-ghost (方向驱动探索)

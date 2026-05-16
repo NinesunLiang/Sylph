@@ -68,7 +68,6 @@ Graded task system from lightweight bug fixes to full PRD-driven development.
 | `/lx-todo` | L1 | Lightweight 5-step loop: capture → triage → fix → verify → close (≤3 files) |
 | `/lx-task-spec` | L2 | Medium complexity. 3 guided questions → AC-driven → clarify → plan → execute → verify |
 | `/lx-rpe` | L3 | Full RPE-driven feature dev: TDD → review → security → acceptance |
-| `/lx-prd` | L3 | ~~PRD production pipeline~~ Replaced by `/lx-oma-split` |
 
 **How to choose**:
 - Fix a typo / single-line bug → `/lx-todo`
@@ -83,9 +82,6 @@ Graded task system from lightweight bug fixes to full PRD-driven development.
 | Skill | Target | Rules |
 |-------|--------|-------|
 | `/lx-code-review` | General code | 8 categories, 39 rules (error handling, concurrency, interfaces, performance, observability) |
-| `/lx-react-review` | React/Next.js/Vue/Svelte | Render perf, Hooks, component design, state management, TS quality |
-| `/lx-security-review` | General code + deps | Vulnerability scan → auto-fix → re-scan → commit verdict |
-| `/lx-web-perf` | Frontend projects | 6 categories, 24 rules (Bundle, Web Vitals, Next.js, rendering, network, assets) |
 
 ---
 
@@ -94,10 +90,6 @@ Graded task system from lightweight bug fixes to full PRD-driven development.
 | Skill | Summary |
 |-------|---------|
 | `/lx-test-gen` | Language-agnostic test generator. Auto-detects language (Go/TS/Python), routes to patterns |
-| `/lx-tdd-spec` | Generate testable specs from behavior matrix + GWT acceptance criteria |
-| `/lx-golang-test` | Pattern-routed test generation: table-driven, mocks, HTTP handlers, benchmarks, fuzz, race (methodology-agnostic, Go implementation) |
-| `/lx-browser-verify` | Playwright visual acceptance. 5 categories, 24 items (multi-resolution, visual regression, interactive flows, cross-browser) |
-| `/lx-debug-spec` | Root cause investigation → hypothesis verification → fix → regression |
 | `/lx-root-cause-analysis` | 5-Why root cause tracing, evidence chains, confidence scoring, immunity defense |
 
 ---
@@ -132,10 +124,6 @@ Gate chain →
     → /lx-pre-push (pre-push)
 
 Quality quartet →
-  /lx-code-review + /lx-react-review (code review)
-  /lx-security-review (security)
-  /lx-web-perf (performance)
-  /lx-test-gen + /lx-golang-test (testing)
 
 Autonomous execution →
   /lx-ghost (direction-driven exploration)

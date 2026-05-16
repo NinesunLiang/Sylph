@@ -7,7 +7,6 @@
 |X02 | 增大 `MaxOpenConns` / `MaxRetries` | 拒绝 | 修复资源泄漏的根因|
 |X03 | `recover()` 静默吞掉 panic | 拒绝 | 正确处理，并记录带堆栈的日志|
 |X04 | 仅在调用处检查 nil | 拒绝 | 在数据源头修复 nil 的来源|
-|X05 | 以症状级修复作为最终方案 | **ABORT** | 返回 `/lx-debug-spec` |
 
 ## 流程反模式（所有 Phase）
 | ID | 禁止行为 | 拦截动作|

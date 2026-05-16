@@ -37,7 +37,6 @@
 | 能力模块 | 具体包含 | 说明 |
 | :--- | :--- | :--- |
 | **提交门禁** (Skills) | `lx-pre-commit`, `lx-pre-push` | 用户只需要在代码完成时说一句”帮我做个 pre-commit”，门禁总控就会自动拉起后续检查。 |
-| **自动审查** (Skills) | `lx-code-review`, `lx-react-review`, `lx-security-review`, `lx-style-guide`, `lx-web-perf` | 这 5 款 Skill 在基础版中是**不需人工调用**的，它们作为 `pre-commit` 流水线的一环，在后台被自动唤醒执行代码和安全审查。 |
 | **深度分析** (Skills) | `lx-oma`, `lx-perf-analysis`, `lx-race` | 并发锁管理、性能分析与竞态条件检测。在后台静默运行，不增加用户认知负担。 |
 
 ### ⚔️ Level 3
@@ -51,8 +50,6 @@
 | **大型特性流水线** | `lx-rpe` | 处理复杂业务的 Research -> Plan -
 > Execute 三阶段工作流，带有 50% 甜点区交接与 A→B→A 交叉验证对抗。 |
 | **中/小型任务驱动** | `lx-task-spec`, `lx-todo` | 精确 AC 驱动的中型任务，与 ≤3 文件的快速 Bug 修复闭环。 |
-| **高阶诊断生成** | `lx-root-cause-analysis`, `lx-debug-spec`, `lx-prd`, `lx-tdd-spec`, `lx-browser-verify` | 5-Why 根因分析、深水区并发调试、PRD 文档和 TDD 测试代码的自动化生成。 |
-| **专业测试与监控** | `lx-golang-test`, `lx-frontend-test`, `lx-varlock`, `lx-status`, `lx-validate-skill` | 语言专属测试框架、**DLP 透明脱敏代理 (varlock)**、一键健康监控大屏 (status)。 |
 
 ---
 

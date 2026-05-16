@@ -76,7 +76,7 @@ except:
 " 2>/dev/null)
     if [ "$RECENT" = "true" ]; then
         # 检查包含完成标记
-        HAS_DONE=$(grep -cE '\[x\]|✅|\[done\]|Status.*[Dd]one|✅' "$LATEST_EXEC" 2>/dev/null || echo 0)
+        HAS_DONE=$(grep -cE '\[x\]|✅|\[done\]|Status.*[Dd]one|✅' "$LATEST_EXEC" 2>/dev/null); HAS_DONE="${HAS_DONE:-0}"
         [ "$HAS_DONE" -gt 0 ] && STEP_COMPLETED=true
     fi
 fi

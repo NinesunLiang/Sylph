@@ -1,6 +1,5 @@
 # criteria_output.yaml
 # Schema: 验收标准输出契约
-# Referenced by: lx-tdd-spec Step 4
 version: "1.0"
 fields:
   feature_id:

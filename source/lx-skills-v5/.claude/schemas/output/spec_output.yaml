@@ -1,6 +1,5 @@
 # spec_output.yaml
 # Schema: 测试规约输出契约
-# Referenced by: lx-tdd-spec Step 3
 version: "1.0"
 fields:
   feature_id:

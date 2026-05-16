@@ -42,6 +42,45 @@ A prompt is a suggestion. A gate is the power to allow or deny.
 
 **Carror OS doesn't remind AI to do the right thing. It decides whether AI can continue before it does the wrong thing.**
 
+---
+
+## It Doesn't Just Defend. It Grows.
+
+Everything above is the "shield" — stopping what shouldn't happen. But Carror OS also has a "sword."
+
+May 16, 2026. A user said: "skillify a description and it produces a professional skill." At that moment, `skillify` and `learner` were two empty shell names — listed in the system prompt but with zero implementation.
+
+Twenty minutes later, they were two **production-grade skills, passing 11 rule validations, registered, with complete scripts and reference docs.** The user wrote zero lines of code. Didn't read a template. Didn't manually run validation. Made only 4 decisions: express the idea → say "go" → correct direction once → ask to record it.
+
+Carror OS handled the rest autonomously — explored 29 existing skills for architecture patterns, read 19 atomic nodes and 9 schemas for reusable references, generated a 280-line SKILL.md, wrote 3 Python scripts, ran syntax checks, ran lx-validate-skill, registered everything.
+
+**The ecosystem grows itself.** Describe what you need — the system produces a validated, registered, production-ready skill.
+
+---
+
+## Not Just Opus: Any Model Works Reliably
+
+Carror OS doesn't care which model you use. It's a governance layer running *under* the AI tool — model-agnostic.
+
+What does this mean?
+
+**You don't have to pay top-tier model premiums for "not making mistakes."**
+
+OpenAI and Google's top models charge tens of dollars per million tokens. DeepSeek v4 Flash costs less than **1/50th** of that. Pro costs less than **1/10th**. These models don't match top-tier models on raw reasoning depth — but 90% of daily development (CRUD, refactoring, bug fixes, test writing) doesn't need deep reasoning. It needs **reliability**.
+
+And "reliability" is exactly what Carror OS provides — not by making the model smarter, but by physically stopping it before it makes mistakes.
+
+Real dogfooding confirms this. Our user on DeepSeek v4 Pro + Carror OS reported: *"It feels noticeably smarter than bare Sonnet 4.6."* Not because DeepSeek is smarter than Sonnet — but because Carror OS physically intercepts every low-level mistake that Sonnet makes when bare: false completions, fabricated references, context drift. **Same model. Completely different reliability at ground level.**
+
+| Your Choice | Model Cost | Daily Reliability |
+|-------------|-----------|-------------------|
+| Opus 4.6 bare | Highest | Model self-discipline |
+| Sonnet 4.6 bare | Medium | Medium, frequent low-level errors |
+| **DeepSeek v4 Flash + Carror OS** | **Extremely low** | **Physical enforcement, near-Opus level** |
+| **DeepSeek v4 Pro + Carror OS** | Low | **Physical enforcement, surpasses bare Sonnet** |
+
+If you're an individual developer, a small team, or an AI-bill-conscious founder — DeepSeek + Carror OS gives you better-than-bare-Sonnet reliability at a fraction of the cost. Save Opus for the 10% of moments that truly need deep reasoning.
+
 → Read Article 2: To Everyone Hurt by AI
 → View GitHub / Docs / Onboarding Guide
 

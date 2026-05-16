@@ -9,7 +9,6 @@
 ### 工具链
 
 ```bash
-# 主扫描lx-security-review
 
 # 降级1：govulncheckgovulncheck ./...
 

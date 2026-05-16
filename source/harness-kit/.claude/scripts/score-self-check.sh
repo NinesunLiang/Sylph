@@ -51,7 +51,7 @@ count_files() {
 grep_count() {
     local pattern="$1" file="$2"
     if [ -f "$file" ]; then
-        grep -c "$pattern" "$file" 2>/dev/null || echo 0
+        n=$(grep -c "$pattern" "$file" 2>/dev/null); n="${n:-0}"; printf "%d" "$n"
     else
         echo 0
     fi
@@ -408,7 +408,7 @@ NEXT_LINES_G=$(wc -l < "$CLAUDE_NEXT" 2>/dev/null || echo 0)
 [ "$NEXT_LINES_G" -gt 100 ] && G3_COUNT=$((G3_COUNT+1))
 [ -f "$STATE_DIR/session-handoff.md" ] && G3_COUNT=$((G3_COUNT+1))
 [ -f "$STATE_DIR/session-snapshot.json" ] && G3_COUNT=$((G3_COUNT+1))
-R_LEARN=$(grep -c '\[R' "$CLAUDE_NEXT" 2>/dev/null || echo 0)
+R_LEARN=$(grep -c '\[R' "$CLAUDE_NEXT" 2>/dev/null); R_LEARN="${R_LEARN:-0}"
 [ "$R_LEARN" -gt 10 ] && G3_COUNT=$((G3_COUNT+1))
 G3_SCORE=$(round2 "$(echo "scale=4; $G3_COUNT / $G3_TOTAL" | bc 2>/dev/null || echo 0)")
 G3_SOURCE="learning notes: $G3_COUNT/$G3_TOTAL = $G3_SCORE"

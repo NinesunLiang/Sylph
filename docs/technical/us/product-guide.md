@@ -42,10 +42,7 @@ Carror OS proposes the **"Guard First, Arm Later"** progressive delivery philoso
 | `lx-pre-commit` | Pre-commit quality gate controller, includes type detection, incremental build, tests, and code review | `/lx-pre-commit` or integrated as Git Hook |
 | `lx-pre-push` | Pre-push security and compliance gate, includes commit format validation | `/lx-pre-push` |
 | `lx-code-review` | Language-independent general code review (with Auto-fix) | Gate auto-wake / manual invocation |
-| `lx-react-review` | Frontend/React-specific review | Gate auto-wake / manual invocation |
-| `lx-security-review` | Security scanning, detects hardcoded credentials and vulnerabilities | Gate auto-wake / manual invocation |
 | `lx-style-guide` | Style specification review | Gate auto-wake / manual invocation |
-| `lx-web-perf` | Web performance review | Gate auto-wake / manual invocation |
 | `lx-oma` | OMA concurrent lock management | Silent background / manual invocation |
 | `lx-oma-hier` | Hierarchical PRD decomposition — splits ultra-large PRDs by functional domain into Sub PRDs | Silent background / manual invocation |
 | `lx-perf-analysis` | Performance analysis and diagnostics | Silent background / manual invocation |
@@ -75,11 +72,6 @@ Carror OS proposes the **"Guard First, Arm Later"** progressive delivery philoso
 | Skill | Description |
 |:------|:------------|
 | `/lx-root-cause-analysis` | 5-Why root cause tracing |
-| `/lx-debug-spec` | Deep-water concurrent debugging |
-| `/lx-prd` | Automated product requirements document generation |
-| `/lx-tdd-spec` | TDD test-driven scenario generation |
-| `/lx-browser-verify` | Playwright E2E browser acceptance |
-| `/lx-golang-test` | Go-specific automated test framework |
 | `/lx-frontend-test` | Frontend-specific automated test framework |
 
 ### Professional Operations and Monitoring

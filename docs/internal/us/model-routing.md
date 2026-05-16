@@ -26,26 +26,18 @@
 ### model: sonnet (Standard Skills -- Default Tier)
 | Skill | Lines | Complexity | Reason |
 |-------|-------|-----------|--------|
-| lx-browser-verify | -- | intermediate | Browser end-to-end verification |
 | lx-code-review | -- | intermediate | Code review, standard analysis |
-| lx-debug-spec | -- | intermediate | Debug workflow guidance |
-| lx-golang-test | -- | intermediate | Go test execution |
 | lx-oma-gov | -- | intermediate | PRD governance |
 | lx-oma-hier | -- | intermediate | Hierarchical decomposition |
 | lx-oma-orch | -- | intermediate | Pipeline orchestration |
 | lx-oma-split | -- | intermediate | OMA decomposition |
-| lx-prd | -- | intermediate | PRD management |
 | lx-pre-commit | -- | intermediate | Pre-commit gate |
 | lx-pre-push | -- | intermediate | Pre-push gate |
 | lx-race | -- | intermediate | Race condition detection |
-| lx-react-review | -- | intermediate | React review |
 | lx-root-cause-analysis | 212 | intermediate | Root cause analysis, standard RCA |
 | lx-rpe | 212 | intermediate | 9-step closed loop (refactored and simplified) |
-| lx-security-review | -- | intermediate | Security review |
 | lx-task-spec | -- | intermediate | Structured tasks |
-| lx-tdd-spec | -- | intermediate | TDD workflow |
 | lx-todo | -- | intermediate | Todo management |
-| lx-web-perf | -- | intermediate | Web performance analysis |
 
 ---
 

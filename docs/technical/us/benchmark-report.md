@@ -3,6 +3,7 @@
 **Generated:** 2026-05-04 09:07:31
 **Method:** tiktoken cl100k_base
 **Repository:** `/Users/lucas.liang/Desktop/Sylph/Carror_OS`
+**Data version:** Carror OS ≤ v6.1.8. Some skills listed in the L2 file table below (lx-browser-verify, lx-react-review, lx-golang-test, lx-web-perf, lx-prd, lx-debug-spec, lx-security-review, lx-tdd-spec) were removed from core in v6.2.0. The token counts below are a historical snapshot at the time of measurement and are for reference only.
 
 ---
 

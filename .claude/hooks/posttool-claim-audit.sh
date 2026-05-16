@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # posttool-claim-audit.sh — PostToolUse:Edit|Write — 铁律 #1「禁止编造」强制校验
-# 检测 AI 对文件内容的断言（file:line 引用）是否基于真实读取
-# Role: 铁律 #1 enforce — AI 不能编造没读过的代码事实
+# 检测 AI 对文件内容的断言（file:line 引用 + 数值断言来源）是否基于真实读取
+# Role: 铁律 #1 enforce — AI 不能编造没读过的代码事实 + 不能写无来源的数值断言
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_claim_audit" || { echo '{"continue": true}'; exit 0; }
@@ -17,7 +17,7 @@ fi
 INPUT=$(cat)
 TOOL_NAME="$1"
 
-# 仅审计 Edit/Write — AI 输出代码断言的主要出口
+# 仅审计 Edit/Write — AI 输出断言的主要出口
 case "$TOOL_NAME" in
     Edit|Write) ;;
     *) exit 0 ;;
@@ -46,11 +46,9 @@ STATE_DIR="$PROJECT_ROOT/.omc/state"
 READ_LOG="$STATE_DIR/read-tracker.txt"
 
 # 提取所有 file:line 引用（AGENTS.md:42, kernel.go:15, .claude/hooks/plan-gate.sh:15）
-# 修复: 不再要求以 . 开头（之前漏掉了 AGENTS.md:42 等裸文件名引用）
+# 不再要求以 . 开头（之前漏掉了 AGENTS.md:42 等裸文件名引用）
+# 注意: 即使没有 file:line 引用，G1 数值断言检查仍然必须执行（见下方）
 CLAIMED_FILES=$(echo "$INPUT" | grep -oE '(\.?/)?[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+' | sed 's|^\./||' || true)
-if [ -z "$CLAIMED_FILES" ]; then
-    exit 0
-fi
 
 # 读取 read-tracker（可能跨轮次累积）
 read_files=""
@@ -92,8 +90,42 @@ while IFS= read -r claimed; do
     VIOLATIONS="${VIOLATIONS}⚠️ IRRELEVANT_CLAIM: ${claimed}\n"
 done <<< "$CLAIMED_FILES"
 
-if [ -n "$VIOLATIONS" ]; then
-    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1] 以下代码引用无读取证据（AI 不得编造未读内容）:\n'"$VIOLATIONS"'宪法: "禁止编造" — 必须引用 file:line，找不到则 BLOCKED\n请确认以上文件已被 Read。如未读请先执行 Read 再编辑。"}}\n'
+# === G1 数值断言来源强制检查 ===
+# 检测所有数值断言（百分比/倍数/增减量），强制要求来源引用
+# 覆盖: 技术文档 + 营销文档 + 任何含数字断言的文件
+# 这是铁律 #1(禁止编造) + #7(报告规范) + DG-29(regex设计级漏报) 的物化
+G1_VIOLATIONS=""
+
+# 扩展数值断言模式（中英文全覆盖）
+# - 百分比: 95.6%, 14%-53%, 减少 50%, +16.64
+# - 倍数: 1/50, 五十分之一, 10 倍, X倍
+# - 增减量: 减少/提升/节省/降低 X% 或 +X
+NUM_CLAIMS=$(echo "$INPUT" | grep -oE '[0-9]{1,3}\.[0-9]+%|[0-9]{1,3}%|通过率|[0-9]+%[-~][0-9]+%|减少\s*[0-9]+%?|提升\s*[0-9]+%?|节省\s*[0-9]+%?|降低\s*[0-9]+%?|1/[0-9]+|[0-9]+倍|\+[0-9]+\.[0-9]+|\+[0-9]+%' 2>/dev/null || true)
+
+if [ -n "$NUM_CLAIMS" ]; then
+    # 来源检测：以下任一形式均视为有效来源
+    # - 行业标准: ASVS, OWASP, NIST, ISO, CWE, CVE, ATLAS
+    # - 内部基准文件: benchmark-report, baseline, cross-platform-gain, pass-rate-summary
+    # - 引用格式: path:line, [已验证: path:line], [内部自检], http(s)://URL
+    # - 证据标签: [已测试: ...], VERIFIED:
+    # - 跳过文件: skip-list.txt 中的路径不检查
+    HAS_SOURCE=$(echo "$INPUT" | grep -ciE '(ASVS|OWASP|NIST|ISO|CWE|CVE|ATLAS|benchmark.report|benchmark-report|baseline|cross-platform-gain|pass-rate-summary|\[已验证|\[已测试|\[内部自检|VERIFIED|https?://|[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+)' 2>/dev/null || true)
+    HAS_SOURCE="${HAS_SOURCE:-0}"
+
+    if [ "$HAS_SOURCE" -eq 0 ]; then
+        NUM_SAMPLE=$(echo "$NUM_CLAIMS" | head -5 | tr '\n' ' ')
+        # 营销文档专用检测 — 真实感是营销的生命线
+        if echo "$FILE_PATH" | grep -q 'docs/marketing/'; then
+            G1_VIOLATIONS="⚠️ G1_MARKETING_CLAIM: 营销文档中的数值断言(${NUM_SAMPLE})无来源引用。\n  营销文案中的任何百分比/倍数/增减数字必须附带验证来源。失去真实感，99% 的前面努力都浪费了。\n  修复: 在数字后标注来源，如 '(20 轮实测数据，benchmark-report.md:291)' 或 '[内部自检，非行业标准]'。"
+        else
+            G1_VIOLATIONS="⚠️ G1_PSEUDO_INTEGRITY: 数值断言(${NUM_SAMPLE})无来源。请标注 [内部自检，非行业标准] 或附加来源 URL/file:line。"
+        fi
+    fi
+fi
+
+if [ -n "$VIOLATIONS" ] || [ -n "$G1_VIOLATIONS" ]; then
+    COMBINED="${VIOLATIONS}${G1_VIOLATIONS:+\n${G1_VIOLATIONS}}"
+    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1+#7] AI 输出真实性违规:\n%s\n宪法: \"禁止编造\" + \"任何数值断言必须有可验证来源\"\n请修复以上违规项后重试."}}\n' "${COMBINED}"
     exit 2
 fi
 

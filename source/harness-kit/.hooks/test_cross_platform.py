@@ -100,16 +100,16 @@ def test_platform_events(unified):
         assert len(pmap[p]) == 9, f"{p}: expected 9 event mappings, got {len(pmap[p])}"
 
 
-@test("unified.yaml: 19 portable hooks defined")
+@test("unified.yaml: 22 portable hooks defined")
 def test_portable_hooks(unified):
     hooks = unified.get("hooks", {})
-    assert len(hooks) == 19, f"expected 19 hooks, got {len(hooks)}"
+    assert len(hooks) == 22, f"expected 22 hooks, got {len(hooks)}"
 
 
-@test("unified.yaml: 10 Claude-specific hooks defined")
+@test("unified.yaml: 7 Claude-specific hooks defined")
 def test_claude_specific(unified):
     cs = unified.get("claude_specific", {})
-    assert len(cs) == 10, f"expected 10 claude-specific hooks, got {len(cs)}"
+    assert len(cs) == 7, f"expected 7 claude-specific hooks, got {len(cs)}"
 
 
 @test("unified.yaml: all 29 hooks accounted for")
@@ -137,12 +137,12 @@ def test_hook_scripts(unified):
 
 # Expected hook counts per platform (from unified.yaml hook platform lists)
 EXPECTED_HOOK_COUNTS = {
-    "claude_code": 19,  # all 19 portable hooks
-    "codex": 19,
-    "gemini": 19,
-    "qwen": 19,
+    "claude_code": 22,  # all 22 portable hooks
+    "codex": 22,
+    "gemini": 22,
+    "qwen": 22,
     "cursor": 4,   # permission_gate + bash_audit + turn_counter + compact_detect
-    "opencode": 13,  # all 19 portable minus 6 not on opencode (edit_guard, build_validator, inject_knowledge, auto_snapshot, context_guard, error_dna)
+    "opencode": 20,  # all 22 portable minus 2 (edit_guard=no-op w/o read-tracker, build_validator=script missing)
 }
 
 EXPECTED_SUPPORTED_EVENTS = {
@@ -299,8 +299,8 @@ def test_list_command(_unused=None):
     output = result.stdout
     assert "Hook × Platform Matrix" in output, "missing Hook × Platform Matrix"
     assert "Event × Platform Matrix" in output, "missing Event × Platform Matrix"
-    assert "Claude Only (10)" in output, "missing Claude Only summary"
-    assert "Total: 19 portable + 10 Claude-specific = 29 hooks" in output, "wrong total"
+    assert "Claude Only (7)" in output, "missing Claude Only summary"
+    assert "Total: 22 portable + 7 Claude-specific = 29 hooks" in output, "wrong total"
     assert "auto_snapshot" in output, "missing auto_snapshot"
     assert "completion_gate" in output, "missing completion_gate"
 

@@ -84,9 +84,6 @@ MISSING_DEPS=""
 [ "$PYTHON3_OK" = false ] && MISSING_DEPS="python3 $MISSING_DEPS"
 [ "$PYTHON3_HAS_SECRETS" = false ] && [ "$PYTHON3_OK" = true ] && MISSING_DEPS="python3-secrets $MISSING_DEPS"
 
-# ── 输出探针信息（AI 可见）──
-cat <<PROBE
-
 # ── 模型上下文窗口检测 ──
 CTX_LIMIT_FILE="$PROJECT_ROOT/.omc/state/model-context-limit"
 if [ -f "$CTX_LIMIT_FILE" ]; then
@@ -96,6 +93,7 @@ else
     CTX_LIMIT="unset"
 fi
 
+# ── 输出探针信息（AI 可见）──
 cat <<PROBE
 
 <ecosystem-probe>

@@ -28,7 +28,6 @@ curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh 
 | `/lx-todo` | L1 | 轻量 5 步循环：捕获→分诊→修复→验证→关闭（≤3 文件） |
 | `/lx-task-spec` | L2 | 3 问引导 → AC 驱动，中等复杂度，不需完整 PRD |
 | `/lx-rpe` | L3 | 研究→规划→执行管线，50% 上下文交接 + A/B 盲审 |
-| `/lx-prd` | L3 | ~~PRD 生产管线~~ 已被 `/lx-oma-split` 替代 |
 
 ### OMA 一人成军管线
 
@@ -46,24 +45,26 @@ curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh 
 | `/lx-pre-commit` | 提交前：项目类型检测 → 编译 → 测试 → 代码审查 |
 | `/lx-pre-push` | 推送前：commit message 校验 → 测试覆盖 → 安全扫描 → 判定 |
 
+### 审查层级
+
+| 审查者 | 定位 | 触发频率 | 门禁类型 |
+| :--- | :--- | :--- | :--- |
+| **Oracle** | 常规守门员 — 每阶段方案审核 + 终审 | L2+ 每阶段 | 硬门禁（REJECT = 阻断） |
+| **Meta-Oracle** | 最后守门员（核武器级）— G1-G4 关键节点触发 | ~5% 任务 | 软门禁（可覆写，需留痕） |
+
+> Meta-Oracle 是 Carror OS 的最高审查权威，消耗巨大（opus + 独立上下文），非必要不使用。Oracle 是日常站岗的守门员，Meta-Oracle 是只在关键时刻请出来的最后守门员。
+
 ### 代码质量
 
 | 技能 | 审查对象 | 规则 |
 | :--- | :--- | :--- |
 | `/lx-code-review` | 通用代码 | 8 类 39 条（错误处理/并发/接口/性能/可观测性） |
-| `/lx-react-review` | React/Next.js/Vue/Svelte | 渲染/Hooks/组件/状态/TS |
-| `/lx-security-review` | 通用代码 + 依赖 | 漏洞扫描→自动修复→重新扫描 |
-| `/lx-web-perf` | 前端项目 | 6 类 24 条（Bundle/Web Vitals/渲染/网络/资产） |
 
 ### 测试与调试
 
 | 技能 | 功能 |
 | :--- | :--- |
 | `/lx-test-gen` | 语言无关测试生成（Go/TS/Python 自动检测） |
-| `/lx-tdd-spec` | 行为矩阵 → 可测试规格 + GWT 验收条件 |
-| `/lx-golang-test` | 测试模式路由：table-driven/mock/HTTP handler/benchmark/fuzz/race（方法论通用） |
-| `/lx-browser-verify` | Playwright 可视化验收：5 类 24 项 |
-| `/lx-debug-spec` | 根因调查→假设验证→修复→回归 |
 | `/lx-root-cause-analysis` | 5-Why 根因追踪 + 证据链 + 置信度评分 |
 
 ### 基础设施

@@ -249,24 +249,66 @@
 
 **Oracle 审核留痕**: 每次审核结果记录到 `.omc/state/oracle-verdicts.md`，含变更描述、Oracle verdict、P0 数量和修复状态。
 
-### Meta-Oracle — Oracle 的审判官
+### Meta-Oracle — 最后守门员（核武器级终审）
+
+> **定位**：Oracle = 常规守门员（每阶段门禁），Meta-Oracle = 最后守门员（核武器级终审）。
+> Meta-Oracle 是 Carror OS 的最高审查权威，消耗巨大（opus + 独立上下文，每次 ~10-30K tokens），**仅在关键节点触发，非必要不使用**。
 
 Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-score.sh 静态检查虚高），它可能漏掉设计级缺陷（regex 只匹配部分引用格式），它的结论需要被验证。
 
-**Meta-Oracle = 独立于 Oracle 的第二审查者。** 专门审查 Oracle 自身的：
-- 评分方法论是否合理（有无系统性虚高/虚低）
-- 关键发现是否经运行时验证（而非仅静态检查）
-- 是否有遗漏的盲区（Oracle 视角的偏见）
+**Meta-Oracle = 独立于 Oracle 的最高审查者。** 使用完全不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性，对抗性审查 > 合规检查），专门寻找 Oracle 的盲区。
 
-**触发条件**：Oracle 给出 ACCEPT / ≥8.5 分时，自动触发 Meta-Oracle。Meta-Oracle 使用不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性），专门寻找 Oracle 的盲区。
+#### Oracle vs Meta-Oracle 分工
+
+| 维度 | Oracle（常规守门员） | Meta-Oracle（最后守门员） |
+|------|---------------------|--------------------------|
+| 触发频率 | 每阶段（L2+ 强制） | 仅 4 个关键触发点（~5% 任务） |
+| 消耗 | 中等 | 巨大（核武器级，opus + 独立上下文） |
+| 方法论 | 静态检查 + 文件存在性 + 合规审查 | 运行时验证 + 烟雾日志 + 对抗性审查 + 设计盲区扫描 |
+| 权威等级 | 高于代码现状 | **高于 Oracle**（可推翻 Oracle 裁决） |
+| 执行方式 | 硬门禁（REJECT = 阻断流程） | **软门禁**（给出裁决 + 建议，AI 可在明确理由下覆写） |
+| 模型 | opus critic/architect | opus critic（独立 agent，不共享主会话上下文） |
+
+#### 4 个触发点（G1-G4）
+
+> **核心原则：珍惜 Meta-Oracle 的能力，非必要不触发。** 以下 4 个触发点是唯一激活 Meta-Oracle 的场景。
+
+| # | 触发点 | 触发条件 | 理由 |
+|---|--------|---------|------|
+| **G1** | **架构决策终审** | 涉及 ≥2 子系统 + 不可逆的架构变更 | 架构错了全盘皆输，需要最高级审查 |
+| **G2** | **PRD/方案最后一步** | PRD 完整生命周期的最终阶段（Oracle 已 ACCEPT） | 方案是工程的蓝图，蓝图错了执行全错 |
+| **G3** | **Oracle ACCEPT + 高分** | Oracle 给出 ACCEPT 且评分 ≥8.5（现有逻辑，保留） | Oracle 最可能虚高的场景，需独立校准 |
+| **G4** | **Release 门禁** | `package-release.sh` 执行前的最终安全检查 | 发布的破坏不可逆，必须最后把关 |
+
+**优先级**（多触发点同时满足时取最高）：G1 > G2 > G4 > G3。同一任务最多触发 1 次 Meta-Oracle。
+
+**软门禁执行协议**：
+1. Meta-Oracle 审查后给出裁决：`[Meta-Oracle: ACCEPT]` / `[Meta-Oracle: ADVISORY]` / `[Meta-Oracle: REJECT]`
+2. ACCEPT → 继续流程
+3. ADVISORY → 建议修正但不阻断，AI 自行判断是否采纳
+4. REJECT → 强烈建议阻断，AI 必须有**明确书面理由**才能覆写（记录到 `.omc/state/meta-oracle-overrides.md`）
+5. 连续 2 次 REJECT → 升级为事实阻断，需人工介入
 
 **在 A→B→A 三重门中的位置**：
 ```
-A 预测 → B 盲执行 → A 自证 → Oracle 审核
+A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
                               ↓
-                         Meta-Oracle 验证 Oracle 的审核质量
+                         Meta-Oracle 最后守门（仅在 G1-G4 触发）
 ```
-> Meta-Oracle 不是每轮都要的。Oracle 给 REJECT/REVISE 时说明已经在深度审查，Meta-Oracle 的价值增量小。Oracle 给 ACCEPT/高分时最有触发价值 — 此时最可能虚高。
+
+**在完整开发生命周期中的位置**：
+```
+调研 → 方案 → Oracle 方案审核 → 执行 → 自愈 → 报告 → Oracle 终审
+  ↓                                                    ↓
+  [G1: 架构决策时]                              [G2: PRD 最后一步]
+                                                       ↓
+                                              Meta-Oracle 最后守门
+```
+
+> **关键约束**：
+> - Meta-Oracle 不是每轮都要的。Oracle 给 REJECT/REVISE 时已在深度审查，Meta-Oracle 价值增量小
+> - 同一任务最多触发 1 次 Meta-Oracle，触发后裁决留痕到 `.omc/state/meta-oracle-verdicts.md`
+> - G3（Oracle ACCEPT/高分）是最低触发门槛，G1/G2/G4 是更高优先级的触发点
 
 ## 会话初始化
 
@@ -625,7 +667,7 @@ AI 申请权限时，**必须**说明当前任务和理由：
 | `is_mode_active()` | 模式检测 | #3 | ghost/goal 降级保护 |
 | Oracle 终审 | 节点 | #6 | 最高权威裁决 |
 | Oracle 终审要求 | 协议 | #4, #6 | 声称完成前强制独立 Oracle 审核，自证不可信 |
-| Meta-Oracle | 节点 | #4, #6 | Oracle 的审判官 — ACCEPT/高分时触发，独立验证 Oracle 评分质量 |
+| Meta-Oracle | 节点 | #4, #6 | 最后守门员（核武器级终审）— G1-G4 触发，独立于 Oracle 的最高审查权威，软门禁 |
 
 ---
 

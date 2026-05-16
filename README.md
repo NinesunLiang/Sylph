@@ -1,6 +1,6 @@
 # 🛑 Carror OS — AI 时代的开发者操作系统
 
-![Version](https://img.shields.io/badge/version-v6.1.9-blue.svg)
+![Version](https://img.shields.io/badge/version-v6.2.0-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20Codex%20CLI%20%7C%20Gemini%20CLI%20%7C%20Qwen%20Code%20%7C%20Cursor%20%7C%20OpenCode-orange.svg)
 
@@ -100,7 +100,7 @@ cd @
 
 **🛡️ 选项 A：安装"基础版" (Base Edition)**
 
-适合只想要 AI 变规矩、不犯错，不想学习任何新指令的你。安装后，32 个底层物理拦截器将在后台静默运行（防幻觉、防隐私泄露、80% Context OOM 熔断）。你只管正常让 AI 写代码，出错时它在底层默默扫除漏洞和幻觉。
+适合只想要 AI 变规矩、不犯错，不想学习任何新指令的你。安装后，45 个底层物理拦截器将在后台静默运行（防幻觉、防隐私泄露、80% Context OOM 熔断）。你只管正常让 AI 写代码，出错时它在底层默默扫除漏洞和幻觉。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- base

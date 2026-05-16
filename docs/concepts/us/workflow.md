@@ -25,10 +25,7 @@ Layer 1 + 10 automated Skill gates. 7 run during commit workflows:
 | `lx-pre-commit` | Quality gate: type check, incremental build, test, code review |
 | `lx-pre-push` | Security gate: commit format + compliance checks |
 | `lx-code-review` | Language-agnostic code review with auto-fix |
-| `lx-react-review` | React/TypeScript-specific review |
-| `lx-security-review` | Vulnerability and hardcoded secret scanning |
 | `lx-style-guide` | CSS/Tailwind style compliance |
-| `lx-web-perf` | Web performance audit (bundles, vitals, rendering) |
 
 In Base Edition, these run automatically when you trigger `pre-commit`. You do not need to learn individual commands.
 

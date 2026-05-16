@@ -110,3 +110,21 @@ oracle_stage2:
 | 替代 B 执行测试 | Oracle 只审方案和结果，不执行 |
 | 与 A 在阶段 2 对话 | 防止污染终审独立性 |
 | 替 A 修改预测 | 预测是 A 的假设，Oracle 不替 A 思考 |
+
+---
+
+## Meta-Oracle 升级路径
+
+> Oracle 的裁决不是最终的。当 Meta-Oracle 触发时（G1-G4），Oracle 的 ACCEPT/高分裁决需经 Meta-Oracle 独立验证。
+
+**升级条件**：Oracle 给出 ACCEPT 且任务满足 G1-G4 任一触发条件时，自动升级至 Meta-Oracle。
+
+**Meta-Oracle 权威**：Meta-Oracle 是 Carror OS 的最高审查权威（最后守门员），可推翻 Oracle 裁决。软门禁 — REJECT 时 AI 可在明确书面理由下覆写，但需留痕到 `.omc/state/meta-oracle-overrides.md`。
+
+**G1-G4 触发点**（详见 AGENTS.md §Meta-Oracle）：
+- G1: 架构决策终审（≥2 子系统 + 不可逆变更）
+- G2: PRD/方案最后一步（Oracle 已 ACCEPT）
+- G3: Oracle ACCEPT + ≥8.5 分
+- G4: Release 门禁（package-release.sh 执行前）
+
+**Meta-Oracle 执行方式**：opus critic agent（独立上下文，不共享主会话），运行时验证 > 静态检查，烟雾日志 > 文件存在性。

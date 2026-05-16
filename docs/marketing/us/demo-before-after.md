@@ -115,3 +115,20 @@ Every "not allowed" moment is a late-night rework that didn't happen.
 
 Carror OS doesn't stop AI from making mistakes.
 It makes sure those mistakes never become **your** consequences.
+
+---
+
+## Cost Comparison: Same Reliability, Different Price
+
+Same task. Same Carror OS governance. Different models:
+
+| Setup | Model Cost (est.) | Outcome |
+|-------|-------------------|---------|
+| Opus 4.6 bare (no governance) | ~$0.45 | AI claimed done without verification, 85 min with rework |
+| Sonnet 4.6 bare (no governance) | ~$0.15 | Similar result, higher error frequency |
+| **DeepSeek v4 Flash + Carror OS** | **~$0.008** | **Forced verification, 20 min, first pass** |
+| **DeepSeek v4 Pro + Carror OS** | **~$0.03** | **Same, with stronger reasoning** |
+
+> DeepSeek v4 Flash + Carror OS costs less than **1/50th** of bare Opus, with higher reliability.
+
+**The core logic**: This task didn't need Opus-level reasoning. It needed the AI to not skip tests, not fabricate file:line references, and not edit files it hadn't read — all discipline problems that Carror OS enforces physically with hooks, regardless of model intelligence.

@@ -74,7 +74,7 @@ log "========================================"
 
 # --- context-guard (R13 大小写 + R15 tool_name) ---
 # 清理可能残留的无人值守/幽灵模式文件，防止干扰阻断测试
-rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/lx-ghost.json .omc/state/lx-goal.json
+rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/session-turns.json
 export CONTEXT_FORCE_HEURISTIC=1
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 # R29: heuristic 数据不用于阻断决策（仅 transcript real 触发硬阻断）
@@ -128,10 +128,10 @@ run_case "R40 ghost mode: context-guard Write @ 95% 降级放行" \
   "context-guard.sh" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
-# R40-2: Ghost mode 下 permission-gate rm -rf 不应阻断
-run_case "R40 ghost mode: permission-gate rm -rf 降级放行" \
+# R40-2: Ghost mode 下 destructive ops 仍被 token 模式阻断 (C-3 最小门禁)
+run_case "R40 ghost mode: permission-gate rm -rf 应阻断 (token模式永远生效)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 0 "\[ghost\]"
+  "permission-gate.sh" 2 "破坏性|强制终端|Token"
 
 # R40-3: Ghost mode 下 edit-guard 未 Read 不应阻断
 run_case "R40 ghost mode: edit-guard 未 Read 降级放行" \
@@ -162,7 +162,7 @@ json.dump(d, open('.omc/state/lx-goal.json', 'w'))
 # R40-5: Goal mode 下 permission-gate 应降级
 run_case "R40 goal mode: permission-gate rm -rf 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 0 "\[goal\]"
+  "permission-gate.sh" 2 "破坏性|强制终端|Token"
 
 # ---- Setup: 创建旧格式 ghost-mode.json（后向兼容测试）----
 python3 -c "
@@ -189,7 +189,7 @@ json.dump(d, open('.omc/state/unattended-mode.json', 'w'))
 # R40-7: 旧格式 unattended-mode.json 应返回 "goal"（已改名）
 run_case "R40 legacy unattended-mode.json: permission-gate 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 0 "\[goal\]"
+  "permission-gate.sh" 2 "破坏性|强制终端|Token"
 
 # 测试完成后清理模式文件 + 恢复真实上下文读取
 rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active
@@ -444,6 +444,35 @@ else
     fail "R38 posttool-claim-audit harness.yaml 未启用"
 fi
 
+
+# G1 pseudo-integrity: 百分比无来源应阻断
+TOTAL=$((TOTAL+1))
+rm -f .omc/state/read-tracker.txt
+log ""
+log "[$TOTAL] R38-G1 posttool-claim-audit: 百分比无来源应阻断"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/g1-test.md","new_content":"通过率: 99.5%"}}' | \
+    bash .claude/hooks/posttool-claim-audit.sh Write > /tmp/smoke-g1-$$.out 2>&1
+_G1_EXIT=$?
+if [ "$_G1_EXIT" = "2" ] && grep -q "PSEUDO" /tmp/smoke-g1-$$.out; then
+    pass "R38-G1 G1 伪诚信检测阻断 (exit=$_G1_EXIT)"
+else
+    fail "R38-G1 G1 未阻断伪诚信 (exit=$_G1_EXIT)"
+fi
+rm -f /tmp/smoke-g1-$$.out .omc/state/read-tracker.txt
+
+# G1 pseudo-integrity: 有来源应放行
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] R38-G1 posttool-claim-audit: 有来源百分比应放行"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/g1-test.md","new_content":"通过率: 99.5% [已验证: go test]"}}' | \
+    bash .claude/hooks/posttool-claim-audit.sh Write > /tmp/smoke-g1-$$.out 2>&1
+_G1_PASS_EXIT=$?
+if [ "$_G1_PASS_EXIT" = "0" ]; then
+    pass "R38-G1 G1 有来源放行 (exit=$_G1_PASS_EXIT)"
+else
+    fail "R38-G1 G1 误杀有来源百分比 (exit=$_G1_PASS_EXIT)"
+fi
+rm -f /tmp/smoke-g1-$$.out .omc/state/read-tracker.txt
 # R24 turn-counter: UserPromptSubmit 应递增 session-turns.json
 rm -f .omc/state/session-turns.json
 echo "test prompt" | bash .claude/hooks/turn-counter.sh >/dev/null 2>&1
@@ -1089,7 +1118,7 @@ fi
 TOTAL=$((TOTAL+1))
 echo "$E2E1_CODE" > .omc/state/permission-approved
 echo "$E2E1_CODE" > .omc/state/permission-required
-echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/e2e1-test-x"}}' | \
+echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sudo ls /tmp/e2e1-test-x"}}' | \
     bash .claude/hooks/permission-gate.sh > /dev/null 2>&1
 _E2E1_PASS_EXIT=$?
 rm -f .omc/state/permission-approved .omc/state/permission-required .omc/state/approved-ops.json
