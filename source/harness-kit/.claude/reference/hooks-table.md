@@ -1,4 +1,4 @@
-## Hooks 速查（共 45 个）
+## Hooks 速查（共 39 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -12,7 +12,7 @@
 |`fuzzy-block` | PreToolUse | fuzzy-block.sh — PreToolUse — 模糊指令硬阻断（C1 指令清晰度门禁）|
 |`inject-project-knowledge` | SessionStart | inject-project-knowledge.sh — SessionStart — 注入 .claude/ 核心知识到 AI context|
 |`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
-|`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥3)，输出升华建议|
+|`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议|
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
 |`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Meta-Oracle 最后守门员自动触发（G1-G4）|
 |`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
@@ -28,7 +28,6 @@
 |`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式|
 |`posttool-write-lock` | PostToolUse | posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁|
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
-|`pretool-ask-guard` | PreToolUse | ~~pretool-ask-guard.sh~~ — 已移除 (2026-05-17)。哲学先行逻辑由 铁律#8 + meta-oracle-trigger + claim-audit 分担 |
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|
@@ -41,9 +40,6 @@
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
 |`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
 |`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|
-|`token_writer` | PostToolUse | token_writer.sh — PostToolUse:Edit|Write — 写入 token 追踪索引，由 context-guard 调用|
-|`agentic-ui` | PostToolUse | agentic-ui.sh — PostToolUse — Agentic UI 交互模式管理|
-|`feature-probe` | SessionStart | feature-probe.sh — SessionStart — 特性探针，验证 feature 的 L1-L4 证据链|
 
 ### 已注册但默认禁用的脚本（共 2 个）
 
@@ -51,5 +47,5 @@
 
 | 脚本 | 事件 | 说明 |
 |------|------|------|
-| posttool-read-cite | PostToolUse | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
-| proactive-handoff | PostToolUse | proactive-handoff.sh — PostToolUse:Write|Edit — 主动会话交接（上下文阈值触发） |
+| posttool-read-cite | (未注册) | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
+| proactive-handoff | (未注册) | proactive-handoff.sh — PostToolUse:Write|Edit — 主动会话交接（上下文阈值触发） |

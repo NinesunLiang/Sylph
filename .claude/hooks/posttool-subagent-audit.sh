@@ -62,6 +62,17 @@ if [ -f "$USAGE_LOG" ]; then
     fi
 fi
 
+# ── K1 跨Agent数据链: 子Agent输出 ≥10KB → 注入验证提醒 ──
+# anti-patterns.md K1: 子Agent返回的数值/统计/路径默认视为 [推断,待确认]
+# 主Agent在写入文件前必须独立验证（wc -l/ls/diff）
+VERIFY_THRESHOLD=$(hc_get "subagent_guard.verify_reminder_threshold_bytes" "10240")
+if [ "$CONTENT_LEN" -gt "$VERIFY_THRESHOLD" ] 2>/dev/null; then
+    flywheel_event "posttool_subagent_audit" "verify_reminder" "P2" || true
+
+    VERIFY_MSG=$(printf '[K1 跨Agent数据链提醒] %s 返回 %d 字节内容。\n⚠️ 子Agent输出默认视为 [推断, 待确认] — 任何数值/统计/路径在写入输出文件前必须独立验证（wc -l / ls / diff 物理确认）。\nDG-44/DG-63: 未验证的子Agent数据曾导致 34x 幻读偏差。' "$AGENT_TYPE" "$CONTENT_LEN")
+    echo "$VERIFY_MSG" | hc_emit_hook_json "PostToolUse" "true"
+fi
+
 # 高用量 → 写 flywheel P0 事件，下次 SessionStart 告警
 if [ "$IS_HIGH" = true ]; then
     FLYWHEEL_BUF="$HOME/.claude/flywheel-buffer.jsonl"

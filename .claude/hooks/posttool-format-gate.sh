@@ -60,6 +60,7 @@ HINTS=""
 [ "$HAS_SUMMARY" = false ] && HINTS="${HINTS}- 欠缺摘要：长回复前提供一句话总结\n"
 
 if [ -n "$HINTS" ]; then
+    flywheel_event "posttool_output_format" "feedback" "P2" || true
     printf '📋 #5 以人为本 — 输出格式反馈:\n%s' "$HINTS" | hc_emit_hook_json "PostToolUse" "true"
     exit 0
 fi

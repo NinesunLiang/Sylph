@@ -103,7 +103,7 @@ G1_VIOLATIONS=""
 # - 百分比: 95.6%, 14%-53%, 减少 50%, +16.64
 # - 倍数: 1/50, 五十分之一, 10 倍, X倍
 # - 增减量: 减少/提升/节省/降低 X% 或 +X
-NUM_CLAIMS=$(echo "$INPUT" | grep -oE '[0-9]{1,3}\.[0-9]+%|[0-9]{1,3}%|通过率|[0-9]+%[-~][0-9]+%|减少\s*[0-9]+%?|提升\s*[0-9]+%?|节省\s*[0-9]+%?|降低\s*[0-9]+%?|1/[0-9]+|[0-9]+倍|\+[0-9]+\.[0-9]+|\+[0-9]+%' 2>/dev/null || true)
+NUM_CLAIMS=$(echo "$INPUT" | grep -oE '[0-9]{1,3}\.[0-9]+%|[0-9]{1,3}%|通过率|[0-9]+%[-~][0-9]+%|减少\s*[0-9]+%?|提升\s*[0-9]+%?|节省\s*[0-9]+%?|降低\s*[0-9]+%?|1/[0-9]+|[0-9]+倍|[0-9]+/[0-9]+\s*(passed|通过|pass)|[0-9]+\s*(out of|of|项|个)\s*[0-9]+|\+[0-9]+\.[0-9]+|\+[0-9]+%|[0-9]+\s*分|得分\s*[0-9]+|[0-9]+\s*轮|[0-9]+\s*次|[0-9]{2,}\s*条' 2>/dev/null || true)
 
 if [ -n "$NUM_CLAIMS" ]; then
     # 来源检测：以下任一形式均视为有效来源
@@ -112,7 +112,7 @@ if [ -n "$NUM_CLAIMS" ]; then
     # - 引用格式: path:line, [已验证: path:line], [内部自检], http(s)://URL
     # - 证据标签: [已测试: ...], VERIFIED:
     # - 跳过文件: skip-list.txt 中的路径不检查
-    HAS_SOURCE=$(echo "$INPUT" | grep -ciE '(ASVS|OWASP|NIST|ISO|CWE|CVE|ATLAS|benchmark.report|benchmark-report|baseline|cross-platform-gain|pass-rate-summary|\[已验证|\[已测试|\[内部自检|VERIFIED|https?://|[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+)' 2>/dev/null || true)
+    HAS_SOURCE=$(echo "$INPUT" | grep -ciE '(ASVS|OWASP|NIST|ISO|CWE|CVE|ATLAS|benchmark.report|benchmark-report|baseline|cross-platform-gain|pass-rate-summary|\[已验证|\[已测试|\[内部自检|VERIFIED|https?://|[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+|source:|ref:|來源|出处|根据.*统计|harness.smoke|production.verify|audit.hooks|auto.score|flywheel\.log|\d+/\d+\s*(passed|通过)|实测|实测数据)' 2>/dev/null || true)
     HAS_SOURCE="${HAS_SOURCE:-0}"
 
     if [ "$HAS_SOURCE" -eq 0 ]; then

@@ -515,7 +515,7 @@ text = sys.stdin.buffer.read().decode('utf-8', errors='replace')
 # points but NOT valid characters.  Python's UTF-8 decoder rejects their
 # byte encoding (W3C spec), but they can appear after intermediate steps
 # that roundtrip through text, and they break json.dumps / API JSON parsers.
-text = ''.join(c for c in text if not '\uD800' <= c <= '\uDFFF')
+text = ''.join(c for c in text if not 0xD800 <= ord(c) <= 0xDFFF)
 sys.stdout.write(text)
 "
 }

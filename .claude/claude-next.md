@@ -62,7 +62,7 @@
 
 @2026-05-17 hits:1
 触发条件：当 jsonl/json 文件中存在需要修改的字面文本时
-正确行为：不要用字符串替换操作修改 JSON 文件内容。正确做法：parse JSON → 递归修改 decoded Python 对象中的字符串值 → json.dumps 重新序列化。JSON 中 `\\uD800`（valid escaped）和 `\uD800`（invalid escape）在原始字节层面有不同数量的反斜杠，raw text replace 容易只替换部分导致残留
+正确行为：不要用字符串替换操作修改 JSON 文件内容。正确做法：parse JSON → 递归修改 decoded Python 对象中的字符串值 → json.dumps 重新序列化。JSON 中 `\\uD800`（valid escaped）和 `U+D800`（invalid escape）在原始字节层面有不同数量的反斜杠，raw text replace 容易只替换部分导致残留
 证据：修复 lone surrogate API 400 错误时，raw text replace 在 transcript 遗留 13 处未替换，改用 JSON roundtrip 后一次清除
 
 ### 🐶 [DG-008] 跨 session bug 需追踪 hook 注入链 —— error-signals 是隐藏传播源 (@lucas.liang)
@@ -76,8 +76,8 @@
 
 @2026-05-17 hits:1
 触发条件：AI assistant 在诊断问题时，回复中包含与 bug 模式相同的字面文本
-正确行为：诊断时避免在回复中直接包含触发 bug 的字面文本。使用替代表示法（如 `U+D800` 代替 `\uD800`，`&lt;` 代替 `<` 等），防止"解释 bug → 回复中包含 bug 模式 → 下轮请求触发同一个 bug"的自指循环
-证据：assistant 回复"孤立的 `\uD800` 这类东西" → 该回复被序列化到下一轮 API 请求 → 触发同一个 lone surrogate 错误
+正确行为：诊断时避免在回复中直接包含触发 bug 的字面文本。使用替代表示法（如用 `U+D800` 表示代理对字符，`&lt;` 代替 `<` 等），防止"解释 bug → 回复中包含 bug 模式 → 下轮请求触发同一个 bug"的自指循环
+证据：assistant 回复"孤立的 `U+D800` 这类东西" → 该回复被序列化到下一轮 API 请求 → 触发同一个 lone surrogate 错误
 
 ### 🐶 [DG-86] Oracle 超时必须有降级协议 — 不能直接跳自检代替裁决 (@LuangSir)
 

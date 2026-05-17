@@ -67,7 +67,7 @@ python3 "$PROJECT_ROOT/.claude/scripts/oma_lock_manager.py" acquire "$FILE_PATH"
 exit_code=$?
 if [[ $exit_code -ne 0 ]]; then
 	    echo "⚠️ [Carror OS] 并发锁引擎异常 (Exit $exit_code) — 已降级放行（fail-open），写入操作继续。" >&2
-	    echo "$(date +%Y-%m-%d),pretool_write_lock_error,P2,carror-os" >> "$HOME/.claude/flywheel.log"
+	    flywheel_event "pretool_write_lock" "error" "P2" || true
 	    echo '{"continue": true}'
 	    exit 0
 fi
