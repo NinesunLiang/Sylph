@@ -24,7 +24,7 @@ The strategy is **layered risk reduction at enforcement boundaries** — not com
 ### What it does
 - Blocks `TaskUpdate("completed")` unless a structured evidence file exists with:
   - `VERIFIED` keyword ([`:74-78`](../hooks/completion-gate.sh#L74-L78))
-  - Structured format markers: `[已验证: file:line]`, `[已测试: 命令+输出]`, `exit 0`, `PASS`, etc. ([`:83-91`](../hooks/completion-gate.sh#L83-L91))
+  - Structured format markers: `[已验证: file:line]`, `[已测试: 命令+输出]`, `exit 0`, `PASS`, etc. ([`:98-101`](../hooks/completion-gate.sh#L98-L101))
   - Minimum 20 characters of evidence content
 - Atomic consume: evidence file is consumed on first pass (multi-process race defense via mv + read-back)
 

@@ -28,6 +28,7 @@ PROTECTED=$(hc_get "protected_files.warn_on_edit" "package.json go.mod Cargo.tom
 set -f
 for f in $PROTECTED; do
     if [ "$BASENAME" = "$f" ]; then
+flywheel_event "pretool_edit_scope" "detected" "P2" || true
         echo "⚠️ 正在编辑核心文件: ${BASENAME}。请确认已声明影响范围并获得用户确认(§6.2)。" >&2
         break
     fi

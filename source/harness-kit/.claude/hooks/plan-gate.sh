@@ -67,20 +67,21 @@ FIRST_INCOMPLETE=$(echo "$INCOMPLETE_STEPS" | head -1)
 [ -z "$FIRST_INCOMPLETE" ] && { echo '{"continue": true}'; exit 0; }
 
 echo '{"continue": true}'
-# ─── 软阻断：注入提醒而非 exit 2 ──────────────────────────────
+# ─── 软阻断：注入提醒而非 exit 2 阻断 ───
+exit 2 ──────────────────────────────
 # AI 读到提醒后可自行判断：继续（说明已确认）或回到正确流程
 if [ "$BASENAME" = "$PLAN_DOC" ]; then
     if ! check_research_gate "$FIRST_INCOMPLETE" "$LATEST_EXEC"; then
-        printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⚠️ [Gate-R 提醒] 正在编辑 %s 的 plan.md，但 Step %s 的 research 尚未标记完成。lx-rpe 正确流程：Research → Plan → Execute。如已完成 research 只是未标记，请先在 executor.md 标记 research ✅ 再继续；或说明原因后继续编辑。"}}\n' \
-            "$FEATURE" "$FIRST_INCOMPLETE"
+        printf '⚠️ [Gate-R 提醒] 正在编辑 %s 的 plan.md，但 Step %s 的 research 尚未标记完成。lx-rpe 正确流程：Research → Plan → Execute。如已完成 research 只是未标记，请先在 executor.md 标记 research ✅ 再继续；或说明原因后继续编辑。' \
+            "$FEATURE" "$FIRST_INCOMPLETE" | hc_emit_hook_json "PreToolUse" "true"
         exit 0
     fi
 fi
 
 if [ "$BASENAME" = "$EXEC_DOC" ]; then
     if ! check_plan_gate "$FIRST_INCOMPLETE" "$LATEST_EXEC"; then
-        printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "⚠️ [Gate-P 提醒] 正在推进 Step %s 但 plan 尚未标记完成。lx-rpe 正确流程：Plan 门禁通过后才可执行。如 plan 已完成只是未标记，请先在 executor.md 标记 plan ✅；或说明原因后继续。"}}\n' \
-            "$FIRST_INCOMPLETE"
+        printf '⚠️ [Gate-P 提醒] 正在推进 Step %s 但 plan 尚未标记完成。lx-rpe 正确流程：Plan 门禁通过后才可执行。如 plan 已完成只是未标记，请先在 executor.md 标记 plan ✅；或说明原因后继续。' \
+            "$FIRST_INCOMPLETE" | hc_emit_hook_json "PreToolUse" "true"
         exit 0
     fi
 fi

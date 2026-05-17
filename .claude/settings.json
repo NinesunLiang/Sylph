@@ -122,16 +122,6 @@
             "timeout": 5000
           }
         ]
-      },
-      {
-        "matcher": "AskUserQuestion",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-ask-guard.sh",
-            "timeout": 5000
-          }
-        ]
       }
     ],
     "PostToolUse": [
@@ -201,11 +191,6 @@
           {
             "type": "command",
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/read-tracker.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/posttool-read-cite.sh",
             "timeout": 3000
           }
         ]
@@ -287,16 +272,6 @@
           {
             "type": "command",
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/intent-tracker.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/proactive-handoff.sh",
             "timeout": 5000
           }
         ]

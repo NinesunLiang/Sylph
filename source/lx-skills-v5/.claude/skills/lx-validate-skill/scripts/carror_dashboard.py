@@ -155,9 +155,30 @@ def collect_token_savings():
             real_total_cache = r.get("total_cache_read_tokens")
             turns = r.get("total_turns")
             session_id = r.get("session_id")
-            context_limit = r.get("context_limit", 200000)
+            context_limit = r.get("context_limit", None)
         except (json.JSONDecodeError, KeyError):
             pass
+
+    # 自动检测模型上下文限制（优先: 模型名[1m]后缀 > settings.json）
+    def _detect_model_limit():
+        try:
+            # 优先读项目级 settings，全局 settings 兜底
+            proj_settings = STATE.parent.parent / ".claude" / "settings.json"
+            settings_path = proj_settings if proj_settings.exists() else Path.home().joinpath(".claude/settings.json")
+            settings = json.loads(settings_path.read_text())
+            model = settings.get("env", {}).get("ANTHROPIC_MODEL", "")
+            m = re.search(r"\[(\d+)([km])\]", model)
+            if m:
+                n = int(m.group(1))
+                unit = m.group(2)
+                return n * 1000 if unit == "k" else n * 1000000
+        except: pass
+        return None
+
+    _model_limit = _detect_model_limit()
+    if context_limit is None or context_limit == 200000:
+        if _model_limit and _model_limit != 200000:
+            context_limit = _model_limit
 
     # === 合成计数器（兜底） ===
     syn_f = STATE / "token-tracking-index.json"
@@ -168,6 +189,9 @@ def collect_token_savings():
             s = json.loads(syn_f.read_text(encoding="utf-8"))
             synthetic_usage = s.get("usage", 0)
             limit = s.get("limit", 200000)
+            # auto-correct hardcoded 200000
+            if limit == 200000 and _model_limit and _model_limit != 200000:
+                limit = _model_limit
         except (json.JSONDecodeError, KeyError):
             pass
 
@@ -200,8 +224,10 @@ def collect_token_savings():
             if tu > 0:
                 per_turn_avg = round(total_ctx / tu)
 
-    # context_limit: real data > synthetic > hardcoded
-    if real_f.exists() and r.get("context_limit"):
+    # context_limit: corrected variable (auto-detected from model) > real data > synthetic > hardcoded
+    if context_limit is not None and context_limit != 200000:
+        effective_limit = context_limit
+    elif real_f.exists() and r.get("context_limit"):
         effective_limit = r["context_limit"]
     else:
         effective_limit = limit

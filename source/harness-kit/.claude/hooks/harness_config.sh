@@ -19,17 +19,23 @@ _hc_ensure_cache() {
 
     mkdir -p "$_HC_STATE_DIR" 2>/dev/null
 
-    # 第一步：缓存已存在且非空 → 尝试使用
+    # 第一步：缓存已存在且非空 → 尝试使用（带 sentinel 完整性检查，防 DG-17 静默失败）
     if [ -f "$_HC_CACHE" ] && [ -s "$_HC_CACHE" ]; then
-        if [ ! -f "$_HC_YAML" ]; then
-            # 无 yaml 但有预先生成的缓存（跨平台 fallback 场景）
-            _HC_CACHE_LOADED="ready"
-            return 0
-        fi
-        # 有 yaml：比较修改时间，yaml 不比 cache 新 → 缓存有效
-        if [ ! "$_HC_YAML" -nt "$_HC_CACHE" ]; then
-            _HC_CACHE_LOADED="ready"
-            return 0
+        # Sentinel 完整性检查：缓存必须含 __parsed_count__ 行
+        if grep -q '^__parsed_count__=' "$_HC_CACHE" 2>/dev/null; then
+            if [ ! -f "$_HC_YAML" ]; then
+                # 无 yaml 但有预先生成的缓存（跨平台 fallback 场景）
+                _HC_CACHE_LOADED="ready"
+                return 0
+            fi
+            # 有 yaml：比较修改时间，yaml 不比 cache 新 → 缓存有效
+            if [ ! "$_HC_YAML" -nt "$_HC_CACHE" ]; then
+                _HC_CACHE_LOADED="ready"
+                return 0
+            fi
+        else
+            # 缓存缺少 sentinel — 旧格式或损坏，强制重建
+            rm -f "$_HC_CACHE"
         fi
     fi
 
@@ -47,10 +53,12 @@ _hc_ensure_cache() {
 
     # 写入临时文件再 mv（原子替换，防并发）
     local tmp_cache="${_HC_CACHE}.tmp.$$"
-    python3 - "$_HC_YAML" "$tmp_cache" <<'PYEOF'
+    local min_keys="${HC_MIN_PARSED_KEYS:-50}"
+    python3 - "$_HC_YAML" "$tmp_cache" "$min_keys" <<'PYEOF'
 import sys, os
 
 yaml_path = sys.argv[1]
+min_keys = int(sys.argv[3]) if len(sys.argv) > 2 else 50
 out_path = sys.argv[2]
 
 def parse_yaml_simple(path):
@@ -123,7 +131,18 @@ def parse_yaml_simple(path):
 
 try:
     data = parse_yaml_simple(yaml_path)
-    lines = []
+    n_keys = len(data)
+
+    # 解析完整性门禁：key 数量必须 >= 最小阈值，防止 YAML 格式损坏导致静默空缓存
+    if n_keys < min_keys:
+        sys.stderr.write(f"[harness_config] YAML 解析疑似失败: {n_keys} keys < {min_keys} 阈值。"
+                         f"请检查 {yaml_path} 是否为多行 YAML 格式。\n")
+        sys.stderr.write(f"[harness_config] 当前缓存将标记为不可用，所有 hc_get 返回默认值。\n")
+        with open(out_path, 'w') as f:
+            f.write('')
+        sys.exit(1)
+
+    lines = [f"__parsed_count__={n_keys}"]
     for k, v in sorted(data.items()):
         v_escaped = str(v).replace('\n', '\\n')
         lines.append(f"{k}={v_escaped}")
@@ -131,20 +150,28 @@ try:
     with open(out_path, 'w', encoding='utf-8') as f:
         f.write('\n'.join(lines) + '\n')
 except Exception as e:
+    sys.stderr.write(f"[harness_config] 解析异常: {e}\n")
     with open(out_path, 'w') as f:
         f.write('')
     sys.exit(0)
 PYEOF
 
-    # 原子替换
-    if [ -f "$tmp_cache" ]; then
-        mv -f "$tmp_cache" "$_HC_CACHE" 2>/dev/null
-        _HC_CACHE_LOADED="ready"
-        return 0
-    else
-        _HC_CACHE_LOADED="empty"
-        return 1
-    fi
+	    # 原子替换（带完整性验证：必须含 __parsed_count__ sentinel，防 DG-17 YAML 解析静默失败）
+	    if [ -f "$tmp_cache" ] && [ -s "$tmp_cache" ]; then
+	        if grep -q '^__parsed_count__=' "$tmp_cache" 2>/dev/null; then
+	            mv -f "$tmp_cache" "$_HC_CACHE" 2>/dev/null
+	            _HC_CACHE_LOADED="ready"
+	            return 0
+	        else
+	            echo "[harness_config] 缓存完整性失败 — 缺少 __parsed_count__ sentinel，YAML 解析可能异常" >&2
+	            rm -f "$tmp_cache"
+	            _HC_CACHE_LOADED="empty"
+	            return 1
+	        fi
+	    else
+	        _HC_CACHE_LOADED="empty"
+	        return 1
+	    fi
 }
 
 # hc_get "section.key" "default" — 读标量
@@ -450,4 +477,58 @@ with open(tmp, 'w') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, file)
 " 2>/dev/null || true
+}
+
+# ── Safe JSON hook response construction ──
+# Usage: echo "$message" | hc_emit_hook_json ["hookEventName"] ["true|false"]
+# Reads message from stdin (binary-safe), outputs complete JSON hook response.
+# Uses python3 json.dumps for proper escaping — handles quotes, backslashes,
+# control chars, and invalid UTF-8 (replaced with U+FFFD).
+# Pattern proven at context-guard.sh:120 and error-dna.sh:432.
+hc_emit_hook_json() {
+    export _HC_EVENT_NAME="${1:-PostToolUse}"
+    export _HC_CONTINUE_VAL="${2:-true}"
+    python3 -c "
+import os, sys, json
+event = os.environ.get('_HC_EVENT_NAME', 'PostToolUse')
+continue_val = os.environ.get('_HC_CONTINUE_VAL', 'true')
+text = sys.stdin.buffer.read().decode('utf-8', errors='replace')
+result = {
+    'continue': continue_val == 'true',
+    'hookSpecificOutput': {
+        'hookEventName': event,
+        'additionalContext': text.strip()
+    }
+}
+print(json.dumps(result, ensure_ascii=False))
+"
+}
+
+# ── UTF-8 sanitization pipe ──
+# Usage: cat "$file" | hc_sanitize_utf8
+# Replaces invalid UTF-8 bytes with U+FFFD, strips lone surrogates.
+hc_sanitize_utf8() {
+    python3 -c "
+import sys
+text = sys.stdin.buffer.read().decode('utf-8', errors='replace')
+# Strip lone surrogates (U+D800..U+DFFF) — they are valid Unicode code
+# points but NOT valid characters.  Python's UTF-8 decoder rejects their
+# byte encoding (W3C spec), but they can appear after intermediate steps
+# that roundtrip through text, and they break json.dumps / API JSON parsers.
+text = ''.join(c for c in text if not '\uD800' <= c <= '\uDFFF')
+sys.stdout.write(text)
+"
+}
+
+# ── Flywheel event logging (for ROI measurement) ──
+# Usage: flywheel_event "hook_name" "event_type" ["severity" ["project"]]
+# Logs structured event to ~/.claude/flywheel.log when a hook takes MEANINGFUL action.
+# Call on blocks / warnings / detections — NOT on every passive invocation.
+flywheel_event() {
+    local hook_name="${1:-unknown}"
+    local event_type="${2:-triggered}"
+    local severity="${3:-P2}"
+    local project="${4:-carror-os}"
+    local flywheel_log="${HOME}/.claude/flywheel.log"
+    echo "$(date +%Y-%m-%d),${hook_name}_${event_type},${severity},${project}" >> "$flywheel_log" 2>/dev/null || true
 }

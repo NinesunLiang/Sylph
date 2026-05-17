@@ -4,7 +4,7 @@ name: lx-status
 
 version: v2.0.0
 
-description: "Carror OS 健康面板 v3.0：Token 节省、任务通过率、拦截的错误、升华的知识点 4 面板。底部追加 audit dashboard 摘要（5 源聚合）。"
+description: "Carror OS 健康面板 v3.0：Token 节省、任务通过率、拦截的错误、升华的知识点 + ROI 量化面板。底部追加 audit dashboard 摘要（5 源聚合）。"
 
 complexity: beginner
 when_to_use: "Use when user says 'status', 'show dashboard', 'health check', 'lx-status', '面板', '状态'"
@@ -57,6 +57,18 @@ fi
 ```
 
 carror_dashboard.py 渲染 4 面板健康仪表盘 + Audit 摘要（5 源聚合状态），全部内联输出。
+
+2. **ROI 量化面板**（新增）— 在健康面板后追加：
+
+```bash
+if [ -f ".claude/scripts/roi-dashboard.py" ]; then
+    python3 .claude/scripts/roi-dashboard.py
+else
+    echo "   ROI 面板不可用（roi-dashboard.py 缺失）"
+fi
+```
+
+roi-dashboard.py 读取 `.omc/state/roi-scores.json`，展示 Top 10 高价值组件 + Bottom 5 低价值组件（瘦身候选）。
 
 > **注意**：用户需使用 `claude --verbose` 启动以绕过 3 行截断，否则面板内容默认折叠，需按 Ctrl+O 展开。
 

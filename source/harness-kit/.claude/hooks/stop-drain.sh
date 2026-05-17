@@ -22,7 +22,27 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR" 2>/dev/null
 
-export TRANSCRIPT SESSION_ID STATE_DIR
+# B1: Ghost mode detection + flywheel P0 events (Stop hook兜底：检测幽灵模式异常退出)
+_ghost_json="$STATE_DIR/lx-ghost.json"
+_ghost_auto="$STATE_DIR/autonomous.active"
+_exit_report="$STATE_DIR/ghost-exit-report.md"
+_pending="$STATE_DIR/ghost-exit-pending"
+_ghost_mode=false
+
+# Meta-Oracle M1 fix: autonomous.active 在 goal/ghost 模式均被创建。
+# ghost 特定检查 (exit-report/pending) 只在 lx-ghost.json 存在时触发，避免 goal mode 假阳性 P0。
+if [ -f "$_ghost_json" ]; then
+    _ghost_mode=true
+    mkdir -p "$HOME/.claude" 2>/dev/null
+    if [ ! -f "$_exit_report" ]; then
+        echo "$(date +%Y-%m-%d),ghost_exit_report_missing,P0,$(basename "$PROJECT_ROOT" 2>/dev/null || echo unknown)" >> "$HOME/.claude/flywheel-buffer.jsonl"
+    fi
+    if [ -f "$_pending" ]; then
+        echo "$(date +%Y-%m-%d),ghost_forced_close,P0,$(basename "$PROJECT_ROOT" 2>/dev/null || echo unknown)" >> "$HOME/.claude/flywheel-buffer.jsonl"
+    fi
+fi
+
+export TRANSCRIPT SESSION_ID STATE_DIR _ghost_mode
 python3 - <<'PYEOF'
 import json, os, sys, hashlib, re
 
@@ -53,6 +73,13 @@ def sanitize(cmd):
     cmd = re.sub(r'--token\s+\S+', '--token ***', cmd)
     cmd = re.sub(r'--secret\s+\S+', '--secret ***', cmd)
     cmd = re.sub(r'--key\s+\S+', '--key ***', cmd)
+    # P0.1: Mask API key env vars (ANTHROPIC_AUTH_TOKEN, DEEPSEEK_API_KEY, OPENAI_API_KEY, etc.)
+    cmd = re.sub(r'(ANTHROPIC_AUTH_TOKEN|DEEPSEEK_API_KEY|DEEPSEEK_BRIDGE_API_KEY|OPENAI_API_KEY|CODECLI_API_KEY|GEMINI_API_KEY)=\S+', r'\1=***', cmd)
+    # P0.1: Mask Authorization: Bearer tokens
+    cmd = re.sub(r"(Authorization:\s*Bearer\s+)[^\s\"'<>]+", r'\1***', cmd)
+    # P0.1: Mask long base64 tokens (32+ chars from secrets.token_urlsafe)
+    cmd = re.sub(r'(?:sk-|ghp_|xoxb-|xapp-)[a-zA-Z0-9_\-]{20,}', '***REDACTED***', cmd)
+    cmd = re.sub(r'(?:eyJ[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{10,})', '***JWT***', cmd)
     return cmd
 
 def classify(cmd):
@@ -125,18 +152,21 @@ try:
                     continue
                 seen.add(key)
 
+                # P0.1: Sanitize result_content before storing (may contain API keys from printenv/cmd output)
+                result_content_clean = sanitize(result_content)
                 record = {
                     'ts': ts,
                     'signature': signature,
                     'cmd': cmd_clean,
                     'exit_code': -1,  # marker for drain-origin (transcript doesn't expose exit_code)
                     'error_type': classify(cmd_clean),
-                    'message': result_content[:200].replace('\n', ' ').strip(),
-                    'output_snippet': result_content,
+                    'message': result_content_clean[:200].replace('\n', ' ').strip(),
+                    'output_snippet': result_content_clean,
                     'session_id': session_id,
                     'session_start': ts - 3600,  # estimate: drain runs at session end
                     'session_end': ts,
                     'origin': 'stop-drain',
+                    'mode': 'ghost' if os.environ.get('_ghost_mode') == 'true' else 'normal',
                 }
                 with open(jsonl_path, 'a') as f:
                     f.write(json.dumps(record, ensure_ascii=False) + '\n')

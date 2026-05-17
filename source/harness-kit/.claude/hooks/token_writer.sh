@@ -82,12 +82,36 @@ except:
     fi
 }
 
+# 自动检测实际模型上下文限制（用于 --reset 和正常模式）
+auto_limit() {
+    if command -v python3 &>/dev/null; then
+        local s=$(python3 -c "
+import json, re, os
+try:
+    settings = json.load(open(os.path.expanduser('.claude/settings.json')))
+    model = settings.get('env', {}).get('ANTHROPIC_MODEL', '')
+    m = re.search(r'\[(\d+)([km])\]', model)
+    if m:
+        n = int(m.group(1))
+        unit = m.group(2)
+        print(n * 1000 if unit == 'k' else n * 1000000)
+    else:
+        print(200000)
+except: print(200000)
+" 2>/dev/null)
+        echo "${s:-200000}"
+    else
+        echo "200000"
+    fi
+}
+
 # --reset 模式：新会话重置计数器
 if [ "${1:-}" = "--reset" ]; then
-    cat > "$INDEX_FILE" <<'RESETEOF'
+    RESET_LIMIT=$(auto_limit)
+    cat > "$INDEX_FILE" <<RESETEOF
 {
   "usage": 0,
-  "limit": 200000,
+  "limit": $RESET_LIMIT,
   "last_updated": "SESSION_START",
   "source": "token_writer.sh --reset"
 }
@@ -97,8 +121,47 @@ RESETEOF
     exit 0
 fi
 
-# 从 harness config 读取可配置的 token limit
+# 从 harness config 读取可配置的 token limit（作为兜底）
 LIMIT=$(hc_get "token_tracking.limit" "200000")
+
+# 自动检测实际模型上下文限制（优先级: 模型名后缀 > ecosystem-probe > harness config）
+detect_context_limit() {
+    # 1. 从 settings.json 解析模型名中的上下文后缀 [1m]/[200k]/[128k] 等
+    local model_suffix=""
+    if command -v python3 &>/dev/null; then
+        model_suffix=$(python3 -c "
+import json, re, os
+try:
+    settings = json.load(open(os.path.expanduser('.claude/settings.json')))
+    model = settings.get('env', {}).get('ANTHROPIC_MODEL', '')
+    m = re.search(r'\[(\d+)([km])\]', model)
+    if m:
+        n = int(m.group(1))
+        unit = m.group(2)
+        print(n * 1000 if unit == 'k' else n * 1000000)
+except: pass
+" 2>/dev/null)
+    fi
+    if [ -n "$model_suffix" ] && [ "$model_suffix" -gt 0 ] 2>/dev/null; then
+        echo "$model_suffix"
+        return
+    fi
+
+    # 2. 从 ecosystem-probe 缓存读取
+    local probe_cache="$STATE_DIR/.ecosystem-probe-cache"
+    if [ -f "$probe_cache" ]; then
+        local probe_limit=$(grep -oE 'context_limit:\s*[0-9]+' "$probe_cache" 2>/dev/null | grep -oE '[0-9]+' | head -1)
+        if [ -n "$probe_limit" ] && [ "$probe_limit" -gt 0 ] 2>/dev/null; then
+            echo "$probe_limit"
+            return
+        fi
+    fi
+
+    # 3. 兜底
+    echo "$LIMIT"
+}
+
+LIMIT=$(detect_context_limit)
 
 # 读取当前值
 USAGE=0

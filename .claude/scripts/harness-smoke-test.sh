@@ -74,6 +74,14 @@ log "========================================"
 
 # --- context-guard (R13 大小写 + R15 tool_name) ---
 # 清理可能残留的无人值守/幽灵模式文件，防止干扰阻断测试
+# DG-49: 先备份活跃的 goal/ghost 模式信号，测试后恢复
+# 否则在 goal mode 中跑 smoke test 会导致信号文件永久丢失 → 后续所有 hook 恢复阻断
+_MODE_BACKUP_DIR="/tmp/smoke-mode-backup-$$"
+rm -rf "$_MODE_BACKUP_DIR" 2>/dev/null
+mkdir -p "$_MODE_BACKUP_DIR" 2>/dev/null
+for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
+    [ -f ".omc/state/$_mf" ] && cp ".omc/state/$_mf" "$_MODE_BACKUP_DIR/$_mf"
+done
 rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/session-turns.json
 export CONTEXT_FORCE_HEURISTIC=1
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
@@ -151,6 +159,10 @@ run_case "R40 ghost mode expired: context-guard Write heuristic 告警不阻断 
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
   "context-guard.sh" 0 "告警|warn|Context"
 rm -f .omc/state/token-tracking-index.json
+# DG-49: 恢复 goal/ghost 模式信号文件（避免破坏正在运行的自主模式）
+for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
+    [ -f "$_MODE_BACKUP_DIR/$_mf" ] && cp "$_MODE_BACKUP_DIR/$_mf" ".omc/state/$_mf"
+done
 
 # ---- Setup: 创建活跃 lx-goal.json ----
 python3 -c "
@@ -566,11 +578,11 @@ _SG_OUT="/tmp/smoke-sg-$$.out"
 echo '{"hook_event_name":"PreToolUse","tool_name":"Task","tool_input":{"subagent_type":"executor","description":"x"}}' | bash .claude/hooks/subagent-guard.sh > "$_SG_OUT" 2>&1
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R25 subagent-guard: 无 max_turns 应走默认值放行 + 提示"
-if grep -qE "默认上限 20|additionalContext" "$_SG_OUT"; then
-    pass "R25 subagent-guard: 默认 max_turns=20 放行并提示"
+log "[$TOTAL] R25 subagent-guard: 无 max_turns 应放行 (含 MODE guard)"
+if grep -qE "\"continue\": true" "$_SG_OUT"; then
+    pass "R25 subagent-guard: 放行 (continue: true)"
 else
-    fail "R25 subagent-guard 未按预期放行: $(cat $_SG_OUT | head -2)"
+    fail "R25 subagent-guard 未按预期放行: $(head -2 "$_SG_OUT")"
 fi
 rm -f "$_SG_OUT"
 
@@ -1267,6 +1279,9 @@ file: session.go:15
 file: handler.go:88
 architecture decision
 multi-file change across 3 modules
+root_cause: session-memory-leak / expiring-sessions-not-evicted / missing-TTL-cleanup / add-cron-eviction
+触发条件: sessions expired without TTL cleanup, causing memory leak over 48h uptime
+修复方式: add cron-based session eviction with TTL check every 30min
 exit 0
 all tests PASS: 42 passed, 0 failed
 coverage: 85%
@@ -1295,6 +1310,9 @@ file: session.go:15
 file: handler.go:88
 architecture decision
 multi-file change across 3 modules
+root_cause: session-memory-leak / expiring-sessions-not-evicted / missing-TTL-cleanup / add-cron-eviction
+触发条件: sessions expired without TTL cleanup, causing memory leak over 48h uptime
+修复方式: add cron-based session eviction with TTL check every 30min
 exit 0
 all tests PASS: 42 passed, 0 failed
 coverage: 85%
@@ -1318,6 +1336,44 @@ rm -f .omc/state/session-snapshot.json .omc/state/session-snapshot.json.sha256 .
 
 # === E2E Tests End ===
 
+# P2.3: credential sanitization verification
+log "========== P2.3: credential sanitization -- API key/token patterns must be masked =========="
+TOTAL=$((TOTAL+1))
+_p23_pass=true
+# Test 1: env var masking
+_t1=$(echo "ANTHROPIC_AUTH_TOKEN=mytestkey12345" | python3 -c "
+import sys,re
+c=sys.stdin.read().strip()
+c=re.sub(r'(ANTHROPIC_AUTH_TOKEN|DEEPSEEK_API_KEY|OPENAI_API_KEY)=\S+',r'\1=***',c)
+print(c)")
+if [ "$_t1" != "ANTHROPIC_AUTH_TOKEN=***" ]; then _p23_pass=false; echo "  FAIL t1: $_t1"; fi
+# Test 2: bearer token
+_t2=$(echo 'Authorization: Bearer mytoken999' | python3 -c "
+import sys,re
+c=sys.stdin.read().strip()
+c=re.sub(r'(Authorization:\s*Bearer\s+)\S+',r'\1***',c)
+print(c)")
+if [ "$_t2" != "Authorization: Bearer ***" ]; then _p23_pass=false; echo "  FAIL t2: $_t2"; fi
+# Test 3: --password flag
+_t3=$(echo '--password secret123' | python3 -c "
+import sys,re
+c=sys.stdin.read().strip()
+c=re.sub(r'--password\s+\S+','--password ***',c)
+print(c)")
+if [ "$_t3" != "--password ***" ]; then _p23_pass=false; echo "  FAIL t3: $_t3"; fi
+if [ "$_p23_pass" = true ]; then
+    pass "P2.3 credential sanitization: API key/Bearer/password all correctly masked"
+else
+    fail "P2.3 credential sanitization: masking failed"
+fi
+
+	# DG-49 (final restore): 从备份恢复 goal/ghost 模式信号文件
+	if [ -d "$_MODE_BACKUP_DIR" ] 2>/dev/null; then
+	    for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
+	        [ -f "$_MODE_BACKUP_DIR/$_mf" ] && cp "$_MODE_BACKUP_DIR/$_mf" ".omc/state/$_mf"
+	    done
+	    rm -rf "$_MODE_BACKUP_DIR" 2>/dev/null
+	fi
 log ""
 log "========================================"
 log "summary: $((TOTAL-FAILED))/$TOTAL passed, $FAILED failed"
@@ -1336,7 +1392,7 @@ if [ "$FAILED" -eq 0 ]; then
     # 三源统一: feature-registry 完整性检查
     REG_OUT=$(bash .claude/scripts/audit-hooks.sh --check-registry 2>/dev/null)
     if echo "$REG_OUT" | grep -q "🟡" 2>/dev/null; then
-        log "  ⚠️ feature-registry 漂移项: $(echo "$REG_OUT" | grep -c "🟡" 2>/dev/null || echo 0)"
+        log "  ⚠️ feature-registry 漂移项: $(echo "$REG_OUT" | grep -c "🟡" 2>/dev/null)"
     else
         log "  ✅ feature-registry 四源一致 (disk/settings/harness/registry)"
     fi

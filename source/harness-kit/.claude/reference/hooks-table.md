@@ -1,4 +1,4 @@
-## Hooks 速查（共 39 个）
+## Hooks 速查（共 45 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -28,7 +28,7 @@
 |`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式|
 |`posttool-write-lock` | PostToolUse | posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁|
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
-|`pretool-ask-guard` | PreToolUse | pretool-ask-guard.sh — PreToolUse:AskUserQuestion — 哲学先行门禁，拦截"多此一问"|
+|`pretool-ask-guard` | PreToolUse | ~~pretool-ask-guard.sh~~ — 已移除 (2026-05-17)。哲学先行逻辑由 铁律#8 + meta-oracle-trigger + claim-audit 分担 |
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|
@@ -37,9 +37,13 @@
 |`privacy-gate` | PreToolUse | privacy-gate.sh — PreToolUse:Bash|Read|Grep — 防止隐私数据泄露（DLP 门禁）|
 |`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit|
 |`skill-flywheel` | Stop | skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）|
+|`skill-usage-tracker` | UserPromptSubmit | skill-usage-tracker.sh — UserPromptSubmit — 记录 skill 调用频率|
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
 |`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
 |`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|
+|`token_writer` | PostToolUse | token_writer.sh — PostToolUse:Edit|Write — 写入 token 追踪索引，由 context-guard 调用|
+|`agentic-ui` | PostToolUse | agentic-ui.sh — PostToolUse — Agentic UI 交互模式管理|
+|`feature-probe` | SessionStart | feature-probe.sh — SessionStart — 特性探针，验证 feature 的 L1-L4 证据链|
 
 ### 已注册但默认禁用的脚本（共 2 个）
 

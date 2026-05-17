@@ -1,46 +1,58 @@
 #!/usr/bin/env bash
-# auto-score.sh v2 — 基于子维度独立检测的客观评分
-# Role: 对 C/E/治理/UX 四维度的每个子维度进行独立检测后聚合评分
+# auto-score.sh v3 — Meta-Oracle 四维打分体系 (C/E/G 加权聚合 + UX 独立)
+# Role: 对 C/E/G 三维度加权聚合评分，UX 独立展示不参与总阈值
 #
-# 使用: bash .claude/scripts/auto-score.sh
+# 使用: bash .claude/scripts/auto-score.sh [--calibrated] [--meta-oracle]
 # 输出: .omc/state/auto-score-<timestamp>.json
 #
 # 评分方法:
-#   每个子维度由对应检测函数独立评分 (0-100%)
-#   聚合时按权重加权
-#   不拿"测试全绿"代"能力满格" — 每个子维度有自己的检测逻辑
+#   C/E/G 每子维度独立检测 (0-100%)，按权重 (40/35/25) 聚合为 0-10 分
+#   UX 独立评分（调用 score-ux.sh 或内置简易评分），不参与 8.6/10 门禁
+#   8.6/10 门禁: >= 8.6 → ACCEPT, < 8.6 → ADVISORY
+#
+# 权重: C=40% (哲学#4+#6 正确性是基础), E=35% (哲学#3 机制必须生效), G=25% (哲学#7 治理是长期保障)
 
 set -u
+
+# E7 校准模式: 对纯 grep 静态检测结果降权 15% (DG-28 校准偏移)
+CALIBRATED=false
+META_ORACLE_MODE=false
+for arg in "$@"; do
+  [ "$arg" = "--calibrated" ] && CALIBRATED=true
+  [ "$arg" = "--meta-oracle" ] && META_ORACLE_MODE=true
+done
+
 cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 99
 PROJECT_ROOT=$(pwd)
 TS=$(date -u +%Y%m%d-%H%M%S)
 OUTPUT_FILE="$PROJECT_ROOT/.omc/state/auto-score-$TS.json"
+STATE_DIR="$PROJECT_ROOT/.omc/state"
 
-echo "=== Auto Score v2 @ $TS ==="
+echo "=== Auto Score v3 (4D: C/E/G weighted + UX independent) @ $TS ==="
 
 # ───── 辅助函数 ─────
 pct() { echo "scale=1; $1 * 100 / $2" | bc 2>/dev/null || echo "0"; }
 
-# ───── 子维度检测函数 ─────
-# 每个函数输出: <score_0_to_max> <max> <evidence_description>
+# 运行时数据存在性检查
+has_runtime_data() {
+  local file="$1"
+  [ -f "$file" ] && [ -s "$file" ] && return 0 || return 1
+}
 
-# ========== C 能力激发 (100分) ==========
+# ===================================================================
+# C 维度 — 正确性 / Correctness (9 子维度, max 105)
+# ===================================================================
 
 # C1 指令清晰度 (15分)
 score_C1() {
   local score=0 max=15
   local flaws=0 total_checks=5
-  # 1. AGENTS.md 有 7 铁律表格
-  grep -q '^| . | .*铁律' AGENTS.md 2>/dev/null && : || flaws=$((flaws+1))
-  # 2. kernel.md 有架构铁律
+  (grep -q '^| . | .*铁律' AGENTS.md 2>/dev/null || grep -q '^| . | .*铁律' source/harness-kit/AGENTS.md 2>/dev/null) && : || flaws=$((flaws+1))
   grep -q '## 架构铁律' .claude/kernel.md 2>/dev/null && : || flaws=$((flaws+1))
-  # 3. anti-patterns.md 有 16 条
   _AP_COUNT=$(grep -c '^### [A-Z][0-9]' .claude/anti-patterns.md 2>/dev/null); _AP_COUNT="${_AP_COUNT:-0}"; [ "$_AP_COUNT" -ge 14 ] 2>/dev/null && : || flaws=$((flaws+1))
-  # 4. 无规则跨文件重复（scope freeze 只在一处）
   SCOPE_COUNT=$(grep '范围冻结' AGENTS.md .claude/kernel.md .claude/anti-patterns.md 2>/dev/null | wc -l | tr -d ' ')
   [ "$SCOPE_COUNT" -le 2 ] 2>/dev/null && : || flaws=$((flaws+1))
-  # 5. 规则可读性：不超 20 条铁律
-  RULE_COUNT=$(grep -c '^\s*| [0-9]' AGENTS.md 2>/dev/null || echo "0")
+  RULE_COUNT=$(grep -c '^\s*| [0-9]' AGENTS.md 2>/dev/null); RULE_COUNT="${RULE_COUNT:-0}"
   [ "$RULE_COUNT" -le 10 ] 2>/dev/null && : || flaws=$((flaws+1))
 
   score=$(( max - (flaws * max / total_checks) ))
@@ -48,23 +60,36 @@ score_C1() {
   echo "$score $max C1=指令清晰度(${flaws}/${total_checks}项缺陷)"
 }
 
-# C2 上下文完整度 (15分)
+# C2 上下文完整度 (15分) — E7 校准: 每子维度要求双源证据
 score_C2() {
   local score=0 max=15
-  local index_ok=1
-  # index.md hooks 表漂移检测
-  if bash .claude/scripts/audit-hooks.sh --check-index 2>/dev/null | grep -qE "检查通过|无漂移|✅"; then
-    index_ok=1
-  else
-    index_ok=0
+  local index_ok=0
+  if [ -f .claude/index.md ]; then
+    if bash .claude/scripts/audit-hooks.sh --check-index 2>/dev/null | grep -qE "主表.*实际活跃|🔴 严重: 0"; then
+      index_ok=1
+    fi
   fi
-  # compact-detect 存在且功能正常
   local compact_ok=0
-  [ -f .claude/hooks/compact-detect.sh ] && compact_ok=1
-  # turn-counter L2 refresh 存在
+  if [ -f .claude/hooks/compact-detect.sh ]; then
+    if python3 -c "
+import json, time, os
+try:
+    d = json.load(open('.omc/state/token-compact-state.json'))
+    ts = d.get('timestamp', 0) or d.get('pre_compact_usage', {}).get('timestamp', 0)
+    age = time.time() - float(ts)
+    print('recent' if age < 86400 else 'stale')
+except: print('stale')
+" 2>/dev/null | grep -q "recent"; then
+      compact_ok=1
+    fi
+  fi
   local refresh_ok=0
-  grep -q "context.*50.*refresh\|L2\|周期刷新" .claude/hooks/turn-counter.sh 2>/dev/null && refresh_ok=1
-  # index.md 体积控制
+  if grep -q "context.*50.*refresh\|L2\|周期刷新" .claude/hooks/turn-counter.sh 2>/dev/null; then
+    if [ -f .omc/state/session-turns.json ]; then
+      TC_COUNT=$(python3 -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count', 0))" 2>/dev/null || echo "0")
+      [ "$TC_COUNT" -ge 1 ] 2>/dev/null && refresh_ok=1
+    fi
+  fi
   local size_ok=0
   INDEX_SIZE=$(wc -c < .claude/index.md 2>/dev/null || echo "0")
   [ "$INDEX_SIZE" -le 5000 ] 2>/dev/null && size_ok=1
@@ -86,7 +111,7 @@ score_C3() {
   echo "$score $max C3=流程(L1-L4=${has_l1l4} 7step=${has_7step} triple=${has_triple} prd=${has_prd})"
 }
 
-# C4 输出规范化 (10分)
+# C4 输出规范化 (10分) — E7 校准: 要求至少 2/3 方面同时满足
 score_C4() {
   local score=0 max=10
   local soft_detect=0 direction_fmt=0 evidence_level=0
@@ -94,19 +119,22 @@ score_C4() {
   grep -qr "方向指引\|suggested_next" .claude/ --include="*.sh" --include="*.md" 2>/dev/null && direction_fmt=1
   grep -q '证据层级\|L1.*L2.*L3.*L4' AGENTS.md 2>/dev/null && evidence_level=1
 
-  score=$(( soft_detect * 4 + direction_fmt * 3 + evidence_level * 3 ))
-  echo "$score $max C4=输出(soft=${soft_detect} dir=${direction_fmt} evidence=${evidence_level})"
+  local aspects=$(( soft_detect + direction_fmt + evidence_level ))
+  if [ "$aspects" -ge 2 ]; then
+    score=$(( soft_detect * 4 + direction_fmt * 3 + evidence_level * 3 ))
+  else
+    score=$(( soft_detect * 3 + direction_fmt * 2 + evidence_level * 2 ))
+  fi
+  echo "$score $max C4=输出(soft=${soft_detect} dir=${direction_fmt} evidence=${evidence_level} aspects=${aspects})"
 }
 
 # C5 工具生命周期 (10分)
 score_C5() {
   local score=0 max=10
   local audit_red=0
-  # audit-hooks 严重错误数
   AUDIT_RED=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
-  # 注册率
   local settings_count disk_count
-  settings_count=$(grep -cE '"command": "bash \.claude/hooks/' .claude/settings.json 2>/dev/null || echo "0")
+  settings_count=$(grep -cE '\.claude/hooks/' .claude/settings.json 2>/dev/null); settings_count="${settings_count:-0}"
   disk_count=$(ls .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
   local reg_rate=0
   [ "$disk_count" -gt 0 ] && reg_rate=$(( settings_count * 100 / disk_count ))
@@ -125,7 +153,7 @@ score_C6() {
   local score=0 max=10
   local cn_entries=0 edna_size=0 has_anti=0
   cn_entries=$(grep -c '^### \[' .claude/claude-next.md 2>/dev/null )
-  edna_size=$(wc -c < .omc/state/error-dna.json 2>/dev/null | tr -d ' ' || echo "0")
+  edna_size=$(cat .omc/state/error-signals.jsonl 2>/dev/null | wc -c | tr -d ' ' || echo "0"); edna_size="${edna_size:-0}"
   [ -f .claude/anti-patterns.md ] && has_anti=1
 
   local cn_score=4 edna_score=4 anti_score=2
@@ -137,31 +165,35 @@ score_C6() {
   echo "$score $max C6=知识(cn=${cn_entries}条 edna=${edna_size}b anti=${has_anti})"
 }
 
-# C7 关联编排 (10分)
+# C7 关联编排 (10分) — E7 校准: 读实际 subagent 调用次数
 score_C7() {
   local score=0 max=10
-  local ralph_hooks=0
-  # 检查 hook 中引用编排关键词
-  ralph_hooks=$(grep -rl 'ralph\|ultrawork\|swarm\|autopilot' .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
-  local skill_count=0
-  skill_count=$(find .claude/skills -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
+  local orch_count=0
+  if [ -f ".omc/state/subagent-usage.jsonl" ]; then
+    orch_count=$(wc -l < ".omc/state/subagent-usage.jsonl" 2>/dev/null | tr -d ' ')
+    orch_count="${orch_count:-0}"
+  fi
+  local orch_score=0
+  if [ "$orch_count" -ge 11 ]; then orch_score=6
+  elif [ "$orch_count" -ge 6 ]; then orch_score=5
+  elif [ "$orch_count" -ge 3 ]; then orch_score=3
+  else orch_score=0; fi
 
-  local orch_score=0 skill_score=4
-  [ "$ralph_hooks" -gt 0 ] && orch_score=$(( ralph_hooks * 2 > 6 ? 6 : ralph_hooks * 2 ))
+  local skill_count=0 skill_score=4
+  skill_count=$(find .claude/skills -name "SKILL.md" 2>/dev/null | wc -l | tr -d ' ')
   [ "$skill_count" -ge 3 ] && skill_score=4 || skill_score=$(( skill_count ))
 
   score=$(( orch_score + skill_score ))
-  echo "$score $max C7=编排(hooks引用=${ralph_hooks} skills=${skill_count})"
+  echo "$score $max C7=编排(实际调用=${orch_count} skills=${skill_count})"
 }
 
 # C8 可维护性 (10分)
 score_C8() {
   local score=0 max=10
-  local pv_rate=0 pv_failed=0
+  local pv_failed=0
   pv_failed=$(bash .claude/scripts/hook-production-verify.sh 2>/dev/null | grep '^summary:' | sed -n 's/.* \([0-9]*\) failed.*/\1/p' || echo "0")
   [ -z "$pv_failed" ] && pv_failed=0
   local naming_ok=0
-  # 检查命名规范
   grep -qE 'snake-case|蛇形命名' .claude/kernel.md 2>/dev/null && naming_ok=1
 
   local pv_score=5 naming_score=5
@@ -177,7 +209,7 @@ score_C8() {
 score_C9() {
   local score=0 max=10
   local edna_auto=0 escape=0 rca=0
-  grep -q 'error-dna-auto-fix' .claude/settings.json 2>/dev/null && edna_auto=1
+  grep -qE '"command":.*error-dna\.sh"' .claude/settings.json 2>/dev/null && edna_auto=1
   grep -q 'context-force-override\|force.override' .claude/hooks/context-guard.sh 2>/dev/null && escape=1
   grep -q 'root.cause\|RCA\|根因' .claude/hooks/completion-gate.sh 2>/dev/null && rca=1
 
@@ -185,7 +217,9 @@ score_C9() {
   echo "$score $max C9=恢复(edna=${edna_auto} escape=${escape} rca=${rca})"
 }
 
-# ========== E 错误防护 (100分) ==========
+# ===================================================================
+# E 维度 — 有效性 / Effectiveness (8 子维度, max 110)
+# ===================================================================
 
 # E1 目标漂移 (20分)
 score_E1() {
@@ -202,7 +236,7 @@ score_E1() {
 score_E2() {
   local score=0 max=20
   local no_fabricate=0 evidence_gate=0 dual_source=0
-  grep -q '禁止编造\|no.fabricate' AGENTS.md 2>/dev/null && no_fabricate=1
+  (grep -q '禁止编造\|no.fabricate' AGENTS.md 2>/dev/null || grep -q '禁止编造\|no.fabricate' source/harness-kit/AGENTS.md 2>/dev/null) && no_fabricate=1
   grep -q 'evidence.*missing\|证据.*缺失' .claude/hooks/completion-gate.sh 2>/dev/null && evidence_gate=1
   grep -q 'DUAL_SOURCE\|双源' .claude/hooks/completion-gate.sh 2>/dev/null && dual_source=1
 
@@ -258,7 +292,7 @@ score_E6() {
 score_E7() {
   local score=0 max=10
   local assert_rule=0 confidence_fmt=0
-  grep -q '断言真实\|file:line' AGENTS.md 2>/dev/null && assert_rule=1
+  (grep -q '断言真实\|file:line' AGENTS.md 2>/dev/null || grep -q '断言真实\|file:line' source/harness-kit/AGENTS.md 2>/dev/null) && assert_rule=1
   grep -q '置信度\|\[已验证:\|\[已测试:' .claude/kernel.md AGENTS.md 2>/dev/null && confidence_fmt=1
 
   score=$(( assert_rule * 5 + confidence_fmt * 5 ))
@@ -277,134 +311,168 @@ score_E8() {
   echo "$score $max E8=遗忘(compact=${compact} turns=${tc} handoff=${handoff})"
 }
 
-# ========== 治理 (70分) ==========
+# ===================================================================
+# G 维度 — 治理 / Governance (5 子维度, max 50)
+# 对齐 Prompt #4: 哲学一致性 / 铁律合规 / 反模式避让 / Oracle 裁决留痕 / 文档漂移
+# ===================================================================
 
-# 抗衰减防线 (10分)
+# G1 哲学一致性 (10分)
 score_G1() {
   local score=0 max=10
-  local audit_pass=0 smoke_coverage=0
-  local aud_red aud_yellow
-  aud_red=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
-  aud_yellow=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🟡 次要: [0-9]+' | grep -oE '[0-9]+' || echo "99")
+  local philo_has_mech=0 philo_ref=0 dual_check=0
 
-  [ "$aud_red" = "0" ] && audit_pass=1
-  SMOKE_FAILED=$(bash .claude/scripts/harness-smoke-test.sh 2>/dev/null | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "99")
-  [ "$SMOKE_FAILED" = "0" ] 2>/dev/null && smoke_coverage=1
+  # 检查 7 条哲学是否都有对应的机制实现
+  local philo_count=0
+  grep -q '没通过验证等于没做\|#4.*验证' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '先守护.*后激发\|#3.*守护' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '0.*信任\|#6.*信任' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '文档优先\|#7.*文档' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '以人为本\|#5.*人' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '少量正确\|#2.*少量' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q 'The Less.*The More\|#1.*Less' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  [ "$philo_count" -ge 6 ] && philo_has_mech=1
 
-  score=$(( audit_pass * 5 + smoke_coverage * 5 ))
-  echo "$score $max 抗衰减(audit_red=${aud_red} smoke_fail=${SMOKE_FAILED})"
+  # 哲学参考文档存在
+  [ -f .claude/reference/philosophy.md ] && philo_ref=1
+
+  # 哲学→机制 逆向追溯矩阵存在
+  grep -q '机制→哲学.*逆向追溯\|哲学一致性.*机制' AGENTS.md 2>/dev/null && dual_check=1
+
+  score=$(( philo_has_mech * 4 + philo_ref * 3 + dual_check * 3 ))
+  echo "$score $max G1=哲学一致性(mech=${philo_has_mech} ref=${philo_ref} dual=${dual_check})"
 }
 
-# 全流程自动化 (10分)
+# G2 铁律合规 (10分)
 score_G2() {
   local score=0 max=10
-  local snapshot=0 regression=0 sync=0
-  grep -q 'auto-snapshot' .claude/settings.json 2>/dev/null && snapshot=1
-  grep -q 'auto-regression\|regression.trigger' .claude/hooks/auto-snapshot.sh 2>/dev/null && regression=1
-  grep -q '\-\-sync\-index' .claude/scripts/harness-smoke-test.sh 2>/dev/null && sync=1
+  local audit_pass=0 smoke_pass=0 rule_count_ok=0
 
-  score=$(( snapshot * 4 + regression * 3 + sync * 3 ))
-  echo "$score $max 自动化(snap=${snapshot} reg=${regression} sync=${sync})"
+  # audit-hooks 红色错误 = 0
+  local aud_red
+  aud_red=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
+  [ "$aud_red" = "0" ] 2>/dev/null && audit_pass=1
+
+  # harness-smoke-test 全绿
+  local smoke_failed
+  smoke_failed=$(bash .claude/scripts/harness-smoke-test.sh 2>/dev/null | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "99")
+  [ "$smoke_failed" = "0" ] 2>/dev/null && smoke_pass=1
+
+  # 铁律条数合理 (<=10)
+  local rule_count
+  rule_count=$(grep -c '^\s*| [0-9]' AGENTS.md 2>/dev/null); rule_count="${rule_count:-0}"
+  [ "$rule_count" -ge 6 ] 2>/dev/null && [ "$rule_count" -le 10 ] 2>/dev/null && rule_count_ok=1
+
+  score=$(( audit_pass * 4 + smoke_pass * 3 + rule_count_ok * 3 ))
+  echo "$score $max G2=铁律合规(audit=${audit_pass} smoke=${smoke_pass} rules=${rule_count_ok})"
 }
 
-# 学习笔记积累 (10分)
+# G3 反模式避让 (10分)
 score_G3() {
   local score=0 max=10
-  local entries=0 has_todofix=0
-  entries=$(grep -c '^### \[' .claude/claude-next.md 2>/dev/null )
-  # 检查有无 [待用户补充]
-  grep -q '待用户补充' .claude/claude-next.md 2>/dev/null && has_todofix=1
+  local anti_exists=0 anti_complete=0 lessons_active=0
 
-  local entry_score=8 gap_penalty=2
-  [ "$entries" -ge 15 ] && entry_score=8 || entry_score=$(( entries * 8 / 15 ))
-  [ "$has_todofix" = "1" ] && gap_penalty=2 || gap_penalty=0
+  # anti-patterns.md 存在且覆盖 A-H 共 8 类
+  if [ -f .claude/anti-patterns.md ]; then
+    anti_exists=1
+    local cat_count
+    cat_count=$(grep -cE '^## [A-H]\.' .claude/anti-patterns.md 2>/dev/null)
+    [ "${cat_count:-0}" -ge 7 ] 2>/dev/null && anti_complete=1
+  fi
 
-  score=$(( entry_score - gap_penalty ))
-  [ "$score" -lt 0 ] && score=0
-  echo "$score $max 笔记(entries=${entries} todo=${has_todofix})"
+  # claude-next.md 有狗粮教训 (DG-* entries) — 证明从错误中学习
+  local dg_count
+  dg_count=$(grep -c 'DG-[0-9]' .claude/claude-next.md 2>/dev/null); dg_count="${dg_count:-0}"
+  [ "$dg_count" -ge 5 ] 2>/dev/null && lessons_active=1
+
+  score=$(( anti_exists * 4 + anti_complete * 3 + lessons_active * 3 ))
+  echo "$score $max G3=反模式避让(anti=${anti_exists} complete=${anti_complete} lessons=${lessons_active})"
 }
 
-# 长期目标一致性 (10分)
+# G4 Oracle 裁决留痕 (10分)
 score_G4() {
   local score=0 max=10
-  local fe_reg=0 prd_active=0
-  [ -f .claude/feature-registry.yaml ] && fe_reg=1
-  [ -f .omc/prd.json ] && prd_active=1
+  local oracle_verdict=0 meta_verdict=0 override_log=0
 
-  score=$(( fe_reg * 5 + prd_active * 5 ))
-  echo "$score $max 目标(feature_reg=${fe_reg} prd=${prd_active})"
+  # Oracle 裁决文件存在
+  [ -f .omc/state/oracle_verdict.json ] && oracle_verdict=1
+
+  # Meta-Oracle 裁决文件存在且有内容
+  if [ -f .omc/state/meta-oracle-verdicts.md ]; then
+    local verdict_lines
+    verdict_lines=$(wc -l < .omc/state/meta-oracle-verdicts.md 2>/dev/null | tr -d ' ')
+    [ "${verdict_lines:-0}" -ge 3 ] 2>/dev/null && meta_verdict=1
+  fi
+
+  # 覆写日志存在
+  [ -f .omc/state/meta-oracle-overrides.md ] && override_log=1
+
+  score=$(( oracle_verdict * 4 + meta_verdict * 3 + override_log * 3 ))
+  echo "$score $max G4=Oracle裁决留痕(oracle=${oracle_verdict} meta=${meta_verdict} override=${override_log})"
 }
 
-# 功能标志分明 (10分)
+# G5 文档漂移 (10分)
 score_G5() {
   local score=0 max=10
-  local hc_ok=0
-  # 检查 90%+ 脚本有 hc_enabled
-  local hc_count total_count
-  hc_count=$(grep -l 'hc_enabled' .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
-  total_count=$(ls .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
-  local hc_pct=0
-  [ "$total_count" -gt 0 ] && hc_pct=$(( hc_count * 100 / total_count ))
+  local source_mirror_ok=0 index_consistent=0 doc_refs_ok=0
 
-  [ "$hc_pct" -ge 90 ] && hc_ok=1
+  # source mirror 一致性检查
+  if bash .claude/scripts/audit-hooks.sh --check-source-mirror 2>/dev/null | grep -qE "通过|无漂移|✅|有意分歧"; then
+    source_mirror_ok=1
+  fi
 
-  local hc_score=7 feature_score=3
-  hc_score=$(( hc_pct * 7 / 100 ))
-  grep -q 'feature-registry' .claude/hooks/*.sh 2>/dev/null && feature_score=3 || feature_score=0
+  # index.md 与 hooks 表一致性
+  if [ -f .claude/index.md ]; then
+    local idx_hooks disk_hooks
+    idx_hooks=$(grep -c '\.claude/hooks/' .claude/index.md 2>/dev/null); idx_hooks="${idx_hooks:-0}"
+    disk_hooks=$(ls .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
+    # 允许 ±5 的容差（index.md 可能不是 1:1 映射）
+    local diff=$(( idx_hooks - disk_hooks ))
+    [ "$diff" -lt 0 ] && diff=$(( -diff ))
+    [ "$diff" -le 5 ] 2>/dev/null && index_consistent=1
+  fi
 
-  score=$(( hc_score + feature_score ))
-  echo "$score $max 标志(hc=${hc_pct}%)"
+  # doc-sync-check 脚本存在
+  [ -f .claude/scripts/doc-sync-check.sh ] && doc_refs_ok=1
+
+  score=$(( source_mirror_ok * 4 + index_consistent * 3 + doc_refs_ok * 3 ))
+  echo "$score $max G5=文档漂移(mirror=${source_mirror_ok} index=${index_consistent} docs=${doc_refs_ok})"
 }
 
-# 内置安全与洞察 (10分)
-score_G6() {
-  local score=0 max=10
-  local pg=0 priv=0 ed=0 fw=0
-  grep -q 'permission-gate' .claude/settings.json 2>/dev/null && pg=1
-  grep -q 'privacy-gate' .claude/settings.json 2>/dev/null && priv=1
-  grep -q 'error-dna' .claude/settings.json 2>/dev/null && ed=1
-  grep -q 'flywheel' .claude/settings.json 2>/dev/null && fw=1
-
-  score=$(( pg * 3 + priv * 3 + ed * 2 + fw * 2 ))
-  echo "$score $max 安全(pg=${pg} priv=${priv} ed=${ed} fw=${fw})"
-}
-
-# 评测框架 (10分)
-score_G7() {
-  local score=0 max=10
-  local has_score=0 score_ok=0 oracle_exists=0
-  [ -f .claude/scripts/auto-score.sh ] && has_score=1
-  # 检查评分方法是否不是纯机械映射（v2 标志）
-  grep -q 'v2\|子维度独立检测' .claude/scripts/auto-score.sh 2>/dev/null && score_ok=1
-  [ -f .omc/oracle_verdict.json ] && oracle_exists=1
-
-  score=$(( has_score * 4 + score_ok * 3 + oracle_exists * 3 ))
-  echo "$score $max 评测(script=${has_score} v2=${score_ok} oracle=${oracle_exists})"
-}
-
-# ========== UX (70分) — 部分可客观检测 ==========
-
-# UX 总分简化检测
+# ===================================================================
+# UX 维度 — 用户体验 (独立评分, max 10)
+# 优先调用独立 score-ux.sh，不存在时使用内置简易评分
+# ===================================================================
 score_UX() {
-  local max=70
-  local permissions=0 self_heal=0 multi_mode=0
-  # 权限分明
-  grep -q 'permission-gate' .claude/settings.json 2>/dev/null && permissions=25
-  # self-healing 功能
-  [ -f .claude/hooks/context-guard.sh ] && self_heal=12
-  grep -q 'error-dna-auto-fix' .claude/settings.json 2>/dev/null && self_heal=$(( self_heal + 13 ))
-  # 多模式
-  [ -f .omc/prd.json ] && multi_mode=10
-  grep -q 'ghost\|goal\|unattended' .claude/hooks/harness_config.sh 2>/dev/null && multi_mode=$(( multi_mode + 10 ))
+  # 优先使用独立 UX 评分脚本
+  if [ -f .claude/scripts/score-ux.sh ]; then
+    local ux_output
+    ux_output=$(bash .claude/scripts/score-ux.sh 2>/dev/null)
+    local ux_score ux_max
+    ux_score=$(echo "$ux_output" | grep 'UX 总分:' | grep -oE '[0-9]+/[0-9]+' | cut -d'/' -f1)
+    ux_max=$(echo "$ux_output" | grep 'UX 总分:' | grep -oE '[0-9]+/[0-9]+' | cut -d'/' -f2)
+    ux_score="${ux_score:-0}"
+    ux_max="${ux_max:-10}"
+    echo "$ux_score $ux_max UX=独立评分(score-ux.sh)"
+    return 0
+  fi
 
-  local score=$(( permissions + self_heal + multi_mode ))
+  # 内置简易评分 (max 10)
+  local score=0 max=10
+  local has_decision_chain=0 has_meta_oracle=0 has_auto_mode=0 has_error_class=0 has_completion_gate=0
+
+  [ -f .claude/reference/autonomous-decision-chain.md ] && has_decision_chain=1
+  grep -q 'meta_oracle_trigger' .claude/hooks/meta-oracle-trigger.sh 2>/dev/null && has_meta_oracle=1
+  grep -q 'is_mode_active' .claude/hooks/harness_config.sh 2>/dev/null && has_auto_mode=1
+  grep -q 'error-dna\|error_classifier' .claude/settings.json 2>/dev/null && has_error_class=1
+  grep -q 'SOFT_WORDS\|违禁词\|evidence.*gate' .claude/hooks/completion-gate.sh 2>/dev/null && has_completion_gate=1
+
+  score=$(( has_decision_chain * 2 + has_meta_oracle * 2 + has_auto_mode * 2 + has_error_class * 2 + has_completion_gate * 2 ))
   [ "$score" -gt "$max" ] && score=$max
-  echo "$score $max UX(permissions=${permissions} heal=${self_heal} modes=${multi_mode})"
+  echo "$score $max UX=内置简易评分(chain=${has_decision_chain} ask=${has_ask_guard} auto=${has_auto_mode} err=${has_error_class} gate=${has_completion_gate})"
 }
 
 # ───── 聚合评分 ─────
 scoredata=""
-total_score=0 total_max=0
 agg_scores=""
 agg_metrics=""
 
@@ -414,8 +482,6 @@ append_score() {
   s=$(echo "$data" | awk '{print $1}')
   m=$(echo "$data" | awk '{print $2}')
   local detail="$data"
-  total_score=$(( total_score + s ))
-  total_max=$(( total_max + m ))
   [ -n "$agg_scores" ] && agg_scores="$agg_scores,"
   agg_scores="$agg_scores\"$label\":{\"score\":$s,\"max\":$m,\"pct\":$(pct $s $m)}"
   [ -n "$agg_metrics" ] && agg_metrics="$agg_metrics,"
@@ -448,72 +514,108 @@ echo -n "  G2 "; g2=$(score_G2); echo "$g2"; append_score "G2" "$g2"
 echo -n "  G3 "; g3=$(score_G3); echo "$g3"; append_score "G3" "$g3"
 echo -n "  G4 "; g4=$(score_G4); echo "$g4"; append_score "G4" "$g4"
 echo -n "  G5 "; g5=$(score_G5); echo "$g5"; append_score "G5" "$g5"
-echo -n "  G6 "; g6=$(score_G6); echo "$g6"; append_score "G6" "$g6"
-echo -n "  G7 "; g7=$(score_G7); echo "$g7"; append_score "G7" "$g7"
 
 echo -n "  UX "; ux=$(score_UX); echo "$ux"; append_score "UX" "$ux"
 
-# 聚合四维度
-calc_dim() {
-  local prefix="$1" start="$2" end="$3" weight="$4"
-  local s=0 m=0
-  for i in $(seq $start $end); do
-    local var="${prefix}${i}"
-    local val="${!var}"
-    local sub_s=$(echo "$val" | awk '{print $1}')
-    local sub_m=$(echo "$val" | awk '{print $2}')
-    s=$(( s + sub_s ))
-    m=$(( m + sub_m ))
-  done
-  [ "$m" -gt 0 ] && echo "scale=1; $s * $weight / $m" | bc || echo "0"
-}
-
-# 手动聚合
+# ───── 三维度原始分数 ─────
 C_score=$(( $(echo "$r1" | awk '{print $1}') + $(echo "$r2" | awk '{print $1}') + $(echo "$r3" | awk '{print $1}') + $(echo "$r4" | awk '{print $1}') + $(echo "$r5" | awk '{print $1}') + $(echo "$r6" | awk '{print $1}') + $(echo "$r7" | awk '{print $1}') + $(echo "$r8" | awk '{print $1}') + $(echo "$r9" | awk '{print $1}') ))
 C_max=$(( 15+15+15+10+10+10+10+10+10 ))
 
 E_score=$(( $(echo "$e1" | awk '{print $1}') + $(echo "$e2" | awk '{print $1}') + $(echo "$e3" | awk '{print $1}') + $(echo "$e4" | awk '{print $1}') + $(echo "$e5" | awk '{print $1}') + $(echo "$e6" | awk '{print $1}') + $(echo "$e7" | awk '{print $1}') + $(echo "$e8" | awk '{print $1}') ))
 E_max=$(( 20+20+15+12+10+13+10+10 ))
 
-G_score=$(( $(echo "$g1" | awk '{print $1}') + $(echo "$g2" | awk '{print $1}') + $(echo "$g3" | awk '{print $1}') + $(echo "$g4" | awk '{print $1}') + $(echo "$g5" | awk '{print $1}') + $(echo "$g6" | awk '{print $1}') + $(echo "$g7" | awk '{print $1}') ))
-G_max=$(( 10+10+10+10+10+10+10 ))
+G_score=$(( $(echo "$g1" | awk '{print $1}') + $(echo "$g2" | awk '{print $1}') + $(echo "$g3" | awk '{print $1}') + $(echo "$g4" | awk '{print $1}') + $(echo "$g5" | awk '{print $1}') ))
+G_max=$(( 10+10+10+10+10 ))
 
 UX_score=$(echo "$ux" | awk '{print $1}')
 UX_max=$(echo "$ux" | awk '{print $2}')
 
-TOTAL=$(( C_score + E_score + G_score + UX_score ))
-MAX=$(( C_max + E_max + G_max + UX_max ))
-PCT=$(pct $TOTAL $MAX)
+# ───── C/E/G 加权聚合 (40/35/25) → 0-10 分制 ─────
+# 先计算每个维度百分比，再按权重聚合为 0-10 分
+C_pct=$(pct $C_score $C_max)
+E_pct=$(pct $E_score $E_max)
+G_pct=$(pct $G_score $G_max)
 
+# Weighted score = (C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 100 * 10
+#                 = (C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 10
+WEIGHTED_10=$(echo "scale=2; ($C_pct * 0.40 + $E_pct * 0.35 + $G_pct * 0.25) / 10" | bc 2>/dev/null || echo "0")
+
+# ───── E7 校准: 对纯静态检测降权 15% ─────
+if [ "$CALIBRATED" = true ]; then
+  echo "  [已校准] 所有维度静态检测下调 15%（DG-28 校准偏移）"
+  WEIGHTED_10=$(echo "scale=2; $WEIGHTED_10 * 0.85" | bc 2>/dev/null || echo "0")
+fi
+
+# ───── 8.6/10 门禁判定 ─────
+GATE_VERDICT=""
+GATE_REASON=""
+if (( $(echo "$WEIGHTED_10 >= 8.6" | bc -l 2>/dev/null || echo "0") )); then
+  GATE_VERDICT="[Meta-Oracle: ACCEPT]"
+  GATE_REASON="C/E/G 加权总分 ${WEIGHTED_10}/10 >= 8.6 阈值"
+elif (( $(echo "$WEIGHTED_10 >= 5.0" | bc -l 2>/dev/null || echo "0") )); then
+  GATE_VERDICT="[Meta-Oracle: ADVISORY]"
+  GATE_REASON="C/E/G 加权总分 ${WEIGHTED_10}/10 < 8.6 阈值 — 建议修正但不阻断"
+else
+  GATE_VERDICT="[Meta-Oracle: REJECT]"
+  GATE_REASON="C/E/G 加权总分 ${WEIGHTED_10}/10 < 5.0 阈值 — 强烈建议阻断"
+fi
+
+echo ""
+echo "--- 四维分数 ---"
+echo "C 正确性 (40%):   $C_score/$C_max = ${C_pct}%"
+echo "E 有效性 (35%):   $E_score/$E_max = ${E_pct}%"
+echo "G 治理   (25%):   $G_score/$G_max = ${G_pct}%"
 echo "---"
-echo "C 能力激发:   $C_score/$C_max ($(pct $C_score $C_max)%)"
-echo "E 错误防护:   $E_score/$E_max ($(pct $E_score $E_max)%)"
-echo "治理:          $G_score/$G_max ($(pct $G_score $G_max)%)"
-echo "UX:            $UX_score/$UX_max ($(pct $UX_score $UX_max)%)"
+echo "C/E/G 加权总分:   ${WEIGHTED_10}/10"
 echo "---"
-echo "加权总分: $TOTAL/$MAX ($PCT%)"
+echo "UX 用户体验:      $UX_score/$UX_max = $(pct $UX_score $UX_max)%  [独立, 不参与门禁]"
+echo "---"
+echo "8.6 门禁判定:     $GATE_VERDICT"
+echo "  → $GATE_REASON"
+echo ""
+
+# ───── E7 过度自信免责声明 ─────
+if [ "$C_score" = "$C_max" ]; then
+  if ! has_runtime_data ".omc/state/subagent-usage.jsonl" && ! has_runtime_data ".omc/state/error-signals.jsonl"; then
+    echo "  ⚠️ [静态评分可能虚高] C 维度满分但无可验证的运行时数据"
+  fi
+fi
+if [ "$E_score" = "$E_max" ]; then
+  if ! has_runtime_data ".omc/state/error-signals.jsonl"; then
+    echo "  ⚠️ [静态评分可能虚高] E 维度满分但无错误信号数据"
+  fi
+fi
 
 # ───── JSON 输出 ─────
 RESULT=$(cat <<JSONEOF
 {
   "generated_at": "$TS",
-  "scored_by": "auto-score.sh v2",
-  "methodology": "sub-dimension independent checks (not smoke-pass-rate proxy)",
+  "scored_by": "auto-score.sh v3",
+  "methodology": "4D scoring — C/E/G weighted aggregate (40/35/25) → 0-10 scale + UX independent",
+  "weights": { "C": 0.40, "E": 0.35, "G": 0.25, "UX_note": "independent, not in aggregate" },
   "dimensions": {
-    "C": { "score": $C_score, "max": $C_max, "pct": $(pct $C_score $C_max) },
-    "E": { "score": $E_score, "max": $E_max, "pct": $(pct $E_score $E_max) },
-    "governance": { "score": $G_score, "max": $G_max, "pct": $(pct $G_score $G_max) },
-    "UX": { "score": $UX_score, "max": $UX_max, "pct": $(pct $UX_score $UX_max) }
+    "C": { "score": $C_score, "max": $C_max, "pct": $C_pct, "weight": 0.40 },
+    "E": { "score": $E_score, "max": $E_max, "pct": $E_pct, "weight": 0.35 },
+    "G": { "score": $G_score, "max": $G_max, "pct": $G_pct, "weight": 0.25 },
+    "UX": { "score": $UX_score, "max": $UX_max, "pct": $(pct $UX_score $UX_max), "independent": true }
   },
-  "total": { "score": $TOTAL, "max": $MAX, "pct": $PCT },
+  "aggregate": {
+    "weighted_score_10": $WEIGHTED_10,
+    "threshold": 8.6,
+    "gate_verdict": "$GATE_VERDICT",
+    "gate_reason": "$GATE_REASON"
+  },
   "subscores": { $agg_scores },
   "metrics": { $agg_metrics },
-  "goal_9_2": { "target": 92, "gap": $(echo "92 - $PCT" | bc) }
+  "calibrated": $CALIBRATED
 }
 JSONEOF
 )
 
+mkdir -p "$(dirname "$OUTPUT_FILE")" 2>/dev/null
 echo "$RESULT" > "$OUTPUT_FILE"
 echo "---"
 echo "JSON written: $OUTPUT_FILE"
 echo "$RESULT"
+
+exit 0

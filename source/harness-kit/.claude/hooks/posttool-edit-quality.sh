@@ -209,5 +209,5 @@ if [ -n "$_PY_ANOMALY" ]; then
     MSG="${MSG} | 编辑异常检测: ${_PY_ANOMALY}"
 fi
 
-printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG"
+echo "$MSG" | hc_emit_hook_json "PostToolUse" "true"
 exit 0

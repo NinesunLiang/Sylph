@@ -86,6 +86,27 @@ for w in soft_words:
         issues.append('含软完成语: %s' % w)
         break
 
+# 5. B1: 结构完整性 — 证据中是否有完成标记和结构化引用
+ac_count = len(re.findall(r'AC\s*[#:]\s*\d+|收条件|C\d+', content))
+check_count = len(re.findall(r'\[[xX]\]\s', content))
+verified_count = content.count('VERIFIED')
+step_count = len(re.findall(r'步骤\s*\d+|Step\s*\d+', content))
+if ac_count == 0 and check_count == 0 and verified_count <= 1 and step_count == 0:
+    issues.append('证据缺少结构化完成标记(AC#/checkbox/VERIFIED)')
+
+# 6. B1: 命令输出存在性 — 证据不能只有断言，必须有执行痕迹
+has_cmd_output = bool(re.search(
+    r'✅|❌|⚠️|PASS|FAIL|ERROR|OK|WARN|'
+    r'\d+\s*passed|\d+\s*failed|'
+    r'error:|Error:|ERROR:|'
+    r'[a-z]+\.[a-z]+:\d+:\d+|'
+    r'compilation|build.succeeded|BUILD',
+    content))
+has_shell = bool(re.search(r'(?m)^[\$>]\s', content))
+has_paths = len(re.findall(r'/[\w/-]+\.[a-z]+', content)) > 3
+if not has_cmd_output and not has_shell and not has_paths:
+    issues.append('证据无实际命令输出(仅有断言，缺少执行痕迹)')
+
 if issues:
     audit_log = os.path.join('$STATE_DIR', 'completion-audit.jsonl')
     record = {

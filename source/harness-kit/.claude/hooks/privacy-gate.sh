@@ -32,11 +32,12 @@ TOOL=$(echo "$TOOL" | tr '[:upper:]' '[:lower:]')
 CHECK_PATH="$FILE_PATH$PATTERN"
 if [ -n "$CHECK_PATH" ]; then
     if echo "$CHECK_PATH" | grep -iE '\.env|\.pem|\.key|\.p12|\.pfx|\.jks|id_rsa|credentials\.(json|ya?ml)|secret[es]?\.ya?ml|auth\.json|kubeconfig' > /dev/null; then
-        echo "$(date +%Y-%m-%d),privacy_gate_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
+        flywheel_event "privacy_gate" "triggered" "P2" || true
         agentic_status danger \
             "Privacy Gate 触发" \
             "禁止直接读取包含配置、凭据或密钥的敏感文件（${CHECK_PATH}）。" \
-            "请通过本地环境变量注入，或安装增强版 (lx-skills) 启用 lx-varlock 脱敏代理进行安全读取。绝不能让明文泄漏到 AI 上下文中。"
+            "请使用 /lx-varlock 脱敏代理安全读取此文件，避免明文凭据泄漏到 AI 上下文中。"
+        printf '[Hook-Skill桥] privacy-gate → /lx-varlock: 敏感文件读取被拦截（%s），请用 /lx-varlock 脱敏代理安全打开此文件。' "$CHECK_PATH" | hc_emit_hook_json "PreToolUse" "false"
         exit 2
     fi
 fi
@@ -60,11 +61,12 @@ for p in patterns:
         break
 " 2>/dev/null)
     if [ "$TOKEN_HIT" = "hit" ]; then
-        echo "$(date +%Y-%m-%d),privacy_gate_token_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
+        flywheel_event "privacy_gate" "token_triggered" "P2" || true
         agentic_status danger \
             "Privacy Gate 触发" \
             "检测到在命令中包含明文 API Key 或 Token！这是严重的数据泄露风险。" \
-            "请立即停止并在独立终端配置 varlock 后安全执行。绝不能让明文泄漏到 AI 上下文中。"
+            "请使用 /lx-varlock 脱敏代理安全执行，绝不能让明文凭据泄漏到 AI 上下文中。"
+        printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Hook-Skill桥] privacy-gate → /lx-varlock: 命令中包含 API Key 明文，已被拦截。请用 /lx-varlock 脱敏代理安全执行此命令。"}}\n'
         exit 2
     fi
 fi

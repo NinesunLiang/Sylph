@@ -61,5 +61,5 @@ if [ "$_CITE_MATCH" = false ]; then
     exit 0
 fi
 
-printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG"
+echo "$MSG" | hc_emit_hook_json "PostToolUse" "true"
 exit 0

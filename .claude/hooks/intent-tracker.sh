@@ -184,5 +184,14 @@ if contradiction_level >= 2:
     print(json.dumps({"continue": True, "hookSpecificOutput": {"additionalContext": ctx}}))
 PYEOF
 
+# M2: contradiction-log rotation (>512KB → archive, keep 3)
+_clog_size=$(wc -c < "$CONTRADICTION_LOG" 2>/dev/null | tr -d ' ')
+if [ "$_clog_size" -gt 524288 ] 2>/dev/null; then
+    _clog_ts=$(date +%s)
+    mv "$CONTRADICTION_LOG" "${CONTRADICTION_LOG}.$_clog_ts"
+    touch "$CONTRADICTION_LOG"
+    ls -t "${CONTRADICTION_LOG}."* 2>/dev/null | tail -n +4 | xargs rm -f 2>/dev/null
+fi
+
 echo '{"continue": true}'
 exit 0

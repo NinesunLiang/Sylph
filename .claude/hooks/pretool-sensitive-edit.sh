@@ -112,6 +112,7 @@ fi
 APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "sen-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$SENSITIVE_REQUIRED"
 
+flywheel_event "pretool_sensitive_edit" "blocked" "P2" || true
 agentic_captcha \
     "敏感文件编辑: $_BASE" \
     "$APPROVAL_CODE" \

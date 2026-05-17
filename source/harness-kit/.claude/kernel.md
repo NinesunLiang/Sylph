@@ -1,11 +1,9 @@
 <!-- PROJECT: Carror OS -->
 
-<!-- DATE: 2026-05-07 -->
+<!-- DATE: 2026-05-17 -->
 
 # 代码执行内核（kernel.md）
 
-> >
-> 由 bootstrap-harness 生成，请按项目实际情况填充各章节
 > 本文件是 AI 执行内核 — 写代码前必读，冻结后不可随意扩展
 
 ## ⚖️ 宪法冻结声明
@@ -21,6 +19,8 @@
 - **Hook 不可失败**：所有 `hooks/*.sh` 禁止 `set -e`，必须 `exit 0` 或 `echo '{"continue": true}'` 结尾
 - **hc_enabled 门禁**：每个 Hook 脚本必须通过 `hc_enabled "feature_name" || exit 0` 读取 yaml 开关
 - **最大修复上限**：同一问题最多修 3 轮，超过则 BLOCKED 升级用户
+- **harness.yaml 整数类型**：涉及 bash 整数比较（`[ "$VAL" -lt "$THRESHOLD" ]`）的配置值必须用整数。0-100 百分比刻度用 `60` 而非 `0.6`。浮点数导致 bash `[` 静默失败。（升华自 DG-54）
+- **发行包路径脱敏**：开发机绝对路径（`/Users/xxx/...`）禁止进入 `packages/`。`package-release.sh` 打包前替换为 `__PROJECT_ROOT__` 占位符，`install.sh` 安装时替换为用户实际路径。（升华自 DG-31）
 
 ## 命名强制规则
 <!-- 由 R17 审计填充 @2026-05-07 -->
@@ -28,7 +28,7 @@
 - **Python 脚本**：snake_case（`context_monitor.py`、`oma_lock_manager.py`）
 - **Skill 目录**：`lx-` 前缀（`lx-oma-split`、`lx-code-review`），SKILL.md 主文件
 - **YAML key**：snake_case（`hooks_enabled.completion_gate`），与脚本调用一致
-- **版本号**：始终 `6.2.0` 格式，VERSION.json 无前缀 `6.2.0`
+- **版本号**：始终 `6.2.1` 格式，VERSION.json 无前缀 `6.2.1`
 
 ## 错误处理铁律
 <!-- 由 R17 审计填充 @2026-05-07 -->
@@ -38,6 +38,7 @@
 - **修复 3 轮上限**：每轮记录根因假设，第 3 轮仍失败 → BLOCKED 升级
 - **禁止绕过门禁**：permission-gate/sensitive-edit 阻断时必须等待用户明确书面授权（输入"确认放行"），AI 不得代用户批准或自行写入批准标记（R42 安全漏洞修复）
 - **原生批准优先**：敏感文件编辑优先使用 `permissionDecision: ask` 原生对话框，CAPTCHA 文件机制作为回退
+- **关键脚本修改前备份**：修改 permission-gate.sh / settings.json 等关键治理文件前必须 `cp file file.bak`，修改后必须 `bash -n file` 语法检查。这些文件损坏 = 全 Bash 被封 = 无法自救。（升华自 DG-13, DF-04）
 
 ## 测试要求
 <!-- 由 R17 审计填充 @2026-05-07 -->
@@ -45,6 +46,7 @@
 - **Hook 生产验证**：`hook-production-verify.sh`（动态计数，全绿为 pass）覆盖所有 gate 场景
 - **OMA Lock 测试**：修改锁逻辑后必须运行 `test_oma_lock.py`
 - **版本审计**：修改版本号后必须运行 `audit-hooks.sh` 确认三方对齐
+- **安全正则格式覆盖**：涉及安全门禁的正则表达式必须测试 ≥4 种路径格式：裸文件名(`AGENTS.md:42`)、相对路径(`./src/main.go:15`)、绝对路径(`/Users/x/project/file.go:42`)、点路径(`.claude/hooks/foo.sh:15`)。（升华自 DG-29）
 
 ## 禁止行为
 <!-- 由 R17 审计填充 @2026-05-07 -->
@@ -53,3 +55,7 @@
 - 禁止未引用 `file:line` 的技术断言（铁律 #1）
 - 禁止在报告中混合自创指标与行业标准（铁律 #7）
 - 禁止在 `for x in $VAR` 中使用未加引号变量（R24 教训）
+- 禁止 `json.load → str.replace → json.dump` 管道修改含转义字符的治理文件。JSON dump 会损坏嵌套引号。用 sed 纯文本替换。（升华自 DF-04, DG-12）
+- 禁止 `$(grep -c pattern || echo 0)` 模式 — `grep -c` 输出 "0" 并 exit 1，`|| echo 0` 追加第二个 "0"，产生双输出 `"0\n0"` 导致整数比较失败。正确做法：`VAR=$(grep -c pattern 2>/dev/null); VAR="${VAR:-0}"`。（升华自 DG-36）
+- 禁止 `sed -i` 使用未验证非空的变量作为行号 — `LINE=$(grep -n 'pattern' file | head -1 | cut -d: -f1)` 返回空 → `sed -i '' "${LINE}i\\..."` 空行号插入导致文件全毁。任何 sed -i 行号操作前必须 `[ -n "$LINE" ] || { echo "FATAL"; exit 1; }`。（升华自 DG-68）
+- 禁止在 macOS sed 中使用 `\+` 量词（POSIX BRE 不兼容）— `\+` 在 macOS 被解释为字面加号而非量词。跨平台脚本必须用 `sed -E` 启用 ERE，或改用 `[0-9][0-9]*` / `\{1,\}` 等 POSIX 兼容写法。（升华自 DG-77）

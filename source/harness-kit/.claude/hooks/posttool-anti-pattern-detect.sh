@@ -97,6 +97,7 @@ if [ "$A2_TRIGGERED" = true ] || [ "$H1_TRIGGERED" = true ]; then
         echo "     无来源指标必须标注「[内部自检，非行业标准]」" >&2
     fi
     echo '{"continue": false}' >&2
+flywheel_event "anti_pattern_detect" "blocked" "P2" || true
     exit 2
 fi
 
@@ -106,6 +107,7 @@ if [ "$F1_TRIGGERED" = true ]; then
     echo "  🚫 F1 假设驱动: 检测到推测性断言「应该是/通常是/一般来说」缺少 file:line 证据" >&2
     echo "     正确格式: 「[已验证: path/file.go:42] <断言内容>」" >&2
     echo '{"continue": false}' >&2
+flywheel_event "anti_pattern_detect" "blocked" "P2" || true
     exit 2
 fi
 

@@ -33,11 +33,7 @@ for dtype in $DANGEROUS_TYPES; do
 done
 set +f
 
-# 安全 agent 不统计
-if [ "$IS_DANGEROUS" = false ]; then
-    echo '{"continue": true}'
-    exit 0
-fi
+	# P1.1: 记录所有 Task 调用到 subagent-usage.jsonl（不再按 agent 类型过滤）
 
 # 记录到 subagent-usage.jsonl 供后续分析
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -74,7 +70,7 @@ if [ "$IS_HIGH" = true ]; then
         "$TS" "$(basename "$PROJECT_ROOT")" "$AGENT_TYPE" "$CONTENT_LEN" >> "$FLYWHEEL_BUF"
 
     MSG=$(printf '[Subagent Audit] %s 返回 %d 字节（>%d 高用量阈值）。已记入 flywheel P0 事件，下次 SessionStart 会告警。如需调整阈值改 harness.yaml subagent_guard.high_usage_threshold_bytes' "$AGENT_TYPE" "$CONTENT_LEN" "$HIGH_USAGE_THRESHOLD")
-    printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG"
+    echo "$MSG" | hc_emit_hook_json "PostToolUse" "true"
     exit 0
 fi
 

@@ -123,11 +123,74 @@ cat <<'METHODOLOGY'
 METHODOLOGY
 
 echo ""
-echo "--- Meta-Oracle 最后守门员已就绪 [${TRIGGER_TYPE}] ---"
+echo "=== Meta-Oracle 最后守门员 [${TRIGGER_TYPE}] ==="
 echo "审查状态文件: $STATE_DIR/meta-oracle-verdicts.md"
 echo "触发类型: ${TRIGGER_TYPE}"
 echo ""
-echo "执行方式: Agent(critic, opus, 独立上下文)"
-echo "权威等级: 高于 Oracle（可推翻 Oracle 裁决）"
-echo "门禁类型: 软门禁（AI 可在明确理由下覆写 REJECT）"
+
+# ───── 四维打分集成 ─────
+# 在 G1-G4 触发时自动运行四维打分体系
+SCORE_SCRIPT="$PROJECT_ROOT/.claude/scripts/auto-score.sh"
+UX_SCRIPT="$PROJECT_ROOT/.claude/scripts/score-ux.sh"
+
+# 确保 state 目录存在
+mkdir -p "$STATE_DIR" 2>/dev/null
+
+if [ -x "$SCORE_SCRIPT" ]; then
+  echo "--- 运行四维打分 (C/E/G 加权聚合 + UX 独立) ---"
+  # 传递 --calibrated 以应用 DG-28 静态检测降权 (Oracle MAJOR 2 修复)
+  SCORE_OUTPUT=$(bash "$SCORE_SCRIPT" --meta-oracle --calibrated 2>/dev/null)
+  echo "$SCORE_OUTPUT"
+
+  # 提取门禁判定 (文本匹配 — gate_verdict 格式固定)
+  GATE_VERDICT=$(echo "$SCORE_OUTPUT" | grep -oE '\[Meta-Oracle: (ACCEPT|ADVISORY|REJECT)\]' | head -1)
+  WEIGHTED_SCORE=$(echo "$SCORE_OUTPUT" | grep 'C/E/G 加权总分' | grep -oE '[0-9]+\.[0-9]+' | head -1)
+
+  echo ""
+  echo "--- Meta-Oracle 门禁裁决 ---"
+  echo "C/E/G 加权总分: ${WEIGHTED_SCORE:-N/A}/10"
+  echo "8.6 门禁判定:   ${GATE_VERDICT:-N/A}"
+else
+  echo "[警告] auto-score.sh 不可用，跳过四维打分"
+fi
+
+# ───── UX 独立评分 ─────
+if [ -x "$UX_SCRIPT" ]; then
+  echo ""
+  echo "--- UX 独立评分 ---"
+  UX_OUTPUT=$(bash "$UX_SCRIPT" 2>/dev/null)
+  # 使用 python3 解析 JSON 提取 total score/max (Oracle MAJOR 4 修复: 替代脆弱 grep)
+  UX_SCORE=$(echo "$UX_OUTPUT" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d['total']['score'])
+except: print('N/A')
+" 2>/dev/null)
+  UX_MAX=$(echo "$UX_OUTPUT" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d['total']['max'])
+except: print('10')
+" 2>/dev/null)
+  echo "UX 得分: ${UX_SCORE:-N/A}/${UX_MAX:-10} (独立, 不参与 8.6 门禁)"
+fi
+
+# ───── 写入裁决留痕 ─────
+VERDICT_DATE=$(date -u +%Y-%m-%d)
+VERDICT_ENTRY="[${VERDICT_DATE}] [${TRIGGER_TYPE}] [${GATE_VERDICT:-N/A}] — C/E/G 加权: ${WEIGHTED_SCORE:-N/A}/10 | UX 独立: ${UX_SCORE:-N/A}/${UX_MAX:-10}"
+if [ -f "$STATE_DIR/meta-oracle-verdicts.md" ]; then
+  # 在第二行后追加（保留标题行和空行）
+  sed -i '' "3i\\
+${VERDICT_ENTRY}
+" "$STATE_DIR/meta-oracle-verdicts.md" 2>/dev/null || echo "$VERDICT_ENTRY" >> "$STATE_DIR/meta-oracle-verdicts.md"
+fi
+
+echo ""
+echo "--- 裁决已留痕: $STATE_DIR/meta-oracle-verdicts.md ---"
+echo "四维打分体系已就绪 | 权威等级: 高于 Oracle | 门禁: 软门禁"
+echo "  方法论: 运行时验证 > 静态检查 | 对抗性审查 > 合规检查"
+echo "  UX 维度: 独立评分, 不参与 C/E/G 的 8.6/10 门禁判定"
+
 exit 0

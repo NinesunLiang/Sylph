@@ -74,16 +74,11 @@ fi
 # ─── 输出结果 ─────────────────────────────────────────────────────
 if [ -z "$ISSUES" ]; then
     MSG="✅ claude-next.md 教训格式合规。升华检查：已记录，未来达到 20 条时可升华到 kernel.md。"
-    printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG"
+    echo "$MSG" | hc_emit_hook_json "PostToolUse" "true"
 else
     ISSUE_LIST=$(printf "%b" "$ISSUES")
     MSG="⚠️ claude-next.md 格式问题，建议修正：${ISSUE_LIST}\n\n标准格式：\n## [${TODAY}] {教训标题}\n<!-- @${TODAY} hits:1 -->\n**问题**：{描述}\n**根因**：{为什么}\n**纠正**：{正确做法}"
-    # 转义 JSON
-    MSG_ESC=$(echo "$MSG" | python3 -c "
-import sys
-s = sys.stdin.read()
-print(s.replace('\\\\', '\\\\\\\\').replace('\"', '\\\\\"').replace('\n', '\\\\n'))" 2>/dev/null || echo "$MSG")
-    printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$MSG_ESC"
+    echo "$MSG" | hc_emit_hook_json "PostToolUse" "true"
 fi
 
 exit 0

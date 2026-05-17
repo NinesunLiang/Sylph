@@ -32,7 +32,7 @@ for entry in $INJECT_FILES; do
         FILE_LINES=$(wc -l < "$FILE_PATH" | tr -d ' ')
         r39_used=$((r39_used + FILE_LINES + 2))
         echo "[.claude/$FILE_NAME]"
-        cat "$FILE_PATH"
+        cat "$FILE_PATH" | hc_sanitize_utf8
         echo ""
     elif [ "$MODE" = "summary" ]; then
         r39_used=$((r39_used + 35))
@@ -47,6 +47,7 @@ set +f
 
 # R39: 预算超限告警（不阻断，仅 stderr 通知）
 if [ $r39_used -gt $R39_BUDGET_LINES ]; then
+flywheel_event "inject_project_knowledge" "triggered" "P2" || true
     echo "⚠️ [R39 注入预算] 预估 ~${r39_used} 行 > ${R39_BUDGET_LINES} 行上限。建议归档不常用内容到 reference/ 或降级为 summary 模式。" >&2
 fi
 
@@ -54,7 +55,7 @@ fi
 SKILL_GRAPH="$PROJECT_ROOT/.claude/reference/skill-graph.md"
 if [ -f "$SKILL_GRAPH" ]; then
     echo "[.claude/reference/skill-graph.md 线上]"
-    grep -E '^\|' "$SKILL_GRAPH" 2>/dev/null | head -16
+    grep -E '^\|' "$SKILL_GRAPH" 2>/dev/null | head -16 | hc_sanitize_utf8
     echo "--- 完整图谱请Read .claude/reference/skill-graph.md"
     echo ""
 fi
@@ -64,7 +65,7 @@ PIPELINE_STEP_SCRIPT="$PROJECT_ROOT/.claude/scripts/pipeline-step.sh"
 if [ -f "$PIPELINE_STEP_SCRIPT" ]; then
     PIPELINE_CTX=$(bash "$PIPELINE_STEP_SCRIPT" inject 2>/dev/null)
     if [ -n "$PIPELINE_CTX" ]; then
-        echo "$PIPELINE_CTX"
+        echo "$PIPELINE_CTX" | hc_sanitize_utf8
     fi
 fi
 
@@ -73,7 +74,7 @@ HEALTH_SCRIPT="$PROJECT_ROOT/.claude/scripts/session-health-check.sh"
 if [ -f "$HEALTH_SCRIPT" ]; then
     HEALTH_CTX=$(bash "$HEALTH_SCRIPT" inject 2>/dev/null)
     if [ -n "$HEALTH_CTX" ]; then
-        echo "$HEALTH_CTX"
+        echo "$HEALTH_CTX" | hc_sanitize_utf8
     fi
 fi
 
@@ -173,7 +174,7 @@ rm -f "$PROJECT_ROOT/.omc/state/read-tracker.txt" "$PROJECT_ROOT/.omc/state/read
 KC_REPORT="$PROJECT_ROOT/.omc/state/knowledge-condenser-report.txt"
 if [ -f "$KC_REPORT" ]; then
     echo "[knowledge-condenser 待处理建议]"
-    cat "$KC_REPORT"
+    cat "$KC_REPORT" | hc_sanitize_utf8
     echo "---"
     rm -f "$KC_REPORT"
 fi
@@ -230,7 +231,7 @@ except: pass
 ESCEOF
 )
     if [ -n "$ESC_SUMMARY" ]; then
-        echo "$ESC_SUMMARY"
+        echo "$ESC_SUMMARY" | hc_sanitize_utf8
         echo "---"
     fi
 fi
@@ -239,7 +240,7 @@ fi
 FLYWHEEL_DEP="$PROJECT_ROOT/.omc/state/flywheel-deprecated-skills.txt"
 if [ -f "$FLYWHEEL_DEP" ]; then
     echo "[flywheel 废弃技能]"
-    cat "$FLYWHEEL_DEP"
+    cat "$FLYWHEEL_DEP" | hc_sanitize_utf8
     echo "---"
     rm -f "$FLYWHEEL_DEP"
 fi
@@ -251,7 +252,7 @@ SNAPSHOT_EXPIRY=$(hc_get "knowledge.snapshot_expiry_sec" "86400")
 
 if [ "$HANDOFF_ENABLED" = "true" ] && [ -f "$HANDOFF_FILE" ]; then
     # 检查过期（与 snapshot 相同逻辑）
-    python3 - "$HANDOFF_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF'
+    python3 - "$HANDOFF_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF' | hc_sanitize_utf8
 import sys, os, re
 from datetime import datetime, timezone
 
@@ -284,7 +285,7 @@ DNA_FILE="$PROJECT_ROOT/.omc/state/error-dna.json"
 DNA_ENABLED=$(hc_get "error_dna" "true")
 
 if [ "$DNA_ENABLED" = "true" ] && [ -f "$DNA_FILE" ]; then
-    python3 - "$DNA_FILE" <<'PYEOF'
+    python3 - "$DNA_FILE" <<'PYEOF' | hc_sanitize_utf8
 import json, sys
 
 try:
@@ -342,7 +343,7 @@ TOTAL_OPS_FILE="$PROJECT_ROOT/.omc/state/total-ops.txt"
 DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
 SIGNALS_JSONL="$PROJECT_ROOT/.omc/state/error-signals.jsonl"
 if [ -f "$TOTAL_OPS_FILE" ]; then
-    python3 - "$DNA_JSONL" "$SIGNALS_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF'
+    python3 - "$DNA_JSONL" "$SIGNALS_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF' | hc_sanitize_utf8
 import json, sys, os
 try:
     dna_path, signals_path, ops_path = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -371,7 +372,7 @@ fi
 SNAPSHOT_FILE="$PROJECT_ROOT/.omc/state/session-snapshot.json"
 SNAPSHOT_EXPIRY=$(hc_get "knowledge.snapshot_expiry_sec" "86400")
 if [ -f "$SNAPSHOT_FILE" ]; then
-    python3 - "$SNAPSHOT_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF'
+    python3 - "$SNAPSHOT_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF' | hc_sanitize_utf8
 import json, sys
 from datetime import datetime, timezone
 
@@ -432,7 +433,7 @@ except Exception:
     sys.exit(0)
 " 2>/dev/null)
     if [ -n "$GOV_OUTPUT" ]; then
-        echo "$GOV_OUTPUT"
+        echo "$GOV_OUTPUT" | hc_sanitize_utf8
     fi
 fi
 
@@ -442,7 +443,7 @@ if [ -f "$RETRY_SCRIPT" ]; then
     RETRY_CTX=$(bash "$RETRY_SCRIPT" check 2>&1)
     RETRY_EXIT=$?
     if [ $RETRY_EXIT -eq 2 ] && [ -n "$RETRY_CTX" ]; then
-        echo "$RETRY_CTX"
+        echo "$RETRY_CTX" | hc_sanitize_utf8
     fi
 fi
 
@@ -505,7 +506,7 @@ if parts:
     for p in parts:
         print(p)
     print('--- 完整 dump: Read .omc/state/session-dump.json')
-" 2>/dev/null || true
+" | hc_sanitize_utf8 2>/dev/null || true
 fi
 
 # ─── 自主模式决策链注入 ───
@@ -520,9 +521,122 @@ if [ "$CURRENT_MODE" != "normal" ]; then
     DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
     if [ -f "$DECISION_CHAIN" ]; then
         echo "[.claude/reference/autonomous-decision-chain.md]"
-        cat "$DECISION_CHAIN"
+        cat "$DECISION_CHAIN" | hc_sanitize_utf8
         echo ""
     else
         echo "⚠️ [自主模式] 决策链文件缺失: $DECISION_CHAIN" >&2
     fi
+fi
+
+# ─── 日常任务工作区注入（哲学 #7 物化） ───
+# 活跃/最近的任务工作区让 AI 知道"之前做了什么"，人无需重复解释
+# .omc/state/tasks/{datetime}-{slug}/ 目录通过时间戳天然索引行为
+TASKS_DIR="$STATE_DIR/tasks"
+if [ -d "$TASKS_DIR" ]; then
+    CURRENT_TASK=$(readlink "$TASKS_DIR/.active" 2>/dev/null || echo "")
+    if [ -n "$CURRENT_TASK" ] && [ -d "$CURRENT_TASK" ]; then
+        TASK_NAME=$(basename "$CURRENT_TASK")
+        echo "[任务工作区] 🟢 活跃: $TASK_NAME"
+        head -1 "$CURRENT_TASK/prd.md" 2>/dev/null
+        echo "  .omc/state/tasks/$TASK_NAME/"
+        echo ""
+    fi
+    # 最近 3 天的工作区（按时间倒序，最多 5 个）
+    RECENT_TASKS=$(ls -dt "$TASKS_DIR"/*/ 2>/dev/null | grep -v '.active' | head -5)
+    if [ -n "$RECENT_TASKS" ]; then
+        echo "[任务工作区] 📋 最近:"
+        for _td in $RECENT_TASKS; do
+            _tn=$(basename "$_td")
+            _status="✅"
+            grep -q '🟢 进行中' "$_td/prd.md" 2>/dev/null && _status="🟢"
+            echo "  $_status $_tn"
+        done
+        echo "  人提及'刚才/上次/那个任务'时 → 按时间找对应目录 → task-workspace.sh resume <id>"
+        echo ""
+    fi
+fi
+
+# ─── 待决策清单注入（b-mode 问题分流） ───
+# 哲学 #5(以人为本): 非自主模式下发现的问题结构化记录，SessionStart 时提醒用户决策
+# issue-triage.sh → pending-triage.md → 此处注入
+# 使用 pending-triage.md 独立文件，避免与 lx-oma-gov 的 pending-decisions.md 冲突
+PENDING_TRIAGE="$STATE_DIR/pending-triage.md"
+if [ -f "$PENDING_TRIAGE" ]; then
+    # 统计待决策项（按优先级）— DG-36 fix: grep -c 输出 "0" 时 exit 1, 不可用 || echo 0
+    P0_COUNT=$(grep -c '^\### .*\[P0\]' "$PENDING_TRIAGE" 2>/dev/null); P0_COUNT="${P0_COUNT:-0}"
+    P1_COUNT=$(grep -c '^\### .*\[P1\]' "$PENDING_TRIAGE" 2>/dev/null); P1_COUNT="${P1_COUNT:-0}"
+    P2_COUNT=$(grep -c '^\### .*\[P2\]' "$PENDING_TRIAGE" 2>/dev/null); P2_COUNT="${P2_COUNT:-0}"
+    P3_COUNT=$(grep -c '^\### .*\[P3\]' "$PENDING_TRIAGE" 2>/dev/null); P3_COUNT="${P3_COUNT:-0}"
+    TOTAL=$(( P0_COUNT + P1_COUNT + P2_COUNT + P3_COUNT ))
+    if [ "$TOTAL" -gt 0 ] 2>/dev/null; then
+        echo ""
+        echo "📋 [待决策清单] ${TOTAL} 项待用户决策（P0:${P0_COUNT} P1:${P1_COUNT} P2:${P2_COUNT} P3:${P3_COUNT}）"
+        echo "   → Read .omc/state/pending-triage.md 查看详情"
+        echo "   → 决策后删除对应条目，或 rm -f .omc/state/pending-triage.md 清除全部"
+        if [ "$P0_COUNT" -gt 0 ] 2>/dev/null; then
+            echo "   ⚠️ 含 ${P0_COUNT} 项 P0 安全问题，建议优先处理！"
+        fi
+        echo ""
+    fi
+fi
+
+# ─── 自动优化追踪注入（a-mode 问题分流消费者） ───
+# 哲学 #2(少量大增益): a-mode 自主优化历史 → 此处注入 AI 上下文
+# issue-triage.sh → auto-optimizations.jsonl → 此处消费
+AUTO_OPT="$STATE_DIR/auto-optimizations.jsonl"
+if [ -f "$AUTO_OPT" ] && [ -s "$AUTO_OPT" ]; then
+    # 统计最近的自动优化记录（24h 内）
+    OPT_COUNT=$(python3 -c "
+import json, os, time
+count = 0
+cutoff = time.time() - 86400
+try:
+    with open('$AUTO_OPT') as f:
+        for line in f:
+            try:
+                rec = json.loads(line.strip())
+                if rec and rec.get('ts', 0) > cutoff:
+                    count += 1
+            except:
+                pass
+except:
+    pass
+print(count)
+" 2>/dev/null || echo 0)
+    if [ "$OPT_COUNT" -gt 0 ] 2>/dev/null; then
+        echo ""
+        echo "🔧 [自动优化] a-mode 最近 24h 自主优化了 ${OPT_COUNT} 项问题"
+        echo "   → Read .omc/state/auto-optimizations.jsonl 查看详情"
+        echo ""
+    fi
+fi
+
+# ─── Ghost 退出报告追补检查（L3 事后追补门禁） ───
+# 哲学 #4(没验证=没做): ghost --force 关闭时留下 pending 桩，此处检测并提醒补交
+# Meta-Oracle C1: 原 L3 完全缺失，此行修复
+GHOST_EXIT_PENDING="$STATE_DIR/ghost-exit-pending"
+if [ -f "$GHOST_EXIT_PENDING" ]; then
+    EXIT_REPORT="$STATE_DIR/ghost-exit-report.md"
+    echo ""
+    echo "⚠️ [Ghost 退出报告缺失] 上次幽灵模式强制关闭（--force）后未提交退出报告。"
+    if [ -f "$EXIT_REPORT" ]; then
+        echo "   但已检测到退出报告文件: $EXIT_REPORT"
+        echo "   请审阅报告内容，确认无误后 rm -f $GHOST_EXIT_PENDING 清除此提醒。"
+    else
+        echo "   退出报告文件 ($EXIT_REPORT) 不存在。"
+        echo "   建议: 根据上次探索方向补交报告（lx-ghost report '内容'），或 rm -f $GHOST_EXIT_PENDING 清除提醒。"
+    fi
+    echo ""
+fi
+
+# ─── Ghost 会话异常中断检测（B5: 粘性标记） ───
+# ghost-session-active-at 在 lx-ghost on 时创建，off 时清理。
+# 如果标记存在但 lx-ghost.json 不存在 → 会话异常中断（崩溃/强杀）
+GHOST_STICKY="$STATE_DIR/ghost-session-active-at"
+if [ -f "$GHOST_STICKY" ] && [ ! -f "$STATE_DIR/lx-ghost.json" ] && [ ! -f "$STATE_DIR/ghost-exit-report.md" ] && [ ! -f "$GHOST_EXIT_PENDING" ]; then
+    echo ""
+    echo "⚠️ [Ghost 会话异常中断] 上次幽灵模式会话异常结束（会话中断或进程崩溃），未生成退出报告。"
+    echo "   请检查探索状态，确认是否需要补交报告。"
+    echo "   确认无误后执行: rm -f $GHOST_STICKY"
+    echo ""
 fi

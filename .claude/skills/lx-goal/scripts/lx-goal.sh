@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 MODE_FILE="$STATE_DIR/lx-goal.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
-_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|retry"
+_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry"
 if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
     exec bash "$0" on "$@"
 fi
@@ -42,7 +42,9 @@ case "${1:-status}" in
   "activated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "retry_count": 0,
   "skipped_risks": [],
-  "completed_tasks": []
+  "completed_tasks": [],
+  "hard_boundary_hits": [],
+  "blocked_human": []
 }
 JSON
         mv -f "$tmp" "$MODE_FILE" 2>/dev/null
@@ -85,7 +87,8 @@ JSON
             echo "📋 目标模式 (lx-goal): 🟢 开启中"
             echo "   目标: $GOAL"
             echo "   过期: $EXP"
-            echo "   已完成: $DONE  跳过风险: $SKIP  硬边界: $HARD  重试: $RETRY"
+            BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
+            echo "   已完成: $DONE  跳过风险: $SKIP  硬边界: $HARD  推迟决策: $BLOCKED  重试: $RETRY"
         elif [ -f "$STATE_DIR/unattended-mode.json" ]; then
             echo "📋 目标模式 (旧格式 unattended-mode.json): 🟡 兼容中"
             echo "   建议执行 lx-goal off && lx-goal on \"目标\" 迁移到新格式"
@@ -138,6 +141,7 @@ os.rename(tmp, file)
         SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
         HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
         RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+        BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
         SKIP_LIST=$(python3 -c "
 import json
 d = json.load(open('$MODE_FILE'))
@@ -157,6 +161,19 @@ for h in hits:
     print(f'- **操作**: {desc}')
     print(f'  **原因**: {reason}')
     print(f'  **需人类执行**: {human}')
+    print()
+" 2>/dev/null)
+        BLOCKED_LIST=$(python3 -c "
+import json
+d = json.load(open('$MODE_FILE'))
+blocked = d.get('blocked_human', [])
+for b in blocked:
+    desc = b.get('description', '?')
+    rec = b.get('ai_recommendation', '?')
+    rat = b.get('rationale', '?')
+    print(f'- **决策**: {desc}')
+    print(f'  **AI 推荐**: {rec}')
+    print(f'  **依据**: {rat}')
     print()
 " 2>/dev/null)
         TASK_LIST=$(python3 -c "
@@ -185,6 +202,7 @@ for t in tasks:
             echo "- 已完成任务数: $DONE"
             echo "- 跳过风险数: $SKIP"
             echo "- 硬边界拦截数: $HARD"
+            echo "- 推迟决策数: $BLOCKED"
             echo "- 重试次数: $RETRY"
             echo ""
             echo "## 已完成任务"
@@ -201,6 +219,33 @@ for t in tasks:
                 echo "无"
             fi
             echo ""
+            echo "## ⚠️ 需人为决策汇总"
+            echo ""
+            echo "| # | 类型 | 描述 | AI 推荐 | 依据 |"
+            echo "|---|------|------|---------|------|"
+            # 用 Python 从 JSON 生成聚合汇总表
+            python3 -c "
+import json
+d = json.load(open('$MODE_FILE'))
+hits = d.get('hard_boundary_hits', [])
+blocked = d.get('blocked_human', [])
+idx = 0
+for h in hits:
+    idx += 1
+    desc = h.get('description', '?')
+    reason = h.get('reason', '?')
+    human = h.get('human_action', '?')
+    print(f'| {idx} | 硬边界 | {desc} | {human} | {reason} |')
+for b in blocked:
+    idx += 1
+    desc = b.get('description', '?')
+    rec = b.get('ai_recommendation', '?')
+    rat = b.get('rationale', '?')
+    print(f'| {idx} | 推迟决策 | {desc} | {rec} | {rat} |')
+if idx == 0:
+    print('| - | - | 无需人类介入的项 | - | - |')
+" 2>/dev/null
+            echo ""
             echo "## ⚠️ 需人类介入项（硬边界）"
             if [ -n "$HARD_LIST" ]; then
                 echo "$HARD_LIST"
@@ -208,8 +253,15 @@ for t in tasks:
                 echo "无"
             fi
             echo ""
+            echo "## 推迟决策项（裁决链 Level 3 — 需人类裁决）"
+            if [ -n "$BLOCKED_LIST" ]; then
+                echo "$BLOCKED_LIST"
+            else
+                echo "无"
+            fi
+            echo ""
             echo "## 验证状态"
-            echo "VERIFIED: 报告生成完毕（$DONE 项完成，$SKIP 项风险跳过，$HARD 项硬边界拦截，$RETRY 次重试）"
+            echo "VERIFIED: 报告生成完毕（$DONE 项完成，$SKIP 项风险跳过，$HARD 项硬边界拦截，$BLOCKED 项推迟决策，$RETRY 次重试）"
         } > "$REPORT_FILE"
         echo "✅ 报告已生成: $REPORT_FILE"
         cat "$REPORT_FILE"
@@ -365,6 +417,40 @@ os.rename(tmp, file)
 " 2>/dev/null && echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)" || echo "❌ 记录失败"
         ;;
 
+	    blocked-human)
+	        # 记录推迟到退出报告的人类决策项（裁决链 Level 3 blocked_human）
+	        # 与 hard-boundary-hit 不同：这些不是物理禁区，而是 AI 无法确定需要人类裁决
+	        DESCRIPTION="${2:-未知决策}"
+	        AI_RECOMMENDATION="${3:-AI 推荐方案未提供}"
+	        RATIONALE="${4:-决策依据未提供}"
+	        TASK_FILE="$MODE_FILE"
+	        if [ ! -f "$TASK_FILE" ]; then
+	            if [ -f "$STATE_DIR/unattended-mode.json" ]; then
+	                TASK_FILE="$STATE_DIR/unattended-mode.json"
+	            else
+	                echo "❌ 目标模式未开启"
+	                exit 1
+	            fi
+	        fi
+	        python3 -c "
+	import json, os
+	file = '$TASK_FILE'
+	d = json.load(open(file))
+	blocked = d.get('blocked_human', [])
+	blocked.append({
+	    'description': '$DESCRIPTION',
+	    'ai_recommendation': '$AI_RECOMMENDATION',
+	    'rationale': '$RATIONALE',
+	    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+	})
+	d['blocked_human'] = blocked
+	tmp = file + '.tmp.' + str(os.getpid())
+	with open(tmp, 'w') as f:
+	    json.dump(d, f, indent=2, ensure_ascii=False)
+	os.rename(tmp, file)
+	" 2>/dev/null && echo "🤔 推迟决策已记录: $DESCRIPTION → 推荐: $AI_RECOMMENDATION" || echo "❌ 记录失败"
+	        ;;
+
     retry)
         # 增加重试计数
         TASK_FILE="$MODE_FILE"
@@ -389,7 +475,7 @@ os.rename(tmp, file)
         ;;
 
     *)
-        echo "用法: lx-goal on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|retry"
+        echo "用法: lx-goal on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry"
         echo ""
         echo "子命令:"
         echo "  lx-goal on \"目标描述\" [过期小时=6]"
@@ -402,7 +488,8 @@ os.rename(tmp, file)
         echo "  lx-goal poll                      轮询入口（loop skill 调用）"
         echo "  lx-goal task-done \"描述\"          标记任务完成"
         echo "  lx-goal skip-risk \"描述\"          记录跳过的风险"
-        echo "  lx-goal hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  记录硬边界拦截"
+        echo "  lx-goal blocked-human "决策" "AI推荐" "依据"     记录推迟到报告的人类决策"
+	        echo "  lx-goal hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  记录硬边界拦截"
         echo "  lx-goal retry                     重试计数 +1"
         echo ""
         echo "驱动方式:"

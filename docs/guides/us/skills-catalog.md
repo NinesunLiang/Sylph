@@ -1,6 +1,6 @@
 # Skills Catalog
 
-> Source-extracted from `.claude/skills/`. 25 `lx-` skills organized by functional domain.
+> Source-extracted from `.claude/skills/`. 24 `lx-` skills organized by functional domain.
 
 ## Quick Reference
 

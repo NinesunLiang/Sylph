@@ -41,10 +41,9 @@ if [ ! -f "$EVIDENCE_FILE" ]; then
     agentic_menu \
         "前置完成门禁" \
         "调用 TaskUpdate(completed) 但无证据文件" \
-        "运行验证并写入证据" "生成证据到 ${EVIDENCE_FILE}" \
-        "强制完成" "跳过证据检查，直接标记完成"
-    exit 0  # agentic_menu 已 exit 2，此行仅为语法占位
-fi
+        flywheel_event "pre_completion_gate" "blocked" "P2" || true
+        exit 0
+    fi
 
 # 检查证据文件新鲜度
 FRESH=$(python3 -c "

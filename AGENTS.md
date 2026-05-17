@@ -313,7 +313,9 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 
 ### 机制→哲学 逆向追溯矩阵
 
-> 正向追溯（哲学→机制）见 §Carror OS 哲学核心 的物化机制列。以下为逆向追溯，查询具体机制服务哪些哲学原则。
+> 完整双向追溯矩阵（覆盖 46 hooks + 25 skills + 28 scripts + 8 条铁律）→ `Read .claude/reference/philosophy-mechanism-matrix.md`
+> 
+> 以下为快速参考速查表（仅列最常用机制，完整版含全量 99 项）：
 
 | 机制 | 类型 | 所属哲学 | 说明 |
 |------|------|---------|------|
@@ -322,12 +324,15 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 | `pretool-sensitive-edit.sh` | Hook | #6 | 治理文件 CAPTCHA 门禁（Edit/Write 扩展防御面） |
 | `context-guard.sh` | Hook | #3 | 上下文阈值阻断防记忆衰退 |
 | `edit-guard.sh` | Hook | #6 | Read-before-Edit 门禁 |
-| `privacy-gate.sh` | Hook | #3 | .env/私钥拦截 |
+| `privacy-gate.sh` | Hook | #3, #6 | .env/私钥拦截 |
 | `pretool-edit-scope.sh` | Hook | #2 | 范围冻结拦截 |
 | `posttool-format-gate.sh` | Hook | #5 | 输出格式方向感检查 |
-| `turn-counter.sh` | Hook | #1 | 轮次统计+上下文层级管理 |
+| `turn-counter.sh` | Hook | #1, #5 | 轮次统计+模糊指令检测 |
 | `inject-project-knowledge.sh` | Hook | #7 | 核心知识注入 |
 | `harness_config.sh` | 共享库 | #3 | hc_enabled 统一门禁 |
+| `posttool-claim-audit.sh` | Hook | #6, #4 | 铁律#1强制校验 |
+| `pretool-ask-guard.sh` | Hook | #5, #6 | 哲学先行门禁 |
+| `meta-oracle-trigger.sh` | Hook | #4, #6 | G1-G4 Meta-Oracle触发 |
 | `audit-hooks.sh` | 脚本 | #4 | 三方一致性审计 |
 | `harness-smoke-test.sh` | 脚本 | #4 | 回归验证 |
 | `lx-oma-orch` | Skill | #1 | 管线原子化编排 |

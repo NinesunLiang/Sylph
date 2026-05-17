@@ -70,7 +70,7 @@
 
 语言专用测试：table-driven 模式（标准的 Go 测试哲学）、mockgen/testify 双轨 mock 策略、HTTP handler 测试（httptest.NewServer + recorder）、benchmark（-benchmem + -cpuprofile 联合分析）、fuzz test（Go 1.18+ 原生 fuzzing）、race detector（-race flag 全量覆盖）。
 
-`[已验证: .claude/skills/lx-golang-test/SKILL.md 描述为 "Go test generator"]`
+`[已验证: .claude/skills/lx-test-gen/SKILL.md — lx-golang-test 已被此通用测试生成器替代]`
 
 ### lx-tdd-spec — 行为矩阵工匠
 

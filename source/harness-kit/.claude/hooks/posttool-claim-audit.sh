@@ -6,12 +6,11 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_claim_audit" || { echo '{"continue": true}'; exit 0; }
 
-# Mode detection: ghost/goal 降级为 log+skip
+# Mode detection: ghost/goal 降级为 warn-only（仍检测，但不硬阻断）
 _MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")
+_AUTONOMOUS=false
 if [ "$_MODE" != "normal" ]; then
-    echo "[$_MODE] posttool-claim-audit 已记录（模式降级，不阻断）" >&2
-    echo '{"continue": true}'
-    exit 0
+    _AUTONOMOUS=true
 fi
 
 INPUT=$(cat)
@@ -51,9 +50,13 @@ READ_LOG="$STATE_DIR/read-tracker.txt"
 CLAIMED_FILES=$(echo "$INPUT" | grep -oE '(\.?/)?[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+' | sed 's|^\./||' || true)
 
 # 读取 read-tracker（可能跨轮次累积）
+# 修复: read-tracker 不存在 → 视为零读取记录，所有 file:line 断言均不可信
 read_files=""
+_READ_TRACKER_EXISTS=true
 if [ -f "$READ_LOG" ]; then
     read_files=$(cat "$READ_LOG")
+else
+    _READ_TRACKER_EXISTS=false
 fi
 
 # 检测 claim 文件是否在 read-tracker 中
@@ -124,9 +127,29 @@ if [ -n "$NUM_CLAIMS" ]; then
 fi
 
 if [ -n "$VIOLATIONS" ] || [ -n "$G1_VIOLATIONS" ]; then
+    # ── 无 read-tracker 时，所有 file:line 断言均不可信 ──
+    if [ "$_READ_TRACKER_EXISTS" = false ] && [ -n "$CLAIMED_FILES" ]; then
+        VIOLATIONS="⚠️ NO_READ_HISTORY: zero files read this session — all file:line claims are unverifiable. Read the referenced file before claiming its content.\n${VIOLATIONS}"
+    fi
     COMBINED="${VIOLATIONS}${G1_VIOLATIONS:+\n${G1_VIOLATIONS}}"
-    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "⛔ [铁律#1+#7] AI 输出真实性违规:\n%s\n宪法: \"禁止编造\" + \"任何数值断言必须有可验证来源\"\n请修复以上违规项后重试."}}\n' "${COMBINED}"
-    exit 2
+
+    # ── issue-triage 集成: 虚假断言 → 分流（Meta-Oracle ADVISORY: claim-audit 需进 triage）──
+    TRIAGE_SUFFIX=""
+    if [ -f "$SCRIPT_DIR/../scripts/issue-triage.sh" ]; then
+        TRIAGE_MSG=$(source "$SCRIPT_DIR/../scripts/issue-triage.sh" && triage_for_hook "posttool-claim-audit" "铁律#1虚假断言: ${COMBINED}" "P0" "{}" 2>/dev/null || echo "")
+        [ -n "$TRIAGE_MSG" ] && TRIAGE_SUFFIX="\n${TRIAGE_MSG}"
+    fi
+
+    if [ "$_AUTONOMOUS" = true ]; then
+        # 自主模式: 降级为 warn-only，不阻断但记录违规（退出报告可审计）
+        printf '⚠️ [%s] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n%s\n自主模式下降级为 warn — 违规已记录，退出报告时统一审查.%s' "$_MODE" "${COMBINED}" "${TRIAGE_SUFFIX}" | hc_emit_hook_json "PostToolUse" "true"
+        flywheel_event "posttool_claim_audit" "blocked" "P2"  || true
+        exit 0
+    fi
+
+    printf '⛔ [铁律#1+#7] AI 输出真实性违规:\n%s\n宪法: "禁止编造" + "任何数值断言必须有可验证来源"\n请修复以上违规项后重试.%s' "${COMBINED}" "${TRIAGE_SUFFIX}" | hc_emit_hook_json "PostToolUse" "false"
+    flywheel_event "posttool_claim_audit" "blocked" "P2"  || true
+exit 2
 fi
 
 exit 0

@@ -112,7 +112,8 @@ fi
 
 # 输出 Meta-Oracle 触发 — 软门禁: 提醒 AI 执行最高级独立审查
 if [ "$TRIGGERED" = true ]; then
-    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, opus, 独立上下文) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-review.sh\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用"}}\n' "$TRIGGER_PRIORITY" "$TRIGGER_REASON"
+    printf '🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, opus, 独立上下文) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-review.sh\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用' "$TRIGGER_PRIORITY" "$TRIGGER_REASON" | hc_emit_hook_json "PostToolUse" "true"
+flywheel_event "meta_oracle_trigger" "triggered" "P2" || true
     echo "[meta-oracle] ${TRIGGER_PRIORITY}: ${TRIGGER_REASON} — Meta-Oracle 最后守门提醒已注入" >&2
     exit 0
 fi

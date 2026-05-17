@@ -208,7 +208,7 @@ with open(path, 'w') as f:
     json.dump(data, f)
 print(data['count'])" 2>/dev/null)
 
-        FAIL_STREAK_THRESHOLD=$(hc_get "posttool_bash_audit.fail_streak_threshold" "3")
+        FAIL_STREAK_THRESHOLD=$(hc_get "posttool_bash_audit.fail_streak_threshold" "2")
         if [ "$STREAK" -ge "$FAIL_STREAK_THRESHOLD" ] 2>/dev/null; then
             # Get number of distinct signatures
             DISTINCT=$(python3 -c "import json, os
@@ -220,10 +220,27 @@ print(len(data.get('signatures', [])))" 2>/dev/null)
             else
                 ANTI_PATTERN_MSG="${ANTI_PATTERN_MSG}，错误签名相同。建议: 当前修复方向可能正确但实现有误，仔细检查最近的改动。"
             fi
+
+            # E5 Build Fail Gate: 写门禁文件，pretool-retry-check 会读取
+            if true; then  # was: hc_enabled "e5_build_fail_gate" — dead key removed, feature always-on
+                GATE_FILE="$STATE_DIR/build-fail-gate.json"
+                python3 -c "
+import json, os, time
+gate = {
+    'streak': $STREAK,
+    'threshold': $FAIL_STREAK_THRESHOLD,
+    'last_fail': time.time(),
+    'requires_diagnosis': True
+}
+with open('$GATE_FILE', 'w') as f:
+    json.dump(gate, f, indent=2)
+" 2>/dev/null
+            fi
         fi
     else
-        # Build succeeded, reset streak
+        # Build succeeded, reset streak and clear gate
         rm -f "$BUILD_FAIL_FILE" 2>/dev/null
+        rm -f "$STATE_DIR/build-fail-gate.json" 2>/dev/null
     fi
 fi
 
@@ -251,10 +268,30 @@ COMBINED_MSG=""
 [ -n "$ESCAPE_E3_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${ESCAPE_E3_MSG}"
 [ -n "$SKILL_ROUTE_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${SKILL_ROUTE_MSG}"
 
+# ── issue-triage 集成: 发现问题 → 分流（合并为单次 sourcing，减少 Python 子进程开销）──
+TRIAGE_MSG=""
+# 先收集所有检测到的问题，再统一调用一次 triage
+COMBINED_ISSUES=""
+[ -n "$ESCAPE_E4_MSG" ] && COMBINED_ISSUES="E4证据编造: $ESCAPE_E4_MSG"
+if [ -n "$ANTI_PATTERN_MSG" ] && echo "$ANTI_PATTERN_MSG" | grep -q "C1"; then
+    COMBINED_ISSUES="${COMBINED_ISSUES:+${COMBINED_ISSUES}; }C1编译错误盲修: $ANTI_PATTERN_MSG"
+fi
+[ -n "$ESCAPE_E3_MSG" ] && COMBINED_ISSUES="${COMBINED_ISSUES:+${COMBINED_ISSUES}; }E3上下文规避: $ESCAPE_E3_MSG"
+# 取最高优先级：E4=P0 > C1=P1 = E3=P1
+TRIAGE_PRIORITY="P1"
+if [ -n "$ESCAPE_E4_MSG" ]; then
+    TRIAGE_PRIORITY="P0"
+fi
+if [ -n "$COMBINED_ISSUES" ] && [ -f "$SCRIPT_DIR/../scripts/issue-triage.sh" ]; then
+    TRIAGE_MSG=$(source "$SCRIPT_DIR/../scripts/issue-triage.sh" && triage_for_hook "posttool-bash-audit" "$COMBINED_ISSUES" "$TRIAGE_PRIORITY" "{}" 2>/dev/null || echo "")
+fi
+[ -n "$TRIAGE_MSG" ] && COMBINED_MSG="${COMBINED_MSG:+${COMBINED_MSG} | }${TRIAGE_MSG}"
+
 if [ -z "$COMBINED_MSG" ]; then
     echo '{"continue": true}'
     exit 0
 fi
 
-printf '{"continue": true, "hookSpecificOutput": {"hookEventName": "PostToolUse", "additionalContext": "%s"}}\n' "$COMBINED_MSG"
+flywheel_event "posttool_bash_audit" "detected" "P2" || true
+echo "$COMBINED_MSG" | hc_emit_hook_json "PostToolUse" "true"
 exit 0

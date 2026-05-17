@@ -21,7 +21,7 @@ source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 MODE_FILE="$STATE_DIR/lx-ghost.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作方向描述自动激活
-_KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|hard-boundary-hit|retry"
+_KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|hard-boundary-hit|blocked-human|retry"
 if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
     exec bash "$0" on "$@"
 fi
@@ -43,7 +43,9 @@ case "${1:-status}" in
   "expires_at": "$EXPIRES",
   "activated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
   "retry_count": 0,
-  "skipped_risks": []
+  "skipped_risks": [],
+  "hard_boundary_hits": [],
+  "blocked_human": []
 }
 JSON
         mv -f "$tmp" "$MODE_FILE" 2>/dev/null
@@ -52,7 +54,7 @@ JSON
         # 清理旧格式文件
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
         echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
-        echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
+        echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   调用 /loop ${INTERVAL}s lx-ghost poll 驱动探索轮次"
         echo "   或 /lx-ghost on \"继续\" — 在同一次会话内继续探索"
         echo ""
@@ -235,6 +237,35 @@ os.rename(tmp, file)
 " 2>/dev/null && echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)" || echo "❌ 记录失败"
         ;;
 
+    blocked-human)
+        # 记录推迟到退出报告的人类决策项（裁决链 Level 3 blocked_human）
+        # 与 hard-boundary-hit 不同：这些不是物理禁区，而是 AI 无法确定需要人类裁决
+        DESCRIPTION="${2:-未知决策}"
+        AI_RECOMMENDATION="${3:-AI 推荐方案未提供}"
+        RATIONALE="${4:-决策依据未提供}"
+        if [ ! -f "$MODE_FILE" ]; then
+            echo "❌ 幽灵模式未开启"
+            exit 1
+        fi
+        python3 -c "
+import json, os
+file = '$MODE_FILE'
+d = json.load(open(file))
+blocked = d.get('blocked_human', [])
+blocked.append({
+    'description': '$DESCRIPTION',
+    'ai_recommendation': '$AI_RECOMMENDATION',
+    'rationale': '$RATIONALE',
+    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+})
+d['blocked_human'] = blocked
+tmp = file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, file)
+" 2>/dev/null && echo "🤔 推迟决策已记录: $DESCRIPTION → 推荐: $AI_RECOMMENDATION" || echo "❌ 记录失败"
+        ;;
+
     retry)
         # 增加重试计数（供 retry-budget 对接）
         if [ ! -f "$MODE_FILE" ]; then
@@ -254,7 +285,7 @@ os.rename(tmp, file)
         ;;
 
     *)
-        echo "用法: lx-ghost on|off|status|set|poll|skip-risk|hard-boundary-hit|retry"
+        echo "用法: lx-ghost on|off|status|set|poll|skip-risk|hard-boundary-hit|blocked-human|retry"
         echo ""
         echo "子命令:"
         echo "  lx-ghost on \"方向描述\" [间隔秒数=600] [过期小时=3]"
@@ -265,6 +296,7 @@ os.rename(tmp, file)
         echo "  lx-ghost set <json_key> <json_value>"
         echo "  lx-ghost poll                    (loop skill 轮询入口)"
         echo "  lx-ghost skip-risk \"描述\"       (记录跳过的风险)"
+        echo "  lx-ghost blocked-human \"决策\" \"AI推荐\" \"依据\"     (记录推迟到报告的人类决策)"
         echo "  lx-ghost hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  (记录硬边界拦截)"
         echo "  lx-ghost retry                   (重试计数 +1)"
         echo ""

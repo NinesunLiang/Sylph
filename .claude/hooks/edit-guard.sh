@@ -14,7 +14,7 @@ READ_LOG="$STATE_DIR/read-tracker.txt"
 # 统一模式检测: ghost/unattended 模式下跳过 Read-before-Edit 门禁
 MODE=$(is_mode_active "$STATE_DIR")
 if [ "$MODE" != "normal" ]; then
-    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ %s模式: 跳过 Read-before-Edit 检查"}}\n' "$MODE"
+    printf '⚠️ %s模式: 跳过 Read-before-Edit 检查' "$MODE" | hc_emit_hook_json "PreToolUse" "true"
     exit 0
 fi
 
@@ -77,6 +77,7 @@ if [ "$MODE" != "normal" ]; then
     echo '{"continue": true}'
     exit 0
 fi
+flywheel_event "edit_guard" "blocked" "P2" || true
 agentic_menu \
     "Read-before-Edit" \
     "文件: ${FILE_PATH} — 宪法第六条: 修改代码前必须先阅读当前内容" \

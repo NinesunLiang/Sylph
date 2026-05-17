@@ -12,12 +12,14 @@
 #   #7 文档优先: 完成时自动生成报告文档
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+# 从 .claude/scripts/ 到项目根: 2 层 (scripts → .claude → 项目根)
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR" 2>/dev/null
 
-# source harness_config for hc_get defaults
-source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
+# source harness_config for hc_get defaults (从项目根，非脚本位置)
+_HC_CONFIG="$PROJECT_ROOT/.claude/hooks/harness_config.sh"
+[ -f "$_HC_CONFIG" ] && source "$_HC_CONFIG"
 
 MODE_FILE="$STATE_DIR/lx-goal.json"
 

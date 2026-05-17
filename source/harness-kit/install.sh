@@ -241,6 +241,7 @@ case "$INSTALL_MODE" in
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
+        for s in lx-oma-orch lx-oma-hier lx-oma-split lx-oma-gov lx-task-spec lx-rpe lx-prd lx-debug-spec lx-tdd-spec lx-browser-verify lx-web-perf lx-stepwise lx-race lx-learner; do
             rm -rf .claude/skills/$s
         done
         log_info "已精简为 10 个静默门禁 Skill。"
@@ -261,6 +262,26 @@ esac
 chmod +x .claude/hooks/*.sh 2>/dev/null || true
 chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
 chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
+
+# ─── 全局 Skill 安装（OpenCode 平台兼容）──────────────────────
+# OpenCode 无法直接使用项目本地 .claude/skills/，需在全局目录创建符号链接
+# 关键: 使用 ln -s 而非 cp -r — 技能内部有 ../../nodes/ 等相对路径引用，
+#       直接复制到 ~/.claude/skills/ 会导致所有路径解析到 ~/.claude/ 而非项目根
+#       符号链接保证文件仍在原位置，所有相对路径引用不受影响
+if [ "$INSTALL_MODE" = "base" ] || [ "$INSTALL_MODE" = "enhanced" ] || [ "$INSTALL_MODE" = "skills" ]; then
+    GLOBAL_SKILLS="$HOME/.claude/skills"
+    mkdir -p "$GLOBAL_SKILLS"
+    PROJECT_DIR="$(pwd)"
+    log_info "链接 lx-* skills 到全局目录 ($GLOBAL_SKILLS)..."
+    for skill_dir in .claude/skills/lx-*; do
+        if [ -d "$skill_dir" ]; then
+            skill_name=$(basename "$skill_dir")
+            rm -rf "$GLOBAL_SKILLS/$skill_name"
+            ln -s "$PROJECT_DIR/$skill_dir" "$GLOBAL_SKILLS/$skill_name"
+        fi
+    done
+    log_info "✅ 全局 Skill 符号链接完成（OpenCode 兼容）"
+fi
 
 # ─── 填充模板占位符 ──────────────────────────────────────────
 # 自动替换 kernel.md 中的 {project_name} 和 {date}

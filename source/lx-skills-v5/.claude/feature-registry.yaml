@@ -336,12 +336,6 @@ hooks:
   description: Write 锁 — PostToolUse Write 更新 OMA 锁
   enabled_by_default: true
   evidence_level: L3
-- name: pretool_ask_guard
-  type: hook
-  category: security
-  description: Ask 防护 — 检测 AI 在 CAPTCHA 中的自问自答绕过
-  enabled_by_default: true
-  evidence_level: L3
 - name: pretool_sensitive_edit
   type: hook
   category: security

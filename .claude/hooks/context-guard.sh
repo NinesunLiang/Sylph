@@ -79,8 +79,16 @@ print(d.get('percentage', 0))" 2>/dev/null)
     # Heuristic fallbacks (turns/cumulative) are unreliable for guard decisions
     # — prefer false negative (don't block) over false positive (wrong block).
     if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" = "transcript (real)" ]; then
-        echo "$(date +%Y-%m-%d),context_guard_triggered,P0,carror-os" >> "$HOME/.claude/flywheel.log"
+        flywheel_event "context_guard" "triggered" "P2" || true
         if [ "$BLOCK_WRITES" = "true" ]; then
+            # DG-48 fix: in autonomous mode, context guard must NOT hard-block.
+            # High context in goal/ghost mode is informational — log and continue.
+            if [ "$MODE" != "normal" ]; then
+                echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) | ${MODE} | context_guard | ${PCT}% | context exceeds danger but autonomous mode — skip hard block" >> "$STATE_DIR/skipped-errors.md"
+                printf '⚠️ [%s mode] 上下文占比 %s%%。超出危险阈值但自主模式不阻断。请考虑 /compact。' \
+                    "$MODE" "$PCT" | hc_emit_hook_json "PreToolUse" "true"
+                exit 0
+            fi
             agentic_status block \
                 "Context Guard 硬阻断" \
                 "当前会话上下文占比已达 ${PCT}%（危险阈值: ${DANGER_PCT}%，警告阈值: ${WARN_PCT}%）！" \
@@ -89,8 +97,8 @@ print(d.get('percentage', 0))" 2>/dev/null)
         else
             # 非写工具 或 heuristic 数据: 告警到 stderr + 不阻断
             echo "⚠️ [Context Guard] 上下文占比 ${PCT}%${MODE_LABEL} — heuristic 源不触发硬阻断，已告警记录" >&2
-            printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文占比 %s%%。超出危险阈值。请考虑 /compact。诊断操作未阻断。"}}\n' \
-                "$PCT"
+            printf '⚠️ 上下文占比 %s%%。超出危险阈值。请考虑 /compact。诊断操作未阻断。' \
+                "$PCT" | hc_emit_hook_json "PreToolUse" "true"
             exit 0
         fi
     fi
@@ -100,8 +108,8 @@ fi
 # Inform user without blocking (false negative > false positive for heuristic data)
 if [ "$IS_DANGER" = "true" ] && [ "$SOURCE" != "transcript (real)" ]; then
     echo "⚠️ [Context Guard] 上下文占比 ${PCT}% (${SOURCE}) — heuristic 源告警不阻断" >&2
-    printf '{"continue":true,"hookSpecificOutput":{"additionalContext":"⚠️ 上下文估算占比 %s%%。来源: %s。无法读取 transcript，阻断已跳过。请检查 transcript 目录或手动 /compact。%s"}}\n' \
-        "$PCT" "$SOURCE" "$([ "$MODE" != "normal" ] && echo " [${MODE} mode]" || echo '')"
+    printf '⚠️ 上下文估算占比 %s%%。来源: %s。无法读取 transcript，阻断已跳过。请检查 transcript 目录或手动 /compact。%s' \
+        "$PCT" "$SOURCE" "$([ "$MODE" != "normal" ] && echo " [${MODE} mode]" || echo '')" | hc_emit_hook_json "PreToolUse" "true"
     exit 0
 fi
 
@@ -109,7 +117,8 @@ fi
 if [ -x "$PYTHON_SCRIPT" ]; then
     SWEET_WARNING=$(echo "$RESULT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('sweet_spot_warning',''))" 2>/dev/null)
     if [ -n "$SWEET_WARNING" ]; then
-        SWEET_JSON=$(echo "$SWEET_WARNING" | python3 -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.read().strip())))" 2>/dev/null)
+        SWEET_JSON=$(echo "$SWEET_WARNING" | python3 -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.buffer.read().decode('utf-8','replace').strip())))" 2>/dev/null)
+        SWEET_JSON="${SWEET_JSON:-\"\"}"
         printf '{"continue":true,"hookSpecificOutput":{"additionalContext":%s}}\n' "$SWEET_JSON"
     fi
 fi

@@ -35,6 +35,13 @@ TS=$(date +%s)
 mkdir -p "$STATE_DIR" 2>/dev/null
 
 TMP_FILE="${STATE_DIR}/.error-dna-input-$$.json"
+
+# 启动时清理超过 1 小时的孤儿临时文件（防积压，DG-17 同类静默失败模式）
+find "$STATE_DIR" -maxdepth 1 -name '.error-dna-input-*.json' -mmin +60 -delete 2>/dev/null
+
+# trap 确保任何退出路径都清理临时文件（防 Python crash 导致孤儿文件）
+trap "rm -f '$TMP_FILE'" EXIT
+
 echo "$INPUT" > "$TMP_FILE"
 
 ERROR_DNA_ROTATION_SIZE=$(hc_get "error_dna.rotation_size_bytes" "1048576")
@@ -95,6 +102,13 @@ cmd_clean = re.sub(r'--password\s+\S+', '--password ***', command)
 cmd_clean = re.sub(r'--token\s+\S+', '--token ***', cmd_clean)
 cmd_clean = re.sub(r'--secret\s+\S+', '--secret ***', cmd_clean)
 cmd_clean = re.sub(r'--key\s+\S+', '--key ***', cmd_clean)
+# P0.2: Mask API key env vars
+cmd_clean = re.sub(r'(ANTHROPIC_AUTH_TOKEN|DEEPSEEK_API_KEY|DEEPSEEK_BRIDGE_API_KEY|OPENAI_API_KEY|CODECLI_API_KEY|GEMINI_API_KEY)=\S+', r'\1=***', cmd_clean)
+# P0.2: Mask Authorization: Bearer tokens (stop at whitespace/quotes/angle brackets)
+cmd_clean = re.sub(r'(Authorization:\s*Bearer\s+)[^\s"<>]+', r'\1***', cmd_clean)
+# P0.2: Mask known token prefixes and JWT tokens
+cmd_clean = re.sub(r'(?:sk-|ghp_|xoxb-|xapp-)[a-zA-Z0-9_\-]{20,}', '***REDACTED***', cmd_clean)
+cmd_clean = re.sub(r'(?:eyJ[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{10,})', '***JWT***', cmd_clean)
 
 # === Escape Pattern E1: Governance file bypass via Bash ===
 # AI uses Bash (sed -i / tee / > / >>) to modify governance files,
@@ -384,19 +398,45 @@ for _sp in _scan_paths:
 # 逃逸文件已天然过滤（只有 E1/E2），无需额外 gate 排除
 _frequent = [(sig, info['count'], info['msg'])
              for sig, info in _scanned.items()
-             if info['count'] >= 3]
+             if info['count'] >= 5]  # M3: raised from 3 to reduce toolchain noise
 if _frequent:
     _frequent.sort(key=lambda x: -x[1])
-    _lines = [f"[高频错误] 当前 jsonl 中 >=3 次的签名 ({len(_frequent)} 个):"]
+    _lines = [f"[高频错误] 当前 jsonl 中 >=5 次的签名 ({len(_frequent)} 个):"]
     for sig, count, msg in _frequent[:5]:
         _lines.append(f'  · {sig[:16]} ×{count} — {msg[:100]}')
     print('|'.join(_lines))
 PYEOF
 )
 
+# ── issue-triage 集成: 高频错误/新模式 → 分流 ──
+# 使用临时文件传递数据给 python3 做安全的 JSON 合并（防 shell 注入 + JSON 协议损坏）
+TRIAGE_MSG=""
+# Meta-Oracle ADVISORY: 扩展 triage 覆盖 E1/E2 安全逃逸信号
+if [ -n "$PY_OUTPUT" ] && (echo "$PY_OUTPUT" | grep -q "\[高频错误\]" || echo "$PY_OUTPUT" | grep -qE '\[E[12]\]'); then
+    if [ -f "$SCRIPT_DIR/../scripts/issue-triage.sh" ]; then
+        TRIAGE_MSG=$(source "$SCRIPT_DIR/../scripts/issue-triage.sh" && triage_for_hook "error-dna" "高频错误模式检测: $(echo "$PY_OUTPUT" | head -3 | tr '\n' ' ')" "P1" "{}" 2>/dev/null || echo "")
+    fi
+fi
+
 if [ -n "$PY_OUTPUT" ]; then
-    ESCAPED=$(echo "$PY_OUTPUT" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))")
-    echo "{\"continue\": true, \"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": ${ESCAPED}}}"
+    if [ -n "$TRIAGE_MSG" ]; then
+        # 安全合并: 通过 env var 传 triage_msg, python3 构造合法 JSON
+        export TRIAGE_MSG
+        echo "$PY_OUTPUT" | python3 -c "
+import json, sys, os
+py_output = sys.stdin.read()
+triage = os.environ.get('TRIAGE_MSG', '')
+combined = py_output
+if triage:
+    combined += '\n' + triage
+print(json.dumps({'continue': True, 'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': combined}}))
+"
+    else
+        echo "$PY_OUTPUT" | python3 -c "
+import json, sys
+print(json.dumps({'continue': True, 'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': sys.stdin.read()}}))
+"
+    fi
 else
     echo '{"continue": true}'
 fi

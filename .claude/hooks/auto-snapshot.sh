@@ -470,6 +470,7 @@ for CFG in "$PROJECT_ROOT/.claude/harness.yaml" "$PROJECT_ROOT/.claude/settings.
 done
 
 if [ "$REG_CHANGED" = true ]; then
+flywheel_event "auto_snapshot" "triggered" "P2" || true
     echo "  ⚙️ 配置变更检测: 触发自动化回归校验" >&2
     REG_TS=$(date -u +%Y%m%d-%H%M%S)
     REG_OUT="$STATE_DIR/auto-regression-$REG_TS.json"

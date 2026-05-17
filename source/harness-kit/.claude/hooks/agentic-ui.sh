@@ -123,8 +123,8 @@ ${AGENTIC_UI_INDENT}! echo '${captcha_code}' > ${approve_file}
 EOF
 
     # stdout: AI 可见（additionalContext）
-    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "[CAPTCHA] %s | 验证码: %s | 批准文件: %s | AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）"}}\n' \
-        "$title" "$captcha_code" "$approve_file"
+    printf '[CAPTCHA] %s | 验证码: %s | 批准文件: %s | AI 不得自行绕过门禁 — 必须等待人类明确书面授权（kernel.md:26 R42）' \
+        "$title" "$captcha_code" "$approve_file" | hc_emit_hook_json "PreToolUse" "false"
     exit 2
 }
 
@@ -248,12 +248,12 @@ agentic_progress() {
 # agentic_context message — 注入 AI 可见上下文（非阻断）
 agentic_context() {
     local message="$1"
-    printf '{"continue": true, "hookSpecificOutput": {"additionalContext": "[AGENTIC] %s"}}\n' "$message"
+    printf '[AGENTIC] %s' "$message" | hc_emit_hook_json "PreToolUse" "true"
 }
 
 # agentic_context_block message — 注入 AI 可见上下文 + 阻断
 agentic_context_block() {
     local message="$1"
-    printf '{"continue": false, "hookSpecificOutput": {"additionalContext": "[AGENTIC:BLOCK] %s"}}\n' "$message"
+    printf '[AGENTIC:BLOCK] %s' "$message" | hc_emit_hook_json "PreToolUse" "false"
     exit 2
 }

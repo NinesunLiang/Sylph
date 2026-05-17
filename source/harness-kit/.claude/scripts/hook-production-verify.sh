@@ -134,17 +134,19 @@ _D3_BAK=""
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 
 # R29: matcher=Edit|Write (保留诊断通道)
-# Write/Edit 应被拦 (exit 2); Read/Bash 应放行 (exit 0)
+# R29 设计: heuristic 源数据不触发硬阻断（防止假阳性），仅告警。
+# 硬阻断仅在 source="transcript (real)" 时触发（由 harness-smoke-test 覆盖）。
+# D3 测试使用伪造 token-tracking-index.json → source="heuristic" → 期望告警不阻断
 for tool in "Write" "Edit"; do
     payload='{"hook_event_name":"PreToolUse","tool_name":"'$tool'","tool_input":{}}'
     run "$payload" context-guard.sh
-    if [ "$EXIT" = "2" ]; then
+    if [ "$EXIT" = "0" ]; then
         TOTAL=$((TOTAL+1))
-        echo "  🟢 D3: $tool @ 95% 被硬阻断"
+        echo "  🟢 D3: $tool @ 95% heuristic 告警不阻断 (R29 设计: 防假阳性)"
     else
         TOTAL=$((TOTAL+1))
         FAILED=$((FAILED+1))
-        echo "  🔴 D3: $tool @ 95% 未被拦 (exit=$EXIT)"
+        echo "  🔴 D3: $tool @ 95% 被错误阻断 (exit=$EXIT, want=0)"
     fi
 done
 

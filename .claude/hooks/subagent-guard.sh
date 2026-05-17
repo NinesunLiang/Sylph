@@ -106,22 +106,19 @@ if [ -n "$MAX_TURNS" ] && [ "$MAX_TURNS" != "null" ] && [ "$MAX_TURNS" != "0" ];
         echo '{"continue": true}'
         exit 0
     fi
-    # 默认值 → Agentic UI 菜单，让用户确认或调整
-    agentic_menu \
-        "Subagent Guard: ${AGENT_TYPE}" \
-        "子 agent 未显式声明 max_turns，将使用默认上限 ${DEFAULT_MAX_TURNS} 轮。建议: executor ≤25, designer ≤20, scientist ≤15" \
-        "继续执行" "使用默认上限 ${DEFAULT_MAX_TURNS} 轮" \
-        "降级为 haiku" "最安全的执行策略"
+    # 默认值 → 放行 + additionalContext 提示（产品策略: 危险 agent 有默认上限即可放行）
+    flywheel_event "subagent_guard" "default_cap" "P2" || true
+    printf '[subagent-guard] %s 使用默认上限 %s 轮（未显式声明 max_turns）。建议: executor ≤25, designer ≤20, scientist ≤15' "$AGENT_TYPE" "$DEFAULT_MAX_TURNS" | hc_emit_hook_json "PreToolUse" "true"
+    exit 0
 fi
 
+# 无 max_turns → 使用默认上限放行（产品策略: 危险 agent 有默认上限）
 if [ "$_MODE" != "normal" ]; then
-    echo "[subagent-guard] 自主模式: max_turns 无效，使用默认上限 ${DEFAULT_MAX_TURNS} 轮" >&2
+    echo "[subagent-guard] 自主模式: 无 max_turns，使用默认上限 ${DEFAULT_MAX_TURNS} 轮" >&2
     echo '{"continue": true}'
     exit 0
 fi
-# 兜底阻断：MAX_TURNS 为 0 / null 的异常情况
-agentic_menu \
-    "Subagent Guard: ${AGENT_TYPE}" \
-    "子 agent 的 max_turns 无效 (value=${MAX_TURNS})。建议: executor ≤25, designer ≤20, scientist ≤15" \
-    "降级为 haiku" "最安全的执行策略" \
-    "强制放行" "使用默认上限 ${DEFAULT_MAX_TURNS} 轮"
+# Normal mode: 使用默认上限放行 + additionalContext 提示
+flywheel_event "subagent_guard" "default_cap" "P2" || true
+printf '[subagent-guard] %s 未声明 max_turns，使用默认上限 %s 轮。建议显式声明: executor ≤25, designer ≤20, scientist ≤15' "$AGENT_TYPE" "$DEFAULT_MAX_TURNS" | hc_emit_hook_json "PreToolUse" "true"
+exit 0

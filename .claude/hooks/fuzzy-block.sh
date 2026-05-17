@@ -31,6 +31,5 @@ agentic_menu_two \
     "模糊指令阻断" \
     "指令不明确，无法执行具体工具调用。原因: ${FUZZY_MSG_ESCAPED}" \
     "向用户澄清具体目标" "暂停执行，向用户提问明确后再继续" \
-    "按当前理解继续执行" "接受风险，按 AI 理解的意图继续"
-rm -f "$FUZZY_MARKER"
-exit 0  # agentic_menu_two 已 exit 2，此行仅为语法占位
+    flywheel_event "fuzzy_block" "blocked" "P2" || true
+    exit 0

@@ -185,7 +185,8 @@ sys.exit(0 if found else 1)
     # ---- L1: 完整功能验证（仅对已知的可执行 feature 进行） ----
     local l1=""
     if [ -n "$hook_script" ] && [ -z "$syntax_check" ]; then
-        # source 执行 hook 的 exit code（不带参数，预期 exit 0 或 exit 2）
+# source 执行 hook 的 exit code（不带参数，预期 exit 0 或 exit 2）
+exit 2）
         bash "$hook_script" 2>/dev/null
         local exit_code=$?
         if [ "$exit_code" -eq 0 ] || [ "$exit_code" -eq 2 ]; then

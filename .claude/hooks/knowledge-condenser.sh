@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥3)，输出升华建议
-# Role: 扫描 claude-next.md 高频模式(hits≥3)，输出升华建议
+# knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议
+# Role: 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议
 # GS-003: 自动知识抽取 — 支持 [seed:*] 和 @YYYY-MM-DD 两种格式
 
 source "$(dirname "$0")/harness_config.sh"
@@ -67,7 +67,7 @@ today = date.today()
 suggestions = []
 
 for tag, hits, entry_date, desc, ln in entries:
-    if hits < 3:
+    if hits < 2:  # P1.3: threshold lowered from 3 to 2
         continue
 
     age = (today - entry_date).days if entry_date else 0
