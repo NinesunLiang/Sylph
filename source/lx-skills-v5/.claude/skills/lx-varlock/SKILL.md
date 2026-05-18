@@ -8,7 +8,6 @@ description: "隐私脱敏代理管理器。处理包含敏感信息（密码、
 
 when_to_use: "Use when user provides a password, api key, token, or when you need to read/write a sensitive configuration file like .env or secret.yml."
 
-model: sonnet
 
 argument-hint: "[set | list | rm | run | read | write]"
 

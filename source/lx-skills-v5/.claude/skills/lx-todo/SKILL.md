@@ -9,7 +9,6 @@ description: "Lightweight todo workflow: capture, triage, fix, verify, close. 5-
 complexity: beginner
 when_to_use: "Use when user says 'todo', 'quick fix', 'small bug', 'add todo', 'todo list', or wants to handle a minor task without full RPE flow."
 
-model: sonnet
 
 argument-hint: "add 🐛 P1 <desc> | do [#id] | next | list | review"
 

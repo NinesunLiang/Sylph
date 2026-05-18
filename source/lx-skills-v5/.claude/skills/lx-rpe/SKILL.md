@@ -5,7 +5,6 @@ version: v4.0.0
 description: "Run RPE-driven feature dev loop on main branch: TDD, code review, security, acceptance, graded rollback."
 complexity: advanced
 when_to_use: "Use when user says 'rpe', 'main branch', 'feature dev', 'start feature', 'continue feature', or begins systematic feature development."
-model: sonnet
 effort: high
 argument-hint: "new [name] [需求描述] | [feature name] | [path] (e.g. prd/payment/checkout)"
 triggers:

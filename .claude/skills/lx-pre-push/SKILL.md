@@ -8,7 +8,6 @@ description: "推送前深度门禁：commit message 规范校验（骨架驱动
 
 when_to_use: "Use when user says 'pre-push', 'push check', '推送前检查', or before git push."
 
-model: sonnet
 
 argument-hint: "<prod-commit-hash>"
 

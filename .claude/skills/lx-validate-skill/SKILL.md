@@ -9,7 +9,6 @@ description: "验收新 skill 是否遵循原子化架构规则。检查 frontma
 complexity: beginner
 when_to_use: "Use after creating a new skill. Trigger: 'validate skill', 'check skill', 'new skill review', 'skill audit'."
 
-model: haiku
 
 argument-hint: "[skill-name, default: all lx-* skills]"
 

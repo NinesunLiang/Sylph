@@ -9,7 +9,6 @@ description: "Carror OS 健康面板 v3.0：Token 节省、任务通过率、拦
 complexity: beginner
 when_to_use: "Use when user says 'status', 'show dashboard', 'health check', 'lx-status', '面板', '状态'"
 
-model: haiku
 
 argument-hint: "[--json | --watch]"
 

@@ -89,7 +89,7 @@
 | version | `v1.0.0`（新技能默认） |
 | description | 用户描述的精简版（≤80 字符） |
 | when_to_use | `"Use when user says '{triggers}'."` |
-| model | `sonnet`（默认），高复杂度用 `opus` |
+
 | argument-hint | 根据输入类型生成 |
 | harness_version | 读 `.claude/skills/VERSION`，默认 `">=1.1.0"` |
 | status | `draft`（新技能默认） |

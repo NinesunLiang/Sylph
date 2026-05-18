@@ -6,7 +6,6 @@ description: OMA PRD 治理 — 在 `prd/{sub_prd}/{feature}` 变更时通过 re
 version: v1.2.0
 harness_version: "6.2.0"
 status: mature
-model: sonnet
 argument-hint: "init [path] | reconcile [path] | resolve <CONFLICT-ID> <verdict> [--reason] | propagate --dry-run|--execute [path] | status | audit [path]"
 when_to_use: |
   当主 PRD 发生变更需要向下游 feature 增量同步时；

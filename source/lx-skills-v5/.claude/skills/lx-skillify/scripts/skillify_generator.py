@@ -92,7 +92,6 @@ name: lx-{name}
 version: v1.0.0
 description: "{description}"
 when_to_use: "Use when user says '/lx-{name}'{',' + triggers if triggers else ''}."
-model: sonnet
 argument-hint: "[参数提示]"
 harness_version: ">={harness_version}"
 status: draft

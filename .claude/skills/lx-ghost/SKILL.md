@@ -3,7 +3,6 @@ name: lx-ghost
 version: v1.4.0
 description: "幽灵模式 — 方向驱动的自主探索。Phase 0 穷尽澄清 → Oracle 自主计划审核 → 全自动探索 → 退出报告。人类离开后 AI 自主探索直到方向达成或最小迭代数满足。"
 when_to_use: "Use when user says 'ghost mode', '幽灵模式', '自主探索', 'lx-ghost', /lx-ghost"
-model: sonnet
 argument-hint: "[方向描述] [轮询间隔秒数=600] [过期小时=3] [最小迭代数=0]"
 harness_version: ">=1.1.0"
 status: stable

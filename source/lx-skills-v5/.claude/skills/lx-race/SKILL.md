@@ -5,7 +5,6 @@ complexity: intermediate
 version: v1.0.0
 harness_version: ">=1.4.0"
 status: stable
-model: sonnet
 when_to_use: "Use when tasks have multiple independent sub-tasks that can run in parallel; when lx-task-spec identifies independent sub-tasks and routes to race mode; when user says '/lx-race' or '蜂群/并行执行'."
 role: "Swarm coordinator — sub-task registration, dispatch, collection, conflict resolution"
 execution_mode: race

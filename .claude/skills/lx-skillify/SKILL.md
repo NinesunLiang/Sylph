@@ -3,7 +3,6 @@ name: lx-skillify
 version: v1.0.0
 description: "将自然语言描述转化为生产级 lx-* skill。6 阶段管道：澄清 → 分析 → 生成 → 支撑文件 → 验证 → 注册。"
 when_to_use: "Use when user says 'skillify', '创建 skill', '生成 skill', 'new skill', /skillify, or describes a skill they want created."
-model: sonnet
 argument-hint: "[自然语言描述，例如：'创建一个审查 Dockerfile 的 skill，检查安全漏洞和最佳实践']"
 paths:
   - ".claude/skills/lx-*/SKILL.md"
@@ -140,7 +139,7 @@ CLARIFY → ANALYZE → GENERATE → CREATE_FILES → VALIDATE → REGISTER → 
 
 **生成规则**（严格按顺序）：
 
-1. **Frontmatter** — 所有必填字段：`name`, `version: v1.0.0`, `description`, `when_to_use`, `model: sonnet`, `argument-hint`, `harness_version: ">=1.1.0"`, `status: draft`, `execution_mode: stepwise`, `triggers`
+1. **Frontmatter** — 所有必填字段：`name`, `version: v1.0.0`, `description`, `when_to_use`, `argument-hint`, `harness_version: ">=1.1.0"`, `status: draft`, `execution_mode: stepwise`, `triggers`
 2. **## 原子化声明** — 5 个子表，每个引用路径必须是 Phase 1 验证过的真实路径
 3. **### 状态机** — 根据技能类型选择状态机模式并说明原因
 4. **### 私有节点** — "本 skill 无私有节点"

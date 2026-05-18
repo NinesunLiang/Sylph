@@ -6,8 +6,8 @@
 
 ```Tas
 k
-(subagent_type="oh-my-claudecode:architect", model="opus")
-Task(subagent_type="oh-my-claudecode:architect", model="opus")
+(subagent_type="oh-my-claudecode:architect")
+Task(subagent_type="oh-my-claudecode:architect")
 
 ```
 
@@ -28,8 +28,8 @@ Request: Based on Go runtime behavior and [framework] architecture constraints, 
 
 ```Tas
 k
-(subagent_type="oh-my-claudecode:scientist-high", model="opus")
-Task(subagent_type="oh-my-claudecode:scientist-high", model="opus")
+(subagent_type="oh-my-claudecode:scientist-high")
+Task(subagent_type="oh-my-claudecode:scientist-high")
 
 ```
 使用相同提交模板，重点强调并发专项证据。

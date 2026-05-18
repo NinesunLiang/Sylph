@@ -20,7 +20,7 @@
 
 ```yam
 l
----name: lx-{name}description: "{一句话描述}"when_to_use: "Use when user says '{trigger1}', '{trigger2}'."model: sonnetargument-hint: "[参数提示]"paths: - "*.{ext}"harness_version: ">=1.1.0"---
+---name: lx-{name}description: "{一句话描述}"when_to_use: "Use when user says '{trigger1}', '{trigger2}'."argument-hint: "[参数提示]"paths: - "*.{ext}"harness_version: ">=1.1.0"---
 # {Skill 标题}
 ## 原子化声明
 > 本 skill 遵循 [skill-atomization-guide.md](../../skill-atomization-guide.md) 架构分层。

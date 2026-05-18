@@ -9,7 +9,6 @@ description: "Trace recurring Go bugs via Five Whys: evidence chains → confide
 complexity: intermediate
 when_to_use: "Use when bug recurs after fix, systematic debugging failed, or user says 'root cause', 'keeps happening', 'why again'."
 
-model: sonnet
 
 argument-hint: "<recurring bug symptom and history>"
 

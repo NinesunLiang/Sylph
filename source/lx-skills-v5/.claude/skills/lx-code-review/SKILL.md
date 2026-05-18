@@ -8,7 +8,6 @@ description: "Review & fix code: 8 categories, 39 rules covering error handling,
 
 when_to_use: "Use after writing Go code, before tests/commit. Trigger: 'review code', 'code review', 'check quality', 'review my changes'."
 
-model: sonnet
 
 argument-hint: "[file path, git ref, or function name]"
 

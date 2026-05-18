@@ -3,7 +3,6 @@ name: lx-learner
 version: v1.0.0
 description: "从当前对话中提取可重复工作流并生成 lx-* skill。检测模式 → 提议提取 → 生成技能 → 附带来源文档。"
 when_to_use: "Use when user says 'learner', 'extract skill', 'learn from', '从对话中学习', /learner, or when AI detects repeated workflow patterns during a session."
-model: sonnet
 argument-hint: "[可选：指定要提取的重复任务描述。留空则自动检测对话模式]"
 paths:
   - ".claude/skills/lx-*/SKILL.md"
