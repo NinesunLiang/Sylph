@@ -249,9 +249,11 @@ elif ESCAPE_E2:
     record['message'] = f'E2: CAPTCHA forgery targeting {ESCAPE_E2_TARGET} — cmd: {cmd_clean[:100]}'
     is_escape = True
 
-# 双 pipeline: escape → error-dna.jsonl, 普通错误+gate → error-signals.jsonl
-if is_escape:
+# 三 pipeline: E2 captcha → error-dna.jsonl (true attack), E1 gov bypass → governance-audit.jsonl (audit trail), 普通错误 → error-signals.jsonl
+if ESCAPE_E2:
     jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
+elif ESCAPE_E1:
+    jsonl_path = os.path.join(state_dir, 'governance-audit.jsonl')
 else:
     jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
 
@@ -284,7 +286,7 @@ with open(_btmp, 'w') as _bf:
 os.rename(_btmp, budget_path)
 
 # === Archive rotation (escape jsonl only, R41 fix) ===
-if is_escape:
+if ESCAPE_E2:
     try:
         size = os.path.getsize(jsonl_path)
         rotation_size = int(os.environ.get('ERROR_DNA_ROTATION_SIZE', '1048576'))
@@ -390,7 +392,7 @@ for _af in _glob.glob(os.path.join(state_dir, 'error-dna.jsonl.*')):
 if ESCAPE_E1:
     print(f"[E1] ⚠️ 治理文件绕过: {ESCAPE_E1_TARGET}")
     print(f"  Bash '{cmd_clean[:120]}' 绕过了 pretool-sensitive-edit 的 Edit|Write 门禁。")
-    print(f"  escape_type=governance_bypass 已记录到 error-dna.jsonl。")
+    print(f"  escape_type=governance_bypass 已记录到 governance-audit.jsonl。")
     print(f"  补丁建议: 扩展 pretool-sensitive-edit matcher 到 Bash，或在 posttool-bash-audit 添加审计。")
 elif ESCAPE_E2:
     print(f"[E2] ⚠️ 验证码伪造: {ESCAPE_E2_TARGET}")
