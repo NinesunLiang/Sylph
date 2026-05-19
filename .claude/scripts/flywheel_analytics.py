@@ -4,6 +4,8 @@ flywheel_analytics.py — Compute per-skill usage analytics from flywheel.log
 Detects skill deprecation (unused >30 days) for flywheel self-healing.
 Output: JSON report to stdout and optional report_path.
 """
+import csv
+import io
 import json
 import os
 import sys
@@ -47,7 +49,22 @@ def main():
                         skill_stats[skill]['last_seen'] = current_ts
                         skill_stats[skill]['last_line'] = line[:200]
                 except json.JSONDecodeError:
-                    pass
+                    # CSV fallback: flywheel_event() writes "YYYY-MM-DD,event,severity,project"
+                    # Parse CSV lines so hook events aren't silently dropped (DG-89: 92.9% were "parse errors")
+                    try:
+                        reader = csv.reader(io.StringIO(line))
+                        row = next(reader)
+                        if len(row) >= 2:
+                            event_field = row[1]
+                            # Extract category prefix (e.g. "posttool_claim_audit" from "posttool_claim_audit_blocked")
+                            category = event_field.rsplit('_', 1)[0] if '_' in event_field else event_field
+                            skill = 'hook:' + category
+                            skill_stats[skill]['count'] += 1
+                            if current_ts > skill_stats[skill]['last_seen']:
+                                skill_stats[skill]['last_seen'] = current_ts
+                                skill_stats[skill]['last_line'] = line[:200]
+                    except Exception:
+                        pass
 
     now = time.time()
     report = {

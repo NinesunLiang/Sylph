@@ -98,7 +98,7 @@ hooks_enabled:
   posttool_edit_quality: true
   posttool_handoff_writer: true
   posttool_output_format: true
-  posttool_read_cite: false
+
   posttool_subagent_audit: true
   posttool_write_cite: true
   posttool_write_lock: true

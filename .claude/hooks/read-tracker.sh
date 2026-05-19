@@ -60,4 +60,5 @@ if [ -f "$READ_LOG" ] && grep -qxF "$REAL_PATH" "$READ_LOG" 2>/dev/null; then
 fi
 echo "$REAL_PATH" >> "$READ_LOG" 2>/dev/null
 echo '{"continue": true}'
+flywheel_event "read_tracker" "file_read_tracked" "P2" "tracked"
 exit 0

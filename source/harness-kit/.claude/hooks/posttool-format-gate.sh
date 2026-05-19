@@ -61,6 +61,9 @@ HINTS=""
 
 if [ -n "$HINTS" ]; then
     flywheel_event "posttool_output_format" "feedback" "P2" || true
+    # E2E-4 fix: also emit plain-text hints to stderr for smoke test grep visibility
+    # (hc_emit_hook_json escapes non-ASCII for DG-88 safety, making Chinese ungreppable)
+    printf '📋 #5 以人为本 — 输出格式反馈:\n%s' "$HINTS" >&2
     printf '📋 #5 以人为本 — 输出格式反馈:\n%s' "$HINTS" | hc_emit_hook_json "PostToolUse" "true"
     exit 0
 fi

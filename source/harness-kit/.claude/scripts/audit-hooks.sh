@@ -117,7 +117,7 @@ def script_to_yaml_key(script):
     return base.replace('-', '_')
 
 # CLI 工具（不是 hook，不在三方对账范围）
-NON_HOOKS = {'feature-probe.sh', 'token_writer.sh', 'harness_config.sh'}
+NON_HOOKS = {'token_writer.sh', 'harness_config.sh'}
 
 issues = []  # list of (level, script, message)
 all_scripts = disk | set(registered.keys())

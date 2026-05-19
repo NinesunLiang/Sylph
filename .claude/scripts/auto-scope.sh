@@ -80,7 +80,38 @@ if [ -n "$PLAN_PATH" ]; then
     fi
 fi
 
-# Fallback: 无 plan.md 或无法提取范围时，不创建 scope 文件（放行模式）
-# 创建无意义的 scope 文件会本末倒置——让没有范围的编辑反而被阻拦
-echo "[auto-scope] no plan.md with scope found, leaving scope file absent (pass-through mode)" >&2
+# Fallback: 无 plan.md 时，从 lx-goal.json 的目标描述推导范围
+GOAL_DESC=""
+if [ -f "$STATE_DIR/lx-goal.json" ]; then
+    GOAL_DESC=$(python3 -c "import json; d=json.load(open('$STATE_DIR/lx-goal.json')); print(d.get('goal',''))" 2>/dev/null)
+fi
+if [ -n "$GOAL_DESC" ]; then
+    # 从目标描述中提取关键词，匹配最近修改的文件
+    GOAL_KW=$(echo "$GOAL_DESC" | python3 -c "
+import sys, re
+text = sys.stdin.read().strip()
+# Extract meaningful keywords (file names, feature names, etc.)
+kws = re.findall(r'[\w.-]+\.[a-z]{1,4}|[a-z]+-[a-z]+|[A-Z][a-z]+[A-Z]', text)
+# Also add common directory patterns
+dirs = re.findall(r'(scripts?|hooks?|source|docs?|packages?)', text)
+print('|'.join(kws[:5] + dirs[:3]))
+" 2>/dev/null)
+    if [ -n "$GOAL_KW" ]; then
+        # 用 git 查找包含目标关键词的最近修改文件
+        MATCHED_FILES=""
+        IFS='|' read -ra KW_ARRAY <<< "$GOAL_KW"
+        for kw in "${KW_ARRAY[@]}"; do
+            [ ${#kw} -lt 3 ] && continue
+            found=$(git log --name-only --oneline -20 2>/dev/null | grep -i "$kw" | grep -v '^[0-9a-f]\{7\}' | head -5)
+            [ -n "$found" ] && MATCHED_FILES="${MATCHED_FILES}"$'\n'"${found}"
+        done
+        if [ -n "$MATCHED_FILES" ]; then
+            write_scope "$MATCHED_FILES"
+            exit 0
+        fi
+    fi
+fi
+
+# 最终 Fallback: 无法推导范围，不创建 scope 文件（放行模式）
+echo "[auto-scope] no scope derivable from plan.md or goal, leaving scope file absent (pass-through mode)" >&2
 exit 0

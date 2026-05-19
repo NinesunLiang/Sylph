@@ -69,6 +69,67 @@
 > 完整说明（「为什么需要哲学」「梦中情人」定制指南、物化示例、机制采纳门禁、逆向追溯矩阵）→ `Read .claude/reference/philosophy.md`
 > 公开文档 → `docs/guides/cn/philosophy.md`
 
+## 三源一致性 (Three-Source Consistency)
+
+> **核心原则：真理出现在三个独立且异构的源达成一致的交汇点。**
+> 单个源的输出永远不可信 — 生成源可能幻觉，静态规则源可能过时，运行时事实源可能被欺骗。只有三源一致 = 可接受为真。
+>
+> **工程学的上限：99.999% — 而非 100%**。三源一致性能把 AI 可靠性从"玩具级"(95%)拉升到"工业/航天级"(99.999%)，但不能保证数学上的绝对零错误。剩余 0.01% 的误差来自同源基集体盲区、间接提示注入、主观灰度地带。应对策略：纵深防御 + 快速熔断（而非追求绝对不犯错）。
+>
+> **完整理论 →** `Read .claude/reference/three-source-consistency.md`
+
+### 三源映射到 Carror OS
+
+| # | 源 | Carror OS 载体 | 确定性保证 |
+|---|------|---------------|-----------|
+| **Source I** | 生成源 — "AI 应该看到什么" | AGENTS.md §哲学核心 + 8 条铁律, kernel.md, anti-patterns.md | AI 无法在不违反铁律的情况下绕过 — **铁律违反 = BLOCKED** |
+| **Source II** | 静态规则源 — "系统强制什么结构" | settings.json (Hook 注册) + harness.yaml (开关) + feature-registry.yaml + SKILL.md | 文件系统层面的硬约束。**文件存在 ≠ 生效**（DG-82: 39/44 hooks 无 flywheel.log） |
+| **Source III** | 运行时事实源 — "系统实际验证了什么" | Meta-Oracle + hook flywheel.log + harness-smoke-test.sh + audit-hooks.sh + error-dna.jsonl | 运行时产生的**事实**，不是"系统认为什么是对的"。`harness-smoke-test.sh 全绿` = 事实，不是判断 |
+
+### A→B→A 三重门 = 三源一致性的操作化实现
+
+```
+A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
+                              ↓
+                         Meta-Oracle 最后守门（仅在 G1-G4 触发）
+```
+
+| 步骤 | 映射到三源 | 说明 |
+|------|-----------|------|
+| A 预测（方案/PRD） | Source I (生成源) | AI 基于规则推理，输出预期结果 |
+| B 盲执行（独立验证） | Source II (静态规则源) | 脱离 AI 上下文，用 hook/脚本执行验证 |
+| A 自证（Oracle 审核） | Source III (运行时事实源) | Oracle 检查执行结果，不信任 AI 自证 |
+| Meta-Oracle (G1-G4) | Source III ×2 + Source I 交叉验证 | 运行时验证 > 静态检查，对抗性审查找盲区 |
+
+### 熔断机制 — 三源分歧时的处理
+
+| 分歧类型 | 处理方式 |
+|---------|---------|
+| Source I vs II (规则冲突) | [哲学先行: 仲裁] — 按优先级裁决，不继续执行 |
+| Source II vs III (规则未生效) | [治理异常] — audit-hooks 报告，修复后继续 |
+| Source I vs III (规则被违反) | [铁律违反] — BLOCKED，回滚当前操作 |
+| 三源同时分歧 (G1-G4) | Meta-Oracle ADVISORY/REJECT — AI 覆写需明确书面理由 |
+
+### 纵深防御策略 (Heterogeneous Redundancy)
+
+三源一致性不是"三道防线防同一个攻击"，而是**异构冗余防御**:
+- **Source I 防 AI 幻觉**: 哲学 + 铁律强制文件来源标注，禁止无来源断言
+- **Source II 防 AI 越界**: hook 拦截范围外修改、敏感文件触碰、破坏性操作
+- **Source III 防 AI 欺骗**: Oracle/Meta-Oracle 独立审查，不信任 AI 自证
+
+**关键区分**: Source II（静态规则）和 Source III（运行时事实）**必须使用不同验证方法**。如果两者都用 grep 检查同一文件，这就是同源失效。
+
+### Red Team / Blue Team — 持续进化机制
+
+三源一致性不是静态的，必须定期接受"邪恶版 AI"的攻击测试：
+1. **Red Team**: 专门训练一个 agent，每天尝试绕过三道防线
+2. **攻击向量**: 提示注入、同源基错误、间接欺骗、规则漂移
+3. **Blue Team Response**: 根据攻击手段修补对应防线
+
+**狗粮模式的天然优势**: Carror OS 本身就是自己的 Red Team。每次狗粮反哺（DG-xxx）都是一次攻击测试 + 防御升级。
+
+---
+
 ### Meta-Oracle — 最后守门员（核武器级终审）
 
 > **定位**：Oracle = 常规守门员（每阶段门禁），Meta-Oracle = 最后守门员（核武器级终审）。
@@ -76,7 +137,16 @@
 
 Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-score.sh 静态检查虚高），它可能漏掉设计级缺陷（regex 只匹配部分引用格式），它的结论需要被验证。
 
-**Meta-Oracle = 独立于 Oracle 的最高审查者。** 使用完全不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性，对抗性审查 > 合规检查），专门寻找 Oracle 的盲区。
+**Meta-Oracle = Source III + Source I 交叉验证器**。使用完全不同的审查方法（运行时验证 > 静态检查，烟雾日志 > 文件存在性，对抗性审查 > 合规检查），专门寻找 Oracle 的盲区。
+
+**Oracle vs Meta-Oracle — 三源交叉视角**:
+
+| 维度 | Oracle（常规守门员） | Meta-Oracle（最后守门员） |
+|------|---------------------|--------------------------|
+| 方法论 | Source I → Source II 检查一致性 | Source III (运行时事实) × Source I 交叉验证 |
+| 审查手段 | 静态检查、文件存在性 | 运行时验证、烟雾日志、对抗性测试 |
+| 找什么 | 违规/遗漏/不合规 | Oracle 的盲区（同源基失效、间接注入） |
+| 为什么独立 | — | Oracle 和 AI 共享上下文 = 同源风险 |
 
 #### Oracle vs Meta-Oracle 分工
 
@@ -130,6 +200,40 @@ A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
 > - 同一任务最多触发 1 次 Meta-Oracle，触发后裁决留痕到 `.omc/state/meta-oracle-verdicts.md`
 > - G3（Oracle ACCEPT/高分）是最低触发门槛，G1/G2/G4 是更高优先级的触发点
 
+#### 已知盲区与防御边界
+
+> 三重门 + Oracle + Meta-Oracle 的异构冗余防御体系能将 AI 犯错成本提升到「堪比登天」，
+> 但作为足够复杂的自适应系统，永远存在微小的逃逸概率。
+> Carror OS 不追求数学上的「绝对零错误」，而是建立「纵深防御 + 快速熔断」。
+
+**三类系统性盲区**：
+
+| 盲区类型 | 说明 | Carror OS 缓解措施 |
+|---------|------|------------------|
+| **共同模式失效 (CMF)** | A/B/Oracle/Meta-Oracle 同源基座时可能共享错误常识 | 三重门要求 A≠B 模型族；Oracle≠A 模型族；Oracle/Meta-Oracle 的检测逻辑是 bash 脚本（白盒），不共享 LLM 训练数据 |
+| **间接提示注入** | 恶意数据源中的隐藏指令可一次性绕过所有防线 | privacy-gate 脱敏代理隔离外部数据；范围冻结阻断越权；硬边界协议物理阻断破坏性操作 |
+| **主观/伦理灰度** | 对「设计是否优美」等无标准答案问题，三源一致性只能给出概率评分 | G1-G4 Meta-Oracle 软门禁；置信度不足时升级人类裁决；铁律 #2（用户裁定）兜底 |
+
+**不确定性量化 (Uncertainty Quantification)**：
+三源出现分歧或置信度不足时的熔断链：三源一致 → ✅ 继续；微小分歧 → ⚠️ 标记 [低置信度] 继续；重大分歧 → 🛑 熔断交还人类；Meta-Oracle REJECT ×2 → 🔴 事实阻断需人工介入。
+
+#### 认知独立：不依赖跨族模型的替代方案
+
+> **定论 (2026-05-18)**：Carror OS 防御体系不使用异族模型架构。大部分用户不具备多模型条件，且**结构性防御（白盒）覆盖了 80% 以上的欺骗漏洞，不需要跨族模型**。
+
+四层认知独立方案（低成本，已在 Carror OS 中不同程度物化）：
+
+| 方案 | 原理 | 覆盖率 | 现有物化 |
+|------|------|:------:|---------|
+| 结构化自检清单 | 把语义判断转化为结构验证 — 不要求 AI 「判断对错」，要求 AI 「填写字段是否可证伪」 | 70% | completion-gate 证据评分 + posttool-claim-audit 铁律 #1 |
+| 时间隔离审查 | 同模型，不同上下文 — 会话 A 推理链不污染会话 B | 75% | cross-verify-handoff.md 双终端交叉验证 |
+| 角色框架切换 | 同模型，不同 prompt — 执行者 vs 怀疑论者，激活不同权重路径 | 80% | 待物化：meta-oracle-trigger 注入怀疑论者额外上下文 |
+| 确定性物理证据 | bash exit code / file checksum / 命令输出 — 无法用语义改写伪造 | ~99.999% | Oracle（静态规则）+ Meta-Oracle（运行时事实） |
+
+> 跨族模型额外覆盖的 ~0.001% 是**事实知识盲区**（如所有模型都相信某个错误常识）。
+> 在代码场景中这几乎不存在 — 编译器和测试框架说了算，不是 LLM 说了算。
+> **0% → 80% 不需要跨族模型。80% → 99.999% 靠白盒确定性验证。跨族是锦上添花，不是雪中送炭。**
+
 ---
 
 ## 狗粮反馈循环协议
@@ -170,6 +274,31 @@ A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
 6. **记录**：将新经验写入 `.claude/claude-next.md`（hits:1），验证稳定后可升华到 kernel.md
 
 **重要**：如果修复仅对元项目有用（对下游用户无关），只在本文件中记录，不修改 source 版本。
+
+### 机制保留/删除判定原则
+
+> 在评估是否保留或删除任何 hook/skill/机制时，必须遵循以下双标准：
+
+**标准 1：哲学 > 铁律 > 需求，且收益远大于噪声**
+
+```
+哲学 7 条 → 铁律 8 条 → 项目需求 → 增益 vs 噪声
+```
+
+- 三级筛选：任何机制必须能追溯到至少一条哲学或铁律
+- 同时满足：增益 >> 噪声（维持成本、运行时开销、维护负担）
+- 增益/噪声比为负 → 即使有哲学支撑也应删除
+
+**标准 2：先区分「意图不对」还是「实现不对」**
+
+| 情况 | 处理 |
+|------|------|
+| **意图不对**（哲学/铁律无支撑，原始设计目标本身错误） | **删除** |
+| **实现不对**（意图正确，但实现有 bug、埋点路径错误、未注册、观测不到等） | **改实现，不删除** |
+
+> **为什么需要这个区分**：read-tracker.sh 零 flywheel 事件 → 初始误判为「无价值」。追溯原始意图后发现它是 edit-guard 的数据核心依赖。问题不在意图（Read-before-Edit = 铁律 #1），而在观测方法（数据型 hook 不写 flywheel，事件数不反映效果）。
+>
+> **操作约束**：评估任何机制前，先查 git log 追溯原始创建意图，确认它被设计来解决什么问题。禁止仅凭 flywheel 零事件 = 无价值的粗暴判断。
 
 ---
 
@@ -287,6 +416,18 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 自动注入内容优先驻留在 `.claude/reference/*.md`，index.md 仅留摘要链接。
 每次 SessionStart 自动注入控制在 ~120 行/3KB 以内。不常变/仅查阅的内容不注入。
 
+### Source Consistency Protocol — 三源一致性操作规范
+
+> **每次 SessionStart**：运行 `audit-hooks.sh --check-source-mirror` 确认 Source II（静态规则源）的三方一致性。
+> **每次修改 hook/机制**：必须验证 Source II 三源对齐 + Source III（运行时事实）产出。
+
+**Hook/Skill 修改时的三源检查清单**:
+1. **Source II (静态)**: `settings.json` 注册 + `harness.yaml` 开关 + 磁盘脚本存在性
+2. **Source III (运行时)**: `harness-smoke-test.sh` 全回归 + flywheel.log 埋点（非零命中）
+3. **Source I (哲学)**: 机制是否物化了某条铁律/反模式？（逆向追溯矩阵确认）
+
+**机制采纳前门禁三问**: 注册了？在运行？产生效果？— 三问全过才算生效。
+
 ---
 
 ## 治理框架引用
@@ -306,7 +447,8 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 | 危险操作二次确认 | §防御性规则 > 危险操作二次确认 | — |
 | 修复 3 轮上限 | §防御性规则 > 修复上限与升级 | 跨域修复（root + source）算作一轮 |
 | 工作流原则 | §工作流原则 | L3/L4 强制 Oracle 终审 |
-| 三重门交叉验证 | §工作流原则 > 三重门交叉验证 | — |
+| 三重门交叉验证 | §工作流原则 > 三重门交叉验证 | = A→B→A（三源一致性操作化实现）|
+| **三源一致性** | §三源一致性 (Three-Source Consistency) | **真理判定协议 — 生成源 I + 静态规则源 II + 运行时事实源 III** |
 | L3 执行流水线 | §复杂任务执行流水线（L3 专用） | — |
 | 方案复用自检 | §防御性规则 > 方案复用自检 | — |
 | 会话初始化 | §会话初始化 | 见本文件 §核心执行上下文 的漂移检查补充 |
@@ -317,35 +459,37 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 > 
 > 以下为快速参考速查表（仅列最常用机制，完整版含全量 99 项）：
 
-| 机制 | 类型 | 所属哲学 | 说明 |
-|------|------|---------|------|
-| `completion-gate.sh` | Hook | #4, #6 | 证据质量评分+虚假完成阻断 |
-| `permission-gate.sh` | Hook | #6, #3 | CAPTCHA 验证码审批+危险命令拦截 |
-| `pretool-sensitive-edit.sh` | Hook | #6 | 治理文件 CAPTCHA 门禁（Edit/Write 扩展防御面） |
-| `context-guard.sh` | Hook | #3 | 上下文阈值阻断防记忆衰退 |
-| `edit-guard.sh` | Hook | #6 | Read-before-Edit 门禁 |
-| `privacy-gate.sh` | Hook | #3, #6 | .env/私钥拦截 |
-| `pretool-edit-scope.sh` | Hook | #2 | 范围冻结拦截 |
-| `posttool-format-gate.sh` | Hook | #5 | 输出格式方向感检查 |
-| `turn-counter.sh` | Hook | #1, #5 | 轮次统计+模糊指令检测 |
-| `inject-project-knowledge.sh` | Hook | #7 | 核心知识注入 |
-| `harness_config.sh` | 共享库 | #3 | hc_enabled 统一门禁 |
-| `posttool-claim-audit.sh` | Hook | #6, #4 | 铁律#1强制校验 |
-| `pretool-ask-guard.sh` | Hook | #5, #6 | 哲学先行门禁 |
-| `meta-oracle-trigger.sh` | Hook | #4, #6 | G1-G4 Meta-Oracle触发 |
-| `audit-hooks.sh` | 脚本 | #4 | 三方一致性审计 |
-| `harness-smoke-test.sh` | 脚本 | #4 | 回归验证 |
-| `lx-oma-orch` | Skill | #1 | 管线原子化编排 |
-| `lx-oma-split` | Skill | #2 | Feature MECE 正交拆解 |
-| `lx-code-review` | Skill | #4 | 代码审查 |
-| `lx-oma-hier` | Skill | #7 | PRD 分层拆解 |
-| `is_mode_active()` | 模式检测 | #3 | ghost/goal 降级保护 |
-| Oracle 终审 | 节点 | #6 | 最高权威裁决 |
-| Meta-Oracle | 节点 | #4, #6 | 最后守门员（核武器级终审）— G1-G4 触发，独立于 Oracle 的最高审查权威，软门禁 |
+| 机制 | 类型 | 所属哲学 | Source | 说明 |
+|------|------|---------|--------|------|
+| `completion-gate.sh` | Hook | #4, #6 | III | 证据质量评分+虚假完成阻断 |
+| `permission-gate.sh` | Hook | #6, #3 | III | CAPTCHA 验证码审批+危险命令拦截 |
+| `pretool-sensitive-edit.sh` | Hook | #6 | II+III | 治理文件 CAPTCHA 门禁（Edit/Write 扩展防御面） |
+| `context-guard.sh` | Hook | #3 | III | 上下文阈值阻断防记忆衰退 |
+| `edit-guard.sh` | Hook | #6 | II+III | Read-before-Edit 门禁 |
+| `privacy-gate.sh` | Hook | #3, #6 | II+III | .env/私钥拦截 |
+| `pretool-edit-scope.sh` | Hook | #2 | II+III | 范围冻结拦截 |
+| `posttool-format-gate.sh` | Hook | #5 | III | 输出格式方向感检查 |
+| `turn-counter.sh` | Hook | #1, #5 | III | 轮次统计+模糊指令检测 |
+| `inject-project-knowledge.sh` | Hook | #7 | I+II | 核心知识注入（Source I → AI 上下文） |
+| `harness_config.sh` | 共享库 | #3 | II | hc_enabled 统一门禁 |
+| `posttool-claim-audit.sh` | Hook | #6, #4 | III | 铁律#1强制校验（Source I → Source III） |
+| `pretool-ask-guard.sh` | Hook | #5, #6 | II+III | 哲学先行门禁 |
+| `meta-oracle-trigger.sh` | Hook | #4, #6 | III×I | G1-G4 Meta-Oracle 触发（Source III × Source I） |
+| `audit-hooks.sh` | 脚本 | #4 | II+III | Source II 三方一致性审计 + Source III 事实验证 |
+| `harness-smoke-test.sh` | 脚本 | #4 | III | Source III 运行时回归验证 |
+| `lx-oma-orch` | Skill | #1 | I+II | 管线原子化编排（Source I → Source II） |
+| `lx-oma-split` | Skill | #2 | I+II | Feature MECE 正交拆解（Source I → Source II） |
+| `lx-code-review` | Skill | #4 | III | 代码审查（Source III） |
+| `lx-oma-hier` | Skill | #7 | I+II | PRD 分层拆解（Source I → Source II） |
+| `is_mode_active()` | 模式检测 | #3 | II+III | ghost/goal 降级保护（Source II → Source III） |
+| Oracle 终审 | 节点 | #6 | I→II+III | 最高权威裁决（Source I → Source II/III） |
+| Meta-Oracle | 节点 | #4, #6 | III×I | 最后守门员（核武器级终审）— G1-G4，独立于 Oracle，软门禁 |
+| **三源一致性** | 框架 | #4,#6,#3 | I+II+III | **真理判定协议 — 三源一致=真，分歧=熔断** |
+| **A→B→A 三重门** | 协议 | #4,#6 | I+II+III | **三源一致性操作化实现** |
 
 ### Harness 配置
 
-- Hook 配置: `.claude/harness.yaml`（43 个 hook 脚本注册，实际以 yaml 为准）
+- Hook 配置: `.claude/harness.yaml`（45 条总引用 / 41 个唯一 hook 注册 / 44 个磁盘脚本，实际以 settings.json + yaml 为准）
 - 代码风格: `.claude/kernel.md`
 - 学习笔记: `.claude/claude-next.md`
 

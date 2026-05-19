@@ -47,5 +47,5 @@
 
 | 脚本 | 事件 | 说明 |
 |------|------|------|
-| posttool-read-cite | (未注册) | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
+
 | proactive-handoff | (未注册) | proactive-handoff.sh — PostToolUse:Write|Edit — 主动会话交接（上下文阈值触发） |

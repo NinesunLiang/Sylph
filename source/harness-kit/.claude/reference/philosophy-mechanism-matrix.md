@@ -35,7 +35,7 @@
 | `lx-pre-commit` | Skill | `.claude/skills/lx-pre-commit/` | 提交前质量门禁 | ✅ |
 | `lx-pre-push` | Skill | `.claude/skills/lx-pre-push/` | 推送前深度门禁 | ✅ |
 | `lx-sync` | Skill | `.claude/skills/lx-sync/` | 变更后一致性检查 | ✅ |
-| `feature-probe.sh` | 工具 | `.claude/hooks/feature-probe.sh` | L1-L4证据链完整性诊断 | ✅ |
+| `feature-probe.sh` | 工具 | `.claude/scripts/feature-probe.sh` | L1-L4证据链完整性诊断 | ✅ |
 
 **物化充足度**: ✅ 充分 — 10+ 直接机制，含 3 层防御纵深(PreToolUse截断→PostToolUse验证→Stop兜底)
 
@@ -232,8 +232,9 @@
 | `knowledge-condenser.sh` | #1, #2, #7 | — | ✅ |
 | `proactive-handoff.sh` | #1, #5, #7 | #8(P) | ⚠️默认关闭 |
 | `read-tracker.sh` | #6 | #1(A) | ✅ |
+| `pre-ask-guard.sh` | #5, #8 | #2(U) | ✅ — 问人前强制过决策链四层 |
 | `pretool-user-correction.sh` | #5, #7 | #2(U) | ✅ |
-| `posttool-read-cite.sh` | #6 | #1(A) | ⚠️默认关闭 |
+
 | `posttool-write-cite.sh` | #7 | #1(A) | ✅ |
 | `posttool-edit-quality.sh` | #6, #4 | — | ✅ |
 | `posttool-handoff-writer.sh` | #7 | #3(E) | ✅ |

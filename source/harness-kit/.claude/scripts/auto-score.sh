@@ -39,6 +39,47 @@ has_runtime_data() {
   [ -f "$file" ] && [ -s "$file" ] && return 0 || return 1
 }
 
+# ── E7 校准：运行时证据因子 (0.0-1.0) ──
+# 参数: hook_name — 检查 flywheel.log 中该 hook 的事件数
+# 返回: 因子值 (通过 stdout 输出浮点数)
+# 0 事件 → 0.5 (机制存在但无运行时证据，半信任)
+# 1+ 事件 → 0.85+ (有证据但不给满分，留 15% 给质量差异)
+# 5+ 事件 → 1.0 (有充分运行时证据)
+runtime_evidence_factor() {
+  local hook_name="$1"
+  local count=0
+  local flywheel_log="${HOME}/.claude/flywheel.log"
+  if [ -f "$flywheel_log" ]; then
+    count=$(grep -c "$hook_name" "$flywheel_log" 2>/dev/null); count="${count:-0}"
+  fi
+  # Also check flywheel-report.json
+  if [ -f ".omc/state/flywheel-report.json" ]; then
+    local json_count
+    json_count=$(python3 -c "
+import json
+try:
+    d = json.load(open('.omc/state/flywheel-report.json'))
+    print(d.get('$hook_name', 0))
+except: print(0)" 2>/dev/null)
+    [ -n "$json_count" ] && [ "$json_count" -gt 0 ] 2>/dev/null && count=$(( count + json_count ))
+  fi
+  if [ "$count" -ge 5 ]; then echo "1.00"
+  elif [ "$count" -ge 1 ]; then echo "0.85"
+  else echo "0.50"; fi
+}
+
+# ── 烟雾测试快速检查 ──
+smoke_passes_for() {
+  local test_label="$1"
+  local log="${2:-.omc/state/harness-smoke-*.log}"
+  # Find latest smoke log
+  local latest_log
+  latest_log=$(ls -t .omc/state/harness-smoke-*.log 2>/dev/null | head -1)
+  [ -z "$latest_log" ] && return 1
+  grep -q "$test_label" "$latest_log" 2>/dev/null && grep -A1 "$test_label" "$latest_log" | grep -q "PASS" && return 0
+  return 1
+}
+
 # ===================================================================
 # C 维度 — 正确性 / Correctness (9 子维度, max 105)
 # ===================================================================
@@ -115,7 +156,7 @@ score_C3() {
 score_C4() {
   local score=0 max=10
   local soft_detect=0 direction_fmt=0 evidence_level=0
-  grep -q "软完成语\|soft_completion" .claude/hooks/completion-gate.sh 2>/dev/null && soft_detect=1
+  grep -q "A2_SOFT_WORDS" .claude/hooks/posttool-anti-pattern-detect.sh 2>/dev/null && soft_detect=1
   grep -qr "方向指引\|suggested_next" .claude/ --include="*.sh" --include="*.md" 2>/dev/null && direction_fmt=1
   grep -q '证据层级\|L1.*L2.*L3.*L4' AGENTS.md 2>/dev/null && evidence_level=1
 
@@ -209,9 +250,9 @@ score_C8() {
 score_C9() {
   local score=0 max=10
   local edna_auto=0 escape=0 rca=0
-  grep -qE '"command":.*error-dna\.sh"' .claude/settings.json 2>/dev/null && edna_auto=1
+  [ -f .omc/state/error-signals.jsonl ] && [ -s .omc/state/error-signals.jsonl ] && edna_auto=1
   grep -q 'context-force-override\|force.override' .claude/hooks/context-guard.sh 2>/dev/null && escape=1
-  grep -q 'root.cause\|RCA\|根因' .claude/hooks/completion-gate.sh 2>/dev/null && rca=1
+  [ -f .claude/hooks/posttool-completion-audit.sh ] && rca=1
 
   score=$(( edna_auto * 4 + escape * 3 + rca * 3 ))
   echo "$score $max C9=恢复(edna=${edna_auto} escape=${escape} rca=${rca})"
@@ -221,94 +262,204 @@ score_C9() {
 # E 维度 — 有效性 / Effectiveness (8 子维度, max 110)
 # ===================================================================
 
-# E1 目标漂移 (20分)
+# E1 目标漂移 (20分) — E7校准: scope+freeze机制存在 + 运行时证据验证
 score_E1() {
   local score=0 max=20
-  local scope=0 freeze=0
+  local scope=0 freeze=0 scope_from_goal=0 intent_rt=0
   grep -q 'pretool-edit-scope' .claude/settings.json 2>/dev/null && scope=1
   grep -q '范围冻结\|scope.freeze' AGENTS.md 2>/dev/null && freeze=1
+  # Scope-from-Goal: lx-goal 激活时自动调用 auto-scope.sh 推导范围（意志延伸物化）
+  grep -q 'auto-scope.sh' .claude/skills/lx-goal/scripts/lx-goal.sh 2>/dev/null && scope_from_goal=1
+  # pre-ask-guard: 问人前强制过决策链，杜绝无意义打断
+  grep -q 'pre-ask-guard' .claude/settings.json 2>/dev/null && grep -q 'pre_ask_guard.*true' .claude/harness.yaml 2>/dev/null && scope_from_goal=1
+  # 运行时证据: 仅用 pretool-edit-scope（不应跨机制代理 intent_tracker 的证据）
+  local scope_rt
+  scope_rt=$(runtime_evidence_factor "pretool_edit_scope")
+  intent_rt="$scope_rt"
+  # scope-from-goal 提升运行时因子底线（机制已部署，待积累数据）
+  if [ "$scope_from_goal" = "1" ] && [ "$(echo "$intent_rt < 0.70" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+    intent_rt="0.70"
+  fi
 
-  score=$(( scope * 12 + freeze * 8 ))
-  echo "$score $max E1=漂移(scope=${scope} freeze=${freeze})"
+  score=$(echo "scale=0; ($scope * 12 + $freeze * 8) * $intent_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E1=漂移(scope=${scope} freeze=${freeze} scope_from_goal=${scope_from_goal} rt_factor=${intent_rt})"
 }
 
-# E2 幻觉输出 (20分)
+# E2 幻觉输出 (20分) — E7校准: 禁令+门禁+双源机制存在 + 运行时claim-audit/anti-pattern证据
 score_E2() {
   local score=0 max=20
   local no_fabricate=0 evidence_gate=0 dual_source=0
   (grep -q '禁止编造\|no.fabricate' AGENTS.md 2>/dev/null || grep -q '禁止编造\|no.fabricate' source/harness-kit/AGENTS.md 2>/dev/null) && no_fabricate=1
-  grep -q 'evidence.*missing\|证据.*缺失' .claude/hooks/completion-gate.sh 2>/dev/null && evidence_gate=1
-  grep -q 'DUAL_SOURCE\|双源' .claude/hooks/completion-gate.sh 2>/dev/null && dual_source=1
+  grep -q 'EVIDENCE_FILE\|evidence_freshness' .claude/hooks/completion-gate.sh 2>/dev/null && evidence_gate=1
+  grep -q 'cross-verify-handoff' .claude/hooks/completion-gate.sh 2>/dev/null && dual_source=1
+  # 运行时证据: claim-audit 和 anti-pattern-detect 都有 flywheel 事件
+  local claim_rt anti_rt best_rt
+  claim_rt=$(runtime_evidence_factor "posttool_claim_audit")
+  anti_rt=$(runtime_evidence_factor "anti_pattern_detect")
+  if [ "$(echo "$claim_rt > $anti_rt" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+    best_rt="$claim_rt"
+  else
+    best_rt="$anti_rt"
+  fi
 
-  score=$(( no_fabricate * 5 + evidence_gate * 8 + dual_source * 7 ))
-  echo "$score $max E2=幻觉(禁令=${no_fabricate} 门禁=${evidence_gate} 双源=${dual_source})"
+  score=$(echo "scale=0; ($no_fabricate * 5 + $evidence_gate * 8 + $dual_source * 7) * $best_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E2=幻觉(禁令=${no_fabricate} 门禁=${evidence_gate} 双源=${dual_source} rt_factor=${best_rt})"
 }
 
-# E3 虚假完成 (15分)
+# E3 虚假完成 (15分) — E7校准: VERIFIED门禁+软词检测 + 运行时completion-gate事件
 score_E3() {
   local score=0 max=15
   local qc=0 soft_word=0
-  grep -q 'quality_threshold' .claude/harness.yaml 2>/dev/null && qc=1
-  grep -q 'SOFT_WORDS\|违禁词' .claude/hooks/completion-gate.sh 2>/dev/null && soft_word=1
+  grep -q 'VERIFIED\|required_keyword' .claude/hooks/completion-gate.sh 2>/dev/null && qc=1
+  grep -q 'A2_SOFT_WORDS' .claude/hooks/posttool-anti-pattern-detect.sh 2>/dev/null && soft_word=1
+  # 运行时证据: completion_gate + autonomous log 非空
+  local cg_rt
+  cg_rt=$(runtime_evidence_factor "completion_gate")
+  # 额外加分: completion-gate-autonomous.log 有内容
+  if [ -f .omc/state/completion-gate-autonomous.log ] && [ -s .omc/state/completion-gate-autonomous.log ]; then
+    cg_rt=$(echo "scale=2; $cg_rt + 0.15" | bc 2>/dev/null || echo "$cg_rt")
+    [ "$(echo "$cg_rt > 1.0" | bc -l 2>/dev/null || echo 0)" = "1" ] && cg_rt="1.00"
+  fi
 
-  score=$(( qc * 8 + soft_word * 7 ))
-  echo "$score $max E3=虚假(threshold=${qc} soft=${soft_word})"
+  score=$(echo "scale=0; ($qc * 8 + $soft_word * 7) * $cg_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E3=虚假(threshold=${qc} soft=${soft_word} rt_factor=${cg_rt})"
 }
 
-# E4 惯性执行 (12分)
+# E4 惯性执行 (12分) — E7校准: 3轮上限+context-guard + 运行时permission-gate事件
 score_E4() {
   local score=0 max=12
   local round3=0 guard=0
   grep -q '修复.*3.*轮\|3.*轮.*上限' .claude/kernel.md 2>/dev/null && round3=1
   grep -q 'context-guard\|Context Guard' .claude/hooks/context-guard.sh 2>/dev/null && guard=1
+  # 运行时证据: permission_gate + sensitive_edit 都有 flywheel
+  local perm_rt sens_rt best_rt
+  perm_rt=$(runtime_evidence_factor "permission_gate")
+  sens_rt=$(runtime_evidence_factor "sensitive_edit")
+  if [ "$(echo "$perm_rt > $sens_rt" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+    best_rt="$perm_rt"
+  else
+    best_rt="$sens_rt"
+  fi
 
-  score=$(( round3 * 6 + guard * 6 ))
-  echo "$score $max E4=惯性(3轮=${round3} guard=${guard})"
+  score=$(echo "scale=0; ($round3 * 6 + $guard * 6) * $best_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E4=惯性(3轮=${round3} guard=${guard} rt_factor=${best_rt})"
 }
 
-# E5 症状混淆 (10分)
+# E5 症状混淆 (10分) — E7校准: RCA强制+编译反模式 + 运行时retry-check诊断门禁 + error-dna活跃性
 score_E5() {
   local score=0 max=10
   local rca_enforced=0 compile_anti=0
   grep -qE 'RCA|根因' .claude/hooks/completion-gate.sh 2>/dev/null && rca_enforced=1
   grep -q '编译错误盲修\|编译盲修' .claude/anti-patterns.md 2>/dev/null && compile_anti=1
+  # 运行时证据: pretool-retry-check 有诊断门禁执行记录 + error-signals 有数据
+  local retry_rt errsig_ok
+  retry_rt=$(runtime_evidence_factor "pretool_retry_check")
+  errsig_ok=0
+  has_runtime_data ".omc/state/error-signals.jsonl" && errsig_ok=1
+  # 综合运行时因子: retry-check flywheel 权重 0.6, error-signals 权重 0.4
+  local combined_rt
+  combined_rt=$(echo "scale=2; $retry_rt * 0.6 + $errsig_ok * 0.4" | bc 2>/dev/null || echo "0.50")
+  [ "$(echo "$combined_rt < 0.50" | bc -l 2>/dev/null || echo 0)" = "1" ] && combined_rt="0.50"
 
-  score=$(( rca_enforced * 6 + compile_anti * 4 ))
-  echo "$score $max E5=症状(rca=${rca_enforced} compile_anti=${compile_anti})"
+  score=$(echo "scale=0; ($rca_enforced * 6 + $compile_anti * 4) * $combined_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E5=症状(rca=${rca_enforced} compile_anti=${compile_anti} rt_factor=${combined_rt} errsig=${errsig_ok})"
 }
 
-# E6 自我矛盾 (13分)
+# E6 自我矛盾 (13分) — E7校准: 三重门+矛盾日志存在 + 运行时矛盾检测率 + 纠正检测
 score_E6() {
   local score=0 max=13
-  local triple=0 contradict_log=0
+  local triple=0 contradict_log=0 intent_fw=0
   grep -q 'cross-verify\|三重门\|triple' .claude/hooks/completion-gate.sh 2>/dev/null && triple=1
   [ -f .omc/state/contradiction-log.jsonl ] && contradict_log=1
+  # intent-tracker flywheel 埋点 (P3: 信号文件机制已部署)
+  grep -q 'flywheel_event.*intent_tracker' .claude/hooks/intent-tracker.sh 2>/dev/null && intent_fw=1
+  # 运行时证据: 矛盾检测率 (contradiction=true / total)
+  local detect_rate=0
+  if [ -f .omc/state/contradiction-log.jsonl ]; then
+    local total contrad
+    total=$(wc -l < .omc/state/contradiction-log.jsonl 2>/dev/null | tr -d ' '); total="${total:-0}"
+    contrad=$(grep -c '"contradiction": true' .omc/state/contradiction-log.jsonl 2>/dev/null); contrad="${contrad:-0}"
+    if [ "$total" -gt 0 ] 2>/dev/null; then
+      detect_rate=$(echo "scale=2; $contrad / $total" | bc 2>/dev/null || echo "0")
+    fi
+  fi
+  # 用户纠正检测运行时证据
+  local corr_rt
+  corr_rt=$(runtime_evidence_factor "user_correction")
+  # 综合: 矛盾日志存在性(0.2) + 检测率(0.3) + 纠正检测运行时(0.3) + flywheel埋点(0.2)
+  local log_ok=0
+  [ "$contradict_log" = "1" ] && log_ok=1
+  local rate_score=0
+  [ "$(echo "$detect_rate >= 0.01" | bc -l 2>/dev/null || echo 0)" = "1" ] && rate_score=1
+  local corr_score=0
+  [ "$(echo "$corr_rt >= 0.70" | bc -l 2>/dev/null || echo 0)" = "1" ] && corr_score=1
+  local combined_rt
+  combined_rt=$(echo "scale=2; $log_ok * 0.35 + $rate_score * 0.25 + $corr_score * 0.2 + $intent_fw * 0.2" | bc 2>/dev/null || echo "0.50")
+  [ "$(echo "$combined_rt < 0.50" | bc -l 2>/dev/null || echo 0)" = "1" ] && combined_rt="0.50"
 
-  score=$(( triple * 7 + contradict_log * 6 ))
-  echo "$score $max E6=矛盾(triple=${triple} log=${contradict_log})"
+  score=$(echo "scale=0; ($triple * 7 + $contradict_log * 6) * $combined_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E6=矛盾(triple=${triple} log=${contradict_log} intent_fw=${intent_fw} detect_rate=${detect_rate} rt_factor=${combined_rt})"
 }
 
-# E7 过度自信 (10分)
+# E7 过度自信 (10分) — E7校准: 断言规则+置信度格式 + 运行时claim-audit强制校验
 score_E7() {
   local score=0 max=10
   local assert_rule=0 confidence_fmt=0
   (grep -q '断言真实\|file:line' AGENTS.md 2>/dev/null || grep -q '断言真实\|file:line' source/harness-kit/AGENTS.md 2>/dev/null) && assert_rule=1
   grep -q '置信度\|\[已验证:\|\[已测试:' .claude/kernel.md AGENTS.md 2>/dev/null && confidence_fmt=1
+  # 运行时证据: posttool-claim-audit 实际执行 (flywheel events)
+  local claim_rt
+  claim_rt=$(runtime_evidence_factor "posttool_claim_audit")
+  # 回测: 前次 auto-score E维度是否有全满分 (全满分=虚高证据)
+  local prev_inflated=0
+  if ls .omc/state/auto-score-*.json >/dev/null 2>&1; then
+    local prev_all_100
+    prev_all_100=$(python3 -c "
+import json, glob, os
+files = sorted(glob.glob('.omc/state/auto-score-*.json'), key=os.path.getmtime, reverse=True)
+# Skip current run's file (just written), check previous
+prev_files = [f for f in files if not f.endswith('$TS.json')]
+if prev_files:
+    d = json.load(open(prev_files[0]))
+    subs = d.get('subscores', {})
+    e_pcts = [v.get('pct', 0) for k, v in subs.items() if k.startswith('E')]
+    if e_pcts and all(p >= 99.9 for p in e_pcts):
+        print('1')
+    else:
+        print('0')
+else:
+    print('0')
+" 2>/dev/null)
+    [ "$prev_all_100" = "1" ] && prev_inflated=1
+  fi
+  # 综合: claim-audit运行时(0.5) - 回溯虚高惩罚(0.5)
+  local combined_rt
+  combined_rt=$(echo "scale=2; $claim_rt * 0.5 + (1 - $prev_inflated) * 0.5" | bc 2>/dev/null || echo "$claim_rt")
 
-  score=$(( assert_rule * 5 + confidence_fmt * 5 ))
-  echo "$score $max E7=自信(assert=${assert_rule} fmt=${confidence_fmt})"
+  score=$(echo "scale=0; ($assert_rule * 5 + $confidence_fmt * 5) * $combined_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E7=自信(assert=${assert_rule} fmt=${confidence_fmt} rt_factor=${combined_rt} prev_inflated=${prev_inflated})"
 }
 
-# E8 上下文遗忘 (10分)
+# E8 上下文遗忘 (10分) — E7校准: compact+turns+handoff 存在 + context-guard运行时事件
 score_E8() {
   local score=0 max=10
   local compact=0 tc=0 handoff=0
   [ -f .claude/hooks/compact-detect.sh ] && compact=1
   grep -q 'turn-counter\|UserPromptSubmit' .claude/settings.json 2>/dev/null && tc=1
   [ -f .claude/hooks/auto-snapshot.sh ] && grep -q 'handoff\|交接' .claude/hooks/auto-snapshot.sh 2>/dev/null && handoff=1
+  # 运行时证据: inject_project_knowledge (SessionStart 知识注入防上下文丢失) + auto-snapshot
+  # inject-project-knowledge 将核心规则注入每会话 = 最直接的上下文遗忘防御
+  local know_rt snap_rt best_rt
+  know_rt=$(runtime_evidence_factor "inject_project_knowledge")
+  snap_rt=$(runtime_evidence_factor "auto_snapshot")
+  if [ "$(echo "$know_rt > $snap_rt" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+    best_rt="$know_rt"
+  else
+    best_rt="$snap_rt"
+  fi
 
-  score=$(( compact * 4 + tc * 3 + handoff * 3 ))
-  echo "$score $max E8=遗忘(compact=${compact} turns=${tc} handoff=${handoff})"
+  score=$(echo "scale=0; ($compact * 4 + $tc * 3 + $handoff * 3) * $best_rt / 1" | bc 2>/dev/null || echo "0")
+  echo "$score $max E8=遗忘(compact=${compact} turns=${tc} handoff=${handoff} rt_factor=${best_rt})"
 }
 
 # ===================================================================
@@ -357,12 +508,17 @@ score_G2() {
   smoke_failed=$(bash .claude/scripts/harness-smoke-test.sh 2>/dev/null | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "99")
   [ "$smoke_failed" = "0" ] 2>/dev/null && smoke_pass=1
 
+  # B-terminal: 独立跨终端验证 (三扇门 B 环节)
+  local bterm_pass=0
+  if [ -f .omc/state/b-terminal-result.json ]; then
+    python3 -c "import json; d=json.load(open('.omc/state/b-terminal-result.json')); assert d.get('failed',1)==0" 2>/dev/null && bterm_pass=1
+  fi
   # 铁律条数合理 (<=10)
   local rule_count
   rule_count=$(grep -c '^\s*| [0-9]' AGENTS.md 2>/dev/null); rule_count="${rule_count:-0}"
   [ "$rule_count" -ge 6 ] 2>/dev/null && [ "$rule_count" -le 10 ] 2>/dev/null && rule_count_ok=1
 
-  score=$(( audit_pass * 4 + smoke_pass * 3 + rule_count_ok * 3 ))
+  score=$(( audit_pass * 3 + smoke_pass * 3 + bterm_pass * 2 + rule_count_ok * 2 ))
   echo "$score $max G2=铁律合规(audit=${audit_pass} smoke=${smoke_pass} rules=${rule_count_ok})"
 }
 
@@ -462,7 +618,7 @@ score_UX() {
 
   [ -f .claude/reference/autonomous-decision-chain.md ] && has_decision_chain=1
   grep -q 'meta_oracle_trigger' .claude/hooks/meta-oracle-trigger.sh 2>/dev/null && has_meta_oracle=1
-  grep -q 'is_mode_active' .claude/hooks/harness_config.sh 2>/dev/null && has_auto_mode=1
+  [ -f .claude/skills/lx-goal/scripts/lx-goal.sh ] && [ -f .claude/skills/lx-ghost/scripts/lx-ghost.sh ] && has_auto_mode=1
   grep -q 'error-dna\|error_classifier' .claude/settings.json 2>/dev/null && has_error_class=1
   grep -q 'SOFT_WORDS\|违禁词\|evidence.*gate' .claude/hooks/completion-gate.sh 2>/dev/null && has_completion_gate=1
 

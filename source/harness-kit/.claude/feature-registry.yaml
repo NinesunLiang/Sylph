@@ -139,8 +139,9 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 - name: feature-probe
-  type: monitor
+  type: tool
   category: observability
+  path: .claude/scripts/feature-probe.sh
   description: 特性探针，验证 feature 的 L1-L4 证据链
   enabled_by_default: true
   evidence_level: L3

@@ -20,11 +20,11 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 
-# 模式检测: ghost/goal 模式下跳过
+# 模式检测: ghost/goal 模式下记录但不阻断
 MODE=$(is_mode_active "$STATE_DIR")
+AUTONOMOUS=false
 if [ "$MODE" != "normal" ]; then
-    echo '{"continue": true}'
-    exit 0
+    AUTONOMOUS=true
 fi
 
 # 解析 tool_response.result
@@ -85,29 +85,42 @@ fi
 # 输出响应
 # ═══════════════════════════════════════════════
 
-# A2 or H1 → 硬阻断 (exit 2)
+# A2 or H1 → 硬阻断 (exit 2)，自主模式下降级为记录+放行
 if [ "$A2_TRIGGERED" = true ] || [ "$H1_TRIGGERED" = true ]; then
+    VIOLATION_LOG="$STATE_DIR/ghost-violations.jsonl"
     echo "⛔ [反模式检测] 检测到反模式输出:" >&2
     if [ "$A2_TRIGGERED" = true ]; then
         echo "  🚫 A2 虚假完成: 检测到软完成语（应该没问题了/基本完成/大部分通过），缺少结构化证据标记" >&2
-        echo "     正确格式: 「VERIFIED: <命令> → exit 0, <file:line> ✅」" >&2
     fi
     if [ "$H1_TRIGGERED" = true ]; then
-        echo "  🚫 H1 语义编造: 检测到无来源的百分比/评分指标，必须附行业标准来源 URL 或 file:line" >&2
-        echo "     无来源指标必须标注「[内部自检，非行业标准]」" >&2
+        echo "  🚫 H1 语义编造: 检测到无来源的百分比/评分指标" >&2
+    fi
+    if [ "$AUTONOMOUS" = true ]; then
+        echo "[$MODE] A2/H1 反模式已记录（自主模式不阻断）" >&2
+        python3 -c "import json,time;open('$VIOLATION_LOG','a').write(json.dumps({'ts':int(time.time()),'type':'A2_H1','mode':'$MODE','result':'$(echo "$RESULT" | head -c 200 | sed 's/"/\\\\"/g')'})+'\n')" 2>/dev/null
+        flywheel_event "anti_pattern_detect" "recorded_autonomous" "P2" || true
+        echo '{"continue": true}'
+        exit 0
     fi
     echo '{"continue": false}' >&2
-flywheel_event "anti_pattern_detect" "blocked" "P2" || true
+    flywheel_event "anti_pattern_detect" "blocked" "P2" || true
     exit 2
 fi
 
-# F1 单独触发 → 硬阻断 (exit 2)
+# F1 单独触发 → 硬阻断 (exit 2)，自主模式下降级为记录+放行
 if [ "$F1_TRIGGERED" = true ]; then
     echo "⛔ [反模式检测] 检测到假设驱动断言:" >&2
     echo "  🚫 F1 假设驱动: 检测到推测性断言「应该是/通常是/一般来说」缺少 file:line 证据" >&2
-    echo "     正确格式: 「[已验证: path/file.go:42] <断言内容>」" >&2
+    if [ "$AUTONOMOUS" = true ]; then
+        echo "[$MODE] F1 反模式已记录（自主模式不阻断）" >&2
+        VIOLATION_LOG="$STATE_DIR/ghost-violations.jsonl"
+        python3 -c "import json,time;open('$VIOLATION_LOG','a').write(json.dumps({'ts':int(time.time()),'type':'F1','mode':'$MODE'})+'\n')" 2>/dev/null
+        flywheel_event "anti_pattern_detect" "recorded_autonomous" "P2" || true
+        echo '{"continue": true}'
+        exit 0
+    fi
     echo '{"continue": false}' >&2
-flywheel_event "anti_pattern_detect" "blocked" "P2" || true
+    flywheel_event "anti_pattern_detect" "blocked" "P2" || true
     exit 2
 fi
 

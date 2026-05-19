@@ -65,6 +65,16 @@ snapshot = {
     "modified_files": modified_files,
     "staged_files": staged_files
 }
+# DG-88-v2: strip surrogates from all string values before json.dump
+def _strip_surr(obj):
+    if isinstance(obj, str):
+        return ''.join(c for c in obj if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(obj, list):
+        return [_strip_surr(i) for i in obj]
+    if isinstance(obj, dict):
+        return {k: _strip_surr(v) for k, v in obj.items()}
+    return obj
+snapshot = _strip_surr(snapshot)
 with open(snapshot_file, "w") as f:
     json.dump(snapshot, f, ensure_ascii=False, indent=2)
 PYEOF
@@ -443,6 +453,16 @@ else:
 
 # Write atomically
 os.makedirs(state_dir, exist_ok=True)
+# DG-88-v2: strip surrogates from all string values before json.dump
+def _strip_surr2(obj):
+    if isinstance(obj, str):
+        return ''.join(c for c in obj if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(obj, list):
+        return [_strip_surr2(i) for i in obj]
+    if isinstance(obj, dict):
+        return {k: _strip_surr2(v) for k, v in obj.items()}
+    return obj
+dump = _strip_surr2(dump)
 tmp = dump_path + '.tmp'
 with open(tmp, 'w') as f:
     json.dump(dump, f, ensure_ascii=False, indent=2)

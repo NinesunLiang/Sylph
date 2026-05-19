@@ -69,6 +69,8 @@ if os.path.exists(jsonl_path):
         pass
 
 def sanitize(cmd):
+    if not isinstance(cmd, str):
+        cmd = str(cmd) if cmd else ''
     cmd = re.sub(r'--password\s+\S+', '--password ***', cmd)
     cmd = re.sub(r'--token\s+\S+', '--token ***', cmd)
     cmd = re.sub(r'--secret\s+\S+', '--secret ***', cmd)
@@ -80,6 +82,10 @@ def sanitize(cmd):
     # P0.1: Mask long base64 tokens (32+ chars from secrets.token_urlsafe)
     cmd = re.sub(r'(?:sk-|ghp_|xoxb-|xapp-)[a-zA-Z0-9_\-]{20,}', '***REDACTED***', cmd)
     cmd = re.sub(r'(?:eyJ[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{10,})', '***JWT***', cmd)
+    # DG-008-v3: Sanitize lone surrogate escape sequences before writing to jsonl
+    cmd = re.sub(r'\\*\\u[Dd][89a-fA-F][0-9a-fA-F]{2}', 'U+FFFD', cmd)
+    # DG-008-v4: Strip actual lone surrogate codepoints (json.dumps escapes them as \uDxxx)
+    cmd = ''.join(c for c in cmd if not 0xD800 <= ord(c) <= 0xDFFF)
     return cmd
 
 def classify(cmd):

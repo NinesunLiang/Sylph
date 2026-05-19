@@ -489,10 +489,14 @@ hc_emit_hook_json() {
     export _HC_EVENT_NAME="${1:-PostToolUse}"
     export _HC_CONTINUE_VAL="${2:-true}"
     python3 -c "
-import os, sys, json
+import os, sys, json, re
 event = os.environ.get('_HC_EVENT_NAME', 'PostToolUse')
 continue_val = os.environ.get('_HC_CONTINUE_VAL', 'true')
 text = sys.stdin.buffer.read().decode('utf-8', errors='replace')
+# DG-88 root fix: strip lone surrogates AND literal \uDxxx escape sequences
+# before JSON serialization to prevent API 400 'lone leading surrogate' errors
+text = ''.join(c for c in text if not 0xD800 <= ord(c) <= 0xDFFF)
+text = re.sub(r'\\\\*\\\\u[Dd][89a-fA-F][0-9a-fA-F]{2}', 'U+FFFD', text)
 result = {
     'continue': continue_val == 'true',
     'hookSpecificOutput': {
@@ -500,24 +504,91 @@ result = {
         'additionalContext': text.strip()
     }
 }
-print(json.dumps(result, ensure_ascii=False))
+# Use ensure_ascii=True to force-escape all non-ASCII (defensive: cannot emit surrogates)
+print(json.dumps(result, ensure_ascii=True))
 "
 }
 
 # ── UTF-8 sanitization pipe ──
 # Usage: cat "$file" | hc_sanitize_utf8
-# Replaces invalid UTF-8 bytes with U+FFFD, strips lone surrogates.
+# Replaces invalid UTF-8 bytes with U+FFFD, strips lone surrogates
+# AND replaces literal \uDxxx escape sequences (DG-007/008/009 recurrence fix:
+# these 6-byte ASCII sequences in text get serialized to JSON as lone surrogate
+# escapes and cause API 400 errors).  Uses heredoc to avoid shell escaping hell.
+#
+# DG-008-v2 (2026-05-18): Previous regex only matched single-backslash \uDxxx,
+# missing double-backslash \\uDxxx from JSON-decoded injection sources.
+# When \\\\uDxxx (JSON-encoded) → json.load → \\uDxxx (double backslash literal)
+# → API re-serialization → \\uDxxx → DeepSeek parser sees \uDxxx as surrogate escape.
+#
+# DG-008-v3 (2026-05-18): v1 regex had [Dd] outside capture group + 4 hex chars
+# in group = 5 hex chars total, but U+D800 has only 4 (D+800). Regex NEVER matched
+# — sanitizer was dead code since inception. Fix: move [Dd] INTO capture group so
+# it captures 4 hex chars (D/d + 3 more), replace all with U+XXXX.
 hc_sanitize_utf8() {
-    python3 -c "
-import sys
-text = sys.stdin.buffer.read().decode('utf-8', errors='replace')
-# Strip lone surrogates (U+D800..U+DFFF) — they are valid Unicode code
-# points but NOT valid characters.  Python's UTF-8 decoder rejects their
-# byte encoding (W3C spec), but they can appear after intermediate steps
-# that roundtrip through text, and they break json.dumps / API JSON parsers.
+    local _hc_input _hc_source
+    _hc_input=$(cat)
+    _hc_source="${1:-unknown}"  # optional: caller can pass source hint
+    _HC_INPUT="$_hc_input" _HC_SOURCE="$_hc_source" python3 <<'PYEOF'
+import os, sys, re, json
+from datetime import datetime, timezone
+
+text = os.environ.get('_HC_INPUT', '')
+source = os.environ.get('_HC_SOURCE', 'unknown')
+
+# Strip lone surrogates (U+D800..U+DFFF)
+original_len = len(text)
 text = ''.join(c for c in text if not 0xD800 <= ord(c) <= 0xDFFF)
+surrogate_stripped = original_len - len(text)
+
+# Replace \uDxxx escape sequences with safe U+XXXX notation
+# Log each replacement to sanitizer-log.jsonl
+replacements = []
+
+def replace_and_log(m):
+    matched = m.group(0)
+    hex_val = m.group(1).upper()
+    safe = 'U+' + hex_val
+    ctx_start = max(0, m.start() - 20)
+    ctx_end = min(len(text), m.end() + 20)
+    ctx = text[ctx_start:ctx_end].replace('\n', '\\n')
+    # Store match using safe U+ notation to avoid self-contamination (DG-009)
+    safe_match = 'U+' + hex_val
+    replacements.append({
+        'ts': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'source': source,
+        'match_hex': hex_val,
+        'replacement': safe,
+        'position': m.start(),
+        'context': re.sub(r'\\u[Dd][89a-fA-F][0-9a-fA-F]{2}',
+                          lambda x: 'U+' + x.group()[2:].upper(), ctx)
+    })
+    return safe
+
+text = re.sub(r'\\*\\u([Dd][89a-fA-F][0-9a-fA-F]{2})', replace_and_log, text)
+
+# Write sanitizer log if any replacements made
+if replacements or surrogate_stripped > 0:
+    log_dir = os.path.join(os.environ.get('PROJECT_ROOT', ''), '.omc/state')
+    if not log_dir or not os.path.isdir(log_dir):
+        log_dir = os.path.expanduser('~/.claude')
+    os.makedirs(log_dir, exist_ok=True)
+    log_path = os.path.join(log_dir, 'sanitizer-log.jsonl')
+    log_entry = {
+        'ts': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'source': source,
+        'surrogate_chars_stripped': surrogate_stripped,
+        'text_replacements': len(replacements),
+        'details': replacements[:50]  # cap at 50 to avoid log bloat
+    }
+    try:
+        with open(log_path, 'a') as f:
+            f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+    except:
+        pass  # silent fail if can't write log
+
 sys.stdout.write(text)
-"
+PYEOF
 }
 
 # ── Flywheel event logging (for ROI measurement) ──

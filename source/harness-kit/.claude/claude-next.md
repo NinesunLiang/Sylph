@@ -62,7 +62,7 @@
 
 @2026-05-17 hits:1
 触发条件：当 jsonl/json 文件中存在需要修改的字面文本时
-正确行为：不要用字符串替换操作修改 JSON 文件内容。正确做法：parse JSON → 递归修改 decoded Python 对象中的字符串值 → json.dumps 重新序列化。JSON 中 `\\uD800`（valid escaped）和 `U+D800`（invalid escape）在原始字节层面有不同数量的反斜杠，raw text replace 容易只替换部分导致残留
+正确行为：不要用字符串替换操作修改 JSON 文件内容。正确做法：parse JSON → 递归修改 decoded Python 对象中的字符串值 → json.dumps 重新序列化。JSON 中 `U+D800`（valid escaped）和 `U+D800`（invalid escape）在原始字节层面有不同数量的反斜杠，raw text replace 容易只替换部分导致残留
 证据：修复 lone surrogate API 400 错误时，raw text replace 在 transcript 遗留 13 处未替换，改用 JSON roundtrip 后一次清除
 
 ### 🐶 [DG-008] 跨 session bug 需追踪 hook 注入链 —— error-signals 是隐藏传播源 (@lucas.liang)
@@ -74,10 +74,10 @@
 
 ### 🐶 [DG-009] AI 诊断输出会自指复现 bug —— 避免在诊断文本中引用 bug 模式 (@lucas.liang)
 
-@2026-05-17 hits:1
+@2026-05-18 hits:2
 触发条件：AI assistant 在诊断问题时，回复中包含与 bug 模式相同的字面文本
-正确行为：诊断时避免在回复中直接包含触发 bug 的字面文本。使用替代表示法（如用 `U+D800` 表示代理对字符，`&lt;` 代替 `<` 等），防止"解释 bug → 回复中包含 bug 模式 → 下轮请求触发同一个 bug"的自指循环
-证据：assistant 回复"孤立的 `U+D800` 这类东西" → 该回复被序列化到下一轮 API 请求 → 触发同一个 lone surrogate 错误
+正确行为：诊断时避免在回复中直接包含触发 bug 的字面文本。使用替代表示法（如用 `U+D800` 表示代理对字符，`&lt;` 代替 `<` 等），防止"解释 bug → 回复中包含 bug 模式 → 下轮请求触发同一个 bug"的自指循环。**即使 `U+D800` 看似安全（6 个 ASCII 字符），DeepSeek API bridge 的序列化链路会将无转义的反斜杠吞掉，使 `U+D800` 字面文本被 JSON parser 解释为孤代理转义**
+证据：2026-05-18: 本对话 3 轮连续触发。AI 修复 DG-008-v4 后在验证报告中大量使用 `U+D800`/`U+D800` 字面量，20 分钟后同一会话触发 same error（messages[16].content[3].text）。**即使使用 `U+D800`（不带反斜杠）也可能触发**，因为风险不在你是否写反斜杠，而在 API bridge 是否吃掉了反斜杠。**最佳策略：讨论 Unicode 问题时全程使用 `U+xxxx` 或 `0xD800` 等不包含 `\u` 序列的纯字母数字表示法**
 
 ### 🐶 [DG-86] Oracle 超时必须有降级协议 — 不能直接跳自检代替裁决 (@LuangSir)
 
@@ -88,15 +88,29 @@
 
 ### 🐶 [DG-87] Meta-Oracle agent 执行路径需要 API bug fallback — 手动方法论降级路径 (@LuangSir)
 
-@2026-05-17 hits:1
+@2026-05-18 hits:2
 触发条件：Meta-Oracle agent 因 API 级错误（lone surrogate / context overflow 等）无法完成时
 正确行为：Meta-Oracle agent 失败 → 不放弃终审 → 降级为手动执行 Meta-Oracle 运行时方法论：(1) 独立逐项验证而非依赖 agent 上下文 (2) 运行时验证 > 静态检查 (3) 对抗性审查 > 合规检查 (4) 裁决留痕到 meta-oracle-verdicts.md
-证据：Meta-Oracle agent 遭遇 lone surrogate API 400 错误（DG-007 同类），agent 上下文过大导致 JSON 序列化失败。手动执行方法论完成 ADVISORY 裁决（C/E/G 加权 7.62/10）
+证据：2026-05-18: Meta-Oracle agent 再次遭遇 lone surrogate API 400 错误，11 次 tool_use 后 API serialization 失败。按 DG-87 fallback 手动完成评分。本次评分结果：C 8.78/10, E 7.96/10, 治理 8.07/10, 综合 8.37/10
+
+### 🐶 [DG-88] json.dumps(ensure_ascii=False) 产出 \\uDxxx 被 DeepSeek parser 拒绝 — 需在 json.dumps 前 strip 代理对实际字符 (@LuangSir)
+
+@2026-05-18 hits:1
+触发条件：error-dna.sh / stop-drain.sh 中使用 json.dumps(record, ensure_ascii=False) 写入 JSONL 时，record 中存在 U+D800..U+DFFF 字符
+正确行为：json.dumps 无论如何（ensure_ascii=True/False）都会将 U+D800..U+DFFF 序列化为 \\uDxxx。这不是 text replace 能覆盖的（text replace 防的是字面 `\uDxxx` 文本模式），必须 **在 json.dumps 调用前 strip 代理对字符**：`''.join(c for c in s if not 0xD800 <= ord(c) <= 0xDFFF)`
+证据：error-dna.sh 和 stop-drain.sh 已有针对字面 `\\uDxxx` 文本的 regex sanitizer（DG-008-v3），但从未被触发（sanitizer-log.jsonl 不存在）。实际问题是模型产出含实际 U+D800 字符，json.dumps 序列化产生 `\\uDxxx` 转义。修复：添加 `_strip_surrogates()` 函数在 json.dumps 前 strip 所有代理对字符。修了 error-dna.sh + stop-drain.sh，同步到 source/harness-kit
 
 ---
 
 ### [2026-05-17] 用户纠正: 不对
 @2026-05-17 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+
+
+### [2026-05-18] 用户纠正: 不对
+@2026-05-18 hits:1
 **触发场景**：检测到纠正信号「不对」（你错了，这个不对）
 **问题**：（待本对话补充具体纠正内容）
 **纠正**：（AI 完成任务前应引用此记录并补充根因分析）

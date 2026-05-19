@@ -159,6 +159,7 @@ else:
             if [ "$_MODE" != "normal" ]; then
                 echo "[pretool-retry-check] 自主模式: E4 诊断门禁跳过" >&2
             else
+                flywheel_event "pretool_retry_check" "e4_gate_blocked" "P2" || true
                 agentic_menu \
                     "E4 Inertia Gate" \
                     "重试接近上限，但未检测到诊断分析: ${E4_NEAR_LIMIT}

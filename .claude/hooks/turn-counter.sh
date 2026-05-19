@@ -340,4 +340,5 @@ if [ -n "$CTX_PCT" ]; then
     fi
 fi
 
+flywheel_event "turn_counter" "turn_counted" "P2" "turn_${new_count:-?}_ctx_${CTX_PCT:-?}%"
 exit 0

@@ -78,4 +78,5 @@ LSP 工具可精确定位（无噪音），推荐：
 EOF
 
 echo '{"continue": true}'
+flywheel_event "lsp_suggest" "lsp_suggestion" "P2" "suggested_lsp_alternative"
 exit 0

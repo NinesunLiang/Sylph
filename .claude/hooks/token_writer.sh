@@ -280,4 +280,5 @@ EOF
 if [ "${1:-}" = "--reset" ] || [ "${1:-}" = "--increment" ]; then
     echo '{"continue": true}'
 fi
+flywheel_event "token_writer" "token_written" "P2" "written"
 exit 0

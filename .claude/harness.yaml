@@ -99,16 +99,17 @@ hooks_enabled:
   posttool_edit_quality: true
   posttool_handoff_writer: true
   posttool_output_format: true
-  posttool_read_cite: false
+
   posttool_subagent_audit: true
   posttool_write_cite: true
   posttool_write_lock: true
   pre_completion_gate: true
+  pre_ask_guard: true
   pretool_edit_scope: true
   pretool_sensitive_edit: true
   pretool_write_lock: true
   privacy_gate: true
-  proactive_handoff: false
+
   read_tracker: true
   retry_budget_check: true
   skill_flywheel: true

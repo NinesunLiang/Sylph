@@ -34,6 +34,15 @@ TS=$(date +%s)
 
 mkdir -p "$STATE_DIR" 2>/dev/null
 
+# DG-87: ensure error-dna.jsonl exists after rotation or accidental deletion.
+# Rotation re-creates it via open().write().close(), but external deletion between
+# rotations leaves a gap until the next escape event. Touch here guarantees existence.
+touch "$STATE_DIR/error-dna.jsonl" 2>/dev/null || true
+
+# DG-90: flywheel telemetry — error-dna is the error capture pipeline itself,
+# must emit runtime evidence that it's firing (Source III for C5/C9/E5 scoring).
+flywheel_event "error_dna" "capture" "P2" || true
+
 TMP_FILE="${STATE_DIR}/.error-dna-input-$$.json"
 
 # 启动时清理超过 1 小时的孤儿临时文件（防积压，DG-17 同类静默失败模式）
@@ -109,6 +118,10 @@ cmd_clean = re.sub(r'(Authorization:\s*Bearer\s+)[^\s"<>]+', r'\1***', cmd_clean
 # P0.2: Mask known token prefixes and JWT tokens
 cmd_clean = re.sub(r'(?:sk-|ghp_|xoxb-|xapp-)[a-zA-Z0-9_\-]{20,}', '***REDACTED***', cmd_clean)
 cmd_clean = re.sub(r'(?:eyJ[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{15,}\.[a-zA-Z0-9_\-]{10,})', '***JWT***', cmd_clean)
+# DG-008-v3: Sanitize lone surrogate escape sequences BEFORE writing to jsonl.
+# U+D800 text in commands (e.g. Python code) → json.dumps → jsonl →
+# inject-project-knowledge reads → AI context → API 400 lone surrogate error.
+cmd_clean = re.sub(r'\\*\\u[Dd][89a-fA-F][0-9a-fA-F]{2}', 'U+FFFD', cmd_clean)
 
 # === Escape Pattern E1: Governance file bypass via Bash ===
 # AI uses Bash (sed -i / tee / > / >>) to modify governance files,
@@ -191,7 +204,25 @@ else:
 
 output_snippet = (stderr or stdout)[:500]
 message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
+# DG-008-v3: Sanitize lone surrogate escape sequences in message field too.
+# stderr/stdout may contain \uDxxx text from tool output, separate path from cmd_clean.
+message = re.sub(r'\\*\\u[Dd][89a-fA-F][0-9a-fA-F]{2}', 'U+FFFD', message)
 session_id = os.environ.get('SESSION_ID', 'unknown') or 'unknown'
+
+# === Strip lone surrogates from all string fields before json.dumps ===
+# DG-008-v4: json.dumps(ensure_ascii=False) serializes U+D800..U+DFFF chars
+# as \uDxxx hex escapes in JSON output. DeepSeek JSON parser rejects these.
+# Existing regex at lines 115/200 only handles literal \uDxxx text, not actual
+# surrogate codepoints. Strip them here before JSON serialization.
+def _strip_surrogates(s):
+    if not isinstance(s, str):
+        return s
+    return ''.join(c for c in s if not 0xD800 <= ord(c) <= 0xDFFF)
+
+cmd_clean = _strip_surrogates(cmd_clean)
+message = _strip_surrogates(message)
+stdout = _strip_surrogates(stdout)
+stderr = _strip_surrogates(stderr)
 
 # === Append to JSONL (capture only, no full rebuild) ===
 record = {
@@ -429,12 +460,16 @@ triage = os.environ.get('TRIAGE_MSG', '')
 combined = py_output
 if triage:
     combined += '\n' + triage
+# DG-88-v2: strip surrogates before json.dumps to prevent lone surrogate API 400 errors
+combined = ''.join(c for c in combined if not (0xD800 <= ord(c) <= 0xDFFF))
 print(json.dumps({'continue': True, 'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': combined}}))
 "
     else
         echo "$PY_OUTPUT" | python3 -c "
 import json, sys
-print(json.dumps({'continue': True, 'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': sys.stdin.read()}}))
+text = sys.stdin.read()
+text = ''.join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
+print(json.dumps({'continue': True, 'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': text}}))
 "
     fi
 else

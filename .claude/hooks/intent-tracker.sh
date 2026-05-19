@@ -181,10 +181,14 @@ if contradiction_level >= 2:
            f": 文件 {file_path} "
            f"本会话第 {edit_count} 次编辑{'，内容回退到历史版本' if revert_of_hash else '，高频改动'}"
            f"{history_summary}。{resolution}")
-    print(json.dumps({"continue": True, "hookSpecificOutput": {"additionalContext": ctx}}))
+    # DG-88-v2: strip surrogates before json.dumps
+ctx = ''.join(c for c in ctx if not (0xD800 <= ord(c) <= 0xDFFF))
+print(json.dumps({"continue": True, "hookSpecificOutput": {"additionalContext": ctx}}))
 PYEOF
 
-# M2: contradiction-log rotation (>512KB → archive, keep 3)
+flywheel_event "intent_tracker" "recorded" "P2" || true
+
+	# M2: contradiction-log rotation (>512KB → archive, keep 3)
 _clog_size=$(wc -c < "$CONTRADICTION_LOG" 2>/dev/null | tr -d ' ')
 if [ "$_clog_size" -gt 524288 ] 2>/dev/null; then
     _clog_ts=$(date +%s)

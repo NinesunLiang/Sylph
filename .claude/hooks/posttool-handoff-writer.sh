@@ -149,4 +149,5 @@ if [ -n "$ACTIVE_FEATURE" ]; then
 fi
 
 echo '{"continue": true}'
+flywheel_event "posttool_handoff_writer" "handoff_written" "P2" "written"
 exit 0

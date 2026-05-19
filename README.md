@@ -142,3 +142,5 @@ curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh 
 ---
 
 **"把 DevOps 演进为 AIOps 的最后一公里，不是提升 AI 的智商上限，而是用纪律死死锁住它的破坏下限。"**
+
+> Carror OS 不承诺"AI 永远不会犯错" — 它承诺"每次犯错都会被逮到，每次被逮到都会变得更强"。

@@ -72,6 +72,7 @@ if [[ $exit_code -ne 0 ]]; then
 	    exit 0
 fi
 
+flywheel_event "pretool_write_lock" "acquired" "P2" || true
 # 成功抢到锁，由于标准输出被 Claude Code 捕获，此处静默退出
 echo '{"continue": true}'
 exit 0

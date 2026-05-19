@@ -55,7 +55,8 @@ JSON
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
         echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
-        echo "   调用 /loop ${INTERVAL}s lx-ghost poll 驱动探索轮次"
+        echo "   ⚠️  必须立即执行 CronCreate 注册轮询（不可跳过）:"
+        echo "     CronCreate cron='*/N * * * *' prompt='...'  — 协议 Step 0.5.3 硬步骤"
         echo "   或 /lx-ghost on \"继续\" — 在同一次会话内继续探索"
         echo ""
         # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）

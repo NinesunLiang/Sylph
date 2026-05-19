@@ -210,4 +210,5 @@ if [ -n "$_PY_ANOMALY" ]; then
 fi
 
 echo "$MSG" | hc_emit_hook_json "PostToolUse" "true"
+flywheel_event "posttool_edit_quality" "quality_checked" "P2" "checked"
 exit 0

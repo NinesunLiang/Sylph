@@ -651,7 +651,7 @@ fi
 TOTAL=$((TOTAL+1))
 
 # P1-1 R26 audit-hooks --scan-internal-filter: 脚本内白名单 vs matcher 漂移扫描应 0 🟡
-# 注：3 个 🟡 为预期设计（plan-gate / posttool-read-cite / proactive-handoff
+# 注：2 个 🟡 为预期设计（plan-gate / posttool-read-cite）
 # 已注册但禁用，Base 版可用但默认不激活），允许 ≤3 个预期 🟡
 SCAN_OUT=$(bash .claude/scripts/audit-hooks.sh --scan-internal-filter 2>&1)
 YELLOW_COUNT=$(echo "$SCAN_OUT" | grep -E '🟡 次要:' | grep -oE '[0-9]+' | head -1)
@@ -1199,6 +1199,13 @@ rm -f .omc/state/error-dna.jsonl .omc/state/total-ops.txt .omc/state/retry-budge
 log ""
 log "========== E2E-4: 格式化门禁 -- TaskUpdate 无结构输出应收到格式提示 =========="
 
+# Mode suppression: 临时重命名 autonomous 信号文件，使 format-gate 正常执行
+# (goal/ghost mode 下 format-gate 会直接 exit 0，跳过格式检查)
+E2E4_MODE_FILES=()
+for _f in .omc/state/autonomous.active .omc/state/lx-goal.json .omc/state/lx-ghost.json .omc/state/ghost-mode.active; do
+    [ -f "$_f" ] && E2E4_MODE_FILES+=("$_f") && mv "$_f" "${_f}.smoke-bak" 2>/dev/null
+done
+
 TOTAL=$((TOTAL+1))
 E2E4_OUT="/tmp/smoke-e2e4-$$.out"
 echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_response":{"result":"Just plain unstructured text with no direction or summary at all"}}' | \
@@ -1217,6 +1224,13 @@ else
     fail "E2E-4 step 2: 输出不含格式反馈"
 fi
 rm -f "$E2E4_OUT"
+
+# Restore mode signal files
+if [ "${#E2E4_MODE_FILES[@]}" -gt 0 ]; then
+    for _f in "${E2E4_MODE_FILES[@]}"; do
+        mv "${_f}.smoke-bak" "$_f" 2>/dev/null
+    done
+fi
 
 # --------------- E2E-5: Stop 持久化链 (auto-snapshot + session-handoff) ---------------
 log ""
