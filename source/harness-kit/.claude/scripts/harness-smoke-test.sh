@@ -710,7 +710,7 @@ run_case "R29 token_writer: --reset 应设 usage=0" \
   '' \
   "token_writer.sh" 0 ""
 # token_writer without args is a no-op for default values; use --reset
-bash .claude/hooks/token_writer.sh --reset 2>/dev/null
+echo "" | bash .claude/hooks/token_writer.sh --reset 2>/dev/null
 if [ -f .omc/state/token-tracking-index.json ]; then
     USAGE=$(python3 -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', -1))" 2>/dev/null)
     if [ "$USAGE" = "0" ]; then
@@ -726,7 +726,7 @@ TOTAL=$((TOTAL+1))
 run_case "R29 token_writer: --increment 应递增 usage" \
   '' \
   "token_writer.sh" 0 ""
-bash .claude/hooks/token_writer.sh --increment 2>/dev/null
+echo "" | bash .claude/hooks/token_writer.sh --increment 2>/dev/null
 if [ -f .omc/state/token-tracking-index.json ]; then
     USAGE=$(python3 -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', 0))" 2>/dev/null)
     if [ "$USAGE" -gt 0 ]; then

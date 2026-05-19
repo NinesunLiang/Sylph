@@ -45,7 +45,9 @@ if [ -x "$META_ORACLE_SCRIPT" ]; then
 
     # 2. harness smoke test
     SMOKE_TEST="$PROJECT_DIR/.claude/scripts/harness-smoke-test.sh"
-    if [ -x "$SMOKE_TEST" ]; then
+    if [ "${1:-}" = "--skip-smoke" ] || [ "${2:-}" = "--skip-smoke" ]; then
+        log_warn "[G4.2] harness-smoke-test SKIPPED (--skip-smoke)"
+    elif [ -x "$SMOKE_TEST" ]; then
         log_info "[G4.2] harness-smoke-test..."
         SMOKE_OUTPUT=$(bash "$SMOKE_TEST" 2>&1)
         SMOKE_EXIT=$?

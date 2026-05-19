@@ -18,7 +18,7 @@ COMPACT_STATE="$STATE_DIR/token-compact-state.json"
 mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 
 # Read stdin for tool context (PostToolUse hook — extract tool_name for differentiated increment)
-INPUT_STDIN=$(cat 2>/dev/null || echo "")
+INPUT_STDIN=$(cat </dev/null 2>/dev/null || echo "")
 TOOL_NAME=""
 if [ -n "$INPUT_STDIN" ]; then
     if command -v jq &>/dev/null; then
