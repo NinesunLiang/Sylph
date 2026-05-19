@@ -136,6 +136,16 @@
     ],
     "PostToolUse": [
       {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/skill-usage-tracker.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
         "matcher": "TaskUpdate",
         "hooks": [
           {
@@ -414,13 +424,7 @@
         ]
       },
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/skill-usage-tracker.sh",
-            "timeout": 2000
-          }
-        ]
+        "hooks": []
       }
     ]
   },

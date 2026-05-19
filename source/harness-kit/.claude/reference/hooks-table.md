@@ -1,4 +1,4 @@
-## Hooks 速查（共 39 个）
+## Hooks 速查（共 40 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -27,6 +27,7 @@
 |`posttool-subagent-audit` | PostToolUse | posttool-subagent-audit.sh — PostToolUse:Task — 子 agent 执行后审计 content 用量，超限告警|
 |`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式|
 |`posttool-write-lock` | PostToolUse | posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁|
+|`pre-ask-guard` | PreToolUse | pre-ask-guard.sh — PreToolUse:AskUserQuestion — 问人前强制过决策链四层评估|
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
@@ -40,12 +41,3 @@
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
 |`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
 |`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|
-
-### 已注册但默认禁用的脚本（共 2 个）
-
-以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
-
-| 脚本 | 事件 | 说明 |
-|------|------|------|
-
-| proactive-handoff | (未注册) | proactive-handoff.sh — PostToolUse:Write|Edit — 主动会话交接（上下文阈值触发） |

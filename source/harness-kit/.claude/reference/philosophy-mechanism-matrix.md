@@ -140,7 +140,7 @@
 | `lx-oma-gov-resolve.sh` | 脚本 | `.claude/scripts/lx-oma-gov-resolve.sh` | L3冲突裁决人工参与 | ✅ |
 | `lx-oma-gov-human-check.sh` | 脚本 | `.claude/scripts/lx-oma-gov-human-check.sh` | 人工验收清单 | ✅ |
 
-**物化充足度**: ✅ 充分 — 但proactive-handoff.sh默认关闭降低了"方向感优先"的覆盖率
+**物化充足度**: ✅ 充分 — 已删除 proactive-handoff.sh (2026-05-19)
 
 ---
 
@@ -183,7 +183,7 @@
 | `kernel.md 宪法冻结` | 规则 | `.claude/kernel.md:7-12` | 冻结后不可随意扩展 | ✅ |
 | `lx-oma-orch` | Skill | `.claude/skills/lx-oma-orch/` | 管线原子化编排 | ✅ |
 | `lx-goal/ghost` | Skill | `.claude/skills/lx-goal/`,`lx-ghost/` | 无人值守渐进执行 | ✅ |
-| `proactive-handoff.sh` | Hook | `.claude/hooks/proactive-handoff.sh` | 上下文阈值交接(#5方向感) | ⚠️默认关闭 |
+| `proactive-handoff.sh` | Hook | ~~已删除 (2026-05-19)~~ | 上下文阈值交接(#5方向感) | ❌已删除 |
 
 **物化充足度**: ✅ 充分 — 8+ 直接机制，R39注入预算主动控制
 
@@ -230,7 +230,7 @@
 | `ecosystem-probe.sh` | #7, #3 | #6(P) | ✅ |
 | `flywheel-report.sh` | #1, #5 | — | ✅ |
 | `knowledge-condenser.sh` | #1, #2, #7 | — | ✅ |
-| `proactive-handoff.sh` | #1, #5, #7 | #8(P) | ⚠️默认关闭 |
+| `proactive-handoff.sh` | #1, #5, #7 | #8(P) | ❌已删除 |
 | `read-tracker.sh` | #6 | #1(A) | ✅ |
 | `pre-ask-guard.sh` | #5, #8 | #2(U) | ✅ — 问人前强制过决策链四层 |
 | `pretool-user-correction.sh` | #5, #7 | #2(U) | ✅ |
@@ -354,7 +354,7 @@
 | 1 | 🔴 CRITICAL | 铁律编号不一致 — index.md 与 AGENTS.md 定义不同的8条铁律 | 以 AGENTS.md 为权威源，同步 index.md |
 | 2 | 🟡 MAJOR | 逆向追溯矩阵覆盖率仅 ~16% (16/99机制) | ✅ 本文档已修复 |
 | 3 | 🟡 MAJOR | Skills 层无哲学声明 — SKILL.md 几乎从不提及哲学 | 建议：新增 skill 时在 SKILL.md 加哲学归属行 |
-| 4 | 🟡 MAJOR | plan-gate.sh + proactive-handoff.sh 默认关闭 | 评估是否应默认开启以完成哲学物化 |
+| 4 | ✅ RESOLVED | plan-gate.sh 默认关闭 (评估: 保持) + ~~proactive-handoff.sh~~ 已删除 (2026-05-19) |
 | 5 | 🟢 MINOR | B1(过度工程)反模式仅有文档约定，无hook自动化检测 | 考虑在posttool-anti-pattern-detect.sh增加B1检测 |
 | 6 | 🟢 MINOR | 交互原则(#5下属原则)无独立hook | 已由agentic-ui.sh+posttool-format-gate.sh覆盖，可接受 |
 
@@ -377,7 +377,7 @@
 | #6 0信任 | 16 | 9.0/10 | 广泛覆盖 |
 | #3 先守护 | 17 | 8.5/10 | 几乎所有hook含防御 |
 | #7 文档优先 | 18 | 8.0/10 | plan-gate默认关闭扣分 |
-| #5 以人为本 | 13 | 8.0/10 | proactive-handoff默认关闭扣分 |
+| #5 以人为本 | 12 | 8.5/10 | proactive-handoff已删除，扣分项移除 |
 | #2 少量大增益 | 13 | 7.5/10 | B1无自动化检测扣分 |
 | #1 Less is More | 14 | 8.5/10 | R39注入预算主动控制 |
 

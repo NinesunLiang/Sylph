@@ -19,6 +19,18 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 # source harness_config for hc_get defaults
 source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 
+# Sanitize output to prevent JSON encoding errors from surrogate pairs and control characters
+sanitize_output() {
+    local input="$1"
+    echo "$input" | LC_ALL=C sed 's/[\x00-\x1F\x7F]//g' | python3 -c '
+import sys
+text = sys.stdin.read()
+# Strip surrogate characters (U+D800..U+DFFF) — must use ord() range check, not raw string \u escapes
+text = ''.join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
+print(text, end="")
+'
+}
+
 MODE_FILE="$STATE_DIR/lx-goal.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
@@ -31,32 +43,51 @@ case "${1:-status}" in
     on)
         GOAL="${2:-目标任务未指定}"
         EXPIRY_HOURS="${3:-$(hc_get "goal_mode.default_expiry_hours" "6")}"
-        EXPIRES=$(python3 -c "from datetime import datetime,timedelta; print((datetime.now()+timedelta(hours=$EXPIRY_HOURS)).isoformat())" 2>/dev/null)
-        tmp="${MODE_FILE}.tmp.$$"
-        cat > "$tmp" <<JSON
-{
-  "active": true,
-  "mode": "goal",
-  "goal": "$GOAL",
-  "expires_at": "$EXPIRES",
-  "activated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "retry_count": 0,
-  "skipped_risks": [],
-  "completed_tasks": [],
-  "hard_boundary_hits": [],
-  "blocked_human": []
+        # DG-007 安全修复: 用 json.dumps 序列化而非 heredoc 裸拼接
+        # 避免 goal 中的换行/引号/特殊字符破坏 JSON 结构
+        export _LX_GOAL="$GOAL"
+        export _LX_EXPIRY_HOURS="$EXPIRY_HOURS"
+        export _LX_MODE_FILE="$MODE_FILE"
+        python3 <<'PYEOF'
+import json, os
+from datetime import datetime, timedelta, timezone
+
+goal = os.environ['_LX_GOAL']
+expiry_hours = int(os.environ['_LX_EXPIRY_HOURS'])
+mode_file = os.environ['_LX_MODE_FILE']
+expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
+
+data = {
+    "active": True,
+    "mode": "goal",
+    "goal": goal,
+    "expires_at": expires,
+    "activated_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "retry_count": 0,
+    "skipped_risks": [],
+    "completed_tasks": [],
+    "hard_boundary_hits": [],
+    "blocked_human": []
 }
-JSON
-        mv -f "$tmp" "$MODE_FILE" 2>/dev/null
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+os.rename(tmp, mode_file)
+PYEOF
         # 清理旧格式
         rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
         touch "$STATE_DIR/autonomous.active"
-        echo "✅ 目标模式已开启 — 目标: $GOAL, ${EXPIRY_HOURS}h 过期"
+        echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   任务逐项标记: lx-goal task-done \"完成项描述\""
         echo "   完成后输出报告: lx-goal report"
         echo ""
+        # Scope-from-Goal: 自动推导文件范围，注入 pretool-edit-scope 的 current-scope.txt
+        # 意志延伸的物理物化 — 目标激活时自动限定编辑范围（Meta-Oracle scope-from-goal 方案）
+        bash "$PROJECT_ROOT/.claude/scripts/auto-scope.sh" 2>/dev/null || true
+
         # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）
         DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
         if [ -f "$DECISION_CHAIN" ]; then
@@ -85,7 +116,7 @@ JSON
             HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
             RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
             echo "📋 目标模式 (lx-goal): 🟢 开启中"
-            echo "   目标: $GOAL"
+            echo "   目标: $(sanitize_output "$GOAL")"
             echo "   过期: $EXP"
             BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
             echo "   已完成: $DONE  跳过风险: $SKIP  硬边界: $HARD  推迟决策: $BLOCKED  重试: $RETRY"
@@ -192,7 +223,7 @@ for t in tasks:
             echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
             echo ""
             echo "## 目标"
-            echo "$GOAL"
+            echo "$(sanitize_output "$GOAL")"
             echo ""
             echo "## 基本信息"
             echo "- 激活时间: $ACTIVATED"
@@ -306,7 +337,7 @@ except: print('no')" 2>/dev/null)
         HARD=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
         RETRY=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
         echo "🔄 目标轮询 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-        echo "   目标: $GOAL"
+        echo "   目标: $(sanitize_output "$GOAL")"
         echo "   已完成: $DONE  已跳过风险: $SKIP  硬边界: $HARD  重试次数: $RETRY"
 
         # 集成 retry-budget.sh 状态检查
@@ -337,24 +368,28 @@ except: print('no')" 2>/dev/null)
                 exit 1
             fi
         fi
-        TS=$(python3 -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
-        _TASK_JSON=$(python3 -c "import json; print(json.dumps({'description':'$DESCRIPTION','timestamp':'$TS'}))" 2>/dev/null)
-        python3 -c "
+        export _LX_DESC="$DESCRIPTION"
+        export _LX_TASK_FILE="$TASK_FILE"
+        python3 <<'PYEOF'
 import json, os
-file = '$TASK_FILE'
+from datetime import datetime
+
+desc = os.environ['_LX_DESC']
+task_file = os.environ['_LX_TASK_FILE']
+
 try:
-    d = json.load(open(file))
+    d = json.load(open(task_file))
 except:
     d = {}
 tasks = d.get('completed_tasks', [])
-tasks.append(${_TASK_JSON:-'{}'})
+tasks.append({'description': desc, 'timestamp': datetime.now().isoformat()})
 d['completed_tasks'] = tasks
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+tmp = task_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null
-        echo "✅ 已标记任务完成: $DESCRIPTION"
+os.rename(tmp, task_file)
+PYEOF
+        echo "✅ 已标记任务完成: $(sanitize_output "$DESCRIPTION")"
         ;;
 
     skip-risk)
@@ -369,18 +404,25 @@ os.rename(tmp, file)
                 exit 1
             fi
         fi
-        python3 -c "
+        export _LX_DESC="$DESCRIPTION"
+        export _LX_TASK_FILE="$TASK_FILE"
+        python3 <<'PYEOF'
 import json, os
-file = '$TASK_FILE'
-d = json.load(open(file))
+from datetime import datetime, timezone
+
+desc = os.environ['_LX_DESC']
+task_file = os.environ['_LX_TASK_FILE']
+
+d = json.load(open(task_file))
 risks = d.get('skipped_risks', [])
-risks.append({'description': '$DESCRIPTION', 'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'})
+risks.append({'description': desc, 'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
 d['skipped_risks'] = risks
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+tmp = task_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "📝 已记录跳过的风险: $DESCRIPTION" || echo "❌ 记录失败"
+os.rename(tmp, task_file)
+PYEOF
+        echo "📝 已记录跳过的风险: $(sanitize_output "$DESCRIPTION")"
         ;;
 
     hard-boundary-hit)
@@ -398,23 +440,34 @@ os.rename(tmp, file)
                 exit 1
             fi
         fi
-        python3 -c "
+        export _LX_DESC="$DESCRIPTION"
+        export _LX_REASON="$REASON"
+        export _LX_HUMAN_ACTION="$HUMAN_ACTION"
+        export _LX_TASK_FILE="$TASK_FILE"
+        python3 <<'PYEOF'
 import json, os
-file = '$TASK_FILE'
-d = json.load(open(file))
+from datetime import datetime, timezone
+
+desc = os.environ['_LX_DESC']
+reason = os.environ['_LX_REASON']
+human_action = os.environ['_LX_HUMAN_ACTION']
+task_file = os.environ['_LX_TASK_FILE']
+
+d = json.load(open(task_file))
 hits = d.get('hard_boundary_hits', [])
 hits.append({
-    'description': '$DESCRIPTION',
-    'reason': '$REASON',
-    'human_action': '$HUMAN_ACTION',
-    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+    'description': desc,
+    'reason': reason,
+    'human_action': human_action,
+    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 })
 d['hard_boundary_hits'] = hits
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+tmp = task_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)" || echo "❌ 记录失败"
+os.rename(tmp, task_file)
+PYEOF
+        echo "🛑 硬边界拦截已记录: $(sanitize_output "$DESCRIPTION") (原因: $(sanitize_output "$REASON"))"
         ;;
 
 	    blocked-human)
@@ -432,23 +485,34 @@ os.rename(tmp, file)
 	                exit 1
 	            fi
 	        fi
-	        python3 -c "
-	import json, os
-	file = '$TASK_FILE'
-	d = json.load(open(file))
-	blocked = d.get('blocked_human', [])
-	blocked.append({
-	    'description': '$DESCRIPTION',
-	    'ai_recommendation': '$AI_RECOMMENDATION',
-	    'rationale': '$RATIONALE',
-	    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
-	})
-	d['blocked_human'] = blocked
-	tmp = file + '.tmp.' + str(os.getpid())
-	with open(tmp, 'w') as f:
-	    json.dump(d, f, indent=2, ensure_ascii=False)
-	os.rename(tmp, file)
-	" 2>/dev/null && echo "🤔 推迟决策已记录: $DESCRIPTION → 推荐: $AI_RECOMMENDATION" || echo "❌ 记录失败"
+        export _LX_DESC="$DESCRIPTION"
+        export _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
+        export _LX_RATIONALE="$RATIONALE"
+        export _LX_TASK_FILE="$TASK_FILE"
+        python3 <<'PYEOF'
+import json, os
+from datetime import datetime, timezone
+
+desc = os.environ['_LX_DESC']
+ai_recommendation = os.environ['_LX_AI_RECOMMENDATION']
+rationale = os.environ['_LX_RATIONALE']
+task_file = os.environ['_LX_TASK_FILE']
+
+d = json.load(open(task_file))
+blocked = d.get('blocked_human', [])
+blocked.append({
+    'description': desc,
+    'ai_recommendation': ai_recommendation,
+    'rationale': rationale,
+    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+})
+d['blocked_human'] = blocked
+tmp = task_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, task_file)
+PYEOF
+        echo "🤔 推迟决策已记录: $(sanitize_output "$DESCRIPTION") → 推荐: $(sanitize_output "$AI_RECOMMENDATION")"
 	        ;;
 
     retry)
@@ -488,7 +552,7 @@ os.rename(tmp, file)
         echo "  lx-goal poll                      轮询入口（loop skill 调用）"
         echo "  lx-goal task-done \"描述\"          标记任务完成"
         echo "  lx-goal skip-risk \"描述\"          记录跳过的风险"
-        echo "  lx-goal blocked-human "决策" "AI推荐" "依据"     记录推迟到报告的人类决策"
+        echo "  lx-goal blocked-human \"决策\" \"AI推荐\" \"依据\"     记录推迟到报告的人类决策"
 	        echo "  lx-goal hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  记录硬边界拦截"
         echo "  lx-goal retry                     重试计数 +1"
         echo ""

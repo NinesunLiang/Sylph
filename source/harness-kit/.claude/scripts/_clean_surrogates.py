@@ -33,9 +33,9 @@ def clean_file(filepath, dry_run=False):
 
 if __name__ == '__main__':
     files = [
-        '/Users/lucas.liang/Desktop/Sylph/Carror_OS/.omc/state/session-dump.json',
-        '/Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/claude-next.md',
-        '/Users/lucas.liang/Desktop/Sylph/Carror_OS/source/harness-kit/.claude/claude-next.md',
+        '__PROJECT_ROOT__/.omc/state/session-dump.json',
+        '__PROJECT_ROOT__/.claude/claude-next.md',
+        '__PROJECT_ROOT__/source/harness-kit/.claude/claude-next.md',
     ]
 
     for fp in files:

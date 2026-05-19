@@ -126,12 +126,71 @@ if [ -n "$NUM_CLAIMS" ]; then
     fi
 fi
 
-if [ -n "$VIOLATIONS" ] || [ -n "$G1_VIOLATIONS" ]; then
+# === E6 自我矛盾检测 === (DG-96 v2: content_hash diff → intent-tracker 语义字段)
+# v1 错误: 按 sig+content_hash 差异判定矛盾 → 100% 假阳性（每次编辑 content_hash 都变）
+# v2 正确: 检查 intent-tracker 写入的 contradiction/revert_of 字段
+# 矛盾定义: contradiction=true (intent-tracker 标记) 或 revert_of 非 null (编辑被显式回退)
+E6_VIOLATIONS=""
+CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
+if [ -f "$CONTRADICTION_LOG" ] && [ -n "$FILE_PATH" ]; then
+    E6_CHECK=$(python3 - "$CONTRADICTION_LOG" "$FILE_PATH" <<'E6EOF'
+import json, sys
+
+log_path = sys.argv[1]
+target_file = sys.argv[2]
+
+try:
+    matching = []
+    with open(log_path) as f:
+        for line in f:
+            if target_file in line:
+                try:
+                    matching.append(json.loads(line.strip()))
+                except: pass
+
+    if len(matching) < 2:
+        sys.exit(0)
+
+    # v2: 检查 intent-tracker 的语义字段，非 content_hash 差异
+    contradicted = [r for r in matching if r.get('contradiction') == True]
+    reverted = [r for r in matching if r.get('revert_of') is not None]
+    # 高频编辑 + 多 sig 共存 = 潜在矛盾热点（warn-only, 不阻断）
+    max_edits = max((r.get('edit_count', 0) for r in matching), default=0)
+    unique_sigs = len(set(r.get('sig', '') for r in matching))
+
+    if contradicted:
+        print(f"[E6] CONTRADICTION: {target_file} — {len(contradicted)} 条标记为 contradiction=true")
+        for c in contradicted[:2]:
+            print(f"  · sig={c.get('sig','')[:16]}...")
+    elif reverted:
+        print(f"[E6] REVERT_DETECTED: {target_file} — {len(reverted)} 条 revert_of 非空")
+        for r in reverted[:2]:
+            print(f"  · revert_of={r.get('revert_of','')[:16]}...")
+    elif max_edits > 10 and unique_sigs > 3:
+        # 仅 warn: 高频多 sig 编辑 = 关注信号，不是硬矛盾
+        print(f"[E6] HIGH_CHURN: {target_file} — {len(matching)} 条编辑, {unique_sigs} 个签名, 最高 {max_edits} 次 (非矛盾)")
+except Exception:
+    pass
+E6EOF
+    )
+    if [ -n "$E6_CHECK" ]; then
+        # v2: 仅 contradiction=true 或 revert 才标记为 E6 违规
+        if echo "$E6_CHECK" | grep -q 'CONTRADICTION\|REVERT_DETECTED'; then
+            E6_VIOLATIONS="⚠️ E6_SELF_CONTRADICTION: ${E6_CHECK}\n"
+            flywheel_event "posttool_claim_audit" "e6_contradiction_detected" "P2" || true
+        else
+            # HIGH_CHURN 仅 stderr 通知, 不阻断
+            echo "$E6_CHECK" >&2
+        fi
+    fi
+fi
+
+if [ -n "$VIOLATIONS" ] || [ -n "$G1_VIOLATIONS" ] || [ -n "$E6_VIOLATIONS" ]; then
     # ── 无 read-tracker 时，所有 file:line 断言均不可信 ──
     if [ "$_READ_TRACKER_EXISTS" = false ] && [ -n "$CLAIMED_FILES" ]; then
         VIOLATIONS="⚠️ NO_READ_HISTORY: zero files read this session — all file:line claims are unverifiable. Read the referenced file before claiming its content.\n${VIOLATIONS}"
     fi
-    COMBINED="${VIOLATIONS}${G1_VIOLATIONS:+\n${G1_VIOLATIONS}}"
+    COMBINED="${VIOLATIONS}${G1_VIOLATIONS:+\n${G1_VIOLATIONS}}${E6_VIOLATIONS:+\n${E6_VIOLATIONS}}"
 
     # ── issue-triage 集成: 虚假断言 → 分流（Meta-Oracle ADVISORY: claim-audit 需进 triage）──
     TRIAGE_SUFFIX=""

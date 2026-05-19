@@ -15,12 +15,23 @@ fi
 # 从配置读取注入文件列表
 INJECT_FILES=$(hc_get_list "knowledge.inject_files" "index.md:full kernel.md:full claude-next.md:summary style-guide.md:summary")
 
-# R39: 注入预算强制 (~120 行 / ~3KB)，超出时 stderr 告警
+# R39: 注入预算强制 (~120 行 / ~3KB)，超限时硬截断（C2 fix: 从 stderr 警告升级为硬约束）
 R39_BUDGET_LINES=120
 r39_used=0
+R39_EXCEEDED=false
 
 set -f
 for entry in $INJECT_FILES; do
+    # R39 硬截断: 预算已超 → 剩余 full 模式降级为 summary 行引用
+    if [ "$R39_EXCEEDED" = true ]; then
+        FILE_NAME="${entry%%:*}"
+        MODE="${entry##*:}"
+        FILE_PATH="$CLAUDE_DIR/$FILE_NAME"
+        [ ! -f "$FILE_PATH" ] && continue
+        echo "[.claude/$FILE_NAME] ⏭ R39 预算已满，请 Read 查看"
+        continue
+    fi
+
     # 解析 filename:mode 格式
     FILE_NAME="${entry%%:*}"
     MODE="${entry##*:}"
@@ -30,11 +41,38 @@ for entry in $INJECT_FILES; do
 
     if [ "$MODE" = "full" ]; then
         FILE_LINES=$(wc -l < "$FILE_PATH" | tr -d ' ')
+        # DG-96 C2 fix: 先检查是否会超预算，再决定全量/部分/跳过
+        if [ $((r39_used + FILE_LINES + 2)) -gt $R39_BUDGET_LINES ]; then
+            REMAINING=$((R39_BUDGET_LINES - r39_used - 2))
+            if [ "$REMAINING" -gt 10 ]; then
+                # 部分注入: 预算有剩余空间，注入前 N 行
+                r39_used=$((r39_used + REMAINING + 2))
+                echo "[.claude/$FILE_NAME 前${REMAINING}/${FILE_LINES}行]"
+                head -"$REMAINING" "$FILE_PATH" | hc_sanitize_utf8
+                echo "--- ⏭ R39 预算限制，剩余 $(($FILE_LINES - REMAINING)) 行请 Read"
+                echo ""
+                R39_EXCEEDED=true
+                flywheel_event "inject_project_knowledge" "triggered" "P2" || true
+                echo "⚠️ [R39 注入预算] 已超 ${R39_BUDGET_LINES} 行上限，后续文件仅摘要。" >&2
+            else
+                # 预算几乎耗尽 (<10行)，跳过此文件
+                R39_EXCEEDED=true
+                echo "[.claude/$FILE_NAME] ⏭ R39 预算已满 (剩余 ${REMAINING} 行)，请 Read 查看"
+                flywheel_event "inject_project_knowledge" "triggered" "P2" || true
+            fi
+            continue
+        fi
         r39_used=$((r39_used + FILE_LINES + 2))
         echo "[.claude/$FILE_NAME]"
         cat "$FILE_PATH" | hc_sanitize_utf8
         echo ""
     elif [ "$MODE" = "summary" ]; then
+        # summary 模式固定 ~35 行，若预算不足则跳过
+        if [ $((r39_used + 35)) -gt $R39_BUDGET_LINES ]; then
+            R39_EXCEEDED=true
+            echo "[.claude/$FILE_NAME] ⏭ R39 预算已满，请 Read 查看"
+            continue
+        fi
         r39_used=$((r39_used + 35))
         LINES=$(wc -l < "$FILE_PATH" | tr -d ' ')
         echo "[.claude/$FILE_NAME ${LINES}行] 章节:"
@@ -44,12 +82,6 @@ for entry in $INJECT_FILES; do
     fi
 done
 set +f
-
-# R39: 预算超限告警（不阻断，仅 stderr 通知）
-if [ $r39_used -gt $R39_BUDGET_LINES ]; then
-flywheel_event "inject_project_knowledge" "triggered" "P2" || true
-    echo "⚠️ [R39 注入预算] 预估 ~${r39_used} 行 > ${R39_BUDGET_LINES} 行上限。建议归档不常用内容到 reference/ 或降级为 summary 模式。" >&2
-fi
 
 # 注入 skill 关联图谱（C7 关联编排）
 SKILL_GRAPH="$PROJECT_ROOT/.claude/reference/skill-graph.md"

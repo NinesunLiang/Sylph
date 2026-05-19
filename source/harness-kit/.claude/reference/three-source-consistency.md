@@ -62,7 +62,7 @@ AI 会自然选择"说实话"这条路。
 | Skill 定义 (SKILL.md) | .claude/skills/*/SKILL.md — skill 触发条件和执行逻辑 |
 | Source Mirror (同步纪律) | package-release.sh, audit-hooks.sh --check-source-mirror |
 
-**确定性保证**: 这些是文件系统层面的硬约束。AI 可以"知道"铁律，但如果 hook 没注册 = 不执行。**文件存在 ≠ 生效**（DG-82: 39/44 hooks 无 flywheel.log）。
+**确定性保证**: 这些是文件系统层面的硬约束。AI 可以"知道"铁律，但如果 hook 没注册 = 不执行。**文件存在 ≠ 生效**（Phase 4h.1 完成: 40/42 hooks 已埋点，95% 覆盖率）。
 
 **覆盖范围**: 工具调用（Edit/Write/Bash）、会话生命周期、跨平台接入。
 

@@ -40,17 +40,19 @@ if [ -z "$FILE_PATH" ] && command -v jq &>/dev/null; then
     TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
     if [ "$TOOL_NAME" = "Bash" ]; then
         BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
-        # 扫描命令中的治理文件路径（sed/tee/>/>>/cp/mv/cat/echo 操作）
+        # DG-97: jq 提取多行命令 → 合并为单行后匹配（bash case * 不跨换行）
+        BASH_CMD_ONELINE=$(echo "$BASH_CMD" | tr '\n' ' ')
+        # 扫描命令中的治理文件路径（sed/tee/>/>>/cp/mv/cat/echo/python open 操作）
         for _pat in CLAUDE.md AGENTS.md harness.yaml settings.json kernel.md anti-patterns.md; do
-            case "$BASH_CMD" in
+            case "$BASH_CMD_ONELINE" in
                 *"$_pat"*) FILE_PATH="$_pat"; break ;;
             esac
         done
         # 也检测 .claude/hooks/ 和 .claude/scripts/ 的修改
         if [ -z "$FILE_PATH" ]; then
-            case "$BASH_CMD" in
-                *".claude/hooks/"*) FILE_PATH="$(echo "$BASH_CMD" | grep -o '[^ ]*\.claude/hooks/[^ ]*' | head -1)" ;;
-                *".claude/scripts/"*) FILE_PATH="$(echo "$BASH_CMD" | grep -o '[^ ]*\.claude/scripts/[^ ]*' | head -1)" ;;
+            case "$BASH_CMD_ONELINE" in
+                *".claude/hooks/"*) FILE_PATH="$(echo "$BASH_CMD_ONELINE" | grep -o '[^ ]*\.claude/hooks/[^ ]*' | head -1)" ;;
+                *".claude/scripts/"*) FILE_PATH="$(echo "$BASH_CMD_ONELINE" | grep -o '[^ ]*\.claude/scripts/[^ ]*' | head -1)" ;;
             esac
         fi
     fi
