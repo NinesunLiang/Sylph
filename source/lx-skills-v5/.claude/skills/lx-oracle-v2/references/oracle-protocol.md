@@ -2,7 +2,7 @@
 
 > 本文件是 Carror OS Oracle 审核机制的权威协议规范。
 > 上游源: `.claude/nodes/oracle_terminal.md` (Oracle-V 两阶段) + `~/.claude/skills/lx-oracle/SKILL.md` (Oracle-D 判决，用户级 skill)
-> 使用者: `lx-oracle-v2` skill → Agent(critic, opus) 独立上下文注入
+> 使用者: `lx-oracle-v2` skill → Agent(critic) 独立上下文注入
 
 ---
 

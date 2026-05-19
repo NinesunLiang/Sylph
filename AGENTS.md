@@ -132,8 +132,17 @@ A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
 
 ### Meta-Oracle — 最后守门员（核武器级终审）
 
+> **起源**：Oracle 和 Meta-Oracle 不是刻意设计出来的，是环境自然生长出来的。
+> 哲学 #6（0信任）要求所有 AI 输出必须被独立验证 → 哲学 #4（没验证=没做）要求验证必须有物理证据 →
+> OMC/OMO 恰好提供了 `Agent(critic)` 独立进程能力 → 三件事碰到一起，Oracle/Meta-Oracle 就自然出现了。
+> **它们是「环境生长，而非设计」的物理具象化产物。**
+
+> **概念归属**：Oracle 和 Meta-Oracle 是 **Carror OS 哲学物化的概念和协议**，不是任何平台的原生功能。
+> 物理执行载体：OMC (oh-my-claude) 或 OMO (oh-my-opencode) 的 Agent 独立进程能力。
+> 无 OMC/OMO 时，通过 lx-oracle skill 退回到本地 AI prompt 审核（协议不变，物理隔离打折扣）。
+
 > **定位**：Oracle = 常规守门员（每阶段门禁），Meta-Oracle = 最后守门员（核武器级终审）。
-> Meta-Oracle 是 Carror OS 的最高审查权威，消耗巨大（opus + 独立上下文，每次 ~10-30K tokens），**仅在关键节点触发，非必要不使用**。
+> Meta-Oracle 是 Carror OS 的最高审查权威，消耗巨大（opus + 独立上下文），**仅在关键节点触发，非必要不使用**。
 
 Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-score.sh 静态检查虚高），它可能漏掉设计级缺陷（regex 只匹配部分引用格式），它的结论需要被验证。
 
@@ -157,7 +166,7 @@ Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-scor
 | 方法论 | 静态检查 + 文件存在性 + 合规审查 | 运行时验证 + 烟雾日志 + 对抗性审查 + 设计盲区扫描 |
 | 权威等级 | 高于代码现状 | **高于 Oracle**（可推翻 Oracle 裁决） |
 | 执行方式 | 硬门禁（REJECT = 阻断流程） | **软门禁**（给出裁决 + 建议，AI 可在明确理由下覆写） |
-| 模型 | opus critic/architect | opus critic（独立 agent，不共享主会话上下文） |
+| 模型 | critic/architect（当前平台最高可用模型） | critic（独立 agent，不共享主会话上下文，模型无关） |
 
 #### 4 个触发点（G1-G4）
 

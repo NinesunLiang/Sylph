@@ -30,10 +30,29 @@ fi
 
 [ -z "$COMBINED" ] && { echo '{"continue": true}'; exit 0; }
 
-# ── Cooldown: 同 session 最多触发 1 次，防止自指循环 ──
+# ── Input size guard: truncate to 10KB to prevent grep timeout (C2 fix) ──
+COMBINED="${COMBINED:0:10000}"
+
+# ── Cooldown + escalation counter: 同 session 最多触发 1 次/hr, >5次无verdict则禁用 ──
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COOLDOWN_FILE="$PROJECT_ROOT/.omc/state/.meta-oracle-cooldown"
+COUNTER_FILE="$PROJECT_ROOT/.omc/state/.meta-oracle-trigger-count"
+VERDICTS_FILE="$PROJECT_ROOT/.omc/state/meta-oracle-verdicts.md"
+
+# Escalation check: if triggered >5 times but no verdict recorded, disable self (M4 fix)
+if [ -f "$COUNTER_FILE" ]; then
+    TRIGGER_COUNT=$(cat "$COUNTER_FILE" 2>/dev/null)
+    TRIGGER_COUNT="${TRIGGER_COUNT:-0}"
+    if [ "$TRIGGER_COUNT" -gt 5 ] 2>/dev/null; then
+        if [ ! -f "$VERDICTS_FILE" ] || [ "$(wc -l < "$VERDICTS_FILE" 2>/dev/null)" -lt 2 ]; then
+            echo "[meta-oracle] SELF-DISABLED: triggered $TRIGGER_COUNT times with no verdict recorded" >&2
+            echo '{"continue": true}'
+            exit 0
+        fi
+    fi
+fi
+
 if [ -f "$COOLDOWN_FILE" ]; then
     LAST_TRIGGER=$(cat "$COOLDOWN_FILE" 2>/dev/null)
     NOW=$(date +%s)
@@ -71,11 +90,11 @@ if [ "$TRIGGERED" = false ]; then
     fi
 fi
 
-# G2: PRD/方案最后一步 — 检测 PRD 生命周期完成信号
-# 触发信号: lx-oma-orch advance → dev 阶段 / PRD pipeline 完成 + Oracle ACCEPT
+# G2: PRD/方案最后一步 — 检测 PRD 生命周期完成信号 (收窄版, M3 fix)
+# 触发信号: Oracle ACCEPT + PRD/方案/报告完成 (pipeline→第N阶段完成, 而非任意"完成"会话)
 if [ "$TRIGGERED" = false ]; then
-    if echo "$COMBINED" | grep -qE '(pipeline|管线|PRD|prd).*(完成|complete|done|final|最后|终审)' 2>/dev/null; then
-        if echo "$COMBINED" | grep -qE '(Oracle|oracle).*(ACCEPT|APPROVED|通过)' 2>/dev/null; then
+    if echo "$COMBINED" | grep -qE '(Oracle|oracle).*(ACCEPT|APPROVED)' 2>/dev/null; then
+        if echo "$COMBINED" | grep -qE '(PRD.*终审|方案.*完成|report.*complete|phase.*accept|phase.*complete|plan.*accept)' 2>/dev/null; then
             TRIGGERED=true
             TRIGGER_PRIORITY="G2"
             TRIGGER_REASON="G2 PRD/方案最后一步 — PRD 生命周期完成 + Oracle 已 ACCEPT"
@@ -131,7 +150,9 @@ fi
 if [ "$TRIGGERED" = true ]; then
     # Write cooldown to prevent re-trigger (same session, 1hr)
     date +%s > "$COOLDOWN_FILE" 2>/dev/null || true
-    printf '🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, opus, 独立上下文) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-review.sh\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用' "$TRIGGER_PRIORITY" "$TRIGGER_REASON" | hc_emit_hook_json "PostToolUse" "true"
+    CURRENT_COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo 0)
+    echo $((CURRENT_COUNT + 1)) > "$COUNTER_FILE" 2>/dev/null || true
+    printf '🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, 独立上下文, 模型无关) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-review.sh\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用' "$TRIGGER_PRIORITY" "$TRIGGER_REASON" | hc_emit_hook_json "PostToolUse" "true"
 flywheel_event "meta_oracle_trigger" "triggered" "P2" || true
     echo "[meta-oracle] ${TRIGGER_PRIORITY}: ${TRIGGER_REASON} — Meta-Oracle 最后守门提醒已注入" >&2
     exit 0

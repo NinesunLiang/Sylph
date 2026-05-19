@@ -1,54 +1,18 @@
 ---
 name: lx-oracle-v2
-version: v2.0.0
-description: "Oracle Agent v2 — 物理隔离独立审核。由 lx-oracle 自动路由: OMC/OMO 可用时走 Agent 路径, 无环境时退到本地 prompt。"
-when_to_use: |
-  由 lx-oracle 自动路由, 不直接调用:
-  - OMC/OMO 可用 → 自动 spawn Agent(critic, opus) 独立进程 (~70-110K tokens)
-  - 无 OMC/OMO → 自动退到 lx-oracle 本地 prompt (零 token 成本, 同上下文)
-  - 手动强制: /lx-oracle review "X" --local (强制本地)
-argument-hint: "<审核对象路径> [--mode d|v]"
-harness_version: ">=1.1.0"
-status: beta
-role: "Independent Oracle Auditor — 物理隔离，按需 spawn"
+version: v2.0.0 (DEPRECATED)
+description: "DEPRECATED — 已合并到 lx-oracle v2.0。请使用 /lx-oracle。支撑脚本保留。"
+status: deprecated
 execution_mode: stepwise
 triggers:
   - "/lx-oracle-v2"
-  - "oracle review"
-  - "Oracle 审核"
 ---
 
-# lx-oracle-v2 — 物理隔离 Oracle（按需 spawn）
+# lx-oracle-v2 — 已废弃
 
-## 路由决策（先看这里）
-
-> **默认旧 lx-oracle**。只有以下场景才 spawn v2（~70-110K tokens/次）:
-
-| spawn v2 | 用旧 lx-oracle |
-|----------|---------------|
-| 架构决策（跨 ≥2 子系统） | 日常代码审查 |
-| PRD/方案终审 | 单文件修改 |
-| 安全敏感（rm -rf / force push） | 方向确认 |
-| Release 门禁 | 轻量决策链 Level 2 |
-| — | 不确定时→默认旧版 |
-
-## 执行（3 步）
-
-```
-1. prepare:  bash .claude/skills/lx-oracle-v2/scripts/oracle-spawn.sh prepare --mode d|v --target <path>
-2. spawn:    Agent(subagent_type="critic", prompt=<oracle-request.json + oracle-protocol.md>)
-3. record:   bash .claude/skills/lx-oracle-v2/scripts/oracle-spawn.sh record --mode d|v --verdict-file <path> --target <path>
-```
-
-**协议详情**: spawn 时注入 `references/oracle-protocol.md`（Oracle-D 决策链 / Oracle-V A→B→A 双协议 + 故障恢复）。
-
-## 裁决
-
-| 裁决 | 行动 |
-|------|------|
-| approved / PASS | 继续 |
-| rejected / FAIL | 阻断 |
-| escalated / INCONCLUSIVE | 升级 Meta-Oracle |
-| needs_clarification | 提问澄清（最多 2 轮） |
-
-> 审核原则、YAML 输出格式、超时降级、故障恢复 → `references/oracle-protocol.md`
+> **此 skill 已合并到 `/lx-oracle` v2.0。**
+>
+> 原 v2 的 Agent spawn 路径现在是 lx-oracle 的**路径 A**。
+> 支撑脚本 (`oracle-spawn.sh`) 和协议文件 (`references/oracle-protocol.md`) 保留不动。
+>
+> **请使用 `/lx-oracle review ...`**，无需单独调用 `/lx-oracle-v2`。

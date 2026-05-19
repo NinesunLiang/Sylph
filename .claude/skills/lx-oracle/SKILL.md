@@ -1,7 +1,7 @@
 ---
 name: lx-oracle
-version: v1.0.0
-description: "Oracle Agent — 独立第三方审核。对危险操作裁决链 Level 2 提供 approved/rejected 裁决，裁决留痕可追溯。"
+version: v2.0.0
+description: "Oracle 独立第三方审核 — 环境自适应路由: 有 Agent 时物理隔离 spawn, 无 Agent 时本地 prompt。裁决留痕 oracle-verdicts.md。"
 role: "Independent third-party auditor for autonomous decision chains"
 execution_mode: stepwise
 triggers:
@@ -9,28 +9,25 @@ triggers:
   - "oracle:review"
   - "oracle:approve"
   - "oracle:reject"
-model: opus
+# model-agnostic: 路由到 Agent 时由平台自动选择，本地 prompt 时模型无关
 ---
 
-# lx-oracle — Oracle 独立第三方审核
+# lx-oracle — Oracle 独立第三方审核 (v2.0 合并版)
 
-## 职责
-
-作为自主决策框架中 **Level 2（Oracle 第三方审核）** 的独立裁决者。当 AI 遇到歧义或危险操作且 Philosophy → Iron Rules → Existing Practices 无覆盖时，Oracle 进行独立审核并输出裁决留痕。
+> **v2.0 说明**: 原 lx-oracle (本地 prompt) 和 lx-oracle-v2 (Agent 物理隔离) 已合并为一个 skill。
+> 现在 `/lx-oracle` 自动检测环境: 有 OMC/OMO Agent → spawn 独立进程; 无 → 本地 prompt。
 
 ## 裁决范围
 
 | 类型 | 裁决 | 示例 |
 |------|------|------|
-| **危险操作** | approved / rejected | `git push --force` 是否安全 |
-| **架构决策** | approved / rejected | 重构方案是否符合 Philosophy |
-| **方向漂移** | confirmed / diverted | 当前工作是否在目标范围内 |
+| **危险操作** | approved / rejected | `git push --force` |
+| **架构决策** | approved / rejected | 重构是否符合 Philosophy |
+| **方向漂移** | confirmed / diverted | 工作是否在目标范围内 |
 | **硬边界预检** | safe / blocked | 操作是否触碰硬边界 |
-| **真阻断判断** | blocked / workaround | 核心路径是否真的被堵死 |
+| **真阻断判断** | blocked / workaround | 核心路径是否被堵死 |
 
 ## 输出格式
-
-所有裁决必须标准输出以下格式之一：
 
 ```
 [Oracle: approved] — 理由: ...
@@ -40,49 +37,59 @@ model: opus
 
 ## 环境自适应路由
 
-Oracle 审核根据运行环境自动选择最可靠路径：
-
 ```
-检测环境
-  │
-  ├─ OMC (oh-my-claude) 可用 → Agent(critic, opus) spawn 独立进程
-  │    优势: 物理隔离, 独立上下文, 不同模型族审查
-  │
-  ├─ OMO (oh-my-opencode) 可用 → OpenCode Agent(critic) spawn
-  │    优势: 跨平台独立审查
-  │
-  └─ 无 OMC/OMO → 回退本地 prompt 注入 (AI 扮演 Oracle)
-       限制: 同模型同上下文, 质量低于物理隔离
+检测环境 (detect-oracle-env.sh)
+  ├─ .omc/ 存在 → agent_omc (物理隔离 Agent spawn)
+  ├─ .opencode/plugins/ 存在 → agent_omo (跨平台 Agent)
+  └─ 无 → local_prompt (AI 本地扮演 Oracle)
 ```
 
 **路由优先级**: OMC Agent > OMO Agent > 本地 prompt
 
-**路由判定**:
-- OMC 可用: `is_mode_active` 函数存在 且 `ecosystem-probe` 报告 `omo: true` 或 `omc: true`
-- OMO 可用: `ecosystem-probe` 报告 `omo: true` 或 `opencode` 平台
-- 否则: 本地 prompt
+## 执行流程
+
+### 路径 A: Agent spawn (OMC/OMO 可用)
+
+```
+1. prepare: bash .claude/skills/lx-oracle-v2/scripts/oracle-spawn.sh prepare --mode d|v --target <path>
+   → 输出 JSON 含 oracle_path + agent_available
+2. spawn:   Agent(subagent_type="critic", prompt=<oracle-request.json + oracle-protocol.md>)
+3. record:  bash .claude/skills/lx-oracle-v2/scripts/oracle-spawn.sh record --mode d|v --verdict "<agent output>"
+   → 追加 oracle-verdicts.md + flywheel 事件
+```
+
+### 路径 B: 本地 prompt (无 Agent)
+
+```
+AI 直接按审核原则 + 输出格式做 Oracle 审查，结果写入 oracle-verdicts.md
+```
 
 ## 调用方式
-
-由 AI 自主调用进行审核（无需 human 介入）：
 
 ```
 # 自动路由（推荐）
 /lx-oracle review "操作描述" --context "相关上下文"
-→ AI 自动检测环境, spawn Agent 或本地审核
 
-# 强制本地（覆盖路由）
+# 强制本地
 /lx-oracle review "操作描述" --local
 
-# 在决策链中引用
+# 决策链引用
 → Level 1: AGENTS.md 无覆盖
-→ Level 2: /lx-oracle → [Oracle: approved] — ...
-→ 执行并记录依据
+→ Level 2: /lx-oracle → [Oracle: approved/rejected] — ...
+→ 执行并记录
 ```
 
 ## 审核原则
 
-1. **Philosophy 不可违背** — 即使技术上可行，违反 Philosophy 的操作必须 rejected
-2. **Iron Rules 不可绕过** — AI 试图 workaround 时，Oracle 必须 rejected 并要求直面问题
-3. **0 信任** — 不假设调用方已做尽职调查，独立验证所有前提
-4. **裁决留痕** — 每条裁决必须附带理由，不可仅输出 approved/rejected
+1. **Philosophy 不可违背** — 违反哲学的操作必须 rejected
+2. **Iron Rules 不可绕过** — AI workaround 必须 rejected
+3. **0 信任** — 独立验证所有前提，不假设已做尽职调查
+4. **裁决留痕** — 每条裁决附带理由，写入 `oracle-verdicts.md`
+
+## 详细协议
+
+Oracle-D (决策审核) / Oracle-V (验证审核) 完整协议 → `references/oracle-protocol.md`
+
+## 超时降级
+
+Agent spawn 超时 (120s): 记录 `pending-decisions.md` → 降级放行 → flywheel 告警 → 下次重试
