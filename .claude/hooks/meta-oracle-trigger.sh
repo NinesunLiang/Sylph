@@ -30,6 +30,23 @@ fi
 
 [ -z "$COMBINED" ] && { echo '{"continue": true}'; exit 0; }
 
+# ── Cooldown: 同 session 最多触发 1 次，防止自指循环 ──
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+COOLDOWN_FILE="$PROJECT_ROOT/.omc/state/.meta-oracle-cooldown"
+if [ -f "$COOLDOWN_FILE" ]; then
+    LAST_TRIGGER=$(cat "$COOLDOWN_FILE" 2>/dev/null)
+    NOW=$(date +%s)
+    COOLDOWN_SEC=$((60 * 60))  # 1 hour cooldown
+    if [ -n "$LAST_TRIGGER" ] && [ "$NOW" -lt $((LAST_TRIGGER + COOLDOWN_SEC)) ] 2>/dev/null; then
+        echo '{"continue": true}'
+        exit 0
+    fi
+fi
+
+# Filter out system-reminder tags (contain trigger keywords themselves, cause self-loop)
+COMBINED=$(echo "$COMBINED" | sed 's/<system-reminder>[^<]*<\/system-reminder>//g')
+
 # ── 触发检测（按优先级 G1 > G2 > G4 > G3）──
 TRIGGERED=false
 TRIGGER_REASON=""
@@ -112,6 +129,8 @@ fi
 
 # 输出 Meta-Oracle 触发 — 软门禁: 提醒 AI 执行最高级独立审查
 if [ "$TRIGGERED" = true ]; then
+    # Write cooldown to prevent re-trigger (same session, 1hr)
+    date +%s > "$COOLDOWN_FILE" 2>/dev/null || true
     printf '🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, opus, 独立上下文) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-review.sh\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用' "$TRIGGER_PRIORITY" "$TRIGGER_REASON" | hc_emit_hook_json "PostToolUse" "true"
 flywheel_event "meta_oracle_trigger" "triggered" "P2" || true
     echo "[meta-oracle] ${TRIGGER_PRIORITY}: ${TRIGGER_REASON} — Meta-Oracle 最后守门提醒已注入" >&2

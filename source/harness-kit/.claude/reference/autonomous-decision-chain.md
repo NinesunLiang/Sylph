@@ -58,6 +58,9 @@
 | Ghost vs Goal mode selection ambiguous | **AI self-evaluates direction type** (do NOT ask human): deterministic task list with action verbs (修复/优化/实现) → goal mode. Open exploration (分析/调研/阅读) → ghost mode. Never use ghost mode for fixed fix lists. DG-55, GL-01. |
 | Writing persuasive / marketing / non-technical content | **Apply stricter verification**. All numeric claims must be traceable to source files. This output mode historically produces unverified assertions. Use `[内部自检]` markers when no external source exists. DG-43 (primary: marketing/semantic-gate blind spot). |
 | Autonomous mode nearing completion / phase end | **Generate exit report section immediately**. Mandatory fields: (1) hard-boundary items (2) skip-risk items w/ rationale (3) BLOCKED items (4) side findings (5) Oracle/Meta-Oracle verdicts. Do NOT defer report writing. DG-58. |
+| Oracle REVISE/REJECT with clear, fixable issues | **Fix immediately, re-submit to Oracle**. Do NOT ask "要修吗". Philosophy #2 (少量大增益): direct fix loop is highest value. DG-91. |
+| ROI data contradicts philosophy/iron-rule support | **Philosophy > ROI**. Zero flywheel data ≠ zero value. Flag for review, not deletion. DG-94. |
+| Governance file (harness.yaml/settings.json) deletion or rename | **grep -r first, list ALL hit files, clean ALL**. Do NOT clean only root. DG-81. |
 | A genuinely novel situation | **Try AI judgment first**. If truly blocked, record for human report. |
 
 ## Forbidden in Autonomous Mode

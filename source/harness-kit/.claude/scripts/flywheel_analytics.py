@@ -98,6 +98,34 @@ def main():
     summary = f'[flywheel] {report["total_skill_events"]} events across {report["unique_skills"]} skills'
     if deprecated:
         summary += f' | ⚠️ {len(deprecated)} unused: {deprecated}'
+
+    # === I1 Mechanism Shadow Detection: 机制影壁 — hooks with flywheel_event but 0 events ===
+    hooks_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'hooks')
+    if os.path.isdir(hooks_dir):
+        shadow_hooks = []
+        for fname in sorted(os.listdir(hooks_dir)):
+            if not fname.endswith('.sh'):
+                continue
+            fpath = os.path.join(hooks_dir, fname)
+            with open(fpath) as hf:
+                content = hf.read()
+            if 'flywheel_event' not in content:
+                continue
+            # Derive event prefix from filename
+            hook_key = fname.replace('.sh', '').replace('-', '_')
+            # Check if any flywheel event matches this hook
+            match_count = 0
+            for skill, stats in skill_stats.items():
+                if hook_key in skill or skill in hook_key:
+                    match_count += stats['count']
+            if match_count == 0:
+                shadow_hooks.append(fname)
+
+        if shadow_hooks:
+            report['mechanism_shadows'] = shadow_hooks
+            summary += f' | 🔍 {len(shadow_hooks)} shadows (flywheel code but 0 events)'
+            print(f'[flywheel:shadow] Mechanism shadow detected: {", ".join(shadow_hooks)}', file=sys.stderr)
+
     print(summary)
     return 0
 
