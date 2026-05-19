@@ -71,4 +71,5 @@ PYEOF
     fi
 fi
 
+flywheel_event "skill_flywheel" "flywheel_flushed" "P2" "flushed"
 exit 0

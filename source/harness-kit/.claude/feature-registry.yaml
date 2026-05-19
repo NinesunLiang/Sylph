@@ -394,3 +394,9 @@ skills:
   description: 主动投喂狗粮 — 事故发生时趁热记录，处理完毕时提炼教训，让 Carror OS 越用越聪明
   enabled_by_default: true
   evidence_level: L3
+- name: lx-oracle-v2
+  type: reviewer
+  category: quality
+  description: Oracle Agent v2 — 通过 Agent(critic, opus) 物理隔离 spawn 独立审核。双协议: Oracle-D 决策链审核 + Oracle-V A→B→A 验证。裁决留痕 oracle-verdicts.md。
+  enabled_by_default: true
+  evidence_level: L3

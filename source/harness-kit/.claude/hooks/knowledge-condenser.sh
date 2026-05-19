@@ -139,5 +139,6 @@ PYEOF
 if [ -n "$PY_OUTPUT" ]; then
     # Stop hook 不支持 additionalContext，stderr 输出会导致 JSON 校验错误
     echo "$PY_OUTPUT" > "$PROJECT_ROOT/.omc/state/knowledge-condenser-report.txt"
+    flywheel_event "knowledge_condenser" "sublimation_scan" "P2" "scanned_and_suggested"
 fi
 exit 0

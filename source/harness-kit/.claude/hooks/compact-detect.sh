@@ -152,4 +152,5 @@ echo " 知识已恢复，继续当前任务。"
 echo "═══════════════════════════════════════════════"
 echo ""
 
+flywheel_event "compact_detect" "compact_detected" "P2" "compact_detected"
 exit 0

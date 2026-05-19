@@ -154,4 +154,5 @@ if warnings:
         print(f"  also: {warnings[1]}")
 print("---")
 PYEOF
+flywheel_event "flywheel_report" "report_generated" "P2" "30d_summary"
 exit 0

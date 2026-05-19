@@ -66,4 +66,5 @@ fi
 
 # 透传原始输入（Claude Code 协议要求：UserPromptSubmit hook 必须将用户输入回写 stdout）
 printf '%s' "$PROMPT"
+flywheel_event "pretool_user_correction" "correction_detected" "P2" "correction_signal"
 exit 0

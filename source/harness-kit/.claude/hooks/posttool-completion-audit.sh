@@ -132,4 +132,5 @@ if issues:
 " 2>/dev/null || true
 
 echo '{"continue": true}'
+flywheel_event "posttool_completion_audit" "evidence_audited" "P2" "audited"
 exit 0

@@ -25,6 +25,7 @@ SKILL_DIR="$SCRIPT_DIR/../skills/$SKILL"
 LOG_DIR="$SCRIPT_DIR/../../.omc/state"
 mkdir -p "$LOG_DIR"
 echo "{\"skill\":\"$SKILL\",\"ts\":$(date +%s)}" >> "$LOG_DIR/skill-usage.jsonl"
+flywheel_event "skill_usage_tracker" "skill_invoked" "P2" "$SKILL"
 
 echo '{"continue": true}'
 exit 0

@@ -1020,11 +1020,11 @@ rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unatten
 # ========================================
 
 # ED-R-1: E1 governance bypass detection (exit_code=0, sed to governance file)
-rm -f .omc/state/error-dna.jsonl
+rm -f .omc/state/governance-audit.jsonl
 run_case "ED-R-1 E1: governance bypass via sed" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"sed -i '''s/true/false/''' .claude/harness.yaml"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
   "error-dna.sh" 0 ""
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/error-dna.jsonl; then
+if [ -s .omc/state/governance-audit.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/governance-audit.jsonl; then
     pass "ED-R-1 E1: governance_bypass escape recorded in jsonl"
 else
     fail "ED-R-1 E1: governance_bypass NOT recorded — exit_code=0 should still record"
@@ -1060,7 +1060,7 @@ rm -f .omc/state/error-dna.jsonl
 run_case "ED-R-4 E1: governance bypass via tee to settings.json" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''{}''' | tee .claude/settings.json"},"tool_response":{"exit_code":0,"stdout":"{}","stderr":""}}' \
   "error-dna.sh" 0 ""
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/error-dna.jsonl; then
+if [ -s .omc/state/governance-audit.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/governance-audit.jsonl; then
     pass "ED-R-4 E1 (tee): governance_bypass recorded in jsonl"
 else
     fail "ED-R-4 E1 (tee): governance_bypass NOT recorded"
@@ -1094,11 +1094,11 @@ fi
 rm -f .omc/state/error-dna.jsonl
 
 # ED-R-7: E1 governance bypass via echo redirect to harness.yaml
-rm -f .omc/state/error-dna.jsonl
+rm -f .omc/state/governance-audit.jsonl
 run_case "ED-R-7 E1: governance bypass via echo redirect" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''new_config''' > .claude/harness.yaml"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
   "error-dna.sh" 0 ""
-if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/error-dna.jsonl; then
+if [ -s .omc/state/governance-audit.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/governance-audit.jsonl; then
     pass "ED-R-7 E1 (echo redirect): governance_bypass recorded in jsonl"
 else
     fail "ED-R-7 E1 (echo redirect): governance_bypass NOT recorded"

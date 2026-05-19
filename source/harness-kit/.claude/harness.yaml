@@ -109,7 +109,7 @@ hooks_enabled:
   pretool_sensitive_edit: true
   pretool_write_lock: true
   privacy_gate: true
-  proactive_handoff: false
+
   read_tracker: true
   retry_budget_check: true
   skill_flywheel: true

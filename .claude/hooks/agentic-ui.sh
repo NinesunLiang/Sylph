@@ -5,6 +5,9 @@
 # 使用方式（hook 脚本中）:
 #   source "$(dirname "$0")/agentic-ui.sh"
 #
+
+# flywheel instrumentation
+source "$(dirname "$0")/harness_config.sh" 2>/dev/null || true
 # 设计原则:
 #   1. 所有用户可见输出 → stderr（Claude Code 渲染为红色横幅）
 #   2. 所有 AI 可见上下文 → additionalContext（stdout JSON）
@@ -56,6 +59,7 @@ agentic_separator() {
 # 输出标准化三选一菜单到 stderr，然后 exit 2
 # 选项 3 始终为"取消操作"
 agentic_menu() {
+  flywheel_event "agentic_ui" "menu_shown" "P2" "${1:-menu}"
     local title="$1" reason="$2"
     local opt1_label="$3" opt1_desc="$4"
     local opt2_label="$5" opt2_desc="$6"
@@ -105,6 +109,7 @@ EOF
 # 输出 CAPTCHA 验证码（双通道：stderr 给用户 + additionalContext 给 AI）
 # 返回 JSON 到 stdout（continue: false + additionalContext 含验证码）
 agentic_captcha() {
+  flywheel_event "agentic_ui" "captcha_shown" "P2" "${1:-captcha}"
     local title="$1" captcha_code="$2" approve_file="$3" description="$4"
 
     # stderr: 用户可见

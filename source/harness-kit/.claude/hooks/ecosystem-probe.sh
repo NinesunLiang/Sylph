@@ -130,4 +130,5 @@ elif [ "$PYTHON3_HAS_SECRETS" = false ]; then
 fi
 
 echo '{"continue": true}'
+flywheel_event "ecosystem_probe" "probe_complete" "P2" "${PLATFORM:-detected}"
 exit 0
