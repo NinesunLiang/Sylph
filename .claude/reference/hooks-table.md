@@ -1,4 +1,4 @@
-## Hooks 速查（共 40 个）
+## Hooks 速查（共 43 个 — 42 活跃 + 1 共享库）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|

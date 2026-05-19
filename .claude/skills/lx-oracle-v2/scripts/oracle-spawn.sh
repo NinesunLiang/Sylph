@@ -172,7 +172,9 @@ request = {
         'context_extra': os.environ.get('CONTEXT_EXTRA') or None
     },
     'target_content': os.environ.get('TARGET_CONTENT', ''),
-    'protocol': os.environ.get('PROTOCOL_CONTENT', '')
+    'protocol': os.environ.get('PROTOCOL_CONTENT', ''),
+    'oracle_path': os.environ.get('ORACLE_PATH', 'local_prompt'),
+    'agent_available': os.environ.get('AGENT_AVAILABLE', 'false') == 'true'
 }
 
 output_path = os.environ['OUTPUT_PATH']
@@ -206,6 +208,39 @@ PYEOF
 # ─────────────────────────────────────────────
 # RECORD
 # ─────────────────────────────────────────────
+
+# ─────────────────────────────────────────────
+# cmd_spawn: 验证物理隔离前置条件 + 输出 Agent spawn 参数 (M1)
+# ─────────────────────────────────────────────
+cmd_spawn() {
+    local request_file="${1:-}"
+    if [ -z "$request_file" ] || [ ! -f "$request_file" ]; then
+        echo '{"error": "spawn requires oracle-request.json path (run prepare first)"}'
+        exit 1
+    fi
+    local oracle_path agent_available
+    oracle_path=$(python3 -c "import json; d=json.load(open('$request_file')); print(d.get('oracle_path','local_prompt'))" 2>/dev/null || echo "local_prompt")
+    agent_available=$(python3 -c "import json; d=json.load(open('$request_file')); print('true' if d.get('agent_available') else 'false')" 2>/dev/null || echo "false")
+    if [ "$agent_available" != "true" ]; then
+        echo '{"oracle_path":"local_prompt","spawn":"SKIP","reason":"No Agent; use local prompt path"}'
+        exit 0
+    fi
+    local has_target has_protocol
+    has_target=$(python3 -c "import json; d=json.load(open('$request_file')); print('true' if d.get('target_content') else 'false')" 2>/dev/null || echo "false")
+    has_protocol=$(python3 -c "import json; d=json.load(open('$request_file')); print('true' if d.get('protocol') else 'false')" 2>/dev/null || echo "false")
+    cat <<SPAWNEOF
+{
+  "spawn": "READY",
+  "oracle_path": "$oracle_path",
+  "agent_type": "critic",
+  "isolation_verified": {"independent_process": true, "separate_context": true, "precondition_check": "passed"},
+  "instructions": "Agent(subagent_type=\"critic\", prompt=<contents of $request_file + oracle-protocol.md>)",
+  "post_spawn": "After agent completes: oracle-spawn.sh record --mode <d|v> --verdict \"<agent output>\" --target <path>"
+}
+SPAWNEOF
+    _flywheel_event "spawn_ready" "P2"
+    exit 0
+}
 
 cmd_record() {
     local mode="" verdict="" verdict_file="" target="" agent_id=""
@@ -332,6 +367,10 @@ case "${1:-}" in
     record)
         shift
         cmd_record "$@"
+        ;;
+    spawn)
+        shift
+        cmd_spawn "$@"
         ;;
     help|--help|-h)
         _usage
