@@ -186,3 +186,60 @@
 正确行为：SKILL.md body ≤60 行：路由决策表 + 3 步执行框架 + 外部引用指针。详细协议、YAML schema、故障恢复全部外移到 references/，仅在 spawn Agent 时按需注入。
 证据：lx-oracle-v2 SKILL.md 从 217 行优化到 53 行（-75%），protocol.md 按需加载。前端展示仅路由表 + 3 步命令，细节隐藏。
 
+---
+
+## 2026-05-19 狗粮 — Meta-Oracle 能力评分 + 差距修复
+
+### 🐶 [DG-96] 代码审查必须模拟运行时数据 — 静态读代码漏掉运行时假阳性 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：Oracle/Meta-Oracle 审查 AI 写的 hook 代码时，仅 Read 源码做静态分析
+正确行为：审查任何涉及数据检测的 hook（E6/error-dna/claim-audit）时，必须用真实日志数据模拟运行。E6 v1 按 `sig+content_hash` 检测矛盾 → 100% 假阳性（每次编辑 content_hash 都变，任何文件第二次编辑都被阻断）。Oracle 审查时只验证了「代码存在、语法正确、逻辑看起来对」，完全没发现假阳性问题。Meta-Oracle 运行时分析 contradiction-log.jsonl 的 142 条记录才暴露。
+证据：Meta-Oracle 运行时模拟: 17/31 sig 触发假阳性 (55%)，真实 contradiction=true 记录为 0。Oracle 漏审 4 项：E6 假阳性、C2 R39 边界、C7 注册覆盖范围、E1 插值绕过。
+
+### 🐶 [DG-97] bash `case *` 不跨换行匹配 — jq 提取多行命令后 case 静默失败 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：jq 从 JSON 提取 `.tool_input.command` 得到多行字符串，直接用 bash `case "$VAR" in *"pattern"*)` 匹配
+正确行为：bash `case` 的 `*` 通配符不匹配换行符 `\n`。多行命令必须先用 `tr '\n' ' '` 合并为单行后再做 case 匹配。否则包含换行的命令字符串中即使有目标文件名，case 也永远匹配不到。
+证据：pretool-sensitive-edit.sh:42 的 `jq -r '.tool_input.command'` 返回含 `\n` 的多行 Python 代码，`case "$BASH_CMD" in *"settings.json"*)` 匹配失败，settings.json 的 Bash 读取全部绕过 pretool-sensitive-edit。修复: `tr '\n' ' '` 合并单行。
+
+### 🐶 [DG-98] 单脚本双 hook 注册产生系统性双重计数 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：同一个脚本同时注册在 UserPromptSubmit 和 PostToolUse:Skill 两个事件
+正确行为：Claude Code 的 skill 调用流程: UserPromptSubmit(文本解析) → Skill 工具调用 → PostToolUse:Skill(工具完成)。同一脚本在两个事件均注册 → 一次用户操作触发两次 hook 执行 → skill-usage.jsonl 双写 + flywheel 双埋点。修复: 移除 UserPromptSubmit 注册，仅保留 PostToolUse:Skill（后者覆盖所有 Skill 工具调用场景）。设计原则: 一个脚本只注册一个事件，除非有明确的互补场景。
+证据：skill-usage-tracker.sh 同时在 settings.json UserPromptSubmit + PostToolUse:Skill 注册，每次 `/lx-xxx` 产生 2 条记录 → ROI 统计虚高。Oracle 一审发现此问题。
+
+### 🐶 [DG-99] R39 预算追踪必须先检查后累加 — 先加后查导致零注入 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：注入预算循环中，先将文件行数累加到计数器，再检查是否超限
+正确行为：`r39_used = r39_used + FILE_LINES` → 再 `if r39_used > BUDGET` 导致: 即使文件实际未被注入（被 continue 跳过），预算计数器已被扣减。大文件触发溢出时，该文件自身零内容注入 + 后续所有文件被截断。正确模式: `if r39_used + FILE_LINES > BUDGET` 先检查 → 超限则部分注入(剩余行用 head -$remaining) → 不超则全量注入。
+证据：Meta-Oracle 审查发现若 index.md 从当前 73 行增至 119+ 行，会导致 r39_used 从 0→121→立即超限→index.md 零注入 + 所有后续文件被跳过。修复: 先检查后累加 + 部分注入(head -$remaining)。
+
+---
+
+## 2026-05-19 狗粮 — 修复后重评分 + 评分系统天花板
+
+### 🐶 [DG-100] auto-score.sh 静态评分存在系统性天花板 — 语义级修复完全不可感知 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：用 auto-score.sh（regex + 文件存在性检测）评估语义级 hook 修复效果
+正确行为：auto-score.sh 的检测维度（文件存在/注册数/smoke pass/fail/regex 模式匹配）无法感知语义改进。E6 v1→v2: 假阳性率从 55% 降至 0%，auto-score E6 得分纹丝不动 (9/13)。C7: flywheel 埋点从 0 增至 90 条，auto-score C7 得分纹丝不动 (4/10)。评分系统必须有「运行时数据模拟」子项（DG-96 的物化）才能感知语义修复。在 auto-score 升级前，真正的修复效果需要用两轨评分（静态 + 手工运行时验证）交叉验证。
+证据：修复前后两次 auto-score: C 84→87 (+3, 仅 C2 注入预算被感知), E 100→100 (零变化), G 44→44 (零变化)。C7/E6/E1 三项语义修复在 auto-score 子维度得分完全不变。
+
+### 🐶 [DG-101] package-release.sh 被 smoke test 存量失败卡住 — 同步需要 bypass 路径 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：package-release.sh G4 门禁运行 smoke test，R30/R34 存量失败导致脚本 exit 2 中断同步
+正确行为：package-release.sh G4 不应因存量 smoke test 失败阻断 sync-only 操作。R30/R34（source mirror 漂移）恰是 sync 本身要修复的问题 — 同步前要求无漂移，但漂移正是同步的原因。应提供 `--sync-only` 跳过测试门禁直接同步，或区分「阻断性失败」和「信息性告警」。当前 workaround: 直接 rsync 单文件。
+证据：package-release.sh exit 2 at G4.2 smoke test。7 项漂移通过手动 `cp` 逐文件同步解决。
+
+### 🐶 [DG-102] 评分系统不改进则优化不可验证 — 工具限制了可观测性 (@LuangSir)
+
+@2026-05-19 hits:1
+触发条件：用户反馈「花了一天检测一天优化，分数从 8 降到 6.3」— 评分工具的方向与真实改进方向不一致
+正确行为：评分工具的指标必须与优化目标对齐。当前 auto-score 以「文件存在/注册数量」为主要维度，优化以「假阳性率/埋点覆盖率/语义正确性」为目标 — 两者正交。工具指标不改进，任何语义级优化都是「做了一整天，分数不涨反降」的可观测性坍塌。优化 auto-score 本身（增加运行时数据模拟子项、语义检测项）应与业务修复同优先级。
+证据：用户原话。4 项修复（C7/E6/E1 语义防御面显著扩大），auto-score 仅涨 0.09，用户主观评估从 8→6.3。
+
