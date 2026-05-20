@@ -144,6 +144,7 @@ def collect_token_savings():
     real_total_cache = None
     turns = None
     session_id = None
+    r = None
     context_limit = None
     if real_f.exists():
         try:
@@ -199,7 +200,7 @@ def collect_token_savings():
     # === Compact — 来自转录本实测 ===
     compact_saved = 0
     compact_events = 0
-    if real_f.exists():
+    if real_f.exists() and r is not None:
         compact_events = r.get("compact_events", 0)
         compact_saved = r.get("compact_savings", 0)
     # Fallback: token-savings.json (旧格式)
@@ -216,7 +217,7 @@ def collect_token_savings():
     # 缓存命中率 & 回合均耗
     cache_rate = None
     per_turn_avg = None
-    if real_f.exists():
+    if real_f.exists() and r is not None:
         total_ctx = r.get("total_context_used", 0)
         if total_ctx > 0:
             cache_read = r.get("total_cache_read_tokens", 0)
@@ -228,7 +229,7 @@ def collect_token_savings():
     # context_limit: corrected variable (auto-detected from model) > real data > synthetic > hardcoded
     if context_limit is not None and context_limit != 200000:
         effective_limit = context_limit
-    elif real_f.exists() and r.get("context_limit"):
+    elif real_f.exists() and r is not None and r.get("context_limit"):
         effective_limit = r["context_limit"]
     else:
         effective_limit = limit
