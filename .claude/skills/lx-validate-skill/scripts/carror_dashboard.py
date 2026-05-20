@@ -158,7 +158,7 @@ def collect_token_savings():
             turns = r.get("total_turns")
             session_id = r.get("session_id")
             context_limit = r.get("context_limit", None)
-        except (json.JSONDecodeError, KeyError):
+        except json.JSONDecodeError:
             pass
 
     # 自动检测模型上下文限制（优先: 模型名[1m]后缀 > settings.json）
@@ -211,7 +211,7 @@ def collect_token_savings():
                 sv = json.loads(sv_f.read_text(encoding="utf-8"))
                 compact_saved = sv.get("compact", 0)
                 compact_events = sv.get("compact_events", 0)
-            except (json.JSONDecodeError, KeyError):
+            except json.JSONDecodeError:
                 pass
 
     # 缓存命中率 & 回合均耗
@@ -227,7 +227,7 @@ def collect_token_savings():
                 per_turn_avg = round(total_ctx / tu)
 
     # context_limit: corrected variable (auto-detected from model) > real data > synthetic > hardcoded
-    if context_limit is not None and context_limit != 200000:
+    if context_limit is not None and context_limit > 0 and context_limit != 200000:
         effective_limit = context_limit
     elif real_f.exists() and r is not None and r.get("context_limit"):
         effective_limit = r["context_limit"]
