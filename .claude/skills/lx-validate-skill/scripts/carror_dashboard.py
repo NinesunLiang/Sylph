@@ -144,6 +144,7 @@ def collect_token_savings():
     real_total_cache = None
     turns = None
     session_id = None
+    context_limit = None
     if real_f.exists():
         try:
             r = json.loads(real_f.read_text(encoding="utf-8"))
