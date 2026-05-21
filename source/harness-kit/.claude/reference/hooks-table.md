@@ -1,9 +1,10 @@
-## Hooks 速查（共 40 个）
+## Hooks 速查（共 42 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
-|`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit — 检测 /compact 命令，保存 compact 前 usage 供 token|
+|`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit — /compact 后知识恢复（压缩版）|
 |`completion-gate` | PostToolUse | completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件|
+|`context-compressor` | SessionStart | context-compressor.sh — SessionStart — 移花接木：源文件不动，运行时拼接压缩缓存|
 |`context-guard` | PreToolUse | context-guard.sh — PreToolUse:Edit|Write — 基于真实 token 百分比阻断写操作，防止上下文溢出|
 |`ecosystem-probe` | SessionStart | ecosystem-probe.sh — SessionStart — 生态探针|
 |`edit-guard` | PreToolUse | edit-guard.sh — PreToolUse:Edit — 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁|
@@ -29,6 +30,7 @@
 |`posttool-write-lock` | PostToolUse | posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁|
 |`pre-ask-guard` | PreToolUse | pre-ask-guard.sh — PreToolUse:AskUserQuestion — 问人前强制过决策链四层评估|
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
+|`pre-edit-lsp-check` | PreToolUse | pre-edit-lsp-check.sh — PreToolUse:Edit — 编辑前诊断检查提醒|
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|
