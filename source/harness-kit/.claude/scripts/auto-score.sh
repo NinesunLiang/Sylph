@@ -572,7 +572,8 @@ score_G5() {
   local source_mirror_ok=0 index_consistent=0 doc_refs_ok=0
 
   # source mirror 一致性检查
-  if bash .claude/scripts/audit-hooks.sh --check-source-mirror 2>/dev/null | grep -qE "通过|无漂移|✅|有意分歧"; then
+  # DG-95: "有意分歧" is an info header, not a pass signal. Use precise match.
+  if bash .claude/scripts/audit-hooks.sh --check-source-mirror 2>/dev/null | grep -qE '✅|通过|无漂移[^:]*$'; then
     source_mirror_ok=1
   fi
 

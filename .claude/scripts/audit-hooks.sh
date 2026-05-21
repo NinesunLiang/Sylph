@@ -379,7 +379,7 @@ if check_source_mirror:
         # 根级配置文件：动态发现 .json/.yaml 文件
         _EXCLUDED_CONFIG = {'settings.local.json', 'scheduled_tasks.json'}
         # 根 AGENTS.md 和 CLAUDE.md 与 source 版本有意不同（元项目专属 vs 通用分发模板）
-        _INTENTIONAL_DIVERGENCE = {'AGENTS.md', 'CLAUDE.md'}
+        _INTENTIONAL_DIVERGENCE = {'AGENTS.md', 'CLAUDE.md', 'settings.json'}  # settings.json: root 绝对路径 vs source __PROJECT_ROOT__ 占位符
         config_files = {}
         for _cf in glob.glob('.claude/*.json') + glob.glob('.claude/*.yaml'):
             _name = os.path.basename(_cf)

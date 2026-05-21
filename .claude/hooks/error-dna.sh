@@ -43,6 +43,9 @@ touch "$STATE_DIR/error-dna.jsonl" 2>/dev/null || true
 # must emit runtime evidence that it's firing (Source III for C5/C9/E5 scoring).
 flywheel_event "error_dna" "capture" "P2" || true
 
+	# Heartbeat: timestamp file to distinguish "zero errors" from "collection broken"
+	touch "$STATE_DIR/error-dna-heartbeat.txt" 2>/dev/null || true
+
 TMP_FILE="${STATE_DIR}/.error-dna-input-$$.json"
 
 # 启动时清理超过 1 小时的孤儿临时文件（防积压，DG-17 同类静默失败模式）

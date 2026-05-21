@@ -132,6 +132,12 @@ PYEOF
 
 # 无范围文件 → 尝试自动推导（仅输出提醒，不创建 scope 文件）
 # 原则：无 scope = 放行。auto-scope 不应本末倒置产生 scope 封锁。
+
+# Goal/Ghost 模式检测 — 无人值守时范围自动扩展但有迹可查
+MODE="normal"
+if [ -f "$PROJECT_ROOT/.omc/state/lx-goal.json" ]; then MODE="goal"; fi
+if [ -f "$PROJECT_ROOT/.omc/state/lx-ghost.json" ]; then MODE="ghost"; fi
+
 if [ ! -f "$SCOPE_FILE" ]; then
     AUTO_SCOPE="$PROJECT_ROOT/.claude/scripts/auto-scope.sh"
     if [ -f "$AUTO_SCOPE" ]; then
@@ -174,7 +180,12 @@ done < "$SCOPE_FILE"
 # R40: 从"硬阻断+复制粘贴"改为"自动添加+非阻断提醒"
 # 用户预期是"AI 直接改文件"，不需要理解 scope 概念
 coupling_remind "$REL_PATH" "$PROJECT_ROOT"
-echo "ℹ️ [scope] ${REL_PATH} 自动加入编辑范围（之前未在 scope 中）" >&2
+if [ "$MODE" != "normal" ]; then
+    flywheel_event "pretool_edit_scope" "scope_autoexpand_${MODE}" "P3" "file=$REL_PATH" || true
+    echo "ℹ️ [scope|${MODE}] ${REL_PATH} 自动加入编辑范围（无人值守模式，范围自动扩展）" >&2
+else
+    echo "ℹ️ [scope] ${REL_PATH} 自动加入编辑范围（之前未在 scope 中）" >&2
+fi
 echo "$REL_PATH" >> "$SCOPE_FILE" 2>/dev/null || true
 # session-edit-log：跳过 /tmp/ 临时文件
 case "$REL_PATH" in /tmp/*) ;; *)
