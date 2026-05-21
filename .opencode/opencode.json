@@ -3,7 +3,6 @@
   "plugin": [
     "oh-my-openagent",
     ".opencode/plugins/carror-hooks-compat.ts",
-    ".opencode/plugins/session-guardian.ts",
-    ".opencode/plugins/hermes-migration-opencode.ts"
+    ".opencode/plugins/session-guardian.ts"
   ]
 }

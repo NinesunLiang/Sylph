@@ -36,6 +36,7 @@
 | `lx-pre-push` | Skill | `.claude/skills/lx-pre-push/` | 推送前深度门禁 | ✅ |
 | `lx-sync` | Skill | `.claude/skills/lx-sync/` | 变更后一致性检查 | ✅ |
 | `feature-probe.sh` | 工具 | `.claude/scripts/feature-probe.sh` | L1-L4证据链完整性诊断 | ✅ |
+| `context-compressor.sh` | Hook | `.claude/hooks/context-compressor.sh` | mtime 防过期 compact 缓存生成 | ✅ |
 
 **物化充足度**: ✅ 充分 — 10+ 直接机制，含 3 层防御纵深(PreToolUse截断→PostToolUse验证→Stop兜底)
 
@@ -61,6 +62,7 @@
 | `escape-patch-apply.sh` | 脚本 | `.claude/scripts/escape-patch-apply.sh` | 所有补丁需人工/Oracle审核 | ✅ |
 | `lx-varlock` | Skill | `.claude/skills/lx-varlock/` | 隐私脱敏代理 | ✅ |
 | `ed-red-team-test.sh` | 脚本 | `.claude/scripts/ed-red-team-test.sh` | 11场景红队验证 | ✅ |
+| `pre-edit-lsp-check.sh` | Hook | `.claude/hooks/pre-edit-lsp-check.sh` | 编辑前跨平台诊断提醒 (零外部依赖) | ✅ |
 
 **物化充足度**: ✅ 充分 — 与#4并列最高覆盖密度
 
@@ -88,6 +90,7 @@
 | `lx-goal` | Skill | `.claude/skills/lx-goal/` | 硬边界协议+三级裁决链 | ✅ |
 | `lx-ghost` | Skill | `.claude/skills/lx-ghost/` | 方向驱动+风险记录 | ✅ |
 | `lx-stepwise` | Skill | `.claude/skills/lx-stepwise/` | 逐步攻坚，每步验证 | ✅ |
+| `pre-edit-lsp-check.sh` | Hook | `.claude/hooks/pre-edit-lsp-check.sh` | 编辑前跨平台诊断提醒 | ✅ |
 
 **物化充足度**: ✅ 充分 — 几乎所有hook都含防御组件
 
@@ -174,6 +177,7 @@
 | `context-guard.sh` | Hook | `.claude/hooks/context-guard.sh` | 上下文阈值管理 | ✅ |
 | `token_writer.sh` | Hook | `.claude/hooks/token_writer.sh` | Token用量追踪索引 | ✅ |
 | `compact-detect.sh` | Hook | `.claude/hooks/compact-detect.sh` | /compact检测+预存usage | ✅ |
+| `context-compressor.sh` | Hook | `.claude/hooks/context-compressor.sh` | 移花接木: 源文件不动，运行时拼接compact缓存 | ✅ |
 | `flywheel-report.sh` | Hook | `.claude/hooks/flywheel-report.sh` | 压缩30天摘要注入(非全量) | ✅ |
 | `knowledge-condenser.sh` | Hook | `.claude/hooks/knowledge-condenser.sh` | 蒸馏升华建议 | ✅ |
 | `auto-snapshot.sh` | Hook | `.claude/hooks/auto-snapshot.sh` | 压缩状态快照 | ✅ |
@@ -224,6 +228,7 @@
 | `intent-tracker.sh` | #6 | — | ✅ |
 | `token_writer.sh` | #1 | — | ✅ |
 | `compact-detect.sh` | #1 | — | ✅ |
+| `context-compressor.sh` | #1, #4 | — | ✅ |
 | `auto-snapshot.sh` | #7, #1 | #8(P) | ✅ |
 | `skill-flywheel.sh` | #1, #2 | — | ✅ |
 | `skill-usage-tracker.sh` | #5, #1 | — | ✅ |
@@ -239,6 +244,7 @@
 | `posttool-edit-quality.sh` | #6, #4 | — | ✅ |
 | `posttool-handoff-writer.sh` | #7 | #3(E) | ✅ |
 | `lsp-suggest.sh` | #2, #5 | — | ✅ |
+| `pre-edit-lsp-check.sh` | #3, #6 | — | ✅ |
 | `feature-probe.sh` | #4, #7 | #3(E) | ✅(工具脚本) |
 | `agentic-ui.sh` | #5 | — | ✅(共享库) |
 | `harness_config.sh` | #3 | — | ✅(共享库) |

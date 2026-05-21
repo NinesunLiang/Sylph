@@ -38,6 +38,10 @@ EOF
 echo ""
 echo "[/compact] 知识恢复中..."
 
+
+# 强制刷新缓存（防会话中期源文件变更导致陈旧 — Meta-Oracle F2）
+bash "$SCRIPT_DIR/context-compressor.sh" 2>/dev/null || true
+
 # 注入 context-cache（核心规则，~4KB，一次性全覆）
 CACHE="$PROJECT_ROOT/.omc/state/context-cache.md"
 if [ -f "$CACHE" ]; then
