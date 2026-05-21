@@ -21,6 +21,7 @@ SRC_COMPACT_PAIRS="
 $PROJECT_ROOT/AGENTS.md|$CLAUDE_DIR/AGENTS-compact.md
 $CLAUDE_DIR/anti-patterns.md|$CLAUDE_DIR/anti-patterns-compact.md
 $CLAUDE_DIR/claude-next.md|$CLAUDE_DIR/claude-next-compact.md
+$CLAUDE_DIR/kernel.md|$CLAUDE_DIR/kernel-compact.md
 "
 
 # 检查任意源文件是否比缓存新
@@ -52,7 +53,7 @@ flywheel_event "context_compressor" "regenerating" "L1" || true
 > "$CACHE"
 {
     echo "<!-- CONTEXT-COMPRESSOR: $(date +%Y-%m-%dT%H:%M:%S) 自动生成 -->"
-    echo "<!-- 源文件: AGENTS.md + anti-patterns.md + claude-next.md (未修改) -->"
+echo "<!-- 源文件: AGENTS.md + anti-patterns.md + claude-next.md + kernel.md (未修改) -->"
     echo "<!-- 移花接木: 注入 compact 版本，完整版请 Read 源文件 -->"
     echo ""
 } >> "$CACHE"
