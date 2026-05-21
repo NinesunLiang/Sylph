@@ -313,6 +313,22 @@ run_case "edit-guard: 非 .go 文件应放行（R18）" \
   "edit-guard.sh" 0 ""
 rm -f .omc/state/read-tracker.txt
 
+# --- pre-edit-lsp-check ---
+# LSP-EYE-01: LSP 不可用时放行（不阻断）
+run_case "pre-edit-lsp-check: LSP 不可用应放行" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/test.py"}}' \
+  "pre-edit-lsp-check.sh" 0 ""
+
+# LSP-EYE-02: 非代码文件跳过
+run_case "pre-edit-lsp-check: .txt 文件应跳过" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/notes.txt"}}' \
+  "pre-edit-lsp-check.sh" 0 ""
+
+# LSP-EYE-03: Python 文件触发提醒
+run_case "pre-edit-lsp-check: .py 文件应提醒 LSP 检查" \
+  '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/main.py"}}' \
+  "pre-edit-lsp-check.sh" 0 "lsp-gate"
+
 # --- pretool-edit-scope ---
 rm -f .omc/state/current-scope.txt
 run_case "pretool-edit-scope: 无 scope 文件应放行" \
