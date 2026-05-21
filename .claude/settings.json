@@ -329,6 +329,15 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/context-compressor.sh",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/inject-project-knowledge.sh",
             "timeout": 10000
           }

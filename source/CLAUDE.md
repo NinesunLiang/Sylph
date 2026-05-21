@@ -1,10 +1,11 @@
-@AGENTS.md
+@.omc/state/context-cache.md
 
 <!-- harness-kit:governance-start -->
 <!-- Carror OS — AI Native Developer Operating System -->
 <!-- 此文件为 Claude Code / CLAUDE.md 兼容 IDE 的跳板文件 -->
 <!-- 核心治理内容在 AGENTS.md，本文件通过 @-include 导入 -->
-<!-- 卸载时 harness-kit:governance-start 到 end 区域会被移除 -->
+<!-- 卸载时 harness-kit:governance-start 到 end 区域会被移除
+-->
 
 ## Claude Code 专属配置
 
