@@ -1,3 +1,4 @@
+<!-- CTX-COMPACT:AI-ONLY -->
 <!-- kernel.md — AI执行内核（压缩版） -->
 <!-- 完整版 → Read .claude/kernel.md -->
 

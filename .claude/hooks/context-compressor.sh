@@ -15,6 +15,9 @@ CACHE="$STATE_DIR/context-cache.md"
 
 mkdir -p "$STATE_DIR"
 
+# 跨平台 mtime 提取: macOS (stat -f%m) / Linux (stat -c%Y)
+_stat_mtime() { stat -f%m "$1" 2>/dev/null || stat -c%Y "$1" 2>/dev/null || echo 0; }
+
 # 源文件（用来比对 mtime）和对应的 compact 文件（用来拼接缓存）
 # 格式: src1|compact1 src2|compact2 ...
 SRC_COMPACT_PAIRS="
@@ -29,12 +32,12 @@ NEED_REGEN=false
 if [ ! -f "$CACHE" ]; then
     NEED_REGEN=true
 else
-    CACHE_MTIME=$(stat -f%m "$CACHE" 2>/dev/null || echo 0)
+    CACHE_MTIME=$(_stat_mtime "$CACHE")
     set -f
     for pair in $SRC_COMPACT_PAIRS; do
         src="${pair%%|*}"
         [ ! -f "$src" ] && continue
-        SRC_MTIME=$(stat -f%m "$src" 2>/dev/null || echo 0)
+        SRC_MTIME=$(_stat_mtime "$src")
         if [ "$SRC_MTIME" -gt "$CACHE_MTIME" ]; then
             NEED_REGEN=true
             break
