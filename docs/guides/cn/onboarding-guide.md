@@ -48,8 +48,8 @@ git clone https://github.com/[carror-os]/harness-kit .claude
 # 初始化
 bash .claude/install.sh
 
-# 验证安装
-bash .claude/scripts/harness-smoke-test.sh
+# 验证安装（检查 hooks 是否正常注册）
+grep -c 'hooks_enabled' .claude/harness.yaml && echo "harness.yaml OK"
 ```
 
 看到这个，说明你好了：

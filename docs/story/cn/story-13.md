@@ -106,9 +106,9 @@ Bash 命令的审计必须覆盖两个场景：
 
 R22 记录了一次关键修复——最初的 settings.json 只注册了 PostToolUse，导致错误捕获完全是僵尸功能。补上 PostToolUseFailure 后，error-dna.jsonl 才开始有真实数据。
 
-### retry-budget.sh — 重试预算管理器
+### 重试预算：pretool-retry-check 内置追踪
 
-pretool-retry-check.sh（属于门禁骑士团）的燃料来自 retry-budget.sh。每次 Bash 失败后，retry-budget 记录命令签名和重试次数。签名出现第三次 → pretool-retry-check 阻断。
+pretool-retry-check.sh 现在自己追踪重试计数——不再依赖已移除的 retry-budget.sh。每次 Bash 失败后，它记录命令签名和重试次数。签名出现第三次 → 阻断。标记文件存储在 `.omc/state/retry-log/` 中，跨会话持久化。
 
 ### stop-drain — 最后防线
 

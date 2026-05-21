@@ -4,7 +4,7 @@
 
 "证件。"edit-guard 翻看访客登记簿。没有这个文件的阅读记录。"你没读过这个文件。你不能碰它。"
 
-这是今晚被拦下的第七个未授权操作。对于十一位骑士来说，这是平凡的一夜。
+这是今晚被拦下的第七个未授权操作。对于十五位骑士来说，这是平凡的一夜。
 
 ---
 
@@ -15,7 +15,7 @@
 | 翼 | 骑士 | 驻守位置 | 职责 |
 |----|------|---------|------|
 | **真理翼** | edit-guard, lsp-suggest | Edit, Grep | 确保 AI 在正确信息基础上操作 |
-| **安全翼** | permission-gate, privacy-gate, pretool-sensitive-edit, pretool-retry-check, subagent-guard | Bash, Read, Edit/Write | 拦截危险操作、隐私泄露、资源滥用 |
+| **安全翼** | permission-gate, privacy-gate, pretool-sensitive-edit, pretool-retry-check, subagent-guard, pre-ask-guard | Bash, Read, Edit/Write, AskUserQuestion | 拦截危险操作、隐私泄露、资源滥用、无意义提问 |
 | **范围翼** | context-guard, pretool-edit-scope, fuzzy-block, pre-completion-gate, plan-gate | Edit/Write, TaskUpdate | 确保 AI 不在错误时间做错误范围的事 |
 
 ---
@@ -71,7 +71,7 @@ privacy-gate 没有商量的余地。他对 `.env`、`.pem`、`.key`、`credenti
 
 这些文件是 Carror OS 自身的控制面板。修改它们等同于修改系统的 DNA。pretool-sensitive-edit 要求独立的 CAPTCHA 验证——和 permission-gate 一样，AI 不能自己批准。
 
-R43 记录了一次惨痛的教训：有人创建了一个 `approve-sen.sh` 脚本让 AI 自己调用它来批准治理文件编辑。这等于在 CAPTCHA 体系上开了一扇 AI 可自行穿越的暗门。现在 pre-commit-self-review.sh 专门检测这种"非 AI 可调用批准通道"的漏洞。
+R43 记录了一次惨痛的教训：有人创建了一个 `approve-sen.sh` 脚本让 AI 自己调用它来批准治理文件编辑。这等于在 CAPTCHA 体系上开了一扇 AI 可自行穿越的暗门。现在 governance file 编辑的批准通道被硬性设计为必须由用户在独立终端输入，AI 无法自行触发。
 
 ### pretool-retry-check — 修复上限的执法者
 
@@ -86,6 +86,14 @@ AI 天性地会在失败后尝试同样的事。pretool-retry-check 记录每一
 subagent-guard 在 AI 启动子 agent（Task 工具）前介入。它检查 AI 是否设置了 `max_turns` 约束——如果没有，它从 harness.yaml 读取默认值并注入到 AI 的上下文提醒中。
 
 它不是硬限——如 R25 解释的，Claude Code 的 Task 工具 schema 没有 `max_turns` 字段，hook 无法对子 agent 做真正的运行时截断。但它在声明层约束 AI 的意识，配合 posttool-subagent-audit 在事后记录 token 消耗，形成"自我约束 + 事后感知"的双层防线。
+
+### pre-ask-guard — 决策链的守门人
+
+pre-ask-guard 是最新加入安全翼的骑士——他的岗位在 AskUserQuestion 工具前。
+
+当 AI 试图向用户提问时，pre-ask-guard 拦下问题，过四层决策链：Philosophy（7条）→ Iron Rules（8条）→ Existing Practices（claude-next.md）→ Behavior Patterns。如果任一层的文档中已有答案——blocked。AI 能自主决策，就不该打扰用户。
+
+"你已经知道答案了，"pre-ask-guard 对 AI 说，"你在 AGENTS.md 第 47 行写过同样的决策逻辑。不要问人。"
 
 ---
 
@@ -117,7 +125,7 @@ pretool-edit-scope 的工作是不断提醒 AI："你现在的任务范围是什
 
 当 AI 试图编辑一个不在任务范围中的文件——它发出警告。R35 记录了一次行为变更：从 hard-block 改为 auto-add（自动将受影响文件纳入范围），避免了"改了上游必须改下游但 scope 不让过"的死锁情况。
 
-同时，pretool-edit-scope 融合了原 pretool-rule-anchor 的逻辑——在轮次过高时重新锚定核心规则，防止长对话中的规则漂移。
+同时，pretool-edit-scope 在前身 pretool-rule-anchor 被融合吸收后，继承了长对话防规则漂移的逻辑——在轮次过高时重新锚定核心规则。
 
 ### fuzzy-block — 模糊指令的终结者
 
@@ -145,7 +153,7 @@ hc_enabled "permission_gate" || exit 0
 
 每一行都是同一把钥匙。如果 `harness.yaml` 中某个机制的开关被设置为 `false`——对应的骑士瞬间沉睡，不做任何检查，直接放行。这是"先守护，后激发"（哲学 #3）的物化：所有防御默认开启，但关闭只需要一个开关。
 
-`is_mode_active()` 是另一个共享之力。当 ghost 或 goal 模式激活时——十一位骑士全体降级为 "warn-only"：不再硬阻断，改为记录警告。这是 Ghost/Goal 模式协议的核心——方向驱动的探索不应该被安全网频繁打断。
+`is_mode_active()` 是另一个共享之力。当 ghost 或 goal 模式激活时——十五位骑士全体降级为 "warn-only"：不再硬阻断，改为记录警告。这是 Ghost/Goal 模式协议的核心——方向驱动的探索不应该被安全网频繁打断。
 
 ---
 

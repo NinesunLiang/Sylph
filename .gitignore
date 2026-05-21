@@ -6,3 +6,4 @@ __pycache__/
 *.pem
 .omc/
 scripts/packages/
+_swebench_test/

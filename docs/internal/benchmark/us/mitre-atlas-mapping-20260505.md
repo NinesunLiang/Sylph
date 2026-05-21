@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: MITRE ATLAS AI Threat Matrix Mapping
 description: Carror OS 30 hooks + skills mapped to MITRE ATLAS attack tactics/techniques mitigation (record only)

@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: ShellCheck 行业标准静态分析报告
 description: 全部 .claude/hooks/*.sh + .claude/scripts/*.sh 的 shellcheck 扫描结果

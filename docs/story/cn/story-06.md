@@ -23,7 +23,7 @@ AI 的上下文窗口有硬上限。每次 Read、每次工具输出、用户的
 ```
 token_writer (记录) → turn-counter (评估) → context-guard (阻断)
                       ↓                    ↓
-              pretool-rule-anchor (锚定)  compact-detect (恢复)
+              skill-usage-tracker (追踪)  compact-detect (恢复)
 ```
 
 ---
@@ -72,11 +72,9 @@ AI: 需要 Write 来创建 context-force-override → blocked
 
 ---
 
-### pretool-rule-anchor — 长对话的锚定者
+### skill-usage-tracker — 工具使用状况的观察员
 
-当会话达到高轮次（由 turn-counter 的 L2 触发），pretool-rule-anchor 在每次 Edit/Write 前重新注入核心规则摘要。
-
-它的逻辑是：长对话中，AI 开始被最近的细节淹没，忘记了 SessionStart 时注入的基础规则。pretool-rule-anchor 就像一个偶尔拍你肩膀提醒你的人："嘿，还记得铁律 #1 吗？禁止编造。你现在引用的那个 file:line，你真的读过吗？"
+skill-usage-tracker 在每次会话中默默追踪各 skill 和 hook 的使用频率。它的数据是 turn-counter L2 层判断"哪些规则正在被遗忘"的关键输入。原 pretool-rule-anchor 的长对话规则锚定逻辑已被 pretool-edit-scope 吸收（story-03），skill-usage-tracker 接替了"监控上下文健康"的角色。
 
 ---
 

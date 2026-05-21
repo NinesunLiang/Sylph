@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: Carror OS Industry Standard Test Pass Rate Summary Report
 description: Multi-metric pass rate summary across B1-B5 five industry standard scans/highlights (2026-05-05 pre-production re-test)

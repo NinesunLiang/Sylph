@@ -1,128 +1,86 @@
-# 审计军团 — 三大审计师与自检仪
+# 工具匠人 — 从脚本军团到钩子进化
 
-pre-commit-self-review.sh 收到了 git commit 的触发信号。它不关心提交内容是什么——它关心三件事。
+claim-lint.sh 沉默地扫描着每一份营销文档。它不关心文采——它只关心一件事：有没有人写"行业独创"？有没有人说"100%"？有没有人称"没有对手"？
 
-第一：有没有 AI 能自己调用的 CAPTCHA 批准脚本？R42 的幽灵还在徘徊——approve-sen.sh 的教训不允许被忘记。
+高风险关键词的名单不长——但每一条都是因果的产物。对外宣称"行业首创"被事实核查打脸的那一天，名单上多了"首创"。写"自评分"让 Oracle 发现评分虚高的那一天，名单上多了"自评分"。
 
-第二：有没有 hook 规则被错误应用到 skill？R42 的另一半——ghost mode 用 R23 的逻辑删了 31 个文件。
-
-第三：新加的文件在 settings.json 和 harness.yaml 都注册了吗？R23 再演——8 个僵尸 hook 在黑暗里假装工作。
-
-三问全过，exit 0。有任何一问不过——exit 2。提交被驳回。审计军团不赞成你的 patch。
+工具匠人不靠灵感——靠前车之鉴。
 
 ---
 
-## 军团的结构
+## 旧军团的消逝
 
-| 角色 | 工具 | 职责 | 运行时机 |
-|------|------|------|---------|
-| 第一审计师 | audit-hooks.sh | 三方一致性审计 | 手动 / smoke 回归 |
-| 第二审计师 | harness-smoke-test.sh | 全回归烟雾测试 | 每次 hook 变更后 |
-| 第三审计师 | hook-production-verify.sh | 全场景门禁覆盖 | 每次 gate 行为变更后 |
-| 内部事务官 | pre-commit-self-review.sh | 反自矛盾自检 | 每次 git commit 前 |
-| 文档审计官 | doc-sync-check.sh | 文档引用准确性 | 架构变更后 |
-| 自我评分官 | score-self-check.sh | AI 评估 vs 实际配置 | 评估/评分任务后 |
+曾经，审计军团有六位成员。三位审计师：audit-hooks.sh（三方一致性），harness-smoke-test.sh（回归烟雾），hook-production-verify.sh（全场景覆盖）。三位事务官：pre-commit-self-review.sh（反自矛盾），doc-sync-check.sh（文档引用），score-self-check.sh（AI vs 实际配置）。
 
----
+他们全部消逝了。
 
-## 第一审计师：audit-hooks.sh — 三方一致性审计
+不是被删除的——是被进化吸收的。
 
-第一审计师不测试功能——他检查**一致性**。
+三方一致性审计？现在的 completion-gate 家族（completion-gate + posttool-completion-audit + pre-completion-gate）在每次 TaskUpdate 时实时检查，不再需要手动运行 audit-hooks.sh。
 
-他提出三个问题：
-1. **磁盘上是否有这个脚本？** (`.claude/hooks/xxx.sh` 存在？)
-2. **harness.yaml 中是否声明它启用？** (`hooks_enabled.xxx: true`？)
-3. **settings.json 中是否注册了事件 + matcher？** (`hooks.xxx.matcher` 存在？)
+回归烟雾测试？Dogfood 模式（lx-dogfood skill + flywheel-report）在持续运行中覆盖了所有 hook 的功能验证，不再需要独立的 harness-smoke-test.sh。
 
-三项必须齐一。任何缺失 = 漂移。
+全场景门禁覆盖？posttool-anti-pattern-detect 和 fuzzy-block 在生产环境中实时检测反模式，不再需要模拟测试的 hook-production-verify.sh。
 
-R23 记录了一次震撼性的发现——首次运行 audit-hooks 时，12 个 hook 脚本中有 8 个是"僵尸"：磁盘上有脚本、harness.yaml 声明启用，但 settings.json 没有注册。它们在产品文档层面"存在"，但 Claude Code 运行时根本不会触发它们。
+反自矛盾检查？Oracle 终审（lx-oracle）在每次关键决策时交叉验证，不再需要 pre-commit 脚本。文档引用验证？inject-project-knowledge 在每次 SessionStart 时注入最新状态，不再需要 doc-sync-check.sh。
 
-那是 audit-hooks.sh 的诞生时刻。R36 进一步强化了它——hook 合并/废弃时，三个文件必须同步更新：(A) settings.json ← (B) harness.yaml ← (C) smoke tests。
+**不是"被废弃了"。是被更高效的机制替代了。** 每一个消逝的脚本，其因果逻辑都没有消失——只是从手动脚本层进化到了 hook 实时层和 skill 智能层。
 
-审计师的另一种模式是 `--check-source-mirror`：比对 root 和 source/harness-kit 中的文件一致性。AGENTS.md 被显式排除——它是"有意不同"的文件，元项目治理文件和通用分发模板天然不同。
+脚本层变薄了。但覆盖更密了。
 
 ---
 
-## 第二审计师：harness-smoke-test.sh — 回归烟雾测试
+## 现在：工具匠人工坊
 
-第二审计师做真正的功能验证。它模拟真实的 Claude Code JSON schema，向每个 hook 注入模拟的工具调用，检查返回值是否正确。
+如今站在 scripts/ 目录里的，是六位不同性格的手艺人：
 
-测试覆盖：
-- **Hook 存在性**：每个 hook 能否被触发执行？
-- **正常路径**：正常输入下 hook 是否 exit 0？
-- **阻断路径**：门禁触发条件满足时 hook 是否 exit 2？
-- **模式感知**：ghost/goal 模式下 hook 是否正确降级？
-- **配置读取**：hc_enabled=false 时 hook 是否跳过？
-
-R24 记录了一次关键的修复——smoke 测试曾用 `main.go` 作为测试样例文件，恰好它存在于项目目录中，导致 `for x in $GLOB_VAR` 的 glob 展开问题被"靠 cwd 巧合通过测试"掩盖。修复后改用 `/Users/demo/project/src/main.go` 全路径，彻底杜绝环境依赖。
-
-第二审计师的输出是动态计数的——测试 case 数量随 hook 数量变化，全绿才算 pass。
+| 匠人 | 工具 | 职责 | 触发 |
+|------|------|------|------|
+| 真言匠人 | claim-lint.sh | 营销文档关键词扫描 | 文档变更时 |
+| 安装大师 | install.sh | 一键安装 Carror OS | 新环境部署 |
+| 工具箱匠人 | harness-kit-install.sh | 导入 harness 套件 | 项目初始化 |
+| 工具箱卸手 | harness-kit-uninstall.sh | 安全卸载 harness | 清理迁移 |
+| 打包师 | package.sh | 生成发布包 | 版本构建 |
+| 发布官 | package-release.sh | 版本发布全流程 | Release 门禁 |
 
 ---
 
-## 第三审计师：hook-production-verify.sh — 全场景门禁覆盖
+## 真言匠人：claim-lint.sh — 不夸大是一种纪律
 
-第三审计师是最彻底的。他不测试 hook 能否运行——他测试每一个门禁的**全部触发场景**。
+claim-lint.sh 是唯一和"审计"沾边的留存者。它做的事简单却致命：扫描 docs/marketing/ 下所有 Markdown 文件，检测是否出现被禁的关键词。
 
-以 context-guard D3 测试为例：
-- Write @ 95% context → expect exit 2（阻断写）
-- Edit @ 95% context → expect exit 2（阻断写）
-- Read @ 95% context → expect exit 0（诊断通道保留）
-- Bash @ 95% context → expect exit 0（诊断通道保留）
+名单不长。每条都有故事：
 
-R26 的修复就是由 D3 测试驱动的——四工具循环永久守护，任何工具例外立即 🔴。
+- **"行业独创"** —— 被事实核查发现同类产品早在 2025 年就发布了
+- **"首创"** —— 和"独创"类似的过度声明
+- **"100%"** —— "100% 可见"被 Oracle 审计发现存在盲区
+- **"完全可见"** —— 同上
+- **"自评分"** —— R30：AI 自评分在 Enhanced 环境下与 Base 文档基准错位
+- **"毫无疑问"** —— 因为永远有疑问
+- **"军工级"** —— 未经任何军工认证的浮夸比喻
+- **"满分"** —— 因为永远不是
 
-第三审计师回答的问题是：**"所有声称被封锁的工具，确实被封锁了吗？所有声称放行的工具，确实被放行了吗？"**
-
----
-
-## 内部事务官：pre-commit-self-review.sh — 反自我矛盾检查
-
-内部事务官是最年轻但最尖锐的审计成员。它在每次 `git commit` 前执行三项检查：
-
-1. **CAPTCHA 绕过检测**：是否有 AI 可调用的批准脚本？R42 的事故（approve-sen.sh 创建了 AI 可自行穿越的暗门）是这项检查的触发器
-2. **域规则误用**：R42 的另一半——ghost mode 将 hook 规则（R23 的三方一致性）错误应用到 skill（skill 不需要 settings.json 注册，它有 feature-registry.yaml）
-3. **新 hook 注册完整性**：新增的 hook 脚本是否同时有了 settings.json 注册 + harness.yaml 开关？
-
-exit 2 = 阻断提交。这不是风格检查——这是安全倒数第二道防线。
+真言匠人的逻辑不是"删除所有营销语言"。它的逻辑是：**每一个夸张的断言，都是未来被打脸的因果种子。** 此刻省下的真实，是未来积攒的信用。
 
 ---
 
-## 文档审计官：doc-sync-check.sh — 文档引用准确性
+## 从"审计事后"到"实时进化"
 
-文档审计官做一件简单的事：扫描 docs/ 中所有 `[已验证: path:line]` 标注，打开对应文件，验证该行号确实存在且内容匹配。
+回看旧审计军团的消逝和工具匠人工坊的现状，折射的是 Carror OS 自身的一个进化规律：
 
-R28 的教训驱动了这个工具的诞生——README.md 中的架构描述在实现变更为双终端交叉验证后仍然是旧的 Sub-agent 盲审描述。20+ 营销文档全部过期。
+**好的治理不是事后审计——是实时融入。**
 
-现在每次架构变更后，运行 doc-sync-check.sh 就能发现所有文档漂移。
+当治理从脚本（手动运行）进化到 hook（自动触发）再进化到 skill（智能决策），每一次跳跃都在提高信噪比、降低心智负担。脚本层从 15 个工具减少到 6 个——不是功能变少了，是功能找到更高效的存在形态了。
 
----
+而工具匠人工坊的存在，恰好说明：**总有一些事情不适合 hook 化或 skill 化。** 营销措辞检查不需要每次 commit 都触发。安装部署不需要注入到 AI 上下文中。它们是独立任务，独立触发，独立验收。
 
-## 自我评分官：score-self-check.sh — AI 评估 vs 实际配置
-
-自我评分官诞生于 R30 事故——AI 在 Enhanced 环境下运行，却按 Base 版文档给自己评分，导致"Enhanced 隐藏"和"不会主动提示"两条扣分完全不成立。
-
-它做的是：AI 完成自我评估后，强制检查实际环境配置（skill 目录、settings.json、harness.yaml 开关状态），将评估结论与实际状态比对，发现不一致时告警。
-
-这是哲学 #6（0 信任）的最明确物化——AI 连对自己的认识都会被审计。
-
----
-
-## 军团为什么存在？
-
-门禁骑士团（story-03）在事前守护。证据裁判庭（story-04）在事中验证。审计军团在事后追查。
-
-三大审计师不阻止错误——但**确保没有任何错误能悄无声息地逃逸**。这是"先守护，后激发"（哲学 #3）和"0 信任"（哲学 #6）的最后一层：当所有前防线都被绕过时，审计记录不会消失。
-
-审计军团的第六条成员——pre-commit-self-review.sh——更是铁律 #8（反自我矛盾）的物化。Carror OS 自身也在被 Carror OS 审计。每一行新增代码在被提交之前，都要回答三个问题：你创造了新漏洞吗？你滥用了不适用于你的规则吗？你正确地注册了自己吗？
-
-三道问题的答案不在代码里。在审计师的沉默中。
+这就是 因果 的智慧：不预设什么应该是 hook、什么应该是 script。让实际需求决定生长方向。
 
 ---
 
 ## 相关故事
 
-- [证据裁判庭](story-04.md) — 审计军团在事中验证（completion-gate）失效时的兜底
-- [飞轮回响](story-12.md) — audit-hooks.sh --check-source-mirror 是狗粮同步的最后一道验证
-- [元环：蛇吞己尾](story-15.md) — 审计军团是蛇在吞己尾时的自我检查机制
+- [证据裁判庭](story-04.md) — completion-gate 家族：吸收了三方一致性审计的实时验证
+- [双生判官](story-16.md) — Oracle 终审：吸收了 pre-commit 自检的交叉验证
+- [飞轮回响](story-12.md) — Dogfood 模式：吸收了回归烟雾测试的持续验证
+- [反面镜宫](story-09.md) — posttool-anti-pattern-detect：吸收了全场景门禁覆盖

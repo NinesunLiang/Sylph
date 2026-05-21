@@ -1,9 +1,10 @@
-# Hooks 生产级端到端验收报告（R19-R25）
+# Hooks 生产级端到端验收报告（R19-R25）⚠️ 已归档
 
-**周期**：2026-05-05
+**周期**：2026-05-05 | **当前版本**：v6.2.1 | **归档状态**：历史记录
 **范围**：Carror OS harness-kit 32 个 hook 的真实有效性验收
 **驱动**：用户要求 "hooks 是最后防线，要生产级"
 **结论**：**通过生产级验收**。声明层/拦截层 100% 生效；执行层 / 兜底层 / 审计层就位；已知限制与产品定位已明确。
+**⚠️ 注意**：本报告引用的部分脚本（audit-hooks.sh、harness-smoke-test.sh、hook-production-verify.sh 等）已于 v6.2.0 移除，审计函数已进化到 hooks 和 skills 中。参见 story-10「工具匠人」。
 
 ---
 
@@ -142,9 +143,9 @@ R26 本轮把原"日常观察型" 3 项（A5/C2/D3）全部用 `hook-production-
 | 产物 | 路径 |
 |------|------|
 | 本报告 | `docs/acceptance/hooks-production-acceptance-20260505.md` |
-| 自动化测试 | `.claude/scripts/harness-smoke-test.sh`（56 case） |
-| 生产代证 | `.claude/scripts/hook-production-verify.sh`（15 case） |
-| 三方审计 | `.claude/scripts/audit-hooks.sh`（支持 `--json`） |
+| 自动化测试 | `.claude/scripts/harness-smoke-test.sh`（56 case）⚠️ REMOVED v6.2.0 |
+| 生产代证 | `.claude/scripts/hook-production-verify.sh`（15 case）⚠️ REMOVED v6.2.0 |
+| 三方审计 | `.claude/scripts/audit-hooks.sh`（支持 `--json`）⚠️ REMOVED v6.2.0 |
 | 人工清单 | `.omc/state/human-acceptance-checklist-20260505.md`（22 项） |
 | 完成证据 | `.omc/state/.completion-evidence-20260505` |
 | 学习笔记 | `.claude/claude-next.md`（R22/R23/R24/R25 教训） |

@@ -1,9 +1,8 @@
 # 技能目录
 
-> **所属层级**: 3-机制(血肉层) — 26 个 Skill 能力目录（25 lx-* + 1 工具类）
+> **所属层级**: 3-机制(血肉层) — 26 个 Skill 能力目录
 
-
-> 基于源码 `.claude/skills/` 实测提取。共 25 个 `lx-` 技能 + 1 工具类技能，按功能域分类。
+> 基于源码 `.claude/skills/` 实测提取。共 26 个技能，按功能域分类。
 
 ## 分类速查
 
@@ -12,10 +11,13 @@
 | [执行模式](#执行模式) | 2 | 无人值守自主执行 |
 | [OMA 管线](#oma-管线) | 4 | PRD→拆解→编排→治理 |
 | [质量门禁](#质量门禁) | 2 | 提交前/推送前检查 |
-| [任务管理](#任务管理) | 4 | todo→task-spec→RPE→PRD |
-| [代码审查](#代码审查) | 4 | 通用代码/React/安全/性能审查 |
-| [测试](#测试) | 6 | 测试生成/TDD/调试/可视化 |
-| [基础设施](#基础设施) | 3 | 状态面板/隐私代理/蜂群 |
+| [任务管理](#任务管理) | 4 | todo→task-spec→RPE→stepwise |
+| [代码审查](#代码审查) | 1 | 通用代码审查 |
+| [测试](#测试) | 2 | 测试生成/根因分析 |
+| [基础设施](#基础设施) | 6 | 状态面板/隐私代理/蜂群/一致性/验证 |
+| [审计与审判](#审计与审判) | 3 | Oracle 门禁/增强审查/自食狗粮 |
+| [系统运维](#系统运维) | 1 | 自更新 |
+| [技能创建](#技能创建) | 2 | skillify/learner |
 
 ---
 
@@ -58,7 +60,7 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | `/lx-pre-commit` | 项目类型检测 → 编译 → 测试 → 代码审查 | `pre-commit`、`提交前检查` |
 | `/lx-pre-push` | commit message 校验 → 测试覆盖 → 安全扫描 → 判定 | `pre-push`、`推送前检查` |
 
-**说明**：操作层由 `.claude/scripts/` 脚本执行，AI 负责结果解读和路由决策。
+**说明**：编译/测试等检测由 AI 直接执行，`lx-pre-commit` 和 `lx-pre-push` 负责结果解读和路由决策。
 
 ---
 
@@ -104,9 +106,23 @@ One-Man Army — 一人成军开发管线，从 PRD 到 feature 的全流程。
 | `/lx-status` | 健康面板 v3.0：Token 节省/任务通过率/拦截错误/知识点 4 面板 + audit 摘要 |
 | `/lx-varlock` | 隐私脱敏代理。敏感信息（密码/API Key/Token）绝不泄露到 AI 上下文 |
 | `/lx-race` | 蜂群协调层：注册子任务→派发→收集→报告。复用 team 调度+OMA Lock |
-| `/lx-stepwise` | 逐步攻坚模式：高难度 bug 单步推进，每步需验证，不可跳过 | | [lx-stepwise](../../.claude/skills/lx-stepwise/SKILL.md) |
-| `/lx-sync` | 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐等 6 项 | | [lx-sync](../../.claude/skills/lx-sync/SKILL.md) |
+| `/lx-stepwise` | 逐步攻坚模式：高难度 bug 单步推进，每步需验证，不可跳过 |
+| `/lx-sync` | 变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步等 6 项 |
 | `/lx-validate-skill` | 验收新 skill 是否遵循原子化架构规则（11 项检查） |
+
+## 审计与审判
+
+| 技能 | 一句话 |
+|------|--------|
+| `/lx-oracle` | Oracle 常规守门员 — 每阶段门禁独立审查，裁决 ACCEPT/REVISE/REJECT |
+| `/lx-oracle-v2` | Oracle v2 — 增强版审查，对抗性审查 + 设计盲区扫描 |
+| `/lx-dogfood` | 自食狗粮 — 用 Carror OS 验证自身，收集 token/hook 拦截率报告 |
+
+## 系统运维
+
+| 技能 | 一句话 |
+|------|--------|
+| `/update-carror-os` | 自更新圣器 — 跨版本升级时确保 hooks/skills/scripts 版本一致 |
 
 ---
 

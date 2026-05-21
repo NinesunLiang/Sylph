@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: ShellCheck Industry Standard Static Analysis Report
 description: ShellCheck scan results for all .claude/hooks/*.sh + .claude/scripts/*.sh

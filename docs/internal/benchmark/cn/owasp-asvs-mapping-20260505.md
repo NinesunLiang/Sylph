@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: OWASP ASVS v4.0.3 合规对照表
 description: Carror OS 30 hook + skill 对照 OWASP ASVS §5 输入验证 + §12 文件资源 + §13 API 安全（仅记录）

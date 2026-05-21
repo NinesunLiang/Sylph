@@ -1,4 +1,4 @@
-@AGENTS.md
+@.omc/state/context-cache.md
 
 <!-- harness-kit:governance-start -->
 <!-- Carror OS — AI Native Developer Operating System -->

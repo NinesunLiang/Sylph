@@ -3,7 +3,7 @@
 **生成时间：** 2026-05-04 09:07:31
 **方法：** tiktoken cl100k_base
 **仓库：** `/Users/lucas.liang/Desktop/Sylph/Carror_OS`
-**数据版本：** Carror OS ≤ v6.1.8。以下 L2 文件列表中部分 skill（lx-browser-verify、lx-react-review、lx-golang-test、lx-web-perf、lx-prd、lx-debug-spec、lx-security-review、lx-tdd-spec）已于 v6.2.0 从核心移除，对应文件不再存在。以下 token 计数为数据生成时的历史快照，仅作参考。
+**数据版本：** Carror OS ≤ v6.1.8（已归档 — 当前 v6.2.1）。以下 L2 文件列表中 8 个 skill（lx-browser-verify、lx-react-review、lx-golang-test、lx-web-perf、lx-prd、lx-debug-spec、lx-security-review、lx-tdd-spec）已于 v6.2.0 从核心移除。本报告为**历史基准快照**，保留供参考。
 
 ---
 

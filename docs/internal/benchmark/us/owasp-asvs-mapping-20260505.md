@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: OWASP ASVS v4.0.3 Compliance Mapping Table
 description: Carror OS 30 hooks + skills mapped to OWASP ASVS SS5 Input Validation + SS12 Files & Resources + SS13 API Security (record only)

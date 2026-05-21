@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: NIST AI Risk Management Framework 1.0 对照
 description: Carror OS 30 hook + 23 skill 对应 NIST AI RMF GOVERN/MAP/MEASURE/MANAGE 四域（仅记录）

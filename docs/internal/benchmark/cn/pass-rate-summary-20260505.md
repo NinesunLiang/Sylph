@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: Carror OS 行业标准测试通过率汇总报告
 description: B1-B5 五项行业标准扫描/对照的通过率多口径汇总（2026-05-05 生产前重测）

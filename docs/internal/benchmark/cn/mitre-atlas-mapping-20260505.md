@@ -1,3 +1,4 @@
+# ARCHIVED — v6.2.1 — Historical benchmark snapshot. Referenced scripts may no longer exist on disk.
 ---
 name: MITRE ATLAS AI 威胁矩阵映射
 description: Carror OS 30 hook + skill 对应 MITRE ATLAS 攻击战术/技巧的缓解映射（仅记录）
