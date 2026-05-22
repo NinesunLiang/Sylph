@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.8 | 日期：2026-05-22
+# 版本：v6.2.9 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.8-stable"
+DEFAULT_VERSION="v6.2.9-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -88,16 +88,49 @@ log_step "正在检测运行时依赖..."
 
 MISSING_DEPS=0
 
-# python3 检测
-if command -v python3 &>/dev/null; then
-    PY_VER=$(python3 --version 2>&1 || echo "未知版本")
-    log_info "python3 已安装: $PY_VER"
-    if python3 -c "import secrets" 2>/dev/null; then
+# ─── python3 查找/修复辅助函数 ───
+resolve_python() {
+    # 优先级: python3 > python (Windows) > 常见路径扫描
+    if command -v python3 &>/dev/null; then
+        echo "python3"; return
+    fi
+    if command -v python &>/dev/null; then
+        local pver; pver=$(python --version 2>&1)
+        if [[ "$pver" == *"Python 3"* ]]; then
+            echo "python"; return
+        fi
+    fi
+    # Windows: 扫描常见安装路径
+    for p in /c/Python3*/python.exe /c/Program\ Files/Python3*/python.exe \
+             /c/Users/*/AppData/Local/Programs/Python/Python3*/python.exe \
+             /c/ProgramData/chocolatey/bin/python3.exe \
+             /mingw64/bin/python3.exe /usr/bin/python3.exe; do
+        for found in $p; do
+            if [ -x "$found" ]; then
+                echo "$found"; return
+            fi
+        done
+    done
+    echo ""
+}
+
+# ─── python3 检测 ───
+PYTHON_BIN=$(resolve_python)
+if [ -n "$PYTHON_BIN" ]; then
+    PY_VER=$("$PYTHON_BIN" --version 2>&1 || echo "未知版本")
+    log_info "python3 已安装: $PY_VER ($PYTHON_BIN)"
+    if "$PYTHON_BIN" -c "import secrets" 2>/dev/null; then
         log_info "python3 secrets 模块可用 (Python >= 3.6)"
     else
         log_warn "python3 缺少 secrets 模块 (Python < 3.6)"
         log_warn "  permission-gate 随机验证码将使用降级方案 (od urandom / openssl / shell fallback)"
         MISSING_DEPS=$((MISSING_DEPS + 1))
+    fi
+    # 如果只有 python 没有 python3，创建别名
+    if [ "$PYTHON_BIN" != "python3" ] && ! command -v python3 &>/dev/null; then
+        eval "python3() { $PYTHON_BIN \"\$@\"; }" 2>/dev/null || true
+        export -f python3 2>/dev/null || true
+        log_info "已设置 python3 别名 → $PYTHON_BIN"
     fi
 else
     echo -e "${RED}[DEPS]${NC} python3 未安装 — 正在自动安装..."
@@ -109,7 +142,9 @@ else
         fi
     elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin"* ]]; then
         if command -v winget &>/dev/null; then
-            winget install -e --id Python.Python.3 --silent 2>&1 | tail -3
+            log_info "  通过 winget 安装 Python 3..."
+            winget install -e --id Python.Python.3.11 --silent 2>&1 | tail -5 || \
+            winget install -e --id Python.Python.3 --silent 2>&1 | tail -5 || true
         elif command -v choco &>/dev/null; then
             choco install python3 -y 2>&1 | tail -3
         elif command -v scoop &>/dev/null; then
@@ -117,6 +152,8 @@ else
         else
             log_error "Windows 需安装 winget/choco/scoop 之一，或手动安装: https://python.org"; exit 1
         fi
+        # Windows: winget 安装后 PATH 可能未刷新，重新扫描
+        PYTHON_BIN=$(resolve_python)
     elif command -v apt-get &>/dev/null; then
         sudo apt-get update -qq && sudo apt-get install -y python3 2>&1 | tail -3
     elif command -v yum &>/dev/null; then
@@ -130,7 +167,23 @@ else
     else
         log_error "无法识别包管理器，请手动安装 python3 后重试"; exit 1
     fi
-    log_info "python3 安装完成: $(python3 --version 2>&1)"
+
+    # 安装后验证
+    if [ -z "$PYTHON_BIN" ]; then
+        PYTHON_BIN=$(resolve_python)
+    fi
+    if [ -n "$PYTHON_BIN" ]; then
+        log_info "python3 安装完成: $("$PYTHON_BIN" --version 2>&1)"
+        # Windows: 确保 python3 别名可用
+        if [ "$PYTHON_BIN" != "python3" ] && ! command -v python3 &>/dev/null; then
+            eval "python3() { $PYTHON_BIN \"\$@\"; }" 2>/dev/null || true
+            export -f python3 2>/dev/null || true
+            log_info "已设置 python3 别名 → $PYTHON_BIN"
+        fi
+    else
+        log_warn "python3 自动安装未生效，请手动安装后重试: https://python.org/downloads/"
+        MISSING_DEPS=$((MISSING_DEPS + 1))
+    fi
 fi
 
 
@@ -434,9 +487,9 @@ if [ "$HAS_BACKUP" = true ]; then
     fi
 
     # settings.json 3-way merge（python3 实现）
-    if [ -f "$BACKUP_DIR/settings-user.json" ] && command -v python3 &>/dev/null; then
+    if [ -f "$BACKUP_DIR/settings-user.json" ] && [ -n "${PYTHON_BIN:-}" ] && command -v "${PYTHON_BIN:-python3}" &>/dev/null; then
         log_step "正在合并 settings.json（保留自定义 hook 注册）..."
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json
 with open('$BACKUP_DIR/settings-user.json') as f:
     old = json.load(f)
@@ -646,9 +699,9 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
 fi
 
 # 跨平台 CLI 配置自动生成（Qwen Code / Codex / Gemini / Cursor / OpenCode）
-if command -v python3 &>/dev/null && [ -f ".hooks/generate.py" ]; then
+if [ -n "${PYTHON_BIN:-}" ] && command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f ".hooks/generate.py" ]; then
     log_step "生成跨平台 CLI hooks 配置..."
-    timeout 30 python3 .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（超时或无可用平台）"
+    timeout 30 ${PYTHON_BIN:-python3} .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（超时或无可用平台）"
 
     # ─── 后处理: 禁用跨平台生成的旧版 sylph-hooks.ts ──────────
     # carror-hooks-compat.ts 是 OMO 兼容策略的权威文件
