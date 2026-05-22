@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.17 | 日期：2026-05-22
+# 版本：v6.2.18 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.17-stable"
+DEFAULT_VERSION="v6.2.18-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
