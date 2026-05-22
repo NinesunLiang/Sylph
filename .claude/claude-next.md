@@ -109,18 +109,17 @@
 
 ---
 
-### [2026-05-17] 用户纠正: 不对
+### [2026-05-17] 用户纠正: 不对 — 机制设计≠运行时效果
 @2026-05-17 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+**触发场景**：AI 声称"机制已修复完成"但用户发现修复只是代码改了，机制未实际运行
+**问题**：AI 混淆了"代码存在"和"机制生效"。改一行 shell、加一个 hook 文件 ≠ 运行时真的在拦截/检测/记录。这是静态思维（文件存在=完成）对动态系统（需要事件触发）的误判。
+**纠正**：所有机制修复后必须做两件事：(1) 模拟触发条件手动运行 hook 验证 exit code 和输出 (2) 检查对应的 state 文件（jsonl/日志/heartbeat）是否有新记录。无新记录 = 未生效。
 
-
-### [2026-05-18] 用户纠正: 不对
+### [2026-05-18] 用户纠正: 不对 — 全局安装污染对照实验
 @2026-05-18 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+**触发场景**：AI 把 Carror OS 安装到 ~/.claude/ 全局，导致对照实验的 Group B（裸 Claude）也被污染
+**问题**：AI 不理解"全局安装"的 blast radius — ~/.claude/ 影响本机所有 Claude Code 项目。对照实验要求 A/B 完全隔离，全局安装直接破坏了 Group B 的清洁性。
+**纠正**：(1) Carror OS 默认为项目级安装，全局安装需要用户显式确认 (2) 更新 install 脚本加 blast radius 警告 (3) 对照实验必须验证 ~/.claude/ 无 Carror OS 残留
 
 
 ### [2026-05-19] 用户纠正: 不对 × 3 — 方向偏离
@@ -246,24 +245,46 @@
 正确行为：评分工具的指标必须与优化目标对齐。当前 auto-score 以「文件存在/注册数量」为主要维度，优化以「假阳性率/埋点覆盖率/语义正确性」为目标 — 两者正交。工具指标不改进，任何语义级优化都是「做了一整天，分数不涨反降」的可观测性坍塌。优化 auto-score 本身（增加运行时数据模拟子项、语义检测项）应与业务修复同优先级。
 证据：用户原话。4 项修复（C7/E6/E1 语义防御面显著扩大），auto-score 仅涨 0.09，用户主观评估从 8→6.3。
 
+---
 
-### [2026-05-20] 用户纠正: 不对
-@2026-05-20 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+## 2026-05-22 狗粮 — 15 任务 AB 对照实验发现
 
+### 🐶 [DG-96] intent-tracker 仅捕获 Edit|Write — Bash sed/echo 绕过编辑追踪 (@LuangSir)
 
-### [2026-05-21] 用户纠正: 不对
-@2026-05-21 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
-
-
-### [2026-05-22] 用户纠正: 不对
 @2026-05-22 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+触发条件：AI 使用 Bash sed/echo/tee 直接修改文件，绕过 Edit|Write 工具 matcher
+正确行为：intent-tracker 的 matcher `Edit|Write` 无法捕获 Bash 工具的文件修改。这是设计边界，非 bug — intent-tracker 追踪的是"AI 使用编辑工具"的行为，Bash 层面的修改由 error-dna 的 governance_bypass 检测（E1）覆盖。两者互补：intent-tracker 追踪正常编辑的 churn/revert，E1 检测通过 Bash 绕过编辑门禁的敏感文件修改。
+证据：15 任务 AB 对照实验：Group A AI 用 Bash sed 来回改 docstring 6 次，intent-tracker contradiction-log.jsonl 从未创建。但同会话中 Edit 工具的修改被正确追踪。
 
+### 🐶 [DG-97] 安装包部署到非 dev 项目后需验证 hook 注册完整性 (@LuangSir)
+
+@2026-05-22 hits:1
+触发条件：将 Carror OS 安装到新项目后，settings.json 中的路径替换（__PROJECT_ROOT__ → 实际路径）可能遗漏部分 hook 注册
+正确行为：部署后运行 `bash .claude/scripts/audit-hooks.sh` 验证磁盘脚本 ↔ settings.json ↔ harness.yaml 三方一致。bench 环境部署 v6.2.2 后路径替换成功（47 处），但早期 v6.1.x 安装缺失 context-compressor 和 pre-edit-lsp-check 两个核心 hook。
+证据：bench/project_for_carrorOS 从 v6.1.x→v6.2.2 更新后，hook 数从 43→49，新增脱水+LSP 机制。
+
+### 🐶 [DG-98] AB 对照实验的对照组必须验证"无机制残留" (@LuangSir)
+
+@2026-05-22 hits:1
+触发条件：裸 Claude 对照组（Group B）不能有任何 Carror OS 残留（全局 ~/.claude/ 和项目 .claude/ 必须为空）
+正确行为：(1) 验证 Group B 无 .claude/ 目录 (2) 验证 ~/.claude/CLAUDE.md 不含 Carror OS 治理指令 (3) 必要时临时 mv ~/.claude/CLAUDE.md 到 .bak 跑 Group B (4) 跑完恢复。对照组污染 = 实验无效。
+证据：Group B bench/project_for_base 正确配置：无 .claude/ 目录，仅 AGENTS.md + CLAUDE.md。但 AI 曾错误地把 Carror OS 解包到 ~/.claude/，险些污染全局。
+
+
+### [2026-05-22] 用户纠正: 不对 × 2 — AI 不应代执行测试 + 全局安装污染
+@2026-05-22 hits:2
+**触发场景**：(1) AI 试图在 bench 项目中自己执行 AB 对照实验 → 用户纠正"不是你来执行，应该我去对应的项目中新开终端" (2) AI 把 Carror OS 安装到 ~/.claude/ → 用户纠正"不能放在全局，会影响测试裸 CLAUDE.md 的能力"
+**问题**：(1) AI 混淆了"设计实验"和"执行实验"的边界 — 实验设计者不能同时是实验对象 (2) AI 不理解 blash radius — 全局安装影响所有项目
+**纠正**：(1) 对照实验分离角色：AI 设计任务+测量方法，用户在新终端执行 (2) 全局安装必须加 blast radius 警告 + 需用户显式确认 (DG-98) (3) 安装脚本 v6.2.2 加 --project-only 默认模式
+
+
+---
+
+## 2026-05-22 狗粮 — package-release.sh 静默回退 71 个文件
+
+### 🐶 [DG-100] package-release.sh 必须有三源安全门禁 — rsync --delete 可静默回退关键文件 (@LuangSir)
+
+@2026-05-22 hits:1
+触发条件：package-release.sh 运行前 root 文件被外部回退（git checkout / 旧安装脚本覆盖），rsync --delete 将旧版本同步到 source mirror，连锁覆盖 71 个文件
+正确行为：(1) 打包前强制三源一致性预检，CRITICAL 漂移 → 阻断 (2) 每次打包前创建 _safe/package-{version}-{timestamp} 安全分支保存全量快照 (3) 关键文件存在性验证 (error-dna/intent-tracker/context-compressor/pre-edit-lsp/settings/harness) (4) 同步后再次三源验证，不通过则提示回滚命令 (5) --force 可跳过门禁但需明确意图
+证据：本次会话 package-release.sh 运行后 settings.json 丢失 pre-edit-lsp + context-compressor 注册，error-dna.sh 回退 heartbeat，intent-tracker.sh 回退 E6 fix。根因链：旧 install.sh 覆盖 root → package-release.sh 将旧版本同步到 source mirror → 安装包退化。

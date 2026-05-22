@@ -375,11 +375,12 @@ if check_source_mirror:
         mirror_map = {
             '.claude/hooks': 'source/harness-kit/.claude/hooks',
             '.claude/scripts': 'source/harness-kit/.claude/scripts',
+            '.claude/skills': 'source/lx-skills-v5/.claude/skills',
         }
         # 根级配置文件：动态发现 .json/.yaml 文件
         _EXCLUDED_CONFIG = {'settings.local.json', 'scheduled_tasks.json'}
         # 根 AGENTS.md 和 CLAUDE.md 与 source 版本有意不同（元项目专属 vs 通用分发模板）
-        _INTENTIONAL_DIVERGENCE = {'AGENTS.md', 'CLAUDE.md', 'settings.json'}  # settings.json: root 绝对路径 vs source __PROJECT_ROOT__ 占位符
+        _INTENTIONAL_DIVERGENCE = {'AGENTS.md', 'CLAUDE.md', 'settings.json'}  # settings.json: __PROJECT_ROOT__ 路径替换
         config_files = {}
         for _cf in glob.glob('.claude/*.json') + glob.glob('.claude/*.yaml'):
             _name = os.path.basename(_cf)
@@ -393,15 +394,29 @@ if check_source_mirror:
                 issues.append(('🔴', mirror_dir, 'source mirror 目录不存在'))
                 continue
             src_files = {}
-            for _ext in ['.sh', '.py', '.json', '.yaml', '.yml']:
-                for f in glob.glob(f'{src_dir}/*{_ext}'):
-                    name = os.path.basename(f)
-                    try:
-                        with open(f, 'rb') as fh:
-                            h = hashlib.sha256(fh.read()).hexdigest()
-                        src_files[name] = (f, h)
-                    except Exception:
-                        pass
+            # DG-100 C1: 添加 .md 支持 (skills 使用 SKILL.md) + 递归扫描 skills 子目录
+            _extensions = ['.sh', '.py', '.json', '.yaml', '.yml', '.md']
+            _is_skills = (src_dir.endswith('/.claude/skills'))
+            if _is_skills:
+                for _ext in _extensions:
+                    for f in glob.glob(f'{src_dir}/**/*{_ext}', recursive=True):
+                        name = os.path.relpath(f, src_dir)
+                        try:
+                            with open(f, 'rb') as fh:
+                                h = hashlib.sha256(fh.read()).hexdigest()
+                            src_files[name] = (f, h)
+                        except Exception:
+                            pass
+            else:
+                for _ext in _extensions:
+                    for f in glob.glob(f'{src_dir}/*{_ext}'):
+                        name = os.path.basename(f)
+                        try:
+                            with open(f, 'rb') as fh:
+                                h = hashlib.sha256(fh.read()).hexdigest()
+                            src_files[name] = (f, h)
+                        except Exception:
+                            pass
             for name, (fpath, src_hash) in src_files.items():
                 mpath = os.path.join(mirror_dir, name)
                 if not os.path.isfile(mpath):

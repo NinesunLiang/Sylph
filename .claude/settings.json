@@ -30,6 +30,11 @@
             "type": "command",
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-retry-check.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-blast-radius.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -59,11 +64,6 @@
           {
             "type": "command",
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-edit-scope.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/plan-gate.sh",
             "timeout": 3000
           }
         ]
@@ -400,13 +400,7 @@
         ]
       },
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/knowledge-condenser.sh",
-            "timeout": 5000
-          }
-        ]
+        "hooks": []
       }
     ],
     "UserPromptSubmit": [

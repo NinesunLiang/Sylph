@@ -152,6 +152,7 @@ name: lx-{name}
 version: v{version}
 description: "{一句话描述技能范围}"
 when_to_use: "{触发场景说明}"
+
 argument-hint: "[参数提示]"
 paths:
   - "*.{ext}"

@@ -80,14 +80,17 @@ dim_header "D1-HOOK-EXISTENCE"
 python3 > "$TMPDIR/hooks_enabled.txt" <<PYEOF
 import re
 with open('$PROJECT_ROOT/.claude/harness.yaml') as f:
+    in_hooks = False
     for line in f:
         if line.strip().startswith('hooks_enabled:'):
-            parts = line.split(':', 1)[1]
-            matches = re.findall(r'(\w+):\s*(true|false)', parts)
-            for name, val in matches:
-                if val == 'true':
-                    print(name)
-            break
+            in_hooks = True
+            continue
+        if in_hooks:
+            m = re.match(r'\s+(\w+):\s*(true|false)', line)
+            if m and m.group(2) == 'true':
+                print(m.group(1))
+            elif not re.match(r'\s+\w+:\s*(true|false)', line):
+                break  # end of hooks_enabled section
 PYEOF
 
 HOOK_COUNT=0
@@ -319,8 +322,10 @@ dim_header "D7-THREE-SOURCE"
 AUDIT_SCRIPT="$PROJECT_ROOT/.claude/scripts/audit-hooks.sh"
 if [ -f "$AUDIT_SCRIPT" ]; then
     AUDIT_OUT=$(bash "$AUDIT_SCRIPT" 2>&1)
-    CRITICAL=$(echo "$AUDIT_OUT" | grep -c "🔴" 2>/dev/null || echo "0")
-    WARNCOUNT=$(echo "$AUDIT_OUT" | grep -c "🟡" 2>/dev/null || echo "0")
+    CRITICAL=$(echo "$AUDIT_OUT" | sed -n 's/.*🔴 严重: \([0-9]*\).*/\1/p' 2>/dev/null)
+    CRITICAL="${CRITICAL:-0}"
+    WARNCOUNT=$(echo "$AUDIT_OUT" | sed -n 's/.*🟡 次要: \([0-9]*\).*/\1/p' 2>/dev/null)
+    WARNCOUNT="${WARNCOUNT:-0}"
     if [ "$CRITICAL" -eq 0 ]; then
         pass "D7: audit-hooks.sh → 0 critical, $WARNCOUNT warnings"
         dim_pass "D7-THREE-SOURCE"

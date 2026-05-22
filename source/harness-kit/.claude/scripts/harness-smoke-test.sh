@@ -1406,6 +1406,31 @@ fi
 	fi
 log ""
 log "========================================"
+# ═══ DG-101: blast-radius smoke tests ═══
+log ""
+log "=== DG-101 blast-radius hook ==="
+HOOK_BR="$PROJECT_ROOT/.claude/hooks/pretool-blast-radius.sh"
+TOTAL=$((TOTAL+4))
+if [ -f "$HOOK_BR" ]; then
+    # R42: git checkout . → blocked
+    BR1=$(echo '{"tool_name":"Bash","tool_input":{"command":"git checkout ."}}' | bash "$HOOK_BR" 2>/dev/null)
+    if echo "$BR1" | grep -q '"continue": false'; then log "  🟢 PASS: R42 git checkout . BLOCKED"; else log "  🔴 FAIL: R42 git checkout . NOT blocked"; FAILED=$((FAILED+1)); fi
+
+    # R43: git checkout HEAD -- . → blocked
+    BR2=$(echo '{"tool_name":"Bash","tool_input":{"command":"git checkout HEAD -- ."}}' | bash "$HOOK_BR" 2>/dev/null)
+    if echo "$BR2" | grep -q '"continue": false'; then log "  🟢 PASS: R43 git checkout HEAD -- . BLOCKED"; else log "  🔴 FAIL: R43 git checkout HEAD -- . NOT blocked"; FAILED=$((FAILED+1)); fi
+
+    # R44: git checkout HEAD -- file → allowed
+    BR3=$(echo '{"tool_name":"Bash","tool_input":{"command":"git checkout HEAD -- src/main.py"}}' | bash "$HOOK_BR" 2>/dev/null)
+    if echo "$BR3" | grep -q '"continue": true'; then log "  🟢 PASS: R44 git checkout -- file allowed"; else log "  🔴 FAIL: R44 git checkout -- file blocked incorrectly"; FAILED=$((FAILED+1)); fi
+
+    # R45: git checkout .; echo done → blocked (semicolon bypass)
+    BR4=$(echo '{"tool_name":"Bash","tool_input":{"command":"git checkout .; echo done"}}' | bash "$HOOK_BR" 2>/dev/null)
+    if echo "$BR4" | grep -q '"continue": false'; then log "  🟢 PASS: R45 git checkout .; bypass BLOCKED"; else log "  🔴 FAIL: R45 git checkout .; bypass NOT blocked"; FAILED=$((FAILED+1)); fi
+else
+    log "  ⚠️  pretool-blast-radius.sh not found, skipping R42-R45"
+fi
+
 log "summary: $((TOTAL-FAILED))/$TOTAL passed, $FAILED failed"
 log "log file: $LOG"
 log "========================================"

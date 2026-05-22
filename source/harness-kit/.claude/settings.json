@@ -30,6 +30,11 @@
             "type": "command",
             "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-retry-check.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-blast-radius.sh",
+            "timeout": 3000
           }
         ]
       },

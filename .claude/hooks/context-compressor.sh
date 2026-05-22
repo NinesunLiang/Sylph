@@ -75,7 +75,33 @@ for pair in $SRC_COMPACT_PAIRS; do
 done
 
 if [ "$ALL_OK" = true ]; then
-    echo "[context-compressor] ✅ 缓存已更新: $CACHE ($(wc -c < "$CACHE" | tr -d ' ') bytes)" >&2
+    CACHE_SIZE=$(wc -c < "$CACHE" | tr -d ' ')
+    echo "[context-compressor] ✅ 缓存已更新: $CACHE ($CACHE_SIZE bytes)" >&2
+
+    # DG-103: 计算 token 节省量写入 token-savings.json
+    TOTAL_SRC=0; TOTAL_COMPACT=0
+    set -f
+    for pair in $SRC_COMPACT_PAIRS; do
+        src="${pair%%|*}"; compact="${pair##*|}"
+        [ -f "$src" ] && TOTAL_SRC=$((TOTAL_SRC + $(wc -c < "$src" | tr -d ' ')))
+        [ -f "$compact" ] && TOTAL_COMPACT=$((TOTAL_COMPACT + $(wc -c < "$compact" | tr -d ' ')))
+    done
+    SAVED=$((TOTAL_SRC - TOTAL_COMPACT))
+    python3 -c "
+import json, os, time
+tf = '$STATE_DIR/token-savings.json'
+d = {'compact': 0, 'total': 0, 'compact_events': 0}
+if os.path.exists(tf):
+    try:
+        with open(tf) as f: d = json.load(f)
+    except: pass
+d['compact'] = $SAVED
+d['total'] = d.get('total', 0) + $SAVED
+d['compact_events'] = d.get('compact_events', 0) + 1
+d['last_updated'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+with open(tf, 'w') as f: json.dump(d, f)
+" 2>/dev/null || true
+    echo "[context-compressor] 💰 token 节省: $SAVED bytes (源${TOTAL_SRC}→compact${TOTAL_COMPACT})" >&2
 else
     echo "[context-compressor] ⚠️ 部分 compact 文件缺失，缓存不完整" >&2
 fi

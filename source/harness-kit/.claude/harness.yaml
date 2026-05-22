@@ -152,3 +152,4 @@ roi:
     flywheel_log: "~/.claude/flywheel.log"
     error_dna: ".omc/state/error-dna.jsonl"
     skill_usage: ".omc/state/skill-usage.jsonl"
+  blast_radius: true
