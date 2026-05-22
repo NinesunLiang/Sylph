@@ -1,8 +1,9 @@
 # 🛑 Carror OS — AI 时代的开发者操作系统
 
-![Version](https://img.shields.io/badge/version-v6.2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-v6.2.8-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Platform](https://img.shields.io/badge/platform-Claude%20Code%20%7C%20Codex%20CLI%20%7C%20Gemini%20CLI%20%7C%20Qwen%20Code%20%7C%20Cursor%20%7C%20OpenCode-orange.svg)
+![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows%20(WSL%7CGit%20Bash)-orange.svg)
+![AI IDE](https://img.shields.io/badge/AI%20IDE-Claude%20Code%20%7C%20Codex%20CLI%20%7C%20Gemini%20CLI%20%7C%20Qwen%20Code%20%7C%20Cursor%20%7C%20OpenCode-lightgrey.svg)
 
 > **"这不是一个更好的 Cursor，而是 AI 时代的 Unix。"**
 >
@@ -89,11 +90,21 @@ Carror OS 支持**一键热插拔**到你的任意本地业务代码库中，用
 
 ### 第一步：打开你的终端
 
-请先确保你的系统安装了 `curl` 或 `wget`：
+Carror OS 支持 **macOS / Linux / Windows (WSL & Git Bash)**。安装脚本会自动检测平台并补全缺失依赖（包括 python3）。
+
+| 平台 | 终端 | 安装方式 |
+|------|------|---------|
+| macOS | Terminal.app / iTerm | `curl ... \| bash` |
+| Linux | 任意终端 | `curl ... \| bash` |
+| Windows (WSL) | WSL 终端 | `curl ... \| bash` |
+| Windows (Git Bash) | Git Bash | `curl ... \| bash` |
+| Windows (PowerShell) | PowerShell | 先运行 `bash` 进入 Git Bash |
+
+> **Windows 用户**：推荐安装 [Git for Windows](https://git-scm.com/download/win)（自带 Git Bash），或启用 [WSL](https://learn.microsoft.com/windows/wsl/install)。安装脚本在 Windows 下会自动通过 `winget` → `choco` → `scoop` 安装 python3。
 
 ```bash
 # 进入你想要被 Carror OS 接管的业务项目根目录
-cd @
+cd your-project/
 ```
 
 ### 第二步：选择你的守护级别
@@ -101,6 +112,8 @@ cd @
 **🛡️ 选项 A：安装"基础版" (Base Edition)**
 
 适合只想要 AI 变规矩、不犯错，不想学习任何新指令的你。安装后，45 个底层物理拦截器将在后台静默运行（防幻觉、防隐私泄露、80% Context OOM 熔断）。你只管正常让 AI 写代码，出错时它在底层默默扫除漏洞和幻觉。
+
+> 首次运行会自动安装 python3（如系统未安装），无需手动处理依赖。
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- base
@@ -114,6 +127,8 @@ curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh 
 curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- enhanced
 ```
 
+> **macOS / Linux / Windows Git Bash / WSL 通用**。安装脚本自动识别系统平台和包管理器。
+>
 > 注意：请将 URL 中的 `NinesunLiang/Sylph` 替换为你 Fork 后的真实 GitHub 仓库地址。
 
 ### 第三步：启动你的 AI IDE (Claude Code / OpenCode)

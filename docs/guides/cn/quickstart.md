@@ -2,11 +2,29 @@
 
 > **在 2 分钟内见证一个 Gate 生效。**
 
+## 前置条件
+
+Carror OS 支持 **macOS / Linux / Windows (WSL & Git Bash)**。
+
+| 平台 | 终端 |
+|------|------|
+| macOS | Terminal.app / iTerm |
+| Linux | 任意终端 |
+| Windows | Git Bash（推荐）或 WSL |
+
+> **Windows 用户**：安装 [Git for Windows](https://git-scm.com/download/win) 即可获得 Git Bash。安装脚本会自动通过 `winget` → `choco` → `scoop` 补全缺失依赖。
+
 ## 1. 安装
 
 ```bash
+# 基础版（零学习成本，静默守护）
 curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- base
+
+# 增强版（完整武器库）
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/install.sh | bash -s -- enhanced
 ```
+
+> 脚本会自动安装 python3（如系统未安装），覆盖 brew / apt / yum / dnf / pacman / apk / winget / choco / scoop 共 9 种包管理器。
 
 ## 2. 启动 Claude Code
 
