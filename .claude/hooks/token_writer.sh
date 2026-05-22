@@ -9,6 +9,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
+set -f
 hc_enabled "token_writer" || { echo '{"continue": true}'; exit 0; }
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 INDEX_FILE="$STATE_DIR/token-tracking-index.json"

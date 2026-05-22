@@ -3,11 +3,12 @@
 # Role: 构建失败自动记录错误日志并给出针对性修复建议
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "build_validator" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then
-    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
     STDOUT_RESULT=$(echo "$INPUT" | jq -r '.tool_response.stdout // empty' 2>/dev/null)
     STDERR_RESULT=$(echo "$INPUT" | jq -r '.tool_response.stderr // empty' 2>/dev/null)
     EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_response.exit_code // "0"' 2>/dev/null)
@@ -23,7 +24,7 @@ else
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('command', ''))
+    print(data.get('args', {}).get('command', data.get('tool_input', {}).get('command', '')))
 except:
     pass" 2>/dev/null)
     STDOUT_RESULT=$(echo "$INPUT" | python3 -c "

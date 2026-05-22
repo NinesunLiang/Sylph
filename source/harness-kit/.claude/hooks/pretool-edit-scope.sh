@@ -8,13 +8,13 @@ INPUT=$(cat)
 
 # 解析 file_path
 if command -v jq &>/dev/null; then
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
     FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('file_path', ''))
+    print(data.get('args', {}).get('filePath', data.get('tool_input', {}).get('file_path', '')))
 except:
     pass" 2>/dev/null)
 fi

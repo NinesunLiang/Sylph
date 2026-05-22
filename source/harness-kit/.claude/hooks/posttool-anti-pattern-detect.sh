@@ -13,6 +13,7 @@
 #   一致性原则: 可机械验证的铁律违反 → hard block；需主观判断的流程缺失 → warning
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "anti_pattern_detect" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 

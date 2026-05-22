@@ -12,17 +12,27 @@
  *   CC PreCompact        → OC session.compacted (OMO 已处理)
  *
  * 本插件补齐缺失的 4 个事件：
- *   - SessionStart         (event handler, session.created)
+ *   - SessionStart         (双路径: session.created + message.updated 回退)
  *   - PostToolUseFailure   (tool.execute.after + exit code ≠ 0 检测)
  *   - UserPromptSubmit     (event handler, message.updated)
- *   - Stop                 (event handler, session.idle)
+ *   - Stop                 (三路径: session.idle + message.updated 定时 + session.compacted 兜底)
+ *
+ * SessionStart 回退机制 (2026-05-22):
+ *   session.created 在 OpenCode SDK v1.14.28 实测不触发。
+ *   首次 message.updated → 检查 .omc/state/.session-start-marker
+ *   → 不同 session ID 则执行 SessionStart hooks → 写入 marker 防重复。
+ *
+ * Stop 回退机制 (2026-05-22):
+ *   session.idle 在 OpenCode SDK v1.14.28 实测不触发。
+ *   message.updated 时检查距上次 Stop > 10 分钟 → 执行 Stop hooks。
+ *   session.compacted 作为额外兜底（OMO 确认该事件有效）。
  *
  * 不修改 OMO node_modules 源码，不替换旧版 sylph-hooks.ts/.disabled。
  * 同一份 .claude/settings.json 在 CC 和 OMO 双平台运行。
  */
 
 import { execSync } from "child_process";
-import { existsSync, readFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { resolve } from "path";
 
 const PROJECT_ROOT = resolve(
@@ -118,9 +128,26 @@ export default async () => {
       const config = loadClaudeHooksConfig();
       if (!config) return;
 
-      // ── SessionStart ──────────────────────────────────────────
-      if (eventType === "session.created" && config.SessionStart) {
-        const sessionId = input.sessionID || input.id || "";
+      // ── SessionStart (双路径: session.created + message.updated 回退) ──
+      // session.created 在 OpenCode SDK v1.14.28 实测不触发 (2026-05-22)。
+      // 回退方案：首次 chat.message → 检查 marker 文件 → 执行 SessionStart hooks。
+      const sessionId = input.sessionID || input.id || "";
+      const markerPath = resolve(PROJECT_ROOT, ".omc", "state", ".session-start-marker");
+
+      const trySessionStart = (triggerEvent: string) => {
+        if (!config.SessionStart) return;
+
+        // 检查 marker：同 session 已执行过则跳过
+        if (existsSync(markerPath) && sessionId) {
+          try {
+            const prevId = readFileSync(markerPath, "utf-8").trim();
+            if (prevId === sessionId) {
+              log("SessionStart: already executed for session", sessionId);
+              return;
+            }
+          } catch { /* marker corrupt, re-run */ }
+        }
+
         const envExtra: Record<string, string> = {};
         if (sessionId) envExtra.SESSION_ID = sessionId;
 
@@ -128,7 +155,7 @@ export default async () => {
           session_id: sessionId,
           cwd: PROJECT_ROOT,
           hook_event_name: "SessionStart",
-          hook_source: "opencode-plugin",
+          hook_source: `opencode-plugin:${triggerEvent}`,
         };
 
         const outputs: string[] = [];
@@ -137,7 +164,7 @@ export default async () => {
           if (!matcher.hooks?.length) continue;
           for (const hook of matcher.hooks) {
             if (hook.type !== "command") continue;
-            log("Executing SessionStart hook:", hook.command);
+            log("Executing SessionStart hook:", hook.command, `(via ${triggerEvent})`);
             const result = execHook(
               hook.command,
               JSON.stringify(stdinData),
@@ -155,12 +182,24 @@ export default async () => {
           }
         }
 
-        // IMPORTANT: Do NOT write hook stdout to process.stdout.
-        // OpenCode captures plugin process stdout and renders it in the
-        // conversation UI, causing garbled display when SessionStart hooks
-        // produce large output (e.g. inject-project-knowledge.sh, ~500+ lines).
-        // Hook stdout is for internal protocol responses (JSON continue/block).
-        log(`SessionStart: ${outputs.length} hooks executed`);
+        // 写入 marker 防重复执行
+        try {
+          const stateDir = resolve(PROJECT_ROOT, ".omc", "state");
+          mkdirSync(stateDir, { recursive: true });
+          writeFileSync(markerPath, sessionId || `fallback-${Date.now()}`, "utf-8");
+        } catch { /* best-effort marker write */ }
+
+        log(`SessionStart: ${outputs.length} hooks executed via ${triggerEvent}`);
+      };
+
+      // 主路径：session.created（OpenCode 原生事件，未来 SDK 修复后生效）
+      if (eventType === "session.created") {
+        trySessionStart("session.created");
+      }
+
+      // 回退路径：首次 message.updated（SDK v1.14.28 实测 session.created 不触发）
+      if (eventType === "message.updated") {
+        trySessionStart("message.updated");
       }
 
       // ── UserPromptSubmit ─────────────────────────────────────
@@ -199,10 +238,24 @@ export default async () => {
         }
       }
 
-      // ── Stop ──────────────────────────────────────────────────
-      // CC Stop ≈ OC session.idle
-      if (eventType === "session.idle" && config.Stop) {
-        const sessionId = input.sessionID || input.id || "";
+      // ── Stop (双路径: session.idle + 定时回退) ────────────────
+      // session.idle 在 OpenCode SDK v1.14.28 实测不触发 (2026-05-22)。
+      // 回退方案：距上次 Stop 执行 > 10 分钟时，在 message.updated 上触发。
+      const stopMarkerPath = resolve(PROJECT_ROOT, ".omc", "state", ".stop-marker");
+
+      const tryStop = (triggerEvent: string) => {
+        if (!config.Stop) return;
+
+        // 防抖：距上次执行 < 10 分钟则跳过 (仅回退路径生效)
+        if (triggerEvent !== "session.idle" && existsSync(stopMarkerPath)) {
+          try {
+            const lastRun = parseInt(readFileSync(stopMarkerPath, "utf-8").trim(), 10);
+            if (Date.now() - lastRun < 600_000) { // 10 min
+              return;
+            }
+          } catch { /* marker corrupt, re-run */ }
+        }
+
         const envExtra: Record<string, string> = {};
         if (sessionId) envExtra.SESSION_ID = sessionId;
 
@@ -210,14 +263,14 @@ export default async () => {
           session_id: sessionId,
           cwd: PROJECT_ROOT,
           hook_event_name: "Stop",
-          hook_source: "opencode-plugin",
+          hook_source: `opencode-plugin:${triggerEvent}`,
         };
 
         for (const matcher of config.Stop) {
           if (!matcher.hooks?.length) continue;
           for (const hook of matcher.hooks) {
             if (hook.type !== "command") continue;
-            log("Executing Stop hook:", hook.command);
+            log("Executing Stop hook:", hook.command, `(via ${triggerEvent})`);
             const result = execHook(
               hook.command,
               JSON.stringify(stdinData),
@@ -231,6 +284,30 @@ export default async () => {
             }
           }
         }
+
+        // 写入防抖 marker
+        try {
+          const stateDir = resolve(PROJECT_ROOT, ".omc", "state");
+          mkdirSync(stateDir, { recursive: true });
+          writeFileSync(stopMarkerPath, String(Date.now()), "utf-8");
+        } catch { /* best-effort */ }
+
+        log(`Stop: hooks executed via ${triggerEvent}`);
+      };
+
+      // 主路径：session.idle（OpenCode 原生事件，未来 SDK 修复后生效）
+      if (eventType === "session.idle") {
+        tryStop("session.idle");
+      }
+
+      // 回退路径：message.updated 时检查距上次 Stop > 10 分钟则触发
+      if (eventType === "message.updated") {
+        tryStop("message.updated");
+      }
+
+      // 兜底路径：session.compacted（压缩时触发，OMO 确认该事件有效）
+      if (eventType === "session.compacted") {
+        tryStop("session.compacted");
       }
     },
 

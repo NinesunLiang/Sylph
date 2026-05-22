@@ -8,6 +8,7 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
+set -f
 hc_enabled "ecosystem_probe" || { echo '{"continue": true}'; exit 0; }
 
 PLATFORM="unknown"

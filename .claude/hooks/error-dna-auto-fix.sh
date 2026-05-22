@@ -4,6 +4,7 @@
 # GS-001: 跨会话回顾聚合，只输出 fix_count > 1 的条目（避免与 PostToolUse 实时层重复）
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "error_dna_auto_fix" || exit 0
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

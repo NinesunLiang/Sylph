@@ -13,6 +13,7 @@
 # 软门禁: 给出裁决和建议，AI 可在明确理由下覆写。
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "meta_oracle_trigger" || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat)

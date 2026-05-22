@@ -6,6 +6,7 @@
 # Oracle 裁决: 哲学#3+#6 保留基础设施 > 哲学#1+#2 去噪 — 保留捕获点，去除非必要计算
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "error_dna" || { echo '{"continue": true}'; exit 0; }
 _ed_val="$(hc_get 'escape_detection' 'true')"; _ed_val="${_ed_val%\\}"
 [ "$_ed_val" = "true" ] || { echo '{"continue": true}'; exit 0; }

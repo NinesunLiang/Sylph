@@ -3,6 +3,7 @@
 # Role: 检测 Grep 搜索导出符号时建议改用 LSP 工具
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "lsp_suggest" || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat)

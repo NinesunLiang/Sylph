@@ -119,7 +119,7 @@ platform_events:
     tool:after: "afterMCPExecution"
     shell:before: "beforeShellExecution"
     shell:after: "afterShellExecution"
-    file:write: null                     # Cursor has afterFileEdit (post-hoc), no pre-write hook
+    file:write: "beforeFileWrite"        # Cursor supports beforeFileWrite (verified: .cursor/hooks.json)
     compact:before: null                # Not supported
     stop: "stop"
 

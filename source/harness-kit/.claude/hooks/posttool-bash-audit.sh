@@ -3,6 +3,7 @@
 # Role: Bash 执行后审计权限上下文，只提醒不阻断
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "posttool_bash_audit" || { echo '{"continue": true}'; exit 0; }
 _ed_val="$(hc_get 'escape_detection' 'true')"; _ed_val="${_ed_val%\\}"
 [ "$_ed_val" = "true" ] || { echo '{"continue": true}'; exit 0; }
@@ -10,7 +11,7 @@ _ed_val="$(hc_get 'escape_detection' 'true')"; _ed_val="${_ed_val%\\}"
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then
-    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
     EXIT_CODE=$(echo "$INPUT" | jq -r '.tool_response.exit_code // empty' 2>/dev/null)
     STDERR_OR_STDOUT=$(echo "$INPUT" | jq -r '.tool_response.stderr // .tool_response.stdout // empty' 2>/dev/null | head -c 500)
     # PostToolUseFailure fallback: top-level `error`, no tool_response
@@ -25,7 +26,7 @@ else
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('command', ''))
+    print(data.get('args', {}).get('command', data.get('tool_input', {}).get('command', '')))
 except:
     pass" 2>/dev/null)
     EXIT_CODE=$(echo "$INPUT" | python3 -c "

@@ -5,17 +5,18 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "permission_gate" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 INPUT=$(cat)
 
 # 提取 command 字段
 if command -v jq &>/dev/null; then
-    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
 else
     COMMAND=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('command', ''))
+    print(data.get('args', {}).get('command', data.get('tool_input', {}).get('command', '')))
 except:
     pass" 2>/dev/null)
 fi

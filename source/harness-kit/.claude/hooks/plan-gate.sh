@@ -3,6 +3,7 @@
 # Role: 编辑前检查是否跳过规划阶段
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 # plan_gate: false（默认）→ 直接放行，不影响 rpe 和 todo 任何工作流
 hc_enabled "plan_gate" || { echo '{"continue": true}'; exit 0; }
 
@@ -11,13 +12,13 @@ INPUT=$(cat)
 
 # 提取 file_path
 if command -v jq &>/dev/null; then
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
     FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('file_path', ''))
+    print(data.get('args', {}).get('filePath', data.get('tool_input', {}).get('file_path', '')))
 except:
     pass" 2>/dev/null)
 fi

@@ -4,6 +4,7 @@
 # GS-003: 自动知识抽取 — 支持 [seed:*] 和 @YYYY-MM-DD 两种格式
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "knowledge_condenser" || exit 0
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

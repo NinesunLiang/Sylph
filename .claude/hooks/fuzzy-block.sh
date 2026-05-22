@@ -5,6 +5,7 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "fuzzy_block" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 FUZZY_MARKER="$PROJECT_ROOT/.omc/state/.fuzzy-block-active"

@@ -13,6 +13,7 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "retry_budget_check" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 
 # Mode detection: ghost/goal 降级为 log+skip
 _MODE=$(is_mode_active "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/.omc/state")

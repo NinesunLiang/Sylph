@@ -10,6 +10,7 @@
 #   注意：churn ≠ 矛盾，revert ≠ 矛盾。本 hook 只做统计标记，不推断意图。
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "intent_tracker" || { echo '{"continue":true}'; exit 0; }
 INPUT=$(cat)
 

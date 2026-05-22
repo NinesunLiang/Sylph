@@ -8,6 +8,7 @@
 # 以上全部穷尽仍不确定 → 才允许问人
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "pre_ask_guard" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 

@@ -3,6 +3,7 @@
 # Role: 会话结束时自动保存状态快照（分支/轮次/未提交文件）
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "auto_snapshot" || { echo '{"continue": true}'; exit 0; }
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

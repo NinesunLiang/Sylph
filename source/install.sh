@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.0 | 日期：2026-05-14
+# 版本：v6.2.5 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.4-stable"
+DEFAULT_VERSION="v6.2.5-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -52,14 +52,12 @@ fi
 # Agentic UI: CLI flags 驱动，零交互提示
 UPGRADE_MODE="auto"  # auto | skip | force
 LANG_SPEC=""
-UPGRADE_TO=""        # base→enhanced 一键升级
 POSITIONAL=()
 
 for arg in "$@"; do
     case "$arg" in
         --yes|-y) UPGRADE_MODE="force" ;;
         --no-upgrade) UPGRADE_MODE="skip" ;;
-        --upgrade-to=*) UPGRADE_TO="${arg#*=}" ;;
         --lang=*) LANG_SPEC="${arg#*=}" ;;
         --lang) SKIP_NEXT=1 ;;
         go|node|python|rust|generic)
@@ -70,23 +68,6 @@ for arg in "$@"; do
 done
 INSTALL_MODE="${POSITIONAL[0]:-base}"
 
-# ─── 一键升级路径：base → enhanced ────────────────────────────
-if [ -n "$UPGRADE_TO" ]; then
-    case "$UPGRADE_TO" in
-        enhanced|full)
-            if [ "$INSTALL_MODE" = "base" ] || [ "$INSTALL_MODE" = "harness" ]; then
-                log_info "一键升级：$INSTALL_MODE → $UPGRADE_TO（仅解压缺失 Skill，不重复安装 hooks）"
-                INSTALL_MODE="$UPGRADE_TO"
-                SKIP_HARNESS_INSTALL=true  # 跳过 harness 重复安装
-            else
-                log_info "已在 $INSTALL_MODE 模式，无需升级。"
-                exit 0
-            fi
-            ;;
-        *) log_error "--upgrade-to 仅支持 enhanced|full"; exit 1 ;;
-    esac
-fi
-
 echo "============================================"
 echo " Carror OS 安装向导"
 echo " 版本：$VERSION 模式：$INSTALL_MODE"
@@ -96,7 +77,7 @@ echo ""
 
 case "$INSTALL_MODE" in
     base|enhanced|full|harness|skills) ;;
-    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|harness|skills] [--upgrade-to enhanced] [--yes] [--no-upgrade]）"; exit 1 ;;
+    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
 esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
@@ -254,78 +235,73 @@ extract_tar() {
     fi
 }
 
-# ─── 基础版 skill 白名单（只保留静默门禁，其余删除）──────────
-# 从 feature-registry.yaml 动态读取实际技能列表，自动适应新增/废弃 skill
-BASE_SKILLS_KEEP=(
-    lx-code-review        # 通用代码审查
-    lx-test-gen           # 测试自动生成
-    lx-varlock            # 隐私脱敏
-    lx-pre-commit         # 提交前质量门禁
-    lx-pre-push           # 推送前深度门禁
-    lx-sync               # 变更后一致性检查
-    lx-stepwise           # 逐步攻坚
-    lx-goal               # 目标模式
-    lx-ghost              # 幽灵模式
-    lx-oracle-v2          # Oracle 二审
-    lx-learner            # 技能学习
-    lx-skillify           # Skill 自动生成
-    lx-dogfood            # 狗粮反哺
-    update-carror-os      # 自动更新
-    # 基础版增强（可选但推荐保留）：
-    lx-oma-gov            # PRD 治理
-    lx-oma-orch           # 管线编排
-    lx-oma-hier           # 分层 PRD 拆解
-    lx-oma-split          # 一人成军司令部
-    lx-status             # 健康面板
-)
-
-apply_base_edition() {
-    local kept=0 deleted=0
-    for skill_dir in .claude/skills/*/; do
-        [ -d "$skill_dir" ] || continue
-        local name=$(basename "$skill_dir")
-        local keep=false
-        for k in "${BASE_SKILLS_KEEP[@]}"; do
-            [ "$name" = "$k" ] && { keep=true; break; }
-        done
-        if [ "$keep" = true ]; then
-            kept=$((kept + 1))
-        else
-            rm -rf "$skill_dir"
-            deleted=$((deleted + 1))
-        fi
-    done
-    log_info "基础版：保留 $kept 个静默门禁 Skill，移除 $deleted 个进阶 Skill。"
-    # 验证白名单与实际包的一致性
-    for k in "${BASE_SKILLS_KEEP[@]}"; do
-        [ -d ".claude/skills/$k" ] || log_warn "白名单中的 $k 不在 skill 包中（可能已废弃或改名）"
-    done
-}
-
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全量 Skills）"
-        log_step "应用基础版限制（动态白名单）..."
-        apply_base_edition
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
+        log_step "应用基础版限制..."
+        for s in lx-oma-orch lx-oma-hier lx-oma-split lx-oma-gov lx-task-spec lx-rpe lx-prd lx-debug-spec lx-tdd-spec lx-browser-verify lx-web-perf lx-stepwise lx-race lx-learner; do
+            rm -rf .claude/skills/$s
+        done
+        log_info "已精简为 10 个静默门禁 Skill。"
         ;;
-    enhanced|full)
+    enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        [ "$SKIP_HARNESS_INSTALL" = "true" ] || extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 Skills）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         ;;
     skills)
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 Skills）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
 esac
 
 chmod +x .claude/hooks/*.sh 2>/dev/null || true
 chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
 chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
+
+# ═══ DG-97: 升级时自动清理已废弃 hook ═══
+# 防止旧版安装残留的僵尸脚本污染新版本
+DEPRECATED_HOOKS="pretool-rule-anchor|proactive-handoff|build-validator|error-dna-auto-fix|posttool-read-cite|plan-gate|knowledge-condenser|pretool-ask-guard"
+CLEANED=0
+if [ -d ".claude/hooks" ]; then
+    for hook_file in .claude/hooks/*.sh; do
+        hook_name=$(basename "$hook_file" .sh)
+        if echo "$hook_name" | grep -qE "$DEPRECATED_HOOKS"; then
+            rm -f "$hook_file"
+            log_info "  🧹 清理废弃 hook: $hook_name.sh (v6.2+ 已移除)"
+            CLEANED=$((CLEANED+1))
+            # 同步清理 harness.yaml (hyphen→underscore)
+            hook_name_under="${hook_name//-/_}"
+            [ -f ".claude/harness.yaml" ] && \
+                "${SED_INPLACE[@]}" "/^  ${hook_name_under}:.*$/d" ".claude/harness.yaml" 2>/dev/null || true
+        fi
+    done
+fi
+[ "$CLEANED" -gt 0 ] && log_info "✅ 已清理 $CLEANED 个废弃 hook + harness.yaml 配置 (DG-97)"
+
+# ─── 全局 Skill 安装（OpenCode 平台兼容）──────────────────────
+# OpenCode 无法直接使用项目本地 .claude/skills/，需在全局目录创建符号链接
+# 关键: 使用 ln -s 而非 cp -r — 技能内部有 ../../nodes/ 等相对路径引用，
+#       直接复制到 ~/.claude/skills/ 会导致所有路径解析到 ~/.claude/ 而非项目根
+#       符号链接保证文件仍在原位置，所有相对路径引用不受影响
+if [ "$INSTALL_MODE" = "base" ] || [ "$INSTALL_MODE" = "enhanced" ] || [ "$INSTALL_MODE" = "skills" ]; then
+    GLOBAL_SKILLS="$HOME/.claude/skills"
+    mkdir -p "$GLOBAL_SKILLS"
+    PROJECT_DIR="$(pwd)"
+    log_info "链接 lx-* skills 到全局目录 ($GLOBAL_SKILLS)..."
+    for skill_dir in .claude/skills/lx-*; do
+        if [ -d "$skill_dir" ]; then
+            skill_name=$(basename "$skill_dir")
+            rm -rf "$GLOBAL_SKILLS/$skill_name"
+            ln -s "$PROJECT_DIR/$skill_dir" "$GLOBAL_SKILLS/$skill_name"
+        fi
+    done
+    log_info "✅ 全局 Skill 符号链接完成（OpenCode 兼容）"
+fi
 
 # ─── 填充模板占位符 ──────────────────────────────────────────
 # 自动替换 kernel.md 中的 {project_name} 和 {date}
@@ -338,11 +314,16 @@ if [ -f ".claude/kernel.md" ]; then
     fi
 fi
 
-# ─── 路径重写：将 settings.json 中的开发机路径替换为用户实际项目路径 ───
+# ─── 路径重写：settings.json __PROJECT_ROOT__ → 实际项目路径 ───
+# 跨平台 sed -i: macOS BSD 需 -i ''，Linux/Win GNU 只需 -i
 if [ -f ".claude/settings.json" ]; then
     if grep -q '__PROJECT_ROOT__' ".claude/settings.json" 2>/dev/null; then
         USER_PROJECT_DIR="$(pwd)"
-        "${SED_INPLACE[@]}" "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json"
+        if sed -i.backup "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json" 2>/dev/null; then
+            rm -f ".claude/settings.json.backup"
+        else
+            sed -i "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json" 2>/dev/null
+        fi
         log_info "已重写 settings.json 路径为实际项目目录（${USER_PROJECT_DIR}）"
     fi
 fi
@@ -369,6 +350,12 @@ if [ "$HAS_BACKUP" = true ]; then
             log_info "已恢复 .claude/${file}（用户配置）"
         fi
     done
+
+    # 新安装: 使用集体智慧种子模板初始化 claude-next.md
+    if [ ! -f ".claude/claude-next.md" ] && [ -f ".claude/claude-next.template.md" ]; then
+        cp ".claude/claude-next.template.md" ".claude/claude-next.md"
+        log_info "已初始化 claude-next.md（22 条通用教训种子）"
+    fi
 
     # 恢复 kernel.md —— 但如果旧版是未填充的模板，使用新版
     if [ -f "$BACKUP_DIR/.claude/kernel.md" ]; then
@@ -459,21 +446,12 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
     log_info "用户资产恢复完成"
 fi
 
-# ─── 清理废弃 OpenCode 插件（v6.1.x 遗留，已被 OMO 原生 + carror-hooks-compat.ts 替代）──
-# 为什么禁用：OMO 原生从 settings.json 执行 5/7 事件的所有 hook，
-# carror-hooks-compat.ts 补齐 SessionStart/PostToolUseFailure。
-# 这些旧 ts 文件手动转发 hook，不仅重复而且不覆盖新 hook。
-for legacy_plugin in harness-kit.ts sylph-hooks.ts harness-config.ts; do
-    if [ -f ".opencode/plugins/$legacy_plugin" ]; then
-        mv ".opencode/plugins/$legacy_plugin" ".opencode/plugins/${legacy_plugin}.disabled" 2>/dev/null
-        log_info "已禁用废弃插件 ${legacy_plugin} → ${legacy_plugin}.disabled"
-    fi
-done
-
-# ─── OpenCode + OMO 检测（后续多处引用）────────────────────
-HAS_OPCODE=false; HAS_OMO=false
+# ─── 跨平台 CLI 检测（后续多处引用）──────────────────────────
+HAS_OPCODE=false; HAS_OMO=false; HAS_CODEX=false; HAS_CURSOR=false
 command -v opencode &>/dev/null && HAS_OPCODE=true
 npm list -g oh-my-opencode &>/dev/null && HAS_OMO=true
+command -v codex &>/dev/null && HAS_CODEX=true
+[ -f ".cursor/hooks.json" ] || [ -d ".cursor" ] && HAS_CURSOR=true
 
 if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     mkdir -p .opencode/plugins
@@ -498,6 +476,29 @@ if $HAS_OPCODE && ! $HAS_OMO; then
     echo ""
 elif $HAS_OPCODE && $HAS_OMO; then
     log_info "OpenCode + oh-my-opencode 已就绪，hooks 全能力可用 (7/7)"
+fi
+
+# ─── Codex hooks=true 提醒 ─────────────────────────────────────
+if $HAS_CODEX; then
+    echo ""
+    echo "   ⚠️  Codex CLI 需要手动开启 hooks:"
+    echo "      在 ~/.codex/config.toml 中添加:"
+    echo "        hooks = true"
+    echo "      Codex 支持 7/9 事件 (SessionStart/Stop 降级)"
+    echo ""
+fi
+
+# ─── Cursor 能力降级警告 ───────────────────────────────────────
+if $HAS_CURSOR; then
+    echo ""
+    echo "   ⚠️  Cursor 仅支持 3/9 事件 (shell:before/after + file:write)"
+    echo "      以下能力在 Cursor 下静默失效:"
+    echo "        - SessionStart/Stop hook (知识注入、会话快照)"
+    echo "        - PreToolUse:Edit hook (Read-before-Edit、范围冻结)"
+    echo "        - PostToolUse hook (读写追踪、断言审计)"
+    echo "        - PreCompact hook (上下文压缩保全)"
+    echo "      仍生效: permission-gate、privacy-gate、context-guard"
+    echo ""
 fi
 
 # ─── 用户治理文件合并迁移 ──────────────────────────────────────
@@ -610,15 +611,9 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
     if [ -n "$LANG_SPEC" ]; then
         log_info "使用 $LANG_SPEC profile"
         case "$LANG_SPEC" in
-            go|node|python|rust)
-                if command -v python3 &>/dev/null; then
-                    CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_SPEC" 2>/dev/null \
-                        && log_info "✅ 已合并 base + $LANG_SPEC profile → .claude/harness.yaml" \
-                        || log_warn "merge 失败，保留 generic harness.yaml"
-                else
-                    log_info "python3 不可用，跳过 profile merge → 使用 generic harness.yaml"
-                fi
-                ;;
+            go|node|python|rust) CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_SPEC" 2>/dev/null \
+                && log_info "✅ 已合并 base + $LANG_SPEC profile → .claude/harness.yaml" \
+                || log_warn "merge 失败，保留 generic harness.yaml" ;;
             generic|*) cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
                 && log_info "使用 Generic profile（base）→ .claude/harness.yaml" ;;
         esac
@@ -663,13 +658,5 @@ if $HAS_OPCODE && ! $HAS_OMO; then
 fi
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"
-
-# 预生成上下文压缩缓存（避免首次SessionStart时CLAUDEMD引用报warning）
-if [ -f ".claude/hooks/context-compressor.sh" ]; then
-    log_info "预生成上下文缓存..."
-    bash .claude/hooks/context-compressor.sh 2>/dev/null || true
-    [ -f ".omc/state/context-cache.md" ] && log_info "上下文缓存已预生成 ($(wc -c < .omc/state/context-cache.md | tr -d ' ') bytes)"
-fi
-
-log_info "安装完成。退出安装模式。"
+log_info "✅ 安装完成。退出安装模式。"
 exit 0

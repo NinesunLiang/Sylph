@@ -5,6 +5,7 @@
 # 哲学 #5(以人为本): 用户无感知，零心智负担
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "skill_usage_tracker" || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat)

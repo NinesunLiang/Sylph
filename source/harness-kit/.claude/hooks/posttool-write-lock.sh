@@ -2,6 +2,7 @@
 # posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁
 # Role: 写操作后释放 OMA 并发锁
 
+set -f
 HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
 if [ -f "$HARNESS_CONFIG" ]; then
     # shellcheck source=harness_config.sh

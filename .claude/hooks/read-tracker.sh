@@ -3,6 +3,7 @@
 # Role: 记录已读文件路径供 edit-guard 检查 Read-before-Edit
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "read_tracker" || exit 0
 INPUT=$(cat)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -12,13 +13,13 @@ READ_LOG="$STATE_DIR/read-tracker.txt"
 
 # 提取 file_path 字段
 if command -v jq &>/dev/null; then
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
     FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('file_path', ''))
+    print(data.get('args', {}).get('filePath', data.get('tool_input', {}).get('file_path', '')))
 except:
     pass" 2>/dev/null)
 fi

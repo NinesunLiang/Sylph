@@ -8,6 +8,7 @@ FEATURE_REGISTRY="$PROJECT_ROOT/.claude/feature-registry.yaml"
 
 # 导入 harness_config.sh
 source "$HC_SCRIPT_DIR/harness_config.sh"
+set -f
 
 usage() {
     echo "Usage: $0 <feature_name> [--json]"

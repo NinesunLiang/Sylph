@@ -5,6 +5,7 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "context_guard" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 
 # R29: context-guard matcher 改为 Edit|Write, 开放诊断通道 (Read/Grep/Bash)。
 # 原则: "读是诊断, 写是破坏" — 高上下文时封锁写操作，但保留 Read/Grep 供诊断。

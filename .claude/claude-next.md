@@ -302,3 +302,13 @@
 6. 三源一致性验证
 禁止手动逐步操作 — S2/S3 事故证明手动操作必漏步骤，引入 source mirror 漂移。
 证据：v6.2.4 发布中 install.sh root/source DEFAULT_VERSION 不一致，package-release.sh root/source 分叉。
+
+### 🐶 [DG-103] Bash hook 必须兼容多平台字段名 — Claude Code vs OpenCode JSON 格式不同 (@LuangSir)
+
+@2026-05-22 hits:1
+触发条件：Hook 脚本在 Claude Code 和 OpenCode 下接收的 JSON 字段名不同
+正确行为：所有 `.tool_input.file_path` 读取加 `// .args.filePath` jq fallback；
+所有 `.tool_input.command` 读取加 `// .args.command` fallback。
+jq 的 `//` 操作符取第一个非 null 值，兼容两个平台的字段格式。
+证据：fe_react_anka 运行时实测：privacy-gate / error-dna 在 OpenCode 下因字段名不匹配静默失效。
+修复：19 个 hook 脚本全量添加 OpenCode field fallback。

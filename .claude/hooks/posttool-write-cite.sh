@@ -3,18 +3,19 @@
 # Role: 检测写入 claude-next.md 时验证教训格式
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "posttool_write_cite" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # 提取 file_path
 if command -v jq &>/dev/null; then
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
     FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    print(data.get('tool_input', {}).get('file_path', ''))
+    print(data.get('args', {}).get('filePath', data.get('tool_input', {}).get('file_path', '')))
 except:
     pass" 2>/dev/null)
 fi

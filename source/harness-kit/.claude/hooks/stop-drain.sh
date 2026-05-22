@@ -3,6 +3,7 @@
 # Role: Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "stop_drain" || exit 0
 
 INPUT=$(cat)

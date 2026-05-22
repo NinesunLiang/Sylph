@@ -3,6 +3,7 @@
 # Role: 读取飞轮日志，生成 30 天频率摘要注入会话
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "skill_flywheel" || exit 0
 
 FLYWHEEL="$HOME/.claude/flywheel.log"

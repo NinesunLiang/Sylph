@@ -37,10 +37,14 @@ log_info "  版本: $OLD_VER → $NEW_VER ($RELEASE_DATE)"
 
 # ═══ Step 2: install.sh DEFAULT_VERSION 同步 ═══
 log_info "Step 2/6: install.sh 版本同步..."
-for f in install.sh source/harness-kit/install.sh; do
+for f in install.sh source/harness-kit/install.sh source/install.sh; do
     [ -f "$f" ] || continue
+    # DEFAULT_VERSION
     sed -i '' "s/DEFAULT_VERSION=\"v[0-9.]*-stable\"/DEFAULT_VERSION=\"v${NEW_VER}-stable\"/" "$f" 2>/dev/null || \
     sed -i "s/DEFAULT_VERSION=\"v[0-9.]*-stable\"/DEFAULT_VERSION=\"v${NEW_VER}-stable\"/" "$f"
+    # Header comment
+    sed -i '' "s/# 版本：v[0-9.]* |/# 版本：v${NEW_VER} |/" "$f" 2>/dev/null || \
+    sed -i "s/# 版本：v[0-9.]* |/# 版本：v${NEW_VER} |/" "$f"
     log_info "  $f → v${NEW_VER}-stable"
 done
 

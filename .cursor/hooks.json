@@ -40,12 +40,6 @@
         "command": "bash .claude/hooks/context-guard.sh",
         "timeout": 3,
         "description": "上下文占比超阈值时阻断写入"
-      },
-      {
-        "type": "command",
-        "command": "bash .claude/hooks/edit-guard.sh",
-        "timeout": 3,
-        "description": "检查写入文件是否在允许范围内"
       }
     ],
     "afterFileWrite": [

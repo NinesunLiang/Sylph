@@ -2,6 +2,7 @@
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
+|`build-validator` | PostToolUse / PostToolUseFailure | build-validator.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 构建失败自动记录错误日志并给|
 |`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit — /compact 后知识恢复（压缩版）|
 |`completion-gate` | PostToolUse | completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件|
 |`context-compressor` | SessionStart | context-compressor.sh — SessionStart — 移花接木：源文件不动，运行时拼接压缩缓存|
@@ -17,7 +18,6 @@
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
 |`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Meta-Oracle 最后守门员自动触发（G1-G4）|
 |`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
-|`plan-gate` | PreToolUse | plan-gate.sh — PreToolUse:Edit|Write [默认关闭] — 编辑前检查是否跳过规划阶段|
 |`posttool-anti-pattern-detect` | PostToolUse | posttool-anti-pattern-detect.sh — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测|
 |`posttool-bash-audit` | PostToolUse / PostToolUseFailure | posttool-bash-audit.sh — PostToolUse:Bash / PostToolUseFailure:Bash — Bash 执行后审计|
 |`posttool-claim-audit` | PostToolUse | posttool-claim-audit.sh — PostToolUse:Edit|Write — 铁律 #1「禁止编造」强制校验|
@@ -30,7 +30,7 @@
 |`posttool-write-lock` | PostToolUse | posttool-write-lock.sh — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁|
 |`pre-ask-guard` | PreToolUse | pre-ask-guard.sh — PreToolUse:AskUserQuestion — 问人前强制过决策链四层评估|
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
-|`pre-edit-lsp-check` | PreToolUse | pre-edit-lsp-check.sh — PreToolUse:Edit — 编辑前诊断检查提醒|
+|`pre-edit-lsp-check` | PreToolUse | pre-edit-lsp-check.sh — PreToolUse:Edit — 编辑前强制诊断检查 (v2)|
 |`pretool-blast-radius` | PreToolUse | pretool-blast-radius.sh — PreToolUse:Bash — 全局破坏性命令拦截 (DG-101)|
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|

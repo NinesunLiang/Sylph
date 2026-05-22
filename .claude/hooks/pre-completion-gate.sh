@@ -5,6 +5,7 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pre_completion_gate" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 INPUT=$(cat)
 
 # 提取 status 字段

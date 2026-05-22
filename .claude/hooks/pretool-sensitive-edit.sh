@@ -7,6 +7,7 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_sensitive_edit" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 INPUT=$(cat)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -23,23 +24,27 @@ fi
 
 # 提取 file_path 字段（兼容 Edit 和 Write 工具）
 if command -v jq &>/dev/null; then
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .tool_input.path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // .tool_input.path // empty' 2>/dev/null)
 else
     FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    ti = data.get('tool_input', {})
-    print(ti.get('file_path', ti.get('path', '')))
+    # OpenCode uses args.filePath (camelCase), CC uses tool_input.file_path
+    fp = data.get('args', {}).get('filePath', '')
+    if not fp:
+        ti = data.get('tool_input', {})
+        fp = ti.get('file_path', ti.get('path', ''))
+    print(fp)
 except:
     pass" 2>/dev/null)
 fi
 
 # Bash 工具：从命令字符串提取操作的文件路径（E1 逃逸检测）
 if [ -z "$FILE_PATH" ] && command -v jq &>/dev/null; then
-    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // empty' 2>/dev/null)
+    TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
     if [ "$TOOL_NAME" = "Bash" ]; then
-        BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+        BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
         # DG-97: jq 提取多行命令 → 合并为单行后匹配（bash case * 不跨换行）
         BASH_CMD_ONELINE=$(echo "$BASH_CMD" | tr '\n' ' ')
         # 扫描命令中的治理文件路径（sed/tee/>/>>/cp/mv/cat/echo/python open 操作）

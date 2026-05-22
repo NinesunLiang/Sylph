@@ -2,6 +2,7 @@
 # pretool-write-lock.sh — PreToolUse:Edit|Write — 写操作前获取 OMA 并发锁，防止多终端冲突
 # Role: 写操作前获取 OMA 并发锁，防止多终端冲突。锁管理器异常时 fail-open（记录+放行），不硬阻断写入
 
+set -f
 HARNESS_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/harness_config.sh"
 if [ -f "$HARNESS_CONFIG" ]; then
     # shellcheck source=harness_config.sh

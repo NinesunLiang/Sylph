@@ -3,6 +3,7 @@
 # Role: 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "skill_flywheel" || exit 0
 
 BUFFER="$HOME/.claude/flywheel-buffer.jsonl"

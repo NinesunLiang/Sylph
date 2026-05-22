@@ -4,6 +4,7 @@
 # 哲学 #5：以人为本 — 心智负担最小化，交互人性化，操纵感+方向感强
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "posttool_output_format" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 

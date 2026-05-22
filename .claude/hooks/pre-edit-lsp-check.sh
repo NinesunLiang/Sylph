@@ -8,12 +8,13 @@
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 source "$SCRIPT_DIR/harness_config.sh"
+set -f
 hc_enabled "lsp_gate" || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat 2>/dev/null || echo "")
 FILE_PATH=""
 if command -v jq &>/dev/null && [ -n "$INPUT" ]; then
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 fi
 [ -z "$FILE_PATH" ] && { echo '{"continue": true}'; exit 0; }
 

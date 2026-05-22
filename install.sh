@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.0 | 日期：2026-05-14
+# 版本：v6.2.5 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -315,10 +315,15 @@ if [ -f ".claude/kernel.md" ]; then
 fi
 
 # ─── 路径重写：settings.json __PROJECT_ROOT__ → 实际项目路径 ───
+# 跨平台 sed -i: macOS BSD 需 -i ''，Linux/Win GNU 只需 -i
 if [ -f ".claude/settings.json" ]; then
     if grep -q '__PROJECT_ROOT__' ".claude/settings.json" 2>/dev/null; then
         USER_PROJECT_DIR="$(pwd)"
-        "${SED_INPLACE[@]}" "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json"
+        if sed -i.backup "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json" 2>/dev/null; then
+            rm -f ".claude/settings.json.backup"
+        else
+            sed -i "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json" 2>/dev/null
+        fi
         log_info "已重写 settings.json 路径为实际项目目录（${USER_PROJECT_DIR}）"
     fi
 fi
@@ -441,10 +446,12 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
     log_info "用户资产恢复完成"
 fi
 
-# ─── OpenCode + OMO 检测（后续多处引用）────────────────────
-HAS_OPCODE=false; HAS_OMO=false
+# ─── 跨平台 CLI 检测（后续多处引用）──────────────────────────
+HAS_OPCODE=false; HAS_OMO=false; HAS_CODEX=false; HAS_CURSOR=false
 command -v opencode &>/dev/null && HAS_OPCODE=true
 npm list -g oh-my-opencode &>/dev/null && HAS_OMO=true
+command -v codex &>/dev/null && HAS_CODEX=true
+[ -f ".cursor/hooks.json" ] || [ -d ".cursor" ] && HAS_CURSOR=true
 
 if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     mkdir -p .opencode/plugins
@@ -469,6 +476,29 @@ if $HAS_OPCODE && ! $HAS_OMO; then
     echo ""
 elif $HAS_OPCODE && $HAS_OMO; then
     log_info "OpenCode + oh-my-opencode 已就绪，hooks 全能力可用 (7/7)"
+fi
+
+# ─── Codex hooks=true 提醒 ─────────────────────────────────────
+if $HAS_CODEX; then
+    echo ""
+    echo "   ⚠️  Codex CLI 需要手动开启 hooks:"
+    echo "      在 ~/.codex/config.toml 中添加:"
+    echo "        hooks = true"
+    echo "      Codex 支持 7/9 事件 (SessionStart/Stop 降级)"
+    echo ""
+fi
+
+# ─── Cursor 能力降级警告 ───────────────────────────────────────
+if $HAS_CURSOR; then
+    echo ""
+    echo "   ⚠️  Cursor 仅支持 3/9 事件 (shell:before/after + file:write)"
+    echo "      以下能力在 Cursor 下静默失效:"
+    echo "        - SessionStart/Stop hook (知识注入、会话快照)"
+    echo "        - PreToolUse:Edit hook (Read-before-Edit、范围冻结)"
+    echo "        - PostToolUse hook (读写追踪、断言审计)"
+    echo "        - PreCompact hook (上下文压缩保全)"
+    echo "      仍生效: permission-gate、privacy-gate、context-guard"
+    echo ""
 fi
 
 # ─── 用户治理文件合并迁移 ──────────────────────────────────────

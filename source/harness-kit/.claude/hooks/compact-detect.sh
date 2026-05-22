@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 source "$SCRIPT_DIR/harness_config.sh" 2>/dev/null || true
+set -f
 command -v hc_enabled &>/dev/null || { hc_enabled() { return 1; }; }
 hc_enabled "compact_detect" || exit 0
 

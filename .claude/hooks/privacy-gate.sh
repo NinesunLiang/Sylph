@@ -5,6 +5,7 @@
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "privacy_gate" || { echo '{"continue": true}'; exit 0; }
 source "$(dirname "$0")/agentic-ui.sh"
+set -f
 
 # C-3: privacy-gate 在所有模式下保持活跃 — 凭据泄露零容忍
 # ghost/goal 模式也不例外: .env/密钥泄露在任何模式下都是严重安全事件
@@ -13,14 +14,15 @@ INPUT=$(cat)
 
 if command -v jq &>/dev/null; then
     TOOL=$(echo "$INPUT" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
-    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // empty' 2>/dev/null)
+    FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
     PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty' 2>/dev/null)
-    CMD=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+    CMD=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
 else
     # 极简回退解析
     TOOL=$(echo "$INPUT" | grep -o '"tool_name"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
     [ -z "$TOOL" ] && TOOL=$(echo "$INPUT" | grep -o '"tool"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
     FILE_PATH=$(echo "$INPUT" | grep -o '"file_path"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
+    [ -z "$FILE_PATH" ] && FILE_PATH=$(echo "$INPUT" | grep -o '"filePath"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
     PATTERN=$(echo "$INPUT" | grep -o '"pattern"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
     CMD=$(echo "$INPUT" | grep -o '"command"[[:space:]]*:[[:space:]]*"[^"]*"' | cut -d'"' -f4 | head -1)
 fi

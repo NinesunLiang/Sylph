@@ -7,12 +7,13 @@
 # DG-101: 本机制物化——拦截全量操作，提示选择性替代方案
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "blast_radius" || { echo '{"continue": true}'; exit 0; }
 
 INPUT=$(cat 2>/dev/null || echo "")
 COMMAND=""
 if command -v jq &>/dev/null && [ -n "$INPUT" ]; then
-    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
+    COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
 fi
 [ -z "$COMMAND" ] && { echo '{"continue": true}'; exit 0; }
 

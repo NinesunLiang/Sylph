@@ -8,6 +8,7 @@
 #   本 hook 仍会检查 evidence 文件质量并记录异常，形成 E3/E7 双层防御。
 
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "posttool_completion_audit" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 

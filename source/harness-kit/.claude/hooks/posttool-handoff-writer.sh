@@ -2,6 +2,7 @@
 # posttool-handoff-writer.sh — PostToolUse:TaskUpdate — 每次 Task 完成后写 handoff
 # Role: 每次 Task 完成后写 handoff（E8 上下文遗忘防御）
 source "$(dirname "$0")/harness_config.sh"
+set -f
 hc_enabled "posttool_handoff_writer" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
