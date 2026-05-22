@@ -68,6 +68,91 @@ except: print(0)" 2>/dev/null)
   else echo "0.50"; fi
 }
 
+# ── DG-103: 运行时数据 bonus (0-2 pts) — 打破静态评分天花板 ──
+# 从实际 state 文件读取活跃度，给静态检测加运行时加权。
+# 所有 bash 条件用 if-elif-else (不用 &&/|| 防优先级 bug)。
+runtime_bonus() {
+  local dim="$1"
+  case "$dim" in
+    C2) # Token 节省比例: >80%=2, >50%=1
+      python3 -c "
+import json,os
+tf='.omc/state/token-savings.json'
+if os.path.exists(tf):
+  try:
+    d=json.load(open(tf))
+    r=float(d.get('session_ratio_pct',0))
+    e=int(d.get('cumulative_events',0))
+    if r>80 and e>0: print('2')
+    elif r>50: print('1')
+    else: print('0')
+  except: print('0')
+else: print('0')
+" 2>/dev/null || echo "0"
+      ;;
+    C5) # 工具活跃度: total-ops >100=2, >10=1
+      local ops=$(cat .omc/state/total-ops.txt 2>/dev/null || echo 0)
+      if [ "$ops" -gt 100 ]; then echo "2"
+      elif [ "$ops" -gt 10 ]; then echo "1"
+      else echo "0"; fi
+      ;;
+    C6) # 知识密度: lessons ≥40=2, ≥20=1
+      local lessons=$(grep -c 'DG-\|### \[' .claude/claude-next.md 2>/dev/null || echo 0)
+      if [ "$lessons" -ge 40 ]; then echo "2"
+      elif [ "$lessons" -ge 20 ]; then echo "1"
+      else echo "0"; fi
+      ;;
+    C9) # 错误恢复: retry-budget 签名数
+      python3 -c "
+import json,os
+tf='.omc/state/retry-budget.json'
+if os.path.exists(tf):
+  try:
+    d=json.load(open(tf))
+    s=len(d.get('signatures',{}))
+    if s>=5: print('2')
+    elif s>=1: print('1')
+    else: print('0')
+  except: print('0')
+else: print('0')
+" 2>/dev/null || echo "0"
+      ;;
+    E5) # 症状混淆: error-signals 记录数
+      local sigs=$(wc -l < .omc/state/error-signals.jsonl 2>/dev/null || echo 0)
+      if [ "$sigs" -gt 50 ]; then echo "2"
+      elif [ "$sigs" -gt 10 ]; then echo "1"
+      else echo "0"; fi
+      ;;
+    E6) # 自我矛盾: contradiction 检测率
+      python3 -c "
+import json
+total=0; contra=0
+try:
+  with open('.omc/state/contradiction-log.jsonl') as f:
+    for l in f:
+      if not l.strip(): continue
+      total+=1
+      if json.loads(l).get('contradiction'): contra+=1
+  if total>100 and contra>0: print('2')
+  elif total>50: print('1')
+  else: print('0')
+except: print('0')
+" 2>/dev/null || echo "0"
+      ;;
+    E8) # 上下文遗忘: handoff + compact
+      python3 -c "
+import os
+h=os.path.getsize('.omc/state/session-handoff.md') if os.path.exists('.omc/state/session-handoff.md') else 0
+c=os.path.getsize('.omc/state/context-cache.md') if os.path.exists('.omc/state/context-cache.md') else 0
+if h>20 and c>1000: print('2')
+elif c>0: print('1')
+else: print('0')
+" 2>/dev/null || echo "0"
+      ;;
+    *) echo "0" ;;
+  esac
+}
+
 # ── 烟雾测试快速检查 ──
 smoke_passes_for() {
   local test_label="$1"
@@ -136,6 +221,9 @@ except: print('stale')
   [ "$INDEX_SIZE" -le 5000 ] 2>/dev/null && size_ok=1
 
   score=$(( index_ok * 5 + compact_ok * 4 + refresh_ok * 3 + size_ok * 3 ))
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus C2) ))
+  [ "$score" -gt "15" ] && score=15
   echo "$score $max C2=上下文(index=${index_ok} compact=${compact_ok} refresh=${refresh_ok} size=${size_ok})"
 }
 
@@ -186,6 +274,9 @@ score_C5() {
   [ "$reg_rate" -ge 85 ] && consistency_score=5 || consistency_score=$(( reg_rate / 17 ))
 
   score=$(( audit_score + consistency_score ))
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus C5) ))
+  [ "$score" -gt "10" ] && score=10
   echo "$score $max C5=生命周期(audit_red=${AUDIT_RED} reg=${reg_rate}%)"
 }
 
@@ -203,6 +294,9 @@ score_C6() {
   anti_score=$(( has_anti * 2 ))
 
   score=$(( cn_score + edna_score + anti_score ))
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus C6) ))
+  [ "$score" -gt "10" ] && score=10
   echo "$score $max C6=知识(cn=${cn_entries}条 edna=${edna_size}b anti=${has_anti})"
 }
 
@@ -255,6 +349,9 @@ score_C9() {
   [ -f .claude/hooks/posttool-completion-audit.sh ] && rca=1
 
   score=$(( edna_auto * 4 + escape * 3 + rca * 3 ))
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus C9) ))
+  [ "$score" -gt "10" ] && score=10
   echo "$score $max C9=恢复(edna=${edna_auto} escape=${escape} rca=${rca})"
 }
 
@@ -362,6 +459,9 @@ score_E5() {
   [ "$(echo "$combined_rt < 0.50" | bc -l 2>/dev/null || echo 0)" = "1" ] && combined_rt="0.50"
 
   score=$(echo "scale=0; ($rca_enforced * 6 + $compile_anti * 4) * $combined_rt / 1" | bc 2>/dev/null || echo "0")
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus E5) ))
+  [ "$score" -gt "10" ] && score=10
   echo "$score $max E5=症状(rca=${rca_enforced} compile_anti=${compile_anti} rt_factor=${combined_rt} errsig=${errsig_ok})"
 }
 
@@ -398,6 +498,9 @@ score_E6() {
   [ "$(echo "$combined_rt < 0.50" | bc -l 2>/dev/null || echo 0)" = "1" ] && combined_rt="0.50"
 
   score=$(echo "scale=0; ($triple * 7 + $contradict_log * 6) * $combined_rt / 1" | bc 2>/dev/null || echo "0")
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus E6) ))
+  [ "$score" -gt "13" ] && score=13
   echo "$score $max E6=矛盾(triple=${triple} log=${contradict_log} intent_fw=${intent_fw} detect_rate=${detect_rate} rt_factor=${combined_rt})"
 }
 
@@ -459,6 +562,9 @@ score_E8() {
   fi
 
   score=$(echo "scale=0; ($compact * 4 + $tc * 3 + $handoff * 3) * $best_rt / 1" | bc 2>/dev/null || echo "0")
+  # DG-103: runtime bonus
+  score=$(( score + $(runtime_bonus E8) ))
+  [ "$score" -gt "10" ] && score=10
   echo "$score $max E8=遗忘(compact=${compact} turns=${tc} handoff=${handoff} rt_factor=${best_rt})"
 }
 
