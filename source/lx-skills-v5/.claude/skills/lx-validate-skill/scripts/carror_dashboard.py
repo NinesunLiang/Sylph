@@ -203,14 +203,19 @@ def collect_token_savings():
     if real_f.exists() and r is not None:
         compact_events = r.get("compact_events", 0)
         compact_saved = r.get("compact_savings", 0)
-    # Fallback: token-savings.json (旧格式)
+    # Fallback: token-savings.json (旧格式 + DG-103 新格式)
     if compact_events == 0:
         sv_f = STATE / "token-savings.json"
         if sv_f.exists():
             try:
                 sv = json.loads(sv_f.read_text(encoding="utf-8"))
-                compact_saved = sv.get("compact", 0)
-                compact_events = sv.get("compact_events", 0)
+                # DG-103 新格式优先 (cumulative_events / session_ratio_pct)
+                compact_events = sv.get("cumulative_events", 0)
+                if compact_events == 0:
+                    compact_events = sv.get("compact_events", 0)
+                compact_saved = sv.get("cumulative_bytes", 0)
+                if compact_saved == 0:
+                    compact_saved = sv.get("compact", 0)
             except json.JSONDecodeError:
                 pass
 
@@ -297,7 +302,16 @@ def render_token_savings(data):
 
     p()
     if comp_ev > 0:
-        p(f" Compact: {colored(f'{comp_ev} 次事件', COLOR)}  ({colored(f'{compact:,}', COLOR)} tok)")
+        # DG-103: 读取输入压缩率
+        comp_ratio = 0
+        sv_f = STATE / "token-savings.json"
+        if sv_f.exists():
+            try:
+                sv = json.loads(sv_f.read_text(encoding="utf-8"))
+                comp_ratio = sv.get("session_ratio_pct", 0)
+            except: pass
+        ratio_str = f" ({colored(f'{comp_ratio}%', COLOR)} 输入压缩)" if comp_ratio > 0 else ""
+        p(f" Compact: {colored(f'{comp_ev} 次事件', COLOR)}{ratio_str}  ({colored(f'{compact:,}', COLOR)} tok)")
     else:
         p(f" Compact: {colored('0 次事件', DIM)}")
 

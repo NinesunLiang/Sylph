@@ -288,3 +288,17 @@
 触发条件：package-release.sh 运行前 root 文件被外部回退（git checkout / 旧安装脚本覆盖），rsync --delete 将旧版本同步到 source mirror，连锁覆盖 71 个文件
 正确行为：(1) 打包前强制三源一致性预检，CRITICAL 漂移 → 阻断 (2) 每次打包前创建 _safe/package-{version}-{timestamp} 安全分支保存全量快照 (3) 关键文件存在性验证 (error-dna/intent-tracker/context-compressor/pre-edit-lsp/settings/harness) (4) 同步后再次三源验证，不通过则提示回滚命令 (5) --force 可跳过门禁但需明确意图
 证据：本次会话 package-release.sh 运行后 settings.json 丢失 pre-edit-lsp + context-compressor 注册，error-dna.sh 回退 heartbeat，intent-tracker.sh 回退 E6 fix。根因链：旧 install.sh 覆盖 root → package-release.sh 将旧版本同步到 source mirror → 安装包退化。
+
+### 🐶 [DG-102] 发布必须用 release.sh 脚本化 — 手动6步漏一步就产生 source mirror 漂移 (@LuangSir)
+
+@2026-05-22 hits:1
+触发条件：手动执行版本递增→打包→提交→Release 流程
+正确行为：使用 `bash scripts/release.sh patch "notes"` 一键发布，脚本自动完成：
+1. VERSION.json 版本号+1
+2. install.sh (root + source) DEFAULT_VERSION 同步
+3. package-release.sh 打包
+4. Git commit + push
+5. GitHub Release 创建 (gh CLI)
+6. 三源一致性验证
+禁止手动逐步操作 — S2/S3 事故证明手动操作必漏步骤，引入 source mirror 漂移。
+证据：v6.2.4 发布中 install.sh root/source DEFAULT_VERSION 不一致，package-release.sh root/source 分叉。

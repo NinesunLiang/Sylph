@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.0"
+DEFAULT_VERSION="v6.2.4-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -263,6 +263,26 @@ chmod +x .claude/hooks/*.sh 2>/dev/null || true
 chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
 chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
 
+# ═══ DG-97: 升级时自动清理已废弃 hook ═══
+# 防止旧版安装残留的僵尸脚本污染新版本
+DEPRECATED_HOOKS="pretool-rule-anchor|proactive-handoff|build-validator|error-dna-auto-fix|posttool-read-cite|plan-gate|knowledge-condenser|pretool-ask-guard"
+CLEANED=0
+if [ -d ".claude/hooks" ]; then
+    for hook_file in .claude/hooks/*.sh; do
+        hook_name=$(basename "$hook_file" .sh)
+        if echo "$hook_name" | grep -qE "$DEPRECATED_HOOKS"; then
+            rm -f "$hook_file"
+            log_info "  🧹 清理废弃 hook: $hook_name.sh (v6.2+ 已移除)"
+            CLEANED=$((CLEANED+1))
+            # 同步清理 harness.yaml (hyphen→underscore)
+            hook_name_under="${hook_name//-/_}"
+            [ -f ".claude/harness.yaml" ] && \
+                "${SED_INPLACE[@]}" "/^  ${hook_name_under}:.*$/d" ".claude/harness.yaml" 2>/dev/null || true
+        fi
+    done
+fi
+[ "$CLEANED" -gt 0 ] && log_info "✅ 已清理 $CLEANED 个废弃 hook + harness.yaml 配置 (DG-97)"
+
 # ─── 全局 Skill 安装（OpenCode 平台兼容）──────────────────────
 # OpenCode 无法直接使用项目本地 .claude/skills/，需在全局目录创建符号链接
 # 关键: 使用 ln -s 而非 cp -r — 技能内部有 ../../nodes/ 等相对路径引用，
@@ -291,6 +311,15 @@ if [ -f ".claude/kernel.md" ]; then
     if grep -q '{project_name}' ".claude/kernel.md" 2>/dev/null; then
         "${SED_INPLACE[@]}" "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
         log_info "已填充 kernel.md 模板占位符（project=${PROJECT_NAME}, date=${INSTALL_DATE}）"
+    fi
+fi
+
+# ─── 路径重写：settings.json __PROJECT_ROOT__ → 实际项目路径 ───
+if [ -f ".claude/settings.json" ]; then
+    if grep -q '__PROJECT_ROOT__' ".claude/settings.json" 2>/dev/null; then
+        USER_PROJECT_DIR="$(pwd)"
+        "${SED_INPLACE[@]}" "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json"
+        log_info "已重写 settings.json 路径为实际项目目录（${USER_PROJECT_DIR}）"
     fi
 fi
 

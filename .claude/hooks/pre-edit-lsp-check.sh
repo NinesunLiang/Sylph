@@ -56,9 +56,9 @@ except: print('  (pyright parse failed)')
         fi
         ;;
     rs)
-        if command -v rustc &>/dev/null; then
-            DIAG_OUTPUT=$(rustc --edition 2021 --parse-only "$FULL_PATH" 2>&1 | head -5)
-        fi
+        # Rust 无跨版本零依赖语法检查器 (--parse-only 仅nightly, --crate-type lib 对fn main()假阳性)
+        # 诚实降级: 提示用户用 IDE 内置诊断
+        DIAG_OUTPUT="  ⚠️  Rust: no built-in syntax checker — use IDE getDiagnostics"
         ;;
     sh|bash)
         DIAG_OUTPUT=$(bash -n "$FULL_PATH" 2>&1 && echo "  ✅ bash -n: syntax OK" || echo "  ❌ bash syntax error")

@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.0"
+DEFAULT_VERSION="v6.2.4-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -342,7 +342,7 @@ fi
 if [ -f ".claude/settings.json" ]; then
     if grep -q '__PROJECT_ROOT__' ".claude/settings.json" 2>/dev/null; then
         USER_PROJECT_DIR="$(pwd)"
-        "${SED_INPLACE[@]}" "s|__PROJECT_ROOT__|$USER_PROJECT_DIR|g" ".claude/settings.json"
+        "${SED_INPLACE[@]}" "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json"
         log_info "已重写 settings.json 路径为实际项目目录（${USER_PROJECT_DIR}）"
     fi
 fi

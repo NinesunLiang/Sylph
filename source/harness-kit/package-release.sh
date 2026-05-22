@@ -51,8 +51,10 @@ if [ -x "$META_ORACLE_SCRIPT" ]; then
         log_info "[G4.2] harness-smoke-test..."
         SMOKE_OUTPUT=$(bash "$SMOKE_TEST" 2>&1)
         SMOKE_EXIT=$?
-        FAIL_COUNT=$(echo "$SMOKE_OUTPUT" | grep -c 'FAIL\|🔴' 2>/dev/null || echo "0")
-        if [ "$SMOKE_EXIT" -eq 0 ] && [ "$FAIL_COUNT" -eq 0 ]; then
+        # DG-102: grep -c 双输出修复 — 用 wc -l 替代 grep -c || echo
+        FAIL_COUNT=$(echo "$SMOKE_OUTPUT" | grep -E 'FAIL|🔴' 2>/dev/null | wc -l | tr -d ' ')
+        FAIL_COUNT="${FAIL_COUNT:-0}"
+        if [ "$SMOKE_EXIT" -eq 0 ] && [ "$FAIL_COUNT" = "0" ]; then
             log_info "  ✅ smoke test 全绿"
         else
             log_warn "  ⚠️  smoke test 有 ${FAIL_COUNT} 项失败"
@@ -89,49 +91,52 @@ else
 fi
 echo ""
 
-# ═══ DG-100: 三源安全门禁 — 打包前防回退 ═══
-# 根因: package-release.sh rsync --delete 曾在 root 文件被外部回退后，
-#       将旧版本同步到 source mirror，导致 71 个文件静默退化 (2026-05-22)。
-# 修复: 打包前强制三源校验 + Git safety tag + 安全分支快照。
-log_step "0/4 三源安全门禁 (DG-100)..."
+# ═══ DG-100 三源安全门禁 (2026-05-22) ═══
+log_step "0/4 三源安全门禁..."
 
 SAFETY_BRANCH="_safe/package-${VERSION}-$(date +%Y%m%d-%H%M%S)"
-CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
 
-# 0.1 创建安全分支（全量快照，出问题时回滚）
+# DG-100 M5: trap EXIT 自动清理安全分支（防无限积累）
+trap 'git branch -D "$SAFETY_BRANCH" 2>/dev/null || true' EXIT
+
+# 0.1 安全分支（全量快照）
 if git rev-parse --git-dir >/dev/null 2>&1; then
     git branch "$SAFETY_BRANCH" 2>/dev/null && \
         log_info "  安全分支: $SAFETY_BRANCH" || \
-        log_warn "  安全分支创建失败（继续，但无回滚点）"
+        log_warn "  安全分支创建失败（继续）"
 fi
 
-# 0.2 三源一致性预检（阻断不通过）
+# 0.2 三源一致性预检
 if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
     log_info "  三源一致性预检..."
-    set +e; MIRROR_CHECK=$(bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1); MIRROR_EXIT=$?; set -e
-    CRITICAL_COUNT=$MIRROR_EXIT  # audit-hooks.sh exit code = red issue count
-	    # DG-100 C3: audit-hooks.sh 自身崩溃 → 假阴性，必须检测
-	    if [ "$MIRROR_EXIT" -ne 0 ] && [ "$CRITICAL_COUNT" -eq 0 ]; then
-	        log_warn "  🔴 三源验证脚本异常退出 (exit=$MIRROR_EXIT)，可能为假阴性"
-	        echo "$MIRROR_CHECK" | tail -5
-	        if [ "${FORCE_MODE:-false}" != "true" ]; then
-	            log_warn "  打包已阻断。使用 --force 强制继续。"
-	            exit 1
-	        fi
-	    fi
+    set +e
+    MIRROR_CHECK=$(bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1)
+    MIRROR_EXIT=$?
+    set -e
+    # macOS 兼容: POSIX sed 解析红字数
+    RED_COUNT=$(echo "$MIRROR_CHECK" | sed -n 's/.*🔴 严重: \([0-9]*\).*/\1/p' 2>/dev/null)
+    RED_COUNT="${RED_COUNT:-0}"
 
-    if [ "$CRITICAL_COUNT" -gt 0 ]; then
-        log_warn "  ⚠️  三源一致性: ${CRITICAL_COUNT} 项 CRITICAL 漂移"
+    FORCE_MODE=false
+    for arg in "$@"; do [ "$arg" = "--force" ] && FORCE_MODE=true; done
+
+    # Crash 检测: 脚本异常退出
+    if [ "$MIRROR_EXIT" -ne 0 ] && [ "$RED_COUNT" -eq 0 ]; then
+        log_warn "  🔴 三源验证脚本异常退出 (exit=$MIRROR_EXIT)，可能为假阴性"
+        echo "$MIRROR_CHECK" | tail -5
+        [ "$FORCE_MODE" != "true" ] && { log_warn "  打包已阻断。--force 可跳过。"; exit 1; }
+    fi
+
+    # 漂移检测: --force 跳过，否则阻断
+    if [ "$RED_COUNT" -gt 0 ]; then
+        log_warn "  ⚠️  三源一致性: ${RED_COUNT} 项 CRITICAL 漂移"
         echo "$MIRROR_CHECK" | grep '🔴' | head -10
-
-        # 检查是否有 --force 标志跳过门禁
-        if [ "${1:-}" = "--force" ] || [ "${2:-}" = "--force" ]; then
-            log_warn "  --force: 跳过三源门禁（风险自负）"
-        else
-            log_warn "  打包已阻断。使用 --force 强制继续，或先修复漂移。"
+        if [ "$FORCE_MODE" != "true" ]; then
+            log_warn "  打包已阻断。--force 可跳过，或先修复漂移。"
             log_info "  安全分支 $SAFETY_BRANCH 已保存当前状态。"
             exit 1
         fi
+        log_info "  --force: 跳过三源门禁（风险自负）"
     else
         log_info "  ✅ 三源一致性: 通过"
     fi
@@ -139,14 +144,14 @@ else
     log_warn "  audit-hooks.sh 不可用，跳过三源预检"
 fi
 
-# 0.3 关键文件存在性验证（防根目录文件静默缺失）
+# 0.3 关键文件存在性+非空验证
 REQUIRED_FILES=".claude/hooks/error-dna.sh .claude/hooks/intent-tracker.sh .claude/hooks/context-compressor.sh .claude/hooks/pre-edit-lsp-check.sh .claude/settings.json .claude/harness.yaml"
 MISSING_FILES=""
 for rf in $REQUIRED_FILES; do
-    [ ! -f "$PROJECT_DIR/$rf" ] && MISSING_FILES="$MISSING_FILES $rf"
+    [ ! -s "$PROJECT_DIR/$rf" ] && MISSING_FILES="$MISSING_FILES $rf"
 done
 if [ -n "$MISSING_FILES" ]; then
-    log_warn "  🔴 关键文件缺失: $MISSING_FILES"
+    log_warn "  🔴 关键文件缺失或为空: $MISSING_FILES"
     log_warn "  打包已阻断。恢复文件后再试。"
     exit 1
 fi
@@ -235,20 +240,24 @@ log_info "  lx-skills-${TAG}.tar.gz ($(du -h "$PKG_DIR/lx-skills-${TAG}.tar.gz" 
 # ─── Step 5: 同步后三源验证 (DG-100) ───
 log_step "5/5 同步后三源验证..."
 if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
-    set +e; POST_CHECK=$(bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1); POST_EXIT=$?; set -e
-    POST_CRITICAL=$POST_EXIT  # audit-hooks.sh exit code = red issue count
-	    if [ "$POST_CRITICAL" -gt 0 ]; then
-        log_warn "  ⚠️  同步后三源漂移: ${POST_CRITICAL} 项"
+    set +e
+    POST_CHECK=$(bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1)
+    POST_EXIT=$?
+    set -e
+    POST_RED=$(echo "$POST_CHECK" | sed -n 's/.*🔴 严重: \([0-9]*\).*/\1/p' 2>/dev/null)
+    POST_RED="${POST_RED:-0}"
+
+    if [ "$POST_RED" -gt 0 ]; then
+        log_warn "  ⚠️  同步后三源漂移: ${POST_RED} 项"
         echo "$POST_CHECK" | grep '🔴' | head -5
-        log_warn "  恢复: 见下方恢复方法 (DG-100 C4)"
-	        log_warn "    1. git diff HEAD~1 -- source/  # 检查git历史差异"
-	        log_warn "    2. git diff $SAFETY_BRANCH -- source/  # 对比安全分支"
-	        log_warn "    3. 或从上个tar包恢复"
+        log_warn "  恢复方法:"
+        log_warn "    1. git diff HEAD~1 -- source/  # git历史差异"
+        log_warn "    2. git diff $SAFETY_BRANCH -- source/  # 对比安全分支"
+        log_warn "    3. 或从上个tar包恢复"
     else
         log_info "  ✅ 同步后三源一致性: 通过"
-        # DG-100 C4: 用tag保留安全快照（防误删）
-	        git tag "safe/${VERSION}-$(date +%Y%m%d-%H%M%S)" "$SAFETY_BRANCH" 2>/dev/null && 
-	            log_info "  安全标签: safe/${VERSION}-*" || true
+        git tag "safe/${VERSION}-$(date +%Y%m%d-%H%M%S)" "$SAFETY_BRANCH" 2>/dev/null && \
+            log_info "  安全标签已保存" || true
         git branch -D "$SAFETY_BRANCH" 2>/dev/null || true
     fi
 fi
