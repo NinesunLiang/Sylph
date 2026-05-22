@@ -9,7 +9,7 @@
 -harness.yaml整数:bash整数比较用60不用0.6,浮点导致[静默失败(DG-54)
 -发行包路径:开发机绝对路径禁入packages/,占位符__PROJECT_ROOT__→install.sh替换(DG-31)
 
-命名:hook=snake-case(context-guard.sh),py=snake_case,skill=lx-前缀,yaml=snake_case,版本=6.2.16
+命名:hook=snake-case(context-guard.sh),py=snake_case,skill=lx-前缀,yaml=snake_case,版本=6.2.17
 
 错误处理:hook永不阻塞(exit0),证据门禁优先(VERIFIED后标completed),Error DNA自动记录(error-dna.jsonl),3轮上限,禁绕过门禁(需用户"确认放行"),原生批准优先(permissionDecision:ask),关键脚本修改前cp备份+bash -n验证(DG-13,DF-04)
 
