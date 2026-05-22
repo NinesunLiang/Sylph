@@ -12,7 +12,7 @@
 
 ---
 
-## Harness 治理框架（Base 版本 v6.2.10）
+## Harness 治理框架（Base 版本 v6.2.11）
 
 > Base 版本 = 新项目拿来就能用，零配置，有防御不碍事
 > 增强功能（task-spec / 节点系统 / 验收机制）见 [Enhanced 激活指南](#enhanced-激活可选)

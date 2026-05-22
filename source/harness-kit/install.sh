@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.10 | 日期：2026-05-22
+# 版本：v6.2.11 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.10-stable"
+DEFAULT_VERSION="v6.2.11-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -298,7 +298,7 @@ extract_tar() {
         log_warn "本地未找到 ${tar_file}，尝试从云端拉取 ${desc}..."
         local download_url="$GITHUB_RELEASE_URL/$tar_file"
         if command -v curl &>/dev/null; then
-            curl -sSL --connect-timeout 15 --max-time 120 --retry 2 \
+            curl -sSL --connect-timeout 15 --max-time 120 --retry 3 --retry-all-errors \
                 -o "/tmp/$tar_file" "$download_url" || { log_error "云端下载失败。请检查网络或 GITHUB_REPO 配置"; exit 1; }
         elif command -v wget &>/dev/null; then
             wget -q --timeout=15 --tries=3 -O "/tmp/$tar_file" "$download_url" || { log_error "云端下载失败。请检查网络或 GITHUB_REPO 配置"; exit 1; }
