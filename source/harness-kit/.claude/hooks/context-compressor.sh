@@ -75,7 +75,53 @@ for pair in $SRC_COMPACT_PAIRS; do
 done
 
 if [ "$ALL_OK" = true ]; then
-    echo "[context-compressor] ✅ 缓存已更新: $CACHE ($(wc -c < "$CACHE" | tr -d ' ') bytes)" >&2
+    CACHE_SIZE=$(wc -c < "$CACHE" | tr -d ' ')
+    echo "[context-compressor] ✅ 缓存已更新: $CACHE ($CACHE_SIZE bytes)" >&2
+
+    # DG-103: 计算 token 节省量写入 token-savings.json
+    TOTAL_SRC=0; TOTAL_COMPACT=0
+    set -f
+    for pair in $SRC_COMPACT_PAIRS; do
+        src="${pair%%|*}"; compact="${pair##*|}"
+        [ -f "$src" ] && TOTAL_SRC=$((TOTAL_SRC + $(wc -c < "$src" | tr -d ' ')))
+        [ -f "$compact" ] && TOTAL_COMPACT=$((TOTAL_COMPACT + $(wc -c < "$compact" | tr -d ' ')))
+    done
+    SAVED=$((TOTAL_SRC - TOTAL_COMPACT))
+    if [ "$TOTAL_SRC" -gt 0 ]; then
+        RATIO=$(echo "scale=1; $SAVED * 100 / $TOTAL_SRC" | bc 2>/dev/null || echo "0")
+    else
+        RATIO="0"
+    fi
+    python3 -c "
+import json, os, time
+tf = '$STATE_DIR/token-savings.json'
+tl = '$STATE_DIR/token-savings.jsonl'
+d = {}
+if os.path.exists(tf):
+    try:
+        with open(tf) as f: d = json.load(f)
+    except: pass
+# 本会话
+session = {
+    'ts': '$(date -u +%Y-%m-%dT%H:%M:%SZ)',
+    'source_bytes': $TOTAL_SRC,
+    'compact_bytes': $TOTAL_COMPACT,
+    'saved_bytes': $SAVED,
+    'ratio_pct': float($RATIO),
+    'session_id': '${SESSION_ID:-unknown}'
+}
+d['session_bytes'] = $SAVED
+d['session_source_bytes'] = $TOTAL_SRC
+d['session_compact_bytes'] = $TOTAL_COMPACT
+d['session_ratio_pct'] = float($RATIO)
+d['cumulative_bytes'] = d.get('cumulative_bytes', 0) + $SAVED
+d['cumulative_events'] = d.get('cumulative_events', 0) + 1
+d['last_updated'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+with open(tf, 'w') as f: json.dump(d, f)
+# 跨会话时间序列 (JSONL追加)
+with open(tl, 'a') as f: f.write(json.dumps(session) + '\n')
+" 2>/dev/null || true
+    echo "[context-compressor] 💰 本次(输入侧): ${RATIO}% | 累计: $(python3 -c \"import json;d=json.load(open('$STATE_DIR/token-savings.json'));print(f'{d.get(\\\"cumulative_events\\\",0)}次 {d.get(\\\"cumulative_bytes\\\",0)}bytes')\" 2>/dev/null)" >&2
 else
     echo "[context-compressor] ⚠️ 部分 compact 文件缺失，缓存不完整" >&2
 fi

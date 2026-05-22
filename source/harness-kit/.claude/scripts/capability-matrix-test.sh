@@ -344,13 +344,26 @@ info "D7: 评分=$(dim_score "D7-THREE-SOURCE")%"
 
 dim_header "D8-ERROR-DNA"
 
+# DG-100: v3 三管道 — error-dna.jsonl (E2 CAPTCHA) + error-signals.jsonl (普通) + governance-audit.jsonl (E1)
 ERR_DNA="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
-if [ -f "$ERR_DNA" ]; then
-    ERR_COUNT=$(wc -l < "$ERR_DNA" 2>/dev/null | tr -d ' ' || echo "0")
-    pass "D8: error-dna.jsonl → $ERR_COUNT records"
+ERR_SIG="$PROJECT_ROOT/.omc/state/error-signals.jsonl"
+GOV_AUD="$PROJECT_ROOT/.omc/state/governance-audit.jsonl"
+
+E2_COUNT=0; SIG_COUNT=0; GOV_COUNT=0
+[ -f "$ERR_DNA" ] && E2_COUNT=$(wc -l < "$ERR_DNA" 2>/dev/null | tr -d ' ' || echo 0)
+[ -f "$ERR_SIG" ] && SIG_COUNT=$(wc -l < "$ERR_SIG" 2>/dev/null | tr -d ' ' || echo 0)
+[ -f "$GOV_AUD" ] && GOV_COUNT=$(wc -l < "$GOV_AUD" 2>/dev/null | tr -d ' ' || echo 0)
+TOTAL_PIPE=$((E2_COUNT + SIG_COUNT + GOV_COUNT))
+
+if [ "$TOTAL_PIPE" -gt 0 ]; then
+    pass "D8: error pipeline → E2=$E2_COUNT signals=$SIG_COUNT gov=$GOV_COUNT (total=$TOTAL_PIPE)"
+    dim_pass "D8-ERROR-DNA"
+elif [ -f "$ERR_SIG" ] || [ -f "$GOV_AUD" ]; then
+    # Pipeline files exist but empty — mechanism ready, no errors yet
+    pass "D8: error pipeline ready (E2=$E2_COUNT signals=$SIG_COUNT gov=$GOV_COUNT)"
     dim_pass "D8-ERROR-DNA"
 else
-    warn "D8: error-dna.jsonl not found (未触发或未产生错误)"
+    warn "D8: error pipeline files not found (未触发或未产生错误)"
     dim_warn "D8-ERROR-DNA"
 fi
 dim_total "D8-ERROR-DNA"

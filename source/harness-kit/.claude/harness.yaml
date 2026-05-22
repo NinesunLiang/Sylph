@@ -89,12 +89,10 @@ hooks_enabled:
   inject_project_knowledge: true
   intent_tracker: true
   issue_triage: true
-  knowledge_condenser: true
   lsp_suggest: true
   lsp_gate: true
   meta_oracle_trigger: true
   permission_gate: true
-  plan_gate: true
   posttool_bash_audit: true
   posttool_claim_audit: true
   posttool_completion_audit: true

@@ -65,11 +65,6 @@
             "type": "command",
             "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-edit-scope.sh",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/plan-gate.sh",
-            "timeout": 3000
           }
         ]
       },
@@ -405,13 +400,7 @@
         ]
       },
       {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/knowledge-condenser.sh",
-            "timeout": 5000
-          }
-        ]
+        "hooks": []
       }
     ],
     "UserPromptSubmit": [

@@ -1,4 +1,4 @@
-## Hooks 速查（共 42 个）
+## Hooks 速查（共 43 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -31,6 +31,7 @@
 |`pre-ask-guard` | PreToolUse | pre-ask-guard.sh — PreToolUse:AskUserQuestion — 问人前强制过决策链四层评估|
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
 |`pre-edit-lsp-check` | PreToolUse | pre-edit-lsp-check.sh — PreToolUse:Edit — 编辑前诊断检查提醒|
+|`pretool-blast-radius` | PreToolUse | pretool-blast-radius.sh — PreToolUse:Bash — 全局破坏性命令拦截 (DG-101)|
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|

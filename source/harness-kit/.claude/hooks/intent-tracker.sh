@@ -154,7 +154,7 @@ record = {
     'revert_of': revert_of_hash,
     'file': file_path,
     'edit_count': edit_count,
-    'contradiction': contradiction_level >= 2  # revert or churn (5+ edits) = self-contradiction,
+    'contradiction': contradiction_level >= 2 or contradiction_type == 'churn_keyword',  # level2+ or keyword oscillation
     'level': contradiction_level,
     'type': contradiction_type,
 }
