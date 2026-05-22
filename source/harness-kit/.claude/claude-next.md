@@ -312,3 +312,29 @@
 jq 的 `//` 操作符取第一个非 null 值，兼容两个平台的字段格式。
 证据：fe_react_anka 运行时实测：privacy-gate / error-dna 在 OpenCode 下因字段名不匹配静默失效。
 修复：19 个 hook 脚本全量添加 OpenCode field fallback。
+
+### 🐶 [DG-104] GitHub Release asset 文件名必须与 tag 一致 — 版本号不匹配导致"云端包损坏" (@LuangSir)
+
+@2026-05-23 hits:1
+触发条件：创建 GitHub Release 时 tag（如 v6.2.7-stable）与上传的 asset 文件名（如 *-v6.2.5-stable.tar.gz）版本号不同
+正确行为：package-release.sh 打包后立即上传到对应的 Release，确保 asset 文件名中的版本号与 tag 完全一致。release.sh 自动完成此流程（Step 4 打包 → Step 7 创建 Release）。
+禁止手动创建 Release 然后手动上传不同版本的 asset 文件。
+证据：v6.2.7-stable tag 下 asset 名为 harness-kit-v6.2.5-stable.tar.gz，install.sh 从 GitHub API 拿到 tag 后构造 URL → 文件名不匹配 → curl 下载到 HTML 页面 → tar -xzf 解压失败 → 报"云端包损坏"。
+
+### 🐶 [DG-105] Windows 上 Python 叫 python 不叫 python3 — 需要 resolve_python() 路径扫描 + 别名 (@LuangSir)
+
+@2026-05-23 hits:1
+触发条件：Windows Git Bash (MINGW64) 下运行 install.sh，winget 安装 Python 后 `python3` 命令不存在
+正确行为：使用 `resolve_python()` 函数按优先级查找：`python3` → `python`（验证版本号含 "Python 3"）→ 扫描 `/c/Python3*/python.exe` 等常见 Windows 安装路径。如果只找到 `python` 没有 `python3`，用 `eval` 创建 shell 函数别名。install.sh 后续所有调用改用 `$PYTHON_BIN` 变量，不硬编码 `python3`。
+证据：MINGW64 下 winget 输出 "python3 v3.11.0 already installed" 但 `python3: command not found` —— Windows 上 Python 可执行文件叫 python.exe，不在 Git Bash 默认 PATH 中。
+
+### 🐶 [DG-106] install.sh 依赖安装必须走自动安装，不走软门禁建议 (@LuangSir)
+
+@2026-05-23 hits:1
+触发条件：远程安装（curl ... | bash）时 python3 未安装，旧脚本只打印建议命令让用户手动装
+正确行为：安装脚本检测到缺失依赖后直接自动安装，覆盖全平台 9 种包管理器：
+macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→scoop
+安装后调用 resolve_python() 验证安装生效，失败则降级为 MISSING_DEPS 警告而非阻断。
+禁止在安装脚本中只"建议"安装依赖——远程用户无法交互，建议等于失败。
+证据：用户 Windows Git Bash 下首次运行 install.sh，旧脚本打印"请手动安装 python3"后继续，导致后续 python3 -c 调用全部失败，settings.json merge 和跨平台 hook 生成静默跳过。
+
