@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.5 | 日期：2026-05-22
+# 版本：v6.2.8 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.5-stable"
+DEFAULT_VERSION="v6.2.8-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -100,18 +100,40 @@ if command -v python3 &>/dev/null; then
         MISSING_DEPS=$((MISSING_DEPS + 1))
     fi
 else
-    echo -e "${RED}[DEPS]${NC} python3 未安装 — Carror OS 的 38 个 hook (permission-gate/error-dna/token-tracking 等) 依赖它"
-    echo ""
-    echo "   🔧 一键安装 python3:"
-    echo "      macOS:         brew install python3"
-    echo "      Debian/Ubuntu: sudo apt install -y python3"
-    echo "      RHEL/CentOS:   sudo yum install -y python3"
-    echo "      Arch:          sudo pacman -S python3"
-    echo ""
-    echo "   📦 安装后可重新运行: bash install.sh $INSTALL_MODE"
-    echo ""
-    MISSING_DEPS=$((MISSING_DEPS + 1))
+    echo -e "${RED}[DEPS]${NC} python3 未安装 — 正在自动安装..."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        if command -v brew &>/dev/null; then
+            brew install python3 2>&1 | tail -3
+        else
+            log_error "macOS 需先安装 Homebrew: https://brew.sh"; exit 1
+        fi
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin"* ]]; then
+        if command -v winget &>/dev/null; then
+            winget install -e --id Python.Python.3 --silent 2>&1 | tail -3
+        elif command -v choco &>/dev/null; then
+            choco install python3 -y 2>&1 | tail -3
+        elif command -v scoop &>/dev/null; then
+            scoop install python3 2>&1 | tail -3
+        else
+            log_error "Windows 需安装 winget/choco/scoop 之一，或手动安装: https://python.org"; exit 1
+        fi
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get update -qq && sudo apt-get install -y python3 2>&1 | tail -3
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y python3 2>&1 | tail -3
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y python3 2>&1 | tail -3
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm python3 2>&1 | tail -3
+    elif command -v apk &>/dev/null; then
+        apk add --no-cache python3 2>&1 | tail -3
+    else
+        log_error "无法识别包管理器，请手动安装 python3 后重试"; exit 1
+    fi
+    log_info "python3 安装完成: $(python3 --version 2>&1)"
 fi
+
+
 
 # jq 检测（可选加速器）
 if command -v jq &>/dev/null; then
