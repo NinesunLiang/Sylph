@@ -13,7 +13,7 @@ log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 BUMP="${1:-patch}"
 NOTES="${2:-"Carror OS release"}"
 AUTO_YES=false
-for arg in "$@"; do [ "$arg" = "--yes" ] && AUTO_YES=true; done
+for arg in "$@"; do [[ "$arg" == --yes* ]] && AUTO_YES=true; done
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
