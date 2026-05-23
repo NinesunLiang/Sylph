@@ -60,8 +60,8 @@ const SOFT_COMPLETION_BAN = [
 ];
 
 const HALLUCINATION_SIGNALS = [
-  /file:line/g,           // 有引用格式但无具体路径（假引用）
-  /\[已验证: [^\]]+\]/g,  // VERIFIED 声明但格式不完整
+  /[\[（(]\s*(?:已验证|已测试|已确认|来源|引用|cf\.?|see)[：:\s]+file:line\s*[\]）)]/i,  // 假引用: [已验证: file:line] 模板占位模式
+  /\[已验证: [^\]]*\]/,              // VERIFIED 声明但格式不完整
 ];
 
 // ── Task Type Detection ────────────────────────────────────────────
@@ -70,9 +70,9 @@ type TaskType = "code_change" | "exploration" | "security" | "unknown";
 
 function detectTaskType(message: string): TaskType {
   const lower = message.toLowerCase();
-  if (/修|fix|改|refactor|实现|添加|删除|优化|迁移/i.test(lower)) return "code_change";
   if (/安全|security|auth|token|密钥|凭据|隐私|permission/i.test(lower)) return "security";
-  if (/看|查|读|搜索|找|explore|分析|调研|了解|是什么/i.test(lower)) return "exploration";
+  if (/修|fix|改|refactor|实现|添加|删除|优化|迁移/i.test(lower)) return "code_change";
+  if (/看|查|读|浏览|列出|搜索|找|探索|explore|分析|调研|了解|list|是什么/i.test(lower)) return "exploration";
   return "unknown";
 }
 
@@ -123,7 +123,6 @@ function loadState(): ContextState {
     lastTurnIssues: [], _sessionId: "", _compactTurn: 0,
   };
 }
-
 function saveState(state: ContextState) {
   ensureStateDir();
   try { writeFileSync(STATE_FILE, JSON.stringify(state, null, 2), "utf-8"); }
@@ -383,8 +382,7 @@ function buildBriefing(state: ContextState, userMessage: string): string {
 · 发现额外问题 → 记 TODO，不扩大修改范围
 `;
     }
-
-    // 输出后处理上下文
+// 输出后处理上下文
     refresh += getOutputQualityContext(state);
 
     return refresh;

@@ -216,7 +216,7 @@ log_info "  lx-skills 同步完成"
 # ─── Step 3: package harness-kit ───
 log_step "3/4 构建 harness-kit..."
 cd "$HARNESS_SRC"
-tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
+COPYFILE_DISABLE=1 tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
   --exclude=.omc --exclude=node_modules --exclude='*.pyc' \
   AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/
 cd "$PROJECT_DIR"
@@ -228,7 +228,7 @@ log_info "  harness-kit-${TAG}.tar.gz ($(du -h "$PKG_DIR/harness-kit-${TAG}.tar.
 # ─── Step 4: package lx-skills ───
 log_step "4/4 构建 lx-skills..."
 cd "$LX_SRC"
-tar czf "$PKG_DIR/lx-skills-${TAG}.tar.gz" \
+COPYFILE_DISABLE=1 tar czf "$PKG_DIR/lx-skills-${TAG}.tar.gz" \
   --exclude=.omc --exclude=__pycache__ --exclude='*.pyc' \
   .claude/
 cd "$PROJECT_DIR"

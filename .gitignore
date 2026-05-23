@@ -7,4 +7,5 @@ __pycache__/
 .omc/
 scripts/packages/
 _swebench_test/
-base_scripts/
+base_scripts/._*
+._*
