@@ -133,15 +133,23 @@ else
 fi
 
 if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
-    git add VERSION.json \
-        source/harness-kit/VERSION source/lx-skills-v5/VERSION \
-        .claude/skills/VERSION source/lx-skills-v5/.claude/skills/VERSION \
-        source/harness-kit/AGENTS.md \
-        source/harness-kit/.claude/kernel.md \
-        source/harness-kit/.claude/kernel-compact.md \
-        install.sh source/install.sh source/harness-kit/install.sh \
-        packages/harness-kit-v${NEW_VER}-stable.tar.gz \
-        packages/lx-skills-v${NEW_VER}-stable.tar.gz
+    if [ "$AUTO_YES" = true ]; then
+        # --yes模式: 提交所有改动(排除临时文件), 不漏新脚本
+        git add -A
+        git reset -- packages/harness-kit-v*.tar.gz packages/lx-skills-v*.tar.gz 2>/dev/null || true
+        git add packages/harness-kit-v${NEW_VER}-stable.tar.gz packages/lx-skills-v${NEW_VER}-stable.tar.gz
+    else
+        # 交互模式: 只提交版本文件
+        git add VERSION.json \
+            source/harness-kit/VERSION source/lx-skills-v5/VERSION \
+            .claude/skills/VERSION source/lx-skills-v5/.claude/skills/VERSION \
+            source/harness-kit/AGENTS.md \
+            source/harness-kit/.claude/kernel.md \
+            source/harness-kit/.claude/kernel-compact.md \
+            install.sh source/install.sh source/harness-kit/install.sh \
+            packages/harness-kit-v${NEW_VER}-stable.tar.gz \
+            packages/lx-skills-v${NEW_VER}-stable.tar.gz
+    fi
 
     git commit -m "$COMMIT_MSG"
     git push
