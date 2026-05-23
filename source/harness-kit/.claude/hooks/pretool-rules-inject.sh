@@ -82,7 +82,7 @@ with open('$AGENTS') as f:
 m = re.search(r'<!-- pretool:${tag}-start -->(.*?)<!-- pretool:${tag}-end -->', text, re.DOTALL)
 if m:
     lines = [l.strip() for l in m.group(1).strip().split(chr(10)) if l.strip() and '<!--' not in l]
-    kept = [l for l in lines if l.startswith('#') or l.startswith('|') or len(l) > 20][:25]
+    kept = [l for l in lines if l.startswith('|') or l.startswith('## 8') or l.startswith('#4')][:15]
     print(chr(10).join(kept))
 " 2>/dev/null
     fi
