@@ -53,7 +53,7 @@ check_registry = sys.argv[6].lower() == 'true' if len(sys.argv) > 6 else 'false'
 disk = set()
 for f in glob.glob('.claude/hooks/*.sh'):
     name = os.path.basename(f)
-    if name == 'harness_config.sh':  # library, not a hook
+    if name in ('harness_config.sh', 'agentic-ui.sh'):  # libraries, not hooks
         continue
     disk.add(name)
 
@@ -65,7 +65,7 @@ try:
     for event, arr in s.get('hooks', {}).items():
         for block in arr:
             for h in block.get('hooks', []):
-                m = re.search(r'\.claude/hooks/([^\s]+)', h.get('command', ''))
+                m = re.search(r'\.claude/hooks/([^\s\'\"]+)', h.get('command', ''))
                 if m:
                     registered.setdefault(m.group(1), set()).add(event)
 except Exception as e:

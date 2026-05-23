@@ -4,7 +4,7 @@ name: lx-oma-orch
 description: Pipeline Orchestrator — 4-skill 管线编排（状态查看/阶段推进/Oracle 门禁/并行开发管理）
 
 version: v1.2.0
-harness_version: "6.2.0"
+harness_version: "6.2.31"
 status: stable
 argument-hint: "status | advance [--force] | gate <og-id> approve|reject [--reason \"...\"] | run <target> | dev list | dev mark <feature-id> <status>"
 when_to_use: |

@@ -6,7 +6,7 @@ category: workflow
 type: workflow
 execution_mode: stepwise
 enabled_by_default: true
-harness_version: "6.2.0"
+harness_version: "6.2.31"
 evidence_level: L3
 triggers:
   - "狗粮"

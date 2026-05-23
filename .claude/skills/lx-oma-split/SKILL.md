@@ -4,7 +4,7 @@ name: lx-oma-split
 description: 一人成军司令部 (One-Man Army) - 将需求拆解为正交的多个功能分支 (prd/{sub_prd}/{feature})，支持目录和单文件作为输入。
 
 version: v1.2.0
-harness_version: "6.2.0"
+harness_version: "6.2.31"
 status: stable
 argument-hint: "<path> [--pipeline <sub_prd_id>]"
 when_to_use: |

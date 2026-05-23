@@ -17,7 +17,7 @@ else
 fi
 
 # 只处理 Task 工具
-if [ "$TOOL_NAME" != "Task" ]; then
+if [ "$TOOL_NAME" != "Task" ] && [ "$TOOL_NAME" != "Agent" ]; then
     echo '{"continue": true}'
     exit 0
 fi

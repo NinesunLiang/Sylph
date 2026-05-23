@@ -53,7 +53,25 @@ JSON
         touch "$STATE_DIR/autonomous.active"
         # 清理旧格式文件
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
-        echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
+        DATE=$(date +%Y-%m-%d)
+SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
+mkdir -p "$CHAT_DIR"
+echo "{"phase":"exploring","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}" > "$CHAT_DIR/state.json"
+echo "# $DIRECTION
+
+> ghost模式自动创建 @ $(date)" > "$CHAT_DIR/progress.md"
+log_info "RPE文档层: $CHAT_DIR"
+DATE=$(date +%Y-%m-%d)
+SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
+mkdir -p "$CHAT_DIR"
+echo "{"phase":"exploring","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}" > "$CHAT_DIR/state.json"
+echo "# $DIRECTION
+
+> ghost模式自动创建 @ $(date)" > "$CHAT_DIR/progress.md"
+log_info "RPE文档层: $CHAT_DIR"
+echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   ⚠️  必须立即执行 CronCreate 注册轮询（不可跳过）:"
         echo "     CronCreate cron='*/N * * * *' prompt='...'  — 协议 Step 0.5.3 硬步骤"

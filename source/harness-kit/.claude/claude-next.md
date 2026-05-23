@@ -249,14 +249,14 @@
 
 ## 2026-05-22 狗粮 — 15 任务 AB 对照实验发现
 
-### 🐶 [DG-96] intent-tracker 仅捕获 Edit|Write — Bash sed/echo 绕过编辑追踪 (@LuangSir)
+### 🐶 [DG-107] intent-tracker 仅捕获 Edit|Write — Bash sed/echo 绕过编辑追踪 (@LuangSir)
 
 @2026-05-22 hits:1
 触发条件：AI 使用 Bash sed/echo/tee 直接修改文件，绕过 Edit|Write 工具 matcher
 正确行为：intent-tracker 的 matcher `Edit|Write` 无法捕获 Bash 工具的文件修改。这是设计边界，非 bug — intent-tracker 追踪的是"AI 使用编辑工具"的行为，Bash 层面的修改由 error-dna 的 governance_bypass 检测（E1）覆盖。两者互补：intent-tracker 追踪正常编辑的 churn/revert，E1 检测通过 Bash 绕过编辑门禁的敏感文件修改。
 证据：15 任务 AB 对照实验：Group A AI 用 Bash sed 来回改 docstring 6 次，intent-tracker contradiction-log.jsonl 从未创建。但同会话中 Edit 工具的修改被正确追踪。
 
-### 🐶 [DG-97] 安装包部署到非 dev 项目后需验证 hook 注册完整性 (@LuangSir)
+### 🐶 [DG-108] 安装包部署到非 dev 项目后需验证 hook 注册完整性 (@LuangSir)
 
 @2026-05-22 hits:1
 触发条件：将 Carror OS 安装到新项目后，settings.json 中的路径替换（__PROJECT_ROOT__ → 实际路径）可能遗漏部分 hook 注册
@@ -282,14 +282,14 @@
 
 ## 2026-05-22 狗粮 — package-release.sh 静默回退 71 个文件
 
-### 🐶 [DG-100] package-release.sh 必须有三源安全门禁 — rsync --delete 可静默回退关键文件 (@LuangSir)
+### 🐶 [DG-109] package-release.sh 必须有三源安全门禁 — rsync --delete 可静默回退关键文件 (@LuangSir)
 
 @2026-05-22 hits:1
 触发条件：package-release.sh 运行前 root 文件被外部回退（git checkout / 旧安装脚本覆盖），rsync --delete 将旧版本同步到 source mirror，连锁覆盖 71 个文件
 正确行为：(1) 打包前强制三源一致性预检，CRITICAL 漂移 → 阻断 (2) 每次打包前创建 _safe/package-{version}-{timestamp} 安全分支保存全量快照 (3) 关键文件存在性验证 (error-dna/intent-tracker/context-compressor/pre-edit-lsp/settings/harness) (4) 同步后再次三源验证，不通过则提示回滚命令 (5) --force 可跳过门禁但需明确意图
 证据：本次会话 package-release.sh 运行后 settings.json 丢失 pre-edit-lsp + context-compressor 注册，error-dna.sh 回退 heartbeat，intent-tracker.sh 回退 E6 fix。根因链：旧 install.sh 覆盖 root → package-release.sh 将旧版本同步到 source mirror → 安装包退化。
 
-### 🐶 [DG-102] 发布必须用 release.sh 脚本化 — 手动6步漏一步就产生 source mirror 漂移 (@LuangSir)
+### 🐶 [DG-110] 发布必须用 release.sh 脚本化 — 手动6步漏一步就产生 source mirror 漂移 (@LuangSir)
 
 @2026-05-22 hits:1
 触发条件：手动执行版本递增→打包→提交→Release 流程

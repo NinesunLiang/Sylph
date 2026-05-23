@@ -79,7 +79,37 @@ PYEOF
         rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
         touch "$STATE_DIR/autonomous.active"
-        echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY_HOURS}h 过期"
+        DATE=$(date +%Y-%m-%d)
+SLUG=$(echo "$GOAL" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+PLAN_DIR="$PROJECT_ROOT/.omc/plans/${DATE}/${SLUG}"
+mkdir -p "$PLAN_DIR"
+echo "{"phase":"draft","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}" > "$PLAN_DIR/state.json"
+echo "# $GOAL
+
+> goal模式自动创建 @ $(date)" > "$PLAN_DIR/prd.md"
+echo "# Progress
+
+" > "$PLAN_DIR/progress.md"
+echo "# Checklist
+
+" > "$PLAN_DIR/checklist.md"
+log_info "RPE文档层: $PLAN_DIR"
+DATE=$(date +%Y-%m-%d)
+SLUG=$(echo "$GOAL" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+PLAN_DIR="$PROJECT_ROOT/.omc/plans/${DATE}/${SLUG}"
+mkdir -p "$PLAN_DIR"
+python3 -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
+echo "# $GOAL
+
+> goal模式自动创建 @ $(date)" > "$PLAN_DIR/prd.md"
+echo "# Progress
+
+" > "$PLAN_DIR/progress.md"
+echo "# Checklist
+
+" > "$PLAN_DIR/checklist.md"
+echo "RPE文档层: $PLAN_DIR" >&2
+echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   任务逐项标记: lx-goal task-done \"完成项描述\""
         echo "   完成后输出报告: lx-goal report"

@@ -264,7 +264,7 @@ score_C5() {
   AUDIT_RED=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
   local settings_count disk_count
   settings_count=$(grep -cE '\.claude/hooks/' .claude/settings.json 2>/dev/null); settings_count="${settings_count:-0}"
-  disk_count=$(ls .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
+  disk_count=$(ls .claude/hooks/*.sh 2>/dev/null | grep -v 'harness_config.sh\|agentic-ui.sh' | grep -v '\.bak$\|\.disabled$' | wc -l | tr -d ' ')
   local reg_rate=0
   [ "$disk_count" -gt 0 ] && reg_rate=$(( settings_count * 100 / disk_count ))
 
