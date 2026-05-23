@@ -104,7 +104,7 @@ log_info "  packages/lx-skills-v${NEW_VER}-stable.tar.gz"
 
 # ═══════════════════════════════════════════════════════════════
 log_step "5/7 三源一致性审计..."
-AUDIT_OUT=$(bash .claude/scripts/audit-hooks.sh --check-source-mirror 2>&1)
+AUDIT_OUT=$(bash .claude/scripts/audit-hooks.sh --check-source-mirror 2>&1) || true
 RED_COUNT=$(echo "$AUDIT_OUT" | sed -n 's/.*🔴 严重: \([0-9]*\).*/\1/p' 2>/dev/null)
 RED_COUNT="${RED_COUNT:-0}"
 if [ "$RED_COUNT" -gt 0 ]; then

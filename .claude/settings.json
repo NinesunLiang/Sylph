@@ -139,12 +139,12 @@
         ]
       },
       {
-        "matcher": ".*",
+        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-rules-inject.sh",
-            "timeout": 3000
+            "command": "bash .claude/hooks/pretool-plan-gate.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -469,6 +469,16 @@
       },
       {
         "hooks": []
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash '/Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/pretool-rules-inject.sh'",
+            "timeout": 5000
+          }
+        ]
       }
     ]
   },
