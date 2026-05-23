@@ -527,6 +527,32 @@ else
 fi
 rm -f "$_CORR_OUT"
 
+# R27 pretool-rules-inject: 规则注入钩子应正常输出
+TOTAL=$((TOTAL+1))
+_RULES_OUT="/tmp/smoke-rules-inject-$$.out"
+log ""
+log "[$TOTAL] R27 pretool-rules-inject: L1注入应正常输出"
+echo '{"tool_name":"Bash","tool_input":{"command":"echo test"}}' | bash .claude/hooks/pretool-rules-inject.sh > "$_RULES_OUT" 2>&1
+if grep -q '"continue": true' "$_RULES_OUT" && grep -q 'additionalContext' "$_RULES_OUT"; then
+    pass "R27 pretool-rules-inject L1注入正常"
+else
+    fail "R27 pretool-rules-inject 输出异常: $(head -1 "$_RULES_OUT")"
+fi
+rm -f "$_RULES_OUT"
+
+# R27b pretool-rules-inject: 空输入应退出不崩溃
+TOTAL=$((TOTAL+1))
+_RULES_EMPTY="/tmp/smoke-rules-empty-$$.out"
+log ""
+log "[$TOTAL] R27b pretool-rules-inject: 空输入应安全退出"
+echo "" | bash .claude/hooks/pretool-rules-inject.sh > "$_RULES_EMPTY" 2>&1
+if grep -q '"continue": true' "$_RULES_EMPTY"; then
+    pass "R27b pretool-rules-inject 空输入安全退出"
+else
+    fail "R27b pretool-rules-inject 空输入异常"
+fi
+rm -f "$_RULES_EMPTY"
+
 # R30 source mirror: 一致性校验
 # NOTE: AGENTS.md/CLAUDE.md 有意不同（根=元项目专属，source=通用分发模板）
 TOTAL=$((TOTAL+1))
