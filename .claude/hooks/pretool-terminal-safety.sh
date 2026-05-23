@@ -36,6 +36,12 @@ if echo "$CMD" | grep -qE 'git\s+commit.*#\s*[0-9]'; then
 [terminal-safety] git commit含# → 可能被截断, 改用中文冒号或括号"
 fi
 
+# Rule 6: long python3 -c (>120 chars with quotes = terminal wrap risk)
+if echo "$CMD" | grep -q "python3 -c" && [ ${#CMD} -gt 120 ]; then
+    WARNINGS="${WARNINGS}
+[terminal-safety] python3 -c超过120字符 → 用 Write 创建 scripts/task-xxx.sh, 用户 bash scripts/task-xxx.sh"
+fi
+
 # Rule 3: path pile-up
 PATH_COUNT=$(echo "$CMD" | grep -oE '[^ ]+\.(go|py|ts|js|sh|yaml|json|md)' 2>/dev/null | wc -l | tr -d ' ')
 if [ "${PATH_COUNT:-0}" -gt 8 ]; then
