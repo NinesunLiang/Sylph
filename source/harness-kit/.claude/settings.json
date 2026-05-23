@@ -147,6 +147,16 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-terminal-safety.sh",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "PostToolUse": [
