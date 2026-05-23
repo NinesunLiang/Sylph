@@ -137,6 +137,16 @@
             "timeout": 5000
           }
         ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-rules-inject.sh",
+            "timeout": 3000
+          }
+        ]
       }
     ],
     "PostToolUse": [

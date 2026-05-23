@@ -338,3 +338,10 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 禁止在安装脚本中只"建议"安装依赖——远程用户无法交互，建议等于失败。
 证据：用户 Windows Git Bash 下首次运行 install.sh，旧脚本打印"请手动安装 python3"后继续，导致后续 python3 -c 调用全部失败，settings.json merge 和跨平台 hook 生成静默跳过。
 
+
+### [2026-05-23] 用户纠正: 不对
+@2026-05-23 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+
