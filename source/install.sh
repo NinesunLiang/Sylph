@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.37 | 日期：2026-05-22
+# 版本：v6.2.38 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.37-stable"
+DEFAULT_VERSION="v6.2.38-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -627,11 +627,13 @@ print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill 
 fi
 
 # ─── 跨平台 CLI 检测（后续多处引用）──────────────────────────
-HAS_OPCODE=false; HAS_OMO=false; HAS_CODEX=false; HAS_CURSOR=false
+HAS_OPCODE=false; HAS_OMO=false; HAS_CODEX=false; HAS_CURSOR=false; HAS_CLAUDE=false; HAS_OMC=false
 command -v opencode &>/dev/null && HAS_OPCODE=true
 npm list -g oh-my-opencode &>/dev/null && HAS_OMO=true
 command -v codex &>/dev/null && HAS_CODEX=true
 [ -f ".cursor/hooks.json" ] || [ -d ".cursor" ] && HAS_CURSOR=true
+command -v claude &>/dev/null && HAS_CLAUDE=true
+npm list -g oh-my-claude &>/dev/null && HAS_OMC=true
 
 if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     mkdir -p .opencode/plugins
@@ -646,43 +648,48 @@ if [ -d "$SCRIPT_DIR/.claude/docs" ]; then
     log_info "故事系列 + 教程系列已安装（.claude/docs/）"
 fi
 
-# ─── OpenCode + OMO 依赖检测 ──────────────────────────────────
+# ─── OpenCode + OMO 自动安装 ──────────────────────────────────
 # OMO (oh-my-opencode) = OpenCode 的 hook 桥接层，是 Carror OS 安全网的硬依赖
 if $HAS_OPCODE && ! $HAS_OMO; then
-    echo ""
-    echo "╔══════════════════════════════════════════════════════════╗"
-    echo "║  ⚠️  OpenCode 检测到，但 OMO 未安装 — 安全网不全!        ║"
-    echo "╠══════════════════════════════════════════════════════════╣"
-    echo "║                                                        ║"
-    echo "║  无 OMO → 仅 2 事件 (29%)，以下能力静默失效:             ║"
-    echo "║    ❌ PreToolUse  — 所有门禁     (权限/隐私/Plan/终端)    ║"
-    echo "║    ❌ PostToolUse — 所有审计     (编辑质量/格式/引用)     ║"
-    echo "║    ❌ UserPromptSubmit — 规则注入 (铁律/哲学/反欺骗)      ║"
-    echo "║    ❌ Stop       — 完成门禁     (证据检查/会话快照)       ║"
-    echo "║    ✅ SessionStart           — 知识注入/跨会话恢复       ║"
-    echo "║    ✅ PostToolUseFailure     — 错误诊断                  ║"
-    echo "║                                                        ║"
-    echo "║  安装 OMO 解锁完整 7/7 事件:                             ║"
-    echo "║    npm install -g oh-my-opencode                       ║"
-    echo "║                                                        ║"
-    echo "║  ℹ️  Claude Code 原生支持全部 7 事件，无需额外安装       ║"
-    echo "╚══════════════════════════════════════════════════════════╝"
-    echo ""
+    log_step "检测到 OpenCode，正在自动安装 OMO (oh-my-opencode)..."
+    if command -v npm &>/dev/null; then
+        npm install -g oh-my-opencode 2>&1 | tail -3
+        npm list -g oh-my-opencode &>/dev/null && HAS_OMO=true
+        if $HAS_OMO; then
+            log_info "OpenCode + OMO 已就绪 — hooks 全能力可用 (7/7)"
+        else
+            log_warn "OMO 自动安装失败，请手动执行: npm install -g oh-my-opencode"
+        fi
+    else
+        log_warn "未检测到 npm，无法自动安装 OMO — 请先安装 Node.js: https://nodejs.org"
+        log_warn "然后手动执行: npm install -g oh-my-opencode"
+    fi
 elif $HAS_OPCODE && $HAS_OMO; then
     log_info "OpenCode + oh-my-opencode 已就绪，hooks 全能力可用 (7/7)"
-elif ! $HAS_OPCODE && ! $HAS_OMO; then
-    # 没有 OpenCode — 检查是否连 npm 都没有 (新手可能没装)
-    if ! command -v npm &>/dev/null && ! command -v node &>/dev/null; then
-        echo ""
-        echo "   💡 未检测到 Node.js/npm — OMO 需要通过 npm 安装"
-        echo "      安装 Node.js: https://nodejs.org (LTS 版本)"
-        echo "      然后: npm install -g oh-my-opencode"
-    fi
 fi
 
-# ─── Codex hooks 兼容性提醒 ────────────────────────────────────
-# Codex 原生: SessionStart/UserPromptSubmit/Stop/PreCompact (PreToolUse/PostToolUse 未合并)
-# OMX (oh-my-codex) 补充 PreToolUse/PostToolUse 支持
+# ─── Claude Code + OMC 自动安装 ──────────────────────────────────
+# OMC (oh-my-claude) = Claude Code 的 agent/skill/hook 增强层
+if $HAS_CLAUDE && ! $HAS_OMC; then
+    log_step "检测到 Claude Code，正在自动安装 OMC (oh-my-claude)..."
+    if command -v npm &>/dev/null; then
+        npm install -g oh-my-claude 2>&1 | tail -3
+        npm list -g oh-my-claude &>/dev/null && HAS_OMC=true
+        if $HAS_OMC; then
+            log_info "Claude Code + OMC 已就绪 — agent/skill/hook 增强可用"
+        else
+            log_warn "OMC 自动安装失败，请手动执行: npm install -g oh-my-claude"
+        fi
+    else
+        log_warn "未检测到 npm，无法自动安装 OMC — 请先安装 Node.js: https://nodejs.org"
+        log_warn "然后手动执行: npm install -g oh-my-claude"
+    fi
+elif $HAS_CLAUDE && $HAS_OMC; then
+    log_info "Claude Code + oh-my-claude (OMC) 已就绪"
+fi
+
+# ─── Codex + OMX 自动安装 ────────────────────────────────────────
+# Codex 原生缺少 PreToolUse/PostToolUse; OMX (oh-my-codex) 补充
 if $HAS_CODEX; then
     HAS_OMX=false
     npm list -g oh-my-codex &>/dev/null 2>&1 && HAS_OMX=true
@@ -690,19 +697,14 @@ if $HAS_CODEX; then
     if $HAS_OMX; then
         log_info "Codex + oh-my-codex (OMX) 已就绪 — 门禁可用"
     else
-        echo ""
-        echo "   ⚠️  Codex CLI 原生缺少 PreToolUse/PostToolUse (2026年3月仍未合并)"
-        echo "      无 PreToolUse → 权限门禁/隐私门禁/Plan Gate/终端安全 全部静默失效"
-        echo "      安装 OMX 解锁完整门禁: npm install -g oh-my-codex"
-        echo ""
-        echo "   当前可用事件 (无 OMX):"
-        echo "     ✅ SessionStart      — 知识注入/跨会话恢复"
-        echo "     ✅ UserPromptSubmit  — 规则注入"
-        echo "     ❌ PreToolUse        — 所有门禁 (权限/隐私/Plan/终端)"
-        echo "     ❌ PostToolUse       — 所有审计"
-        echo "     ✅ Stop              — 完成门禁"
-        echo "     ✅ PreCompact        — 上下文压缩"
-        echo ""
+        log_step "检测到 Codex CLI，正在自动安装 OMX (oh-my-codex)..."
+        npm install -g oh-my-codex 2>&1 | tail -3
+        npm list -g oh-my-codex &>/dev/null 2>&1 && HAS_OMX=true
+        if $HAS_OMX; then
+            log_info "Codex + OMX 已就绪 — 门禁可用"
+        else
+            log_warn "OMX 自动安装失败，请手动执行: npm install -g oh-my-codex"
+        fi
     fi
 fi
 
