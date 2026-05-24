@@ -8,12 +8,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/edit-guard.sh",
+            "command": "bash .claude/hooks/edit-guard.sh",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pre-edit-lsp-check.sh",
+            "command": "bash .claude/hooks/pre-edit-lsp-check.sh",
             "timeout": 5000
           }
         ]
@@ -23,17 +23,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/permission-gate.sh",
+            "command": "bash .claude/hooks/permission-gate.sh",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-retry-check.sh",
+            "command": "bash .claude/hooks/pretool-retry-check.sh",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-blast-radius.sh",
+            "command": "bash .claude/hooks/pretool-blast-radius.sh",
             "timeout": 3000
           }
         ]
@@ -43,7 +43,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/privacy-gate.sh",
+            "command": "bash .claude/hooks/privacy-gate.sh",
             "timeout": 3000
           }
         ]
@@ -53,7 +53,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/context-guard.sh",
+            "command": "bash .claude/hooks/context-guard.sh",
             "timeout": 3000
           }
         ]
@@ -63,7 +63,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-edit-scope.sh",
+            "command": "bash .claude/hooks/pretool-edit-scope.sh",
             "timeout": 3000
           }
         ]
@@ -73,7 +73,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pre-ask-guard.sh",
+            "command": "bash .claude/hooks/pre-ask-guard.sh",
             "timeout": 5000
           }
         ]
@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/lsp-suggest.sh",
+            "command": "bash .claude/hooks/lsp-suggest.sh",
             "timeout": 3000
           }
         ]
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-write-lock.sh",
+            "command": "bash .claude/hooks/pretool-write-lock.sh",
             "timeout": 10000
           }
         ]
@@ -103,7 +103,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/subagent-guard.sh",
+            "command": "bash .claude/hooks/subagent-guard.sh",
             "timeout": 3000
           }
         ]
@@ -113,7 +113,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-sensitive-edit.sh",
+            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
             "timeout": 5000
           }
         ]
@@ -123,7 +123,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/fuzzy-block.sh",
+            "command": "bash .claude/hooks/fuzzy-block.sh",
             "timeout": 3000
           }
         ]
@@ -133,7 +133,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pre-completion-gate.sh",
+            "command": "bash .claude/hooks/pre-completion-gate.sh",
             "timeout": 5000
           }
         ]
@@ -153,7 +153,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-terminal-safety.sh",
+            "command": "bash .claude/hooks/pretool-terminal-safety.sh",
             "timeout": 3000
           }
         ]
@@ -165,7 +165,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/skill-usage-tracker.sh",
+            "command": "bash .claude/hooks/skill-usage-tracker.sh",
             "timeout": 3000
           }
         ]
@@ -175,17 +175,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/completion-gate.sh",
+            "command": "bash .claude/hooks/completion-gate.sh",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-handoff-writer.sh",
+            "command": "bash .claude/hooks/posttool-handoff-writer.sh",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-completion-audit.sh",
+            "command": "bash .claude/hooks/posttool-completion-audit.sh",
             "timeout": 5000
           }
         ]
@@ -195,7 +195,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-format-gate.sh",
+            "command": "bash .claude/hooks/posttool-format-gate.sh",
             "timeout": 5000
           }
         ]
@@ -205,7 +205,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-anti-pattern-detect.sh",
+            "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
             "timeout": 5000
           }
         ]
@@ -215,7 +215,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-bash-audit.sh",
+            "command": "bash .claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
           }
         ]
@@ -225,7 +225,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-write-cite.sh",
+            "command": "bash .claude/hooks/posttool-write-cite.sh",
             "timeout": 5000
           }
         ]
@@ -235,7 +235,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/read-tracker.sh",
+            "command": "bash .claude/hooks/read-tracker.sh",
             "timeout": 3000
           }
         ]
@@ -245,7 +245,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/auto-snapshot.sh",
+            "command": "bash .claude/hooks/auto-snapshot.sh",
             "timeout": 5000
           }
         ]
@@ -255,7 +255,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/error-dna.sh",
+            "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3000
           }
         ]
@@ -265,11 +265,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/token_writer.sh",
+            "command": "bash .claude/hooks/token_writer.sh",
             "timeout": 3000
           },
           {
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/meta-oracle-trigger.sh",
+            "command": "bash .claude/hooks/meta-oracle-trigger.sh",
             "hookName": "meta-oracle-trigger",
             "type": "command",
             "timeout": 3000
@@ -281,7 +281,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-edit-quality.sh",
+            "command": "bash .claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
           }
         ]
@@ -291,7 +291,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-write-lock.sh",
+            "command": "bash .claude/hooks/posttool-write-lock.sh",
             "timeout": 3000
           }
         ]
@@ -301,7 +301,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-subagent-audit.sh",
+            "command": "bash .claude/hooks/posttool-subagent-audit.sh",
             "timeout": 5000
           }
         ]
@@ -311,12 +311,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-claim-audit.sh",
+            "command": "bash .claude/hooks/posttool-claim-audit.sh",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/intent-tracker.sh",
+            "command": "bash .claude/hooks/intent-tracker.sh",
             "timeout": 5000
           }
         ]
@@ -326,7 +326,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/build-validator.sh",
+            "command": "bash .claude/hooks/build-validator.sh",
             "timeout": 5000
           }
         ]
@@ -338,7 +338,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/error-dna.sh",
+            "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3000
           }
         ]
@@ -348,7 +348,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/posttool-bash-audit.sh",
+            "command": "bash .claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
           }
         ]
@@ -358,7 +358,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/build-validator.sh",
+            "command": "bash .claude/hooks/build-validator.sh",
             "timeout": 5000
           }
         ]
@@ -369,7 +369,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/context-compressor.sh",
+            "command": "bash .claude/hooks/context-compressor.sh",
             "timeout": 10000
           }
         ]
@@ -378,7 +378,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/inject-project-knowledge.sh",
+            "command": "bash .claude/hooks/inject-project-knowledge.sh",
             "timeout": 10000
           }
         ]
@@ -387,7 +387,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/flywheel-report.sh",
+            "command": "bash .claude/hooks/flywheel-report.sh",
             "timeout": 5000
           }
         ]
@@ -396,7 +396,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/token_writer.sh",
+            "command": "bash .claude/hooks/token_writer.sh",
             "timeout": 3000
           }
         ]
@@ -405,8 +405,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/ecosystem-probe.sh",
+            "command": "bash .claude/hooks/ecosystem-probe.sh",
             "timeout": 5000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/session-resume.sh",
+            "timeout": 10000
           }
         ]
       }
@@ -454,7 +463,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/pretool-user-correction.sh",
+            "command": "bash .claude/hooks/pretool-user-correction.sh",
             "timeout": 3000
           }
         ]
@@ -463,7 +472,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/turn-counter.sh",
+            "command": "bash .claude/hooks/turn-counter.sh",
             "timeout": 3000
           }
         ]
@@ -472,7 +481,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/compact-detect.sh",
+            "command": "bash .claude/hooks/compact-detect.sh",
             "timeout": 3000
           }
         ]
@@ -485,7 +494,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash '__PROJECT_ROOT__/.claude/hooks/pretool-rules-inject.sh'",
+            "command": "bash .claude/hooks/pretool-rules-inject.sh",
             "timeout": 5000
           }
         ]

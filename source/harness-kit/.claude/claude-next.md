@@ -353,6 +353,13 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 正确行为：install.sh 添加 `install_jq()` 自动安装，覆盖 pacman/winget/choco/brew/apt/dnf/yum/apk。同时在 jq 缺失时 hooks 用 python3 fallback 提取 JSON 字段（已存在于部分 hooks）
 证据：`client_fellback/feedback.md` S8 实测验证。修复：install.sh `install_jq()` 9 包管理器全覆盖
 
+### [2026-05-24] "do" 流程首次实战 — 双审拦下低ROI改动
+
+@2026-05-24 hits:1
+**场景**: 提议 posttool-claim-audit L2 行级验证升级（~50行代码），Oracle REVISE (3 CRITICAL) + Meta-Oracle REJECT (独立跟踪文件替代方案)。评估 ROI: L1 文件级已拦 90%+ 编造，L2 仅覆盖「读了但不够深」极端场景，收益微薄。
+**决策**: 取消。方案→双审→(发现低ROI)→取消，流程本身省了执行+验收+报告的成本。
+**原则**: 哲学 #2 (少量正确大增益) — 同样精力投到 unified.yaml 33% 覆盖率或 ecosystem-probe Linux 兼容上 ROI 更高。
+
 ### 🐶 [DG-113] Stop hooks 相对路径 CWD 漂移 — SessionStart 和 Stop 时的 CWD 不是项目根 (@LuangSir)
 
 @2026-05-24 hits:1

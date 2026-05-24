@@ -1,4 +1,4 @@
-## Hooks 速查（共 46 个）
+## Hooks 速查（共 47 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -42,6 +42,7 @@
 |`pretool-write-lock` | PreToolUse | pretool-write-lock.sh — PreToolUse:Edit|Write — 写操作前获取 OMA 并发锁，防止多终端冲突|
 |`privacy-gate` | PreToolUse | privacy-gate.sh — PreToolUse:Bash|Read|Grep — 防止隐私数据泄露（DLP 门禁）|
 |`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit|
+|`session-resume` | SessionStart | session-resume.sh — SessionStart — 跨会话恢复: 注入进行中的 goal/ghost 任务上下文|
 |`skill-flywheel` | Stop | skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）|
 |`skill-usage-tracker` | PostToolUse | skill-usage-tracker.sh — UserPromptSubmit|PostToolUse:Skill — 记录 skill 调用频率|
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|

@@ -31,52 +31,84 @@ case "${1:-status}" in
         DIRECTION="${2:-自主探索和修复系统问题}"
         INTERVAL="${3:-$(hc_get "ghost_mode.default_poll_interval" "600")}"
         EXPIRY_HOURS="${4:-$(hc_get "ghost_mode.default_expiry_hours" "3")}"
-        EXPIRES=$(python3 -c "from datetime import datetime,timedelta; print((datetime.now()+timedelta(hours=$EXPIRY_HOURS)).isoformat())" 2>/dev/null)
-        # 原子写入 lx-ghost.json
-        tmp="${MODE_FILE}.tmp.$$"
-        cat > "$tmp" <<JSON
-{
-  "active": true,
-  "mode": "ghost",
-  "direction": "$DIRECTION",
-  "cycle_interval_seconds": $INTERVAL,
-  "expires_at": "$EXPIRES",
-  "activated_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-  "retry_count": 0,
-  "skipped_risks": [],
-  "hard_boundary_hits": [],
-  "blocked_human": []
+        # DG-007 安全修复: 用 json.dumps 序列化而非 heredoc 裸拼接
+        # 避免 direction 中的换行/引号/特殊字符破坏 JSON 结构
+        export _LX_DIRECTION="$DIRECTION"
+        export _LX_INTERVAL="$INTERVAL"
+        export _LX_EXPIRY_HOURS="$EXPIRY_HOURS"
+        export _LX_MODE_FILE="$MODE_FILE"
+        python3 <<'PYEOF'
+import json, os
+from datetime import datetime, timedelta, timezone
+
+direction = os.environ['_LX_DIRECTION']
+interval = int(os.environ['_LX_INTERVAL'])
+expiry_hours = int(os.environ['_LX_EXPIRY_HOURS'])
+mode_file = os.environ['_LX_MODE_FILE']
+expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
+
+data = {
+    "active": True,
+    "mode": "ghost",
+    "direction": direction,
+    "cycle_interval_seconds": interval,
+    "expires_at": expires,
+    "activated_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    "retry_count": 0,
+    "skipped_risks": [],
+    "hard_boundary_hits": [],
+    "blocked_human": []
 }
-JSON
-        mv -f "$tmp" "$MODE_FILE" 2>/dev/null
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+os.rename(tmp, mode_file)
+PYEOF
         # 创建 autonomous.active 信号供 completion-gate 等降级
         touch "$STATE_DIR/autonomous.active"
         # 清理旧格式文件
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
-        DATE=$(date +%Y-%m-%d)
-SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
-CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
-mkdir -p "$CHAT_DIR"
-echo "{"phase":"exploring","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}" > "$CHAT_DIR/state.json"
-echo "# $DIRECTION
-
-> ghost模式自动创建 @ $(date)" > "$CHAT_DIR/progress.md"
-log_info "RPE文档层: $CHAT_DIR"
 DATE=$(date +%Y-%m-%d)
 SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+[ -z "$SLUG" ] && SLUG="ghost-$(date +%H%M%S)"
 CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
 mkdir -p "$CHAT_DIR"
-echo "{"phase":"exploring","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}" > "$CHAT_DIR/state.json"
-echo "# $DIRECTION
+	python3 -c "import json; json.dump({'phase':'exploring','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$CHAT_DIR/state.json','w'))"
+	echo "# $DIRECTION
 
 > ghost模式自动创建 @ $(date)" > "$CHAT_DIR/progress.md"
-log_info "RPE文档层: $CHAT_DIR"
-echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
-        echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
-        echo "   ⚠️  必须立即执行 CronCreate 注册轮询（不可跳过）:"
-        echo "     CronCreate cron='*/N * * * *' prompt='...'  — 协议 Step 0.5.3 硬步骤"
-        echo "   或 /lx-ghost on \"继续\" — 在同一次会话内继续探索"
-        echo ""
+	echo "RPE文档层: $CHAT_DIR" >&2
+	# Save chat_dir to lx-ghost.json for runtime subcommands
+	export _LX_CHAT_DIR="$CHAT_DIR"
+	export _LX_MODE_FILE="$MODE_FILE"
+	python3 <<'PYEOF'
+import json, os
+chat_dir = os.environ['_LX_CHAT_DIR']
+mode_file = os.environ['_LX_MODE_FILE']
+d = json.load(open(mode_file))
+d['rpe_chat_dir'] = chat_dir
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, mode_file)
+PYEOF
+	# 计算 CronCreate 参数
+	CRON_MIN=$((INTERVAL / 60))
+	[ "$CRON_MIN" -lt 1 ] && CRON_MIN=1
+	echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
+	echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
+	echo ""
+	echo "🔧 [必须执行·Step 0.5.3] 注册 CronCreate 跨会话轮询:"
+	echo ""
+	echo "   CronCreate"
+	echo "     cron: \"*/${CRON_MIN} * * * *\""
+	echo "     prompt: \"lx-ghost poll → 读取: cat $CHAT_DIR/progress.md → 继续探索方向'$DIRECTION' → 记录发现 → 完成则 lx-ghost off\""
+	echo "     recurring: true"
+	echo "     durable: true"
+	echo ""
+	echo "   ⚠️ durable=true: 会话结束后继续轮询，跨会话恢复"
+	echo "   ⚠️ 跳过此步 = 幽灵模式仅在当前会话有效，会话结束即消失"
         # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）
         DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
         if [ -f "$DECISION_CHAIN" ]; then
@@ -87,15 +119,40 @@ echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询,
         ;;
 
     off)
-        if [ -f "$MODE_FILE" ]; then
-            rm -f "$MODE_FILE"
-        fi
-        # 清理旧格式文件
-        rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/ghost-mode.active" 2>/dev/null
-        rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
-        echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
-        ;;
-
+		# Write summary to RPE chat dir before cleanup
+		if [ -f "$MODE_FILE" ]; then
+			CHAT_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+			if [ -n "$CHAT_DIR" ] && [ -d "$CHAT_DIR" ]; then
+				RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+				SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+				HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+				{
+					echo ""
+					echo "---"
+					echo "## 退出摘要"
+					echo "- 关闭时间: $(date)"
+					echo "- 重试次数: ${RETRY:-0}"
+					echo "- 跳过风险: ${SKIP:-0}"
+					echo "- 硬边界拦截: ${HARD:-0}"
+					echo ""
+					echo "> 幽灵模式自动关闭 @ $(date)"
+				} >> "$CHAT_DIR/progress.md"
+				python3 -c "
+import json
+sf = '$CHAT_DIR/state.json'
+d = json.load(open(sf))
+d['phase'] = 'completed'
+d['completed_at'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
+" 2>/dev/null
+			fi
+			rm -f "$MODE_FILE"
+		fi
+		# 清理旧格式文件
+		rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/ghost-mode.active" 2>/dev/null
+		rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
+		echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
+		;;
     status)
         if [ -f "$MODE_FILE" ]; then
             DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('direction','?'))" 2>/dev/null)
@@ -127,16 +184,29 @@ echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询,
             echo "❌ 幽灵模式未开启，无法修改"
             exit 1
         fi
-        python3 -c "
+        export _LX_KEY="$KEY"
+        export _LX_VALUE="$VALUE"
+        export _LX_SET_MODE_FILE="$MODE_FILE"
+        python3 <<'PYEOF'
 import json, os
-file = '$MODE_FILE'
-d = json.load(open(file))
-d['$KEY'] = $VALUE
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+key = os.environ['_LX_KEY']
+value_str = os.environ['_LX_VALUE']
+mode_file = os.environ['_LX_SET_MODE_FILE']
+
+d = json.load(open(mode_file))
+# 尝试解析 JSON 值（数字/布尔/对象），失败则当字符串
+try:
+    value = json.loads(value_str)
+except (json.JSONDecodeError, ValueError):
+    value = value_str
+d[key] = value
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "✅ 幽灵模式 $KEY 已更新为 $VALUE" || echo "❌ 更新失败"
+os.rename(tmp, mode_file)
+print(f"✅ 幽灵模式 {key} 已更新为 {value}")
+PYEOF
         ;;
 
     poll)
@@ -168,122 +238,155 @@ except: print('no')" 2>/dev/null)
             fi
         fi
 
-        echo "=== 幽灵轮询 [$(date -u +%Y-%m-%dT%H:%M:%SZ)] ==="
-        DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('direction','?'))" 2>/dev/null)
-        RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
-        SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-        echo "  方向: $DIR"
-        echo "  重试次数: $RETRY  已跳过风险: $SKIP  硬边界: $(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)"
-
-        # 状态面板：检查活跃特征 + 未提交变更
-        if [ -d "$PROJECT_ROOT/rpe" ]; then
-            ACTIVE=$(ls "$PROJECT_ROOT/rpe/" 2>/dev/null | head -5 | tr '\n' ' ')
-            [ -n "$ACTIVE" ] && echo "  活跃特征: $ACTIVE"
-        fi
-        MODIFIED=$(cd "$PROJECT_ROOT" && git diff --name-only 2>/dev/null | head -10 | tr '\n' ' ')
-        [ -n "$MODIFIED" ] && echo "  未提交变更: $MODIFIED"
-
-        # 集成 retry-budget.sh 状态检查
-        RETRY_SCRIPT="$SCRIPT_DIR/retry-budget.sh"
-        if [ -f "$RETRY_SCRIPT" ]; then
-            RETRY_CTX=$(bash "$RETRY_SCRIPT" check 2>&1)
-            RETRY_EXIT=$?
-            if [ $RETRY_EXIT -eq 2 ] && [ -n "$RETRY_CTX" ]; then
-                echo "⚠️ [Retry Budget BLOCKED] 以下错误已达 3 次上限，需人工干预:"
-                echo "$RETRY_CTX" | head -5
-            elif [ $RETRY_EXIT -eq 0 ]; then
-                echo "  retry-budget: 正常"
-            fi
-        fi
-
-        # 四维评分检查（如果项目有评分机制）
-        SCORE_SCRIPT="$SCRIPT_DIR/auto-score.sh"
-        if [ -f "$SCORE_SCRIPT" ]; then
-            echo "  评分检查: 可用 (bash auto-score.sh)"
-        fi
-
-        echo "  命令: ${DIR}"
-        echo "  自主探索并修复，发现问题自行处理（最多 3 次），无法处理的记录等待人工"
-        echo "  ⚡ 注意保持方向感，不要偏离方向做无关优化"
-        ;;
+	echo "🔄 Ghost Poll #$((RETRY + 1)) | 方向: $DIR | 过期: $EXPIRES"
+	echo ""
+	CHAT_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+	echo "📋 执行指令:"
+	echo "   1. 读取上次探索上下文: cat $CHAT_DIR/progress.md"
+	echo "   2. 继续围绕方向: $DIR"
+	echo "   3. 记录发现: 追加到 $CHAT_DIR/progress.md"
+	echo "   4. 如有风险: lx-ghost skip-risk '风险描述'"
+	echo "   5. 如方向完成: lx-ghost off"
+	echo ""
+	echo "   📊 已重试: $RETRY | 已跳过风险: $SKIP | 硬边界: $(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)"
+		;;
 
     skip-risk)
-        # 记录跳过的风险（供 permission-gate 等调用）
-        DESCRIPTION="${2:-未知风险}"
-        if [ ! -f "$MODE_FILE" ]; then
-            echo "❌ 幽灵模式未开启"
-            exit 1
-        fi
-        python3 -c "
+		# 记录跳过的风险（供 permission-gate 等调用）
+		DESCRIPTION="${2:-未知风险}"
+		if [ ! -f "$MODE_FILE" ]; then
+			echo "❌ 幽灵模式未开启"
+			exit 1
+		fi
+		export _LX_DESC="$DESCRIPTION"
+		export _LX_MODE_FILE="$MODE_FILE"
+		python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
-file = '$MODE_FILE'
-d = json.load(open(file))
+from datetime import datetime, timezone
+
+desc = os.environ['_LX_DESC']
+mode_file = os.environ['_LX_MODE_FILE']
+
+d = json.load(open(mode_file))
 risks = d.get('skipped_risks', [])
-risks.append({'description': '$DESCRIPTION', 'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'})
+risks.append({'description': desc, 'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
 d['skipped_risks'] = risks
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+
+# Append to RPE progress.md
+chat_dir = d.get('rpe_chat_dir', '')
+if chat_dir:
+    progress_file = os.path.join(chat_dir, 'progress.md')
+    if os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [skip-risk] {desc}  ({ts})\n')
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "📝 已记录跳过的风险: $DESCRIPTION" || echo "❌ 记录失败"
-        ;;
+os.rename(tmp, mode_file)
+PYEOF
+		echo "📝 已记录跳过的风险: $DESCRIPTION"
+		;;
 
     hard-boundary-hit)
-        # 记录硬边界拦截项（rm / git写 / 敏感文件 / API Key）
-        DESCRIPTION="${2:-未知硬边界}"
-        REASON="${3:-未知原因}"
-        HUMAN_ACTION="${4:-请人工审阅并决定是否执行}"
-        if [ ! -f "$MODE_FILE" ]; then
-            echo "❌ 幽灵模式未开启"
-            exit 1
-        fi
-        python3 -c "
+		# 记录硬边界拦截项（rm / git写 / 敏感文件 / API Key）
+		DESCRIPTION="${2:-未知硬边界}"
+		REASON="${3:-未知原因}"
+		HUMAN_ACTION="${4:-请人工审阅并决定是否执行}"
+		if [ ! -f "$MODE_FILE" ]; then
+			echo "❌ 幽灵模式未开启"
+			exit 1
+		fi
+		export _LX_DESC="$DESCRIPTION"
+		export _LX_REASON="$REASON"
+		export _LX_HUMAN_ACTION="$HUMAN_ACTION"
+		export _LX_MODE_FILE="$MODE_FILE"
+		python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
-file = '$MODE_FILE'
-d = json.load(open(file))
+from datetime import datetime, timezone
+
+desc = os.environ['_LX_DESC']
+reason = os.environ['_LX_REASON']
+human_action = os.environ['_LX_HUMAN_ACTION']
+mode_file = os.environ['_LX_MODE_FILE']
+
+d = json.load(open(mode_file))
 hits = d.get('hard_boundary_hits', [])
 hits.append({
-    'description': '$DESCRIPTION',
-    'reason': '$REASON',
-    'human_action': '$HUMAN_ACTION',
-    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+    'description': desc,
+    'reason': reason,
+    'human_action': human_action,
+    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 })
 d['hard_boundary_hits'] = hits
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+
+# Append to RPE progress.md
+chat_dir = d.get('rpe_chat_dir', '')
+if chat_dir:
+    progress_file = os.path.join(chat_dir, 'progress.md')
+    if os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [hard-boundary] {desc} — {reason}  ({ts})\n')
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)" || echo "❌ 记录失败"
-        ;;
+os.rename(tmp, mode_file)
+PYEOF
+		echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)"
+		;;
 
     blocked-human)
-        # 记录推迟到退出报告的人类决策项（裁决链 Level 3 blocked_human）
-        # 与 hard-boundary-hit 不同：这些不是物理禁区，而是 AI 无法确定需要人类裁决
-        DESCRIPTION="${2:-未知决策}"
-        AI_RECOMMENDATION="${3:-AI 推荐方案未提供}"
-        RATIONALE="${4:-决策依据未提供}"
-        if [ ! -f "$MODE_FILE" ]; then
-            echo "❌ 幽灵模式未开启"
-            exit 1
-        fi
-        python3 -c "
+		# 记录推迟到退出报告的人类决策项（裁决链 Level 3 blocked_human）
+		# 与 hard-boundary-hit 不同：这些不是物理禁区，而是 AI 无法确定需要人类裁决
+		DESCRIPTION="${2:-未知决策}"
+		AI_RECOMMENDATION="${3:-AI 推荐方案未提供}"
+		RATIONALE="${4:-决策依据未提供}"
+		if [ ! -f "$MODE_FILE" ]; then
+			echo "❌ 幽灵模式未开启"
+			exit 1
+		fi
+		export _LX_DESC="$DESCRIPTION"
+		export _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
+		export _LX_RATIONALE="$RATIONALE"
+		export _LX_MODE_FILE="$MODE_FILE"
+		python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
-file = '$MODE_FILE'
-d = json.load(open(file))
+from datetime import datetime, timezone
+
+desc = os.environ['_LX_DESC']
+ai_recommendation = os.environ['_LX_AI_RECOMMENDATION']
+rationale = os.environ['_LX_RATIONALE']
+mode_file = os.environ['_LX_MODE_FILE']
+
+d = json.load(open(mode_file))
 blocked = d.get('blocked_human', [])
 blocked.append({
-    'description': '$DESCRIPTION',
-    'ai_recommendation': '$AI_RECOMMENDATION',
-    'rationale': '$RATIONALE',
-    'timestamp': '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+    'description': desc,
+    'ai_recommendation': ai_recommendation,
+    'rationale': rationale,
+    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 })
 d['blocked_human'] = blocked
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+
+# Append to RPE progress.md
+chat_dir = d.get('rpe_chat_dir', '')
+if chat_dir:
+    progress_file = os.path.join(chat_dir, 'progress.md')
+    if os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [blocked-human] {desc} → {ai_recommendation}  ({ts})\n')
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "🤔 推迟决策已记录: $DESCRIPTION → 推荐: $AI_RECOMMENDATION" || echo "❌ 记录失败"
-        ;;
+os.rename(tmp, mode_file)
+PYEOF
+		echo "🤔 推迟决策已记录: $DESCRIPTION → 推荐: $AI_RECOMMENDATION"
+		;;
 
     retry)
         # 增加重试计数（供 retry-budget 对接）
