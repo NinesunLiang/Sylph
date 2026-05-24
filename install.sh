@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.32 | 日期：2026-05-22
+# 版本：v6.2.36 | 日期：2026-05-22
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.32"
+DEFAULT_VERSION="v6.2.36-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -243,6 +243,39 @@ install_jq() {
         command -v pacman &>/dev/null && pacman -S --noconfirm jq 2>&1 | tail -2 && return 0
         command -v winget &>/dev/null && winget install -e --id jqlang.jq --silent 2>&1 | tail -2 && return 0
         command -v choco &>/dev/null && choco install jq -y 2>&1 | tail -3 && return 0
+        # Windows 包管理器都失败 → 直接下载 jq 官方二进制 (jqlang/jq)
+        log_info "包管理器安装失败，尝试直接下载 jq Windows 二进制..."
+        local JQ_URL="https://github.com/jqlang/jq/releases/latest/download/jq-windows-amd64.exe"
+        local JQ_DEST="${HOME}/bin"
+        mkdir -p "$JQ_DEST" 2>/dev/null
+        local JQ_OK=false
+        if command -v curl &>/dev/null; then
+            curl -sSL --connect-timeout 10 --max-time 60 -o "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
+                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
+        elif command -v wget &>/dev/null; then
+            wget -q --timeout=10 -O "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
+                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
+        fi
+        if [ "$JQ_OK" = true ]; then
+            # SHA256 校验（可选 — 校验文件不存在时跳过）
+            local JQ_SHA_URL="${JQ_URL}.sha256"
+            if command -v curl &>/dev/null; then
+                curl -sSL --connect-timeout 5 --max-time 15 -o "$JQ_DEST/jq.exe.sha256" "$JQ_SHA_URL" 2>/dev/null && \
+                    echo "$(cat "$JQ_DEST/jq.exe.sha256" 2>/dev/null)  $JQ_DEST/jq.exe" | sha256sum -c --status 2>/dev/null && \
+                    log_info "jq SHA256 校验通过" || \
+                    log_warn "jq SHA256 校验跳过（校验文件不可用或 sha256sum 未安装）"
+                rm -f "$JQ_DEST/jq.exe.sha256" 2>/dev/null
+            fi
+            export PATH="$JQ_DEST:$PATH"
+            # 持久化 PATH 到所有常见 shell 配置文件
+            for rc in ~/.bashrc ~/.zshrc ~/.profile; do
+                if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$rc" 2>/dev/null; then
+                    echo 'export PATH="$HOME/bin:$PATH"' >> "$rc"
+                fi
+            done
+            log_info "已将 ~/bin 加入永久 PATH"
+            log_info "jq 已下载并安装到 $JQ_DEST/jq.exe ($(jq --version 2>&1))" && return 0
+        fi
     elif command -v apt-get &>/dev/null; then
         sudo apt-get install -y jq 2>&1 | tail -2 && return 0
     elif command -v yum &>/dev/null; then
@@ -384,8 +417,8 @@ extract_tar() {
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
-        extract_tar "harness-kit-${VERSION}-stable.tar.gz" "治理层（32 hooks）"
-        extract_tar "lx-skills-${VERSION}-stable.tar.gz" "能力层（自动化审查总控）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
         for s in lx-oma-orch lx-oma-hier lx-oma-split lx-oma-gov lx-task-spec lx-rpe lx-prd lx-debug-spec lx-tdd-spec lx-browser-verify lx-web-perf lx-stepwise lx-race lx-learner; do
             rm -rf .claude/skills/$s
@@ -394,14 +427,14 @@ case "$INSTALL_MODE" in
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        extract_tar "harness-kit-${VERSION}-stable.tar.gz" "治理层（32 hooks）"
-        extract_tar "lx-skills-${VERSION}-stable.tar.gz" "能力层（全特性 24 个 Skills）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
-        extract_tar "harness-kit-${VERSION}-stable.tar.gz" "治理层（32 hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
         ;;
     skills)
-        extract_tar "lx-skills-${VERSION}-stable.tar.gz" "能力层（全特性 24 个 Skills）"
+        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
 esac
 
@@ -562,22 +595,21 @@ if [ "$HAS_BACKUP" = true ]; then
         log_step "正在合并 settings.json（保留自定义 hook 注册）..."
         ${PYTHON_BIN:-python3} -c "
 import json
-try:
-    with open('$BACKUP_DIR/settings-user.json') as f:
-        old = json.load(f)
-except (FileNotFoundError, json.JSONDecodeError):
-    print('settings.json merge skipped — no user backup found')
-    exit(0)
+with open('$BACKUP_DIR/settings-user.json') as f:
+    old = json.load(f)
 with open('.claude/settings.json') as f:
     new = json.load(f)
+# 合并 hooks
 old_hooks = set(old.get('hooks', {}).keys())
 new_hooks = set(new.get('hooks', {}).keys())
 extra = {k: old['hooks'][k] for k in (old_hooks - new_hooks)}
 if extra:
     new.setdefault('hooks', {}).update(extra)
+# 合并 skills_enabled（可能用户关闭了某些 skill）
 old_skills = old.get('skills_enabled', {})
 for k, v in old_skills.items():
     new.setdefault('skills_enabled', {})[k] = v
+# 合并 hooks_enabled（可能用户关闭了某些 hook）
 old_hooks_enabled = old.get('hooks_enabled', {})
 for k, v in old_hooks_enabled.items():
     new.setdefault('hooks_enabled', {})[k] = v

@@ -1,4 +1,4 @@
-## Hooks 速查（共 47 个）
+## Hooks 速查（共 50 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
@@ -16,6 +16,7 @@
 |`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
 |`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议|
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
+|`meta-oracle-trigger.py` | PostToolUse | ── Platform detection ──────────────────────────────────────────────|
 |`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Meta-Oracle 最后守门员自动触发（G1-G4）|
 |`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
 |`posttool-anti-pattern-detect` | PostToolUse | posttool-anti-pattern-detect.sh — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测|
@@ -33,6 +34,8 @@
 |`pre-edit-lsp-check` | PreToolUse | pre-edit-lsp-check.sh — PreToolUse:Edit — 编辑前强制诊断检查 (v2)|
 |`pretool-blast-radius` | PreToolUse | pretool-blast-radius.sh — PreToolUse:Bash — 全局破坏性命令拦截 (DG-101)|
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
+|`pretool-oracle-gate.py` | PreToolUse | Platform routing: on macOS/Linux the bash .sh version handles execution|
+|`pretool-oracle-gate` | PreToolUse | pretool-oracle-gate.sh — PreToolUse:Edit|Write — Oracle 审查前置门禁 (DG-115)|
 |`pretool-plan-gate` | PreToolUse | pretool-plan-gate.sh — PreToolUse:Edit|Write|Bash — Plan-before-Execute 门禁|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-rules-inject` | UserPromptSubmit | pretool-rules-inject.sh — UserPromptSubmit — 3级脱水分层注入|

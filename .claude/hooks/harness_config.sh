@@ -2,7 +2,7 @@
 # harness_config.sh — 共享库（非 Hook） — 共享配置库，提供 hc_get/hc_enabled 等 harness.yaml 读取函数
 # Role: 共享配置库，提供 hc_get/hc_enabled 等 harness.yaml 读取函数
 
-if [ -z "$_HC_PROJECT_ROOT" ]; then
+if [ -z "${_HC_PROJECT_ROOT:-}" ]; then
     HC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     _HC_PROJECT_ROOT="$(cd "$HC_SCRIPT_DIR/../.." && pwd)"
     _HC_YAML="$_HC_PROJECT_ROOT/.claude/harness.yaml"
