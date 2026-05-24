@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.32-stable"
+DEFAULT_VERSION="v6.2.32"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -26,8 +26,6 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR/../packages" ]; then
     LATEST_VERSION=$(curl -sSL --connect-timeout 5 "https://api.github.com/repos/$GITHUB_REPO/releases/latest" 2>/dev/null | grep '"tag_name"' | head -1 | cut -d'"' -f4)
     if [ -n "$LATEST_VERSION" ]; then
         VERSION="$LATEST_VERSION"
-        # API returns tag name (e.g. v6.2.35), release assets use -stable suffix
-        [[ "$VERSION" != *-stable ]] && VERSION="${VERSION}-stable"
         log_info "已检测到最新版本：$VERSION"
     fi
 fi
@@ -386,8 +384,8 @@ extract_tar() {
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
+        extract_tar "harness-kit-${VERSION}-stable.tar.gz" "治理层（32 hooks）"
+        extract_tar "lx-skills-${VERSION}-stable.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
         for s in lx-oma-orch lx-oma-hier lx-oma-split lx-oma-gov lx-task-spec lx-rpe lx-prd lx-debug-spec lx-tdd-spec lx-browser-verify lx-web-perf lx-stepwise lx-race lx-learner; do
             rm -rf .claude/skills/$s
@@ -396,14 +394,14 @@ case "$INSTALL_MODE" in
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
+        extract_tar "harness-kit-${VERSION}-stable.tar.gz" "治理层（32 hooks）"
+        extract_tar "lx-skills-${VERSION}-stable.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "harness-kit-${VERSION}-stable.tar.gz" "治理层（32 hooks）"
         ;;
     skills)
-        extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
+        extract_tar "lx-skills-${VERSION}-stable.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
 esac
 
