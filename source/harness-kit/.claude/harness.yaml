@@ -21,6 +21,7 @@ knowledge:
   - claude-next.md:summary
   - anti-patterns.md:summary
   - terminal-safety.md:summary
+  - rules/bash-style.md:summary
   snapshot_expiry_sec: 86400
 ghost_mode:
   exit_report_gate: true
