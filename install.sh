@@ -562,21 +562,22 @@ if [ "$HAS_BACKUP" = true ]; then
         log_step "正在合并 settings.json（保留自定义 hook 注册）..."
         ${PYTHON_BIN:-python3} -c "
 import json
-with open('$BACKUP_DIR/settings-user.json') as f:
-    old = json.load(f)
+try:
+    with open('$BACKUP_DIR/settings-user.json') as f:
+        old = json.load(f)
+except (FileNotFoundError, json.JSONDecodeError):
+    print('settings.json merge skipped — no user backup found')
+    exit(0)
 with open('.claude/settings.json') as f:
     new = json.load(f)
-# 合并 hooks
 old_hooks = set(old.get('hooks', {}).keys())
 new_hooks = set(new.get('hooks', {}).keys())
 extra = {k: old['hooks'][k] for k in (old_hooks - new_hooks)}
 if extra:
     new.setdefault('hooks', {}).update(extra)
-# 合并 skills_enabled（可能用户关闭了某些 skill）
 old_skills = old.get('skills_enabled', {})
 for k, v in old_skills.items():
     new.setdefault('skills_enabled', {})[k] = v
-# 合并 hooks_enabled（可能用户关闭了某些 hook）
 old_hooks_enabled = old.get('hooks_enabled', {})
 for k, v in old_hooks_enabled.items():
     new.setdefault('hooks_enabled', {})[k] = v
