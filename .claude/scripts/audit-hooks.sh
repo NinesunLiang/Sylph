@@ -54,7 +54,7 @@ check_registry = sys.argv[6].lower() == 'true' if len(sys.argv) > 6 else 'false'
 
 # === A. Disk ===
 disk = set()
-for f in glob.glob('.claude/hooks/*.sh'):
+for f in glob.glob('.claude/hooks/*.sh') + glob.glob('.claude/hooks/*.py'):
     name = os.path.basename(f)
     if name in ('harness_config.sh', 'agentic-ui.sh'):  # libraries, not hooks
         continue
