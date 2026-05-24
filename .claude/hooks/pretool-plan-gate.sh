@@ -50,7 +50,7 @@ if echo "$FILE_PATH" | grep -qE '\.omc/chats/.*/progress\.md$' 2>/dev/null; then
 fi
 
 # ─── 门禁判断 ───
-if [ "$ESTIMATED_FILES" -lt 3 ] && [ "$ESTIMATED_LINES" -lt 20 ]; then
+if [ "$ESTIMATED_FILES" -lt 2 ] && [ "$ESTIMATED_LINES" -lt 15 ]; then
     echo '{"continue": true}'; exit 0
 fi
 
@@ -114,6 +114,33 @@ if [ "$HAS_APPROVED" = true ]; then
     echo '{"continue": true}'
     flywheel_event "pretool_plan_gate" "approved_plan_active" "P2" "plan=$PLAN_PATH" || true
     exit 0
+fi
+
+# ─── 概念审查后门禁: Oracle/Meta-Oracle 近期 APPROVED → 必须有实现方案 ───
+# 防止「概念 APPROVED → 跳过实现方案审核 → 直接改代码」(DG-114)
+ORACLE_VERDICT="$STATE_DIR/oracle-verdicts.md"
+META_VERDICT="$STATE_DIR/meta-oracle-verdicts.md"
+CONCEPT_RECENT=false
+for _vf in "$ORACLE_VERDICT" "$META_VERDICT"; do
+    if [ -f "$_vf" ]; then
+        _AGE=$(${PYTHON_BIN:-python3} -c "import os,time; print(int(time.time()-os.path.getmtime('$_vf')))" 2>/dev/null || echo 999)
+        # tail -1: 只检查最新条目，避免追加日志中旧 APPROVED 条目造成误报 (Meta-Oracle ADVISORY)
+        if [ "$_AGE" -lt 600 ] && tail -1 "$_vf" 2>/dev/null | grep -qiE "approved|accept"; then
+            CONCEPT_RECENT=true; break
+        fi
+    fi
+done
+if [ "$CONCEPT_RECENT" = true ]; then
+    echo "⛔ [Plan Gate] 检测到近期概念审查已通过 (Oracle/Meta-Oracle APPROVED)，但缺少实现方案。
+
+    AI 必须先:
+    1. 输出具体的实现方案 (改动文件/行数/逻辑)
+    2. 等用户审批后才能执行代码变更
+
+    概念审查通过 ≠ 可以直接改代码。方案→双审→执行，不可跳过。
+    " >&2
+    flywheel_event "pretool_plan_gate" "blocked_concept_without_impl_plan" "P1" "tool=$TOOL_NAME" || true
+    exit 2
 fi
 
 # ─── 阻断: 无已审批方案 ───

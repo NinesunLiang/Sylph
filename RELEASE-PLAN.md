@@ -249,7 +249,7 @@ governance-spec.md 有 561 行、HUMAN-IN-THE-LOOP-GATE.md 有完整状态机定
 
 **我的判断 — 应改为**:
 1. **Flywheel → P0-1 (5月12日 M1)** — 最快，2天内可出。已有 flywheel.log + error-dna.jsonl，只需整理成可读格式
-2. **Human-in-the-Loop Gate → P0-2 (5月26日 M3)** — 中等，依赖 resolve 命令
+2. **Human-in-the-Loop Gate → ~~P0-2~~ P1 v6.3 (5月26日 M3)** — 降级：不影响 MVP 双平台可用性目标，推迟至 v6.3 迭代
 3. **Pipeline Orchestrator → P0-3 (5月24日 M3)** — 最重，需要 CLI + state machine
 
 **理由**: 

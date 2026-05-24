@@ -308,23 +308,49 @@ PENDING_HEADER
 ENTRY_EOF
         export _IT_PEND_FILE="$pending_file" _IT_ENTRY_TMP="$entry_tmp"
         python3 -c "
-import os
+import os, re, hashlib, time
 pf = os.environ.get('_IT_PEND_FILE', '')
 entry_path = os.environ.get('_IT_ENTRY_TMP', '')
+source = os.environ.get('_IT_SOURCE', '')
+desc = os.environ.get('_IT_DESC', '')
+now_ts = int(os.environ.get('_IT_NOW_TS', '0'))
 try:
     with open(entry_path, 'r') as f:
         entry_content = f.read()
+    # Dedup: extract signature from desc (first 100 chars after stripping error signatures)
+    sig_text = desc[:100]
+    dedup_key = hashlib.md5((source + '::' + sig_text).encode()).hexdigest()
     with open(pf, 'r') as f:
-        lines = f.readlines()
-    new_lines = []
-    marker = '<!-- issue-triage: pending decisions marker -->'
-    for line in lines:
-        new_lines.append(line)
-        if marker in line:
-            new_lines.append('\n')
-            new_lines.append(entry_content)
-    with open(pf, 'w') as f:
-        f.writelines(new_lines)
+        content = f.read()
+    # Check if same dedup key exists within 24h
+    existing = re.findall(r'### \[([^\]]+)\].*?来源: (\S+).*?dedup_key: ([a-f0-9]+)', content, re.DOTALL)
+    should_skip = False
+    for ts_str, src, key in existing:
+        if key == dedup_key:
+            try:
+                from datetime import datetime
+                entry_ts = datetime.strptime(ts_str, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+                if now_ts - entry_ts < 86400:  # 24h
+                    should_skip = True
+                    break
+            except:
+                pass
+    if should_skip:
+        pass  # skip duplicate
+    else:
+        # Append with dedup key embedded for future dedup
+        lines = content.splitlines(keepends=True)
+        new_lines = []
+        marker = '<!-- issue-triage: pending decisions marker -->'
+        for line in lines:
+            new_lines.append(line)
+            if marker in line:
+                new_lines.append('\n')
+                # Inject dedup_key into the context field for future dedup
+                entry_with_key = entry_content.rstrip() + '\n- **dedup_key**: ' + dedup_key + '\n\n'
+                new_lines.append(entry_with_key)
+        with open(pf, 'w') as f:
+            f.writelines(new_lines)
 except Exception:
     pass
 " 2>/dev/null || true

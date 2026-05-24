@@ -26,7 +26,7 @@ esac
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
-    FILE_PATH=$(echo "$INPUT" | python3 -c "
+    FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -133,7 +133,7 @@ fi
 E6_VIOLATIONS=""
 CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
 if [ -f "$CONTRADICTION_LOG" ] && [ -n "$FILE_PATH" ]; then
-    E6_CHECK=$(python3 - "$CONTRADICTION_LOG" "$FILE_PATH" <<'E6EOF'
+    E6_CHECK=$(${PYTHON_BIN:-python3} - "$CONTRADICTION_LOG" "$FILE_PATH" <<'E6EOF'
 import json, sys
 
 log_path = sys.argv[1]
