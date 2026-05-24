@@ -26,6 +26,8 @@ if [ -z "$SCRIPT_DIR" ] || [ ! -d "$SCRIPT_DIR/../packages" ]; then
     LATEST_VERSION=$(curl -sSL --connect-timeout 5 "https://api.github.com/repos/$GITHUB_REPO/releases/latest" 2>/dev/null | grep '"tag_name"' | head -1 | cut -d'"' -f4)
     if [ -n "$LATEST_VERSION" ]; then
         VERSION="$LATEST_VERSION"
+        # API returns tag name (e.g. v6.2.35), release assets use -stable suffix
+        [[ "$VERSION" != *-stable ]] && VERSION="${VERSION}-stable"
         log_info "已检测到最新版本：$VERSION"
     fi
 fi
