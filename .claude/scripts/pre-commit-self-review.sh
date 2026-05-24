@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # pre-commit-self-review.sh — E6 自我矛盾防线（P2a）
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 角色：提交前的 AI 自检工具。检查 CAPTCHA 绕过(R43)、域规则误用(R42)、新 hook 注册完整性(Oracle WARN)。
 # 用途：在 git commit 之前运行，预防 AI 引入自我矛盾的设计漏洞
 # 不是 Hook — 是手动审查工具。不注册到 settings.json，不通过 harness.yaml 开关控制。
@@ -343,7 +346,7 @@ D_FAILURES=""
 
 # 仅在 settings.json 在 staged 变更中时做深度校验
 if echo "$STAGED_FILES" | grep -q 'settings\.json' || [ -f ".claude/settings.json" ]; then
-    if command -v python3 &>/dev/null; then
+    if command -v "${PYTHON_BIN:-python3}" &>/dev/null; then
         # 提取所有 command 字符串并做 bash -n 语法检查
         BAD_CMDS=$(${PYTHON_BIN:-python3} -c "
 import json, subprocess, tempfile, os

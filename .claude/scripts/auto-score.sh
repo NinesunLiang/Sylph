@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # auto-score.sh v3 — Meta-Oracle 四维打分体系 (C/E/G 加权聚合 + UX 独立)
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: 对 C/E/G 三维度加权聚合评分，UX 独立展示不参与总阈值
 #
 # 使用: bash .claude/scripts/auto-score.sh [--calibrated] [--meta-oracle]

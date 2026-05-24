@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # lx-orch-gate.sh — Oracle 门禁裁决
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: lx-orch-gate <og-id> approve|reject [--reason "..."]
 
 set -euo pipefail

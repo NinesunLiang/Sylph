@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # test_race.sh — Race 蜂群协调层集成测试
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 #
 # 测试范围:
 #   - register:   注册子任务 → manifest.json + owner.json 结构验证
@@ -223,7 +226,7 @@ test_status_all_json() {
     out=$(bash "$RACE_MANAGER" status test-swarm-parent --all --json 2>&1)
 
     # Validate JSON
-    echo "$out" | python3 -c "
+    echo "$out" | ${PYTHON_BIN:-python3} -c "
 import json, sys
 data = json.load(sys.stdin)
 assert data['race_id'] == 'test-swarm-parent', f'wrong race_id: {data[\"race_id\"]}'

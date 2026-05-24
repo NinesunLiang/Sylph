@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # token-bill.sh — 跨会话 Token 经济历史账单
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: bash .claude/scripts/token-bill.sh [--json]
 set -uo pipefail
 

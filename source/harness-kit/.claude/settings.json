@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-oracle-gate.py",
+            "command": "python .claude/hooks/pretool-oracle-gate.py",
             "timeout": 3000
           },
           {
@@ -279,9 +279,14 @@
             "timeout": 3000
           },
           {
-            "command": "python3 .claude/hooks/meta-oracle-trigger.py",
+            "command": "python .claude/hooks/meta-oracle-trigger.py",
             "hookName": "meta-oracle-trigger",
             "type": "command",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/meta-oracle-trigger.sh",
             "timeout": 3000
           }
         ]

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # score-ux.sh — Meta-Oracle UX 维度独立评分脚本
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: 对 UX（用户体验）5 个子维度进行独立评分，满分 10 分
 #       UX 独立参与打分，不影响 C/E/G 的 8.6/10 总阈值判定
 #

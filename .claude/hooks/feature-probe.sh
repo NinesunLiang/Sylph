@@ -64,7 +64,7 @@ _skill_scripts() {
 # 检查 feature 是否在 registry 中注册
 _registry_enabled() {
     local name="$1"
-    if command -v python3 &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
+    if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         ${PYTHON_BIN:-python3} -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:
@@ -107,7 +107,7 @@ probe() {
 
     # ---- L4: 注册存在性 ----
     local l4=""
-    if command -v python3 &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
+    if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         if ${PYTHON_BIN:-python3} -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:

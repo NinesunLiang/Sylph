@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # pipeline-step.sh — Lightweight pipeline step tracker for C3 流程结构化
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Tracks current step in L3/L4 task pipeline across sessions.
 # State file: .omc/state/pipeline-step.json
 #

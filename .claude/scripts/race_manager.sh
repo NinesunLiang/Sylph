@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # race_manager.sh — Race 蜂群协调引擎
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 #
 # 跨平台: Claude Code / OpenCode / Codex CLI / Gemini CLI / Qwen Code / Cursor
 # 所有平台均支持: bash + 文件 I/O → race_manager.sh 全平台通用

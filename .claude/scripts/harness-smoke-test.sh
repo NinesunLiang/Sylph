@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # harness-smoke-test.sh — 真实 Claude Code JSON schema 下的 hook 冒烟测试
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # R12-R17 验证套件。模拟 Claude Code 传给 hook 的真实 stdin JSON 格式。
 #
 # 使用：bash .claude/scripts/harness-smoke-test.sh

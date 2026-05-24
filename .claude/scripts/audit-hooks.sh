@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # audit-hooks.sh — Carror OS harness 完整性审计
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用途：检测 settings.json / harness.yaml / disk 三方漂移，防止 Claude Code 升级改事件名后悄然僵尸化
 #
 # 三方对账：

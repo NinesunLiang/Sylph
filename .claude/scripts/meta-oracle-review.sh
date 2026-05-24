@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # meta-oracle-review.sh — Meta-Oracle 最后守门员审查脚本
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 被 meta-oracle-trigger / lx-oma-orch / lx-oma-hier / package-release.sh 调用
 # Role: Meta-Oracle 最高级独立审查方法论 — 覆盖 G1-G4 全部触发点
 #   G1 架构决策终审: 验证架构变更的跨子系统影响 + 不可逆性评估

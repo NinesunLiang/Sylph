@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # snapshot-helper.sh — 非 git 环境的规范化快照工具
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 #
 # 背景：
 #   Carror OS 本身非 git 工作区，铁律 #4（Git 门禁）降级为 "sha256 + 人工批准"。

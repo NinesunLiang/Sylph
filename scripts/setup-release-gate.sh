@@ -25,14 +25,14 @@ check_release_gate() {
     # 查找当前活跃的 plan state.json
     for sf in \"\$PROJECT_DIR/.omc/plans/\"*/*/state.json; do
         [ -f \"\$sf\" ] || continue
-        local ph; ph=\$(python3 -c \"import json; print(json.load(open('\$sf')).get('phase',''))\" 2>/dev/null || echo \"\")
+        local ph; ph=\$(${PYTHON_BIN:-python3} -c \"import json; print(json.load(open('\$sf')).get('phase',''))\" 2>/dev/null || echo \"\")
         if [ \"\$ph\" = \"approved\" ] || [ \"\$ph\" = \"executing\" ]; then
             plan_state=\"\$sf\"; break
         fi
     done
 
     # 自举豁免: 首次部署Release Gate本身
-    local bootstrap=\$(python3 -c \"
+    local bootstrap=\$(${PYTHON_BIN:-python3} -c \"
 import json
 try:
     with open('\$plan_state') as f: d=json.load(f)

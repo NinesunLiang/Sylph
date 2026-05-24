@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # auto-scope.sh — 从 plan.md 自动推导 current-scope.txt 范围
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法:
 #   bash .claude/scripts/auto-scope.sh                    # 自动检测最新 plan.md
 #   bash .claude/scripts/auto-scope.sh rpe/<feature>       # 指定 feature

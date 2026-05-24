@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # tier2-runtime-test.sh — 配对机制协同验证
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: bash .claude/scripts/tier2-runtime-test.sh
 set -uo pipefail
 PASS=0; FAIL=0; TOTAL=0

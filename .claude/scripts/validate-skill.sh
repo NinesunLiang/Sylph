@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # validate-skill.sh — Skill 原子化合规性校验入口
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 委托给 lx-validate-skill/scripts/validate_skill.py 执行
 # 保留为独立脚本以兼容 lx-validate-skill/SKILL.md 中的引用
 #

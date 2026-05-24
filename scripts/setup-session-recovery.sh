@@ -37,7 +37,7 @@ if [ \"\$HAS_PREV\" = true ]; then
 
     # Last session summary
     if [ -f \"\$SESSION_DUMP\" ]; then
-        python3 -c \"
+        ${PYTHON_BIN:-python3} -c \"
 import json
 try:
     with open('\$SESSION_DUMP') as f: d = json.load(f)

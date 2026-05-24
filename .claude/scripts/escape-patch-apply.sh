@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # escape-patch-apply.sh — Error-DNA 补丁应用器
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: 读取 escape-patches.json，经 Oracle/人工审核后应用补丁，关闭逃逸通道
 # 用法: escape-patch-apply.sh [status|apply <key>|reject <key>|history]
 # 哲学 #6: 不自动打补丁 — 所有补丁必须经人工/Oracle 审核

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # score-self-check.sh — P3 长期评测框架：C1-C9 + E1-E8 自动评分
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: Carror OS 四维评分体系自动基线生成与差异比较
 # 哲学 #4: 没通过验证等于没做 — 每个得分必须有 file:line 证据
 # 哲学 #6: 先天对 AI 0 信任 — 评分来自实际配置检查，非 AI 估算

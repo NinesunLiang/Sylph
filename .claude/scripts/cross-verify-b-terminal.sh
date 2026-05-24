@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # cross-verify-b-terminal.sh — B 终端跨会话独立验证
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: 在独立终端中运行 verification 任务，不与 AI 主会话共享上下文
 # 三扇门 A→B→A 的 B 环节：盲执行验证
 #

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # session-health-check.sh — 抗衰减: 会话健康检查
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Compares last-audit date with current date; flags if >7 days stale.
 # Also checks for stale lock files, large error-dna, and flywheel P0 backlog.
 #

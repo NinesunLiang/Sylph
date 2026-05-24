@@ -63,8 +63,8 @@ _skill_scripts() {
 # 检查 feature 是否在 registry 中注册
 _registry_enabled() {
     local name="$1"
-    if command -v python3 &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
-        python3 -c "
+    if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
+        ${PYTHON_BIN:-python3} -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:
     data = yaml.safe_load(f)
@@ -106,7 +106,7 @@ probe() {
 
     # ---- L4: 注册存在性 ----
     local l4=""
-    if command -v python3 &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
+    if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         if python3 -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:
@@ -242,7 +242,7 @@ probe_json() {
     [ -z "$l3_path" ] && [ -n "$skill_md" ] && l3_path="$skill_md"
     [ -z "$l3_path" ] && [ -n "$skill_dir" ] && l3_path="$skill_dir"
 
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json
 
 # L4 registry check

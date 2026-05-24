@@ -52,7 +52,7 @@ new_rpe_tail = '''\techo "RPE文档层: $PLAN_DIR" >&2
 \t# Save plan_dir to lx-goal.json for runtime subcommands (task-done/skip-risk/off)
 \texport _LX_PLAN_DIR="$PLAN_DIR"
 \texport _LX_MODE_FILE="$MODE_FILE"
-\tpython3 <<'PYEOF'
+\t${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 plan_dir = os.environ['_LX_PLAN_DIR']
 mode_file = os.environ['_LX_MODE_FILE']
@@ -184,13 +184,13 @@ old_off = '''    off)
 new_off = '''    off)
 \t\t# Generate exit report to RPE dir before cleanup
 \t\tif [ -f "$MODE_FILE" ]; then
-\t\t\tPLAN_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
+\t\t\tPLAN_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
 \t\t\tif [ -n "$PLAN_DIR" ] && [ -d "$PLAN_DIR" ]; then
 \t\t\t\t# Fill checklist.md from completed/skipped/hard-boundary counts
-\t\t\t\tDONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-\t\t\t\tSKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-\t\t\t\tHARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
-\t\t\t\tBLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
+\t\t\t\tDONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+\t\t\t\tSKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+\t\t\t\tHARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+\t\t\t\tBLOCKED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
 \t\t\t\t{
 \t\t\t\t\techo "# Checklist"
 \t\t\t\t\techo ""
@@ -204,7 +204,7 @@ new_off = '''    off)
 \t\t\t\t\techo "> 自动生成 @ $(date)"
 \t\t\t\t} > "$PLAN_DIR/checklist.md"
 \t\t\t\t# Update state.json to completed
-\t\t\t\tpython3 -c "
+\t\t\t\t${PYTHON_BIN:-python3} -c "
 import json
 sf = '$PLAN_DIR/state.json'
 d = json.load(open(sf))
@@ -271,7 +271,7 @@ new_rpe_tail = '''\techo "RPE文档层: $CHAT_DIR" >&2
 \t# Save chat_dir to lx-ghost.json for runtime subcommands
 \texport _LX_CHAT_DIR="$CHAT_DIR"
 \texport _LX_MODE_FILE="$MODE_FILE"
-\tpython3 <<'PYEOF'
+\t${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 chat_dir = os.environ['_LX_CHAT_DIR']
 mode_file = os.environ['_LX_MODE_FILE']
@@ -304,7 +304,7 @@ old_skip_risk_handler = '''    skip-risk)
 \t\t\techo "❌ 幽灵模式未开启"
 \t\t\texit 1
 \t\tfi
-\t\tpython3 -c "
+\t\t${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$MODE_FILE'
 d = json.load(open(file))
@@ -326,7 +326,7 @@ new_skip_risk_handler = '''    skip-risk)
 \t\tfi
 \t\texport _LX_DESC="$DESCRIPTION"
 \t\texport _LX_MODE_FILE="$MODE_FILE"
-\t\tpython3 <<'PYEOF'
+\t\t${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 from datetime import datetime, timezone
 
@@ -370,7 +370,7 @@ old_hard_boundary_handler = '''    hard-boundary-hit)
 \t\t\techo "❌ 幽灵模式未开启"
 \t\t\texit 1
 \t\tfi
-\t\tpython3 -c "
+\t\t${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$MODE_FILE'
 d = json.load(open(file))
@@ -401,7 +401,7 @@ new_hard_boundary_handler = '''    hard-boundary-hit)
 \t\texport _LX_REASON="$REASON"
 \t\texport _LX_HUMAN_ACTION="$HUMAN_ACTION"
 \t\texport _LX_MODE_FILE="$MODE_FILE"
-\t\tpython3 <<'PYEOF'
+\t\t${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 from datetime import datetime, timezone
 
@@ -453,7 +453,7 @@ old_blocked_human_handler = '''    blocked-human)
 \t\t\techo "❌ 幽灵模式未开启"
 \t\t\texit 1
 \t\tfi
-\t\tpython3 -c "
+\t\t${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$MODE_FILE'
 d = json.load(open(file))
@@ -485,7 +485,7 @@ new_blocked_human_handler = '''    blocked-human)
 \t\texport _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
 \t\texport _LX_RATIONALE="$RATIONALE"
 \t\texport _LX_MODE_FILE="$MODE_FILE"
-\t\tpython3 <<'PYEOF'
+\t\t${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 from datetime import datetime, timezone
 
@@ -539,11 +539,11 @@ old_ghost_off = '''    off)
 new_ghost_off = '''    off)
 \t\t# Write summary to RPE chat dir before cleanup
 \t\tif [ -f "$MODE_FILE" ]; then
-\t\t\tCHAT_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+\t\t\tCHAT_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
 \t\t\tif [ -n "$CHAT_DIR" ] && [ -d "$CHAT_DIR" ]; then
-\t\t\t\tRETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
-\t\t\t\tSKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-\t\t\t\tHARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+\t\t\t\tRETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+\t\t\t\tSKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+\t\t\t\tHARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
 \t\t\t\t{
 \t\t\t\t\techo ""
 \t\t\t\t\techo "---"
@@ -556,7 +556,7 @@ new_ghost_off = '''    off)
 \t\t\t\t\techo "> 幽灵模式自动关闭 @ $(date)"
 \t\t\t\t} >> "$CHAT_DIR/progress.md"
 \t\t\t\t# Update state.json to completed
-\t\t\t\tpython3 -c "
+\t\t\t\t${PYTHON_BIN:-python3} -c "
 import json
 sf = '$CHAT_DIR/state.json'
 d = json.load(open(sf))
@@ -590,7 +590,7 @@ fi
 # ============================================================
 STATE_DIR="$PROJECT/.omc/plans/2026-05-23/rpe-runtime"
 mkdir -p "$STATE_DIR"
-python3 -c "import json; json.dump({'phase':'approved','approved_by':'LuangSir','created_at':'2026-05-23T20:30:00Z'},open('$STATE_DIR/state.json','w'))"
+${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'approved','approved_by':'LuangSir','created_at':'2026-05-23T20:30:00Z'},open('$STATE_DIR/state.json','w'))"
 echo "state.json: approved"
 
 echo "=== Done ==="

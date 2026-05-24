@@ -18,7 +18,7 @@ new = '''DATE=\$(date +%Y-%m-%d)
 SLUG=\$(echo \"\$GOAL\" | tr \" \" \"-\" | tr -cd \"[:alnum:]-_\" | head -c 50)
 PLAN_DIR=\"\$PROJECT_ROOT/.omc/plans/\${DATE}/\${SLUG}\"
 mkdir -p \"\$PLAN_DIR\"
-python3 -c \"import json; json.dump({'phase':'draft','created_at':'\$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('\$PLAN_DIR/state.json','w'))\"
+${PYTHON_BIN:-python3} -c \"import json; json.dump({'phase':'draft','created_at':'\$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('\$PLAN_DIR/state.json','w'))\"
 echo \"# \$GOAL\n\n> goal模式自动创建 @ \$(date)\" > \"\$PLAN_DIR/prd.md\"
 echo \"# Progress\n\n\" > \"\$PLAN_DIR/progress.md\"
 echo \"# Checklist\n\n\" > \"\$PLAN_DIR/checklist.md\"
