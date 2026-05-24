@@ -157,6 +157,12 @@ hooks:
   description: Meta-Oracle 自动触发 — 检测 Oracle ACCEPT/高分时提醒 AI 执行独立二审。哲学#4+#6 物化
   enabled_by_default: true
   evidence_level: L3
+- name: oracle_gate
+  type: hook
+  category: quality
+  description: Oracle 审查前置门禁 — 编辑机制/治理文件前检查 24h 内 Oracle/Meta-Oracle ACCEPT 裁决，无则阻断。DG-67 双签强制物化为硬门禁 (DG-115)
+  enabled_by_default: true
+  evidence_level: L3
 - name: harness_config
   type: shared
   category: utility

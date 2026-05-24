@@ -367,3 +367,17 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 正确行为：改为绝对路径。source mirror 用 `__PROJECT_ROOT__` 占位符，install.sh 安装时替换为实际路径
 证据：本会话实测 stop-drain/auto-snapshot/knowledge-condenser/skill-flywheel 4 个 Stop hook 全部报错。OpenCode TS 插件 (`carror-hooks-compat.ts`) 无此问题（显式 `cwd: PROJECT_ROOT`）。修复：settings.json Stop hooks 改为绝对路径
 
+### 🐶 [DG-114] 概念审查 APPROVED ≠ 实现方案已审批 — AI 将 Oracle/Meta-Oracle 概念通过误解为可以直接改代码 (@LuangSir)
+
+@2026-05-24 hits:1
+触发条件：Ghost 模式完成概念分析（Oracle+Meta-Oracle APPROVED），AI 跳过实现方案审核直接 Edit 代码。pretool-plan-gate.sh 阈值 3文件/20行未拦截（实际改动 2文件/~35行，恰好低于门槛）。
+正确行为：概念 APPROVED 后必须出实现方案 → 用户审批 → 才能改代码。「方案→双审→执行」不可跳过任何环节。
+机制修复：pretool-plan-gate.sh 阈值降至 2文件/15行 + 新增概念审查后门禁（检测 oracle-verdicts.md/meta-oracle-verdicts.md 10分钟内 APPROVED/ACCEPT → 无实现方案 → 阻断）。
+
+### 🐶 [DG-115] DG-67 双签强制是软约束，无硬 hook 阻断 — Meta-Oracle Python 移植跳过 Oracle 审查直接执行 (@LuangSir)
+
+@2026-05-24 hits:1
+触发条件：Meta-Oracle bash→Python3 跨平台移植（机制变更），AI 直接 Edit/Write 5个新文件+2个配置，全程未触发 Oracle 审查门禁。pretool-plan-gate.sh 阈值 2文件/15行被分步编辑绕过（每次 1-2 文件）。
+正确行为：机制变更（.claude/hooks/、.claude/scripts/、settings.json、harness.yaml、feature-registry.yaml、unified.yaml）必须先经 Oracle 审查 ACCEPT，再经 Meta-Oracle 终审，才能编辑。
+机制修复：新增 pretool-oracle-gate.sh — PreToolUse(Edit|Write) 门禁，编辑机制文件前检查 24h 内是否有 Oracle/Meta-Oracle ACCEPT 裁决，无则阻断 + CAPTCHA 放行。
+

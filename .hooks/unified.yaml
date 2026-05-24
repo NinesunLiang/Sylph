@@ -473,6 +473,38 @@ hooks:
       - qwen
       - opencode
 
+  oracle_gate:
+    description: "Oracle review pre-gate — blocks mechanism/governance edits without 24h Oracle/Meta-Oracle ACCEPT. DG-67 materialized (DG-115)"
+    events:
+      - tool:before
+    script: "pretool-oracle-gate.sh"
+    blocking: true
+    timeout: 3000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  meta_oracle_trigger:
+    description: "Meta-Oracle last-line-of-defense auto-trigger — G1-G4 gate detection (architecture/PRD/release/Oracle). Philosophy #4 & #6 materialization."
+    events:
+      - tool:after
+    script: "meta-oracle-trigger.py"
+    blocking: false
+    timeout: 3000
+    strategy: "warn"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
 # ── Claude Code Specific ──────────────────────────────────────────────────
 # These hooks depend on Claude Code's internal tool pipeline (LSP, plan mode,
 # Read/Edit tool protocol). Not portable to other platforms.
