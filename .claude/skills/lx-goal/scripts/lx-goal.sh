@@ -26,7 +26,7 @@ sanitize_output() {
 import sys
 text = sys.stdin.read()
 # Strip surrogate characters (U+D800..U+DFFF) — must use ord() range check, not raw string \u escapes
-text = ''.join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
+text = "".join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))
 print(text, end="")
 '
 }
@@ -34,7 +34,7 @@ print(text, end="")
 MODE_FILE="$STATE_DIR/lx-goal.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
-_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry"
+_KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry|phase0-done"
 if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
     exec bash "$0" on "$@"
 fi
@@ -79,23 +79,9 @@ PYEOF
         rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
         touch "$STATE_DIR/autonomous.active"
-        DATE=$(date +%Y-%m-%d)
-SLUG=$(echo "$GOAL" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
-PLAN_DIR="$PROJECT_ROOT/.omc/plans/${DATE}/${SLUG}"
-mkdir -p "$PLAN_DIR"
-echo "{"phase":"draft","created_at":"$(date -u +%Y-%m-%dT%H:%M:%SZ)"}" > "$PLAN_DIR/state.json"
-echo "# $GOAL
-
-> goal模式自动创建 @ $(date)" > "$PLAN_DIR/prd.md"
-echo "# Progress
-
-" > "$PLAN_DIR/progress.md"
-echo "# Checklist
-
-" > "$PLAN_DIR/checklist.md"
-log_info "RPE文档层: $PLAN_DIR"
 DATE=$(date +%Y-%m-%d)
 SLUG=$(echo "$GOAL" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+[ -z "$SLUG" ] && SLUG="goal-$(date +%H%M%S)"
 PLAN_DIR="$PROJECT_ROOT/.omc/plans/${DATE}/${SLUG}"
 mkdir -p "$PLAN_DIR"
 python3 -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
@@ -109,6 +95,20 @@ echo "# Checklist
 
 " > "$PLAN_DIR/checklist.md"
 echo "RPE文档层: $PLAN_DIR" >&2
+	# Save plan_dir to lx-goal.json for runtime subcommands (task-done/skip-risk/off)
+	export _LX_PLAN_DIR="$PLAN_DIR"
+	export _LX_MODE_FILE="$MODE_FILE"
+	python3 <<'PYEOF'
+import json, os
+plan_dir = os.environ['_LX_PLAN_DIR']
+mode_file = os.environ['_LX_MODE_FILE']
+d = json.load(open(mode_file))
+d['rpe_plan_dir'] = plan_dir
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, mode_file)
+PYEOF
 echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   任务逐项标记: lx-goal task-done \"完成项描述\""
@@ -128,15 +128,43 @@ echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY
         ;;
 
     off)
-        if [ -f "$MODE_FILE" ]; then
-            rm -f "$MODE_FILE"
-        fi
-        # 清理旧格式
-        rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
-        rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
-        echo "✅ 目标模式已关闭，所有 hook 恢复正常阻断"
-        ;;
-
+		# Generate exit report to RPE dir before cleanup
+		if [ -f "$MODE_FILE" ]; then
+			PLAN_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
+			if [ -n "$PLAN_DIR" ] && [ -d "$PLAN_DIR" ]; then
+				DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+				SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+				HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+				BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
+				{
+					echo "# Checklist"
+					echo ""
+					echo "## 验收清单"
+					echo "- [x] 目标模式已关闭"
+					echo "- [x] 完成任务: ${DONE:-0} 项"
+					echo "- [x] 跳过风险: ${SKIP:-0} 项"
+					echo "- [x] 硬边界拦截: ${HARD:-0} 项"
+					echo "- [x] 推迟决策: ${BLOCKED:-0} 项"
+					echo ""
+					echo "> 自动生成 @ $(date)"
+				} > "$PLAN_DIR/checklist.md"
+				python3 -c "
+import json
+sf = '$PLAN_DIR/state.json'
+d = json.load(open(sf))
+d['phase'] = 'completed'
+d['completed_at'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
+" 2>/dev/null
+				echo \"RPE退出报告: $PLAN_DIR/checklist.md\" >&2
+			fi
+			rm -f "$MODE_FILE"
+		fi
+		# 清理旧格式
+		rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
+		rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
+		echo "✅ 目标模式已关闭，所有 hook 恢复正常阻断"
+		;;
     status)
         if [ -f "$MODE_FILE" ]; then
             GOAL=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
@@ -173,16 +201,88 @@ echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY
                 exit 1
             fi
         fi
-        python3 -c "
+        export _LX_KEY="$KEY"
+        export _LX_VALUE="$VALUE"
+        export _LX_SET_MODE_FILE="$MODE_FILE"
+        python3 <<'PYEOF'
 import json, os
-file = '$MODE_FILE'
-d = json.load(open(file))
-d['$KEY'] = $VALUE
-tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+key = os.environ['_LX_KEY']
+value_str = os.environ['_LX_VALUE']
+mode_file = os.environ['_LX_SET_MODE_FILE']
+
+d = json.load(open(mode_file))
+# 尝试解析 JSON 值（数字/布尔/对象），失败则当字符串
+try:
+    value = json.loads(value_str)
+except (json.JSONDecodeError, ValueError):
+    value = value_str
+d[key] = value
+
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
-os.rename(tmp, file)
-" 2>/dev/null && echo "✅ 目标模式 $KEY 已更新为 $VALUE" || echo "❌ 更新失败"
+os.rename(tmp, mode_file)
+print(f"✅ 目标模式 {key} 已更新为 {value}")
+PYEOF
+        ;;
+
+    phase0-done)
+        # Phase 0→1 硬过渡: 验证 prd.md 有内容 → 设置 phase=executing
+        if [ ! -f "$MODE_FILE" ]; then
+            echo "❌ 目标模式未开启"
+            exit 1
+        fi
+        PLAN_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
+        if [ -z "$PLAN_DIR" ] || [ ! -d "$PLAN_DIR" ]; then
+            echo "❌ RPE 计划目录不存在，请重新激活目标模式"
+            exit 1
+        fi
+        # 验证 prd.md 有实际内容 (>3 行 = 超过模板头)
+        PRD_LINES=$(wc -l < "$PLAN_DIR/prd.md" 2>/dev/null | tr -d ' ')
+        if [ "${PRD_LINES:-0}" -le 3 ]; then
+            echo "❌ Phase 0 未完成: prd.md 内容不足 (${PRD_LINES:-0} 行)"
+            echo "   AI 必须写入: 子任务列表、验收标准、风险点"
+            exit 1
+        fi
+        # 验证 state.json 合法性 (修复损坏文件)
+        if ! python3 -c "import json; json.load(open('$PLAN_DIR/state.json'))" 2>/dev/null; then
+            echo "⚠️ state.json 损坏，正在修复..."
+            python3 -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
+            echo "   已重建 state.json (phase=draft)，请重试 phase0-done"
+            exit 1
+        fi
+        # 设置 phase=executing
+        python3 -c "
+import json
+sf = '$PLAN_DIR/state.json'
+d = json.load(open(sf))
+d['phase'] = 'executing'
+d['executing_since'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
+"
+        # 写入 phase0_passed_at 到 lx-goal.json — plan gate 据此放行 (不信任 state.json)
+        export _LX_PASSED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        export _LX_MODE_FILE="$MODE_FILE"
+        python3 <<'PYEOF'
+import json, os
+passed_at = os.environ['_LX_PASSED_AT']
+mode_file = os.environ['_LX_MODE_FILE']
+d = json.load(open(mode_file))
+d['phase0_passed_at'] = passed_at
+tmp = mode_file + '.tmp.' + str(os.getpid())
+with open(tmp, 'w', encoding='utf-8') as f:
+    json.dump(d, f, indent=2, ensure_ascii=False)
+os.rename(tmp, mode_file)
+PYEOF
+        echo "
+## Phase 0 完成 — 进入自主执行
+- prd.md: ${PRD_LINES} 行
+- 激活时间: $(date)
+- 状态: executing
+" >> "$PLAN_DIR/progress.md"
+        echo "✅ Phase 0 完成 → Phase 1 自主执行已解锁"
+        echo "   Plan Gate 现已放行 Edit/Write/Bash"
+        echo "   完成后运行: lx-goal off"
         ;;
 
     report)
@@ -351,12 +451,12 @@ try:
 except: print('no')" 2>/dev/null)
             if [ "$EXPIRED" = "yes" ]; then
                 echo "⏰ 目标模式已过期（$EXPIRES），自动关闭"
-                rm -f "$POLL_FILE" "$STATE_DIR/autonomous.active" 2>/dev/null
-                # 过期时自动生成报告
+                # 过期时自动生成报告（必须在删除 mode file 之前）
                 if [ -f "$MODE_FILE" ]; then
                     echo "   生成过期报告..."
                     bash "$0" report 2>/dev/null
                 fi
+                rm -f "$POLL_FILE" "$STATE_DIR/autonomous.active" 2>/dev/null
                 exit 0
             fi
         fi
@@ -400,7 +500,7 @@ except: print('no')" 2>/dev/null)
         fi
         export _LX_DESC="$DESCRIPTION"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF'
+        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime
 
@@ -418,6 +518,15 @@ tmp = task_file + '.tmp.' + str(os.getpid())
 with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, task_file)
+# Append to RPE progress.md
+plan_dir = d.get('rpe_plan_dir', '')
+if plan_dir:
+    import os as _os
+    progress_file = _os.path.join(plan_dir, 'progress.md')
+    if _os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [x] {desc}  ({ts})\n')
 PYEOF
         echo "✅ 已标记任务完成: $(sanitize_output "$DESCRIPTION")"
         ;;
@@ -436,7 +545,7 @@ PYEOF
         fi
         export _LX_DESC="$DESCRIPTION"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF'
+        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -451,6 +560,15 @@ tmp = task_file + '.tmp.' + str(os.getpid())
 with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, task_file)
+# Append to RPE progress.md
+plan_dir = d.get('rpe_plan_dir', '')
+if plan_dir:
+    import os as _os
+    progress_file = _os.path.join(plan_dir, 'progress.md')
+    if _os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [skip-risk] {desc}  ({ts})\n')
 PYEOF
         echo "📝 已记录跳过的风险: $(sanitize_output "$DESCRIPTION")"
         ;;
@@ -474,7 +592,7 @@ PYEOF
         export _LX_REASON="$REASON"
         export _LX_HUMAN_ACTION="$HUMAN_ACTION"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF'
+        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -496,6 +614,15 @@ tmp = task_file + '.tmp.' + str(os.getpid())
 with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, task_file)
+# Append to RPE progress.md
+plan_dir = d.get('rpe_plan_dir', '')
+if plan_dir:
+    import os as _os
+    progress_file = _os.path.join(plan_dir, 'progress.md')
+    if _os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [hard-boundary] {desc} — {reason}  ({ts})\n')
 PYEOF
         echo "🛑 硬边界拦截已记录: $(sanitize_output "$DESCRIPTION") (原因: $(sanitize_output "$REASON"))"
         ;;
@@ -519,7 +646,7 @@ PYEOF
         export _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
         export _LX_RATIONALE="$RATIONALE"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF'
+        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -541,6 +668,15 @@ tmp = task_file + '.tmp.' + str(os.getpid())
 with open(tmp, 'w', encoding='utf-8') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, task_file)
+# Append to RPE progress.md
+plan_dir = d.get('rpe_plan_dir', '')
+if plan_dir:
+    import os as _os
+    progress_file = _os.path.join(plan_dir, 'progress.md')
+    if _os.path.exists(progress_file):
+        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open(progress_file, 'a') as pf:
+            pf.write(f'\n- [blocked-human] {desc} → {ai_recommendation}  ({ts})\n')
 PYEOF
         echo "🤔 推迟决策已记录: $(sanitize_output "$DESCRIPTION") → 推荐: $(sanitize_output "$AI_RECOMMENDATION")"
 	        ;;

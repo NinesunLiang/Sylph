@@ -226,7 +226,7 @@ settings.json (Hook 注册)
 
 | # | 风险 | 严重度 | 说明 |
 |---|------|--------|------|
-| **R1** | OpenCode `session.created` 静默失效 | 🟢 已修复 | carror-hooks-compat.ts 改为首次 `message.updated` 回退触发 SessionStart hooks + `.omc/state/.session-start-marker` 防重复。session.idle (Stop) 仍无回退 — 影响较小 |
+| **R1** | OpenCode `session.created` 静默失效 | 🟢 已修复 | carror-hooks-compat.ts 改为首次 `message.updated` 回退触发 SessionStart hooks + `.omc/state/.session-start-marker` 防重复。Stop event `session.idle` 同样三路径回退: `session.idle`(原生) + `message.updated`(10min防抖) + `session.compacted`(兜底) |
 | **R2** | Cursor 仅 3/9 事件 | 🟡 P1 | 设计级限制，无法通过适配层修复。需在文档中明确告知 Cursor 用户的防御能力降级 |
 | **R3** | Codex `hooks=true` 未文档化 | 🟡 P2 | Codex 需要显式开启 hooks。install.sh 未提示用户。修复：在 install.sh 输出中添加 Codex 配置提醒 |
 | **R4** | Windows 非 Git Bash 环境 | 🟢 P3 | 原生 PowerShell 下 2>/dev/null 和 jq 不可用。python3 回退已实现但未经 Windows 实测 |
