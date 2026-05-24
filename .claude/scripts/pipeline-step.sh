@@ -30,7 +30,7 @@ STEPS=(
 
 get_step() {
   if [ -f "$STATE_FILE" ]; then
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     with open('$STATE_FILE') as f:
@@ -46,7 +46,7 @@ except:
 
 set_step() {
   local step="$1"
-  python3 -c "
+  ${PYTHON_BIN:-python3} -c "
 import json, os, time
 d = {'step': $step, 'updated': int(time.time())}
 os.makedirs(os.path.dirname('$STATE_FILE'), exist_ok=True)
@@ -86,7 +86,7 @@ case "${1:-get}" in
       echo "  $marker [$i] ${STEPS[$i]%%:*}"
     done
     if [ -f "$STATE_FILE" ]; then
-      echo "Last updated: $(python3 -c "import json; print(json.load(open('$STATE_FILE')).get('updated','?'))" 2>/dev/null)"
+      echo "Last updated: $(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$STATE_FILE')).get('updated','?'))" 2>/dev/null)"
     fi
     ;;
   *)

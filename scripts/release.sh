@@ -18,6 +18,8 @@ for arg in "$@"; do [[ "$arg" == --yes* ]] && AUTO_YES=true; done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
 
 # ─── 预检 ───
 if ! git rev-parse --git-dir >/dev/null 2>&1; then
@@ -41,14 +43,14 @@ check_release_gate() {
     # 查找当前活跃的 plan state.json
     for sf in "$PROJECT_DIR/.omc/plans/"*/*/state.json; do
         [ -f "$sf" ] || continue
-        local ph; ph=$(python3 -c "import json; print(json.load(open('$sf')).get('phase',''))" 2>/dev/null || echo "")
+        local ph; ph=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$sf')).get('phase',''))" 2>/dev/null || echo "")
         if [ "$ph" = "approved" ] || [ "$ph" = "executing" ]; then
             plan_state="$sf"; break
         fi
     done
 
     # 自举豁免: 首次部署Release Gate本身
-    local bootstrap=$(python3 -c "
+    local bootstrap=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
     with open('$plan_state') as f: d=json.load(f)
@@ -100,7 +102,7 @@ check_release_gate "$BUMP" || exit 1
 
 # ═══════════════════════════════════════════════════════════════
 log_step "1/7 版本号递增..."
-OLD_VER=$(python3 -c "import json; print(json.load(open('VERSION.json'))['version'])")
+OLD_VER=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('VERSION.json'))['version'])")
 IFS='.' read -r MAJ MIN PAT <<< "$OLD_VER"
 case "$BUMP" in
     major) MAJ=$((MAJ+1)); MIN=0; PAT=0 ;;
@@ -116,7 +118,7 @@ log_info "  $OLD_VER → $NEW_VER ($RELEASE_DATE)"
 log_step "2/7 同步版本号到所有文件..."
 
 # VERSION.json
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 v=json.load(open('VERSION.json'))
 v.update({'version':'$NEW_VER','release_date':'$RELEASE_DATE'})

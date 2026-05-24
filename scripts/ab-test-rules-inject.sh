@@ -9,6 +9,8 @@ PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 FW_LOG="$HOME/.claude/flywheel.log"
 HARNESS="$PROJECT/.claude/harness.yaml"
 HARNESS_BAK="$PROJECT/.claude/harness.yaml.ab-bak"
+# Cross-platform Python resolution (DG-105)
+[ -f "$PROJECT/.claude/hooks/harness_config.sh" ] && source "$PROJECT/.claude/hooks/harness_config.sh" 2>/dev/null || true
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 
@@ -70,7 +72,7 @@ echo -e "${YELLOW}═══ Phase A: 控制组 — Hook DISABLED ═══${NC}"
 cp "$HARNESS" "$HARNESS_BAK"
 
 # 禁用 pretool_rules_inject
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import re
 with open('$HARNESS') as f:
     content = f.read()
@@ -127,7 +129,7 @@ echo ""
 echo -e "${YELLOW}═══ Phase B: 实验组 — Hook ENABLED ═══${NC}"
 
 # 恢复 harness.yaml
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import re
 with open('$HARNESS') as f:
     content = f.read()

@@ -9,7 +9,7 @@ JSON_OUT=false; [ "${1:-}" = "--json" ] && JSON_OUT=true
 
 if [ "$JSON_OUT" = true ]; then
     # JSON 输出
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 tf='$SAVINGS'; tl='$SAVINGS_LOG'
 sessions = []
@@ -28,7 +28,7 @@ print(json.dumps({
 "
 else
     # 人类可读账单
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 tf='$SAVINGS'; tl='$SAVINGS_LOG'
 

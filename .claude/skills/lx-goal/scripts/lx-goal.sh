@@ -22,7 +22,7 @@ source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 # Sanitize output to prevent JSON encoding errors from surrogate pairs and control characters
 sanitize_output() {
     local input="$1"
-    echo "$input" | LC_ALL=C sed 's/[\x00-\x1F\x7F]//g' | python3 -c '
+    echo "$input" | LC_ALL=C sed 's/[\x00-\x1F\x7F]//g' | ${PYTHON_BIN:-python3} -c '
 import sys
 text = sys.stdin.read()
 # Strip surrogate characters (U+D800..U+DFFF) — must use ord() range check, not raw string \u escapes
@@ -48,7 +48,7 @@ case "${1:-status}" in
         export _LX_GOAL="$GOAL"
         export _LX_EXPIRY_HOURS="$EXPIRY_HOURS"
         export _LX_MODE_FILE="$MODE_FILE"
-        python3 <<'PYEOF'
+        ${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 from datetime import datetime, timedelta, timezone
 
@@ -84,7 +84,7 @@ SLUG=$(echo "$GOAL" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
 [ -z "$SLUG" ] && SLUG="goal-$(date +%H%M%S)"
 PLAN_DIR="$PROJECT_ROOT/.omc/plans/${DATE}/${SLUG}"
 mkdir -p "$PLAN_DIR"
-python3 -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
+${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
 echo "# $GOAL
 
 > goal模式自动创建 @ $(date)" > "$PLAN_DIR/prd.md"
@@ -98,7 +98,7 @@ echo "RPE文档层: $PLAN_DIR" >&2
 	# Save plan_dir to lx-goal.json for runtime subcommands (task-done/skip-risk/off)
 	export _LX_PLAN_DIR="$PLAN_DIR"
 	export _LX_MODE_FILE="$MODE_FILE"
-	python3 <<'PYEOF'
+	${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 plan_dir = os.environ['_LX_PLAN_DIR']
 mode_file = os.environ['_LX_MODE_FILE']
@@ -130,12 +130,12 @@ echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY
     off)
 		# Generate exit report to RPE dir before cleanup
 		if [ -f "$MODE_FILE" ]; then
-			PLAN_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
+			PLAN_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
 			if [ -n "$PLAN_DIR" ] && [ -d "$PLAN_DIR" ]; then
-				DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-				SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-				HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
-				BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
+				DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+				SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+				HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+				BLOCKED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
 				{
 					echo "# Checklist"
 					echo ""
@@ -148,7 +148,7 @@ echo "✅ 目标模式已开启 — 目标: $(sanitize_output "$GOAL"), ${EXPIRY
 					echo ""
 					echo "> 自动生成 @ $(date)"
 				} > "$PLAN_DIR/checklist.md"
-				python3 -c "
+				${PYTHON_BIN:-python3} -c "
 import json
 sf = '$PLAN_DIR/state.json'
 d = json.load(open(sf))
@@ -167,16 +167,16 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
 		;;
     status)
         if [ -f "$MODE_FILE" ]; then
-            GOAL=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
-            EXP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
-            DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-            SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-            HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
-            RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+            GOAL=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
+            EXP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
+            DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+            SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+            HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+            RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
             echo "📋 目标模式 (lx-goal): 🟢 开启中"
             echo "   目标: $(sanitize_output "$GOAL")"
             echo "   过期: $EXP"
-            BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
+            BLOCKED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
             echo "   已完成: $DONE  跳过风险: $SKIP  硬边界: $HARD  推迟决策: $BLOCKED  重试: $RETRY"
         elif [ -f "$STATE_DIR/unattended-mode.json" ]; then
             echo "📋 目标模式 (旧格式 unattended-mode.json): 🟡 兼容中"
@@ -204,7 +204,7 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
         export _LX_KEY="$KEY"
         export _LX_VALUE="$VALUE"
         export _LX_SET_MODE_FILE="$MODE_FILE"
-        python3 <<'PYEOF'
+        ${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 key = os.environ['_LX_KEY']
 value_str = os.environ['_LX_VALUE']
@@ -232,7 +232,7 @@ PYEOF
             echo "❌ 目标模式未开启"
             exit 1
         fi
-        PLAN_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
+        PLAN_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_plan_dir',''))" 2>/dev/null)
         if [ -z "$PLAN_DIR" ] || [ ! -d "$PLAN_DIR" ]; then
             echo "❌ RPE 计划目录不存在，请重新激活目标模式"
             exit 1
@@ -245,14 +245,14 @@ PYEOF
             exit 1
         fi
         # 验证 state.json 合法性 (修复损坏文件)
-        if ! python3 -c "import json; json.load(open('$PLAN_DIR/state.json'))" 2>/dev/null; then
+        if ! ${PYTHON_BIN:-python3} -c "import json; json.load(open('$PLAN_DIR/state.json'))" 2>/dev/null; then
             echo "⚠️ state.json 损坏，正在修复..."
-            python3 -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
+            ${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'draft','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$PLAN_DIR/state.json','w'))"
             echo "   已重建 state.json (phase=draft)，请重试 phase0-done"
             exit 1
         fi
         # 设置 phase=executing
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json
 sf = '$PLAN_DIR/state.json'
 d = json.load(open(sf))
@@ -263,7 +263,7 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
         # 写入 phase0_passed_at 到 lx-goal.json — plan gate 据此放行 (不信任 state.json)
         export _LX_PASSED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
         export _LX_MODE_FILE="$MODE_FILE"
-        python3 <<'PYEOF'
+        ${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 passed_at = os.environ['_LX_PASSED_AT']
 mode_file = os.environ['_LX_MODE_FILE']
@@ -297,13 +297,13 @@ PYEOF
                 exit 1
             fi
         fi
-        GOAL=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
-        DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-        SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-        HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
-        RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
-        BLOCKED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
-        SKIP_LIST=$(python3 -c "
+        GOAL=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
+        DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+        SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+        HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+        RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+        BLOCKED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('blocked_human',[])))" 2>/dev/null)
+        SKIP_LIST=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 risks = d.get('skipped_risks', [])
@@ -311,7 +311,7 @@ for r in risks:
     desc = r.get('description', r) if isinstance(r, dict) else r
     print(f'- {desc}')
 " 2>/dev/null)
-        HARD_LIST=$(python3 -c "
+        HARD_LIST=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 hits = d.get('hard_boundary_hits', [])
@@ -324,7 +324,7 @@ for h in hits:
     print(f'  **需人类执行**: {human}')
     print()
 " 2>/dev/null)
-        BLOCKED_LIST=$(python3 -c "
+        BLOCKED_LIST=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 blocked = d.get('blocked_human', [])
@@ -337,7 +337,7 @@ for b in blocked:
     print(f'  **依据**: {rat}')
     print()
 " 2>/dev/null)
-        TASK_LIST=$(python3 -c "
+        TASK_LIST=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 tasks = d.get('completed_tasks', [])
@@ -346,8 +346,8 @@ for t in tasks:
     ts = t.get('timestamp', '') if isinstance(t, dict) else ''
     print(f'- [x] {desc}  ({ts})')
 " 2>/dev/null)
-        ACTIVATED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('activated_at','?'))" 2>/dev/null)
-        EXPIRES=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','?'))" 2>/dev/null)
+        ACTIVATED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('activated_at','?'))" 2>/dev/null)
+        EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','?'))" 2>/dev/null)
         {
             echo "# 目标模式执行报告"
             echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -385,7 +385,7 @@ for t in tasks:
             echo "| # | 类型 | 描述 | AI 推荐 | 依据 |"
             echo "|---|------|------|---------|------|"
             # 用 Python 从 JSON 生成聚合汇总表
-            python3 -c "
+            ${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 hits = d.get('hard_boundary_hits', [])
@@ -441,9 +441,9 @@ if idx == 0:
         fi
 
         # 检查过期
-        EXPIRES=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
+        EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
         if [ -n "$EXPIRES" ]; then
-            EXPIRED=$(python3 -c "
+            EXPIRED=$(${PYTHON_BIN:-python3} -c "
 from datetime import datetime
 try:
     exp = datetime.fromisoformat('$EXPIRES')
@@ -461,11 +461,11 @@ except: print('no')" 2>/dev/null)
             fi
         fi
 
-        GOAL=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('goal','?'))" 2>/dev/null)
-        DONE=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-        SKIP=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-        HARD=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
-        RETRY=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+        GOAL=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('goal','?'))" 2>/dev/null)
+        DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+        SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+        HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+        RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
         echo "🔄 目标轮询 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "   目标: $(sanitize_output "$GOAL")"
         echo "   已完成: $DONE  已跳过风险: $SKIP  硬边界: $HARD  重试次数: $RETRY"
@@ -500,7 +500,7 @@ except: print('no')" 2>/dev/null)
         fi
         export _LX_DESC="$DESCRIPTION"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+        ${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime
 
@@ -545,7 +545,7 @@ PYEOF
         fi
         export _LX_DESC="$DESCRIPTION"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+        ${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -592,7 +592,7 @@ PYEOF
         export _LX_REASON="$REASON"
         export _LX_HUMAN_ACTION="$HUMAN_ACTION"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+        ${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -646,7 +646,7 @@ PYEOF
         export _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
         export _LX_RATIONALE="$RATIONALE"
         export _LX_TASK_FILE="$TASK_FILE"
-        python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+        ${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -692,7 +692,7 @@ PYEOF
                 exit 1
             fi
         fi
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$TASK_FILE'
 d = json.load(open(file))

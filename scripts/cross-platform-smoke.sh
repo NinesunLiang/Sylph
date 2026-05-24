@@ -3,6 +3,9 @@
 # #37: 验证所有 hook/脚本在当前平台可执行
 set -f
 
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; NC='\033[0m'
 PASS=0; FAIL=0; WARN=0
 
@@ -20,7 +23,7 @@ echo ""
 # ─── 基础运行时 ──────────────────────────────────────────
 echo "=== 基础运行时 ==="
 command -v bash &>/dev/null && ok "bash" || fail "bash — required"
-command -v python3 &>/dev/null && ok "python3 ($(python3 --version 2>&1))" || fail "python3 — required"
+command -v "${PYTHON_BIN:-python3}" &>/dev/null && ok "python3 ($(${PYTHON_BIN:-python3} --version 2>&1))" || fail "python3 — required"
 command -v jq &>/dev/null && ok "jq" || warn "jq — optional, python3 fallback works"
 
 # ─── 平台检测 ─────────────────────────────────────────────
@@ -36,9 +39,10 @@ esac
 # macOS specifics
 if [ "$PLATFORM" = "macOS" ]; then
     # sed -i compatibility
-    echo "test" > /tmp/_cross_sed_test
-    sed -i '' 's/test/ok/' /tmp/_cross_sed_test 2>/dev/null && ok "sed -i '' (BSD)" || warn "sed -i '' failed"
-    rm -f /tmp/_cross_sed_test /tmp/_cross_sed_test.bak
+    _CROSS_SED_TEST="$(mktemp "${TMPDIR:-/tmp}/_cross_sed_test.XXXXXX")"
+echo "test" > "$_CROSS_SED_TEST"
+    sed -i '' 's/test/ok/' "$_CROSS_SED_TEST" 2>/dev/null && ok "sed -i '' (BSD)" || warn "sed -i '' failed"
+    rm -f "$_CROSS_SED_TEST" "$_CROSS_SED_TEST.bak"
 
     # COPYFILE_DISABLE for tar
     [ -n "${COPYFILE_DISABLE:-}" ] && ok "COPYFILE_DISABLE set" || warn "COPYFILE_DISABLE not set (tar may leak ._* files)"
@@ -96,9 +100,9 @@ done
 echo ""
 echo "=== Python 模块 ==="
 for mod in json os sys datetime; do
-    python3 -c "import $mod" 2>/dev/null && ok "$mod" || fail "$mod — missing (critical)"
+    ${PYTHON_BIN:-python3} -c "import $mod" 2>/dev/null && ok "$mod" || fail "$mod — missing (critical)"
 done
-python3 -c "import secrets" 2>/dev/null && ok "secrets" || warn "secrets — permission-gate fallback"
+${PYTHON_BIN:-python3} -c "import secrets" 2>/dev/null && ok "secrets" || warn "secrets — permission-gate fallback"
 
 # ─── Git 环境 ──────────────────────────────────────────────
 echo ""

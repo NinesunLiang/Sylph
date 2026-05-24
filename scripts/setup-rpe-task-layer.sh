@@ -1,13 +1,15 @@
 #!/bin/bash
 # setup-rpe-task-layer.sh — goal/ghost 自动创建 RPE 文档目录
 set -e
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Fix 1: lx-goal.sh (skill copy) — add mkdir on activation
 GOAL_SH="$PROJECT/.claude/skills/lx-goal/scripts/lx-goal.sh"
 if [ -f "$GOAL_SH" ]; then
     cp "$GOAL_SH" "$GOAL_SH.bak"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 path = '$GOAL_SH'
 with open(path) as f: c = f.read()
 # Insert mkdir before the exit line in 'on' subcommand
@@ -33,7 +35,7 @@ fi
 GHOST_SH="$PROJECT/.claude/skills/lx-ghost/scripts/lx-ghost.sh"
 if [ -f "$GHOST_SH" ]; then
     cp "$GHOST_SH" "$GHOST_SH.bak"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 path = '$GHOST_SH'
 with open(path) as f: c = f.read()
 old = 'echo \"✅ 幽灵模式已开启 — 方向: \$DIRECTION, 每 \${INTERVAL}s 轮询, \${EXPIRY_HOURS}h 过期\"'
@@ -55,7 +57,7 @@ fi
 # State
 STATE_DIR="$PROJECT/.omc/plans/2026-05-23/rpe-task-layer"
 mkdir -p "$STATE_DIR"
-python3 -c "import json; json.dump({'phase':'approved','approved_by':'LuangSir','created_at':'2026-05-23T20:00:00Z'},open('$STATE_DIR/state.json','w'))"
+${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'approved','approved_by':'LuangSir','created_at':'2026-05-23T20:00:00Z'},open('$STATE_DIR/state.json','w'))"
 echo "state.json: approved"
 
 echo "=== Done ==="

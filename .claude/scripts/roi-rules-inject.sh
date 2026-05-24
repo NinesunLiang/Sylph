@@ -4,7 +4,7 @@ set -eo pipefail
 FW="$HOME/.claude/flywheel.log"
 [ -f "$FW" ] || { echo "flywheel.log unavailable"; exit 0; }
 
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 fw = '$FW'
 rules = pg = cg = ap = 0
 with open(fw) as f:

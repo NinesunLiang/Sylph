@@ -1,11 +1,13 @@
 #!/bin/bash
 # setup-release-gate.sh — Release Gate 5道门禁注入 release.sh
 set -e
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 RELEASE_SH="$PROJECT/scripts/release.sh"
 cp "$RELEASE_SH" "$RELEASE_SH.bak"
 
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 path = '$RELEASE_SH'
 with open(path) as f: content = f.read()
 
@@ -97,7 +99,7 @@ bash -n "$RELEASE_SH" && echo "Syntax OK" || { echo "Syntax FAILED"; cp "$RELEAS
 # Create state.json for this plan (bootstrap exemption)
 STATE_DIR="$PROJECT/.omc/plans/2026-05-23/release-gate"
 mkdir -p "$STATE_DIR"
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 with open('$STATE_DIR/state.json','w') as f:
     json.dump({'phase':'approved','approved_by':'LuangSir','bootstrap_exempt':True,'created_at':'2026-05-23T19:30:00Z'},f)

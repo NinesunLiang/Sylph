@@ -83,11 +83,11 @@ fi
 # Fallback: 无 plan.md 时，从 lx-goal.json 的目标描述推导范围
 GOAL_DESC=""
 if [ -f "$STATE_DIR/lx-goal.json" ]; then
-    GOAL_DESC=$(python3 -c "import json; d=json.load(open('$STATE_DIR/lx-goal.json')); print(d.get('goal',''))" 2>/dev/null)
+    GOAL_DESC=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$STATE_DIR/lx-goal.json')); print(d.get('goal',''))" 2>/dev/null)
 fi
 if [ -n "$GOAL_DESC" ]; then
     # 从目标描述中提取关键词，匹配最近修改的文件
-    GOAL_KW=$(echo "$GOAL_DESC" | python3 -c "
+    GOAL_KW=$(echo "$GOAL_DESC" | ${PYTHON_BIN:-python3} -c "
 import sys, re
 text = sys.stdin.read().strip()
 # Extract meaningful keywords (file names, feature names, etc.)

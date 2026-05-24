@@ -55,7 +55,7 @@ runtime_evidence_factor() {
   # Also check flywheel-report.json
   if [ -f ".omc/state/flywheel-report.json" ]; then
     local json_count
-    json_count=$(python3 -c "
+    json_count=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
     d = json.load(open('.omc/state/flywheel-report.json'))
@@ -75,7 +75,7 @@ runtime_bonus() {
   local dim="$1"
   case "$dim" in
     C2) # Token 节省比例: >80%=2, >50%=1
-      python3 -c "
+      ${PYTHON_BIN:-python3} -c "
 import json,os
 tf='.omc/state/token-savings.json'
 if os.path.exists(tf):
@@ -103,7 +103,7 @@ else: print('0')
       else echo "0"; fi
       ;;
     C9) # 错误恢复: retry-budget 签名数
-      python3 -c "
+      ${PYTHON_BIN:-python3} -c "
 import json,os
 tf='.omc/state/retry-budget.json'
 if os.path.exists(tf):
@@ -124,7 +124,7 @@ else: print('0')
       else echo "0"; fi
       ;;
     E6) # 自我矛盾: contradiction 检测率
-      python3 -c "
+      ${PYTHON_BIN:-python3} -c "
 import json
 total=0; contra=0
 try:
@@ -140,7 +140,7 @@ except: print('0')
 " 2>/dev/null || echo "0"
       ;;
     E8) # 上下文遗忘: handoff + compact
-      python3 -c "
+      ${PYTHON_BIN:-python3} -c "
 import os
 h=os.path.getsize('.omc/state/session-handoff.md') if os.path.exists('.omc/state/session-handoff.md') else 0
 c=os.path.getsize('.omc/state/context-cache.md') if os.path.exists('.omc/state/context-cache.md') else 0
@@ -197,7 +197,7 @@ score_C2() {
   fi
   local compact_ok=0
   if [ -f .claude/hooks/compact-detect.sh ]; then
-    if python3 -c "
+    if ${PYTHON_BIN:-python3} -c "
 import json, time, os
 try:
     d = json.load(open('.omc/state/token-compact-state.json'))
@@ -212,7 +212,7 @@ except: print('stale')
   local refresh_ok=0
   if grep -q "context.*50.*refresh\|L2\|周期刷新" .claude/hooks/turn-counter.sh 2>/dev/null; then
     if [ -f .omc/state/session-turns.json ]; then
-      TC_COUNT=$(python3 -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count', 0))" 2>/dev/null || echo "0")
+      TC_COUNT=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count', 0))" 2>/dev/null || echo "0")
       [ "$TC_COUNT" -ge 1 ] 2>/dev/null && refresh_ok=1
     fi
   fi
@@ -517,7 +517,7 @@ score_E7() {
   local prev_inflated=0
   if ls .omc/state/auto-score-*.json >/dev/null 2>&1; then
     local prev_all_100
-    prev_all_100=$(python3 -c "
+    prev_all_100=$(${PYTHON_BIN:-python3} -c "
 import json, glob, os
 files = sorted(glob.glob('.omc/state/auto-score-*.json'), key=os.path.getmtime, reverse=True)
 # Skip current run's file (just written), check previous
@@ -617,7 +617,7 @@ score_G2() {
   # B-terminal: 独立跨终端验证 (三扇门 B 环节)
   local bterm_pass=0
   if [ -f .omc/state/b-terminal-result.json ]; then
-    python3 -c "import json; d=json.load(open('.omc/state/b-terminal-result.json')); assert d.get('failed',1)==0" 2>/dev/null && bterm_pass=1
+    ${PYTHON_BIN:-python3} -c "import json; d=json.load(open('.omc/state/b-terminal-result.json')); assert d.get('failed',1)==0" 2>/dev/null && bterm_pass=1
   fi
   # 铁律条数合理 (<=10)
   local rule_count

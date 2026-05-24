@@ -33,7 +33,7 @@ case "${1:-status}" in
     on)
         GOAL="${2:-目标任务未指定}"
         EXPIRY_HOURS="${3:-$(hc_get "goal_mode.default_expiry_hours" "6")}"
-        EXPIRES=$(python3 -c "from datetime import datetime,timedelta; print((datetime.now()+timedelta(hours=$EXPIRY_HOURS)).isoformat())" 2>/dev/null)
+        EXPIRES=$(${PYTHON_BIN:-python3} -c "from datetime import datetime,timedelta; print((datetime.now()+timedelta(hours=$EXPIRY_HOURS)).isoformat())" 2>/dev/null)
         tmp="${MODE_FILE}.tmp.$$"
         cat > "$tmp" <<JSON
 {
@@ -71,11 +71,11 @@ JSON
 
     status)
         if [ -f "$MODE_FILE" ]; then
-            GOAL=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
-            EXP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
-            DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-            SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-            RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+            GOAL=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
+            EXP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
+            DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+            SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+            RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
             echo "📋 目标模式 (lx-goal): 🟢 开启中"
             echo "   目标: $GOAL"
             echo "   过期: $EXP"
@@ -103,7 +103,7 @@ JSON
                 exit 1
             fi
         fi
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$MODE_FILE'
 d = json.load(open(file))
@@ -127,11 +127,11 @@ os.rename(tmp, file)
                 exit 1
             fi
         fi
-        GOAL=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
-        DONE=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-        SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-        RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
-        SKIP_LIST=$(python3 -c "
+        GOAL=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('goal','?'))" 2>/dev/null)
+        DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+        SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+        RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+        SKIP_LIST=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 risks = d.get('skipped_risks', [])
@@ -139,7 +139,7 @@ for r in risks:
     desc = r.get('description', r) if isinstance(r, dict) else r
     print(f'- {desc}')
 " 2>/dev/null)
-        TASK_LIST=$(python3 -c "
+        TASK_LIST=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$MODE_FILE'))
 tasks = d.get('completed_tasks', [])
@@ -148,8 +148,8 @@ for t in tasks:
     ts = t.get('timestamp', '') if isinstance(t, dict) else ''
     print(f'- [x] {desc}  ({ts})')
 " 2>/dev/null)
-        ACTIVATED=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('activated_at','?'))" 2>/dev/null)
-        EXPIRES=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','?'))" 2>/dev/null)
+        ACTIVATED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('activated_at','?'))" 2>/dev/null)
+        EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','?'))" 2>/dev/null)
         {
             echo "# 目标模式执行报告"
             echo "生成时间: $(date '+%Y-%m-%d %H:%M:%S')"
@@ -200,9 +200,9 @@ for t in tasks:
         fi
 
         # 检查过期
-        EXPIRES=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
+        EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
         if [ -n "$EXPIRES" ]; then
-            EXPIRED=$(python3 -c "
+            EXPIRED=$(${PYTHON_BIN:-python3} -c "
 from datetime import datetime
 try:
     exp = datetime.fromisoformat('$EXPIRES')
@@ -220,10 +220,10 @@ except: print('no')" 2>/dev/null)
             fi
         fi
 
-        GOAL=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('goal','?'))" 2>/dev/null)
-        DONE=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
-        SKIP=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-        RETRY=$(python3 -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+        GOAL=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('goal','?'))" 2>/dev/null)
+        DONE=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('completed_tasks',[])))" 2>/dev/null)
+        SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+        RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$POLL_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
         echo "🔄 目标轮询 $(date -u +%Y-%m-%dT%H:%M:%SZ)"
         echo "   目标: $GOAL"
         echo "   已完成: $DONE  已跳过风险: $SKIP  重试次数: $RETRY"
@@ -256,9 +256,9 @@ except: print('no')" 2>/dev/null)
                 exit 1
             fi
         fi
-        TS=$(python3 -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
-        _TASK_JSON=$(python3 -c "import json; print(json.dumps({'description':'$DESCRIPTION','timestamp':'$TS'}))" 2>/dev/null)
-        python3 -c "
+        TS=$(${PYTHON_BIN:-python3} -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)
+        _TASK_JSON=$(${PYTHON_BIN:-python3} -c "import json; print(json.dumps({'description':'$DESCRIPTION','timestamp':'$TS'}))" 2>/dev/null)
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$TASK_FILE'
 try:
@@ -288,7 +288,7 @@ os.rename(tmp, file)
                 exit 1
             fi
         fi
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$TASK_FILE'
 d = json.load(open(file))
@@ -313,7 +313,7 @@ os.rename(tmp, file)
                 exit 1
             fi
         fi
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$TASK_FILE'
 d = json.load(open(file))

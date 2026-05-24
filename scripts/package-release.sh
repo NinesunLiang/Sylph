@@ -12,7 +12,7 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION=$(python3 -c "import json; print(json.load(open('VERSION.json'))['version'])")
+VERSION=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('VERSION.json'))['version'])")
 TAG="v${VERSION}-stable"
 log_info "版本：$TAG"
 PKG_DIR="$PROJECT_DIR/packages"
@@ -65,7 +65,7 @@ if [ -x "$META_ORACLE_SCRIPT" ]; then
     # 3. VERSION.json 一致性
     if [ -f "$PROJECT_DIR/VERSION.json" ]; then
         log_info "[G4.3] VERSION.json 一致性..."
-        VER=$(python3 -c "import json; print(json.load(open('$PROJECT_DIR/VERSION.json'))['version'])" 2>/dev/null)
+        VER=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$PROJECT_DIR/VERSION.json'))['version'])" 2>/dev/null)
         if [ -n "$VER" ] && [ "$VER" = "$VERSION" ]; then
             log_info "  ✅ VERSION.json 一致 ($VER)"
         else
@@ -171,7 +171,7 @@ rsync -a --delete .claude/docs/        "$HARNESS_SRC/.claude/docs/"
 rm -rf "$HARNESS_SRC/.claude/references"
 cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"
 # 将开发机绝对路径替换为占位符，install.sh 安装时还原为实际项目路径
-sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
+sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json" 2>/dev/null || sed -i "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
 cp .claude/harness.yaml     "$HARNESS_SRC/.claude/harness.yaml"
 cp .claude/kernel.md        "$HARNESS_SRC/.claude/kernel.md"
 cp .claude/index.md         "$HARNESS_SRC/.claude/index.md"

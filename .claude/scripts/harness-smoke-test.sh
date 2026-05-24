@@ -29,7 +29,7 @@ fail() {
     local _hook="${3:-unknown}"
     local _exp="${4:--1}"
     local _act="${5:--1}"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json
 record = {
     'timestamp': '$_TS',
@@ -50,7 +50,7 @@ run_case() {
     TOTAL=$((TOTAL+1))
     log ""
     log "[$TOTAL] $name"
-    local out_err="$(mktemp /tmp/smoke-err-XXXXX)"
+    local out_err="$(mktemp "${TMPDIR:-/tmp}/smoke-err-XXXXX")"
     echo "$input" | bash ".claude/hooks/$hook" >/dev/null 2>"$out_err"
     local actual_exit=$?
     local actual_err
@@ -123,7 +123,7 @@ rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/lx-g
 # R40: Ghost mode 下所有门禁降级为"记录+跳过"
 
 # ---- Setup: 创建活跃 lx-ghost.json ----
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
@@ -147,7 +147,7 @@ run_case "R40 ghost mode: edit-guard 未 Read 降级放行" \
   "edit-guard.sh" 0 ""
 
 # ---- Setup: 创建 inactive（已过期）lx-ghost.json ----
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
      'expires_at': '2020-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
@@ -165,7 +165,7 @@ for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
 done
 
 # ---- Setup: 创建活跃 lx-goal.json ----
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'goal', 'goal': 'test',
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
@@ -177,7 +177,7 @@ run_case "R40 goal mode: permission-gate rm -rf 降级放行" \
   "permission-gate.sh" 2 "破坏性|强制终端|Token"
 
 # ---- Setup: 创建旧格式 ghost-mode.json（后向兼容测试）----
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'compat-test',
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
@@ -192,7 +192,7 @@ run_case "R40 legacy ghost-mode.json: context-guard 降级放行" \
 rm -f .omc/state/ghost-mode.json
 
 # ---- Setup: 创建旧格式 unattended-mode.json（后向兼容测试）----
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'unattended', 'goal': 'compat-test',
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
@@ -441,7 +441,7 @@ fi
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R38 posttool-claim-audit: 未读 claim 应阻断"
-_CLAIM_OUT="$(mktemp /tmp/smoke-claim-XXXXX.out)"
+_CLAIM_OUT="$(mktemp "${TMPDIR:-/tmp}/smoke-claim-XXXXX.out")"
 echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/claim-test.go","new_content":"Reference: ./src/nonexistent_claim_file_test.go:42"}}' | \
     bash .claude/hooks/posttool-claim-audit.sh Edit > "$_CLAIM_OUT" 2>&1
 _CLAIM_EXIT=$?
@@ -754,7 +754,7 @@ run_case "R29 token_writer: --reset 应设 usage=0" \
 # token_writer without args is a no-op for default values; use --reset
 echo "" | bash .claude/hooks/token_writer.sh --reset 2>/dev/null
 if [ -f .omc/state/token-tracking-index.json ]; then
-    USAGE=$(python3 -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', -1))" 2>/dev/null)
+    USAGE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', -1))" 2>/dev/null)
     if [ "$USAGE" = "0" ]; then
         pass "R29 token_writer --reset usage=0"
     else
@@ -770,7 +770,7 @@ run_case "R29 token_writer: --increment 应递增 usage" \
   "token_writer.sh" 0 ""
 echo "" | bash .claude/hooks/token_writer.sh --increment 2>/dev/null
 if [ -f .omc/state/token-tracking-index.json ]; then
-    USAGE=$(python3 -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', 0))" 2>/dev/null)
+    USAGE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', 0))" 2>/dev/null)
     if [ "$USAGE" -gt 0 ]; then
         pass "R29 token_writer --increment usage=$USAGE"
     else
@@ -787,7 +787,7 @@ log ""
 log "[$TOTAL] R31 session-dump: auto-snapshot 应写入结构化 dump"
 echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/auto-snapshot.sh > /dev/null 2>&1
 if [ -f "$_DUMP_FILE" ]; then
-    _DUMP_OK=$(python3 -c "
+    _DUMP_OK=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('$_DUMP_FILE'))
 fields = ['git_state', 'error_summary', 'todo_queue', 'active_features', 'token_usage', 'claude_next_hits', 'edit_log']
@@ -836,7 +836,7 @@ fi
 # --- R33: validate_skill_refs.py skill 引用校验 ---
 TOTAL=$((TOTAL+1))
 _SKILL_REF_OUT="/tmp/smoke-skill-ref-$$.out"
-python3 .claude/scripts/validate_skill_refs.py > "$_SKILL_REF_OUT" 2>&1
+${PYTHON_BIN:-python3} .claude/scripts/validate_skill_refs.py > "$_SKILL_REF_OUT" 2>&1
 _SKILL_REF_EXIT=$?
 log ""
 log "[$TOTAL] R33 validate_skill_refs: 所有 skill 引用应有效"
@@ -901,7 +901,7 @@ log ""
 log "[$TOTAL] R36 knowledge-condenser: 双格式解析验证"
 _NEXT_EXISTS="no"
 [ -f ".claude/claude-next.md" ] && _NEXT_EXISTS="yes"
-_NEXT_HITS=$(python3 -c "
+_NEXT_HITS=$(${PYTHON_BIN:-python3} -c "
 import re
 try:
     c = open('.claude/claude-next.md').read()
@@ -1293,7 +1293,7 @@ fi
 TOTAL=$((TOTAL+1))
 E2E5_KEYS="0/5"
 if [ -s .omc/state/session-snapshot.json ]; then
-    E2E5_KEYS=$(python3 -c "
+    E2E5_KEYS=$(${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('.omc/state/session-snapshot.json'))
 required = ['timestamp', 'turns', 'branch', 'modified_files', 'staged_files']
@@ -1397,21 +1397,21 @@ log "========== P2.3: credential sanitization -- API key/token patterns must be 
 TOTAL=$((TOTAL+1))
 _p23_pass=true
 # Test 1: env var masking
-_t1=$(echo "ANTHROPIC_AUTH_TOKEN=mytestkey12345" | python3 -c "
+_t1=$(echo "ANTHROPIC_AUTH_TOKEN=mytestkey12345" | ${PYTHON_BIN:-python3} -c "
 import sys,re
 c=sys.stdin.read().strip()
 c=re.sub(r'(ANTHROPIC_AUTH_TOKEN|DEEPSEEK_API_KEY|OPENAI_API_KEY)=\S+',r'\1=***',c)
 print(c)")
 if [ "$_t1" != "ANTHROPIC_AUTH_TOKEN=***" ]; then _p23_pass=false; echo "  FAIL t1: $_t1"; fi
 # Test 2: bearer token
-_t2=$(echo 'Authorization: Bearer mytoken999' | python3 -c "
+_t2=$(echo 'Authorization: Bearer mytoken999' | ${PYTHON_BIN:-python3} -c "
 import sys,re
 c=sys.stdin.read().strip()
 c=re.sub(r'(Authorization:\s*Bearer\s+)\S+',r'\1***',c)
 print(c)")
 if [ "$_t2" != "Authorization: Bearer ***" ]; then _p23_pass=false; echo "  FAIL t2: $_t2"; fi
 # Test 3: --password flag
-_t3=$(echo '--password secret123' | python3 -c "
+_t3=$(echo '--password secret123' | ${PYTHON_BIN:-python3} -c "
 import sys,re
 c=sys.stdin.read().strip()
 c=re.sub(r'--password\s+\S+','--password ***',c)

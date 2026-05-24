@@ -22,10 +22,10 @@ if [ $# -eq 0 ]; then
   for skill_dir in "$SKILLS_DIR"/lx-*/; do
     skill_name=$(basename "$skill_dir")
     set +e
-    python3 "$VALIDATOR" --skill "$skill_name" --skills-dir "$SKILLS_DIR"
+    ${PYTHON_BIN:-python3} "$VALIDATOR" --skill "$skill_name" --skills-dir "$SKILLS_DIR"
     set -e
     echo "---"
   done
 else
-  python3 "$VALIDATOR" --skill "$1" --skills-dir "$SKILLS_DIR"
+  ${PYTHON_BIN:-python3} "$VALIDATOR" --skill "$1" --skills-dir "$SKILLS_DIR"
 fi

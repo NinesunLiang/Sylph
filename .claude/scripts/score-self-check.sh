@@ -78,7 +78,7 @@ file_line_count() {
 
 # 四舍五入到两位小数
 round2() {
-    python3 -c "print(round($1, 2))" 2>/dev/null || echo "$1"
+    ${PYTHON_BIN:-python3} -c "print(round($1, 2))" 2>/dev/null || echo "$1"
 }
 
 # ──────────────────────────────────────────────
@@ -507,7 +507,7 @@ echo "  U5: $U5_SCORE (permission clarity: $U5_COUNT/$U5_TOTAL)" >&2
 
 # 这一步交给 Python（需要读 claude-next.md 做质量惩罚）
 SCORE_JSON_OUT="$STATE_DIR/score-report.json"
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json, sys, re, os
 
 # ── 权重（原始评分体系） ──
@@ -878,7 +878,7 @@ if [ -n "$DIFF_FILE" ]; then
     echo "" >&2
     echo "═══ 与基线差异 ($DIFF_FILE) ═══" >&2
 
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, sys
 
 try:

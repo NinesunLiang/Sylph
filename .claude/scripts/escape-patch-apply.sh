@@ -18,7 +18,7 @@ case "${1:-status}" in
             exit 0
         fi
         echo "📋 Error-DNA 补丁队列:"
-        python3 - "$PATCH_FILE" <<'PYEOF'
+        ${PYTHON_BIN:-python3} - "$PATCH_FILE" <<'PYEOF'
 import json, sys
 with open(sys.argv[1]) as f:
     patches = json.load(f)
@@ -41,7 +41,7 @@ PYEOF
         [ -z "$KEY" ] && { echo "❌ 用法: escape-patch-apply.sh apply <key>"; exit 1; }
         [ ! -f "$PATCH_FILE" ] && { echo "❌ 无补丁文件"; exit 1; }
         
-        PATCH_DETAIL=$(python3 - "$PATCH_FILE" "$KEY" <<'PYEOF'
+        PATCH_DETAIL=$(${PYTHON_BIN:-python3} - "$PATCH_FILE" "$KEY" <<'PYEOF'
 import json, sys
 with open(sys.argv[1]) as f:
     patches = json.load(f)
@@ -68,7 +68,7 @@ PYEOF
         fi
         [ "$CONFIRM" != "yes" ] && { echo "❌ 已取消"; exit 0; }
 
-        python3 - "$PATCH_FILE" "$KEY" "$HISTORY_FILE" <<'PYEOF'
+        ${PYTHON_BIN:-python3} - "$PATCH_FILE" "$KEY" "$HISTORY_FILE" <<'PYEOF'
 import json, sys, time
 patch_file, key, history_file = sys.argv[1], sys.argv[2], sys.argv[3]
 with open(patch_file) as f:
@@ -94,7 +94,7 @@ PYEOF
         else
             REASON="非交互式环境，无手动原因"
         fi
-        python3 - "$PATCH_FILE" "$KEY" "$HISTORY_FILE" "${REASON:-无}" <<'PYEOF'
+        ${PYTHON_BIN:-python3} - "$PATCH_FILE" "$KEY" "$HISTORY_FILE" "${REASON:-无}" <<'PYEOF'
 import json, sys, time
 patch_file, key, history_file = sys.argv[1], sys.argv[2], sys.argv[3]
 reason = sys.argv[4] if len(sys.argv) > 4 else ''
@@ -115,7 +115,7 @@ PYEOF
     history)
         [ ! -f "$HISTORY_FILE" ] && { echo "📋 补丁历史: 空"; exit 0; }
         echo "📋 Error-DNA 补丁历史:"
-        python3 - "$HISTORY_FILE" <<'PYEOF'
+        ${PYTHON_BIN:-python3} - "$HISTORY_FILE" <<'PYEOF'
 import json, sys
 with open(sys.argv[1]) as f:
     entries = [json.loads(l) for l in f if l.strip()]

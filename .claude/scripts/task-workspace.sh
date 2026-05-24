@@ -29,7 +29,7 @@ mkdir -p "$TASKS_DIR"
 slugify() {
     local raw="$1"
     local slug
-    slug=$(python3 -c "
+    slug=$(${PYTHON_BIN:-python3} -c "
 import re, sys
 s = sys.argv[1].lower()
 s = re.sub(r'[^a-z0-9\u4e00-\u9fff]+', '-', s)

@@ -61,7 +61,7 @@ run_check "source-mirror-consistent" "bash $PROJECT_ROOT/.claude/scripts/audit-h
 if [ "$MODE" = "--quick" ]; then
     echo ""
     echo "=== Quick Check Complete ==="
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, time
 result = {'terminal': 'B', 'mode': 'quick', 'passed': $PASSED, 'failed': $FAILED,
           'total': $((PASSED+FAILED)), 'duration_sec': $(($(date +%s) - START_TS)),
@@ -89,7 +89,7 @@ echo "=== B-Terminal Result ==="
 echo "Passed: $PASSED | Failed: $FAILED | Total: $((PASSED+FAILED))"
 echo "Duration: $(($(date +%s) - START_TS))s"
 
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json, time
 result = {'terminal': 'B', 'mode': '$MODE', 'passed': $PASSED, 'failed': $FAILED,
           'total': $((PASSED+FAILED)), 'duration_sec': $(($(date +%s) - START_TS)),

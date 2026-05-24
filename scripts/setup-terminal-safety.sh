@@ -2,8 +2,11 @@
 # one-shot: register terminal-safety hook
 set -e
 
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # harness.yaml
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 l=open('.claude/harness.yaml').readlines()
 for i,x in enumerate(l):
     if 'pretool_sensitive_edit: true' in x:
@@ -12,7 +15,7 @@ open('.claude/harness.yaml','w').writelines(l)
 "
 
 # settings.json
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json,os
 R=os.getcwd()
 s=json.load(open('.claude/settings.json'))

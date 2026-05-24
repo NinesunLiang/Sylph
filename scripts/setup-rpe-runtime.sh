@@ -12,7 +12,7 @@ GHOST_SH="$PROJECT/.claude/skills/lx-ghost/scripts/lx-ghost.sh"
 # ============================================================
 if [ -f "$GOAL_SH" ]; then
     cp "$GOAL_SH" "$GOAL_SH.bak"
-    python3 <<'PYEOF'
+    ${PYTHON_BIN:-python3} <<'PYEOF'
 import re
 
 path = '/Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/skills/lx-goal/scripts/lx-goal.sh'
@@ -239,7 +239,7 @@ fi
 # ============================================================
 if [ -f "$GHOST_SH" ]; then
     cp "$GHOST_SH" "$GHOST_SH.bak"
-    python3 <<'PYEOF'
+    ${PYTHON_BIN:-python3} <<'PYEOF'
 import re
 
 path = '/Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/skills/lx-ghost/scripts/lx-ghost.sh'

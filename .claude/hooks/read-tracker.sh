@@ -31,10 +31,7 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 # 规范化路径（realpath 解析符号链接和相对路径）
-REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null)
-if [ -z "$REAL_PATH" ]; then
-    REAL_PATH="$FILE_PATH"
-fi
+REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
 
 # 确保状态目录存在
 mkdir -p "$STATE_DIR" 2>/dev/null || { echo '{"continue": true}'; exit 0; }

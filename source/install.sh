@@ -52,6 +52,7 @@ fi
 # Agentic UI: CLI flags 驱动，零交互提示
 UPGRADE_MODE="auto"  # auto | skip | force
 LANG_SPEC=""
+LSP_MODE="install"  # install(默认自动安装) | skip(跳过) | "" (仅检测建议)
 POSITIONAL=()
 
 for arg in "$@"; do
@@ -60,6 +61,8 @@ for arg in "$@"; do
         --no-upgrade) UPGRADE_MODE="skip" ;;
         --lang=*) LANG_SPEC="${arg#*=}" ;;
         --lang) SKIP_NEXT=1 ;;
+        --lsp) LSP_MODE="install" ;;
+        --no-lsp) LSP_MODE="skip" ;;
         go|node|python|rust|generic)
             [ "${SKIP_NEXT:-0}" -eq 1 ] && { LANG_SPEC="$arg"; SKIP_NEXT=0; continue; }
             POSITIONAL+=("$arg") ;;
@@ -68,9 +71,41 @@ for arg in "$@"; do
 done
 INSTALL_MODE="${POSITIONAL[0]:-base}"
 
+# ─── 平台检测 + Windows 引导 ─────────────────────────────────
+PLATFORM_OS="unknown"
+case "$(uname -s 2>/dev/null)" in
+    Darwin)  PLATFORM_OS="macOS" ;;
+    Linux)   PLATFORM_OS="Linux" ;;
+    MINGW*|MSYS*|CYGWIN*) PLATFORM_OS="Windows-GitBash" ;;
+esac
+
+# Windows CMD/PowerShell 检测: 没有 uname = 原生 Windows
+if [ "$PLATFORM_OS" = "unknown" ]; then
+    echo "============================================"
+    echo " Carror OS 安装向导"
+    echo "============================================"
+    echo ""
+    echo -e "${RED}⚠️  检测到原生 Windows 终端 (CMD/PowerShell)${NC}"
+    echo ""
+    echo "   Carror OS 需要 Bash 环境。请选择以下方式之一:"
+    echo ""
+    echo "   推荐: 安装 Git for Windows (自带 Git Bash)"
+    echo "     https://git-scm.com/download/win"
+    echo "     安装后右键项目目录 → 'Git Bash Here'"
+    echo "     然后在 Git Bash 中运行: bash install.sh"
+    echo ""
+    echo "   最佳: 安装 WSL2 + Ubuntu"
+    echo "     wsl --install -d Ubuntu"
+    echo "     然后在 WSL 中运行: bash install.sh"
+    echo ""
+    echo "   💡 Git Bash 零配置，WSL2 兼容性最佳"
+    exit 1
+fi
+
 echo "============================================"
 echo " Carror OS 安装向导"
 echo " 版本：$VERSION 模式：$INSTALL_MODE"
+echo " 平台：$PLATFORM_OS"
 echo " Carror OS — AI Native Developer Operating System"
 echo "============================================"
 echo ""
@@ -126,11 +161,15 @@ if [ -n "$PYTHON_BIN" ]; then
         log_warn "  permission-gate 随机验证码将使用降级方案 (od urandom / openssl / shell fallback)"
         MISSING_DEPS=$((MISSING_DEPS + 1))
     fi
-    # 如果只有 python 没有 python3，创建别名
+    # DEPRECATED (2026-05-24): export -f does NOT survive process boundaries.
+    # Hooks are invoked as independent bash processes by the CLI harness — the
+    # alias created here has zero effect at runtime. The real fix is in
+    # harness_config.sh: _resolve_python() + $PYTHON_BIN export at source time.
+    # See: client_fellback/feedback.md S8 (Windows验收), DG-46 (手动touch教训)
     if [ "$PYTHON_BIN" != "python3" ] && ! command -v python3 &>/dev/null; then
         eval "python3() { $PYTHON_BIN \"\$@\"; }" 2>/dev/null || true
-        export -f python3 2>/dev/null || true
-        log_info "已设置 python3 别名 → $PYTHON_BIN"
+        export -f python3 2>/dev/null || true  # known ineffective, kept for install.sh internal use
+        log_warn "已设置 python3 别名 → $PYTHON_BIN (仅本shell有效，hooks独立进程需靠 harness_config.sh)"
     fi
 else
     echo -e "${RED}[DEPS]${NC} python3 未安装 — 正在自动安装..."
@@ -174,11 +213,11 @@ else
     fi
     if [ -n "$PYTHON_BIN" ]; then
         log_info "python3 安装完成: $("$PYTHON_BIN" --version 2>&1)"
-        # Windows: 确保 python3 别名可用
+        # DEPRECATED: see note above (harness_config.sh is the real fix)
         if [ "$PYTHON_BIN" != "python3" ] && ! command -v python3 &>/dev/null; then
             eval "python3() { $PYTHON_BIN \"\$@\"; }" 2>/dev/null || true
             export -f python3 2>/dev/null || true
-            log_info "已设置 python3 别名 → $PYTHON_BIN"
+            log_info "已设置 python3 别名 → $PYTHON_BIN (仅本shell有效)"
         fi
     else
         log_warn "python3 自动安装未生效，请手动安装后重试: https://python.org/downloads/"
@@ -188,12 +227,71 @@ fi
 
 
 
-# jq 检测（可选加速器）
-if command -v jq &>/dev/null; then
-    log_info "jq 已安装 (JSON 解析加速)"
-else
-    log_info "jq 未安装 (将使用 python3 回退解析 JSON，功能不受影响)"
-fi
+# ─── jq 自动安装（JSON 解析器，28 hooks 依赖） ───
+# 反馈来源: client_fellback/feedback.md S8 — Windows 上 jq 缺失导致 28/45 hooks JSON 解析失败
+# privacy-gate 在 jq 缺失时无法 extract CMD → token 检测旁路（安全风险）
+install_jq() {
+    if command -v jq &>/dev/null; then
+        log_info "jq 已安装 ($(jq --version 2>&1))"
+        return 0
+    fi
+    log_info "jq 未安装 — 正在自动安装..."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        command -v brew &>/dev/null && brew install jq 2>&1 | tail -2 && return 0
+    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin"* ]]; then
+        # MSYS2: pacman first (already in PATH when running from Git Bash)
+        command -v pacman &>/dev/null && pacman -S --noconfirm jq 2>&1 | tail -2 && return 0
+        command -v winget &>/dev/null && winget install -e --id jqlang.jq --silent 2>&1 | tail -2 && return 0
+        command -v choco &>/dev/null && choco install jq -y 2>&1 | tail -3 && return 0
+        # Windows 包管理器都失败 → 直接下载 jq 官方二进制 (jqlang/jq)
+        log_info "包管理器安装失败，尝试直接下载 jq Windows 二进制..."
+        local JQ_URL="https://github.com/jqlang/jq/releases/latest/download/jq-windows-amd64.exe"
+        local JQ_DEST="${HOME}/bin"
+        mkdir -p "$JQ_DEST" 2>/dev/null
+        local JQ_OK=false
+        if command -v curl &>/dev/null; then
+            curl -sSL --connect-timeout 10 --max-time 60 -o "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
+                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
+        elif command -v wget &>/dev/null; then
+            wget -q --timeout=10 -O "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
+                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
+        fi
+        if [ "$JQ_OK" = true ]; then
+            # SHA256 校验（可选 — 校验文件不存在时跳过）
+            local JQ_SHA_URL="${JQ_URL}.sha256"
+            if command -v curl &>/dev/null; then
+                curl -sSL --connect-timeout 5 --max-time 15 -o "$JQ_DEST/jq.exe.sha256" "$JQ_SHA_URL" 2>/dev/null && \
+                    echo "$(cat "$JQ_DEST/jq.exe.sha256" 2>/dev/null)  $JQ_DEST/jq.exe" | sha256sum -c --status 2>/dev/null && \
+                    log_info "jq SHA256 校验通过" || \
+                    log_warn "jq SHA256 校验跳过（校验文件不可用或 sha256sum 未安装）"
+                rm -f "$JQ_DEST/jq.exe.sha256" 2>/dev/null
+            fi
+            export PATH="$JQ_DEST:$PATH"
+            # 持久化 PATH 到所有常见 shell 配置文件
+            for rc in ~/.bashrc ~/.zshrc ~/.profile; do
+                if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$rc" 2>/dev/null; then
+                    echo 'export PATH="$HOME/bin:$PATH"' >> "$rc"
+                fi
+            done
+            log_info "已将 ~/bin 加入永久 PATH"
+            log_info "jq 已下载并安装到 $JQ_DEST/jq.exe ($(jq --version 2>&1))" && return 0
+        fi
+    elif command -v apt-get &>/dev/null; then
+        sudo apt-get install -y jq 2>&1 | tail -2 && return 0
+    elif command -v yum &>/dev/null; then
+        sudo yum install -y jq 2>&1 | tail -2 && return 0
+    elif command -v dnf &>/dev/null; then
+        sudo dnf install -y jq 2>&1 | tail -2 && return 0
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm jq 2>&1 | tail -2 && return 0
+    elif command -v apk &>/dev/null; then
+        apk add jq 2>&1 | tail -2 && return 0
+    fi
+    log_warn "jq 自动安装失败，28 hooks 将使用 python3 回退（功能降级）"
+    MISSING_DEPS=$((MISSING_DEPS + 1))
+    return 1
+}
+install_jq || log_warn "jq 安装失败 — 非致命，28 hooks 有 python3 回退，继续安装"
 
 # 汇总
 if [ "$MISSING_DEPS" -gt 0 ]; then
@@ -243,9 +341,14 @@ if [ -d ".claude" ]; then
         done
 
         # ── hooks sha256 快照（后续对比用户是否修改过官方 hook） ──
-        for f in .claude/hooks/*.sh; do
-            [ -f "$f" ] && $SHA256_CMD "$f" >> "$BACKUP_DIR/hooks-sha256.txt" 2>/dev/null
-        done
+        if [ -n "$SHA256_CMD" ]; then
+            for f in .claude/hooks/*.sh; do
+                [ -f "$f" ] && $SHA256_CMD "$f" >> "$BACKUP_DIR/hooks-sha256.txt" 2>/dev/null
+            done
+        else
+            touch "$BACKUP_DIR/hooks-sha256.txt"  # 空文件，跳过 sha256 对比
+            log_warn "sha256sum/shasum 不可用，跳过 hooks sha256 快照"
+        fi
 
         # ── 用户 settings.json 副本（用于 3-way merge） ──
         [ -f ".claude/settings.json" ] && cp ".claude/settings.json" "$BACKUP_DIR/settings-user.json"
@@ -452,7 +555,7 @@ if [ "$HAS_BACKUP" = true ]; then
             hook_name=$(basename "$hook_file")
             old_hook="$BACKUP_DIR/.claude/hooks/$hook_name"
             new_hook=".claude/hooks/$hook_name"
-            if [ -f "$old_hook" ] && [ -f "$new_hook" ]; then
+            if [ -f "$old_hook" ] && [ -f "$new_hook" ] && [ -n "$SHA256_CMD" ]; then
                 new_sha=$($SHA256_CMD "$new_hook" 2>/dev/null | awk '{print $1}')
                 if [ "$old_sha" != "$new_sha" ]; then
                     # sha256 不同 → 用户修改过 → 恢复用户版
@@ -535,33 +638,71 @@ if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     log_info "OpenCode plugins 已安装（.opencode/plugins/）"
 fi
 
-# ─── OpenCode + OMO 依赖检测（独立于插件目录是否存在）─────────
+# ─── 文档安装 ─────────────────────────────────────────────────
+if [ -d "$SCRIPT_DIR/.claude/docs" ]; then
+    mkdir -p .claude/docs
+    cp -r "$SCRIPT_DIR/.claude/docs/"* .claude/docs/
+    log_info "故事系列 + 教程系列已安装（.claude/docs/）"
+fi
+
+# ─── OpenCode + OMO 依赖检测 ──────────────────────────────────
+# OMO (oh-my-opencode) = OpenCode 的 hook 桥接层，是 Carror OS 安全网的硬依赖
 if $HAS_OPCODE && ! $HAS_OMO; then
-    log_warn "检测到 OpenCode 但未安装 oh-my-opencode (OMO)"
     echo ""
-    echo "   💡 推荐安装 OMO 以获得完整 hooks 能力:"
-    echo "      npm install -g oh-my-opencode"
-    echo ""
-    echo "   📊 能力差异 (OpenCode):"
-    echo "      无 OMO:    SessionStart + PostToolUseFailure =  2/7 事件 (29%)"
-    echo "      有 OMO:    PreToolUse/PostToolUse/UserPromptSubmit"
-    echo "                + Stop/PreCompact + SessionStart"
-    echo "                + PostToolUseFailure                =  7/7 事件 (100%)"
-    echo ""
-    echo "   ℹ️  Claude Code 用户无需额外安装: 原生支持全部 7 事件"
+    echo "╔══════════════════════════════════════════════════════════╗"
+    echo "║  ⚠️  OpenCode 检测到，但 OMO 未安装 — 安全网不全!        ║"
+    echo "╠══════════════════════════════════════════════════════════╣"
+    echo "║                                                        ║"
+    echo "║  无 OMO → 仅 2 事件 (29%)，以下能力静默失效:             ║"
+    echo "║    ❌ PreToolUse  — 所有门禁     (权限/隐私/Plan/终端)    ║"
+    echo "║    ❌ PostToolUse — 所有审计     (编辑质量/格式/引用)     ║"
+    echo "║    ❌ UserPromptSubmit — 规则注入 (铁律/哲学/反欺骗)      ║"
+    echo "║    ❌ Stop       — 完成门禁     (证据检查/会话快照)       ║"
+    echo "║    ✅ SessionStart           — 知识注入/跨会话恢复       ║"
+    echo "║    ✅ PostToolUseFailure     — 错误诊断                  ║"
+    echo "║                                                        ║"
+    echo "║  安装 OMO 解锁完整 7/7 事件:                             ║"
+    echo "║    npm install -g oh-my-opencode                       ║"
+    echo "║                                                        ║"
+    echo "║  ℹ️  Claude Code 原生支持全部 7 事件，无需额外安装       ║"
+    echo "╚══════════════════════════════════════════════════════════╝"
     echo ""
 elif $HAS_OPCODE && $HAS_OMO; then
     log_info "OpenCode + oh-my-opencode 已就绪，hooks 全能力可用 (7/7)"
+elif ! $HAS_OPCODE && ! $HAS_OMO; then
+    # 没有 OpenCode — 检查是否连 npm 都没有 (新手可能没装)
+    if ! command -v npm &>/dev/null && ! command -v node &>/dev/null; then
+        echo ""
+        echo "   💡 未检测到 Node.js/npm — OMO 需要通过 npm 安装"
+        echo "      安装 Node.js: https://nodejs.org (LTS 版本)"
+        echo "      然后: npm install -g oh-my-opencode"
+    fi
 fi
 
-# ─── Codex hooks=true 提醒 ─────────────────────────────────────
+# ─── Codex hooks 兼容性提醒 ────────────────────────────────────
+# Codex 原生: SessionStart/UserPromptSubmit/Stop/PreCompact (PreToolUse/PostToolUse 未合并)
+# OMX (oh-my-codex) 补充 PreToolUse/PostToolUse 支持
 if $HAS_CODEX; then
-    echo ""
-    echo "   ⚠️  Codex CLI 需要手动开启 hooks:"
-    echo "      在 ~/.codex/config.toml 中添加:"
-    echo "        hooks = true"
-    echo "      Codex 支持 7/9 事件 (SessionStart/Stop 降级)"
-    echo ""
+    HAS_OMX=false
+    npm list -g oh-my-codex &>/dev/null 2>&1 && HAS_OMX=true
+
+    if $HAS_OMX; then
+        log_info "Codex + oh-my-codex (OMX) 已就绪 — 门禁可用"
+    else
+        echo ""
+        echo "   ⚠️  Codex CLI 原生缺少 PreToolUse/PostToolUse (2026年3月仍未合并)"
+        echo "      无 PreToolUse → 权限门禁/隐私门禁/Plan Gate/终端安全 全部静默失效"
+        echo "      安装 OMX 解锁完整门禁: npm install -g oh-my-codex"
+        echo ""
+        echo "   当前可用事件 (无 OMX):"
+        echo "     ✅ SessionStart      — 知识注入/跨会话恢复"
+        echo "     ✅ UserPromptSubmit  — 规则注入"
+        echo "     ❌ PreToolUse        — 所有门禁 (权限/隐私/Plan/终端)"
+        echo "     ❌ PostToolUse       — 所有审计"
+        echo "     ✅ Stop              — 完成门禁"
+        echo "     ✅ PreCompact        — 上下文压缩"
+        echo ""
+    fi
 fi
 
 # ─── Cursor 能力降级警告 ───────────────────────────────────────
@@ -699,6 +840,179 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
     fi
 fi
 
+# ─── LSP/AST 语言服务器检测与安装建议 ─────────────────────────
+# #40: install.sh 安装时检测项目语言并提示安装对应 LSP
+# 支持: pyright(python) / gopls(go) / tsserver(ts/js) / rust-analyzer(rust)
+if [ "$LSP_MODE" != "skip" ]; then
+	log_step "LSP 语言服务器检测..."
+	LSP_STATUS=""
+	LSP_INSTALL_CMD=""
+	LSP_NAME=""
+
+	_detect_pyright() {
+		if command -v pyright &>/dev/null; then
+			LSP_STATUS="ok"; LSP_NAME="pyright"
+			log_info "pyright (Python) 已安装: $(pyright --version 2>&1 | head -1)"
+		elif "$PYTHON_BIN" -c "import pyright" 2>/dev/null; then
+			LSP_STATUS="ok"; LSP_NAME="pyright (pip)"
+			log_info "pyright (Python) 已安装 (pip)"
+		elif command -v npx &>/dev/null && npx -y pyright --version &>/dev/null 2>&1; then
+			LSP_STATUS="ok"; LSP_NAME="pyright (npx)"
+			log_info "pyright (Python) 可用 (npx)"
+		else
+			LSP_STATUS="missing"
+			LSP_NAME="pyright"
+			if [ -n "$PYTHON_BIN" ]; then
+				LSP_INSTALL_CMD="pip install pyright"
+			elif command -v npm &>/dev/null; then
+				LSP_INSTALL_CMD="npm install -g pyright"
+			else
+				LSP_INSTALL_CMD="npm install -g pyright   # 需先安装 Node.js"
+			fi
+		fi
+	}
+
+	_detect_gopls() {
+		if command -v gopls &>/dev/null; then
+			LSP_STATUS="ok"; LSP_NAME="gopls"
+			log_info "gopls (Go) 已安装: $(gopls version 2>&1 | head -1)"
+		else
+			LSP_STATUS="missing"
+			LSP_NAME="gopls"
+			LSP_INSTALL_CMD="go install golang.org/x/tools/gopls@latest"
+		fi
+	}
+
+	_detect_tsserver() {
+		if command -v typescript-language-server &>/dev/null; then
+			LSP_STATUS="ok"; LSP_NAME="typescript-language-server"
+			log_info "tsserver (TypeScript/JavaScript) 已安装"
+		elif command -v tsc &>/dev/null; then
+			LSP_STATUS="partial"
+			LSP_NAME="tsserver"
+			log_info "TypeScript 编译器已安装，建议安装 language server 获得完整诊断"
+			LSP_INSTALL_CMD="npm install -g typescript-language-server typescript"
+		elif command -v npm &>/dev/null && npm list -g typescript &>/dev/null 2>&1; then
+			LSP_STATUS="partial"; LSP_NAME="tsserver (npm global)"
+			log_info "TypeScript 全局已安装，建议追加 language server"
+			LSP_INSTALL_CMD="npm install -g typescript-language-server"
+		else
+			LSP_STATUS="missing"
+			LSP_NAME="tsserver"
+			if command -v npm &>/dev/null; then
+				LSP_INSTALL_CMD="npm install -g typescript-language-server typescript"
+			else
+				LSP_INSTALL_CMD="npm install -g typescript-language-server typescript   # 需先安装 Node.js"
+			fi
+		fi
+	}
+
+	_detect_rust_analyzer() {
+		if command -v rust-analyzer &>/dev/null; then
+			LSP_STATUS="ok"; LSP_NAME="rust-analyzer"
+			log_info "rust-analyzer (Rust) 已安装: $(rust-analyzer --version 2>&1 | head -1)"
+		elif rustup component list 2>/dev/null | grep -q 'rust-analyzer.*installed'; then
+			LSP_STATUS="ok"; LSP_NAME="rust-analyzer (rustup)"
+			log_info "rust-analyzer (Rust) 已安装 (rustup component)"
+		else
+			LSP_STATUS="missing"
+			LSP_NAME="rust-analyzer"
+			if command -v rustup &>/dev/null; then
+				LSP_INSTALL_CMD="rustup component add rust-analyzer"
+			else
+				LSP_INSTALL_CMD="rustup component add rust-analyzer   # 需先安装 rustup: https://rustup.rs"
+			fi
+		fi
+	}
+
+	# 根据检测到的语言运行对应的 LSP 检测
+	DETECTED_LANG="$LANG_SPEC"
+	if [ -z "$DETECTED_LANG" ]; then
+		if [ -f "go.mod" ]; then DETECTED_LANG="go"
+		elif [ -f "package.json" ]; then DETECTED_LANG="node"
+		elif ls *.py &>/dev/null 2>/dev/null || [ -f "requirements.txt" ] || [ -f "pyproject.toml" ]; then DETECTED_LANG="python"
+		elif [ -f "Cargo.toml" ]; then DETECTED_LANG="rust"
+		fi
+	fi
+
+	case "$DETECTED_LANG" in
+		python) _detect_pyright ;;
+		go) _detect_gopls ;;
+		node) _detect_tsserver ;;
+		rust) _detect_rust_analyzer ;;
+	esac
+
+	# LSP 默认自动安装（失败不阻断安装流程 — LSP 是非必要增强资源）
+	if [ "$LSP_MODE" = "install" ] && [ "$LSP_STATUS" = "missing" ] && [ -n "$LSP_INSTALL_CMD" ]; then
+		log_step "LSP: 自动安装 $LSP_NAME..."
+		set +e  # LSP 安装失败不阻断（保留 pipefail 以正确捕获 eval 退出码）
+		if eval "$LSP_INSTALL_CMD" 2>&1 | tail -3; then
+			LSP_STATUS="ok"
+			log_info "$LSP_NAME 自动安装成功"
+		else
+			log_warn "$LSP_NAME 自动安装失败（非必要，Carror OS 核心功能不受影响）"
+			log_warn "  手动安装: $LSP_INSTALL_CMD"
+		fi
+		set -eo pipefail
+	fi
+
+	# 存储 LSP 建议供后续 "下一步" 展示
+	LSP_SUGGEST=""
+	if [ "$LSP_STATUS" = "missing" ] && [ -n "$LSP_INSTALL_CMD" ]; then
+		LSP_SUGGEST="  🔧 LSP ($LSP_NAME) 未安装，手动执行获得实时诊断:
+      $LSP_INSTALL_CMD"
+	elif [ "$LSP_STATUS" = "partial" ] && [ -n "$LSP_INSTALL_CMD" ]; then
+		LSP_SUGGEST="  💡 LSP 增强 ($LSP_NAME):
+      $LSP_INSTALL_CMD"
+	fi
+
+	# ─── AST 工具检测与安装 (ast-grep: 多语言通用 AST 解析) ───
+	AST_STATUS=""
+	AST_INSTALL_CMD=""
+	AST_NAME="ast-grep"
+
+	if command -v sg &>/dev/null; then
+		AST_STATUS="ok"
+		log_info "ast-grep (AST) 已安装: $(sg --version 2>&1 | head -1)"
+	elif command -v ast-grep &>/dev/null; then
+		AST_STATUS="ok"; AST_NAME="ast-grep"
+		log_info "ast-grep (AST) 已安装"
+	else
+		AST_STATUS="missing"
+		# 安装优先级: npm > cargo > brew > pip
+		if command -v npm &>/dev/null; then
+			AST_INSTALL_CMD="npm install -g @ast-grep/cli"
+		elif command -v cargo &>/dev/null; then
+			AST_INSTALL_CMD="cargo install ast-grep"
+		elif command -v brew &>/dev/null; then
+			AST_INSTALL_CMD="brew install ast-grep"
+		elif [ -n "$PYTHON_BIN" ]; then
+			AST_INSTALL_CMD="pip install ast-grep"
+		else
+			AST_INSTALL_CMD="npm install -g @ast-grep/cli   # 需先安装 Node.js"
+		fi
+	fi
+
+	if [ "$AST_STATUS" = "missing" ] && [ -n "$AST_INSTALL_CMD" ]; then
+		log_step "AST: 自动安装 $AST_NAME..."
+		set +eo pipefail
+		if eval "$AST_INSTALL_CMD" 2>&1 | tail -3; then
+			AST_STATUS="ok"
+			log_info "$AST_NAME 自动安装成功"
+		else
+			log_warn "$AST_NAME 自动安装失败（非必要，Carror OS 核心功能不受影响）"
+			log_warn "  手动安装: $AST_INSTALL_CMD"
+		fi
+		set -eo pipefail
+	fi
+
+	AST_SUGGEST=""
+	if [ "$AST_STATUS" = "missing" ] && [ -n "$AST_INSTALL_CMD" ]; then
+		AST_SUGGEST="  🔧 AST ($AST_NAME) 未安装，手动执行获得结构化代码分析:
+      $AST_INSTALL_CMD"
+	fi
+fi
+
 # 跨平台 CLI 配置自动生成（Qwen Code / Codex / Gemini / Cursor / OpenCode）
 if [ -n "${PYTHON_BIN:-}" ] && command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f ".hooks/generate.py" ]; then
     log_step "生成跨平台 CLI hooks 配置..."
@@ -729,8 +1043,58 @@ else
     echo " - 参阅 .claude/index.md 获取完整武器库导航。"
 fi
 echo " 🔀 切换项目语言规范：bash .claude/profiles/merge-profile.sh <go|node|python|rust>"
+
+# 平台特定指引
+case "$PLATFORM_OS" in
+    Windows-GitBash)
+        echo ""
+        echo " 🪟 Windows + Git Bash 用户:"
+        echo "   - Claude Code: 推荐安装 WSL2 后在 WSL 内使用"
+        echo "   - OpenCode: 原生 Windows 支持，直接安装 .exe 即可"
+        echo "   - Codex CLI: npm install -g @openai/codex (需 Node.js 22+)"
+        echo "   - 路径使用正斜杠 / 而非反斜杠 \\ (Git Bash 自动转换)"
+        ;;
+    macOS)
+        echo ""
+        echo " 🍎 macOS 用户:"
+        echo "   - Claude Code: brew install claude-code 或 npm 安装"
+        echo "   - OpenCode: 下载 .dmg 安装包"
+        echo "   - Codex CLI: brew install --cask codex 或 npm 安装"
+        echo "   - 所有 CLI 工具原生支持，体验最佳"
+        ;;
+    Linux)
+        echo ""
+        echo " 🐧 Linux 用户:"
+        echo "   - Claude Code: curl 安装脚本一键安装"
+        echo "   - OpenCode: .deb/.rpm 安装包"
+        echo "   - Codex CLI: npm install -g @openai/codex"
+        ;;
+esac
+
+# OMO/OMC 能力层状态
+if $HAS_OPCODE; then
+    if $HAS_OMO; then
+        echo ""
+        echo " ✅ OMO (oh-my-opencode) 已安装 — 安全门禁全开 (7/7)"
+    else
+        echo ""
+        echo " ⚠️  OMO 未安装 — 安全门禁严重降级 (2/7)"
+        echo "    npm install -g oh-my-opencode"
+    fi
+elif $HAS_CODEX; then
+    echo ""
+    echo " ⚠️  Codex CLI 需手动开启 hooks (config.toml: hooks=true)"
+fi
 if $HAS_OPCODE && ! $HAS_OMO; then
     echo " ⚡ OpenCode 用户：运行 npm install -g oh-my-opencode 解锁完整 7/7 hooks"
+fi
+if [ -n "$LSP_SUGGEST" ]; then
+    echo ""
+    echo "$LSP_SUGGEST"
+fi
+if [ -n "$AST_SUGGEST" ]; then
+    echo ""
+    echo "$AST_SUGGEST"
 fi
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"

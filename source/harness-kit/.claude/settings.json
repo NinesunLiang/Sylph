@@ -8,6 +8,11 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 .claude/hooks/pretool-oracle-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/pretool-oracle-gate.sh",
             "timeout": 3000
           },

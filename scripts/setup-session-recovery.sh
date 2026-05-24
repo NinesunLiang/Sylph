@@ -1,6 +1,8 @@
 #!/bin/bash
 # setup-session-recovery.sh — 跨会话恢复: SessionStart注入选择提示
 set -e
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
 
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
 INJECT_SCRIPT="$PROJECT/.claude/hooks/inject-project-knowledge.sh"
@@ -10,7 +12,7 @@ cp "$INJECT_SCRIPT" "$INJECT_SCRIPT.bak"
 
 # Add session recovery section before the exit (before line containing "exit 0" at end)
 # Insert after the TODO/待决策 section, before the final cleanup
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 path = '$INJECT_SCRIPT'
 with open(path) as f:
     content = f.read()

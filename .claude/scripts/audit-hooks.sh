@@ -39,7 +39,7 @@ for arg in "$@"; do
     esac
 done
 
-python3 - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" "$CHECK_SOURCE_MIRROR" "$CHECK_REGISTRY" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" "$CHECK_SOURCE_MIRROR" "$CHECK_REGISTRY" <<'PYEOF'
 import json, os, re, sys, glob, hashlib
 
 json_out = sys.argv[1].lower() == 'true'

@@ -55,7 +55,7 @@ if [ ! -f "$DIFF" ]; then
 fi
 
 # ── Python3 合并核心 ──────────────────────────────────────────────
-_MERGE_PY=$(mktemp /tmp/.merge_profile_py.XXXXXX) || { echo "创建临时文件失败"; exit 1; }
+_MERGE_PY=$(mktemp "${TMPDIR:-/tmp}/.merge_profile_py.XXXXXX") || { echo "创建临时文件失败"; exit 1; }
 
 cat > "$_MERGE_PY" << 'PYEOF'
 import sys
@@ -199,7 +199,7 @@ for section, v in merged.items():
 print('\n'.join(lines))
 PYEOF
 
-MERGED=$(python3 "$_MERGE_PY" "$BASE" "$DIFF" "$LANG")
+MERGED=$(${PYTHON_BIN:-python3} "$_MERGE_PY" "$BASE" "$DIFF" "$LANG")
 rm -f "$_MERGE_PY"
 
 # ── 输出 ──────────────────────────────────────────────────────────

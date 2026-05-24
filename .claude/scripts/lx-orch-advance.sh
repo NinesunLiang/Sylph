@@ -20,7 +20,7 @@ fi
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S+08:00")
 
-python3 - "$PIPELINE" "$FORCE" "$NOW" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PIPELINE" "$FORCE" "$NOW" <<'PYEOF'
 import sys, yaml, os, tempfile
 from collections import OrderedDict
 

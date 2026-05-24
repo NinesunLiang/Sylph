@@ -36,7 +36,7 @@ fi
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S+08:00")
 
-python3 - "$PIPELINE" "$GATE_ID" "$VERDICT" "$NOW" "$REASON" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PIPELINE" "$GATE_ID" "$VERDICT" "$NOW" "$REASON" <<'PYEOF'
 import sys, yaml, os, tempfile
 from collections import OrderedDict
 

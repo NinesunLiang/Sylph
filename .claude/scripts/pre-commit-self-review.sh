@@ -345,7 +345,7 @@ D_FAILURES=""
 if echo "$STAGED_FILES" | grep -q 'settings\.json' || [ -f ".claude/settings.json" ]; then
     if command -v python3 &>/dev/null; then
         # 提取所有 command 字符串并做 bash -n 语法检查
-        BAD_CMDS=$(python3 -c "
+        BAD_CMDS=$(${PYTHON_BIN:-python3} -c "
 import json, subprocess, tempfile, os
 with open('.claude/settings.json') as f:
     data = json.load(f)

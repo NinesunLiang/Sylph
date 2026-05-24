@@ -242,14 +242,14 @@ dim_header "D5-FEATURE-REGISTRY"
 
 FEAT_REG="$PROJECT_ROOT/.claude/feature-registry.yaml"
 if [ -f "$FEAT_REG" ]; then
-    REG_HOOK_COUNT=$(python3 -c "
+    REG_HOOK_COUNT=$(${PYTHON_BIN:-python3} -c "
 import yaml
 with open('$FEAT_REG') as f:
     data = yaml.safe_load(f)
 hooks = data.get('hooks', [])
 print(len(hooks))
 " 2>/dev/null || echo "?")
-    REG_SKILL_COUNT=$(python3 -c "
+    REG_SKILL_COUNT=$(${PYTHON_BIN:-python3} -c "
 import yaml
 with open('$FEAT_REG') as f:
     data = yaml.safe_load(f)

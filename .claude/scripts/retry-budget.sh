@@ -33,7 +33,7 @@ init_budget() {
 
 get_budget() {
   if [ -f "$BUDGET_FILE" ]; then
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(open('$BUDGET_FILE'))
@@ -54,7 +54,7 @@ except:
 
 check_budget() {
   if [ -f "$BUDGET_FILE" ]; then
-    EXCEEDED=$(python3 -c "
+    EXCEEDED=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(open('$BUDGET_FILE'))
@@ -85,7 +85,7 @@ record_retry() {
   local sig="$1"
   local label="${2:-unknown}"
   init_budget
-  python3 -c "
+  ${PYTHON_BIN:-python3} -c "
 import json, os, time
 bf = '$BUDGET_FILE'
 d = json.load(open(bf))
@@ -113,7 +113,7 @@ clear_retry() {
     echo "[Retry Budget] 无预算数据"
     return 0
   fi
-  python3 -c "
+  ${PYTHON_BIN:-python3} -c "
 import json
 bf = '$BUDGET_FILE'
 d = json.load(open(bf))

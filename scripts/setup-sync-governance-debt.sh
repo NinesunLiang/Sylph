@@ -2,7 +2,9 @@
 # 治理债务修复: 7个skill版本同步
 set -e
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
-VER=$(python3 -c "import json;print(json.load(open('VERSION.json'))['version'])")
+# Cross-platform Python resolution (DG-105)
+[ -f ".claude/hooks/harness_config.sh" ] && source ".claude/hooks/harness_config.sh" 2>/dev/null || true
+VER=$(${PYTHON_BIN:-python3} -c "import json;print(json.load(open('VERSION.json'))['version'])")
 echo "Target version: $VER"
 
 SKILLS="lx-dogfood lx-oma-split lx-oma-hier lx-oma-gov lx-oma-orch lx-stepwise lx-sync"

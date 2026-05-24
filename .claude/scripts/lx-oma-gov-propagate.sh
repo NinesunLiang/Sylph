@@ -65,7 +65,7 @@ if [ -z "$FEATURES" ]; then
 fi
 
 # ─── Python propagation engine ───
-python3 - "$PROJECT_ROOT" "$DRY_RUN" "$EXECUTE" "$NOW_UTC" "$NOW_DATE" "$FILTER_CHG" "$LAST_SNAPSHOT" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PROJECT_ROOT" "$DRY_RUN" "$EXECUTE" "$NOW_UTC" "$NOW_DATE" "$FILTER_CHG" "$LAST_SNAPSHOT" <<'PYEOF'
 import sys, os, json, re
 from datetime import datetime
 

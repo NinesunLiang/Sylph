@@ -88,7 +88,7 @@ case "$MODE" in
         AFTER="$STATE_DIR/snapshot-after-$TS.txt"
         [ -f "$BEFORE" ] && [ -f "$AFTER" ] || { echo "error: $BEFORE or $AFTER missing"; exit 3; }
         echo "=== snapshot diff (TS=$TS) ==="
-        python3 - "$BEFORE" "$AFTER" <<'PYEOF'
+        ${PYTHON_BIN:-python3} - "$BEFORE" "$AFTER" <<'PYEOF'
 import sys
 def load(p):
     m = {}

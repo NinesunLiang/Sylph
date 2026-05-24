@@ -256,7 +256,7 @@ triage_issue() {
     # ── 副作用: a-mode 写入 auto-optimizations.jsonl ──
     if is_autonomous_mode; then
         local opt_file="$_IT_STATE_DIR/auto-optimizations.jsonl"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 desc = os.environ.get('_IT_DESC', '')
 ctx_str = os.environ.get('_IT_CONTEXT', '{}')
@@ -307,7 +307,7 @@ PENDING_HEADER
 
 ENTRY_EOF
         export _IT_PEND_FILE="$pending_file" _IT_ENTRY_TMP="$entry_tmp"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import os, re, hashlib, time
 pf = os.environ.get('_IT_PEND_FILE', '')
 entry_path = os.environ.get('_IT_ENTRY_TMP', '')
@@ -358,7 +358,7 @@ except Exception:
     fi
 
     # ── 输出 JSON 结果（env vars 已在函数开头统一导出，防 shell 注入）──
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 result = {
     'mode': os.environ.get('_IT_MODE', ''),
@@ -389,15 +389,15 @@ triage_for_hook() {
     result=$(triage_issue "$desc" "$hook_name" "$hint" "$context" 2>/dev/null || echo '{}')
 
     local action
-    action=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('action',''))" 2>/dev/null || echo "")
+    action=$(echo "$result" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); print(d.get('action',''))" 2>/dev/null || echo "")
 
     local suggestion
-    suggestion=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('suggestion',''))" 2>/dev/null || echo "")
+    suggestion=$(echo "$result" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); print(d.get('suggestion',''))" 2>/dev/null || echo "")
 
     # 返回 additionalContext 格式，让 hook 可以通过 printf 输出
     # P0 + b-mode → 路由到 [Hook-Skill桥] 格式
     local priority
-    priority=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('priority',''))" 2>/dev/null || echo "")
+    priority=$(echo "$result" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); print(d.get('priority',''))" 2>/dev/null || echo "")
 
     if [ "$action" = "auto_fix" ] || [ "$action" = "auto_optimize" ]; then
         echo "[issue-triage] a-mode/${priority} → ${action}: ${suggestion}"

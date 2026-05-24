@@ -54,10 +54,7 @@ set +f
 [ "$_MATCH" = false ] && { echo '{"continue": true}'; exit 0; }
 
 # 规范化路径
-REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null)
-if [ -z "$REAL_PATH" ]; then
-    REAL_PATH="$FILE_PATH"
-fi
+REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
 
 # Fail-open: 状态文件不存在 → 放行（read-tracker 可能未工作）
 if [ ! -f "$READ_LOG" ]; then

@@ -243,6 +243,39 @@ install_jq() {
         command -v pacman &>/dev/null && pacman -S --noconfirm jq 2>&1 | tail -2 && return 0
         command -v winget &>/dev/null && winget install -e --id jqlang.jq --silent 2>&1 | tail -2 && return 0
         command -v choco &>/dev/null && choco install jq -y 2>&1 | tail -3 && return 0
+        # Windows 包管理器都失败 → 直接下载 jq 官方二进制 (jqlang/jq)
+        log_info "包管理器安装失败，尝试直接下载 jq Windows 二进制..."
+        local JQ_URL="https://github.com/jqlang/jq/releases/latest/download/jq-windows-amd64.exe"
+        local JQ_DEST="${HOME}/bin"
+        mkdir -p "$JQ_DEST" 2>/dev/null
+        local JQ_OK=false
+        if command -v curl &>/dev/null; then
+            curl -sSL --connect-timeout 10 --max-time 60 -o "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
+                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
+        elif command -v wget &>/dev/null; then
+            wget -q --timeout=10 -O "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
+                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
+        fi
+        if [ "$JQ_OK" = true ]; then
+            # SHA256 校验（可选 — 校验文件不存在时跳过）
+            local JQ_SHA_URL="${JQ_URL}.sha256"
+            if command -v curl &>/dev/null; then
+                curl -sSL --connect-timeout 5 --max-time 15 -o "$JQ_DEST/jq.exe.sha256" "$JQ_SHA_URL" 2>/dev/null && \
+                    echo "$(cat "$JQ_DEST/jq.exe.sha256" 2>/dev/null)  $JQ_DEST/jq.exe" | sha256sum -c --status 2>/dev/null && \
+                    log_info "jq SHA256 校验通过" || \
+                    log_warn "jq SHA256 校验跳过（校验文件不可用或 sha256sum 未安装）"
+                rm -f "$JQ_DEST/jq.exe.sha256" 2>/dev/null
+            fi
+            export PATH="$JQ_DEST:$PATH"
+            # 持久化 PATH 到所有常见 shell 配置文件
+            for rc in ~/.bashrc ~/.zshrc ~/.profile; do
+                if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$rc" 2>/dev/null; then
+                    echo 'export PATH="$HOME/bin:$PATH"' >> "$rc"
+                fi
+            done
+            log_info "已将 ~/bin 加入永久 PATH"
+            log_info "jq 已下载并安装到 $JQ_DEST/jq.exe ($(jq --version 2>&1))" && return 0
+        fi
     elif command -v apt-get &>/dev/null; then
         sudo apt-get install -y jq 2>&1 | tail -2 && return 0
     elif command -v yum &>/dev/null; then
@@ -258,7 +291,7 @@ install_jq() {
     MISSING_DEPS=$((MISSING_DEPS + 1))
     return 1
 }
-install_jq
+install_jq || log_warn "jq 安装失败 — 非致命，28 hooks 有 python3 回退，继续安装"
 
 # 汇总
 if [ "$MISSING_DEPS" -gt 0 ]; then
@@ -603,6 +636,13 @@ if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
     mkdir -p .opencode/plugins
     cp -r "$SCRIPT_DIR/opencode-plugins/"* .opencode/plugins/
     log_info "OpenCode plugins 已安装（.opencode/plugins/）"
+fi
+
+# ─── 文档安装 ─────────────────────────────────────────────────
+if [ -d "$SCRIPT_DIR/.claude/docs" ]; then
+    mkdir -p .claude/docs
+    cp -r "$SCRIPT_DIR/.claude/docs/"* .claude/docs/
+    log_info "故事系列 + 教程系列已安装（.claude/docs/）"
 fi
 
 # ─── OpenCode + OMO 依赖检测 ──────────────────────────────────

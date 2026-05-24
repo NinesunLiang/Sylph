@@ -160,14 +160,14 @@ if [ -x "$UX_SCRIPT" ]; then
   echo "--- UX 独立评分 ---"
   UX_OUTPUT=$(bash "$UX_SCRIPT" 2>/dev/null)
   # 使用 python3 解析 JSON 提取 total score/max (Oracle MAJOR 4 修复: 替代脆弱 grep)
-  UX_SCORE=$(echo "$UX_OUTPUT" | python3 -c "
+  UX_SCORE=$(echo "$UX_OUTPUT" | ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(sys.stdin)
     print(d['total']['score'])
 except: print('N/A')
 " 2>/dev/null)
-  UX_MAX=$(echo "$UX_OUTPUT" | python3 -c "
+  UX_MAX=$(echo "$UX_OUTPUT" | ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(sys.stdin)

@@ -61,7 +61,7 @@ _test "error-signals has data" "true" "$(
   [ "$(wc -l < .omc/state/error-signals.jsonl 2>/dev/null || echo 0)" -gt 0 ] && echo true
 )"
 _test "retry-budget has data" "true" "$(
-  [ -f .omc/state/retry-budget.json ] && python3 -c "
+  [ -f .omc/state/retry-budget.json ] && ${PYTHON_BIN:-python3} -c "
 import json; d=json.load(open('.omc/state/retry-budget.json'))
 print('true' if len(d.get('signatures',{})) > 0 else 'false')
 " 2>/dev/null

@@ -2,9 +2,11 @@
 # setup-client-fallback.sh — 客户反馈吸收 (双法官修订后方案)
 set -e
 PROJECT="$(cd "$(dirname "$0")/.." && pwd)"
+# Cross-platform Python resolution (DG-105)
+[ -f "$PROJECT/.claude/hooks/harness_config.sh" ] && source "$PROJECT/.claude/hooks/harness_config.sh" 2>/dev/null || true
 
 # 1. COPYFILE_DISABLE=1 源头阻断 Apple Double
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 path = '$PROJECT/scripts/package-release.sh'
 with open(path) as f: content = f.read()
 # Add COPYFILE_DISABLE before tar commands (line 219 and 231)

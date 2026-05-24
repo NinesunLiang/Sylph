@@ -13,7 +13,7 @@ if [ ! -f "$PIPELINE" ]; then
     exit 1
 fi
 
-python3 - "$PIPELINE" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PIPELINE" <<'PYEOF'
 import sys, yaml, os
 from datetime import datetime
 
