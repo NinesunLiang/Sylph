@@ -7,7 +7,7 @@ hc_enabled "posttool_handoff_writer" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
 
 # 解析 TaskUpdate 的 status 字段
-STATUS=$(echo "$INPUT" | python3 -c "
+STATUS=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -47,7 +47,7 @@ fi
 ERROR_SUMMARY=""
 DNA_FILE="$STATE_DIR/error-dna.json"
 if [ -f "$DNA_FILE" ]; then
-    ERROR_SUMMARY=$(python3 -c "
+    ERROR_SUMMARY=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     with open('$DNA_FILE') as f:
@@ -67,7 +67,7 @@ fi
 CTX_INFO=""
 INDEX_FILE="$STATE_DIR/token-tracking-index.json"
 if [ -f "$INDEX_FILE" ]; then
-    CTX_INFO=$(python3 -c "
+    CTX_INFO=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
     d = json.load(open('$INDEX_FILE'))
@@ -84,7 +84,7 @@ fi
 LESSONS=""
 CLAUDE_NEXT="$PROJECT_ROOT/.claude/claude-next.md"
 if [ -f "$CLAUDE_NEXT" ]; then
-    LESSONS=$(python3 -c "
+    LESSONS=$(${PYTHON_BIN:-python3} -c "
 import re
 with open('$CLAUDE_NEXT') as f:
     content = f.read()
@@ -100,7 +100,7 @@ fi
 CONTRADICTIONS=""
 CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
 if [ -f "$CONTRADICTION_LOG" ]; then
-    CONTRADICTIONS=$(python3 -c "
+    CONTRADICTIONS=$(${PYTHON_BIN:-python3} -c "
 import json
 with open('$CONTRADICTION_LOG') as f:
     lines = [json.loads(l) for l in f if l.strip()]

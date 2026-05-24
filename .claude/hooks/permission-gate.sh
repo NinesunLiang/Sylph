@@ -12,7 +12,7 @@ INPUT=$(cat)
 if command -v jq &>/dev/null; then
     COMMAND=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
 else
-    COMMAND=$(echo "$INPUT" | python3 -c "
+    COMMAND=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -40,7 +40,7 @@ SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|
 
 # C1: encoding bypass detection (DG-11) — 无条件硬阻断，任何模式都不允许
 if echo "$COMMAND" | grep -qE "$BYPASS_RE"; then
-    BYPASS_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
+    BYPASS_TOKEN=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
     cat >&2 <<EOF
 
 🚫 [Permission Gate] 编码绕过检测 — 强制终端执行模式
@@ -66,7 +66,7 @@ DANGER_TYPE=""
 if echo "$COMMAND" | grep -qE "$GIT_COMMIT_RE"; then
     if echo "$COMMAND" | grep -qvE 'git\s+commit\s+--dry-run|git\s+commit\s+--help'; then
         # 生成验证 token 并强制用户在终端执行
-        COMMIT_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
+        COMMIT_TOKEN=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
         cat >&2 <<EOF
 
 🔐 [Permission Gate] Git Commit — 强制终端执行模式
@@ -95,7 +95,7 @@ fi
 
 # 删除/破坏性操作检测 — token 模式: AI 永不代执行，用户必须在自己的终端手动执行
 if echo "$COMMAND" | grep -iqE "$DESTRUCTIVE_RE"; then
-    DESTROY_TOKEN=$(python3 -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
+    DESTROY_TOKEN=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
     cat >&2 <<EOF
 
 🚫 [Permission Gate] 破坏性操作 — 强制终端执行模式
@@ -128,7 +128,7 @@ fi
 # 注意：排除只读操作（ls/cat/echo 无重定向/python 读/变量赋值等）
 if echo "$COMMAND" | grep -qE "$SCOPE_WRITE_RE"; then
     # 使用 ! grep -qE（而非 grep -qvE）支持多行命令正确匹配
-    if ! echo "$COMMAND" | grep -qE '^\s*ls\b|^\s*cat\b|echo\s+"[^">]*"$|echo\s+'\''[^'\'']*'\''$|echo\s+['\''"][^'\''"]+['\''"]\s*>>|python3\s+-c\s|^\s*source\b|^\s*\.\s|grep\b|wc\b|head\b|tail\b|^f=|^d=|^fn=|^a='; then
+    if ! echo "$COMMAND" | grep -qE '^\s*ls\b|^\s*cat\b|echo\s+"[^">]*"$|echo\s+'\''[^'\'']*'\''$|echo\s+['\''"][^'\''"]+['\''"]\s*>>|${PYTHON_BIN:-python3}\s+-c\s|^\s*source\b|^\s*\.\s|grep\b|wc\b|head\b|tail\b|^f=|^d=|^fn=|^a='; then
         IS_DANGEROUS=true
         DANGER_TYPE="scope gate bypass"
     fi
@@ -154,7 +154,7 @@ check_cache() {
     if [ ! -f "$CACHE_FILE" ]; then
         return 1
     fi
-    python3 - "$cmd_sig" "$CACHE_FILE" <<'CACHEPY' >/dev/null
+    ${PYTHON_BIN:-python3} - "$cmd_sig" "$CACHE_FILE" <<'CACHEPY' >/dev/null
 import json, time, sys
 try:
     sig = sys.argv[1]
@@ -171,8 +171,8 @@ CACHEPY
 write_cache() {
     local cmd_sig="$1"
     local ts
-    ts=$(python3 -c "import time; print(int(time.time()))" 2>/dev/null)
-    python3 - "$cmd_sig" "$CACHE_FILE" "$ts" "$DANGER_TYPE" <<'CACHEPY'
+    ts=$(${PYTHON_BIN:-python3} -c "import time; print(int(time.time()))" 2>/dev/null)
+    ${PYTHON_BIN:-python3} - "$cmd_sig" "$CACHE_FILE" "$ts" "$DANGER_TYPE" <<'CACHEPY'
 import json, os, sys
 sig = sys.argv[1]
 cache_file = sys.argv[2]
@@ -202,9 +202,9 @@ if [ "$MODE" != "normal" ]; then
         echo '```'
     } >> "$SKIPPED_FILE"
     # 同步写入模式 JSON 的 skipped_risks（修复 P0-3: JSON 字段死代码）
-    _TS=$(python3 -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
-    _ESCAPED_CMD=$(python3 -c "import json,sys; print(json.dumps(sys.argv[1]))" "$COMMAND" 2>/dev/null || echo "\"\"")
-    _RISK_JSON=$(python3 -c "import json; print(json.dumps({'type':'$DANGER_TYPE','command':${_ESCAPED_CMD},'timestamp':'$_TS'}))" 2>/dev/null)
+    _TS=$(${PYTHON_BIN:-python3} -c "from datetime import datetime; print(datetime.now().isoformat())" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S)
+    _ESCAPED_CMD=$(${PYTHON_BIN:-python3} -c "import json,sys; print(json.dumps(sys.argv[1]))" "$COMMAND" 2>/dev/null || echo "\"\"")
+    _RISK_JSON=$(${PYTHON_BIN:-python3} -c "import json; print(json.dumps({'type':'$DANGER_TYPE','command':${_ESCAPED_CMD},'timestamp':'$_TS'}))" 2>/dev/null)
     if [ -n "$_RISK_JSON" ]; then
         _mode_append_to_list "$STATE_DIR" "$MODE" "skipped_risks" "$_RISK_JSON"
     fi
@@ -236,7 +236,7 @@ if [ -f "$PERMISSION_REQUIRED" ]; then
         # 检查标记文件新鲜度（5分钟内有效）
         if [ "$ACTUAL_CODE" = "$EXPECTED_CODE" ]; then
             if command -v python3 &>/dev/null; then
-                FRESH=$(python3 -c "import os, time
+                FRESH=$(${PYTHON_BIN:-python3} -c "import os, time
 try:
     age = time.time() - os.path.getmtime('$PERMISSION_MARKER')
     print('yes' if age < 300 else 'no')
@@ -272,8 +272,8 @@ esac
 # 生成随机 8 位 hex 验证码 — 多级降级，兼容 Claude Code / OpenCode / 任意平台
 # L1: python3 secrets (加密级) — L2: python3 random — L3: /dev/urandom — L4: openssl — L5: shell fallback
 APPROVAL_CODE=$(
-  python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null ||
-  python3 -c "import random,string; print(''.join(random.choice(string.hexdigits.lower()) for _ in range(8)))" 2>/dev/null ||
+  ${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null ||
+  ${PYTHON_BIN:-python3} -c "import random,string; print(''.join(random.choice(string.hexdigits.lower()) for _ in range(8)))" 2>/dev/null ||
   { od -vAn -N4 -tx1 /dev/urandom 2>/dev/null | tr -d ' \n'; } ||
   openssl rand -hex 4 2>/dev/null ||
   printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))"

@@ -29,7 +29,7 @@ INPUT=$(cat)
 if command -v jq &>/dev/null; then
     TOOL_NAME=$(echo "$INPUT" | jq -r '.tool // ""' 2>/dev/null)
 else
-    TOOL_NAME=$(echo "$INPUT" | python3 -c "
+    TOOL_NAME=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     print(json.load(sys.stdin).get('tool', ''))
@@ -44,7 +44,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 BUDGET_FILE="$PROJECT_ROOT/.omc/state/retry-budget.json"
 
 if [ -f "$BUDGET_FILE" ]; then
-    EXCEEDED=$(python3 -c "
+    EXCEEDED=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     with open('$BUDGET_FILE') as f:
@@ -88,7 +88,7 @@ ERROR_SIGNALS_FILE="$E4_STATE_DIR/error-signals.jsonl"
 DIAGNOSIS_FILE="$E4_STATE_DIR/diagnosis.json"
 
 if [ -f "$BUDGET_FILE" ]; then
-    E4_NEAR_LIMIT=$(python3 -c "
+    E4_NEAR_LIMIT=$(${PYTHON_BIN:-python3} -c "
 import json, sys, os
 try:
     with open('$BUDGET_FILE') as f:
@@ -104,7 +104,7 @@ except Exception:
     sys.exit(0)
 ")
     if [ $? -eq 2 ] && [ -n "$E4_NEAR_LIMIT" ]; then
-        HAS_DIAGNOSIS=$(python3 -c "
+        HAS_DIAGNOSIS=$(${PYTHON_BIN:-python3} -c "
 import json, sys, os, re, glob
 # E4 Layer 1: 结构化诊断检测 (>=3/5 字段)
 diag_fields = {
@@ -177,7 +177,7 @@ fi
 # ── E5 Build Fail Gate (B3 增强) ──
 BUILD_FAIL_GATE="$PROJECT_ROOT/.omc/state/build-fail-gate.json"
 if [ -f "$BUILD_FAIL_GATE" ]; then
-    E5_CMD=$(echo "$INPUT" | python3 -c "
+    E5_CMD=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     t = json.load(sys.stdin)
@@ -197,7 +197,7 @@ except:
     fi
 
     # 读取 build-fail-gate 详情
-    BUILD_FAIL_STREAK=$(python3 -c "
+    BUILD_FAIL_STREAK=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(open('$BUILD_FAIL_GATE'))

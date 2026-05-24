@@ -27,7 +27,7 @@ case "$EXT" in
     py|pyi)
         # Python: try pyright > py_compile > flake8 > pylint
         if command -v pyright &>/dev/null; then
-            DIAG_OUTPUT=$(pyright "$FULL_PATH" --outputjson 2>/dev/null | python3 -c "
+            DIAG_OUTPUT=$(pyright "$FULL_PATH" --outputjson 2>/dev/null | ${PYTHON_BIN:-python3} -c "
 import json,sys
 try:
     d=json.load(sys.stdin)
@@ -40,7 +40,7 @@ try:
 except: print('  (pyright parse failed)')
 " 2>/dev/null)
         elif command -v python3 &>/dev/null; then
-            DIAG_OUTPUT=$(python3 -m py_compile "$FULL_PATH" 2>&1 && echo "  ✅ py_compile: syntax OK" || echo "  ❌ compile failed")
+            DIAG_OUTPUT=$(${PYTHON_BIN:-python3} -m py_compile "$FULL_PATH" 2>&1 && echo "  ✅ py_compile: syntax OK" || echo "  ❌ compile failed")
         fi
         ;;
     ts|tsx|js|jsx)
@@ -79,7 +79,7 @@ else
 fi
 
 # Inject diagnostics into AI context via additionalContext
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json, sys
 ctx = sys.stdin.read()
 ctx = ''.join(c for c in ctx if not (0xD800 <= ord(c) <= 0xDFFF))

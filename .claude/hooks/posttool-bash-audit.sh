@@ -22,21 +22,21 @@ if command -v jq &>/dev/null; then
         [ -z "$STDERR_OR_STDOUT" ] && STDERR_OR_STDOUT="$TOP_ERROR"
     fi
 else
-    COMMAND=$(echo "$INPUT" | python3 -c "
+    COMMAND=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     print(data.get('args', {}).get('command', data.get('tool_input', {}).get('command', '')))
 except:
     pass" 2>/dev/null)
-    EXIT_CODE=$(echo "$INPUT" | python3 -c "
+    EXIT_CODE=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     print(data.get('tool_response', {}).get('exit_code', ''))
 except:
     pass" 2>/dev/null)
-    STDERR_OR_STDOUT=$(echo "$INPUT" | python3 -c "
+    STDERR_OR_STDOUT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -78,7 +78,7 @@ E4_SCAN_FILES=""
 [ -f "$EV_SIGNALS_JSONL" ] && E4_SCAN_FILES="$E4_SCAN_FILES $EV_SIGNALS_JSONL"
 [ -f "$EV_DNA_JSONL" ] && E4_SCAN_FILES="$E4_SCAN_FILES $EV_DNA_JSONL"
 if [ -n "$E4_SCAN_FILES" ]; then
-    ESCAPE_E4_MSG=$(python3 - "$E4_SCAN_FILES" "$COMMAND" <<'E4EOF'
+    ESCAPE_E4_MSG=$(${PYTHON_BIN:-python3} - "$E4_SCAN_FILES" "$COMMAND" <<'E4EOF'
 import json, sys, re
 
 scan_list = sys.argv[1].strip().split()
@@ -135,7 +135,7 @@ ESCAPE_E3_MSG=""
 _E3_FILE=""
 [ -f "$EV_SIGNALS_JSONL" ] && _E3_FILE="$EV_SIGNALS_JSONL" || { [ -f "$EV_DNA_JSONL" ] && _E3_FILE="$EV_DNA_JSONL"; }
 if [ -n "$_E3_FILE" ]; then
-    ESCAPE_E3_MSG=$(python3 - "$_E3_FILE" "$COMMAND" <<'E3EOF'
+    ESCAPE_E3_MSG=$(${PYTHON_BIN:-python3} - "$_E3_FILE" "$COMMAND" <<'E3EOF'
 import json, sys, re
 
 jsonl_path = sys.argv[1]
@@ -191,7 +191,7 @@ if echo "$COMMAND" | grep -qE "go build|go test|npm run build|npm test|cargo bui
         mkdir -p "$STATE_DIR" 2>/dev/null
         export STDERR_OR_STDOUT
         export BUILD_FAIL_FILE
-        STREAK=$(python3 -c "import json, os
+        STREAK=$(${PYTHON_BIN:-python3} -c "import json, os
 path = os.environ.get('BUILD_FAIL_FILE', '')
 stderr_out = os.environ.get('STDERR_OR_STDOUT', '')
 data = {'count': 0, 'signatures': []}
@@ -212,7 +212,7 @@ print(data['count'])" 2>/dev/null)
         FAIL_STREAK_THRESHOLD=$(hc_get "posttool_bash_audit.fail_streak_threshold" "2")
         if [ "$STREAK" -ge "$FAIL_STREAK_THRESHOLD" ] 2>/dev/null; then
             # Get number of distinct signatures
-            DISTINCT=$(python3 -c "import json, os
+            DISTINCT=$(${PYTHON_BIN:-python3} -c "import json, os
 data = json.load(open(os.environ.get('BUILD_FAIL_FILE', '')))
 print(len(data.get('signatures', [])))" 2>/dev/null)
             ANTI_PATTERN_MSG="[反模式 C1: 编译错误盲修] 连续 ${STREAK} 次构建失败"
@@ -225,7 +225,7 @@ print(len(data.get('signatures', [])))" 2>/dev/null)
             # E5 Build Fail Gate: 写门禁文件，pretool-retry-check 会读取
             if true; then  # was: hc_enabled "e5_build_fail_gate" — dead key removed, feature always-on
                 GATE_FILE="$STATE_DIR/build-fail-gate.json"
-                python3 -c "
+                ${PYTHON_BIN:-python3} -c "
 import json, os, time
 gate = {
     'streak': $STREAK,

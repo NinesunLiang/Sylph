@@ -44,7 +44,7 @@ if [ -f "$_ghost_json" ]; then
 fi
 
 export TRANSCRIPT SESSION_ID STATE_DIR _ghost_mode
-python3 - <<'PYEOF'
+${PYTHON_BIN:-python3} - <<'PYEOF'
 import json, os, sys, hashlib, re
 
 transcript = os.environ.get('TRANSCRIPT', '')
@@ -189,11 +189,11 @@ PYEOF
 # Layer 3: Write token-tracking-real.json from transcript or DB (multi-platform)
 if [ -n "$TRANSCRIPT" ] && [ -f "$TRANSCRIPT" ]; then
     # Claude Code: direct transcript path via Stop event
-    python3 "$PROJECT_ROOT/.claude/scripts/token_transcript_parser.py" \
+    ${PYTHON_BIN:-python3} "$PROJECT_ROOT/.claude/scripts/token_transcript_parser.py" \
         --parser claude_code --transcript "$TRANSCRIPT" --write 2>/dev/null || true
 else
     # Other platforms (OpenCode, etc.): auto-detect data source
-    python3 "$PROJECT_ROOT/.claude/scripts/token_transcript_parser.py" \
+    ${PYTHON_BIN:-python3} "$PROJECT_ROOT/.claude/scripts/token_transcript_parser.py" \
         --write 2>/dev/null || true
 fi
 

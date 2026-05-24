@@ -9,7 +9,7 @@ INPUT=$(cat)
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
-    FILE_PATH=$(echo "$INPUT" | python3 -c "
+    FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -124,7 +124,7 @@ _CLAUDE_NEXT="$PROJECT_ROOT/.claude/claude-next.md"
 _ANOMALY_TRACKER="$STATE_DIR/edit-quality-anomalies.json"
 mkdir -p "$(dirname "$_ANOMALY_TRACKER")"
 
-_PY_ANOMALY=$(echo "$INPUT" | python3 - "$FILE_PATH" "$_ANOMALY_TRACKER" "$_CLAUDE_NEXT" "$EDIT_HISTORY" <<'PYEOF' 2>/dev/null
+_PY_ANOMALY=$(echo "$INPUT" | ${PYTHON_BIN:-python3} - "$FILE_PATH" "$_ANOMALY_TRACKER" "$_CLAUDE_NEXT" "$EDIT_HISTORY" <<'PYEOF' 2>/dev/null
 import json, os, sys, time
 
 stdin_json = sys.stdin.read()

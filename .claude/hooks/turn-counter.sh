@@ -82,7 +82,7 @@ if [ "$TODO_INTERVAL" -gt 0 ] && [ $(( new_count % TODO_INTERVAL )) -eq 0 ]; the
     ERROR_COUNT=0
     CONTRADICTION_COUNT=0
     if [ -f "$PROJECT_ROOT/.omc/state/error-dna.json" ]; then
-        ERROR_COUNT=$(python3 -c "
+        ERROR_COUNT=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
     d = json.load(open('$PROJECT_ROOT/.omc/state/error-dna.json'))
@@ -102,7 +102,7 @@ except:
     HARNESS_YAML="$PROJECT_ROOT/.claude/harness.yaml"
     SETTINGS_JSON="$PROJECT_ROOT/.claude/settings.json"
     if [ -f "$HARNESS_YAML" ] && [ -f "$SETTINGS_JSON" ]; then
-        DRIFT_COUNT=$(python3 -c "
+        DRIFT_COUNT=$(${PYTHON_BIN:-python3} -c "
 import os, re, json
 hook_dir = '$PROJECT_ROOT/.claude/hooks'
 yaml_path = '$HARNESS_YAML'
@@ -252,14 +252,14 @@ if [ $(( new_count % 5 )) -eq 0 ]; then
     # 优先使用 context_monitor.py（读 transcript 真实数据，落后 1 轮但准确）
     MONITOR_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
     if [ -x "$MONITOR_SCRIPT" ]; then
-        MONITOR_OUT=$(python3 "$MONITOR_SCRIPT" 2>/dev/null)
-        CTX_PCT=$(echo "$MONITOR_OUT" | python3 -c "import sys,json; print(int(json.load(sys.stdin).get('percentage',0)))" 2>/dev/null)
-        CTX_SOURCE=$(echo "$MONITOR_OUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null)
+        MONITOR_OUT=$(${PYTHON_BIN:-python3} "$MONITOR_SCRIPT" 2>/dev/null)
+        CTX_PCT=$(echo "$MONITOR_OUT" | ${PYTHON_BIN:-python3} -c "import sys,json; print(int(json.load(sys.stdin).get('percentage',0)))" 2>/dev/null)
+        CTX_SOURCE=$(echo "$MONITOR_OUT" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.load(sys.stdin).get('source',''))" 2>/dev/null)
     fi
     # 兜底：启发式计数器
     if [ -z "$CTX_PCT" ] || [ "$CTX_PCT" -eq 0 ] 2>/dev/null; then
         if [ -f "$INDEX_FILE" ]; then
-            CTX_PCT=$(python3 -c "
+            CTX_PCT=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
     d = json.load(open('$INDEX_FILE'))

@@ -12,7 +12,7 @@ DNA_FILE="$PROJECT_ROOT/.omc/state/error-dna.json"
 
 [ -f "$DNA_FILE" ] || exit 0
 
-PY_OUTPUT=$(python3 - "$DNA_FILE" <<'PYEOF'
+PY_OUTPUT=$(${PYTHON_BIN:-python3} - "$DNA_FILE" <<'PYEOF'
 import json, sys, time
 from datetime import datetime
 

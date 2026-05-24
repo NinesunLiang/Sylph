@@ -10,7 +10,7 @@ INPUT=$(cat)
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
-    FILE_PATH=$(echo "$INPUT" | python3 -c "
+    FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -71,7 +71,7 @@ rule_anchor_check() {
     if [ "$drift_detected" = true ]; then
         echo "⚠️ [第${current_turn}轮·漂移预警] 检测到范围扩展词。只改当前任务文件，额外问题记 TODO。" >&2
     else
-        echo "📌 [第${current_turn}轮·规则锚定] 长会话提醒：①file:line ②VERIFIED证据 ③git批准 ④范围冻结 ⑤3轮上限" >&2
+        echo "📌 [第${current_turn}轮·规则锚定] 长会话提醒：①file:line ②VERIFIED证据 ③git批准 ④范围冻结 ⑤3轮上限 ⑥改动可追溯" >&2
     fi
 }
 
@@ -87,7 +87,7 @@ coupling_remind() {
     [ ! -f "$COUPLING_MAP" ] && return
 
     local COUPLED
-    COUPLED=$(python3 - "$edit_file" "$COUPLING_MAP" <<'PYEOF'
+    COUPLED=$(${PYTHON_BIN:-python3} - "$edit_file" "$COUPLING_MAP" <<'PYEOF'
 import json, sys
 edit_file = sys.argv[1]
 coupling_path = sys.argv[2]

@@ -16,7 +16,7 @@ SUGGESTED_FILE="$STATE_DIR/lsp-suggested"
 if command -v jq &>/dev/null; then
     PATTERN=$(echo "$INPUT" | jq -r '.tool_input.pattern // empty' 2>/dev/null)
 else
-    PATTERN=$(echo "$INPUT" | python3 -c "
+    PATTERN=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

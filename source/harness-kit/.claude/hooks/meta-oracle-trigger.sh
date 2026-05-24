@@ -25,8 +25,8 @@ if command -v jq &>/dev/null; then
     AGENT_TEXT=$(echo "$INPUT" | jq -r '.tool_response.message // .tool_response.text // empty' 2>/dev/null)
     COMBINED="${TOOL_OUTPUT} ${AGENT_TEXT}"
 else
-    TOOL_NAME=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null)
-    COMBINED=$(echo "$INPUT" | python3 -c "import sys,json; d=json.load(sys.stdin); tr=d.get('tool_response',{}); print(tr.get('stdout',tr.get('content',tr.get('message',''))))" 2>/dev/null)
+    TOOL_NAME=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_name',''))" 2>/dev/null)
+    COMBINED=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "import sys,json; d=json.load(sys.stdin); tr=d.get('tool_response',{}); print(tr.get('stdout',tr.get('content',tr.get('message',''))))" 2>/dev/null)
 fi
 
 [ -z "$COMBINED" ] && { echo '{"continue": true}'; exit 0; }
@@ -127,7 +127,7 @@ if [ "$TRIGGERED" = false ]; then
     HIGH_SCORE=$(echo "$COMBINED" | grep -oE '(score|Score|评分|得分)[:： ]*[0-9]+\.[0-9]+' 2>/dev/null | head -3)
     if [ -n "$HIGH_SCORE" ]; then
         MAX_SCORE=$(echo "$HIGH_SCORE" | grep -oE '[0-9]+\.[0-9]+' | sort -rn | head -1)
-        if [ -n "$MAX_SCORE" ] && python3 -c "exit(0 if float('$MAX_SCORE') >= 8.5 else 1)" 2>/dev/null; then
+        if [ -n "$MAX_SCORE" ] && ${PYTHON_BIN:-python3} -c "exit(0 if float('$MAX_SCORE') >= 8.5 else 1)" 2>/dev/null; then
             TRIGGERED=true
             TRIGGER_PRIORITY="G3"
             TRIGGER_REASON="G3 Oracle 高分评分 (${MAX_SCORE} ≥ 8.5)"
@@ -139,7 +139,7 @@ if [ "$TRIGGERED" = false ]; then
     OVERALL_SCORE=$(echo "$COMBINED" | grep -oE '(综合|总分|平均|overall)[:： ]*[0-9]+\.[0-9]+' 2>/dev/null | head -3)
     if [ -n "$OVERALL_SCORE" ]; then
         MAX_OS=$(echo "$OVERALL_SCORE" | grep -oE '[0-9]+\.[0-9]+' | sort -rn | head -1)
-        if [ -n "$MAX_OS" ] && python3 -c "exit(0 if float('$MAX_OS') >= 8.5 else 1)" 2>/dev/null; then
+        if [ -n "$MAX_OS" ] && ${PYTHON_BIN:-python3} -c "exit(0 if float('$MAX_OS') >= 8.5 else 1)" 2>/dev/null; then
             TRIGGERED=true
             TRIGGER_PRIORITY="G3"
             TRIGGER_REASON="G3 综合评分 ≥ 8.5 (${MAX_OS})"

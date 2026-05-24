@@ -123,7 +123,7 @@ if [ -f "$CLAUDE_NEXT" ]; then
     SUB_COUNT=$(hc_get "sublimation.count_threshold" "20")
     SUB_DAYS=$(hc_get "sublimation.age_days" "10")
     SUB_HITS=$(hc_get "sublimation.hit_threshold" "5")
-    python3 - "$CLAUDE_NEXT" "$SUB_COUNT" "$SUB_DAYS" "$SUB_HITS" <<'PYEOF'
+    ${PYTHON_BIN:-python3} - "$CLAUDE_NEXT" "$SUB_COUNT" "$SUB_DAYS" "$SUB_HITS" <<'PYEOF'
 import re, sys
 from datetime import datetime, date
 
@@ -217,7 +217,7 @@ fi
 DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
 ESCAPE_ENABLED=$(hc_get "escape_detection.enabled" "true")
 if [ "$ESCAPE_ENABLED" = "true" ] && [ -f "$DNA_JSONL" ]; then
-    ESC_SUMMARY=$(python3 - "$DNA_JSONL" <<'ESCEOF'
+    ESC_SUMMARY=$(${PYTHON_BIN:-python3} - "$DNA_JSONL" <<'ESCEOF'
 import json, sys, time
 
 jsonl_path = sys.argv[1]
@@ -284,7 +284,7 @@ SNAPSHOT_EXPIRY=$(hc_get "knowledge.snapshot_expiry_sec" "86400")
 
 if [ "$HANDOFF_ENABLED" = "true" ] && [ -f "$HANDOFF_FILE" ]; then
     # 检查过期（与 snapshot 相同逻辑）
-    python3 - "$HANDOFF_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF' | hc_sanitize_utf8
+    ${PYTHON_BIN:-python3} - "$HANDOFF_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF' | hc_sanitize_utf8
 import sys, os, re
 from datetime import datetime, timezone
 
@@ -317,7 +317,7 @@ DNA_FILE="$PROJECT_ROOT/.omc/state/error-dna.json"
 DNA_ENABLED=$(hc_get "error_dna" "true")
 
 if [ "$DNA_ENABLED" = "true" ] && [ -f "$DNA_FILE" ]; then
-    python3 - "$DNA_FILE" <<'PYEOF' | hc_sanitize_utf8
+    ${PYTHON_BIN:-python3} - "$DNA_FILE" <<'PYEOF' | hc_sanitize_utf8
 import json, sys
 
 try:
@@ -375,7 +375,7 @@ TOTAL_OPS_FILE="$PROJECT_ROOT/.omc/state/total-ops.txt"
 DNA_JSONL="$PROJECT_ROOT/.omc/state/error-dna.jsonl"
 SIGNALS_JSONL="$PROJECT_ROOT/.omc/state/error-signals.jsonl"
 if [ -f "$TOTAL_OPS_FILE" ]; then
-    python3 - "$DNA_JSONL" "$SIGNALS_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF' | hc_sanitize_utf8
+    ${PYTHON_BIN:-python3} - "$DNA_JSONL" "$SIGNALS_JSONL" "$TOTAL_OPS_FILE" <<'PYEOF' | hc_sanitize_utf8
 import json, sys, os
 try:
     dna_path, signals_path, ops_path = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -404,7 +404,7 @@ fi
 SNAPSHOT_FILE="$PROJECT_ROOT/.omc/state/session-snapshot.json"
 SNAPSHOT_EXPIRY=$(hc_get "knowledge.snapshot_expiry_sec" "86400")
 if [ -f "$SNAPSHOT_FILE" ]; then
-    python3 - "$SNAPSHOT_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF' | hc_sanitize_utf8
+    ${PYTHON_BIN:-python3} - "$SNAPSHOT_FILE" "$SNAPSHOT_EXPIRY" <<'PYEOF' | hc_sanitize_utf8
 import json, sys
 from datetime import datetime, timezone
 
@@ -449,7 +449,7 @@ fi
 # === GS-004 5.2: 治理一致性告警 ===
 GOV_AUDIT_SCRIPT="$PROJECT_ROOT/.claude/scripts/audit-hooks.sh"
 if [ -f "$GOV_AUDIT_SCRIPT" ]; then
-    GOV_OUTPUT=$(bash "$GOV_AUDIT_SCRIPT" --json 2>/dev/null | python3 -c "
+    GOV_OUTPUT=$(bash "$GOV_AUDIT_SCRIPT" --json 2>/dev/null | ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(sys.stdin)
@@ -489,7 +489,7 @@ if [ "$HAS_PREV" = true ]; then
 
     # Last session summary
     if [ -f "$SESSION_DUMP" ]; then
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json
 try:
     with open('$SESSION_DUMP') as f: d = json.load(f)
@@ -538,7 +538,7 @@ fi
 # 注入 Session Dump 恢复上下文（E8 跨会话恢复）
 SESSION_DUMP="$PROJECT_ROOT/.omc/state/session-dump.json"
 if [ -f "$SESSION_DUMP" ]; then
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 try:
     with open('$SESSION_DUMP') as f:
@@ -674,7 +674,7 @@ fi
 AUTO_OPT="$STATE_DIR/auto-optimizations.jsonl"
 if [ -f "$AUTO_OPT" ] && [ -s "$AUTO_OPT" ]; then
     # 统计最近的自动优化记录（24h 内）
-    OPT_COUNT=$(python3 -c "
+    OPT_COUNT=$(${PYTHON_BIN:-python3} -c "
 import json, os, time
 count = 0
 cutoff = time.time() - 86400

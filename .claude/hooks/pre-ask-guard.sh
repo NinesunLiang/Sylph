@@ -17,7 +17,7 @@ STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR"
 
 # 提取所有问题文本
-QUESTIONS=$(echo "$INPUT" | python3 -c "
+QUESTIONS=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -27,6 +27,18 @@ try:
 except: pass" 2>/dev/null)
 
 [ -z "$QUESTIONS" ] && { echo '{"continue": true}'; exit 0; }
+
+# ─── 自主模式: 一律阻断 ──────────────────────────────────────
+# 哲学 #6 (0信任): 自主模式下 AI 不得问人。无法决策的走 blocked-human。
+MODE=$(is_mode_active "$PROJECT_ROOT/.omc/state" 2>/dev/null || echo "normal")
+if [ "$MODE" != "normal" ]; then
+    printf '%b\n' "🛑 [pre-ask-guard] 自主模式(${MODE})活跃 — 所有问题禁止问人" >&2
+    printf '%b\n' "   问题数: ${TOTAL_COUNT} → 请走决策链裁决: 哲学(7条) → 铁律(8条) → 现状 → Oracle → AI自判" >&2
+    printf '%b\n' "   无法确定 → 记录: lx-${MODE} blocked-human \"问题\" \"AI推荐\" \"依据\" → 人在退出报告中审阅" >&2
+    flywheel_event "pre_ask_guard" "blocked_autonomous_mode" "P1" "mode=$MODE questions=${TOTAL_COUNT}" || true
+    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[pre-ask-guard] 自主模式(%s)活跃，禁止问人。所有问题走决策链: 哲学(7条) → 铁律(8条) → 现状 → Oracle → AI自判。无法确定的记录 lx-%s blocked-human 人在退出报告中审阅。"}}\n' "$MODE" "$MODE"
+    exit 2
+fi
 
 # ─── 决策链文件 ──────────────────────────────────────────────
 PHILOSOPHY_MD="$PROJECT_ROOT/AGENTS.md"
@@ -46,7 +58,7 @@ while IFS= read -r question; do
     TOTAL_COUNT=$((TOTAL_COUNT + 1))
 
     # 提取关键词（取前 5 个有意义的词，排除停用词）
-    KEYWORDS=$(echo "$question" | python3 -c "
+    KEYWORDS=$(echo "$question" | ${PYTHON_BIN:-python3} -c "
 import sys, re
 q = sys.stdin.read().strip()
 # Extract meaningful keywords (Chinese: 2+ chars, English: 3+ chars)
@@ -101,7 +113,7 @@ if [ "$RESOLVABLE_COUNT" -eq "$TOTAL_COUNT" ] && [ "$TOTAL_COUNT" -gt 0 ]; then
     printf '%b\n' "🧠 [pre-ask-guard] 决策链已覆盖全部 ${TOTAL_COUNT} 个问题 — 无需问人${HINTS}" >&2
     flywheel_event "pre_ask_guard" "blocked_all_resolvable" "P1" || true
     # 阻断：输出决策链引用，AI 应标注 [哲学先行: #N→action] 后直接执行
-    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[pre-ask-guard] 全部 %d 个问题决策链已有答案。请标注 [哲学先行: #N→action] 后直接执行，不必问人。%s"}}\n' "$TOTAL_COUNT" "$(printf '%b' "$HINTS" | python3 -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' 2>/dev/null)"
+    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[pre-ask-guard] 全部 %d 个问题决策链已有答案。请标注 [哲学先行: #N→action] 后直接执行，不必问人。%s"}}\n' "$TOTAL_COUNT" "$(printf '%b' "$HINTS" | ${PYTHON_BIN:-python3} -c 'import sys,json; print(json.dumps(sys.stdin.read().strip()))' 2>/dev/null)"
     exit 2
 elif [ "$RESOLVABLE_COUNT" -gt 0 ]; then
     # 部分可自主 → 软提示，不阻断

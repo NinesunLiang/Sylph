@@ -47,7 +47,7 @@ fi
 # 2. 检查命令中的明文 Token
 if [ "$TOOL" = "bash" ] && [ -n "$CMD" ]; then
     # 跨平台兼容：BSD grep 的 ERE 不支持 {20,} 单边界，改用 Python 做精确匹配 (R16 修复)
-    TOKEN_HIT=$(echo "$CMD" | python3 -c "
+    TOKEN_HIT=$(echo "$CMD" | ${PYTHON_BIN:-python3} -c "
 import sys, re
 s = sys.stdin.read()
 patterns = [

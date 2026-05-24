@@ -16,7 +16,7 @@ mkdir -p "$LOG_DIR"
 
 # 路径 A: PostToolUse:Skill — 实际 Skill 工具调用（C7 fix: 此为 skill 调用的主要路径）
 if [ "$TOOL_NAME" = "Skill" ]; then
-    SKILL=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('skill',''))" 2>/dev/null)
+    SKILL=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.load(sys.stdin).get('tool_input',{}).get('skill',''))" 2>/dev/null)
     if [ -n "$SKILL" ]; then
         SKILL_DIR="$SCRIPT_DIR/../skills/$SKILL"
         [ -d "$SKILL_DIR" ] || { echo '{"continue": true}'; exit 0; }
@@ -28,7 +28,7 @@ if [ "$TOOL_NAME" = "Skill" ]; then
 fi
 
 # 路径 B: UserPromptSubmit — 扫描 /lx-xxx 命令文本（兜底路径）
-PROMPT=$(echo "$INPUT" | python3 -c "import sys,json; print(json.load(sys.stdin).get('prompt',''))" 2>/dev/null)
+PROMPT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.load(sys.stdin).get('prompt',''))" 2>/dev/null)
 [ -z "$PROMPT" ] && { echo '{"continue": true}'; exit 0; }
 
 SKILL=$(echo "$PROMPT" | grep -oE '/?(lx-[a-z][a-z0-9-]*)' | head -1 | sed 's|^/||')

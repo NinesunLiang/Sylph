@@ -20,28 +20,28 @@ if command -v jq &>/dev/null; then
         [ -z "$STDERR_RESULT" ] && STDERR_RESULT="$TOP_ERROR"
     fi
 else
-    COMMAND=$(echo "$INPUT" | python3 -c "
+    COMMAND=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     print(data.get('args', {}).get('command', data.get('tool_input', {}).get('command', '')))
 except:
     pass" 2>/dev/null)
-    STDOUT_RESULT=$(echo "$INPUT" | python3 -c "
+    STDOUT_RESULT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     print(data.get('tool_response', {}).get('stdout', ''))
 except:
     pass" 2>/dev/null)
-    STDERR_RESULT=$(echo "$INPUT" | python3 -c "
+    STDERR_RESULT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
     print(data.get('tool_response', {}).get('stderr', ''))
 except:
     pass" 2>/dev/null)
-    EXIT_CODE=$(echo "$INPUT" | python3 -c "
+    EXIT_CODE=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -92,7 +92,7 @@ export SCRIPT_DIR
 MAX_LOG_ENTRIES=$(hc_get "build_validator.max_log_entries" "50")
 export MAX_LOG_ENTRIES
 
-RESULT=$(python3 - <<'PYEOF'
+RESULT=$(${PYTHON_BIN:-python3} - <<'PYEOF'
 import json, os, re, sys
 from datetime import datetime, timezone
 

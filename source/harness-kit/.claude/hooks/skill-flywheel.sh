@@ -41,13 +41,13 @@ LINES=$(echo "$BUFFER_CONTENT" | wc -l | tr -d ' ')
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 ANALYTICS_SCRIPT="$PROJECT_ROOT/.claude/scripts/flywheel_analytics.py"
 if [ -f "$ANALYTICS_SCRIPT" ]; then
-    python3 "$ANALYTICS_SCRIPT" "$FLYWHEEL" "$PROJECT_ROOT/.omc/state/flywheel-report.json" 2>/dev/null || true
+    ${PYTHON_BIN:-python3} "$ANALYTICS_SCRIPT" "$FLYWHEEL" "$PROJECT_ROOT/.omc/state/flywheel-report.json" 2>/dev/null || true
 fi
 
 # === GS-002: Deprecated skill notification ===
 REPORT="$PROJECT_ROOT/.omc/state/flywheel-report.json"
 if [ -f "$REPORT" ]; then
-    DEP_OUTPUT=$(python3 - "$REPORT" <<'PYEOF'
+    DEP_OUTPUT=$(${PYTHON_BIN:-python3} - "$REPORT" <<'PYEOF'
 import json, sys
 try:
     with open(sys.argv[1]) as f:

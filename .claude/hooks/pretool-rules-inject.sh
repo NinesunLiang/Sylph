@@ -12,7 +12,7 @@ hc_enabled "pretool_rules_inject" || { echo '{"continue": true}'; exit 0; }
 
 TURNS_FILE="$PROJECT_ROOT/.omc/state/session-turns.json"
 TURN_COUNT=0
-[ -f "$TURNS_FILE" ] && TURN_COUNT=$(python3 -c "import json; print(json.load(open('$TURNS_FILE')).get('count',0))" 2>/dev/null || echo 0)
+[ -f "$TURNS_FILE" ] && TURN_COUNT=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$TURNS_FILE')).get('count',0))" 2>/dev/null || echo 0)
 
 AGENTS="$PROJECT_ROOT/AGENTS.md"
 CACHE_DIR="$PROJECT_ROOT/.omc/state"
@@ -28,7 +28,7 @@ extract_section() {
         [ "$ch" = "$ah" ] && [ -n "$ah" ] && { tail -n +2 "$cache_file"; return; }
     fi
     local result=""
-    [ -f "$AGENTS" ] && result=$(python3 -c "
+    [ -f "$AGENTS" ] && result=$(${PYTHON_BIN:-python3} -c "
 import re
 with open('$AGENTS') as f: text = f.read()
 m = re.search(r'<!-- pretool:${tag}-start -->(.*?)<!-- pretool:${tag}-end -->', text, re.DOTALL)
@@ -85,7 +85,7 @@ ${L2_CTX}"
 fi
 
 # ═══ 输出 ═══
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json, sys
 ctx = sys.stdin.read()
 ctx = ''.join(c for c in ctx if not (0xD800 <= ord(c) <= 0xDFFF))

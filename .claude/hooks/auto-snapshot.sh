@@ -29,7 +29,7 @@ BRANCH=$(cd "$PROJECT_ROOT" && git rev-parse --abbrev-ref HEAD 2>/dev/null || ec
 MODIFIED_JSON="[]"
 MODIFIED_RAW=$(cd "$PROJECT_ROOT" && git diff --name-only 2>/dev/null)
 if [ -n "$MODIFIED_RAW" ]; then
-    MODIFIED_JSON=$(echo "$MODIFIED_RAW" | python3 -c "
+    MODIFIED_JSON=$(echo "$MODIFIED_RAW" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 lines = [l.rstrip() for l in sys.stdin if l.rstrip()]
 print(json.dumps(lines))" 2>/dev/null || echo "[]")
@@ -39,7 +39,7 @@ fi
 STAGED_JSON="[]"
 STAGED_RAW=$(cd "$PROJECT_ROOT" && git diff --cached --name-only 2>/dev/null)
 if [ -n "$STAGED_RAW" ]; then
-    STAGED_JSON=$(echo "$STAGED_RAW" | python3 -c "
+    STAGED_JSON=$(echo "$STAGED_RAW" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 lines = [l.rstrip() for l in sys.stdin if l.rstrip()]
 print(json.dumps(lines))" 2>/dev/null || echo "[]")
@@ -50,7 +50,7 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 # 写入快照文件
 SNAPSHOT_FILE="$STATE_DIR/session-snapshot.json"
-python3 - "$TIMESTAMP" "$TURNS" "$BRANCH" "$MODIFIED_JSON" "$STAGED_JSON" "$SNAPSHOT_FILE" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$TIMESTAMP" "$TURNS" "$BRANCH" "$MODIFIED_JSON" "$STAGED_JSON" "$SNAPSHOT_FILE" <<'PYEOF'
 import json, sys
 timestamp = sys.argv[1]
 turns = int(sys.argv[2]) if sys.argv[2].isdigit() else 0
@@ -125,7 +125,7 @@ MAX_TODO=$(hc_get "session_handoff.max_todo_lines" "10")
 MAX_LESSONS=$(hc_get "session_handoff.max_lessons" "3")
 
 if [ "$HANDOFF_ENABLED" = "true" ]; then
-    python3 - "$PROJECT_ROOT" "$DOC_ROOT" "$EXEC_DOC" "$HANDOFF_FILE" "$MAX_ADR" "$MAX_TODO" "$MAX_LESSONS" "$BRANCH" "$TURNS" <<'PYEOF'
+    ${PYTHON_BIN:-python3} - "$PROJECT_ROOT" "$DOC_ROOT" "$EXEC_DOC" "$HANDOFF_FILE" "$MAX_ADR" "$MAX_TODO" "$MAX_LESSONS" "$BRANCH" "$TURNS" <<'PYEOF'
 import sys, os, re, json
 from datetime import datetime
 
@@ -335,7 +335,7 @@ fi
 
 # ─── 结构化 Session Dump ──────────────────────────────────
 DUMP_FILE="$STATE_DIR/session-dump.json"
-python3 - "$PROJECT_ROOT" "$BRANCH" "$TURNS" "$DUMP_FILE" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PROJECT_ROOT" "$BRANCH" "$TURNS" "$DUMP_FILE" <<'PYEOF'
 import sys, os, json, re
 
 project_root = sys.argv[1]

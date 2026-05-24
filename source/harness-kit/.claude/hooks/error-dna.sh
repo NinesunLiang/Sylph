@@ -62,7 +62,7 @@ export ERROR_DNA_ROTATION_SIZE
 ERROR_DNA_ARCHIVE_COUNT=$(hc_get "error_dna.archive_count" "3")
 export ERROR_DNA_ARCHIVE_COUNT
 
-PY_OUTPUT=$(python3 - "$STATE_DIR" "$TS" "$TMP_FILE" <<'PYEOF'
+PY_OUTPUT=$(${PYTHON_BIN:-python3} - "$STATE_DIR" "$TS" "$TMP_FILE" <<'PYEOF'
 import json, os, sys, hashlib, re, glob, time
 
 state_dir = sys.argv[1]
@@ -459,7 +459,7 @@ if [ -n "$PY_OUTPUT" ]; then
     if [ -n "$TRIAGE_MSG" ]; then
         # 安全合并: 通过 env var 传 triage_msg, python3 构造合法 JSON
         export TRIAGE_MSG
-        echo "$PY_OUTPUT" | python3 -c "
+        echo "$PY_OUTPUT" | ${PYTHON_BIN:-python3} -c "
 import json, sys, os
 py_output = sys.stdin.read()
 triage = os.environ.get('TRIAGE_MSG', '')
@@ -471,7 +471,7 @@ combined = ''.join(c for c in combined if not (0xD800 <= ord(c) <= 0xDFFF))
 print(json.dumps({'continue': True, 'hookSpecificOutput': {'hookEventName': 'PostToolUse', 'additionalContext': combined}}))
 "
     else
-        echo "$PY_OUTPUT" | python3 -c "
+        echo "$PY_OUTPUT" | ${PYTHON_BIN:-python3} -c "
 import json, sys
 text = sys.stdin.read()
 text = ''.join(c for c in text if not (0xD800 <= ord(c) <= 0xDFFF))

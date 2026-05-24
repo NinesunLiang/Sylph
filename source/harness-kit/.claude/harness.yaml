@@ -107,6 +107,7 @@ hooks_enabled:
   posttool_write_lock: true
   pre_completion_gate: true
   pre_ask_guard: true
+  session_resume: true
   pretool_edit_scope: true
   pretool_plan_gate: true
   pretool_rules_inject: true

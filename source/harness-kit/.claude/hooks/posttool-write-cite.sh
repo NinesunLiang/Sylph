@@ -11,7 +11,7 @@ INPUT=$(cat)
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
-    FILE_PATH=$(echo "$INPUT" | python3 -c "
+    FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -30,7 +30,7 @@ BASENAME=$(basename "$FILE_PATH")
 if command -v jq &>/dev/null; then
     NEW_CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_content // empty' 2>/dev/null)
 else
-    NEW_CONTENT=$(echo "$INPUT" | python3 -c "
+    NEW_CONTENT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

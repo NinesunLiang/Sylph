@@ -65,7 +65,7 @@ _skill_scripts() {
 _registry_enabled() {
     local name="$1"
     if command -v python3 &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:
     data = yaml.safe_load(f)
@@ -108,7 +108,7 @@ probe() {
     # ---- L4: 注册存在性 ----
     local l4=""
     if command -v python3 &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
-        if python3 -c "
+        if ${PYTHON_BIN:-python3} -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:
     data = yaml.safe_load(f)
@@ -129,7 +129,7 @@ sys.exit(0 if found else 1)
             l4="NOT_REGISTERED (feature not found in registry)"
         fi
     else
-        l4="NOT_TESTABLE (python3 or registry missing)"
+        l4="NOT_TESTABLE (${PYTHON_BIN:-python3} or registry missing)"
     fi
 
     # ---- L3: 文件存在 + 语法 ----
@@ -242,7 +242,7 @@ probe_json() {
     [ -z "$l3_path" ] && [ -n "$skill_md" ] && l3_path="$skill_md"
     [ -z "$l3_path" ] && [ -n "$skill_dir" ] && l3_path="$skill_dir"
 
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json
 
 # L4 registry check

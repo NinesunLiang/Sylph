@@ -23,7 +23,7 @@ fi
 if command -v jq &>/dev/null; then
     RESULT=$(echo "$INPUT" | jq -r '.tool_response.result // empty' 2>/dev/null)
 else
-    RESULT=$(echo "$INPUT" | python3 -c "
+    RESULT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)

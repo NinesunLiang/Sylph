@@ -26,7 +26,7 @@ fi
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // .tool_input.path // empty' 2>/dev/null)
 else
-    FILE_PATH=$(echo "$INPUT" | python3 -c "
+    FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -96,7 +96,7 @@ if [ -f "$SENSITIVE_REQUIRED" ]; then
         ACTUAL_CODE=$(cat "$SENSITIVE_MARKER" 2>/dev/null)
         if [ "$ACTUAL_CODE" = "$EXPECTED_CODE" ]; then
             if command -v python3 &>/dev/null; then
-                FRESH=$(python3 -c "import os, time
+                FRESH=$(${PYTHON_BIN:-python3} -c "import os, time
 try:
     age = time.time() - os.path.getmtime('$SENSITIVE_MARKER')
     print('yes' if age < 300 else 'no')
@@ -116,7 +116,7 @@ except:
 fi
 
 # 生成新验证码备用
-APPROVAL_CODE=$(python3 -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "sen-$$-$(date +%s)")
+APPROVAL_CODE=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "sen-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$SENSITIVE_REQUIRED"
 
 flywheel_event "pretool_sensitive_edit" "blocked" "P2" || true

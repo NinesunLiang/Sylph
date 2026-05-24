@@ -339,9 +339,31 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 证据：用户 Windows Git Bash 下首次运行 install.sh，旧脚本打印"请手动安装 python3"后继续，导致后续 python3 -c 调用全部失败，settings.json merge 和跨平台 hook 生成静默跳过。
 
 
-### [2026-05-23] 用户纠正: 不对
-@2026-05-23 hits:1
-**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
-**问题**：（待本对话补充具体纠正内容）
-**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+### 🐶 [DG-111] `export -f python3` 跨进程无效 — install.sh alias 无法传播到 hooks (@LuangSir)
+
+@2026-05-24 hits:1
+触发条件：install.sh 用 `eval "python3() {...}"` + `export -f python3` 创建别名，但 hooks 作为独立 bash 进程运行，不继承父 shell 的函数导出
+正确行为：在 `harness_config.sh` 启动时解析 `$PYTHON_BIN` 并导出，所有 source 此文件的 hooks 自动继承。install.sh 的 alias 仅对安装脚本自身有效，应标记 DEPRECATED
+证据：外部用户 OpenCode+Windows 验收报告中 35/45 hooks 在 python3 调用处静默失败。DG-105 的 `resolve_python()` 只在 install.sh 生效，从未传播到 hooks 层。修复：`harness_config.sh` 添加 `_resolve_python()` + `export PYTHON_BIN`，48 hooks 批量 `python3` → `${PYTHON_BIN:-python3}`
+
+### 🐶 [DG-112] jq 缺失导致 privacy-gate token 检测旁路 + 28 hooks JSON 解析失败 (@LuangSir)
+
+@2026-05-24 hits:1
+触发条件：Windows (MSYS2) 无 jq → 28/45 hooks 的 `jq -r '.tool_input.command'` 全部返回空 → permission-gate 默认阻断（安全），但 privacy-gate 的 token 检测逻辑被跳过
+正确行为：install.sh 添加 `install_jq()` 自动安装，覆盖 pacman/winget/choco/brew/apt/dnf/yum/apk。同时在 jq 缺失时 hooks 用 python3 fallback 提取 JSON 字段（已存在于部分 hooks）
+证据：`client_fellback/feedback.md` S8 实测验证。修复：install.sh `install_jq()` 9 包管理器全覆盖
+
+### [2026-05-24] "do" 流程首次实战 — 双审拦下低ROI改动
+
+@2026-05-24 hits:1
+**场景**: 提议 posttool-claim-audit L2 行级验证升级（~50行代码），Oracle REVISE (3 CRITICAL) + Meta-Oracle REJECT (独立跟踪文件替代方案)。评估 ROI: L1 文件级已拦 90%+ 编造，L2 仅覆盖「读了但不够深」极端场景，收益微薄。
+**决策**: 取消。方案→双审→(发现低ROI)→取消，流程本身省了执行+验收+报告的成本。
+**原则**: 哲学 #2 (少量正确大增益) — 同样精力投到 unified.yaml 33% 覆盖率或 ecosystem-probe Linux 兼容上 ROI 更高。
+
+### 🐶 [DG-113] Stop hooks 相对路径 CWD 漂移 — SessionStart 和 Stop 时的 CWD 不是项目根 (@LuangSir)
+
+@2026-05-24 hits:1
+触发条件：settings.json 中 53 个 hook 命令用相对路径 `bash .claude/hooks/xxx.sh`，Stop 事件触发时 hook runner 的 CWD 已变更 → `No such file or directory`
+正确行为：改为绝对路径。source mirror 用 `__PROJECT_ROOT__` 占位符，install.sh 安装时替换为实际路径
+证据：本会话实测 stop-drain/auto-snapshot/knowledge-condenser/skill-flywheel 4 个 Stop hook 全部报错。OpenCode TS 插件 (`carror-hooks-compat.ts`) 无此问题（显式 `cwd: PROJECT_ROOT`）。修复：settings.json Stop hooks 改为绝对路径
 

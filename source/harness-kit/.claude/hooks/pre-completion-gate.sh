@@ -9,7 +9,7 @@ set -f
 INPUT=$(cat)
 
 # 提取 status 字段
-STATUS=$(echo "$INPUT" | python3 -c "
+STATUS=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -48,7 +48,7 @@ if [ ! -f "$EVIDENCE_FILE" ]; then
     fi
 
 # 检查证据文件新鲜度
-FRESH=$(python3 -c "
+FRESH=$(${PYTHON_BIN:-python3} -c "
 import os, time
 try:
     age = time.time() - os.path.getmtime('$EVIDENCE_FILE')

@@ -11,6 +11,29 @@ if [ -z "$_HC_PROJECT_ROOT" ]; then
     _HC_CACHE_LOADED=""
 fi
 
+# ─── Cross-platform Python binary resolution (DG-105, DG-106) ───
+# Runs once at source time; all hooks sourcing this file inherit $PYTHON_BIN.
+# Priority: python3 > python (Windows) > common install paths.
+if [ -z "${PYTHON_BIN:-}" ]; then
+    _resolve_python() {
+        if command -v python3 &>/dev/null; then
+            echo "python3"; return
+        fi
+        if command -v python &>/dev/null; then
+            local _pver; _pver=$(python --version 2>&1)
+            if echo "$_pver" | grep -q "Python 3"; then
+                echo "python"; return
+            fi
+        fi
+        for _p in /c/Python3*/python.exe /mingw64/bin/python3.exe /usr/bin/python3.exe; do
+            if [ -x "$_p" ]; then echo "$_p"; return; fi
+        done
+        echo "python3"  # fallback — let it fail at call time so hook can detect
+    }
+    PYTHON_BIN="$(_resolve_python)"
+    export PYTHON_BIN
+fi
+
 # 确保缓存存在且新鲜
 _hc_ensure_cache() {
     # 已加载且非空 → 跳过
@@ -45,8 +68,8 @@ _hc_ensure_cache() {
         return 1
     fi
 
-    # 需要重建缓存：python3 扁平化 yaml → key=value
-    if ! command -v python3 &>/dev/null; then
+    # 需要重建缓存：python 扁平化 yaml → key=value
+    if ! command -v "$PYTHON_BIN" &>/dev/null; then
         _HC_CACHE_LOADED="empty"
         return 1
     fi
@@ -54,7 +77,7 @@ _hc_ensure_cache() {
     # 写入临时文件再 mv（原子替换，防并发）
     local tmp_cache="${_HC_CACHE}.tmp.$$"
     local min_keys="${HC_MIN_PARSED_KEYS:-50}"
-    python3 - "$_HC_YAML" "$tmp_cache" "$min_keys" <<'PYEOF'
+    $PYTHON_BIN - "$_HC_YAML" "$tmp_cache" "$min_keys" <<'PYEOF'
 import sys, os
 
 yaml_path = sys.argv[1]
@@ -289,7 +312,7 @@ is_mode_active() {
     local ghost_new="$state_dir/lx-ghost.json"
     if [ -f "$ghost_new" ]; then
         local expired
-        expired=$(python3 -c "
+        expired=$($PYTHON_BIN -c "
 import json, sys
 try:
     d = json.load(open('$ghost_new'))
@@ -317,7 +340,7 @@ except Exception:
     local ghost_old="$state_dir/ghost-mode.json"
     if [ -f "$ghost_old" ]; then
         local expired
-        expired=$(python3 -c "
+        expired=$($PYTHON_BIN -c "
 import json, sys
 try:
     d = json.load(open('$ghost_old'))
@@ -351,7 +374,7 @@ except Exception:
     local goal_new="$state_dir/lx-goal.json"
     if [ -f "$goal_new" ]; then
         local expired
-        expired=$(python3 -c "
+        expired=$($PYTHON_BIN -c "
 import json, sys
 try:
     d = json.load(open('$goal_new'))
@@ -379,7 +402,7 @@ except Exception:
     local goal_old="$state_dir/unattended-mode.json"
     if [ -f "$goal_old" ]; then
         local expired
-        expired=$(python3 -c "
+        expired=$($PYTHON_BIN -c "
 import json, sys
 try:
     d = json.load(open('$goal_old'))
@@ -435,7 +458,7 @@ _mode_append_to_list() {
     local state_dir="$1" mode="$2" field="$3" json_value="$4"
     local file="$(_mode_file_for "$state_dir" "$mode")"
     [ ! -f "$file" ] && return 1
-    python3 -c "
+    $PYTHON_BIN -c "
 import json, os
 file = '$file'
 field = '$field'
@@ -463,7 +486,7 @@ _mode_increment_field() {
     local state_dir="$1" mode="$2" field="$3"
     local file="$(_mode_file_for "$state_dir" "$mode")"
     [ ! -f "$file" ] && return 1
-    python3 -c "
+    $PYTHON_BIN -c "
 import json, os
 file = '$file'
 field = '$field'
@@ -488,7 +511,7 @@ os.rename(tmp, file)
 hc_emit_hook_json() {
     export _HC_EVENT_NAME="${1:-PostToolUse}"
     export _HC_CONTINUE_VAL="${2:-true}"
-    python3 -c "
+    $PYTHON_BIN -c "
 import os, sys, json, re
 event = os.environ.get('_HC_EVENT_NAME', 'PostToolUse')
 continue_val = os.environ.get('_HC_CONTINUE_VAL', 'true')
@@ -529,7 +552,7 @@ hc_sanitize_utf8() {
     local _hc_input _hc_source
     _hc_input=$(cat)
     _hc_source="${1:-unknown}"  # optional: caller can pass source hint
-    _HC_INPUT="$_hc_input" _HC_SOURCE="$_hc_source" python3 <<'PYEOF'
+    _HC_INPUT="$_hc_input" _HC_SOURCE="$_hc_source" $PYTHON_BIN <<'PYEOF'
 import os, sys, re, json
 from datetime import datetime, timezone
 

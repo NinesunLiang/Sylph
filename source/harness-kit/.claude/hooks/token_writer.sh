@@ -46,7 +46,7 @@ get_increment() {
 # Read/Grep → content blocks (array of {type, text}), Bash → stdout, Edit/Write → fallback
 get_effective_incr() {
     local raw
-    raw=$(echo "$INPUT_STDIN" | python3 -c "
+    raw=$(echo "$INPUT_STDIN" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -86,7 +86,7 @@ except:
 # 自动检测实际模型上下文限制（用于 --reset 和正常模式）
 auto_limit() {
     if command -v python3 &>/dev/null; then
-        local s=$(python3 -c "
+        local s=$(${PYTHON_BIN:-python3} -c "
 import json, re, os
 try:
     settings = json.load(open(os.path.expanduser('.claude/settings.json')))
@@ -130,7 +130,7 @@ detect_context_limit() {
     # 1. 从 settings.json 解析模型名中的上下文后缀 [1m]/[200k]/[128k] 等
     local model_suffix=""
     if command -v python3 &>/dev/null; then
-        model_suffix=$(python3 -c "
+        model_suffix=$(${PYTHON_BIN:-python3} -c "
 import json, re, os
 try:
     settings = json.load(open(os.path.expanduser('.claude/settings.json')))
@@ -168,7 +168,7 @@ LIMIT=$(detect_context_limit)
 USAGE=0
 if [ -f "$INDEX_FILE" ]; then
     DATA=$(cat "$INDEX_FILE" 2>/dev/null)
-    USAGE=$(echo "$DATA" | python3 -c "
+    USAGE=$(echo "$DATA" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -183,7 +183,7 @@ COMPACT_SAVED=0
 COMPACT_EVENTS=0
 if [ -f "$SAVINGS_FILE" ]; then
     SAVINGS_DATA=$(cat "$SAVINGS_FILE" 2>/dev/null)
-    read -r COMPACT_SAVED COMPACT_EVENTS <<< "$(echo "$SAVINGS_DATA" | python3 -c "
+    read -r COMPACT_SAVED COMPACT_EVENTS <<< "$(echo "$SAVINGS_DATA" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -197,7 +197,7 @@ fi
 if [ "${1:-}" = "--increment" ]; then
     # 检查是否有待处理的 compact
     if [ -f "$COMPACT_STATE" ]; then
-        PENDING=$(echo "$(cat "$COMPACT_STATE" 2>/dev/null)" | python3 -c "
+        PENDING=$(echo "$(cat "$COMPACT_STATE" 2>/dev/null)" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -208,7 +208,7 @@ except:
 " 2>/dev/null)
 
         if [ "$PENDING" = "true" ]; then
-            PRE_COMPACT=$(echo "$(cat "$COMPACT_STATE" 2>/dev/null)" | python3 -c "
+            PRE_COMPACT=$(echo "$(cat "$COMPACT_STATE" 2>/dev/null)" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -256,7 +256,7 @@ fi
 # 写入 token-tracking-index.json
 cat > "$INDEX_FILE" <<EOF
 {
-  "usage": $USAGE,
+  "usage": ${USAGE:-0},
   "limit": $LIMIT,
   "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo 'unknown')",
   "source": "token_writer.sh"
@@ -269,9 +269,9 @@ TOTAL=$COMPACT_SAVED
 # 写入 token-savings.json
 cat > "$SAVINGS_FILE" <<EOF
 {
-  "compact": $COMPACT_SAVED,
-  "total": $TOTAL,
-  "compact_events": $COMPACT_EVENTS,
+  "compact": ${COMPACT_SAVED:-0},
+  "total": ${TOTAL:-0},
+  "compact_events": ${COMPACT_EVENTS:-0},
   "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || echo 'unknown')"
 }
 EOF

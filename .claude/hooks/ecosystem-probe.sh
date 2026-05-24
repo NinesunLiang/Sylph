@@ -77,13 +77,13 @@ esac
 PYTHON3_OK=false; PYTHON3_HAS_SECRETS=false
 if command -v python3 &>/dev/null; then
     PYTHON3_OK=true
-    if python3 -c "import secrets" 2>/dev/null; then
+    if ${PYTHON_BIN:-python3} -c "import secrets" 2>/dev/null; then
         PYTHON3_HAS_SECRETS=true
     fi
 fi
 MISSING_DEPS=""
-[ "$PYTHON3_OK" = false ] && MISSING_DEPS="python3 $MISSING_DEPS"
-[ "$PYTHON3_HAS_SECRETS" = false ] && [ "$PYTHON3_OK" = true ] && MISSING_DEPS="python3-secrets $MISSING_DEPS"
+[ "$PYTHON3_OK" = false ] && MISSING_DEPS="${PYTHON_BIN:-python3} $MISSING_DEPS"
+[ "$PYTHON3_HAS_SECRETS" = false ] && [ "$PYTHON3_OK" = true ] && MISSING_DEPS="${PYTHON_BIN:-python3}-secrets $MISSING_DEPS"
 
 # ── LSP 服务器探测 ──
 LSP_PYRIGHT=false; LSP_TSSERVER=false; LSP_GO=false; LSP_RUST=false
@@ -133,7 +133,7 @@ omc:        $OMC
 codex:      $CODEX
 gemini:     $GEMINI
 hook_layer: $HOOK_LAYER
-python3:    $PYTHON3_OK
+${PYTHON_BIN:-python3}:    $PYTHON3_OK
 py_secrets: $PYTHON3_HAS_SECRETS
 context_limit: ${CTX_LIMIT}
 missing:    ${MISSING_DEPS:-none}
@@ -158,12 +158,12 @@ if [ "$PLATFORM" = "claude-code" ] && [ "$OMC" = false ]; then
     echo "[soft-suggest] 安装: npx oh-my-claudecode install"
 fi
 if [ "$PYTHON3_OK" = false ]; then
-    echo "[soft-suggest] ⚠️ python3 未安装 — 38 个 hook（127 处调用）依赖它。"
+    echo "[soft-suggest] ⚠️ ${PYTHON_BIN:-python3} 未安装 — 38 个 hook（127 处调用）依赖它。"
     echo "[soft-suggest] macOS: brew install python3"
     echo "[soft-suggest] Linux: apt install python3"
 elif [ "$PYTHON3_HAS_SECRETS" = false ]; then
-    echo "[soft-suggest] ⚠️ python3 缺 secrets 模块（Python < 3.6），权限门禁降级。"
-    echo "[soft-suggest] 升级: brew upgrade python3 或 apt upgrade python3"
+    echo "[soft-suggest] ⚠️ ${PYTHON_BIN:-python3} 缺 secrets 模块（Python < 3.6），权限门禁降级。"
+    echo "[soft-suggest] 升级: brew upgrade ${PYTHON_BIN:-python3} 或 apt upgrade python3"
 fi
 
 # ── LSP 安装建议（按平台差异化）──

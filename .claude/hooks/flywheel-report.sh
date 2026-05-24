@@ -23,7 +23,7 @@ export FLYWHEEL_DEFAULT_SNOOZE_DAYS
 FLYWHEEL_P0_WARNING_THRESHOLD=$(hc_get "flywheel_report.p0_warning_threshold" "5")
 export FLYWHEEL_P0_WARNING_THRESHOLD
 
-python3 - "$FLYWHEEL" "$REPORT_DIR" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$FLYWHEEL" "$REPORT_DIR" <<'PYEOF'
 import sys, os, subprocess
 from datetime import date, timedelta
 from collections import defaultdict

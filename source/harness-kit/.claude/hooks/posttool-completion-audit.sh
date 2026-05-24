@@ -17,7 +17,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 
 # 提取 tool 和 status 字段
-TOOL=$(echo "$INPUT" | python3 -c "
+TOOL=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     print(json.load(sys.stdin).get('tool', ''))
@@ -30,7 +30,7 @@ if [ "$TOOL" != "TaskUpdate" ]; then
     exit 0
 fi
 
-STATUS=$(echo "$INPUT" | python3 -c "
+STATUS=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -50,7 +50,7 @@ if [ ! -f "$EVIDENCE_FILE" ]; then
 fi
 
 # 检查证据质量（独立于 completion-gate 的逻辑）
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import os, re, json
 
 ef = '$EVIDENCE_FILE'

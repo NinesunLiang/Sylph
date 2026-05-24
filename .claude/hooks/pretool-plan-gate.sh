@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # pretool-plan-gate.sh — PreToolUse:Edit|Write|Bash — Plan-before-Execute 门禁
 # 哲学 #3(先守护): 方案未审批→阻断执行
-# 哲学 #6(0信任): AI不得自行决定"不需要计划"
-# 触发: 跨3+文件或20+行变更时, 检查 .omc/plans/ 下是否有已审批方案
+# 哲学 #6(0信任): 不信任 state.json (AI可写) → 从 lx-goal.json 验证 phase0_passed_at
+# 触发: 跨3+文件或20+行变更时检查
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -24,11 +24,9 @@ fi
 ESTIMATED_FILES=0
 ESTIMATED_LINES=0
 
-# 从 tool_input 中提取 file_path (Edit/Write) 或分析 Bash 命令
 if [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "Write" ]; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
     if [ -n "$FILE_PATH" ]; then
-        # 新文件? 估算行数
         NEW_CONTENT=$(echo "$INPUT" | jq -r '.tool_input.new_string // .tool_input.content // empty' 2>/dev/null)
         if [ -n "$NEW_CONTENT" ]; then
             ESTIMATED_LINES=$(echo "$NEW_CONTENT" | wc -l | tr -d ' ')
@@ -37,28 +35,73 @@ if [ "$TOOL_NAME" = "Edit" ] || [ "$TOOL_NAME" = "Write" ]; then
     fi
 elif [ "$TOOL_NAME" = "Bash" ]; then
     CMD=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
-    # 检测多文件操作
-    FILE_COUNT=$(echo "$CMD" | grep -oE '[^ ]+\.(go|py|ts|js|sh|yaml|yml|json|md|toml)' 2>/dev/null | wc -l | tr -d ' ')
+    FILE_COUNT=$(echo "$CMD" | grep -oE '[^ ]+\.(go|py|ts|js|sh|yaml|yml|json|md|toml|rs|rb|java|css|html)' 2>/dev/null | wc -l | tr -d ' ')
     ESTIMATED_FILES="${FILE_COUNT:-0}"
+fi
+
+# ─── RPE 计划目录放行: 允许写入 prd.md/progress.md/checklist.md ───
+# 只放行这三种文件，state.json 不在白名单 (防止直接写 phase=executing 绕过 phase0-done)
+if echo "$FILE_PATH" | grep -qE '\.omc/plans/.*/(prd|progress|checklist)\.md$' 2>/dev/null; then
+    echo '{"continue": true}'; exit 0
+fi
+# Ghost RPE 目录同样放行
+if echo "$FILE_PATH" | grep -qE '\.omc/chats/.*/progress\.md$' 2>/dev/null; then
+    echo '{"continue": true}'; exit 0
 fi
 
 # ─── 门禁判断 ───
 if [ "$ESTIMATED_FILES" -lt 3 ] && [ "$ESTIMATED_LINES" -lt 20 ]; then
-    # 小变更, 放行
     echo '{"continue": true}'; exit 0
 fi
 
-# ─── 大变更: 检查是否有已审批方案 ───
+# ─── 自主模式感知 ──────────────────────────────────────────
+STATE_DIR="$PROJECT_ROOT/.omc/state"
+MODE=$(is_mode_active "$STATE_DIR" 2>/dev/null || echo "normal")
+
+# Ghost 模式: 探索驱动，允许代码变更 (permission-gate + pre-ask-guard 提供安全网)
+if [ "$MODE" = "ghost" ]; then
+    echo '{"continue": true}'
+    flywheel_event "pretool_plan_gate" "ghost_mode_allow" "P2" "files=$ESTIMATED_FILES lines=$ESTIMATED_LINES" || true
+    exit 0
+fi
+
+# Goal 模式: 必须通过 phase0-done 验证 (检查 lx-goal.json 而非 state.json)
+# 哲学 #6 (0信任): state.json 是 AI 可写的，不可信。lx-goal.json 的 phase0_passed_at 只有 phase0-done 写入
+if [ "$MODE" = "goal" ]; then
+    GOAL_FILE="$STATE_DIR/lx-goal.json"
+    if [ -f "$GOAL_FILE" ]; then
+        PHASE0_PASSED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GOAL_FILE')); print(d.get('phase0_passed_at',''))" 2>/dev/null || echo "")
+        if [ -n "$PHASE0_PASSED" ]; then
+            echo '{"continue": true}'
+            flywheel_event "pretool_plan_gate" "goal_phase0_verified" "P2" "passed_at=$PHASE0_PASSED" || true
+            exit 0
+        fi
+    fi
+    # Phase 0 未完成 → 阻断
+    echo "⛔ [Plan Gate] 目标模式活跃，但 Phase 0 未完成 (phase0_passed_at 缺失)。
+
+    AI 必须先调用 phase0-done 完成计划阶段:
+      lx-goal phase0-done
+
+    这会验证 prd.md 已写入子任务/验收标准/风险点，
+    然后将 phase0_passed_at 写入 lx-goal.json，解锁代码变更。
+    注意: 直接写 state.json 无效 — plan gate 只信任 lx-goal.json。
+    " >&2
+    flywheel_event "pretool_plan_gate" "blocked_phase0_incomplete" "P1" "mode=goal" || true
+    exit 2
+fi
+
+# ─── Normal 模式: 传统 Plan-before-Execute 检查 ──────────
 PLANS_DIR="$PROJECT_ROOT/.omc/plans"
 HAS_APPROVED=false
 PLAN_PATH=""
 
 if [ -d "$PLANS_DIR" ]; then
-    set +f  # 临时启用glob (set -f在第10行禁用了通配符展开)
+    set +f
     for state_file in "$PLANS_DIR"/*/*/state.json; do
         set -f
         [ -f "$state_file" ] || continue
-        PHASE=$(python3 -c "import json; print(json.load(open('$state_file')).get('phase',''))" 2>/dev/null || echo "")
+        PHASE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$state_file')).get('phase',''))" 2>/dev/null || echo "")
         if [ "$PHASE" = "approved" ] || [ "$PHASE" = "executing" ]; then
             HAS_APPROVED=true
             PLAN_PATH=$(dirname "$state_file")

@@ -64,7 +64,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # 调用锁管理器 (阻塞式等待)
-python3 "$PROJECT_ROOT/.claude/scripts/oma_lock_manager.py" acquire "$FILE_PATH" "$OWNER"
+${PYTHON_BIN:-python3} "$PROJECT_ROOT/.claude/scripts/oma_lock_manager.py" acquire "$FILE_PATH" "$OWNER"
 exit_code=$?
 if [[ $exit_code -ne 0 ]]; then
 	    echo "⚠️ [Carror OS] 并发锁引擎异常 (Exit $exit_code) — 已降级放行（fail-open），写入操作继续。" >&2

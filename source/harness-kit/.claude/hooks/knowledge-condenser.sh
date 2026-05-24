@@ -13,7 +13,7 @@ KERNEL_MD="$PROJECT_ROOT/.claude/kernel.md"
 
 [ -f "$CLAUDE_NEXT" ] || exit 0
 
-PY_OUTPUT=$(python3 - "$CLAUDE_NEXT" "$KERNEL_MD" <<'PYEOF'
+PY_OUTPUT=$(${PYTHON_BIN:-python3} - "$CLAUDE_NEXT" "$KERNEL_MD" <<'PYEOF'
 import json, re, sys, subprocess
 from datetime import datetime, date
 

@@ -15,7 +15,7 @@ hc_enabled "intent_tracker" || { echo '{"continue":true}'; exit 0; }
 INPUT=$(cat)
 
 # 提取 file_path 字段
-FILE_PATH=$(echo "$INPUT" | python3 -c "
+FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -34,7 +34,7 @@ mkdir -p "$STATE_DIR"
 CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
 
 # Python 内联处理逻辑：会话级编辑计数 + 内容哈希追踪 + revert 检测
-python3 - "$FILE_PATH" "$CONTRADICTION_LOG" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$FILE_PATH" "$CONTRADICTION_LOG" <<'PYEOF'
 import sys, json, hashlib, os, time, fcntl
 
 file_path = sys.argv[1]

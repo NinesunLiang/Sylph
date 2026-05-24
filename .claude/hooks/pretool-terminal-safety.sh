@@ -19,9 +19,9 @@ fi
 WARNINGS=""
 
 # Rule 1: python3 -c with complex code (建议heredoc)
-if echo "$CMD" | grep -q "python3 -c" && [ ${#CMD} -gt 100 ]; then
+if echo "$CMD" | grep -q "${PYTHON_BIN:-python3} -c" && [ ${#CMD} -gt 100 ]; then
     WARNINGS="${WARNINGS}
-[terminal-safety] python3 -c过长(${#CMD}字符) → 建议用 python3 << 'PY' heredoc"
+[terminal-safety] ${PYTHON_BIN:-python3} -c过长(${#CMD}字符) → 建议用 ${PYTHON_BIN:-python3} << 'PY' heredoc"
 fi
 
 # Rule 2: git chain (git .*&&.*git)
@@ -36,14 +36,34 @@ if echo "$CMD" | grep -qE 'git\s+commit.*#\s*[0-9]'; then
 [terminal-safety] git commit含# → 可能被截断, 改用中文冒号或括号"
 fi
 
-# Rule 6: long python3 -c (>120 chars with quotes = terminal wrap risk)
-if echo "$CMD" | grep -q "python3 -c" && [ ${#CMD} -gt 120 ]; then
-    WARNINGS="${WARNINGS}
-[terminal-safety] python3 -c超过120字符 → 用 Write 创建 scripts/task-xxx.sh, 用户 bash scripts/task-xxx.sh"
+# Rule 6: long python3 -c (>120 chars = terminal truncation risk) → HARD BLOCK
+# 哲学 #6(0信任): 终端宽度截断导致语法错误是已知事故 (DG-13, DG-22)
+# 机制化: 长命令必须走脚本文件，不可在终端直接执行
+if echo "$CMD" | grep -qE '${PYTHON_BIN:-python3} -c|python -c' && [ ${#CMD} -gt 120 ]; then
+    SCRIPT_NAME="scripts/task-$(date +%Y%m%d-%H%M%S).sh"
+    echo "🛑 [terminal-safety·Rule6] ${PYTHON_BIN:-python3} -c 超过120字符 (${#CMD}字符) — 终端截断风险" >&2
+    echo "" >&2
+    echo "   AI 必须用 Write 工具创建脚本文件:" >&2
+    echo "     ${SCRIPT_NAME}" >&2
+    echo "" >&2
+    echo "   然后输出: bash ${SCRIPT_NAME}" >&2
+    flywheel_event "pretool_terminal_safety" "blocked_long_command" "P1" "len=${#CMD}" || true
+    echo '{"continue": false, "hookSpecificOutput": {"additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，终端截断风险。请用 Write 创建 scripts/task-xxx.sh，然后让用户 bash scripts/task-xxx.sh 执行。"}}'
+    exit 2
+fi
+
+# Rule 6b: any command >200 chars → HARD BLOCK (general safety net)
+if [ ${#CMD} -gt 200 ]; then
+    SCRIPT_NAME="scripts/task-$(date +%Y%m%d-%H%M%S).sh"
+    echo "🛑 [terminal-safety·Rule6] 命令超过200字符 (${#CMD}字符) — 不可复制执行" >&2
+    echo "   AI 必须用 Write 创建: ${SCRIPT_NAME}" >&2
+    flywheel_event "pretool_terminal_safety" "blocked_long_command" "P1" "len=${#CMD}" || true
+    echo '{"continue": false, "hookSpecificOutput": {"additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，请用 Write 创建脚本文件。"}}'
+    exit 2
 fi
 
 # Rule 3: path pile-up
-PATH_COUNT=$(echo "$CMD" | grep -oE '[^ ]+\.(go|py|ts|js|sh|yaml|json|md)' 2>/dev/null | wc -l | tr -d ' ')
+PATH_COUNT=$(echo "$CMD" | grep -oE '[^ ]+\.(go|py|ts|js|sh|yaml|json|md|rs|rb|java|css|html|toml)' 2>/dev/null | wc -l | tr -d ' ')
 if [ "${PATH_COUNT:-0}" -gt 8 ]; then
     WARNINGS="${WARNINGS}
 [terminal-safety] 路径堆砌(${PATH_COUNT}个文件) → 建议每行一个文件"

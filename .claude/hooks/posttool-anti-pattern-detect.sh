@@ -32,7 +32,7 @@ fi
 if command -v jq &>/dev/null; then
     RESULT=$(echo "$INPUT" | jq -r '.tool_response.result // empty' 2>/dev/null)
 else
-    RESULT=$(echo "$INPUT" | python3 -c "
+    RESULT=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -98,7 +98,7 @@ if [ "$A2_TRIGGERED" = true ] || [ "$H1_TRIGGERED" = true ]; then
     fi
     if [ "$AUTONOMOUS" = true ]; then
         echo "[$MODE] A2/H1 反模式已记录（自主模式不阻断）" >&2
-        python3 -c "import json,time;open('$VIOLATION_LOG','a').write(json.dumps({'ts':int(time.time()),'type':'A2_H1','mode':'$MODE','result':'$(echo "$RESULT" | head -c 200 | sed 's/"/\\\\"/g')'})+'\n')" 2>/dev/null
+        ${PYTHON_BIN:-python3} -c "import json,time;open('$VIOLATION_LOG','a').write(json.dumps({'ts':int(time.time()),'type':'A2_H1','mode':'$MODE','result':'$(echo "$RESULT" | head -c 200 | sed 's/"/\\\\"/g')'})+'\n')" 2>/dev/null
         flywheel_event "anti_pattern_detect" "recorded_autonomous" "P2" || true
         echo '{"continue": true}'
         exit 0
@@ -115,7 +115,7 @@ if [ "$F1_TRIGGERED" = true ]; then
     if [ "$AUTONOMOUS" = true ]; then
         echo "[$MODE] F1 反模式已记录（自主模式不阻断）" >&2
         VIOLATION_LOG="$STATE_DIR/ghost-violations.jsonl"
-        python3 -c "import json,time;open('$VIOLATION_LOG','a').write(json.dumps({'ts':int(time.time()),'type':'F1','mode':'$MODE'})+'\n')" 2>/dev/null
+        ${PYTHON_BIN:-python3} -c "import json,time;open('$VIOLATION_LOG','a').write(json.dumps({'ts':int(time.time()),'type':'F1','mode':'$MODE'})+'\n')" 2>/dev/null
         flywheel_event "anti_pattern_detect" "recorded_autonomous" "P2" || true
         echo '{"continue": true}'
         exit 0

@@ -36,7 +36,7 @@ fi
 
 # R29: 只对写工具 (Edit/Write) 做硬阻断, 保留 Read/Grep/Bash 诊断通道
 # 从 stdin JSON 中提取 tool_name
-TOOL_NAME=$(echo "$INPUT" | python3 -c "
+TOOL_NAME=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     d = json.load(sys.stdin)
@@ -62,16 +62,16 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
 if [ -x "$PYTHON_SCRIPT" ]; then
     RESULT=$(CONTEXT_WARN_THRESHOLD="$WARN_PCT" CONTEXT_DANGER_THRESHOLD="$DANGER_PCT" \
-        python3 "$PYTHON_SCRIPT" 2>/dev/null)
-    SOURCE=$(echo "$RESULT" | python3 -c "
+        ${PYTHON_BIN:-python3} "$PYTHON_SCRIPT" 2>/dev/null)
+    SOURCE=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('source', ''))" 2>/dev/null)
-    IS_DANGER=$(echo "$RESULT" | python3 -c "
+    IS_DANGER=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 d = json.load(sys.stdin)
 print(str(d.get('is_danger', False)).lower())" 2>/dev/null)
-    PCT=$(echo "$RESULT" | python3 -c "
+    PCT=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('percentage', 0))" 2>/dev/null)
@@ -116,9 +116,9 @@ fi
 
 # Sweet-spot / Hand-off Alert: inject into AI context via additionalContext
 if [ -x "$PYTHON_SCRIPT" ]; then
-    SWEET_WARNING=$(echo "$RESULT" | python3 -c "import sys, json; d=json.load(sys.stdin); print(d.get('sweet_spot_warning',''))" 2>/dev/null)
+    SWEET_WARNING=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "import sys, json; d=json.load(sys.stdin); print(d.get('sweet_spot_warning',''))" 2>/dev/null)
     if [ -n "$SWEET_WARNING" ]; then
-        SWEET_JSON=$(echo "$SWEET_WARNING" | python3 -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.buffer.read().decode('utf-8','replace').strip())))" 2>/dev/null)
+        SWEET_JSON=$(echo "$SWEET_WARNING" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.buffer.read().decode('utf-8','replace').strip())))" 2>/dev/null)
         SWEET_JSON="${SWEET_JSON:-\"\"}"
         printf '{"continue":true,"hookSpecificOutput":{"additionalContext":%s}}\n' "$SWEET_JSON"
     fi

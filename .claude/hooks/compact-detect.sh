@@ -28,7 +28,7 @@ mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 # 读取当前 usage
 USAGE=0
 if [ -f "$INDEX_FILE" ]; then
-    USAGE=$(python3 -c "import json;d=json.load(open('$INDEX_FILE'));print(d.get('usage',0))" 2>/dev/null || echo 0)
+    USAGE=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$INDEX_FILE'));print(d.get('usage',0))" 2>/dev/null || echo 0)
 fi
 
 cat > "$COMPACT_STATE" <<EOF
@@ -76,7 +76,7 @@ fi
 # session-dump 恢复
 SESSION_DUMP="$PROJECT_ROOT/.omc/state/session-dump.json"
 if [ -f "$SESSION_DUMP" ]; then
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json
 try:
     d=json.load(open('$SESSION_DUMP'))

@@ -38,7 +38,7 @@ fi
 if [[ -n "$FILE_PATH" ]]; then
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
     PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-    python3 "$PROJECT_ROOT/.claude/scripts/oma_lock_manager.py" release "$FILE_PATH" 2>/dev/null
+    ${PYTHON_BIN:-python3} "$PROJECT_ROOT/.claude/scripts/oma_lock_manager.py" release "$FILE_PATH" 2>/dev/null
 fi
 echo '{"continue": true}'
 flywheel_event "posttool_write_lock" "lock_released" "P2" "released"

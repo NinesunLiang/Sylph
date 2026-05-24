@@ -92,7 +92,7 @@ if [ "$ALL_OK" = true ]; then
     else
         RATIO="0"
     fi
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os, time
 tf = '$STATE_DIR/token-savings.json'
 tl = '$STATE_DIR/token-savings.jsonl'
@@ -121,7 +121,7 @@ with open(tf, 'w') as f: json.dump(d, f)
 # 跨会话时间序列 (JSONL追加)
 with open(tl, 'a') as f: f.write(json.dumps(session) + '\n')
 " 2>/dev/null || true
-    echo "[context-compressor] 💰 本次(输入侧): ${RATIO}% | 累计: $(python3 -c \"import json;d=json.load(open('$STATE_DIR/token-savings.json'));print(f'{d.get(\\\"cumulative_events\\\",0)}次 {d.get(\\\"cumulative_bytes\\\",0)}bytes')\" 2>/dev/null)" >&2
+    echo "[context-compressor] 💰 本次(输入侧): ${RATIO}% | 累计: $(${PYTHON_BIN:-python3} -c \"import json;d=json.load(open('$STATE_DIR/token-savings.json'));print(f'{d.get(\\\"cumulative_events\\\",0)}次 {d.get(\\\"cumulative_bytes\\\",0)}bytes')\" 2>/dev/null)" >&2
 else
     echo "[context-compressor] ⚠️ 部分 compact 文件缺失，缓存不完整" >&2
 fi
