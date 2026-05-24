@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # snapshot-helper.sh — 非 git 环境的规范化快照工具
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 #
 # 背景：
 #   Carror OS 本身非 git 工作区，铁律 #4（Git 门禁）降级为 "sha256 + 人工批准"。
@@ -88,7 +91,7 @@ case "$MODE" in
         AFTER="$STATE_DIR/snapshot-after-$TS.txt"
         [ -f "$BEFORE" ] && [ -f "$AFTER" ] || { echo "error: $BEFORE or $AFTER missing"; exit 3; }
         echo "=== snapshot diff (TS=$TS) ==="
-        python3 - "$BEFORE" "$AFTER" <<'PYEOF'
+        ${PYTHON_BIN:-python3} - "$BEFORE" "$AFTER" <<'PYEOF'
 import sys
 def load(p):
     m = {}

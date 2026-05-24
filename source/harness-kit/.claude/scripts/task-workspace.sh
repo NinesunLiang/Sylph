@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # task-workspace.sh — 日常复杂任务持久化工作区（哲学 #7 物化）
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: task-workspace.sh init "任务标题"
 #        task-workspace.sh progress "进度描述"
 #        task-workspace.sh decision "决策描述"
@@ -29,7 +32,7 @@ mkdir -p "$TASKS_DIR"
 slugify() {
     local raw="$1"
     local slug
-    slug=$(python3 -c "
+    slug=$(${PYTHON_BIN:-python3} -c "
 import re, sys
 s = sys.argv[1].lower()
 s = re.sub(r'[^a-z0-9\u4e00-\u9fff]+', '-', s)

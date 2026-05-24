@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # tier2-runtime-test.sh — 配对机制协同验证
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: bash .claude/scripts/tier2-runtime-test.sh
 set -uo pipefail
 PASS=0; FAIL=0; TOTAL=0
@@ -61,7 +64,7 @@ _test "error-signals has data" "true" "$(
   [ "$(wc -l < .omc/state/error-signals.jsonl 2>/dev/null || echo 0)" -gt 0 ] && echo true
 )"
 _test "retry-budget has data" "true" "$(
-  [ -f .omc/state/retry-budget.json ] && python3 -c "
+  [ -f .omc/state/retry-budget.json ] && ${PYTHON_BIN:-python3} -c "
 import json; d=json.load(open('.omc/state/retry-budget.json'))
 print('true' if len(d.get('signatures',{})) > 0 else 'false')
 " 2>/dev/null

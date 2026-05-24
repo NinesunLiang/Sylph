@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # score-ux.sh — Meta-Oracle UX 维度独立评分脚本
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: 对 UX（用户体验）5 个子维度进行独立评分，满分 10 分
 #       UX 独立参与打分，不影响 C/E/G 的 8.6/10 总阈值判定
 #
@@ -47,7 +50,7 @@ score_UX1() {
   # 运行时验证 (1分): 检查 session-turns.json 中轮次是否受控
   if has_runtime_data "$STATE_DIR/session-turns.json"; then
     local turns
-    turns=$(python3 -c "import json; print(json.load(open('$STATE_DIR/session-turns.json')).get('count', 0))" 2>/dev/null || echo "999")
+    turns=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$STATE_DIR/session-turns.json')).get('count', 0))" 2>/dev/null || echo "999")
     turns="${turns:-999}"
     # 当前会话轮次 < 100 → 心智负担可控
     if [ "$turns" -lt 100 ] 2>/dev/null; then
@@ -123,7 +126,7 @@ score_UX4() {
   # 运行时验证 (1分): error-dna.json 有实际分类记录
   if has_runtime_data "$STATE_DIR/error-dna.json"; then
     local classified
-    classified=$(python3 -c "
+    classified=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
     d = json.load(open('$STATE_DIR/error-dna.json'))

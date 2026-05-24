@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 # roi-rules-inject.sh — pretool-rules-inject ROI
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 set -eo pipefail
 FW="$HOME/.claude/flywheel.log"
 [ -f "$FW" ] || { echo "flywheel.log unavailable"; exit 0; }
 
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 fw = '$FW'
 rules = pg = cg = ap = 0
 with open(fw) as f:

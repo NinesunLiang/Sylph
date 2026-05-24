@@ -110,33 +110,29 @@ for r in reverts[-3:]:
 " 2>/dev/null)
 fi
 
-# 写 handoff（覆盖式 — 始终最新状态）
-cat > "$HANDOFF_FILE" <<EOF
-# Session Handoff — ${TIMESTAMP}
+# 检测是否 ghost/goal 模式（已生成退出报告则跳过）
+_IS_AUTONOMOUS=false
+[ -f "$STATE_DIR/autonomous.active" ] || [ -f "$STATE_DIR/lx-ghost.json" ] || [ -f "$STATE_DIR/lx-goal.json" ] && _IS_AUTONOMOUS=true
 
-## Context
+# 写结构化 Session Exit Report（3 节，覆盖式 — 始终最新状态）
+cat > "$HANDOFF_FILE" <<EOF
+# Session Exit Report — ${TIMESTAMP}
+$([ "$_IS_AUTONOMOUS" = true ] && echo "_mode: autonomous (ghost/goal exit report already shown)_")
+
+## 会话摘要
 - Branch: ${BRANCH}
 - Active Feature: ${ACTIVE_FEATURE:-none}
-- Last completion: $(date)
+- Active Task: ${ACTIVE_TASK:-none}
+- Token: ${CTX_INFO:-not available}
 
-## State
-- Modified files: ${MODIFIED:-none}
+## 修改文件
+- Modified: ${MODIFIED:-none}
 - Git diff: ${DIFF_STAT:-clean}
-- Active task: ${ACTIVE_TASK:-none}
 
-## Errors
-- ${ERROR_SUMMARY:-not available}
-
-## Token
-- ${CTX_INFO:-not available}
-
-## 本节 Lessons
-$(if [ -n "$LESSONS" ]; then echo "${LESSONS}"; else echo "(none recorded this session)"; fi)
-
-$(if [ -n "$CONTRADICTIONS" ]; then echo "## 矛盾记录\n${CONTRADICTIONS}"; fi)
-
-## Next Steps
-(handoff auto-generated after TaskUpdate completed — \`inject-project-knowledge.sh\` auto-loads this on next SessionStart)
+## 待办项
+- Errors: ${ERROR_SUMMARY:-not available}
+$(if [ -n "$LESSONS" ]; then echo "${LESSONS}"; else echo "- Lessons: (none)"; fi)
+$(if [ -n "$CONTRADICTIONS" ]; then echo "- Contradictions: ${CONTRADICTIONS}"; fi)
 EOF
 
 # 同步 pipeline.yaml 状态（若有活跃 feature）

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # lx-oma-gov-propagate.sh — 增量传播命令
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 将 reconcile 产生的变更传播到各 prd/{sub_prd}/{feature}/prd.md
 # 用法:
 #   lx-oma-gov-propagate --dry-run            # 预览模式
@@ -65,7 +68,7 @@ if [ -z "$FEATURES" ]; then
 fi
 
 # ─── Python propagation engine ───
-python3 - "$PROJECT_ROOT" "$DRY_RUN" "$EXECUTE" "$NOW_UTC" "$NOW_DATE" "$FILTER_CHG" "$LAST_SNAPSHOT" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PROJECT_ROOT" "$DRY_RUN" "$EXECUTE" "$NOW_UTC" "$NOW_DATE" "$FILTER_CHG" "$LAST_SNAPSHOT" <<'PYEOF'
 import sys, os, json, re
 from datetime import datetime
 

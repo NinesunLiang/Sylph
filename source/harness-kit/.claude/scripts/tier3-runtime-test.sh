@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # tier3-runtime-test.sh — 链式机制管道验证 (5链)
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: bash .claude/scripts/tier3-runtime-test.sh
 set -uo pipefail
 PASS=0; FAIL=0; WARN=0; TOTAL=0
@@ -51,7 +54,7 @@ _test "retry-budget.json exists" "true" "$([ -f .omc/state/retry-budget.json ] &
 R29_1=$(wc -l < .omc/state/error-signals.jsonl 2>/dev/null || echo 0)
 _test "error-signals pipeline active (>0 records)" "[1-9]" "$R29_1"
 
-R29_2=$(python3 -c "
+R29_2=$(${PYTHON_BIN:-python3} -c "
 import json
 d=json.load(open('.omc/state/retry-budget.json'))
 sigs=len(d.get('signatures',{}))
@@ -102,7 +105,7 @@ echo ""
 echo "=== 发现的问题 ==="
 
 # Issue 1: E6 contradiction 185 entries 0 true
-R_ISSUE1=$(python3 -c "
+R_ISSUE1=$(${PYTHON_BIN:-python3} -c "
 import json; total=0; contra=0
 try:
   with open('.omc/state/contradiction-log.jsonl') as f:
@@ -122,7 +125,7 @@ echo "  📋 error-dna.jsonl: $R_ISSUE2 bytes — E2 CAPTCHA管道永远为空"
 _warn "error-dna.jsonl design: only E2 events, normal=empty"
 
 # Issue 3: retry-budget sparse
-R_ISSUE3=$(python3 -c "
+R_ISSUE3=$(${PYTHON_BIN:-python3} -c "
 import json; d=json.load(open('.omc/state/retry-budget.json'))
 print(f'{len(d.get(\"signatures\",{}))} sigs')
 " 2>/dev/null)

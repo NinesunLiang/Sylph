@@ -24,7 +24,7 @@ ISSUES=0
 WARNINGS=0
 VERBOSE=false
 JSON_OUT=false
-ISSUE_LOG_FILE="$(mktemp /tmp/doc-sync-issues.XXXXXX)"
+ISSUE_LOG_FILE="$(mktemp "${TMPDIR:-/tmp}/doc-sync-issues.XXXXXX")"
 
 # 检查模式
 DO_REFS=true

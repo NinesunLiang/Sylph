@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # score-self-check.sh — P3 长期评测框架：C1-C9 + E1-E8 自动评分
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Role: Carror OS 四维评分体系自动基线生成与差异比较
 # 哲学 #4: 没通过验证等于没做 — 每个得分必须有 file:line 证据
 # 哲学 #6: 先天对 AI 0 信任 — 评分来自实际配置检查，非 AI 估算
@@ -78,7 +81,7 @@ file_line_count() {
 
 # 四舍五入到两位小数
 round2() {
-    python3 -c "print(round($1, 2))" 2>/dev/null || echo "$1"
+    ${PYTHON_BIN:-python3} -c "print(round($1, 2))" 2>/dev/null || echo "$1"
 }
 
 # ──────────────────────────────────────────────
@@ -507,7 +510,7 @@ echo "  U5: $U5_SCORE (permission clarity: $U5_COUNT/$U5_TOTAL)" >&2
 
 # 这一步交给 Python（需要读 claude-next.md 做质量惩罚）
 SCORE_JSON_OUT="$STATE_DIR/score-report.json"
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json, sys, re, os
 
 # ── 权重（原始评分体系） ──
@@ -878,7 +881,7 @@ if [ -n "$DIFF_FILE" ]; then
     echo "" >&2
     echo "═══ 与基线差异 ($DIFF_FILE) ═══" >&2
 
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, sys
 
 try:

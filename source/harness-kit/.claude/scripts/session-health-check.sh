@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # session-health-check.sh — 抗衰减: 会话健康检查
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # Compares last-audit date with current date; flags if >7 days stale.
 # Also checks for stale lock files, large error-dna, and flywheel P0 backlog.
 #
@@ -24,7 +27,7 @@ init_health() {
 
 days_since_audit() {
   init_health
-  python3 -c "
+  ${PYTHON_BIN:-python3} -c "
 import json, time
 try:
     d = json.load(open('$HEALTH_FILE'))
@@ -44,7 +47,7 @@ check_stale_locks() {
   local msg=""
   for lock in "$STATE_DIR"/*.lock "$STATE_DIR"/locks.json; do
     if [ -f "$lock" ]; then
-      local age=$(( $(date +%s) - $(stat -f %m "$lock" 2>/dev/null || echo 0) ))
+      local age=$(( $(date +%s) - $(stat -f %m "$lock" 2>/dev/null || stat -c %Y "$lock" 2>/dev/null || echo 0) ))
       if [ "$age" -gt 3600 ] 2>/dev/null; then
         stale=$((stale + 1))
         msg="$msg  · $(basename "$lock"): ${age}s stale"

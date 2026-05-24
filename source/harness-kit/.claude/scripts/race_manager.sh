@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # race_manager.sh — Race 蜂群协调引擎
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 #
 # 跨平台: Claude Code / OpenCode / Codex CLI / Gemini CLI / Qwen Code / Cursor
 # 所有平台均支持: bash + 文件 I/O → race_manager.sh 全平台通用
@@ -98,7 +101,7 @@ shift
 _py_json() {
     local file="$1"
     mkdir -p "$(dirname "$file")"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, sys, os
 data = json.loads(sys.stdin.read())
 with open(os.path.expanduser('$file'), 'w') as f:
@@ -113,7 +116,7 @@ with open(os.path.expanduser('$file'), 'w') as f:
 _py_read_json() {
     local file="$1"
     local key="$2"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, sys
 with open('$file') as f:
     data = json.load(f)
@@ -123,7 +126,7 @@ print(data.get('$key', ''))
 
 # Get ISO timestamp
 _now() {
-    python3 -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))" 2>/dev/null || echo ""
+    ${PYTHON_BIN:-python3} -c "from datetime import datetime, timezone; print(datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))" 2>/dev/null || echo ""
 }
 
 # Sanitize race id (plain, no slash)
@@ -186,7 +189,7 @@ cmd_init() {
     local now_val
     now_val="$(_now)"
 
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 with open(os.path.expanduser('$tmpfile')) as f:
     task = f.read().strip()
@@ -230,7 +233,7 @@ cmd_start() {
     local result_file="$race_workspace/result.json"
     local result_tmp
     result_tmp="$(_mktmp)"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json
 data = {
     'race_id': '$race_id',
@@ -250,7 +253,7 @@ print('RACE_START:$race_id')
     if [ -f "$owner_file" ]; then
         local owner_tmp
         owner_tmp="$(_mktmp)"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json
 with open('$owner_file') as f:
     data = json.load(f)
@@ -336,7 +339,7 @@ cmd_register() {
     printf '%s\n' "${subtask_ids[@]}" > "$tmp_ids"
     echo "$desc" > "$tmp_desc"
 
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 
 with open('$tmp_ids') as f:
@@ -367,7 +370,7 @@ print('RACE_REGISTER:$parent_id:{} subtasks'.format(len(subtask_ids)))
         local sub_workspace="$race_workspace/subtasks/$subtask_id"
         mkdir -p "$sub_workspace"
         local owner_file="$sub_workspace/owner.json"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json
 data = {
     'race_id': '$parent_id/$subtask_id',
@@ -446,7 +449,7 @@ cmd_status() {
         ws_tmp="$(_mktmp)"
         printf '%s' "$race_id" > "$rid_tmp"
         printf '%s' "$race_workspace" > "$ws_tmp"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, sys
 with open('$rid_tmp') as f:
     race_id = f.read().strip()
@@ -544,7 +547,7 @@ _status_all() {
             local sub_entry_tmp
             sub_entry_tmp="$(_mktmp)"
             printf '%s' "$sub_output" > "$sub_entry_tmp"
-            python3 -c "
+            ${PYTHON_BIN:-python3} -c "
 import json
 with open('$sub_entry_tmp') as f:
     out_text = f.read()
@@ -557,7 +560,7 @@ print(json.dumps(entry, ensure_ascii=False))
 
     if [ "$json_output" = true ]; then
         # JSON output from collected JSON-lines file
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, sys
 
 subtasks = []
@@ -587,7 +590,7 @@ print()
         echo "  subtasks:"
         if [ -f "$subdata_file" ]; then
             # Single Python invocation to format all subtask output
-            python3 -c "
+            ${PYTHON_BIN:-python3} -c "
 import json, sys
 icons = {'completed': '✅', 'failed': '❌', 'running': '🔄'}
 with open('$subdata_file') as f:
@@ -656,7 +659,7 @@ cmd_complete() {
     # Write result.json via temp+rename for atomicity
     local result_tmp
     result_tmp="$(_mktmp)"
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json
 with open('$tmpfile') as f:
     out_text = f.read().strip()
@@ -677,7 +680,7 @@ with open('$result_tmp', 'w') as f:
     if [ -f "$owner_file" ]; then
         local owner_tmp
         owner_tmp="$(_mktmp)"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json
 with open('$owner_file') as f:
     data = json.load(f)
@@ -696,7 +699,7 @@ with open('$owner_tmp', 'w') as f:
         if [ -f "$manifest_file" ]; then
             local mf_tmp
             mf_tmp="$(_mktmp)"
-            python3 -c "
+            ${PYTHON_BIN:-python3} -c "
 import json
 with open('$manifest_file') as f:
     data = json.load(f)
@@ -822,7 +825,7 @@ cmd_list() {
         local list_dir_tmp
         list_dir_tmp="$(_mktmp)"
         printf '%s' "$RACE_DIR" > "$list_dir_tmp"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 with open('$list_dir_tmp') as f:
     base = f.read().strip()

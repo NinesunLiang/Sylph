@@ -256,7 +256,7 @@ triage_issue() {
     # ── 副作用: a-mode 写入 auto-optimizations.jsonl ──
     if is_autonomous_mode; then
         local opt_file="$_IT_STATE_DIR/auto-optimizations.jsonl"
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 desc = os.environ.get('_IT_DESC', '')
 ctx_str = os.environ.get('_IT_CONTEXT', '{}')
@@ -307,24 +307,50 @@ PENDING_HEADER
 
 ENTRY_EOF
         export _IT_PEND_FILE="$pending_file" _IT_ENTRY_TMP="$entry_tmp"
-        python3 -c "
-import os
+        ${PYTHON_BIN:-python3} -c "
+import os, re, hashlib, time
 pf = os.environ.get('_IT_PEND_FILE', '')
 entry_path = os.environ.get('_IT_ENTRY_TMP', '')
+source = os.environ.get('_IT_SOURCE', '')
+desc = os.environ.get('_IT_DESC', '')
+now_ts = int(os.environ.get('_IT_NOW_TS', '0'))
 try:
     with open(entry_path, 'r') as f:
         entry_content = f.read()
+    # Dedup: extract signature from desc (first 100 chars after stripping error signatures)
+    sig_text = desc[:100]
+    dedup_key = hashlib.md5((source + '::' + sig_text).encode()).hexdigest()
     with open(pf, 'r') as f:
-        lines = f.readlines()
-    new_lines = []
-    marker = '<!-- issue-triage: pending decisions marker -->'
-    for line in lines:
-        new_lines.append(line)
-        if marker in line:
-            new_lines.append('\n')
-            new_lines.append(entry_content)
-    with open(pf, 'w') as f:
-        f.writelines(new_lines)
+        content = f.read()
+    # Check if same dedup key exists within 24h
+    existing = re.findall(r'### \[([^\]]+)\].*?来源: (\S+).*?dedup_key: ([a-f0-9]+)', content, re.DOTALL)
+    should_skip = False
+    for ts_str, src, key in existing:
+        if key == dedup_key:
+            try:
+                from datetime import datetime
+                entry_ts = datetime.strptime(ts_str, '%Y-%m-%dT%H:%M:%SZ').timestamp()
+                if now_ts - entry_ts < 86400:  # 24h
+                    should_skip = True
+                    break
+            except:
+                pass
+    if should_skip:
+        pass  # skip duplicate
+    else:
+        # Append with dedup key embedded for future dedup
+        lines = content.splitlines(keepends=True)
+        new_lines = []
+        marker = '<!-- issue-triage: pending decisions marker -->'
+        for line in lines:
+            new_lines.append(line)
+            if marker in line:
+                new_lines.append('\n')
+                # Inject dedup_key into the context field for future dedup
+                entry_with_key = entry_content.rstrip() + '\n- **dedup_key**: ' + dedup_key + '\n\n'
+                new_lines.append(entry_with_key)
+        with open(pf, 'w') as f:
+            f.writelines(new_lines)
 except Exception:
     pass
 " 2>/dev/null || true
@@ -332,7 +358,7 @@ except Exception:
     fi
 
     # ── 输出 JSON 结果（env vars 已在函数开头统一导出，防 shell 注入）──
-    python3 -c "
+    ${PYTHON_BIN:-python3} -c "
 import json, os
 result = {
     'mode': os.environ.get('_IT_MODE', ''),
@@ -363,15 +389,15 @@ triage_for_hook() {
     result=$(triage_issue "$desc" "$hook_name" "$hint" "$context" 2>/dev/null || echo '{}')
 
     local action
-    action=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('action',''))" 2>/dev/null || echo "")
+    action=$(echo "$result" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); print(d.get('action',''))" 2>/dev/null || echo "")
 
     local suggestion
-    suggestion=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('suggestion',''))" 2>/dev/null || echo "")
+    suggestion=$(echo "$result" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); print(d.get('suggestion',''))" 2>/dev/null || echo "")
 
     # 返回 additionalContext 格式，让 hook 可以通过 printf 输出
     # P0 + b-mode → 路由到 [Hook-Skill桥] 格式
     local priority
-    priority=$(echo "$result" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('priority',''))" 2>/dev/null || echo "")
+    priority=$(echo "$result" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); print(d.get('priority',''))" 2>/dev/null || echo "")
 
     if [ "$action" = "auto_fix" ] || [ "$action" = "auto_optimize" ]; then
         echo "[issue-triage] a-mode/${priority} → ${action}: ${suggestion}"

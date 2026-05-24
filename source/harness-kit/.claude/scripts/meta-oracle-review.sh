@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # meta-oracle-review.sh — Meta-Oracle 最后守门员审查脚本
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 被 meta-oracle-trigger / lx-oma-orch / lx-oma-hier / package-release.sh 调用
 # Role: Meta-Oracle 最高级独立审查方法论 — 覆盖 G1-G4 全部触发点
 #   G1 架构决策终审: 验证架构变更的跨子系统影响 + 不可逆性评估
@@ -160,14 +163,14 @@ if [ -x "$UX_SCRIPT" ]; then
   echo "--- UX 独立评分 ---"
   UX_OUTPUT=$(bash "$UX_SCRIPT" 2>/dev/null)
   # 使用 python3 解析 JSON 提取 total score/max (Oracle MAJOR 4 修复: 替代脆弱 grep)
-  UX_SCORE=$(echo "$UX_OUTPUT" | python3 -c "
+  UX_SCORE=$(echo "$UX_OUTPUT" | ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(sys.stdin)
     print(d['total']['score'])
 except: print('N/A')
 " 2>/dev/null)
-  UX_MAX=$(echo "$UX_OUTPUT" | python3 -c "
+  UX_MAX=$(echo "$UX_OUTPUT" | ${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
     d = json.load(sys.stdin)

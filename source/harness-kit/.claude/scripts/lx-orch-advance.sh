@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # lx-orch-advance.sh — Pipeline 阶段推进
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 检查 Oracle gate → 推进当前 stage → 更新 pipeline.yaml
 # 用法: lx-orch-advance [--force]
 
@@ -20,7 +23,7 @@ fi
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S+08:00")
 
-python3 - "$PIPELINE" "$FORCE" "$NOW" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PIPELINE" "$FORCE" "$NOW" <<'PYEOF'
 import sys, yaml, os, tempfile
 from collections import OrderedDict
 

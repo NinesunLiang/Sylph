@@ -93,7 +93,7 @@ cmd_prepare() {
     target_name=$(basename "$target")
     target_lines=$(wc -l < "$target" | tr -d ' ')
     # 用 base64 编码 target 内容传入 Python，避免单引号/三引号注入
-    target_content=$(base64 < "$target" 2>/dev/null | python3 -c "
+    target_content=$(base64 < "$target" 2>/dev/null | ${PYTHON_BIN:-python3} -c "
 import sys, base64
 raw = sys.stdin.read().strip()
 content = base64.b64decode(raw).decode('utf-8', errors='replace')
@@ -154,7 +154,7 @@ sys.stdout.write(content)
     OUTPUT_PATH="$output" \
     ORACLE_PATH="$oracle_path" \
     AGENT_AVAILABLE="$agent_available" \
-    python3 <<'PYEOF'
+    ${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os, sys
 
 request = {
@@ -219,15 +219,15 @@ cmd_spawn() {
         exit 1
     fi
     local oracle_path agent_available
-    oracle_path=$(python3 -c "import json; d=json.load(open('$request_file')); print(d.get('oracle_path','local_prompt'))" 2>/dev/null || echo "local_prompt")
-    agent_available=$(python3 -c "import json; d=json.load(open('$request_file')); print('true' if d.get('agent_available') else 'false')" 2>/dev/null || echo "false")
+    oracle_path=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$request_file')); print(d.get('oracle_path','local_prompt'))" 2>/dev/null || echo "local_prompt")
+    agent_available=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$request_file')); print('true' if d.get('agent_available') else 'false')" 2>/dev/null || echo "false")
     if [ "$agent_available" != "true" ]; then
         echo '{"oracle_path":"local_prompt","spawn":"SKIP","reason":"No Agent; use local prompt path"}'
         exit 0
     fi
     local has_target has_protocol
-    has_target=$(python3 -c "import json; d=json.load(open('$request_file')); print('true' if d.get('target_content') else 'false')" 2>/dev/null || echo "false")
-    has_protocol=$(python3 -c "import json; d=json.load(open('$request_file')); print('true' if d.get('protocol') else 'false')" 2>/dev/null || echo "false")
+    has_target=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$request_file')); print('true' if d.get('target_content') else 'false')" 2>/dev/null || echo "false")
+    has_protocol=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$request_file')); print('true' if d.get('protocol') else 'false')" 2>/dev/null || echo "false")
     cat <<SPAWNEOF
 {
   "spawn": "READY",

@@ -129,7 +129,7 @@ MECH_TYPE="机制文件"
 echo "$FILE_PATH" | grep -qE '(hooks/|scripts/)' && MECH_TYPE="机制文件"
 echo "$FILE_PATH" | grep -qE '(unified\.yaml|feature-registry\.yaml|AGENTS\.md|kernel\.md|anti-patterns\.md|claude-next\.md|CLAUDE\.md)' && MECH_TYPE="治理文件"
 
-CAPTCHA=$(date +%s | md5 2>/dev/null || echo "$RANDOM$RANDOM" | md5sum 2>/dev/null | cut -c1-8 || python3 -c "import hashlib,time; print(hashlib.md5(str(time.time()).encode()).hexdigest()[:8])" 2>/dev/null)
+CAPTCHA=$(date +%s | md5 2>/dev/null || echo "$RANDOM$RANDOM" | md5sum 2>/dev/null | cut -c1-8 || ${PYTHON_BIN:-python3} -c "import hashlib,time; print(hashlib.md5(str(time.time()).encode()).hexdigest()[:8])" 2>/dev/null)
 
 cat <<MSG | hc_emit_hook_json "PreToolUse" "false"
 🔐 [Oracle 审查门禁] 编辑${MECH_TYPE}前必须先通过 Oracle 审查

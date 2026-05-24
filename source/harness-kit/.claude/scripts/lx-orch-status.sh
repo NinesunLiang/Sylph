@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # lx-orch-status.sh — Pipeline Orchestrator 状态面板
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 从 governance-spec.md §Pipeline 集成 规范实现
 
 set -euo pipefail
@@ -13,7 +16,7 @@ if [ ! -f "$PIPELINE" ]; then
     exit 1
 fi
 
-python3 - "$PIPELINE" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PIPELINE" <<'PYEOF'
 import sys, yaml, os
 from datetime import datetime
 

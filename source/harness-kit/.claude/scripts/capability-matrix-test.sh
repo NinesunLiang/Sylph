@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # capability-matrix-test.sh — Carror OS 能力矩阵全量测试
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用途: 基于 docs/reference/cn/capability-matrix.md 测试所有机制是否真正生效
 # 用法: bash .claude/scripts/capability-matrix-test.sh [--quick] [--json]
 #   --quick  跳过 harness-smoke-test.sh (快)
@@ -77,7 +80,7 @@ header "ENVIRONMENT CHECK"
 dim_header "D1-HOOK-EXISTENCE"
 
 # Extract hooks_enabled from harness.yaml (space-separated key:value format)
-python3 > "$TMPDIR/hooks_enabled.txt" <<PYEOF
+${PYTHON_BIN:-python3} > "$TMPDIR/hooks_enabled.txt" <<PYEOF
 import re
 with open('$PROJECT_ROOT/.claude/harness.yaml') as f:
     in_hooks = False
@@ -242,14 +245,14 @@ dim_header "D5-FEATURE-REGISTRY"
 
 FEAT_REG="$PROJECT_ROOT/.claude/feature-registry.yaml"
 if [ -f "$FEAT_REG" ]; then
-    REG_HOOK_COUNT=$(python3 -c "
+    REG_HOOK_COUNT=$(${PYTHON_BIN:-python3} -c "
 import yaml
 with open('$FEAT_REG') as f:
     data = yaml.safe_load(f)
 hooks = data.get('hooks', [])
 print(len(hooks))
 " 2>/dev/null || echo "?")
-    REG_SKILL_COUNT=$(python3 -c "
+    REG_SKILL_COUNT=$(${PYTHON_BIN:-python3} -c "
 import yaml
 with open('$FEAT_REG') as f:
     data = yaml.safe_load(f)

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # auto-scope.sh — 从 plan.md 自动推导 current-scope.txt 范围
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法:
 #   bash .claude/scripts/auto-scope.sh                    # 自动检测最新 plan.md
 #   bash .claude/scripts/auto-scope.sh rpe/<feature>       # 指定 feature
@@ -83,11 +86,11 @@ fi
 # Fallback: 无 plan.md 时，从 lx-goal.json 的目标描述推导范围
 GOAL_DESC=""
 if [ -f "$STATE_DIR/lx-goal.json" ]; then
-    GOAL_DESC=$(python3 -c "import json; d=json.load(open('$STATE_DIR/lx-goal.json')); print(d.get('goal',''))" 2>/dev/null)
+    GOAL_DESC=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$STATE_DIR/lx-goal.json')); print(d.get('goal',''))" 2>/dev/null)
 fi
 if [ -n "$GOAL_DESC" ]; then
     # 从目标描述中提取关键词，匹配最近修改的文件
-    GOAL_KW=$(echo "$GOAL_DESC" | python3 -c "
+    GOAL_KW=$(echo "$GOAL_DESC" | ${PYTHON_BIN:-python3} -c "
 import sys, re
 text = sys.stdin.read().strip()
 # Extract meaningful keywords (file names, feature names, etc.)

@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # lx-orch-gate.sh — Oracle 门禁裁决
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用法: lx-orch-gate <og-id> approve|reject [--reason "..."]
 
 set -euo pipefail
@@ -36,7 +39,7 @@ fi
 
 NOW=$(date -u +"%Y-%m-%dT%H:%M:%S+08:00")
 
-python3 - "$PIPELINE" "$GATE_ID" "$VERDICT" "$NOW" "$REASON" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$PIPELINE" "$GATE_ID" "$VERDICT" "$NOW" "$REASON" <<'PYEOF'
 import sys, yaml, os, tempfile
 from collections import OrderedDict
 

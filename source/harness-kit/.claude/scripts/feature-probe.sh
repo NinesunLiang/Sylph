@@ -107,7 +107,7 @@ probe() {
     # ---- L4: 注册存在性 ----
     local l4=""
     if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
-        if python3 -c "
+        if ${PYTHON_BIN:-python3} -c "
 import yaml, sys
 with open('$FEATURE_REGISTRY') as f:
     data = yaml.safe_load(f)

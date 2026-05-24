@@ -20,6 +20,8 @@ INFO="ℹ️"
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOOKS_DIR="$ROOT/.claude/hooks"
+# Cross-platform Python resolution (DG-105)
+[ -f "$ROOT/.claude/hooks/harness_config.sh" ] && source "$ROOT/.claude/hooks/harness_config.sh" 2>/dev/null || true
 TESTS_PASSED=0
 TESTS_FAILED=0
 FAILURES=()
@@ -188,8 +190,8 @@ header "3. Generated Config Validation"
 # 3a. Codex CLI hooks.json
 CODX_JSON="$ROOT/.codex/hooks.json"
 if [ -f "$CODX_JSON" ]; then
-  HOOK_COUNT=$(python3 -c "import json; d=json.load(open('$CODX_JSON')); print(sum(len(g.get('hooks',[])) for e in d.get('hooks',{}).values() for g in e))")
-  EVENT_COUNT=$(python3 -c "import json; d=json.load(open('$CODX_JSON')); print(len(d.get('hooks',{})))")
+  HOOK_COUNT=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$CODX_JSON')); print(sum(len(g.get('hooks',[])) for e in d.get('hooks',{}).values() for g in e))")
+  EVENT_COUNT=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$CODX_JSON')); print(len(d.get('hooks',{})))")
   if [ "$HOOK_COUNT" -ge 11 ]; then
     test_pass "Codex CLI: $HOOK_COUNT hook registrations across $EVENT_COUNT events"
   else
@@ -202,8 +204,8 @@ fi
 # 3b. Gemini CLI settings.json
 GEMINI_JSON="$ROOT/.gemini/settings.json"
 if [ -f "$GEMINI_JSON" ]; then
-  GEMINI_HOOKS=$(python3 -c "import json; d=json.load(open('$GEMINI_JSON')); print(sum(len(g.get('hooks',[])) for e in d.get('hooks',{}).values() for g in e))")
-  GEMINI_EVENTS=$(python3 -c "import json; d=json.load(open('$GEMINI_JSON')); print(len(d.get('hooks',{})))")
+  GEMINI_HOOKS=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GEMINI_JSON')); print(sum(len(g.get('hooks',[])) for e in d.get('hooks',{}).values() for g in e))")
+  GEMINI_EVENTS=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GEMINI_JSON')); print(len(d.get('hooks',{})))")
   test_pass "Gemini CLI: $GEMINI_HOOKS hook registrations across $GEMINI_EVENTS events"
 else
   test_fail "Gemini CLI" "settings.json not found"
@@ -212,8 +214,8 @@ fi
 # 3c. Qwen Code settings.json
 QWEN_JSON="$ROOT/settings.json"
 if [ -f "$QWEN_JSON" ]; then
-  QWEN_HOOKS=$(python3 -c "import json; d=json.load(open('$QWEN_JSON')); print(sum(len(g.get('hooks',[])) for e in d.get('hooks',{}).values() for g in e))")
-  QWEN_EVENTS=$(python3 -c "import json; d=json.load(open('$QWEN_JSON')); print(len(d.get('hooks',{})))")
+  QWEN_HOOKS=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$QWEN_JSON')); print(sum(len(g.get('hooks',[])) for e in d.get('hooks',{}).values() for g in e))")
+  QWEN_EVENTS=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$QWEN_JSON')); print(len(d.get('hooks',{})))")
   if [ -n "$QWEN_HOOKS" ]; then
     test_pass "Qwen Code: $QWEN_HOOKS hook registrations across $QWEN_EVENTS events"
   else
@@ -226,8 +228,8 @@ fi
 # 3d. Cursor hooks.json
 CURSOR_JSON="$ROOT/.cursor/hooks.json"
 if [ -f "$CURSOR_JSON" ]; then
-  CURSOR_HOOKS=$(python3 -c "import json; d=json.load(open('$CURSOR_JSON')); h=d.get('hooks',{}); print(sum(len(v) for v in h.values()))")
-  CURSOR_EVENTS=$(python3 -c "import json; d=json.load(open('$CURSOR_JSON')); print(len(d.get('hooks',{})))")
+  CURSOR_HOOKS=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$CURSOR_JSON')); h=d.get('hooks',{}); print(sum(len(v) for v in h.values()))")
+  CURSOR_EVENTS=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$CURSOR_JSON')); print(len(d.get('hooks',{})))")
   if [ "$CURSOR_HOOKS" -ge 2 ]; then
     test_pass "Cursor: $CURSOR_HOOKS hooks across $CURSOR_EVENTS events"
   else
@@ -292,7 +294,7 @@ fi
 
 # Check all scripts referenced in unified.yaml exist
 MISSING_SCRIPTS=0
-for script in $(python3 -c "
+for script in $(${PYTHON_BIN:-python3} -c "
 import sys; sys.path.insert(0, '.hooks')
 import yaml
 with open('.hooks/unified.yaml') as f:
@@ -321,7 +323,7 @@ header "5. Config Generation Consistency"
 PERMISSION_CMD='bash .claude/hooks/permission-gate.sh'
 
 # Check permission_gate exists in multiple platform configs
-CODX_MATCH=$(python3 -c "
+CODX_MATCH=$(${PYTHON_BIN:-python3} -c "
 import json
 d=json.load(open('$CODX_JSON'))
 for evt, groups in d.get('hooks',{}).items():
@@ -333,7 +335,7 @@ for evt, groups in d.get('hooks',{}).items():
                 break
 " 2>/dev/null || echo "")
 
-GEMINI_MATCH=$(python3 -c "
+GEMINI_MATCH=$(${PYTHON_BIN:-python3} -c "
 import json
 d=json.load(open('$GEMINI_JSON'))
 for evt, groups in d.get('hooks',{}).items():
@@ -345,7 +347,7 @@ for evt, groups in d.get('hooks',{}).items():
                 break
 " 2>/dev/null || echo "")
 
-QWEN_MATCH=$(python3 -c "
+QWEN_MATCH=$(${PYTHON_BIN:-python3} -c "
 import json
 d=json.load(open('$QWEN_JSON'))
 for evt, groups in d.get('hooks',{}).items():

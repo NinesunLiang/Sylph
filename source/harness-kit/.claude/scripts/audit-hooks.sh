@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # audit-hooks.sh — Carror OS harness 完整性审计
+# Cross-platform Python resolution (DG-105)
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+
 # 用途：检测 settings.json / harness.yaml / disk 三方漂移，防止 Claude Code 升级改事件名后悄然僵尸化
 #
 # 三方对账：
@@ -39,7 +42,7 @@ for arg in "$@"; do
     esac
 done
 
-python3 - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" "$CHECK_SOURCE_MIRROR" "$CHECK_REGISTRY" <<'PYEOF'
+${PYTHON_BIN:-python3} - "$JSON_OUT" "$SCAN_INTERNAL" "$CHECK_INDEX" "$SYNC_INDEX" "$CHECK_SOURCE_MIRROR" "$CHECK_REGISTRY" <<'PYEOF'
 import json, os, re, sys, glob, hashlib
 
 json_out = sys.argv[1].lower() == 'true'
@@ -51,7 +54,7 @@ check_registry = sys.argv[6].lower() == 'true' if len(sys.argv) > 6 else 'false'
 
 # === A. Disk ===
 disk = set()
-for f in glob.glob('.claude/hooks/*.sh'):
+for f in glob.glob('.claude/hooks/*.sh') + glob.glob('.claude/hooks/*.py'):
     name = os.path.basename(f)
     if name in ('harness_config.sh', 'agentic-ui.sh'):  # libraries, not hooks
         continue

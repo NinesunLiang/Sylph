@@ -15,7 +15,7 @@ READ_LOG="$STATE_DIR/read-tracker.txt"
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // empty' 2>/dev/null)
 else
-    FILE_PATH=$(echo "$INPUT" | python3 -c "
+    FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
@@ -31,10 +31,7 @@ if [ -z "$FILE_PATH" ]; then
 fi
 
 # 规范化路径（realpath 解析符号链接和相对路径）
-REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null)
-if [ -z "$REAL_PATH" ]; then
-    REAL_PATH="$FILE_PATH"
-fi
+REAL_PATH=$(realpath "$FILE_PATH" 2>/dev/null || echo "$FILE_PATH")
 
 # 确保状态目录存在
 mkdir -p "$STATE_DIR" 2>/dev/null || { echo '{"continue": true}'; exit 0; }

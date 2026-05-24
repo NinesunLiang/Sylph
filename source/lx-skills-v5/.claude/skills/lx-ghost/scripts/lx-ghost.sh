@@ -37,7 +37,7 @@ case "${1:-status}" in
         export _LX_INTERVAL="$INTERVAL"
         export _LX_EXPIRY_HOURS="$EXPIRY_HOURS"
         export _LX_MODE_FILE="$MODE_FILE"
-        python3 <<'PYEOF'
+        ${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 from datetime import datetime, timedelta, timezone
 
@@ -74,7 +74,7 @@ SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
 [ -z "$SLUG" ] && SLUG="ghost-$(date +%H%M%S)"
 CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
 mkdir -p "$CHAT_DIR"
-	python3 -c "import json; json.dump({'phase':'exploring','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$CHAT_DIR/state.json','w'))"
+	${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'exploring','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$CHAT_DIR/state.json','w'))"
 	echo "# $DIRECTION
 
 > ghost模式自动创建 @ $(date)" > "$CHAT_DIR/progress.md"
@@ -82,7 +82,7 @@ mkdir -p "$CHAT_DIR"
 	# Save chat_dir to lx-ghost.json for runtime subcommands
 	export _LX_CHAT_DIR="$CHAT_DIR"
 	export _LX_MODE_FILE="$MODE_FILE"
-	python3 <<'PYEOF'
+	${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 chat_dir = os.environ['_LX_CHAT_DIR']
 mode_file = os.environ['_LX_MODE_FILE']
@@ -121,11 +121,11 @@ PYEOF
     off)
 		# Write summary to RPE chat dir before cleanup
 		if [ -f "$MODE_FILE" ]; then
-			CHAT_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+			CHAT_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
 			if [ -n "$CHAT_DIR" ] && [ -d "$CHAT_DIR" ]; then
-				RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
-				SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-				HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+				RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+				SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+				HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
 				{
 					echo ""
 					echo "---"
@@ -137,7 +137,7 @@ PYEOF
 					echo ""
 					echo "> 幽灵模式自动关闭 @ $(date)"
 				} >> "$CHAT_DIR/progress.md"
-				python3 -c "
+				${PYTHON_BIN:-python3} -c "
 import json
 sf = '$CHAT_DIR/state.json'
 d = json.load(open(sf))
@@ -155,12 +155,12 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
 		;;
     status)
         if [ -f "$MODE_FILE" ]; then
-            DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('direction','?'))" 2>/dev/null)
-            EXP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
-            INT=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('cycle_interval_seconds','?'))" 2>/dev/null)
-            RETRY=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
-            SKIP=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
-            HARD=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+            DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('direction','?'))" 2>/dev/null)
+            EXP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
+            INT=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('cycle_interval_seconds','?'))" 2>/dev/null)
+            RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+            SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+            HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
             echo "📋 幽灵模式 (lx-ghost): 🟢 开启中"
             echo "   方向: $DIR"
             echo "   间隔: ${INT}s"
@@ -187,7 +187,7 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
         export _LX_KEY="$KEY"
         export _LX_VALUE="$VALUE"
         export _LX_SET_MODE_FILE="$MODE_FILE"
-        python3 <<'PYEOF'
+        ${PYTHON_BIN:-python3} <<'PYEOF'
 import json, os
 key = os.environ['_LX_KEY']
 value_str = os.environ['_LX_VALUE']
@@ -214,7 +214,7 @@ PYEOF
         if [ ! -f "$MODE_FILE" ]; then
             # 回退检查旧格式
             if [ -f "$STATE_DIR/ghost-mode.json" ]; then
-                DIR=$(python3 -c "import json; d=json.load(open('$STATE_DIR/ghost-mode.json')); print(d.get('direction','?'))" 2>/dev/null)
+                DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$STATE_DIR/ghost-mode.json')); print(d.get('direction','?'))" 2>/dev/null)
                 echo "⚠️ 旧格式 ghost-mode.json 存在，建议迁移: lx-ghost off && lx-ghost on \"$DIR\""
             else
                 echo "❌ 幽灵模式未激活，停止轮询"
@@ -223,9 +223,9 @@ PYEOF
         fi
 
         # 检查过期
-        EXPIRES=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
+        EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
         if [ -n "$EXPIRES" ]; then
-            EXPIRED=$(python3 -c "
+            EXPIRED=$(${PYTHON_BIN:-python3} -c "
 from datetime import datetime
 try:
     exp = datetime.fromisoformat('$EXPIRES')
@@ -240,7 +240,7 @@ except: print('no')" 2>/dev/null)
 
 	echo "🔄 Ghost Poll #$((RETRY + 1)) | 方向: $DIR | 过期: $EXPIRES"
 	echo ""
-	CHAT_DIR=$(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+	CHAT_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
 	echo "📋 执行指令:"
 	echo "   1. 读取上次探索上下文: cat $CHAT_DIR/progress.md"
 	echo "   2. 继续围绕方向: $DIR"
@@ -248,7 +248,7 @@ except: print('no')" 2>/dev/null)
 	echo "   4. 如有风险: lx-ghost skip-risk '风险描述'"
 	echo "   5. 如方向完成: lx-ghost off"
 	echo ""
-	echo "   📊 已重试: $RETRY | 已跳过风险: $SKIP | 硬边界: $(python3 -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)"
+	echo "   📊 已重试: $RETRY | 已跳过风险: $SKIP | 硬边界: $(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)"
 		;;
 
     skip-risk)
@@ -260,7 +260,7 @@ except: print('no')" 2>/dev/null)
 		fi
 		export _LX_DESC="$DESCRIPTION"
 		export _LX_MODE_FILE="$MODE_FILE"
-		python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+		${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -302,7 +302,7 @@ PYEOF
 		export _LX_REASON="$REASON"
 		export _LX_HUMAN_ACTION="$HUMAN_ACTION"
 		export _LX_MODE_FILE="$MODE_FILE"
-		python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+		${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -352,7 +352,7 @@ PYEOF
 		export _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
 		export _LX_RATIONALE="$RATIONALE"
 		export _LX_MODE_FILE="$MODE_FILE"
-		python3 <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+		${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
 import json, os
 from datetime import datetime, timezone
 
@@ -394,7 +394,7 @@ PYEOF
             echo "❌ 幽灵模式未开启"
             exit 1
         fi
-        python3 -c "
+        ${PYTHON_BIN:-python3} -c "
 import json, os
 file = '$MODE_FILE'
 d = json.load(open(file))
@@ -403,7 +403,7 @@ tmp = file + '.tmp.' + str(os.getpid())
 with open(tmp, 'w') as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, file)
-" 2>/dev/null && echo "📝 重试计数 +1（当前: $(python3 -c "import json; print(json.load(open('$MODE_FILE')).get('retry_count',0))" 2>/dev/null)）"
+" 2>/dev/null && echo "📝 重试计数 +1（当前: $(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$MODE_FILE')).get('retry_count',0))" 2>/dev/null)）"
         ;;
 
     *)
