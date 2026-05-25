@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.2.39 | 日期：2026-05-25
+# 版本：v6.2.40 | 日期：2026-05-25
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.39-stable"
+DEFAULT_VERSION="v6.2.40-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -351,7 +351,7 @@ extract_tar() {
 case "$INSTALL_MODE" in
     base)
         log_step "安装 Carror OS 基础版 (Base Edition: 零学习成本的静默守护者)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（47 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（自动化审查总控）"
         log_step "应用基础版限制..."
         for s in lx-oma-orch lx-oma-hier lx-oma-split lx-oma-gov lx-task-spec lx-rpe lx-prd lx-debug-spec lx-tdd-spec lx-browser-verify lx-web-perf lx-stepwise lx-race lx-learner; do
@@ -361,11 +361,11 @@ case "$INSTALL_MODE" in
         ;;
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（47 hooks）"
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"
         ;;
     harness)
-        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"
+        extract_tar "harness-kit-$VERSION.tar.gz" "治理层（47 hooks）"
         ;;
     skills)
         extract_tar "lx-skills-$VERSION.tar.gz" "能力层（全特性 24 个 Skills）"

@@ -5,6 +5,7 @@
 source "$(dirname "$0")/harness_config.sh"
 set -f
 hc_enabled "build_validator" || { echo '{"continue": true}'; exit 0; }
+flywheel_event "build_validator" "active" "P2" || true
 INPUT=$(cat)
 
 if command -v jq &>/dev/null; then
