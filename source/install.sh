@@ -396,6 +396,16 @@ if [ -d ".claude/hooks" ]; then
 fi
 [ "$CLEANED" -gt 0 ] && log_info "✅ 已清理 $CLEANED 个废弃 hook + harness.yaml 配置 (DG-97)"
 
+# DG-104: 生成上游 hook 基线（原始安装状态，用于下次升级 3-way merge）
+# line 262 cp -r .claude/* → $BACKUP_DIR/.claude/ 会在下次安装前自动将此文件带入备份
+# 恢复段(483-501)读取 BACKUP_DIR 中的旧 ORIG 与新安装版本做 3-way 对比
+if [ -n "$SHA256_CMD" ]; then
+    $SHA256_CMD .claude/hooks/*.sh > .claude/hooks-sha256-orig.txt 2>/dev/null
+else
+    touch .claude/hooks-sha256-orig.txt
+    log_warn "sha256sum 不可用，hook 升级检测降级为 2-way 模式"
+fi
+
 # ─── 全局 Skill 安装（OpenCode 平台兼容）──────────────────────
 # OpenCode 无法直接使用项目本地 .claude/skills/，需在全局目录创建符号链接
 # 关键: 使用 ln -s 而非 cp -r — 技能内部有 ../../nodes/ 等相对路径引用，
@@ -480,22 +490,46 @@ if [ "$HAS_BACKUP" = true ]; then
         fi
     fi
 
-    # hooks sha256 对比 — 只恢复用户修改过的 hook
+    # hooks sha256 3-way merge — DG-104 修复
+    # ORIG = 首次安装时的上游基线，USER = 用户备份版，NEW = 当前新版
+    # 决策: ORIG=USER≠NEW → 上游升级 → 保留新版(不恢复)
+    #       ORIG≠USER → 用户真改了 → 恢复用户版
+    #       ORIG不存在 → 首次安装 → 保守恢复用户版
     if [ -f "$BACKUP_DIR/hooks-sha256.txt" ]; then
-        log_step "正在检查 hooks 变更（sha256 对比）..."
+        log_step "正在检查 hooks 变更（3-way merge）..."
+        HAVE_ORIG=false
+        [ -f "$BACKUP_DIR/.claude/hooks-sha256-orig.txt" ] && HAVE_ORIG=true
+        
         while IFS= read -r line; do
-            old_sha=$(echo "$line" | awk '{print $1}')
-            hook_file=$(echo "$line" | awk '{print $2}')
-            hook_name=$(basename "$hook_file")
-            old_hook="$BACKUP_DIR/.claude/hooks/$hook_name"
+            user_sha=$(echo "$line" | awk '{print $1}')
+            hook_rel=$(echo "$line" | awk '{print $2}')
+            hook_name=$(basename "$hook_rel")
+            user_hook="$BACKUP_DIR/.claude/hooks/$hook_name"
             new_hook=".claude/hooks/$hook_name"
-            if [ -f "$old_hook" ] && [ -f "$new_hook" ] && [ -n "$SHA256_CMD" ]; then
-                new_sha=$($SHA256_CMD "$new_hook" 2>/dev/null | awk '{print $1}')
-                if [ "$old_sha" != "$new_sha" ]; then
-                    # sha256 不同 → 用户修改过 → 恢复用户版
-                    cp "$old_hook" "$new_hook"
-                    log_info "↩ .claude/hooks/${hook_name}（检测到用户修改，已恢复）"
+            
+            [ -f "$user_hook" ] && [ -f "$new_hook" ] && [ -n "$SHA256_CMD" ] || continue
+            new_sha=$($SHA256_CMD "$new_hook" 2>/dev/null | awk '{print $1}')
+            [ "$user_sha" = "$new_sha" ] && continue  # 相同 → 无需恢复
+            
+            if $HAVE_ORIG; then
+                orig_sha=$(grep "$hook_rel" "$BACKUP_DIR/.claude/hooks-sha256-orig.txt" 2>/dev/null | awk '{print $1}')
+                
+                if [ -z "$orig_sha" ]; then
+                    # ORIG 中无此 hook → 用户新增，保留用户版
+                    cp "$user_hook" "$new_hook"
+                    log_info "↩ $hook_name（用户新增 hook，已恢复）"
+                elif [ "$orig_sha" = "$user_sha" ]; then
+                    # 用户没改，上游升级了 → 保留新版（DG-104 核心修复）
+                    log_info "↑ $hook_name（上游升级，保留新版）"
+                else
+                    # 用户确实修改过 → 恢复用户版
+                    cp "$user_hook" "$new_hook"
+                    log_info "↩ $hook_name（检测到用户修改，已恢复）"
                 fi
+            else
+                # Fallback: 首次安装无 ORIG → 保守模式，恢复用户版
+                cp "$user_hook" "$new_hook"
+                log_info "↩ $hook_name（无基线，已恢复用户版）"
             fi
         done < "$BACKUP_DIR/hooks-sha256.txt"
     fi
