@@ -28,7 +28,7 @@ mkdir -p "$STATE_DIR" 2>/dev/null || exit 0
 # 读取当前 usage
 USAGE=0
 if [ -f "$INDEX_FILE" ]; then
-    USAGE=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$INDEX_FILE'));print(d.get('usage',0))" 2>/dev/null || echo 0)
+    USAGE=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$INDEX_FILE', encoding="utf-8"));print(d.get('usage',0))" 2>/dev/null || echo 0)
 fi
 
 cat > "$COMPACT_STATE" <<EOF
@@ -79,7 +79,7 @@ if [ -f "$SESSION_DUMP" ]; then
     ${PYTHON_BIN:-python3} -c "
 import json
 try:
-    d=json.load(open('$SESSION_DUMP'))
+    d=json.load(open('$SESSION_DUMP', encoding="utf-8"))
 except: exit(0)
 gs=d.get('git_state',{})
 mf=gs.get('modified_files',[])

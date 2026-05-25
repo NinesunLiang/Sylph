@@ -50,7 +50,7 @@ if [ -f "$REPORT" ]; then
     DEP_OUTPUT=$(${PYTHON_BIN:-python3} - "$REPORT" <<'PYEOF'
 import json, sys
 try:
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], encoding="utf-8") as f:
         report = json.load(f)
     dep = report.get('deprecated_skills', [])
     if not dep:

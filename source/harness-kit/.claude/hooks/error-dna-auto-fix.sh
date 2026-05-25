@@ -17,7 +17,7 @@ import json, sys, time
 from datetime import datetime
 
 try:
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], encoding="utf-8") as f:
         dna = json.load(f)
 except (json.JSONDecodeError, FileNotFoundError, IndexError):
     sys.exit(0)

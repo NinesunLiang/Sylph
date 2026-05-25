@@ -19,7 +19,7 @@ if [ -f "$GOAL_FILE" ]; then
     GOAL_DATA=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
-    d = json.load(open('$GOAL_FILE'))
+    d = json.load(open('$GOAL_FILE', encoding="utf-8"))
     goal = d.get('goal', '?')
     activated = d.get('activated_at', '?')
     expires = d.get('expires_at', '?')
@@ -92,7 +92,7 @@ if [ -f "$GHOST_FILE" ]; then
     GHOST_DATA=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
-    d = json.load(open('$GHOST_FILE'))
+    d = json.load(open('$GHOST_FILE', encoding="utf-8"))
     direction = d.get('direction', '?')
     activated = d.get('activated_at', '?')
     expires = d.get('expires_at', '?')

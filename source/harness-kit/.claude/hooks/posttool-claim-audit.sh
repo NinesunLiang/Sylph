@@ -141,7 +141,7 @@ target_file = sys.argv[2]
 
 try:
     matching = []
-    with open(log_path) as f:
+    with open(log_path, encoding="utf-8") as f:
         for line in f:
             if target_file in line:
                 try:

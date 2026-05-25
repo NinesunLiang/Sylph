@@ -67,7 +67,7 @@ _registry_enabled() {
     if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         ${PYTHON_BIN:-python3} -c "
 import yaml, sys
-with open('$FEATURE_REGISTRY') as f:
+with open('$FEATURE_REGISTRY', encoding="utf-8") as f:
     data = yaml.safe_load(f)
 name = '$name'
 for hook in data.get('hooks', []):
@@ -110,7 +110,7 @@ probe() {
     if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         if ${PYTHON_BIN:-python3} -c "
 import yaml, sys
-with open('$FEATURE_REGISTRY') as f:
+with open('$FEATURE_REGISTRY', encoding="utf-8") as f:
     data = yaml.safe_load(f)
 name = '$name'
 found = False
@@ -249,7 +249,7 @@ import json
 import yaml, sys
 registered = False
 try:
-    with open('$FEATURE_REGISTRY') as f:
+    with open('$FEATURE_REGISTRY', encoding="utf-8") as f:
         data = yaml.safe_load(f)
     name = '$name'
     for hook in data.get('hooks', []):

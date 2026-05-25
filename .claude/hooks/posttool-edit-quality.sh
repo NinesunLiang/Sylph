@@ -153,7 +153,7 @@ if max_change > 500:
 
 if os.path.exists(edit_history):
     try:
-        with open(edit_history) as f:
+        with open(edit_history, encoding="utf-8") as f:
             recent = [l.strip().split() for l in f if l.strip()]
         same_file = [(int(ts), p) for ts, p in recent if p == file_path and now - int(ts) < 60]
         if len(same_file) >= 3:
@@ -167,7 +167,7 @@ if not anomalies:
 tracked = {}
 if os.path.exists(tracker_path):
     try:
-        with open(tracker_path) as f:
+        with open(tracker_path, encoding="utf-8") as f:
             tracked = json.load(f)
     except (json.JSONDecodeError, OSError):
         tracked = {}
@@ -178,7 +178,7 @@ if not new_entries:
 
 for sig, _ in new_entries:
     tracked[sig] = {'ts': now, 'file': file_path}
-with open(tracker_path, 'w') as f:
+with open(tracker_path, 'w', encoding="utf-8") as f:
     json.dump(tracked, f, indent=2)
 
 entry_date = time.strftime('%Y-%m-%d')
@@ -192,9 +192,9 @@ for sig, desc in new_entries:
     lines.append(f'建议：拆分大编辑为多个小编辑，或预先规划减少快速修正\n')
 
 try:
-    with open(claude_next) as f:
+    with open(claude_next, encoding="utf-8") as f:
         existing = f.read()
-    with open(claude_next, 'a') as f:
+    with open(claude_next, 'a', encoding="utf-8") as f:
         for line in lines:
             if line not in existing:
                 f.write(line + '\n')

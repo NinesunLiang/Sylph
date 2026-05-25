@@ -70,7 +70,7 @@ ts = int(sys.argv[2])
 tmp_path = sys.argv[3]
 
 try:
-    with open(tmp_path) as f:
+    with open(tmp_path, encoding="utf-8") as f:
         data = json.load(f)
 except (json.JSONDecodeError, FileNotFoundError):
     try:
@@ -95,10 +95,10 @@ stdout = tool_response.get('stdout', '') or ''
 # === Total-ops counter ===
 ops_path = os.path.join(state_dir, 'total-ops.txt')
 try:
-    current = int(open(ops_path).read().strip())
+    current = int(open(ops_path, encoding="utf-8").read().strip())
 except (FileNotFoundError, ValueError):
     current = 0
-with open(ops_path, 'w') as f:
+with open(ops_path, 'w', encoding="utf-8") as f:
     f.write(str(current + 1))
 
 # PostToolUseFailure schema: top-level error field
@@ -262,7 +262,7 @@ else:
     jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
 
 os.makedirs(state_dir, exist_ok=True)
-with open(jsonl_path, 'a') as f:
+with open(jsonl_path, 'a', encoding="utf-8") as f:
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
 # === Retry budget update (C9) — 所有记录，恢复完整追踪 ===
@@ -270,7 +270,7 @@ budget_path = os.path.join(state_dir, 'retry-budget.json')
 budget = {'signatures': {}}
 if os.path.isfile(budget_path):
     try:
-        with open(budget_path) as _bf:
+        with open(budget_path, encoding="utf-8") as _bf:
             budget = json.load(_bf)
     except Exception:
         pass
@@ -285,7 +285,7 @@ sigs[signature]['last_retry'] = ts
 sigs[signature]['label'] = message[:80]
 budget['signatures'] = sigs
 _btmp = budget_path + '.tmp'
-with open(_btmp, 'w') as _bf:
+with open(_btmp, 'w', encoding="utf-8") as _bf:
     json.dump(budget, _bf, indent=2, ensure_ascii=False)
 os.rename(_btmp, budget_path)
 
@@ -306,7 +306,7 @@ if ESCAPE_E2:
             if os.path.exists(orphan):
                 os.unlink(orphan)
             os.rename(jsonl_path, os.path.join(rotate_dir, 'error-dna.jsonl.0'))
-            open(jsonl_path, 'w').close()
+            open(jsonl_path, 'w', encoding="utf-8").close()
     except Exception:
         pass
 
@@ -328,7 +328,7 @@ _patch_file = os.path.join(state_dir, 'escape-patches.json')
 _patches = {}
 if os.path.isfile(_patch_file):
     try:
-        with open(_patch_file) as _pf:
+        with open(_patch_file, encoding="utf-8") as _pf:
             _patches = json.load(_pf)
     except: pass
 
@@ -363,7 +363,7 @@ elif ESCAPE_E2:
 
 if _is_new_patch:
     _ptmp = _patch_file + '.tmp'
-    with open(_ptmp, 'w') as _pf:
+    with open(_ptmp, 'w', encoding="utf-8") as _pf:
         json.dump(_patches, _pf, indent=2, ensure_ascii=False)
     os.rename(_ptmp, _patch_file)
 
@@ -378,7 +378,7 @@ for _pk, _pv in list(_patches.items()):
         _patches_updated = True
 if _patches_updated:
     _ptmp = _patch_file + '.tmp'
-    with open(_ptmp, 'w') as _pf:
+    with open(_ptmp, 'w', encoding="utf-8") as _pf:
         json.dump(_patches, _pf, indent=2, ensure_ascii=False)
     os.rename(_ptmp, _patch_file)
 
@@ -414,7 +414,7 @@ if os.path.exists(_signals_path) and _signals_path != jsonl_path:
 for _sp in _scan_paths:
     try:
         _scan_size = min(os.path.getsize(_sp) if os.path.exists(_sp) else 0, 102400)
-        with open(_sp) as _sf:
+        with open(_sp, encoding="utf-8") as _sf:
             _sf.seek(max(0, os.path.getsize(_sp) - _scan_size))
             for _line in _sf:
                 _line = _line.strip()

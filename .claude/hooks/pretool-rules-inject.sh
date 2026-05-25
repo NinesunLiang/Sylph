@@ -12,7 +12,7 @@ hc_enabled "pretool_rules_inject" || { echo '{"continue": true}'; exit 0; }
 
 TURNS_FILE="$PROJECT_ROOT/.omc/state/session-turns.json"
 TURN_COUNT=0
-[ -f "$TURNS_FILE" ] && TURN_COUNT=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$TURNS_FILE')).get('count',0))" 2>/dev/null || echo 0)
+[ -f "$TURNS_FILE" ] && TURN_COUNT=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$TURNS_FILE', encoding="utf-8")).get('count',0))" 2>/dev/null || echo 0)
 
 AGENTS="$PROJECT_ROOT/AGENTS.md"
 CACHE_DIR="$PROJECT_ROOT/.omc/state"
@@ -30,7 +30,7 @@ extract_section() {
     local result=""
     [ -f "$AGENTS" ] && result=$(${PYTHON_BIN:-python3} -c "
 import re
-with open('$AGENTS') as f: text = f.read()
+with open('$AGENTS', encoding="utf-8") as f: text = f.read()
 m = re.search(r'<!-- pretool:${tag}-start -->(.*?)<!-- pretool:${tag}-end -->', text, re.DOTALL)
 if m:
     lines = [l.strip() for l in m.group(1).strip().split(chr(10)) if l.strip() and '<!--' not in l]

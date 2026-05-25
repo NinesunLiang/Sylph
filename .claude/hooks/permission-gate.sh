@@ -158,7 +158,7 @@ check_cache() {
 import json, time, sys
 try:
     sig = sys.argv[1]
-    d = json.load(open(sys.argv[2]))
+    d = json.load(open(sys.argv[2], encoding="utf-8"))
     entry = d.get(sig)
     if entry and time.time() - entry.get('ts', 0) < 300:
         sys.exit(0)  # cache hit
@@ -179,12 +179,12 @@ cache_file = sys.argv[2]
 ts = sys.argv[3]
 dtype = sys.argv[4]
 try:
-    d = json.load(open(cache_file))
+    d = json.load(open(cache_file, encoding="utf-8"))
 except:
     d = {}
 d[sig] = {'ts': int(ts), 'type': dtype}
 tmp = cache_file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+with open(tmp, 'w', encoding="utf-8") as f:
     json.dump(d, f)
 os.rename(tmp, cache_file)
 CACHEPY

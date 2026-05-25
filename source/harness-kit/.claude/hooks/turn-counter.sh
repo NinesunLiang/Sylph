@@ -85,7 +85,7 @@ if [ "$TODO_INTERVAL" -gt 0 ] && [ $(( new_count % TODO_INTERVAL )) -eq 0 ]; the
         ERROR_COUNT=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
-    d = json.load(open('$PROJECT_ROOT/.omc/state/error-dna.json'))
+    d = json.load(open('$PROJECT_ROOT/.omc/state/error-dna.json', encoding="utf-8"))
     sigs = d.get('error_signatures', {})
     if isinstance(sigs, dict):
         print(sum(1 for v in sigs.values() if v.get('status') == 'active'))
@@ -110,7 +110,7 @@ settings_path = '$SETTINGS_JSON'
 disk_scripts = set(f.replace('.sh', '') for f in os.listdir(hook_dir) if f.endswith('.sh') and os.path.isfile(os.path.join(hook_dir, f)))
 yaml_enabled = set()
 try:
-    with open(yaml_path) as f:
+    with open(yaml_path, encoding="utf-8") as f:
         for line in f:
             m = re.match(r'^hooks_enabled\.(\w+):\s*true', line)
             if m:
@@ -118,7 +118,7 @@ try:
 except: pass
 settings_scripts = set()
 try:
-    with open(settings_path) as f:
+    with open(settings_path, encoding="utf-8") as f:
         s = json.load(f)
     for hook_list in ['hooks', 'preToolUse', 'postToolUse', 'preToolUseFailure', 'postToolUseFailure', 'sessionStart', 'userPromptSubmit', 'stop']:
         for hook in s.get(hook_list, []):
@@ -262,7 +262,7 @@ if [ $(( new_count % 5 )) -eq 0 ]; then
             CTX_PCT=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
-    d = json.load(open('$INDEX_FILE'))
+    d = json.load(open('$INDEX_FILE', encoding="utf-8"))
     usage = d.get('usage', 0)
     limit = d.get('limit', 200000)
     print(int(usage * 100 / limit)) if limit > 0 else print(0)

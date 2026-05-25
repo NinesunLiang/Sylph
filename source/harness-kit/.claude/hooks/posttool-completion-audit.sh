@@ -56,7 +56,7 @@ import os, re, json
 ef = '$EVIDENCE_FILE'
 
 try:
-    with open(ef) as f:
+    with open(ef, encoding="utf-8") as f:
         content = f.read()
 except:
     print('[completion-audit] ⚠️ 无法读取证据文件', file=__import__('sys').stderr)
@@ -118,7 +118,7 @@ if issues:
         'content_len': len(content),
         'fl_count': fl_count,
     }
-    with open(audit_log, 'a') as f:
+    with open(audit_log, 'a', encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + '\n')
     print('[completion-audit] ⚠️ 证据质量缺陷:', '; '.join(issues), file=__import__('sys').stderr)
 else:
@@ -127,7 +127,7 @@ else:
 # 留痕到 flywheel（P1 级别）
 if issues:
     flywheel_log = os.path.expanduser('~/.claude/flywheel.log')
-    with open(flywheel_log, 'a') as f:
+    with open(flywheel_log, 'a', encoding="utf-8") as f:
         f.write('%s,completion_audit_defect,P1,carror-os\n' %
                 __import__('datetime').datetime.now().strftime('%Y-%m-%d'))
 " 2>/dev/null || true

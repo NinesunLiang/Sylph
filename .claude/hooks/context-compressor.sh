@@ -99,7 +99,7 @@ tl = '$STATE_DIR/token-savings.jsonl'
 d = {}
 if os.path.exists(tf):
     try:
-        with open(tf) as f: d = json.load(f)
+        with open(tf, encoding="utf-8") as f: d = json.load(f)
     except: pass
 # 本会话
 session = {
@@ -117,11 +117,11 @@ d['session_ratio_pct'] = float($RATIO)
 d['cumulative_bytes'] = d.get('cumulative_bytes', 0) + $SAVED
 d['cumulative_events'] = d.get('cumulative_events', 0) + 1
 d['last_updated'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
-with open(tf, 'w') as f: json.dump(d, f)
+with open(tf, 'w', encoding="utf-8") as f: json.dump(d, f)
 # 跨会话时间序列 (JSONL追加)
-with open(tl, 'a') as f: f.write(json.dumps(session) + '\n')
+with open(tl, 'a', encoding="utf-8") as f: f.write(json.dumps(session) + '\n')
 " 2>/dev/null || true
-    echo "[context-compressor] 💰 本次(输入侧): ${RATIO}% | 累计: $(${PYTHON_BIN:-python3} -c \"import json;d=json.load(open('$STATE_DIR/token-savings.json'));print(f'{d.get(\\\"cumulative_events\\\",0)}次 {d.get(\\\"cumulative_bytes\\\",0)}bytes')\" 2>/dev/null)" >&2
+    echo "[context-compressor] 💰 本次(输入侧): ${RATIO}% | 累计: $(${PYTHON_BIN:-python3} -c \"import json;d=json.load(open('$STATE_DIR/token-savings.json', encoding="utf-8"));print(f'{d.get(\\\"cumulative_events\\\",0)}次 {d.get(\\\"cumulative_bytes\\\",0)}bytes')\" 2>/dev/null)" >&2
 else
     echo "[context-compressor] ⚠️ 部分 compact 文件缺失，缓存不完整" >&2
 fi

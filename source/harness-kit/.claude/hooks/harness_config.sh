@@ -163,7 +163,7 @@ try:
         sys.stderr.write(f"[harness_config] YAML 解析疑似失败: {n_keys} keys < {min_keys} 阈值。"
                          f"请检查 {yaml_path} 是否为多行 YAML 格式。\n")
         sys.stderr.write(f"[harness_config] 当前缓存将标记为不可用，所有 hc_get 返回默认值。\n")
-        with open(out_path, 'w') as f:
+        with open(out_path, 'w', encoding="utf-8") as f:
             f.write('')
         sys.exit(1)
 
@@ -176,7 +176,7 @@ try:
         f.write('\n'.join(lines) + '\n')
 except Exception as e:
     sys.stderr.write(f"[harness_config] 解析异常: {e}\n")
-    with open(out_path, 'w') as f:
+    with open(out_path, 'w', encoding="utf-8") as f:
         f.write('')
     sys.exit(0)
 PYEOF
@@ -317,7 +317,7 @@ is_mode_active() {
         expired=$($PYTHON_BIN -c "
 import json, sys
 try:
-    d = json.load(open('$ghost_new'))
+    d = json.load(open('$ghost_new', encoding="utf-8"))
     expires = d.get('expires_at', '')
     if not expires:
         print('active')
@@ -345,7 +345,7 @@ except Exception:
         expired=$($PYTHON_BIN -c "
 import json, sys
 try:
-    d = json.load(open('$ghost_old'))
+    d = json.load(open('$ghost_old', encoding="utf-8"))
     expires = d.get('expires_at', '')
     if not expires:
         print('active')
@@ -379,7 +379,7 @@ except Exception:
         expired=$($PYTHON_BIN -c "
 import json, sys
 try:
-    d = json.load(open('$goal_new'))
+    d = json.load(open('$goal_new', encoding="utf-8"))
     expires = d.get('expires_at', '')
     if not expires:
         print('active')
@@ -407,7 +407,7 @@ except Exception:
         expired=$($PYTHON_BIN -c "
 import json, sys
 try:
-    d = json.load(open('$goal_old'))
+    d = json.load(open('$goal_old', encoding="utf-8"))
     expires = d.get('expires_at', '')
     if not expires:
         print('active')
@@ -469,14 +469,14 @@ try:
 except:
     value = '$json_value'
 try:
-    d = json.load(open(file))
+    d = json.load(open(file, encoding="utf-8"))
 except:
     d = {}
 lst = d.get(field, [])
 lst.append(value)
 d[field] = lst
 tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+with open(tmp, 'w', encoding="utf-8") as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, file)
 " 2>/dev/null || true
@@ -493,12 +493,12 @@ import json, os
 file = '$file'
 field = '$field'
 try:
-    d = json.load(open(file))
+    d = json.load(open(file, encoding="utf-8"))
 except:
     d = {}
 d[field] = d.get(field, 0) + 1
 tmp = file + '.tmp.' + str(os.getpid())
-with open(tmp, 'w') as f:
+with open(tmp, 'w', encoding="utf-8") as f:
     json.dump(d, f, indent=2, ensure_ascii=False)
 os.rename(tmp, file)
 " 2>/dev/null || true
@@ -607,7 +607,7 @@ if replacements or surrogate_stripped > 0:
         'details': replacements[:50]  # cap at 50 to avoid log bloat
     }
     try:
-        with open(log_path, 'a') as f:
+        with open(log_path, 'a', encoding="utf-8") as f:
             f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
     except:
         pass  # silent fail if can't write log

@@ -47,7 +47,7 @@ if [ -f "$BUDGET_FILE" ]; then
     EXCEEDED=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
-    with open('$BUDGET_FILE') as f:
+    with open('$BUDGET_FILE', encoding="utf-8") as f:
         d = json.load(f)
     sigs = d.get('signatures', {})
     max_r = 3
@@ -91,7 +91,7 @@ if [ -f "$BUDGET_FILE" ]; then
     E4_NEAR_LIMIT=$(${PYTHON_BIN:-python3} -c "
 import json, sys, os
 try:
-    with open('$BUDGET_FILE') as f:
+    with open('$BUDGET_FILE', encoding="utf-8") as f:
         d = json.load(f)
     sigs = d.get('signatures', {})
     near = [(k, v.get('retry_count', 0), v.get('label', k)[:80]) for k, v in sigs.items() if 2 <= v.get('retry_count', 0) < 3]
@@ -121,7 +121,7 @@ found = 0
 ev_files = sorted(glob.glob('$E4_STATE_DIR/.completion-evidence-*'), key=os.path.getmtime, reverse=True)[:5]
 for ef in ev_files:
     try:
-        with open(ef) as f:
+        with open(ef, encoding="utf-8") as f:
             text = f.read(); sc = sum(1 for _, rx in diag_fields.items() if rx.search(text)); if sc >= 3:
                 found += 1
     except: pass
@@ -129,7 +129,7 @@ for ef in ev_files:
 # Source B: scan error-signals.jsonl last 100 lines
 if os.path.exists('$ERROR_SIGNALS_FILE'):
     try:
-        with open('$ERROR_SIGNALS_FILE') as f:
+        with open('$ERROR_SIGNALS_FILE', encoding="utf-8") as f:
             lines = f.readlines()
         for line in lines[-100:]:
             try:
@@ -145,7 +145,7 @@ if os.path.exists('$DIAGNOSIS_FILE'):
         mtime = os.path.getmtime('$DIAGNOSIS_FILE')
         age = __import__('time').time() - mtime
         if age < 3600:  # within 1 hour
-            with open('$DIAGNOSIS_FILE') as f:
+            with open('$DIAGNOSIS_FILE', encoding="utf-8") as f:
                 text = f.read(); sc = sum(1 for _, rx in diag_fields.items() if rx.search(text)); if sc >= 3:
                     found += 1
     except: pass
@@ -200,7 +200,7 @@ except:
     BUILD_FAIL_STREAK=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
-    d = json.load(open('$BUILD_FAIL_GATE'))
+    d = json.load(open('$BUILD_FAIL_GATE', encoding="utf-8"))
     print(d.get('streak', 0))
 except:
     print(0)" 2>/dev/null)

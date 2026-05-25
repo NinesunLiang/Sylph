@@ -89,7 +89,7 @@ auto_limit() {
         local s=$(${PYTHON_BIN:-python3} -c "
 import json, re, os
 try:
-    settings = json.load(open(os.path.expanduser('.claude/settings.json')))
+    settings = json.load(open(os.path.expanduser('.claude/settings.json', encoding="utf-8")))
     model = settings.get('env', {}).get('ANTHROPIC_MODEL', '')
     m = re.search(r'\[(\d+)([km])\]', model)
     if m:
@@ -133,7 +133,7 @@ detect_context_limit() {
         model_suffix=$(${PYTHON_BIN:-python3} -c "
 import json, re, os
 try:
-    settings = json.load(open(os.path.expanduser('.claude/settings.json')))
+    settings = json.load(open(os.path.expanduser('.claude/settings.json', encoding="utf-8")))
     model = settings.get('env', {}).get('ANTHROPIC_MODEL', '')
     m = re.search(r'\[(\d+)([km])\]', model)
     if m:

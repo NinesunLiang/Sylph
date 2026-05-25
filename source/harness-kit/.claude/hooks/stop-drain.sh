@@ -58,7 +58,7 @@ jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
 seen = set()
 if os.path.exists(jsonl_path):
     try:
-        with open(jsonl_path) as f:
+        with open(jsonl_path, encoding="utf-8") as f:
             for line in f:
                 try:
                     r = json.loads(line)
@@ -103,7 +103,7 @@ def classify(cmd):
 
 recovered = 0
 try:
-    with open(transcript) as tf:
+    with open(transcript, encoding="utf-8") as tf:
         for line in tf:
             line = line.strip()
             if not line:
@@ -175,7 +175,7 @@ try:
                     'origin': 'stop-drain',
                     'mode': 'ghost' if os.environ.get('_ghost_mode') == 'true' else 'normal',
                 }
-                with open(jsonl_path, 'a') as f:
+                with open(jsonl_path, 'a', encoding="utf-8") as f:
                     f.write(json.dumps(record, ensure_ascii=False) + '\n')
                 recovered += 1
 except FileNotFoundError:

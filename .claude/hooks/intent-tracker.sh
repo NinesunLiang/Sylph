@@ -49,7 +49,7 @@ previous = []
 content_history = {}  # content_hash_key -> list of (ts, content_hash)
 if os.path.isfile(log_path):
     try:
-        with open(log_path) as f:
+        with open(log_path, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if line:
@@ -70,7 +70,7 @@ if os.path.isfile(log_path):
 # Compute current content hash (read file after edit)
 content_hash = ''
 try:
-    with open(file_path) as f:
+    with open(file_path, encoding="utf-8") as f:
         c = f.read()
     content_hash = hashlib.md5(c.encode()).hexdigest()[:16]
 except:
@@ -161,7 +161,7 @@ record = {
 }
 
 # Append to log (atomic flock to prevent concurrent write interleaving)
-with open(log_path, 'a') as f:
+with open(log_path, 'a', encoding="utf-8") as f:
     fcntl.flock(f.fileno(), fcntl.LOCK_EX)
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
     f.flush()

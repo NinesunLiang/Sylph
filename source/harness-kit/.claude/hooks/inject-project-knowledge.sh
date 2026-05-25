@@ -133,7 +133,7 @@ try:
     threshold_days = int(sys.argv[3])
     threshold_hits = int(sys.argv[4])
 
-    with open(file_path) as f:
+    with open(file_path, encoding="utf-8") as f:
         lines = f.read().split('\n')
 
     entries = []
@@ -226,7 +226,7 @@ window = 86400  # 24h
 escapes = {'governance_bypass': [], 'captcha_forgery': []}
 
 try:
-    with open(jsonl_path) as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             try:
                 rec = json.loads(line.strip())
@@ -253,7 +253,7 @@ try:
     _pp = _os.path.join(_os.path.dirname(jsonl_path), 'escape-patches.json')
     if _os.path.exists(_pp):
         try:
-            with open(_pp) as _pf:
+            with open(_pp, encoding="utf-8") as _pf:
                 _ap = json.load(_pf)
             _pend = sum(1 for p in _ap.values() if p.get('status') == 'pending')
             if _pend:
@@ -296,7 +296,7 @@ try:
     age = datetime.now(timezone.utc).timestamp() - mtime
     if age > expiry_sec:
         sys.exit(0)
-    with open(handoff_path) as f:
+    with open(handoff_path, encoding="utf-8") as f:
         content = f.read().strip()
     if content:
         print("[上次会话交接]")
@@ -321,7 +321,7 @@ if [ "$DNA_ENABLED" = "true" ] && [ -f "$DNA_FILE" ]; then
 import json, sys
 
 try:
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], encoding="utf-8") as f:
         dna = json.load(f)
 
     signatures = dna.get('error_signatures', {})
@@ -379,11 +379,11 @@ if [ -f "$TOTAL_OPS_FILE" ]; then
 import json, sys, os
 try:
     dna_path, signals_path, ops_path = sys.argv[1], sys.argv[2], sys.argv[3]
-    total_ops = int(open(ops_path).read().strip())
+    total_ops = int(open(ops_path, encoding="utf-8").read().strip())
     tool_types = {}
     for jp in [dna_path, signals_path]:
         if os.path.exists(jp):
-            with open(jp) as f:
+            with open(jp, encoding="utf-8") as f:
                 for line in f:
                     try:
                         rec = json.loads(line)
@@ -409,7 +409,7 @@ import json, sys
 from datetime import datetime, timezone
 
 try:
-    with open(sys.argv[1]) as f:
+    with open(sys.argv[1], encoding="utf-8") as f:
         snap = json.load(f)
 
     expiry_sec = int(sys.argv[2]) if len(sys.argv) > 2 else 86400
@@ -492,7 +492,7 @@ if [ "$HAS_PREV" = true ]; then
         ${PYTHON_BIN:-python3} -c "
 import json
 try:
-    with open('$SESSION_DUMP') as f: d = json.load(f)
+    with open('$SESSION_DUMP', encoding="utf-8") as f: d = json.load(f)
     gs = d.get('git_state',{})
     br = gs.get('branch','?')
     mf = gs.get('modified_files',[])
@@ -541,7 +541,7 @@ if [ -f "$SESSION_DUMP" ]; then
     ${PYTHON_BIN:-python3} -c "
 import json, os
 try:
-    with open('$SESSION_DUMP') as f:
+    with open('$SESSION_DUMP', encoding="utf-8") as f:
         d = json.load(f)
 except:
     exit(0)
@@ -679,7 +679,7 @@ import json, os, time
 count = 0
 cutoff = time.time() - 86400
 try:
-    with open('$AUTO_OPT') as f:
+    with open('$AUTO_OPT', encoding="utf-8") as f:
         for line in f:
             try:
                 rec = json.loads(line.strip())

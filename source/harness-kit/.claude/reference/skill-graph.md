@@ -10,9 +10,18 @@ L3：业务流水线
   lx-oma-hier → lx-oma-split → lx-oma-gov → lx-oma-orch
 
 L2：专业能力
+  lx-goal / lx-ghost       — 自主执行 (目标驱动 / 方向驱动)
+  lx-oracle / lx-sync       — 质量保障 (独立审核 / 一致性检查)
+  lx-race / lx-stepwise     — 执行引擎 (并行蜂群 / 串行攻坚)
+  lx-task-spec / lx-test-gen — 任务驱动 (结构化任务 / 测试生成)
+  lx-dogfood / lx-status    — 运维洞察 (狗粮投喂 / 健康面板)
+  lx-varlock                — 安全代理 (隐私脱敏)
+  lx-brave-recovery         — 故障恢复 (Brave Search MCP)
+  update-carror-os          — 安装更新
 
 L1：基础设施
-  lx-pre-commit / lx-pre-push
+  lx-pre-commit / lx-pre-push  — 门禁 (提交前 / 推送前)
+  harness_config.sh / hooks    — 运行时 (配置库 / 钩子系统)
 ```
 
 ## 调用关系

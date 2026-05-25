@@ -50,7 +50,7 @@ if [ -f "$DNA_FILE" ]; then
     ERROR_SUMMARY=$(${PYTHON_BIN:-python3} -c "
 import json, sys
 try:
-    with open('$DNA_FILE') as f:
+    with open('$DNA_FILE', encoding="utf-8") as f:
         dna = json.load(f)
     sigs = dna.get('error_signatures', {})
     active = [(k, v) for k, v in sigs.items() if v.get('status') != 'fixed']
@@ -70,7 +70,7 @@ if [ -f "$INDEX_FILE" ]; then
     CTX_INFO=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
-    d = json.load(open('$INDEX_FILE'))
+    d = json.load(open('$INDEX_FILE', encoding="utf-8"))
     usage = d.get('usage', 0)
     limit = d.get('limit', 200000)
     pct = int(usage * 100 / limit) if limit > 0 else 0
@@ -86,7 +86,7 @@ CLAUDE_NEXT="$PROJECT_ROOT/.claude/claude-next.md"
 if [ -f "$CLAUDE_NEXT" ]; then
     LESSONS=$(${PYTHON_BIN:-python3} -c "
 import re
-with open('$CLAUDE_NEXT') as f:
+with open('$CLAUDE_NEXT', encoding="utf-8") as f:
     content = f.read()
 # 提取今日新加条目（含 @2026-05-11）
 today_entries = re.findall(r'^### \[(.+?)\] (.+)', content, re.MULTILINE)
@@ -102,7 +102,7 @@ CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
 if [ -f "$CONTRADICTION_LOG" ]; then
     CONTRADICTIONS=$(${PYTHON_BIN:-python3} -c "
 import json
-with open('$CONTRADICTION_LOG') as f:
+with open('$CONTRADICTION_LOG', encoding="utf-8") as f:
     lines = [json.loads(l) for l in f if l.strip()]
 reverts = [l for l in lines if l.get('type') == 'revert' and l.get('session_id', l.get('sig', ''))]
 for r in reverts[-3:]:

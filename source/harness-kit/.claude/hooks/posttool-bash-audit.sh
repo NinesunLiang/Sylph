@@ -88,7 +88,7 @@ try:
     all_entries = []
     for jsonl_path in scan_list:
         try:
-            with open(jsonl_path) as f:
+            with open(jsonl_path, encoding="utf-8") as f:
                 for line in f:
                     try:
                         rec = json.loads(line.strip())
@@ -143,7 +143,7 @@ current_cmd = sys.argv[2]
 
 try:
     recent_entries = []
-    with open(jsonl_path) as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             try:
                 rec = json.loads(line.strip())
@@ -197,7 +197,7 @@ stderr_out = os.environ.get('STDERR_OR_STDOUT', '')
 data = {'count': 0, 'signatures': []}
 if os.path.exists(path):
     try:
-        data = json.load(open(path))
+        data = json.load(open(path, encoding="utf-8"))
     except:
         pass
 data['count'] += 1
@@ -205,7 +205,7 @@ data['count'] += 1
 sig = stderr_out[:200].split('\n')[0]
 if sig and sig not in data['signatures']:
     data['signatures'].append(sig)
-with open(path, 'w') as f:
+with open(path, 'w', encoding="utf-8") as f:
     json.dump(data, f)
 print(data['count'])" 2>/dev/null)
 
@@ -213,7 +213,7 @@ print(data['count'])" 2>/dev/null)
         if [ "$STREAK" -ge "$FAIL_STREAK_THRESHOLD" ] 2>/dev/null; then
             # Get number of distinct signatures
             DISTINCT=$(${PYTHON_BIN:-python3} -c "import json, os
-data = json.load(open(os.environ.get('BUILD_FAIL_FILE', '')))
+data = json.load(open(os.environ.get('BUILD_FAIL_FILE', ''), encoding='utf-8'))
 print(len(data.get('signatures', [])))" 2>/dev/null)
             ANTI_PATTERN_MSG="[反模式 C1: 编译错误盲修] 连续 ${STREAK} 次构建失败"
             if [ "$DISTINCT" -gt 1 ] 2>/dev/null; then
@@ -233,7 +233,7 @@ gate = {
     'last_fail': time.time(),
     'requires_diagnosis': True
 }
-with open('$GATE_FILE', 'w') as f:
+with open('$GATE_FILE', 'w', encoding="utf-8") as f:
     json.dump(gate, f, indent=2)
 " 2>/dev/null
             fi

@@ -43,7 +43,7 @@ latest_date = {}
 total = 0
 
 try:
-    with open(log_path) as f:
+    with open(log_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -77,7 +77,7 @@ ack_snooze = {}
 ack_ignore = set()
 if os.path.exists(ack_log):
     try:
-        with open(ack_log) as f:
+        with open(ack_log, encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -131,7 +131,7 @@ try:
         projs = ', '.join(sorted(project_map[evt]))[:50] if project_map[evt] else '-'
         report_lines.append(f"- **{evt}**: {cnt} occurrences (P0, projects: {projs})")
     report_lines.append("")
-    with open(report_path, 'w') as f:
+    with open(report_path, 'w', encoding="utf-8") as f:
         f.write("\n".join(report_lines))
 except Exception:
     pass

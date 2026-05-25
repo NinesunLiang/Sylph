@@ -76,7 +76,7 @@ def _strip_surr(obj):
         return {k: _strip_surr(v) for k, v in obj.items()}
     return obj
 snapshot = _strip_surr(snapshot)
-with open(snapshot_file, "w") as f:
+with open(snapshot_file, "w", encoding="utf-8") as f:
     json.dump(snapshot, f, ensure_ascii=False, indent=2)
 PYEOF
 
@@ -154,7 +154,7 @@ if os.path.isdir(rpe_dir):
 
 for feature, epath in executor_files:
     try:
-        with open(epath) as f:
+        with open(epath, encoding="utf-8") as f:
             content = f.read()
     except:
         continue
@@ -196,7 +196,7 @@ for feature, epath in executor_files:
     plan_path = os.path.join(os.path.dirname(epath), 'plan.md')
     if os.path.isfile(plan_path):
         try:
-            with open(plan_path) as pf:
+            with open(plan_path, encoding="utf-8") as pf:
                 plan_content = pf.read()
             decision_lines += [l.strip() for l in plan_content.split('\n') if decision_pattern.search(l) and l.strip()]
         except:
@@ -232,7 +232,7 @@ for feature, epath in executor_files:
 error_dna_path = os.path.join(project_root, '.omc', 'state', 'error-dna.json')
 if os.path.isfile(error_dna_path):
     try:
-        with open(error_dna_path) as ef:
+        with open(error_dna_path, encoding="utf-8") as ef:
             error_data = json.load(ef)
         unfixed = [e for e in error_data if e.get('status') != 'fixed']
         if unfixed:
@@ -249,7 +249,7 @@ if os.path.isfile(error_dna_path):
 todo_path = os.path.join(project_root, '.omc', 'state', 'todo-queue.md')
 if os.path.isfile(todo_path):
     try:
-        with open(todo_path) as tf:
+        with open(todo_path, encoding="utf-8") as tf:
             todo_content = tf.read().strip()
         if todo_content:
             active = [l for l in todo_content.split('\n') if '[·]' in l]
@@ -267,7 +267,7 @@ if os.path.isfile(todo_path):
 edit_log_path = os.path.join(project_root, '.omc', 'state', 'session-edit-log.txt')
 if os.path.isfile(edit_log_path):
     try:
-        with open(edit_log_path) as lf:
+        with open(edit_log_path, encoding="utf-8") as lf:
             raw_files = [l.strip() for l in lf if l.strip()]
         unique_files = sorted(set(raw_files))
         if unique_files:
@@ -311,7 +311,7 @@ if not executor_files:
 claude_next = os.path.join(project_root, '.claude', 'claude-next.md')
 if os.path.isfile(claude_next):
     try:
-        with open(claude_next) as f:
+        with open(claude_next, encoding="utf-8") as f:
             cn_content = f.read()
         lesson_titles = re.findall(r'^## \[.+?\] (.+)', cn_content, re.MULTILINE)
         if lesson_titles:
@@ -322,7 +322,7 @@ if os.path.isfile(claude_next):
         pass
 
 # 写入
-with open(handoff_path, 'w') as f:
+with open(handoff_path, 'w', encoding="utf-8") as f:
     f.write('\n'.join(sections) + '\n')
 
 print(f"Session handoff saved: {len(sections)} sections")
@@ -368,7 +368,7 @@ except Exception as e:
 error_path = os.path.join(state_dir, 'error-dna.json')
 if os.path.isfile(error_path):
     try:
-        with open(error_path) as f:
+        with open(error_path, encoding="utf-8") as f:
             error_data = json.load(f)
         signatures = error_data.get('error_signatures', {})
         unfixed = []
@@ -390,7 +390,7 @@ else:
 todo_path = os.path.join(state_dir, 'todo-queue.md')
 if os.path.isfile(todo_path):
     try:
-        with open(todo_path) as f:
+        with open(todo_path, encoding="utf-8") as f:
             content = f.read()
         items = [l.strip() for l in content.split('\n') if '[·]' in l or re.match(r'\s*-\s*\[', l)]
         dump['todo_queue'] = items[:10]
@@ -407,7 +407,7 @@ if os.path.isdir(rpe_dir):
         ppath = os.path.join(rpe_dir, feat, 'state', 'progress.md')
         if os.path.isfile(ppath):
             try:
-                with open(ppath) as f:
+                with open(ppath, encoding="utf-8") as f:
                     first = f.read(300)
                 active.append({'feature': feat, 'status_snippet': first[:200]})
             except Exception:
@@ -418,7 +418,7 @@ dump['active_features'] = active[:5]
 token_path = os.path.join(state_dir, 'token-tracking-index.json')
 if os.path.isfile(token_path):
     try:
-        with open(token_path) as f:
+        with open(token_path, encoding="utf-8") as f:
             dump['token_usage'] = json.load(f)
     except Exception:
         dump['token_usage'] = {}
@@ -431,7 +431,7 @@ if os.path.isfile(cn_path):
     try:
         from datetime import datetime
         today = datetime.now().strftime('%Y-%m-%d')
-        with open(cn_path) as f:
+        with open(cn_path, encoding="utf-8") as f:
             content = f.read()
         today_lines = [l.strip() for l in content.split('\n') if today in l]
         dump['claude_next_hits'] = today_lines[:5]
@@ -444,7 +444,7 @@ else:
 edit_log_path = os.path.join(state_dir, 'session-edit-log.txt')
 if os.path.isfile(edit_log_path):
     try:
-        with open(edit_log_path) as f:
+        with open(edit_log_path, encoding="utf-8") as f:
             files = sorted(set(l.strip() for l in f if l.strip()))
         dump['edit_log'] = files[:20]
     except Exception:
@@ -465,7 +465,7 @@ def _strip_surr2(obj):
     return obj
 dump = _strip_surr2(dump)
 tmp = dump_path + '.tmp'
-with open(tmp, 'w') as f:
+with open(tmp, 'w', encoding="utf-8") as f:
     json.dump(dump, f, ensure_ascii=False, indent=2)
 os.rename(tmp, dump_path)
 print(f"Session dump written: {len(dump)} sections")

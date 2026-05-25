@@ -70,7 +70,7 @@ fi
 if [ "$MODE" = "goal" ]; then
     GOAL_FILE="$STATE_DIR/lx-goal.json"
     if [ -f "$GOAL_FILE" ]; then
-        PHASE0_PASSED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GOAL_FILE')); print(d.get('phase0_passed_at',''))" 2>/dev/null || echo "")
+        PHASE0_PASSED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GOAL_FILE', encoding="utf-8")); print(d.get('phase0_passed_at',''))" 2>/dev/null || echo "")
         if [ -n "$PHASE0_PASSED" ]; then
             echo '{"continue": true}'
             flywheel_event "pretool_plan_gate" "goal_phase0_verified" "P2" "passed_at=$PHASE0_PASSED" || true
@@ -101,7 +101,7 @@ if [ -d "$PLANS_DIR" ]; then
     for state_file in "$PLANS_DIR"/*/*/state.json; do
         set -f
         [ -f "$state_file" ] || continue
-        PHASE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$state_file')).get('phase',''))" 2>/dev/null || echo "")
+        PHASE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$state_file', encoding="utf-8")).get('phase',''))" 2>/dev/null || echo "")
         if [ "$PHASE" = "approved" ] || [ "$PHASE" = "executing" ]; then
             HAS_APPROVED=true
             PLAN_PATH=$(dirname "$state_file")

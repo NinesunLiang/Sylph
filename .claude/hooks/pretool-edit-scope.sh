@@ -92,7 +92,7 @@ import json, sys
 edit_file = sys.argv[1]
 coupling_path = sys.argv[2]
 try:
-    with open(coupling_path) as f:
+    with open(coupling_path, encoding="utf-8") as f:
         data = json.load(f)
     source = data.get("source", "git_co_change")
     file_coupling = data.get("file_coupling", {})

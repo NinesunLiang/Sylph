@@ -23,7 +23,7 @@ try:
 except IndexError:
     sys.exit(0)
 
-with open(next_path) as f:
+with open(next_path, encoding="utf-8") as f:
     text = f.read()
 
 lines = text.split('\n')
