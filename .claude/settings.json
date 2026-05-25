@@ -125,6 +125,16 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/skeptic-role.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-oma-path-guard.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -144,16 +154,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/pre-completion-gate.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-plan-gate.sh",
             "timeout": 5000
           }
         ]
@@ -288,6 +288,11 @@
             "type": "command",
             "command": "bash .claude/hooks/meta-oracle-trigger.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/agentic-ui.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -337,11 +342,11 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Edit|Write|TaskUpdate",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
+            "command": "bash .claude/hooks/assertion-collector.sh",
             "timeout": 5000
           }
         ]
@@ -364,16 +369,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
             "timeout": 5000
           }
         ]
@@ -462,15 +457,6 @@
             "timeout": 5000
           }
         ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/knowledge-condenser.sh",
-            "timeout": 5000
-          }
-        ]
       }
     ],
     "UserPromptSubmit": [
@@ -500,9 +486,6 @@
             "timeout": 3000
           }
         ]
-      },
-      {
-        "hooks": []
       },
       {
         "matcher": ".*",
