@@ -1,8 +1,8 @@
-## Hooks 速查（共 50 个）
+## Hooks 速查（共 48 个）
 | Hook | 触发 | 作用|
 |------|------|------|
+|`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
 |`auto-snapshot` | PostToolUse / Stop | auto-snapshot.sh — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）|
-|`build-validator` | PostToolUse / PostToolUseFailure | build-validator.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 构建失败自动记录错误日志并给|
 |`compact-detect` | UserPromptSubmit | compact-detect.sh — UserPromptSubmit — /compact 后知识恢复（压缩版）|
 |`completion-gate` | PostToolUse | completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件|
 |`context-compressor` | SessionStart | context-compressor.sh — SessionStart — 移花接木：源文件不动，运行时拼接压缩缓存|
@@ -14,7 +14,6 @@
 |`fuzzy-block` | PreToolUse | fuzzy-block.sh — PreToolUse — 模糊指令硬阻断（C1 指令清晰度门禁）|
 |`inject-project-knowledge` | SessionStart | inject-project-knowledge.sh — SessionStart — 注入 .claude/ 核心知识到 AI context|
 |`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
-|`knowledge-condenser` | Stop | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议|
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
 |`meta-oracle-trigger.py` | PostToolUse | ── Platform detection ──────────────────────────────────────────────|
 |`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Meta-Oracle 最后守门员自动触发（G1-G4）|
@@ -36,7 +35,6 @@
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-oracle-gate.py` | PreToolUse | Platform routing: on macOS/Linux the bash .sh version handles execution|
 |`pretool-oracle-gate` | PreToolUse | pretool-oracle-gate.sh — PreToolUse:Edit|Write — Oracle 审查前置门禁 (DG-115)|
-|`pretool-plan-gate` | PreToolUse | pretool-plan-gate.sh — PreToolUse:Edit|Write|Bash — Plan-before-Execute 门禁|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-rules-inject` | UserPromptSubmit | pretool-rules-inject.sh — UserPromptSubmit — 3级脱水分层注入|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|

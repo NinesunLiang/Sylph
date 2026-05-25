@@ -166,7 +166,7 @@ semantic_quality_factor() {
 
   # (a) Flywheel 覆盖率: 统计 hooks 注册数 vs flywheel.log 中有事件的 hooks 数
   local registered=0 covered=0
-  if [ -f "$HOME/.claude/flywheel.log" ]; then
+  if [ -f "$HOME/.claude/flywheel.log" ] && [ -s "$HOME/.claude/flywheel.log" ]; then
     # Count hooks registered in settings.json
     registered=$(${PYTHON_BIN:-python3} -c "
 import json,os
@@ -175,16 +175,16 @@ try:
   hooks=d.get('hooks',{})
   print(len(hooks))
 except: print(0)" 2>/dev/null || echo "0")
-    # Count unique hook names in flywheel.log
-    covered=$(grep -oE 'flywheel_event "[^"]*"' "$HOME/.claude/flywheel.log" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    # Count unique hook names from CSV format: timestamp,hook_name,level,...
+    covered=$(cut -d',' -f2 "$HOME/.claude/flywheel.log" 2>/dev/null | sort -u | wc -l | tr -d ' ')
     covered="${covered:-0}"
-    if [ "$registered" -gt 0 ] 2>/dev/null; then
+    if [ "$registered" -gt 0 ] 2>/dev/null && [ "$covered" -gt 0 ] 2>/dev/null; then
       local cov_pct
       cov_pct=$(echo "scale=2; $covered * 100 / $registered" | bc 2>/dev/null || echo "0")
       if [ "$(echo "$cov_pct >= 80" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
         factor=$(echo "scale=2; $factor + 0.05" | bc)  # +5% bonus for high coverage
-      elif [ "$(echo "$cov_pct < 20" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
-        factor=$(echo "scale=2; $factor - 0.10" | bc)  # -10% penalty for very low coverage
+      elif [ "$(echo "$cov_pct < 10" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+        factor=$(echo "scale=2; $factor - 0.05" | bc)  # -5% for very low coverage (was -10%)
       fi
     fi
   fi
