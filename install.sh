@@ -1087,5 +1087,6 @@ if [ -n "$AST_SUGGEST" ]; then
 fi
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"
+log_info "💡 运行 bash .claude/scripts/harness-smoke-test.sh 验证 hook 安装完整性"
 log_info "✅ 安装完成。退出安装模式。"
 exit 0

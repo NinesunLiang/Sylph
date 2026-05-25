@@ -238,6 +238,36 @@ L_CONTAM=$(tar tzf "$PKG_DIR/lx-skills-${TAG}.tar.gz" \
 [ "$L_CONTAM" -gt 0 ] && log_warn "  ⚠️ lx-skills: $L_CONTAM 越界文件"
 log_info "  lx-skills-${TAG}.tar.gz ($(du -h "$PKG_DIR/lx-skills-${TAG}.tar.gz" | cut -f1))"
 
+# ─── sha256 完整性校验（防打包退化，DG-105）───
+log_step "sha256 完整性校验..."
+verify_package() {
+    local src_dir="$1" tar_file="$2"
+    local fail=0
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        [[ "$f" == */ ]] && continue
+        local tar_sha src_sha
+        tar_sha=$(tar -xzf "$tar_file" -O "$f" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+        src_sha=$(shasum -a 256 "$src_dir/$f" 2>/dev/null | cut -d' ' -f1)
+        if [ "$tar_sha" != "$src_sha" ] || [ -z "$tar_sha" ]; then
+            log_warn "  ⚠️  $f: tar=$tar_sha vs src=$src_sha"
+            fail=1
+        fi
+    done < <(tar -tzf "$tar_file" 2>/dev/null)
+    return $fail
+}
+
+PKG_FAIL=0
+verify_package "source/harness-kit" "packages/harness-kit-${TAG}.tar.gz" || PKG_FAIL=1
+verify_package "source/lx-skills-v5" "packages/lx-skills-${TAG}.tar.gz" || PKG_FAIL=1
+
+if [ "$PKG_FAIL" -eq 1 ]; then
+    log_warn "sha256 校验失败！打包内容与源文件不一致。"
+    log_warn "建议重新执行 rsync 同步后重试。"
+    exit 1
+fi
+log_info "✅ sha256 全部一致"
+
 # ─── Step 5: 同步后三源验证 (DG-100) ───
 log_step "5/5 同步后三源验证..."
 if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
