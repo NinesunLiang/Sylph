@@ -227,72 +227,6 @@ fi
 
 
 
-# ─── jq 自动安装（JSON 解析器，28 hooks 依赖） ───
-# 反馈来源: client_fellback/feedback.md S8 — Windows 上 jq 缺失导致 28/45 hooks JSON 解析失败
-# privacy-gate 在 jq 缺失时无法 extract CMD → token 检测旁路（安全风险）
-install_jq() {
-    if command -v jq &>/dev/null; then
-        log_info "jq 已安装 ($(jq --version 2>&1))"
-        return 0
-    fi
-    log_info "jq 未安装 — 正在自动安装..."
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        command -v brew &>/dev/null && brew install jq 2>&1 | tail -2 && return 0
-    elif [[ "$OSTYPE" == "msys" || "$OSTYPE" == "cygwin"* ]]; then
-        # MSYS2: pacman first (already in PATH when running from Git Bash)
-        command -v pacman &>/dev/null && pacman -S --noconfirm jq 2>&1 | tail -2 && return 0
-        command -v winget &>/dev/null && winget install -e --id jqlang.jq --silent 2>&1 | tail -2 && return 0
-        command -v choco &>/dev/null && choco install jq -y 2>&1 | tail -3 && return 0
-        # Windows 包管理器都失败 → 直接下载 jq 官方二进制 (jqlang/jq)
-        log_info "包管理器安装失败，尝试直接下载 jq Windows 二进制..."
-        local JQ_URL="https://github.com/jqlang/jq/releases/latest/download/jq-windows-amd64.exe"
-        local JQ_DEST="${HOME}/bin"
-        mkdir -p "$JQ_DEST" 2>/dev/null
-        local JQ_OK=false
-        if command -v curl &>/dev/null; then
-            curl -sSL --connect-timeout 10 --max-time 60 -o "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
-                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
-        elif command -v wget &>/dev/null; then
-            wget -q --timeout=10 -O "$JQ_DEST/jq.exe" "$JQ_URL" 2>&1 && \
-                chmod +x "$JQ_DEST/jq.exe" 2>/dev/null && JQ_OK=true
-        fi
-        if [ "$JQ_OK" = true ]; then
-            # SHA256 校验（可选 — 校验文件不存在时跳过）
-            local JQ_SHA_URL="${JQ_URL}.sha256"
-            if command -v curl &>/dev/null; then
-                curl -sSL --connect-timeout 5 --max-time 15 -o "$JQ_DEST/jq.exe.sha256" "$JQ_SHA_URL" 2>/dev/null && \
-                    echo "$(cat "$JQ_DEST/jq.exe.sha256" 2>/dev/null)  $JQ_DEST/jq.exe" | sha256sum -c --status 2>/dev/null && \
-                    log_info "jq SHA256 校验通过" || \
-                    log_warn "jq SHA256 校验跳过（校验文件不可用或 sha256sum 未安装）"
-                rm -f "$JQ_DEST/jq.exe.sha256" 2>/dev/null
-            fi
-            export PATH="$JQ_DEST:$PATH"
-            # 持久化 PATH 到所有常见 shell 配置文件
-            for rc in ~/.bashrc ~/.zshrc ~/.profile; do
-                if ! grep -q 'export PATH="$HOME/bin:$PATH"' "$rc" 2>/dev/null; then
-                    echo 'export PATH="$HOME/bin:$PATH"' >> "$rc"
-                fi
-            done
-            log_info "已将 ~/bin 加入永久 PATH"
-            log_info "jq 已下载并安装到 $JQ_DEST/jq.exe ($(jq --version 2>&1))" && return 0
-        fi
-    elif command -v apt-get &>/dev/null; then
-        sudo apt-get install -y jq 2>&1 | tail -2 && return 0
-    elif command -v yum &>/dev/null; then
-        sudo yum install -y jq 2>&1 | tail -2 && return 0
-    elif command -v dnf &>/dev/null; then
-        sudo dnf install -y jq 2>&1 | tail -2 && return 0
-    elif command -v pacman &>/dev/null; then
-        sudo pacman -S --noconfirm jq 2>&1 | tail -2 && return 0
-    elif command -v apk &>/dev/null; then
-        apk add jq 2>&1 | tail -2 && return 0
-    fi
-    log_warn "jq 自动安装失败，28 hooks 将使用 python3 回退（功能降级）"
-    MISSING_DEPS=$((MISSING_DEPS + 1))
-    return 1
-}
-install_jq || log_warn "jq 安装失败 — 非致命，28 hooks 有 python3 回退，继续安装"
-
 # 汇总
 if [ "$MISSING_DEPS" -gt 0 ]; then
     echo -e "${YELLOW}[DEPS]${NC} ⚠️  检测到 $MISSING_DEPS 个依赖缺失"
@@ -591,18 +525,25 @@ if [ "$HAS_BACKUP" = true ]; then
     fi
 
     # settings.json 3-way merge（python3 实现）
+    # DG-102: 修复 pipefail 吞错 — 用临时文件替代管道，防止 Python 失败时 set -eo pipefail 静默杀脚本
     if [ -f "$BACKUP_DIR/settings-user.json" ] && [ -n "${PYTHON_BIN:-}" ] && command -v "${PYTHON_BIN:-python3}" &>/dev/null; then
         log_step "正在合并 settings.json（保留自定义 hook 注册）..."
+        MERGE_LOG="/tmp/carror-settings-merge-$$.log"
+        set +eo pipefail
         ${PYTHON_BIN:-python3} -c "
-import json
+import json, sys
 try:
     with open('$BACKUP_DIR/settings-user.json') as f:
         old = json.load(f)
 except (FileNotFoundError, json.JSONDecodeError):
     print('settings.json merge skipped — no user backup found')
-    exit(0)
-with open('.claude/settings.json') as f:
-    new = json.load(f)
+    sys.exit(0)
+try:
+    with open('.claude/settings.json') as f:
+        new = json.load(f)
+except Exception as e:
+    print(f'ERROR: 无法读取 .claude/settings.json: {e}', file=sys.stderr)
+    sys.exit(2)
 old_hooks = set(old.get('hooks', {}).keys())
 new_hooks = set(new.get('hooks', {}).keys())
 extra = {k: old['hooks'][k] for k in (old_hooks - new_hooks)}
@@ -614,10 +555,21 @@ for k, v in old_skills.items():
 old_hooks_enabled = old.get('hooks_enabled', {})
 for k, v in old_hooks_enabled.items():
     new.setdefault('hooks_enabled', {})[k] = v
-with open('.claude/settings.json', 'w') as f:
-    json.dump(new, f, indent=2)
+try:
+    with open('.claude/settings.json', 'w') as f:
+        json.dump(new, f, indent=2)
+except Exception as e:
+    print(f'ERROR: 无法写入 .claude/settings.json: {e}', file=sys.stderr)
+    sys.exit(3)
 print(f'settings.json merge: {len(extra)} custom hooks, {len(old_skills)} skill toggles, {len(old_hooks_enabled)} hook toggles preserved')
-" 2>&1 | while IFS= read -r line; do log_info "$line"; done
+" > "$MERGE_LOG" 2>&1
+        MERGE_EXIT=$?
+        set -eo pipefail
+        while IFS= read -r line; do log_info "$line"; done < "$MERGE_LOG"
+        rm -f "$MERGE_LOG"
+        if [ "$MERGE_EXIT" -ne 0 ]; then
+            log_warn "settings.json 合并失败 (exit=$MERGE_EXIT) — 继续安装，但旧自定义 hook 注册可能丢失"
+        fi
     fi
 
     # 恢复 settings.local.json（用户自有文件，无冲突）
