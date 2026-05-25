@@ -156,6 +156,77 @@ else: print('0')
   esac
 }
 
+# ── DG-100: 语义质量因子 — 打破静态评分天花板 ──
+# 测量运行时数据覆盖度，将纯文件存在检测无法感知的语义改进量化为分数
+# (a) flywheel 埋点覆盖率: 已注册 hooks 中有多少有运行时数据
+# (b) error-dna 噪声率: 错误签名中有多少是噪声 (ED-01: 83.5%)
+# (c) 真实捕获率: 理论应检测 vs 实际已检测的事件比例
+semantic_quality_factor() {
+  local factor=1.00
+
+  # (a) Flywheel 覆盖率: 统计 hooks 注册数 vs flywheel.log 中有事件的 hooks 数
+  local registered=0 covered=0
+  if [ -f "$HOME/.claude/flywheel.log" ]; then
+    # Count hooks registered in settings.json
+    registered=$(${PYTHON_BIN:-python3} -c "
+import json,os
+try:
+  d=json.load(open('.claude/settings.json'))
+  hooks=d.get('hooks',{})
+  print(len(hooks))
+except: print(0)" 2>/dev/null || echo "0")
+    # Count unique hook names in flywheel.log
+    covered=$(grep -oE 'flywheel_event "[^"]*"' "$HOME/.claude/flywheel.log" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    covered="${covered:-0}"
+    if [ "$registered" -gt 0 ] 2>/dev/null; then
+      local cov_pct
+      cov_pct=$(echo "scale=2; $covered * 100 / $registered" | bc 2>/dev/null || echo "0")
+      if [ "$(echo "$cov_pct >= 80" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+        factor=$(echo "scale=2; $factor + 0.05" | bc)  # +5% bonus for high coverage
+      elif [ "$(echo "$cov_pct < 20" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+        factor=$(echo "scale=2; $factor - 0.10" | bc)  # -10% penalty for very low coverage
+      fi
+    fi
+  fi
+
+  # (b) Error DNA 噪声率: 过高噪声率 = 症状混淆风险
+  if [ -f ".omc/state/error-dna.jsonl" ]; then
+    local total_edna noise_edna
+    total_edna=$(wc -l < ".omc/state/error-dna.jsonl" 2>/dev/null | tr -d ' '); total_edna="${total_edna:-0}"
+    noise_edna=$(grep -c '"status": "noise"' ".omc/state/error-dna.jsonl" 2>/dev/null); noise_edna="${noise_edna:-0}"
+    if [ "$total_edna" -gt 0 ] 2>/dev/null; then
+      local noise_pct
+      noise_pct=$(echo "scale=2; $noise_edna * 100 / $total_edna" | bc 2>/dev/null || echo "0")
+      if [ "$(echo "$noise_pct > 80" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+        factor=$(echo "scale=2; $factor - 0.05" | bc)  # -5% for excessive noise
+      elif [ "$(echo "$noise_pct < 30" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+        factor=$(echo "scale=2; $factor + 0.03" | bc)  # +3% for low noise
+      fi
+    fi
+  fi
+
+  # (c) 真实捕获率: capability-matrix-test 最近通过率
+  local cap_log
+  cap_log=$(ls -t .omc/state/capability-matrix-*.log 2>/dev/null | head -1)
+  if [ -n "$cap_log" ] && [ -f "$cap_log" ]; then
+    local total_tests pass_tests
+    total_tests=$(grep -c '^\[' "$cap_log" 2>/dev/null); total_tests="${total_tests:-0}"
+    pass_tests=$(grep -c 'PASS' "$cap_log" 2>/dev/null); pass_tests="${pass_tests:-0}"
+    if [ "$total_tests" -gt 0 ] 2>/dev/null; then
+      local pass_pct
+      pass_pct=$(echo "scale=2; $pass_tests * 100 / $total_tests" | bc 2>/dev/null || echo "0")
+      if [ "$(echo "$pass_pct >= 95" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+        factor=$(echo "scale=2; $factor + 0.03" | bc)
+      fi
+    fi
+  fi
+
+  # Clamp to [0.80, 1.10]
+  if [ "$(echo "$factor < 0.80" | bc -l 2>/dev/null || echo 0)" = "1" ]; then factor="0.80"; fi
+  if [ "$(echo "$factor > 1.10" | bc -l 2>/dev/null || echo 0)" = "1" ]; then factor="1.10"; fi
+  echo "$factor"
+}
+
 # ── 烟雾测试快速检查 ──
 smoke_passes_for() {
   local test_label="$1"
@@ -805,6 +876,13 @@ G_pct=$(pct $G_score $G_max)
 # Weighted score = (C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 100 * 10
 #                 = (C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 10
 WEIGHTED_10=$(echo "scale=2; ($C_pct * 0.40 + $E_pct * 0.35 + $G_pct * 0.25) / 10" | bc 2>/dev/null || echo "0")
+
+# ───── DG-100: 语义质量因子调整 — 打破静态评分天花板 ─────
+# 运行时数据覆盖度/噪声率/捕获率 对静态评分的质量加权
+SEMANTIC_FACTOR=$(semantic_quality_factor)
+WEIGHTED_10_SEMANTIC=$(echo "scale=2; $WEIGHTED_10 * $SEMANTIC_FACTOR" | bc 2>/dev/null || echo "$WEIGHTED_10")
+echo "  语义质量因子: ${SEMANTIC_FACTOR} (flywheel覆盖+噪声率+捕获率) → 调整后: ${WEIGHTED_10_SEMANTIC}/10"
+WEIGHTED_10="$WEIGHTED_10_SEMANTIC"
 
 # ───── E7 校准: 对纯静态检测降权 15% ─────
 if [ "$CALIBRATED" = true ]; then

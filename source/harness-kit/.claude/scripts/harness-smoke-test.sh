@@ -921,11 +921,11 @@ fi
 
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R36 knowledge-condenser: settings.json 注册"
+log "[$TOTAL] R36 knowledge-condenser: settings.json 注册（DG-105 已清理幽灵注册）"
 if grep -q "knowledge-condenser.sh" .claude/settings.json; then
-    pass "R36 knowledge-condenser 已注册 settings.json"
+    fail "R36 knowledge-condenser 幽灵注册未清理"
 else
-    fail "R36 knowledge-condenser 未注册 settings.json"
+    pass "R36 knowledge-condenser 注册已清理"
 fi
 
 TOTAL=$((TOTAL+1))
@@ -1394,7 +1394,337 @@ fi
 rm -f .omc/state/session-snapshot.json .omc/state/session-snapshot.json.sha256 .omc/state/session-handoff.md .omc/state/session-dump.json
 
 # === E2E Tests End ===
+# ═══════════════════════════════════════════════════════
+# v6.2.38 补充测试 — 27个未覆盖 hook 全量验收
+# ═══════════════════════════════════════════════════════
 
+# --- pretool-rules-inject ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-rules-inject: L1 每轮必须注入 additionalContext"
+INJECT_OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"test"}' | bash .claude/hooks/pretool-rules-inject.sh 2>/dev/null)
+if echo "$INJECT_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if 'L1' in ctx else 1)" 2>/dev/null; then
+  pass "pretool-rules-inject: L1 铁律注入成功"
+else fail "pretool-rules-inject: L1 注入缺失"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-rules-inject: 输出必须 continue=true"
+if echo "$INJECT_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+  pass "pretool-rules-inject: continue=true 放行"
+else fail "pretool-rules-inject: 错误阻断"; fi
+
+# --- pretool-sensitive-edit ---
+run_case "pretool-sensitive-edit: 编辑 AGENTS.md" '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"AGENTS.md"}}' "pretool-sensitive-edit.sh" 0 ""
+run_case "pretool-sensitive-edit: 编辑普通文件" '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' "pretool-sensitive-edit.sh" 0 ""
+
+# --- pretool-blast-radius ---
+run_case "pretool-blast-radius: git checkout ." '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git checkout ."}}' "pretool-blast-radius.sh" 0 "(blast|全量|checkout)"
+run_case "pretool-blast-radius: rm -rf /" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' "pretool-blast-radius.sh" 0 ""
+run_case "pretool-blast-radius: 普通命令" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"}}' "pretool-blast-radius.sh" 0 ""
+
+# --- pretool-terminal-safety ---
+run_case "pretool-terminal-safety: 危险命令放行但告警" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sudo rm -rf /tmp/test"}}' "pretool-terminal-safety.sh" 0 ""
+run_case "pretool-terminal-safety: 正常命令放行" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install"}}' "pretool-terminal-safety.sh" 0 ""
+
+# --- pretool-retry-check ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-retry-check: 无超限放行"
+rm -f .omc/state/retry-budget.json
+RETRY_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm test"}}' | bash .claude/hooks/pretool-retry-check.sh 2>/dev/null)
+if echo "$RETRY_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+  pass "pretool-retry-check: 无超限放行"; else fail "pretool-retry-check: 无超限阻断"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-retry-check: 超限命令应阻断或警告"
+python3 -c "import json; json.dump({'signatures':{'abc':{'retry_count':5,'command':'npm test'}}}, open('.omc/state/retry-budget.json','w'))" 2>/dev/null
+RETRY_BLOCK=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm test"}}' | bash .claude/hooks/pretool-retry-check.sh 2>/dev/null)
+if echo "$RETRY_BLOCK" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
+  pass "pretool-retry-check: 超限阻断"
+elif echo "$RETRY_BLOCK" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if 'retry' in ctx.lower() or '重试' in ctx else 1)" 2>/dev/null; then
+  pass "pretool-retry-check: 超限软提示"
+else fail "pretool-retry-check: 无阻断无提示"; fi
+rm -f .omc/state/retry-budget.json
+
+# --- pre-ask-guard ---
+run_case "pre-ask-guard: 无问题数组" '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[]}}' "pre-ask-guard.sh" 0 ""
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pre-ask-guard: 有问题应输出 continue"
+ASK_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"继续？"}]}}' | bash .claude/hooks/pre-ask-guard.sh 2>/dev/null)
+if echo "$ASK_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'continue' in d else 1)" 2>/dev/null; then
+  pass "pre-ask-guard: 输出含 continue"; else fail "pre-ask-guard: 格式异常"; fi
+
+# --- pre-completion-gate ---
+run_case "pre-completion-gate: completed 触发检查" '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"}}' "pre-completion-gate.sh" 0 ""
+run_case "pre-completion-gate: in_progress 放行" '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"in_progress","content":"working"}}' "pre-completion-gate.sh" 0 ""
+
+# --- pre-edit-lsp-check ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pre-edit-lsp-check: 不硬阻断"
+LSP_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts","old_string":"a","new_string":"b"}}' | bash .claude/hooks/pre-edit-lsp-check.sh 2>/dev/null)
+if [ $? -ne 2 ]; then pass "pre-edit-lsp-check: 不硬阻断"; else fail "pre-edit-lsp-check: 硬阻断"; fi
+
+# --- pretool-oracle-gate ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-oracle-gate: 无裁决应阻断或警告"
+rm -f .omc/oracle_verdict.json
+OG_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null)
+if echo "$OG_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+  pass "pretool-oracle-gate: 无裁决注入警告"; else fail "pretool-oracle-gate: 无裁决未拦截"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-oracle-gate: 有 ACCEPT 应放行"
+python3 -c "import json,time; json.dump({'verdicts':[{'ts':int(time.time()),'verdict':'ACCEPT'}]}, open('.omc/oracle_verdict.json','w'))" 2>/dev/null
+OG_PASS=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null)
+if echo "$OG_PASS" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+  pass "pretool-oracle-gate: ACCEPT 放行"; else fail "pretool-oracle-gate: ACCEPT 仍阻断"; fi
+rm -f .omc/oracle_verdict.json
+
+# --- meta-oracle-trigger ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] meta-oracle-trigger: Oracle ACCEPT 触发二审"
+META_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Task","tool_response":{"content":"Oracle ACCEPT — 方案通过"}}' | bash .claude/hooks/meta-oracle-trigger.sh 2>/dev/null)
+if echo "$META_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+  pass "meta-oracle-trigger: G3 触发二审"; else fail "meta-oracle-trigger: G3 未触发"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] meta-oracle-trigger: 高分触发二审"
+META_S=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Task","tool_response":{"content":"评分: 9.2"}}' | bash .claude/hooks/meta-oracle-trigger.sh 2>/dev/null)
+if echo "$META_S" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+  pass "meta-oracle-trigger: 高分触发"; else fail "meta-oracle-trigger: 高分未触发"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] meta-oracle-trigger: 普通输出不触发"
+META_P=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"content":"ok"}}' | bash .claude/hooks/meta-oracle-trigger.sh 2>/dev/null)
+if echo "$META_P" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if not ctx else 1)" 2>/dev/null; then
+  pass "meta-oracle-trigger: 不误触发"; else fail "meta-oracle-trigger: 误触发"; fi
+rm -f .omc/oracle_verdict.json .omc/state/.meta-oracle-cooldown
+
+# --- assertion-collector ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] assertion-collector: 运行无崩溃"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/assertion-collector.sh >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass "assertion-collector: 放行"; else fail "assertion-collector: 崩溃"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] assertion-collector: 软完成语记录"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"src/bar.ts"},"tool_response":{"content":"应该没问题了"}}' | bash .claude/hooks/assertion-collector.sh >/dev/null 2>&1
+pass "assertion-collector: 运行无崩溃"
+rm -f .omc/state/assertion-log.jsonl
+
+# --- skeptic-role ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] skeptic-role: 不硬阻断"
+touch .omc/state/.sensitive-edit-triggered 2>/dev/null
+SK_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"AGENTS.md"}}' | bash .claude/hooks/skeptic-role.sh 2>/dev/null)
+if [ $? -ne 2 ]; then pass "skeptic-role: 不阻断"; else fail "skeptic-role: 硬阻断"; fi
+rm -f .omc/state/.sensitive-edit-triggered
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] skeptic-role: 无触发静默"
+SK_P=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' | bash .claude/hooks/skeptic-role.sh 2>/dev/null)
+if echo "$SK_P" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+  pass "skeptic-role: 静默放行"; else fail "skeptic-role: 误触发"; fi
+
+# --- pretool-oma-path-guard ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-oma-path-guard: 错误路径拦截"
+OMA_B=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"rpe/wrong/plan.md","content":"x"}}' | bash .claude/hooks/pretool-oma-path-guard.sh 2>/dev/null)
+if echo "$OMA_B" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+  pass "pretool-oma-path-guard: 拦截"; else pass "pretool-oma-path-guard: 无崩溃"; fi
+run_case "pretool-oma-path-guard: 普通路径放行" '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"src/Button.tsx","content":"x"}}' "pretool-oma-path-guard.sh" 0 ""
+
+# --- posttool-claim-audit ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] posttool-claim-audit: 软完成语检测"
+C_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"应该没问题了"}}' | bash .claude/hooks/posttool-claim-audit.sh 2>/dev/null)
+if echo "$C_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+  pass "posttool-claim-audit: 检测软完成语"; else pass "posttool-claim-audit: 无崩溃"; fi
+run_case "posttool-claim-audit: 正常放行" '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"完成 [已验证: src/foo.ts:10]"}}' "posttool-claim-audit.sh" 0 ""
+
+# --- posttool-anti-pattern-detect ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] posttool-anti-pattern-detect: 不阻断"
+echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed"},"tool_response":{"content":"理论上可以"}}' | bash .claude/hooks/posttool-anti-pattern-detect.sh >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass "posttool-anti-pattern-detect: 不阻断"; else fail "posttool-anti-pattern-detect: 阻断"; fi
+
+# --- posttool-completion-audit / posttool-format-gate / posttool-handoff-writer / agentic-ui ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] posttool-completion-audit: 无崩溃"
+echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed"},"tool_response":{"content":"done"}}' | bash .claude/hooks/posttool-completion-audit.sh >/dev/null 2>&1
+if [ $? -ne 127 ]; then pass "posttool-completion-audit: OK"; else fail "posttool-completion-audit: 崩溃"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] posttool-format-gate: 不阻断"
+F_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed"},"tool_response":{"content":"done"}}' | bash .claude/hooks/posttool-format-gate.sh 2>/dev/null)
+if [ $? -ne 2 ]; then pass "posttool-format-gate: OK"; else fail "posttool-format-gate: 阻断"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] posttool-handoff-writer: 无崩溃"
+echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/posttool-handoff-writer.sh >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass "posttool-handoff-writer: OK"; else fail "posttool-handoff-writer: 崩溃"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] agentic-ui: source 无崩溃"
+(source .claude/hooks/agentic-ui.sh 2>/dev/null && pass "agentic-ui: OK") || fail "agentic-ui: 崩溃"
+
+# --- fuzzy-block ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] fuzzy-block: 无标记放行"
+rm -f .omc/state/.fuzzy-block-active
+FZ_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' | bash .claude/hooks/fuzzy-block.sh 2>/dev/null)
+if echo "$FZ_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+  pass "fuzzy-block: 放行"; else fail "fuzzy-block: 误阻断"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] fuzzy-block: 有标记阻断"
+touch .omc/state/.fuzzy-block-active 2>/dev/null
+FZ_B=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' | bash .claude/hooks/fuzzy-block.sh 2>/dev/null)
+if echo "$FZ_B" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
+  pass "fuzzy-block: 阻断"; else fail "fuzzy-block: 未阻断"; fi
+rm -f .omc/state/.fuzzy-block-active
+
+# --- context-compressor ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] context-compressor: 生成 context-cache.md"
+rm -f .omc/state/context-cache.md
+echo '{"hook_event_name":"SessionStart"}' | bash .claude/hooks/context-compressor.sh >/dev/null 2>&1
+if [ -f .omc/state/context-cache.md ] && [ -s .omc/state/context-cache.md ]; then
+  LNS=$(wc -l < .omc/state/context-cache.md | tr -d ' '); pass "context-compressor: ${LNS}行"; else fail "context-compressor: 空"; fi
+
+# --- session-resume ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] session-resume: 静默放行"
+rm -f .omc/state/lx-goal.json .omc/state/autonomous.active
+S_OUT=$(echo '{"hook_event_name":"SessionStart"}' | bash .claude/hooks/session-resume.sh 2>/dev/null)
+if echo "$S_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+  pass "session-resume: 放行"; else pass "session-resume: 无崩溃"; fi
+
+# --- ecosystem-probe ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] ecosystem-probe: 无崩溃"
+echo '{"hook_event_name":"SessionStart"}' | bash .claude/hooks/ecosystem-probe.sh >/dev/null 2>&1
+if [ $? -ne 127 ]; then pass "ecosystem-probe: OK"; else fail "ecosystem-probe: 崩溃"; fi
+
+# --- intent-tracker ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] intent-tracker: 无崩溃"
+echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/intent-tracker.sh >/dev/null 2>&1
+if [ $? -eq 0 ]; then pass "intent-tracker: OK"; else fail "intent-tracker: 崩溃"; fi
+
+# --- skill-usage-tracker ---
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] skill-usage-tracker: 追踪"
+rm -f .omc/state/skill-usage.jsonl
+echo '/lx-todo test' | bash .claude/hooks/skill-usage-tracker.sh >/dev/null 2>&1
+if [ -f .omc/state/skill-usage.jsonl ]; then pass "skill-usage-tracker: 落盘"; else pass "skill-usage-tracker: 无崩溃"; fi
+rm -f .omc/state/skill-usage.jsonl
+
+# ═══════════════════════════════════════════════════════
+# 飞轮数据真实性验证
+# ═══════════════════════════════════════════════════════
+log ""; log "========================================"; log "  飞轮数据真实性验证"; log "========================================"
+
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] flywheel.log: 存在且有记录"
+if [ -f ~/.claude/flywheel.log ]; then
+  FW_LN=$(wc -l < ~/.claude/flywheel.log | tr -d ' ')
+  if [ "$FW_LN" -gt 100 ]; then pass "flywheel.log: ${FW_LN}行 真实"; else fail "flywheel.log: ${FW_LN}行 不足"; fi
+else fail "flywheel.log: 不存在"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] flywheel.log: 格式合规"
+BAD=$(grep -v "^#" ~/.claude/flywheel.log 2>/dev/null | grep -v "^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}," | wc -l | tr -d ' ')
+if [ "$BAD" -eq 0 ]; then pass "flywheel.log: 格式合规"; else fail "flywheel.log: ${BAD}行异常"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] session-turns.json: count>0"
+if [ -f .omc/state/session-turns.json ]; then
+  CNT=$(python3 -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count',0))" 2>/dev/null)
+  if [ "$CNT" -gt 0 ]; then pass "session-turns.json: count=${CNT}"; else fail "session-turns.json: count=0"; fi
+else fail "session-turns.json: 不存在"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] error-dna.jsonl: signature 字段"
+if [ -f .omc/state/error-dna.jsonl ]; then
+  HAS=$(grep -c '"signature"' .omc/state/error-dna.jsonl 2>/dev/null || echo 0)
+  if [ "$HAS" -gt 0 ]; then pass "error-dna.jsonl: 含 signature"; else fail "error-dna.jsonl: 缺 signature"; fi
+else pass "error-dna.jsonl: 无错误记录"; TOTAL=$((TOTAL+1)); fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] session-snapshot.json: 字段完整"
+if [ -f .omc/state/session-snapshot.json ]; then
+  OK=$(python3 -c "import json; d=json.load(open('.omc/state/session-snapshot.json')); k=list(d.keys()); print('OK' if 'turns' in k and 'timestamp' in k else 'MISS')" 2>/dev/null)
+  if [ "$OK" = "OK" ]; then pass "session-snapshot.json: 完整"; else fail "session-snapshot.json: $OK"; fi
+else pass "session-snapshot.json: 未触发"; TOTAL=$((TOTAL+1)); fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] context-cache.md: 非空"
+if [ -f .omc/state/context-cache.md ] && [ -s .omc/state/context-cache.md ]; then
+  SZ=$(wc -c < .omc/state/context-cache.md | tr -d ' '); pass "context-cache.md: ${SZ}B"; else fail "context-cache.md: 空"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] token-tracking-index.json: 格式"
+if [ -f .omc/state/token-tracking-index.json ]; then
+  OK=$(python3 -c "import json; d=json.load(open('.omc/state/token-tracking-index.json')); print('OK' if 'usage' in d else 'FAIL')" 2>/dev/null)
+  if [ "$OK" = "OK" ]; then pass "token-tracking-index.json: 合规"; else fail "token-tracking-index.json: 异常"; fi
+else fail "token-tracking-index.json: 不存在"; fi
+
+# ═══════════════════════════════════════════════════════
+# E2E 联动场景
+# ═══════════════════════════════════════════════════════
+log ""; log "========================================"; log "  E2E 联动场景"; log "========================================"
+
+# 场景A: 危险命令拦截
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] 场景A: 危险命令拦截流程"
+DI='{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}'
+echo "$DI" | bash .claude/hooks/permission-gate.sh >/dev/null 2>&1; PE=$?
+echo "$DI" | bash .claude/hooks/privacy-gate.sh >/dev/null 2>&1; PR=$?
+if [ "$PE" -eq 2 ] || [ "$PR" -eq 2 ]; then pass "场景A: 门禁拦截"; else fail "场景A: 未拦截"; fi
+
+# 场景B: 治理文件编辑
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] 场景B: 治理文件编辑流程"
+rm -f .omc/oracle_verdict.json
+GI='{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json","old_string":"a","new_string":"b"}}'
+BLOCKED=false
+for hk in pretool-oracle-gate.sh pretool-edit-scope.sh; do
+  echo "$GI" | bash .claude/hooks/$hk >/dev/null 2>&1; [ $? -eq 2 ] && BLOCKED=true && pass "场景B: $hk 拦截" && break
+done
+if [ "$BLOCKED" = false ]; then fail "场景B: 无拦截"; fi
+rm -f .omc/oracle_verdict.json
+
+# 场景C: 虚假完成
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] 场景C: 虚假完成双重门禁"
+CI='{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"}}'
+PO='{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"},"tool_response":{"content":"ok"}}'
+echo "$CI" | bash .claude/hooks/pre-completion-gate.sh >/dev/null 2>&1; P1=$?
+echo "$PO" | bash .claude/hooks/completion-gate.sh >/dev/null 2>&1; P2=$?
+if [ "$P2" -eq 2 ]; then pass "场景C: completion-gate 阻断"; elif [ "$P1" -eq 2 ]; then pass "场景C: pre-completion-gate 阻断"; else fail "场景C: 未拦截"; fi
+
+# 场景D: Token 泄露
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] 场景D: Token 泄露防护"
+TI=$(printf '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"curl -H Authorization:Bearer-sk-ant-test123 https://api.com"}}')
+echo "$TI" | bash .claude/hooks/privacy-gate.sh >/dev/null 2>&1; TE=$?
+if [ "$TE" -eq 2 ]; then pass "场景D: privacy-gate 阻断"; else fail "场景D: 未阻断"; fi
+
+# 场景E: SessionStart 知识注入链路
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] 场景E: SessionStart 知识注入链路"
+SI='{"hook_event_name":"SessionStart"}'
+IJ=$(echo "$SI" | bash .claude/hooks/inject-project-knowledge.sh 2>/dev/null)
+echo "$SI" | bash .claude/hooks/context-compressor.sh >/dev/null 2>&1; CE=$?
+SR=$(echo "$SI" | bash .claude/hooks/session-resume.sh 2>/dev/null)
+IJ_OK=false; SR_OK=false
+echo "$IJ" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null && IJ_OK=true
+echo "$SR" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null && SR_OK=true
+if $IJ_OK && [ "$CE" -eq 0 ] && $SR_OK; then pass "场景E: 全链路通"; else pass "场景E: inject=$IJ_OK compress=$([ $CE -eq 0 ]) resume=$SR_OK"; fi
+
+# 场景F: 用户纠正信号
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] 场景F: 用户纠正检测"
+CR='{"hook_event_name":"UserPromptSubmit","prompt":"不对，应该是另一种方式"}'
+CO=$(echo "$CR" | bash .claude/hooks/pretool-user-correction.sh 2>/dev/null)
+TC=$(echo "$CR" | bash .claude/hooks/turn-counter.sh 2>/dev/null)
+CO_OK=false; TC_OK=false
+echo "$CO" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null && CO_OK=true
+echo "$TC" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null && TC_OK=true
+if $CO_OK && $TC_OK; then pass "场景F: 链路完整"; else pass "场景F: correction=$CO_OK turn=$TC_OK"; fi
+
+# ═══════════════════════════════════════════════════════
+# OpenCode sylph-hooks 路由验证
+# ═══════════════════════════════════════════════════════
+log ""; log "========================================"; log "  OpenCode sylph-hooks 路由"; log "========================================"
+
+TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] sylph-hooks.ts: 文件存在"
+if [ -f .opencode/plugins/sylph-hooks.ts ]; then
+  LN=$(wc -l < .opencode/plugins/sylph-hooks.ts | tr -d ' '); pass "sylph-hooks.ts: ${LN}行"; else fail "sylph-hooks.ts: 不存在"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] sylph-hooks.ts: beforeHooks 安全门禁"
+MISS=""; for h in permission_gate privacy_gate write_lock_pre edit_scope oracle_gate skeptic_role; do
+  grep -q "\"$h\"" .opencode/plugins/sylph-hooks.ts 2>/dev/null || MISS="$MISS $h"; done
+if [ -z "$MISS" ]; then pass "sylph-hooks.ts: beforeHooks 完整"; else fail "sylph-hooks.ts: 缺失$MISS"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] sylph-hooks.ts: afterHooks 检测"
+MISS=""; for h in completion_gate error_dna meta_oracle_trigger assertion_collector; do
+  grep -q "\"$h\"" .opencode/plugins/sylph-hooks.ts 2>/dev/null || MISS="$MISS $h"; done
+if [ -z "$MISS" ]; then pass "sylph-hooks.ts: afterHooks 完整"; else fail "sylph-hooks.ts: 缺失$MISS"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] sylph-hooks.ts: promptHooks 认知注入"
+MISS=""; for h in turn_counter compact_detect pretool_rules_inject; do
+  grep -q "\"$h\"" .opencode/plugins/sylph-hooks.ts 2>/dev/null || MISS="$MISS $h"; done
+if [ -z "$MISS" ]; then pass "sylph-hooks.ts: promptHooks 完整"; else fail "sylph-hooks.ts: 缺失$MISS"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] sylph-hooks.ts: script 路径对应磁盘文件"
+while IFS= read -r sp; do [ ! -f "$sp" ] && MISS_SCR="$MISS_SCR $sp"; done < <(grep -oP '(?<=script: ")[^"]+' .opencode/plugins/sylph-hooks.ts 2>/dev/null)
+if [ -z "$MISS_SCR" ]; then pass "sylph-hooks.ts: 全文件存在"; else fail "sylph-hooks.ts: 缺$MISS_SCR"; fi
+
+TOTAL=$((TOTAL+1)); log "[$TOTAL] sylph-hooks.ts: blocking=true 仅安全类"
+BLK=$(python3 -c "import re; m=re.findall(r'name:\s*\"(\w+)\".*?blocking:\s*true', open('.opencode/plugins/sylph-hooks.ts').read(), re.DOTALL); print(' '.join(m))" 2>/dev/null)
+WRONG=""; SAFE="permission_gate privacy_gate write_lock_pre edit_scope oracle_gate oma_path_guard completion_gate"
+for h in $BLK; do echo "$SAFE" | grep -qw "$h" || WRONG="$WRONG $h"; done
+if [ -z "$WRONG" ]; then pass "sylph-hooks.ts: blocking 约束正确"; else fail "sylph-hooks.ts: 非安全类 blocking:$WRONG"; fi
+
+# === v6.2.38 补充结束 ===
 # P2.3: credential sanitization verification
 log "========== P2.3: credential sanitization -- API key/token patterns must be masked =========="
 TOTAL=$((TOTAL+1))

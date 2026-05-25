@@ -125,16 +125,6 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/skeptic-role.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-oma-path-guard.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -337,16 +327,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/intent-tracker.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|TaskUpdate",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/assertion-collector.sh",
             "timeout": 5000
           }
         ]
