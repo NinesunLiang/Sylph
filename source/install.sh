@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.2.38-stable"
+DEFAULT_VERSION="v6.2.40-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
