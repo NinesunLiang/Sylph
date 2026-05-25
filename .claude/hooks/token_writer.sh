@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 # token_writer.sh — PostToolUse:.* / SessionStart — 写入 token 用量追踪索引供 context-guard 计算
 # Role: 写入 token 用量追踪索引供 context-guard 计算
-# NOTE: 增量优先使用实际响应内容字节（tool_response 的 content/stdout 字节数），
-# 无响应内容时回退到工具类型固定值（Read 500 / Grep 1000 / Bash 2000 / Edit&Write 5000 / 默认 3000）。
-# 增量上限 50000 防止异常值。
+#
+# ⚠️ 数据精度说明 (DG-124):
+#   - 优先使用实际响应内容字节（tool_response content/stdout → 精确）
+#   - 无响应内容时回退到工具类型固定值（模拟轨迹，非精确测量）：
+#     Read 500 / Grep 1000 / Bash 2000 / Edit&Write 5000 / 默认 3000
+#   - 增量上限 50000 防止异常值
+#   - 这些固定值基于典型交互模式估算，用于 context-guard 的占比计算
+#   - 真正的 token 精确测量需要 API 层数据（Carror OS 当前设计为本地追踪，非 API 级）
+#
 # 阈值选择依据: Edit-heavy 场景 ~15 轮 50% / ~20 轮 60%，Read-heavy 场景 ~150 轮 50% / ~240 轮 60%
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

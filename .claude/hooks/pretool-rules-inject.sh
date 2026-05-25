@@ -34,7 +34,7 @@ with open('$AGENTS', encoding="utf-8") as f: text = f.read()
 m = re.search(r'<!-- pretool:${tag}-start -->(.*?)<!-- pretool:${tag}-end -->', text, re.DOTALL)
 if m:
     lines = [l.strip() for l in m.group(1).strip().split(chr(10)) if l.strip() and '<!--' not in l]
-    kept = [l for l in lines if l.startswith('|') or l.startswith('## 8') or l.startswith('#4')][:30]
+    kept = [l for l in lines if l[0] in '#|>-*' or (len(l)>1 and l[1]=='.' and l[0].isdigit()) or l.split()[0].rstrip(':').isdigit()][:40]
     print(chr(10).join(kept))
 " 2>/dev/null)
     echo "$ah" > "$cache_file"

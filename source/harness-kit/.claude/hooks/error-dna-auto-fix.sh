@@ -6,6 +6,7 @@
 source "$(dirname "$0")/harness_config.sh"
 set -f
 hc_enabled "error_dna_auto_fix" || exit 0
+flywheel_event "error_dna_auto_fix" "active" "P2" || true
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DNA_FILE="$PROJECT_ROOT/.omc/state/error-dna.json"

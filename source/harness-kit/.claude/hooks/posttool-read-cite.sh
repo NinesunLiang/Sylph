@@ -4,6 +4,7 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "posttool_read_cite" || { echo '{"continue": true}'; exit 0; }
+flywheel_event "posttool_read_cite" "active" "P2" || true
 
 INPUT=$(cat)
 

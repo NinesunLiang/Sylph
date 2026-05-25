@@ -3,6 +3,12 @@
 # Cross-platform Python resolution (DG-105)
 [ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
 
+# DG-124: 独立运行时可用的 mock 函数（防止未定义函数导致 hook 降级放行）
+# 这些函数在 Claude Code 运行时由 harness_config.sh 提供，但 smoke test 直接调 bash 时可能未定义
+if ! declare -f is_mode_active &>/dev/null; then is_mode_active() { echo "normal"; }; fi
+if ! declare -f hc_emit_hook_json &>/dev/null; then hc_emit_hook_json() { cat; }; fi
+if ! declare -f flywheel_event &>/dev/null; then flywheel_event() { return 0; }; fi
+
 # R12-R17 验证套件。模拟 Claude Code 传给 hook 的真实 stdin JSON 格式。
 #
 # 使用：bash .claude/scripts/harness-smoke-test.sh
@@ -12,6 +18,7 @@
 set -u
 cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 99
 PROJECT_ROOT=$(pwd)
+SCRIPT_DIR="$PROJECT_ROOT/.claude/scripts"
 TS=$(date -u +%Y%m%d-%H%M%S)
 LOG=".omc/state/harness-smoke-$TS.log"
 mkdir -p .omc/state
@@ -602,25 +609,24 @@ run_case "R23/R24 lsp-suggest: 非符号模式（含正则元字符）应放行"
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"func.*Foo"}}' \
   "lsp-suggest.sh" 0 ""
 
-# R23/R24 pretool-rule-anchor → 已合并到 pretool-edit-scope.sh
-# 在 scope 匹配 + 高轮次时应输出规则锚定
+# DG-124: pretool-rule-anchor 已在 v6.2+ 合并到 pretool-edit-scope.sh，测试目标脚本不变，标签更新
 rm -f .omc/state/session-turns.json
 echo "/tmp/x" > .omc/state/current-scope.txt
-run_case "R23/R24 pretool-rule-anchor(合并): 低轮次无锚定" \
+run_case "DG-124 pretool-edit-scope(锚定): 低轮次放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' \
   "pretool-edit-scope.sh" 0 ""
 
-# R24 pretool-rule-anchor(合并): 轮次 >=15 应输出规则锚定
+# pretool-edit-scope(锚定): 轮次 >=15 应输出规则锚定
 echo '{"count": 20}' > .omc/state/session-turns.json
 _ANCHOR_OUT="/tmp/smoke-anchor-$$.out"
 echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' | bash .claude/hooks/pretool-edit-scope.sh > "$_ANCHOR_OUT" 2>&1
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R24 pretool-rule-anchor(合并): 高轮次应输出锚定"
+log "[$TOTAL] DG-124 pretool-edit-scope(锚定): 高轮次输出锚定"
 if grep -qE "规则锚定|禁止编造|VERIFIED|漂移" "$_ANCHOR_OUT"; then
-    pass "R24 pretool-rule-anchor(合并) 已通过 pretool-edit-scope 输出锚定"
+    pass "DG-124 pretool-edit-scope(锚定) PASS"
 else
-    fail "R24 pretool-rule-anchor(合并) 未输出锚定"
+    fail "DG-124 pretool-edit-scope(锚定) 未输出锚定"
 fi
 rm -f "$_ANCHOR_OUT" .omc/state/session-turns.json .omc/state/current-scope.txt
 
@@ -1884,6 +1890,13 @@ else
     log "  ⚠️  pretool-blast-radius.sh not found, skipping R42-R45"
 fi
 
+# ── 用户自定义测试用例（安装升级时保留，不会被覆盖）──
+if [ -f "$SCRIPT_DIR/harness-smoke-test.local.sh" ]; then
+    log ""
+    log "── 用户自定义测试用例 ──"
+    source "$SCRIPT_DIR/harness-smoke-test.local.sh"
+fi
+
 log "summary: $((TOTAL-FAILED))/$TOTAL passed, $FAILED failed"
 log "log file: $LOG"
 log "========================================"
@@ -1905,6 +1918,13 @@ if [ "$FAILED" -eq 0 ]; then
         log "  ✅ feature-registry 四源一致 (disk/settings/harness/registry)"
     fi
     fi
+fi
+
+# DG-124: 客户端扩展加载（安装升级时此文件不会被覆盖）
+SMOKE_LOCAL="$PROJECT_ROOT/.claude/scripts/harness-smoke-test.local.sh"
+if [ -f "$SMOKE_LOCAL" ]; then
+    log ""; log "=== 客户端扩展用例 ==="
+    source "$SMOKE_LOCAL" 2>/dev/null || log "  ⚠️ .local.sh 加载失败，跳过"
 fi
 
 exit $FAILED

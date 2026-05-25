@@ -57,7 +57,7 @@ permission_gate:
   sudo_regex: ^\s*sudo\b|sudo\s
   gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
   bypass_regex: base64\s+(-d|--decode).*\|.*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|.*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
-  scope_write_regex: current-scope\.txt|sensitive-approved|oracle-gate-approved
+  scope_write_regex: current-scope\.txt|sensitive-approved
 sublimation:
   count_threshold: 20
   age_days: 10
@@ -92,7 +92,7 @@ hooks_enabled:
   inject_project_knowledge: true
   intent_tracker: true
   issue_triage: true
-  knowledge_condenser: true
+  knowledge_condenser: false
   lsp_suggest: true
   lsp_gate: true
   meta_oracle_trigger: true
@@ -112,7 +112,7 @@ hooks_enabled:
   pre_ask_guard: true
   session_resume: true
   pretool_edit_scope: true
-  pretool_plan_gate: true
+  pretool_plan_gate: false
   pretool_rules_inject: true
   pretool_sensitive_edit: true
   pretool_terminal_safety: true

@@ -1004,8 +1004,35 @@ fi
 
 # 跨平台 CLI 配置自动生成（Qwen Code / Codex / Gemini / Cursor / OpenCode）
 if [ -n "${PYTHON_BIN:-}" ] && command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f ".hooks/generate.py" ]; then
+    # 保存用户自定义 sylph-hooks.ts（已从备份恢复，generate.py 会覆盖）
+    # DG-105: generate.py install 在 .opencode/ 恢复之后执行，导致用户补丁丢失
+    USER_SYLPH_SAVED=""
+    if [ -f ".opencode/plugins/sylph-hooks.ts" ]; then
+        cp ".opencode/plugins/sylph-hooks.ts" ".opencode/plugins/sylph-hooks.ts.user" 2>/dev/null
+        USER_SYLPH_SAVED=".opencode/plugins/sylph-hooks.ts.user"
+    fi
+
+    # DG-124: 保存用户自定义 harness-smoke-test.sh（v6.2.39+ 支持.local扩展）
+    USER_SMOKE_SAVED=""
+    if [ -f ".claude/scripts/harness-smoke-test.sh" ]; then
+        cp ".claude/scripts/harness-smoke-test.sh" ".claude/scripts/harness-smoke-test.sh.user" 2>/dev/null
+        USER_SMOKE_SAVED=".claude/scripts/harness-smoke-test.sh.user"
+    fi
+
     log_step "生成跨平台 CLI hooks 配置..."
     timeout 30 ${PYTHON_BIN:-python3} .hooks/generate.py install 2>/dev/null && log_info "跨平台 CLI hooks 已同步" || log_warn "跨平台 CLI hooks 生成跳过（超时或无可用平台）"
+
+    # 恢复用户自定义 sylph-hooks.ts（DG-105）
+    if [ -n "$USER_SYLPH_SAVED" ] && [ -f "$USER_SYLPH_SAVED" ]; then
+        mv "$USER_SYLPH_SAVED" ".opencode/plugins/sylph-hooks.ts" 2>/dev/null
+        log_info "已保留用户自定义 sylph-hooks.ts"
+    fi
+
+    # DG-124: 恢复用户自定义 harness-smoke-test.sh
+    if [ -n "$USER_SMOKE_SAVED" ] && [ -f "$USER_SMOKE_SAVED" ]; then
+        mv "$USER_SMOKE_SAVED" ".claude/scripts/harness-smoke-test.sh" 2>/dev/null
+        log_info "已保留用户自定义 harness-smoke-test.sh"
+    fi
 
     # ─── 后处理: 禁用跨平台生成的旧版 sylph-hooks.ts ──────────
     # carror-hooks-compat.ts 是 OMO 兼容策略的权威文件

@@ -5,6 +5,7 @@
 HC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$HC_SCRIPT_DIR/../.." && pwd)"
 FEATURE_REGISTRY="$PROJECT_ROOT/.claude/feature-registry.yaml"
+flywheel_event "feature_probe" "active" "P2" || true
 
 # 导入 harness_config.sh
 source "$HC_SCRIPT_DIR/harness_config.sh"

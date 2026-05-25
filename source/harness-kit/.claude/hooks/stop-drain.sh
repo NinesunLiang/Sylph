@@ -5,6 +5,7 @@
 source "$(dirname "$0")/harness_config.sh"
 set -f
 hc_enabled "stop_drain" || exit 0
+flywheel_event "stop_drain" "active" "P2" || true
 
 INPUT=$(cat)
 

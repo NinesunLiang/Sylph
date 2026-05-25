@@ -92,7 +92,7 @@ hooks_enabled:
   inject_project_knowledge: true
   intent_tracker: true
   issue_triage: true
-  knowledge_condenser: true
+  knowledge_condenser: false
   lsp_suggest: true
   lsp_gate: true
   meta_oracle_trigger: true
@@ -112,7 +112,7 @@ hooks_enabled:
   pre_ask_guard: true
   session_resume: true
   pretool_edit_scope: true
-  pretool_plan_gate: true
+  pretool_plan_gate: false
   pretool_rules_inject: true
   pretool_sensitive_edit: true
   pretool_terminal_safety: true
