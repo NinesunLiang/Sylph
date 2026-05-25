@@ -946,11 +946,13 @@ fi
 
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R36 knowledge-condenser: harness.yaml 开关"
+log "[$TOTAL] R36 knowledge-condenser: harness.yaml 开关（v6.2+ 允许关闭）"
 if grep -q "knowledge_condenser: true" .claude/harness.yaml; then
     pass "R36 knowledge-condenser harness.yaml 已启用"
+elif grep -q "knowledge_condenser: false" .claude/harness.yaml; then
+    pass "R36 knowledge-condenser harness.yaml 已关闭（废弃hook，预期行为）"
 else
-    fail "R36 knowledge-condenser harness.yaml 未启用"
+    fail "R36 knowledge-condenser harness.yaml 开关缺失"
 fi
 
 # --- R37: posttool-handoff-writer.sh 回归 ---

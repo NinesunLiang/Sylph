@@ -56,7 +56,7 @@ check_registry = sys.argv[6].lower() == 'true' if len(sys.argv) > 6 else 'false'
 disk = set()
 for f in glob.glob('.claude/hooks/*.sh') + glob.glob('.claude/hooks/*.py'):
     name = os.path.basename(f)
-    if name in ('harness_config.sh', 'agentic-ui.sh'):  # libraries, not hooks
+    if name in ('harness_config.sh',):  # libraries, not hooks (agentic-ui removed from exclude — it IS a real hook DG-125)
         continue
     disk.add(name)
 

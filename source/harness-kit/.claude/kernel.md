@@ -36,8 +36,21 @@
 - **证据门禁优先**：错误修复后必须提供 VERIFIED 证据再标 completed
 - **Error DNA 捕获**：Bash 错误自动记录至 `error-dna.jsonl`，使用 `error_classifier.py` 分类
 - **修复 3 轮上限**：每轮记录根因假设，第 3 轮仍失败 → BLOCKED 升级
-- **禁止绕过门禁**：permission-gate/sensitive-edit 阻断时必须等待用户明确书面授权（输入"确认放行"），AI 不得代用户批准或自行写入批准标记（R42 安全漏洞修复）
-- **原生批准优先**：敏感文件编辑优先使用 `permissionDecision: ask` 原生对话框，CAPTCHA 文件机制作为回退
+- **禁止绕过门禁**：permission-gate/sensitive-edit 阻断时必须等待用户明确授权。AI 不得代用户批准或自行写入批准标记（R42 安全漏洞修复）
+- **对话内批准（DG-125）**：permission-gate 阻断时 AI 不要求用户切终端。在对话中输出以下格式：
+
+  ```
+  ⚠️ Dangerous command requires approval:
+  <被阻断的命令>
+  Reason: <危险类型，如 destructive/git push/sudo/gh write>
+  Reply /approve to execute, /approve session to approve this pattern for the session, /deny to cancel.
+  ```
+
+  用户回复后 AI 行为：
+  - `/approve` → `echo "<token>" > .omc/state/permission-approved` → 重试原命令（5分钟缓存）
+  - `/deny` → 放弃，报告用户
+  - 禁止要求用户去终端粘贴 token
+- **原生批准优先**：敏感文件编辑优先使用 `permissionDecision: ask` 原生对话框，/approve 对话内机制作为回退
 - **关键脚本修改前备份**：修改 permission-gate.sh / settings.json 等关键治理文件前必须 `cp file file.bak`，修改后必须 `bash -n file` 语法检查。这些文件损坏 = 全 Bash 被封 = 无法自救。（升华自 DG-13, DF-04）
 
 ## 测试要求
