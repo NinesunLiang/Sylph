@@ -32,6 +32,8 @@ if [ -z "${PYTHON_BIN:-}" ]; then
     }
     PYTHON_BIN="$(_resolve_python)"
     export PYTHON_BIN
+    # DG-XXX: Windows GBK encoding breaks Python stdout → UnicodeDecodeError
+    export PYTHONIOENCODING=utf-8
 fi
 
 # 确保缓存存在且新鲜
