@@ -1,49 +1,104 @@
 #!/usr/bin/env bash
-# pretool-approve-detect.sh — UserPromptSubmit — 检测 /approve <token>
-# Role: 拦截用户输入中的 /approve 命令 → 写入 permission-approved → 解锁危险操作
-# 哲学 #5 (以人为本): Boss 只需打字 "/approve abc123" 而非切终端粘贴 hex
-# 哲学 #6 (0信任): 验证 token 必须与 permission-required 中的期望码匹配
+# pretool-approve-detect.sh — UserPromptSubmit — 检测 approve<token> 格式
+# Role: 拦截用户输入中的 approve<token> → 写入对应的 approved 文件 → 解锁危险操作
+# 哲学 #5 (以人为本): 支持多 token 空格分隔，一次输入解锁全部待审批门禁
+# 哲学 #6 (0信任): 验证每个 token 必须与对应的 required 文件匹配
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "approve_detect" || exit 0
+set -f  # R24: 防御 glob 污染
 
 INPUT=$(cat)
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
-REQUIRED="$STATE_DIR/permission-required"
-APPROVED="$STATE_DIR/permission-approved"
 
-# 检测 /approve <token> 模式
-# macOS grep -E 兼容：用 [a-zA-Z0-9] 而非 [a-fA-F0-9]（后者在 macOS grep 中不匹配）
-APPROVE_TOKEN=$(echo "$INPUT" | awk '{for(i=1;i<=NF;i++) if($i=="/approve" && i<NF) {print $(i+1); exit}}' | grep -E '^[a-zA-Z0-9]{6,16}$')
+# ── 解析输入 ──────────────────────────────
+# 支持: approve<token1> <token2> ...  或  deny<token>
+IS_DENY=false
+TOKENS=()
 
-if [ -z "$APPROVE_TOKEN" ]; then
-    exit 0  # 不是 approve 命令，继续
-fi
-
-# 验证：检查是否有待处理的验证码
-if [ ! -f "$REQUIRED" ]; then
-    echo "[Approve] ⚠️ 没有待审批的危险操作。忽略 /approve 命令。" >&2
+# 去掉开头的 approve 或 deny
+if echo "$INPUT" | grep -qE '^approve([[:space:]]|$)'; then
+    TOKENS_RAW=$(echo "$INPUT" | sed -E 's/^approve[[:space:]]*//')
+    for tok in $TOKENS_RAW; do
+        CLEAN=$(echo "$tok" | tr -cd 'a-zA-Z0-9')
+        [ ${#CLEAN} -ge 6 ] && [ ${#CLEAN} -le 16 ] && TOKENS+=("$CLEAN")
+    done
+elif echo "$INPUT" | grep -qE '^deny([[:space:]]|$)'; then
+    IS_DENY=true
+    TOKENS_RAW=$(echo "$INPUT" | sed -E 's/^deny[[:space:]]*//')
+    for tok in $TOKENS_RAW; do
+        CLEAN=$(echo "$tok" | tr -cd 'a-zA-Z0-9')
+        [ ${#CLEAN} -ge 6 ] && [ ${#CLEAN} -le 16 ] && TOKENS+=("$CLEAN")
+    done
+else
     exit 0
 fi
 
-EXPECTED=$(cat "$REQUIRED" 2>/dev/null)
+[ ${#TOKENS[@]} -eq 0 ] && exit 0
 
-if [ "$APPROVE_TOKEN" = "$EXPECTED" ]; then
-    # Token 匹配 → 写批准标记
-    echo "$APPROVE_TOKEN" > "$APPROVED"
-    echo "[Approve] ✅ 操作已批准！验证码验证通过，5 分钟内同签名命令自动放行。" >&2
-    
-    # 移除本次用户输入中的 /approve 命令（清洗后继续处理剩余输入）
-    CLEANED=$(echo "$INPUT" | sed -E 's|/approve[[:space:]]+[a-zA-Z0-9]{6,16}[[:space:]]*||g')
-    if [ -z "$(echo "$CLEANED" | tr -d '[:space:]')" ]; then
-        # 只有 /approve 命令，无其他内容
-        echo "Continue"  # 告诉 AI 用户批准了，继续
-        exit 0
+# ── 门禁文件列表 ──────────────────────────
+# 格式: "显示名:required文件:approved文件"
+GATES=(
+    "permission-gate:permission-required:permission-approved"
+    "sensitive-edit:sensitive-required:sensitive-approved"
+    "oracle-gate:oracle-gate-required:oracle-gate-approved"
+)
+
+# ── 处理 ──────────────────────────────────
+MATCHED=0
+FAILED=0
+DENIED=0
+
+for GATE in "${GATES[@]}"; do
+    IFS=':' read -r GATE_NAME REQ_FILE APPR_FILE <<< "$GATE"
+    REQ_PATH="$STATE_DIR/$REQ_FILE"
+    APPR_PATH="$STATE_DIR/$APPR_FILE"
+
+    [ ! -f "$REQ_PATH" ] && continue
+
+    EXPECTED=$(cat "$REQ_PATH" 2>/dev/null | tr -d '\n')
+
+    if [ "$IS_DENY" = true ]; then
+        # deny: 删除所有 pending 的 required 文件
+        for token in "${TOKENS[@]}"; do
+            if [ "$token" = "$EXPECTED" ]; then
+                rm -f "$REQ_PATH"
+                echo "[Approve] 🚫 ${GATE_NAME} 已拒绝。验证码已作废。" >&2
+                DENIED=$((DENIED + 1))
+                break
+            fi
+        done
+        continue
     fi
-    echo "$CLEANED"
+
+    # approve: 匹配 token
+    for token in "${TOKENS[@]}"; do
+        if [ "$token" = "$EXPECTED" ]; then
+            echo "$token" > "$APPR_PATH"
+            echo "[Approve] ✅ ${GATE_NAME} 已批准！5 分钟内同签名命令自动放行。" >&2
+            MATCHED=$((MATCHED + 1))
+            break
+        fi
+    done
+
+    # token 都不匹配
+    if [ ! -f "$APPR_PATH" ] || [ "$(cat "$APPR_PATH" 2>/dev/null | tr -d '\n')" != "$EXPECTED" ]; then
+        FAILED=$((FAILED + 1))
+    fi
+done
+
+# ── 报告 ──────────────────────────────────
+if [ "$IS_DENY" = true ]; then
+    echo "[Approve] 已拒绝 ${DENIED} 个待审批操作。" >&2
+    echo "denied"
+elif [ $MATCHED -gt 0 ] && [ $FAILED -eq 0 ]; then
+    echo "[Approve] 全部 ${MATCHED} 个门禁已批准。" >&2
+    echo "Continue"
+elif [ $MATCHED -gt 0 ]; then
+    echo "[Approve] ${MATCHED} 个已批准，${FAILED} 个 token 不匹配。请检查验证码。" >&2
 else
-    echo "[Approve] ❌ 验证码不匹配！期望 ${EXPECTED:0:4}... 收到 ${APPROVE_TOKEN:0:4}..." >&2
+    echo "[Approve] ❌ 无匹配的验证码。待审批的验证码：$(ls $STATE_DIR/*-required 2>/dev/null | while read f; do echo -n "$(basename $f | sed 's/-required//'): $(cat $f | tr -d '\n') "; done)" >&2
 fi
 
 exit 0

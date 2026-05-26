@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python .claude/hooks/pretool-oracle-gate.py",
+            "command": "python3 .claude/hooks/pretool-oracle-gate.py",
             "timeout": 3000
           },
           {
@@ -124,6 +124,16 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/subagent-guard.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
             "timeout": 3000
           }
         ]
@@ -284,7 +294,7 @@
             "timeout": 3000
           },
           {
-            "command": "python .claude/hooks/meta-oracle-trigger.py",
+            "command": "python3 .claude/hooks/meta-oracle-trigger.py",
             "hookName": "meta-oracle-trigger",
             "type": "command",
             "timeout": 3000
@@ -483,8 +493,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-rules-inject.sh",
-            "timeout": 5000
+            "command": "bash .claude/hooks/pretool-approve-detect.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -493,8 +503,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-approve-detect.sh",
-            "timeout": 3000
+            "command": "bash .claude/hooks/pretool-rules-inject.sh",
+            "timeout": 5000
           }
         ]
       }

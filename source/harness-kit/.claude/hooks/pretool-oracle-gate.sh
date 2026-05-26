@@ -58,14 +58,7 @@ is_mechanism_file() {
 
 is_mechanism_file "$FILE_PATH" || { echo '{"continue": true}'; exit 0; }
 
-# ── 自主模式降级: goal/ghost 模式下 Oracle gate 降为 warn-only ──
-MODE=$(is_mode_active "$STATE_DIR" 2>/dev/null || echo "normal")
-if [ "$MODE" != "normal" ]; then
-    echo "[oracle-gate] WARN: ${MODE} mode — Oracle gate skipped (warn only, 与其他 gate 保持一致)" >&2
-    flywheel_event "oracle_gate" "mode_warn" "P2" || true
-    echo '{"continue": true}'
-    exit 0
-fi
+hc_gate_mode_warn "oracle_gate" && { echo '{"continue": true}'; exit 0; }
 
 # ── CAPTCHA 绕过检查 (内容验证 + 5分钟时效，参照 sensitive-edit 模式) ──
 STATE_DIR="$PROJECT_ROOT/.omc/state"
@@ -156,10 +149,11 @@ cat <<MSG | hc_emit_hook_json "PreToolUse" "false"
 
   ⚠️ 当前状态: 未检测到 24h 内的 ACCEPT/APPROVED 裁决
 
-  绕过方法 — 在输入框中输入以下命令并按 Enter:
-    ! echo '${CAPTCHA}' > .omc/state/oracle-gate-approved
+  绕过方法 (二选一):
+    a) 输入 approve ${CAPTCHA} 并回车（推荐）
+    b) ! echo '${CAPTCHA}' > .omc/state/oracle-gate-approved
 
-  非 Claude Code 平台（OpenCode 等）去掉 ! 前缀即可。
+  非 Claude Code 平台去掉 ! 前缀。
 MSG
 
 flywheel_event "oracle_gate" "blocked" "P1" || true
