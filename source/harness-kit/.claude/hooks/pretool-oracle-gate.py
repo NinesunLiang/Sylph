@@ -239,9 +239,9 @@ def main():
         f"  1. Oracle 已给出 ACCEPT 裁决 (24h 内)\n"
         f"  2. Meta-Oracle 已给出 ACCEPT 裁决 (24h 内)\n"
         f"\n"
-        f"  绕过方法 (二选一):\n"
-        f"    a) 输入 approve {captcha} 并回车（推荐）\n"
-        f"    b) ! echo '{captcha}' > .omc/state/oracle-gate-approved\n"
+        f"  绕过方法 (二选一):\\n"
+        f"    a) 输入 approve {captcha} 并回车（推荐）\\n"
+        f"    b) ! echo '{captcha}' > .omc/state/oracle-gate-approved\\n"
         f"\n"
         f"  非 Claude Code 平台去掉 ! 前缀。"
     )

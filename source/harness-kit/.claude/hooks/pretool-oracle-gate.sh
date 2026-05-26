@@ -149,11 +149,10 @@ cat <<MSG | hc_emit_hook_json "PreToolUse" "false"
 
   ⚠️ 当前状态: 未检测到 24h 内的 ACCEPT/APPROVED 裁决
 
-  绕过方法 (二选一):
-    a) 输入 approve ${CAPTCHA} 并回车（推荐）
-    b) ! echo '${CAPTCHA}' > .omc/state/oracle-gate-approved
+  绕过方法 — 在输入框中输入以下命令并按 Enter:
+    ! echo '${CAPTCHA}' > .omc/state/oracle-gate-approved
 
-  非 Claude Code 平台去掉 ! 前缀。
+  非 Claude Code 平台（OpenCode 等）去掉 ! 前缀即可。
 MSG
 
 flywheel_event "oracle_gate" "blocked" "P1" || true

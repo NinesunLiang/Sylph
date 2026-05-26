@@ -445,7 +445,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.sh",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/auto-snapshot.sh",
             "timeout": 5000
           }
         ]
@@ -454,7 +454,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/stop-drain.sh",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/stop-drain.sh",
             "timeout": 10000
           }
         ]
