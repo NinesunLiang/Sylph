@@ -6,7 +6,10 @@ category: workflow
 type: workflow
 execution_mode: stepwise
 enabled_by_default: true
-harness_version: "6.2.31"
+when_to_use: "Use when user experiences an incident, discovers a pitfall, or wants to record a lesson learned. Trigger: '狗粮', '投喂', 'dogfood', '记录教训', '记住这个教训'."
+harness_version: ">=6.3.0"
+status: stable
+role: "Dogfood recorder — capture incidents hot, extract lessons"
 evidence_level: L3
 triggers:
   - "狗粮"
@@ -26,6 +29,19 @@ triggers:
   - "incident report"
   - "eat your own dog food"
 ---
+
+## 原子化声明
+
+### references/（按需加载）
+| 文件 | 加载时机 |
+|------|---------|
+| `references/feed-protocol.md` | feed protocol 阶段 |
+| `references/structure-ecosystem.md` | structure ecosystem 阶段 |
+
+> 降级升级: @../references/oma/degradation-escalation.md
+> 裁决链: @../references/oma/decision-chain.md
+> 执行工作流: @../references/oma/execution-workflow.md
+
 
 # lx-dogfood — 主动投喂狗粮
 
@@ -168,3 +184,10 @@ resolution:
 | **分发** | 所有人 | install.sh | 下次安装自动获得集体智慧种子 |
 
 > 不是 `/lx-dogfood share` 命令——交流不需要工具，需要人的温度。把你的教训带上原文，去论坛写一段经历，比任何自动化都更有价值。
+
+## 降级策略
+| 场景 | 降级路径 |
+|------|---------|
+| 主路径失败 | 手动记录到 claude-next.md |
+| YAML 写入失败 | 降级为纯 markdown 记录 |
+

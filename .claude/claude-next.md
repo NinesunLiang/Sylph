@@ -433,8 +433,41 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 证据：setup-rpe-runtime.sh 有 22+ 处模板内嵌 python3，sed 修复时需排除已修复的 2 处外层调用。
 
 
-### [2026-05-25] 用户纠正: 不对
+### [2026-05-25] lx-purify 全仓审计 + 修复
+
 @2026-05-25 hits:1
+**触发场景**：Boss 要求「进去ghost模式，持续优化」— 用 purify 三 Pass 框架遍历全仓。
+**完成修复**：
+- 4 skill frontmatter 补全（lx-dogfood/oracle-v2/oracle/stepwise）
+- OMA 4 skill 瘦身（重复段提取到 references/oma/，-190行）
+- hooks: skill_flywheel 移除(settings.json)+build-validator注册
+- source/ 5文件同步
+- lx-purify skill创建+purify-compact.md
+- SKILLS.md分类体系
+- plans/ 孤儿文件移至 archive/
+**审计通过**：nodes/(设计分层)、references/(全局文档层)、schemas/(error_codes)、scripts/(无重复)、profiles/(自定义格式)、task_sys/(Enhanced基础设施)
+**待人类裁决**：harness_version不统一(4种格式)、9 skill >200行(实质方法论)
+**关键教训**：delegate_task双法官prompt需脱水(首次150K token炸了→compact版866字节)
+
+
+### [2026-05-26] 用户纠正: 不对
+@2026-05-26 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+
+### [DG-82] harness_config.sh trap EXIT — 一行代码覆盖 56 个 hook 运行时证据
+@2026-05-26 hits:1
+**问题**：55 个 hook 在 harness.yaml 设为 true，0 个在 flywheel.log 有运行时证据。
+烟测 PASS 只能证明 hook 在隔离环境里能跑，无法证明它在真实 session 里被触发了。
+**根因**：每个 hook 脚本都 source harness_config.sh，但没有统一的执行日志机制。
+**修复**：在 harness_config.sh 加 trap EXIT → hook-evidence.jsonl，11 行代码，不动任何单个 hook。
+**效果**：0 → 56 个独立 hook 产生运行时证据，164 条记录（第一次烟测后）。
+**教训**：系统性盲区用系统性方案——改共享基础设施，不逐个修补。
+
+
+### [2026-05-27] 用户纠正: 不对
+@2026-05-27 hits:1
 **触发场景**：检测到纠正信号「不对」（你错了，这个不对）
 **问题**：（待本对话补充具体纠正内容）
 **纠正**：（AI 完成任务前应引用此记录并补充根因分析）

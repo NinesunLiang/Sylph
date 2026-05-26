@@ -45,7 +45,7 @@ pipeline:
 # orchestrator: 该 skill 被哪个编排器协调
 skills:
   - id: lx-oma-hier
-    version: v1.3.0
+    version: v1.3.2
     type: pipeline
     consumes: [master_prd]
     provides: [sub_prd_domains]
@@ -57,7 +57,7 @@ skills:
     description: 分层 PRD 拆解 — 将主 PRD 按功能域 MECE 拆分为 Sub PRD
 
   - id: lx-oma-split
-    version: v1.2.0
+    version: v1.2.1
     type: pipeline
     consumes: [sub_prd_domains]
     provides: [feature_prds]
@@ -67,7 +67,7 @@ skills:
     description: 特性拆解 — 将 Sub PRD 拆解为正交的 feature 级 RPE
 
   - id: lx-oma-gov
-    version: v1.2.0
+    version: v1.2.1
     type: pipeline
     consumes: [master_prd, feature_prds]
     provides: [gov_report]
@@ -80,7 +80,7 @@ skills:
     description: OMA PRD 治理 — reconcile/propagate/audit
 
   - id: lx-oma-orch
-    version: v1.2.0
+    version: v1.2.2
     type: orchestrator
     consumes: [pipeline_state]
     provides: [pipeline_advancement, gate_decisions]

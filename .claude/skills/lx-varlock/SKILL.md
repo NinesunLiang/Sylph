@@ -11,7 +11,7 @@ when_to_use: "Use when user provides a password, api key, token, or when you nee
 
 argument-hint: "[set | list | rm | run | read | write]"
 
-harness_version: ">=1.4.0"
+harness_version: ">=6.3.0"
 status: stable
 role: "Privacy desensitization proxy manager for sensitive data"
 execution_mode: stepwise

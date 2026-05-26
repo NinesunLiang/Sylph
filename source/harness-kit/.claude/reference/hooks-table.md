@@ -49,3 +49,12 @@
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|
 |`subagent-guard` | PreToolUse | subagent-guard.sh — PreToolUse:Task — 约束子 agent 用量，防账单雪崩（软约束+事后对账）|
 |`turn-counter` | UserPromptSubmit | turn-counter.sh — UserPromptSubmit — 统计会话轮次，定时注入 Todo 队列防漂移 + 模糊指令检测|
+
+### 已注册但默认禁用的脚本（共 2 个）
+
+以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
+
+| 脚本 | 事件 | 说明 |
+|------|------|------|
+| knowledge-condenser | (未注册) | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议 |
+| pretool-plan-gate | (未注册) | pretool-plan-gate.sh — PreToolUse:Edit|Write|Bash — Plan-before-Execute 门禁 |

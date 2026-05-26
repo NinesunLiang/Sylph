@@ -115,16 +115,16 @@ agentic_captcha() {
     # stderr: 用户可见
     cat >&2 <<EOF
 
-${ICON_CAPTCHA} [${title}] 需要人类批准
+${ICON_CAPTCHA} [${title}] 需要批准
 
 验证码: ${captcha_code}
 
 ${description}
 
-批准方法 — 在输入框中输入以下命令并按 Enter 执行：
-${AGENTIC_UI_INDENT}! echo '${captcha_code}' > ${approve_file}
+批准方法:
+  回复 /approve ${captcha_code} 即可放行（同窗口输入，无需切终端）
+  回复 /deny 放弃此操作
 
-非 Claude Code 平台（OpenCode 等）去掉 ! 前缀即可。
 EOF
 
     # stdout: AI 可见（additionalContext）

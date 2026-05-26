@@ -27,10 +27,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # 自主/无人值守模式降级
-if [ -f "$PROJECT_ROOT/.omc/state/autonomous.active" ] || \
+if [ -f "$PROJECT_ROOT/.omc/state/tokens/autonomous.active" ] || \
    [ -f "$PROJECT_ROOT/.omc/state/ghost-mode.active" ] || \
-   [ -f "$PROJECT_ROOT/.omc/state/lx-ghost.json" ] || \
-   [ -f "$PROJECT_ROOT/.omc/state/lx-goal.json" ]; then
+   [ -f "$PROJECT_ROOT/.omc/state/tokens/lx-ghost.json" ] || \
+   [ -f "$PROJECT_ROOT/.omc/state/tokens/lx-goal.json" ]; then
     echo "[pre-completion-gate] 自主模式: 允许 completed（门禁降级）" >&2
     echo '{"continue": true}'
     exit 0

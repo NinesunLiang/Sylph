@@ -69,8 +69,8 @@ fi
 _BASE=$(basename "$FILE_PATH")
 _IS_SENSITIVE=false
 
-# basename 直接匹配（包括路径型治理文件的裸文件名）
-for _name in CLAUDE.md AGENTS.md harness.yaml settings.json kernel.md anti-patterns.md feature-registry.yaml; do
+# basename 直接匹配（包括路径型治理文件的裸文件名 + 门禁标记文件）
+for _name in CLAUDE.md AGENTS.md harness.yaml settings.json kernel.md anti-patterns.md feature-registry.yaml permission-approved permission-required; do
     [ "$_BASE" = "$_name" ] && { _IS_SENSITIVE=true; break; }
 done
 

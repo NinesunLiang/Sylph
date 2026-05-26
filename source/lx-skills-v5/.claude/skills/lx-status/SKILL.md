@@ -12,7 +12,7 @@ when_to_use: "Use when user says 'status', 'show dashboard', 'health check', 'lx
 
 argument-hint: "[--json | --watch]"
 
-harness_version: ">=1.4.0"
+harness_version: ">=6.3.0"
 status: draft
 role: "Carror OS health dashboard — system status panel"
 execution_mode: race

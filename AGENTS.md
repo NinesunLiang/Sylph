@@ -83,7 +83,7 @@
 
 | # | 源 | Carror OS 载体 | 确定性保证 |
 |---|------|---------------|-----------|
-| **Source I** | 生成源 — "AI 应该看到什么" | AGENTS.md §哲学核心 + 8 条铁律, kernel.md, anti-patterns.md | AI 无法在不违反铁律的情况下绕过 — **铁律违反 = BLOCKED** |
+| **Source I** | 生成源 — "AI 应该看到什么" | AGENTS.md §哲学核心 + 7 条铁律, kernel.md, anti-patterns.md | AI 无法在不违反铁律的情况下绕过 — **铁律违反 = BLOCKED** |
 | **Source II** | 静态规则源 — "系统强制什么结构" | settings.json (Hook 注册) + harness.yaml (开关) + feature-registry.yaml + SKILL.md | 文件系统层面的硬约束。**文件存在 ≠ 生效**（DG-82: 39/44 hooks 无 flywheel.log） |
 | **Source III** | 运行时事实源 — "系统实际验证了什么" | Meta-Oracle + hook flywheel.log + harness-smoke-test.sh + audit-hooks.sh + error-dna.jsonl | 运行时产生的**事实**，不是"系统认为什么是对的"。`harness-smoke-test.sh 全绿` = 事实，不是判断 |
 
@@ -450,8 +450,8 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 |------|-----------|-----------|
 | Carror OS 哲学核心 | §Carror OS 哲学核心 | 本文件已有完整哲学声明的扩展版。source 版本为通用版，本文件增加狗粮反馈循环等元项目特有机制 |
 | Project 宪法 | §Project 宪法 | — |
-| 8 条铁律 | §8 条铁律 | 铁律 #8（哲学先行）：问人前先过哲学，哲学能裁决→标注 `[哲学先行: #N→action]` 直接执行；仅用户偏好/不可逆/授权/合规可例外 |
-| 智力代理交互原则 | §9. 智力代理交互原则 | 交互原则 #6（哲学先行）：见铁律 #8 使用细则，禁止跳过哲学直接问人 |
+| 7 条铁律 | §7 条铁律 | 推荐行为「哲学先行」：问人前先过哲学，哲学能裁决→标注 `[哲学先行: #N→action]` 直接执行；仅用户偏好/不可逆/授权/合规可例外 |
+| 智力代理交互原则 | §9. 智力代理交互原则 | 交互原则 #6（哲学先行）：见「推荐行为：哲学先行」使用细则，禁止跳过哲学直接问人 |
 | 软完成语禁令 | §软完成语禁令 | — |
 | 权威等级 | §权威等级 | Meta-Oracle（最后守门员）> Oracle 终审 > 代码现状。Oracle 是常规最高权威，Meta-Oracle 仅在 G1-G4 触发时高于 Oracle |
 | 证据层级 | §防御性规则 > 证据层级与置信度 | — |
@@ -466,7 +466,7 @@ SessionStart 时自动加载以下核心文件（与 source 版本一致）：
 
 ### 机制→哲学 逆向追溯矩阵
 
-> 完整双向追溯矩阵（覆盖 46 hooks + 25 skills + 28 scripts + 8 条铁律）→ `Read .claude/reference/philosophy-mechanism-matrix.md`
+> 完整双向追溯矩阵（覆盖 46 hooks + 25 skills + 28 scripts + 7 条铁律）→ `Read .claude/reference/philosophy-mechanism-matrix.md`
 > 
 > 以下为快速参考速查表（仅列最常用机制，完整版含全量 99 项）：
 
@@ -533,7 +533,7 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 
 ---
 
-## Harness 治理框架（Base 版本 v6.2.0）
+## Harness 治理框架（Base 版本 v6.3.0）
 
 > Base 版本 = 新项目拿来就能用，零配置，有防御不碍事
 > 增强功能（task-spec / 节点系统 / 验收机制）见 [Enhanced 激活指南](#enhanced-激活可选)
@@ -633,7 +633,7 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 用户即时指令 > 项目宪法(CLAUDE.md) > PRD > Skill规则 > 设计文档 > 代码现状
 ```
 
-## 8 条铁律
+## 7 条铁律
 
 | # | 铁律 | 一句话 | 违反后果 |
 | --- | ------------ | -------------------------------------------- | --------- |
@@ -644,9 +644,8 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 | 5 | **范围冻结** | 一次一个 Step，非核心只写 TODO | 撤销越界 |
 | 6 | **隐私防线** | 绝对禁止读取 .env/私钥，禁止在 Bash 敲明文 Token | 强阻断 |
 | 7 | **断言真实** | 形式门禁通过 ≠ 断言真实；报告中每个百分比/评分必须有行业标准来源 URL 或 `file:line`，否则标注 `[内部自检，非行业标准]` | 撤销不实断言，重写报告 |
-| 8 | **哲学先行** | 问人前先过哲学 7 条：哲学能裁决→标注 `[哲学先行: #N→action]` 后直接执行；哲学覆盖内但结论矛盾→取哲学优先级高者；仅当涉及用户偏好/不可逆操作/第三方授权/法律合规时允许求证 | 无效打断，增加心智负担 |
 
-### #8 使用细则
+### 推荐行为：哲学先行
 
 > 哲学先行裁决不是"走个过场然后照问不误"。以下为具体执行规则。
 
@@ -657,10 +656,10 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 4. 上述流程无法裁决 → 才允许问人
 
 **与铁律 #2（用户裁定）的边界**：
-- #8 裁决的是"**要不要问这个问题**"（程序性门禁）
+- 哲学先行裁决的是"**要不要问这个问题**"（程序性门禁）
 - #2 裁决的是"**这个问题的答案谁说了算**"（决策权威）
 - **分野抉择**（不可逆操作/删除数据/对外发布/安全配置）→ #2 优先，必须问人
-- **技术选择**（实现方式/工具选择/代码结构）→ #8 优先，哲学裁决后直接执行
+- **技术选择**（实现方式/工具选择/代码结构）→ 哲学先行优先，哲学裁决后直接执行
 
 **禁止问人的场景（哲学已覆盖）**：
 - "需要我运行 package-release.sh 吗？" → 标注 `[哲学先行: #4→执行]` → 直接执行
@@ -685,7 +684,7 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 | 3 | **选项有重量** | 每个选项附带：做什么 → 后果/影响 → AI 推荐项 | 只列命令无说明 |
 | 4 | **自定义出口** | 选项列表末尾必有"自定义操作"兜底 | 只有固定选项，用户无法自由输入 |
 | 5 | **低智自理** | 低价值判断 AI 按最佳实践自行处理，不提交给人裁决 | 提交琐碎选择给人 |
-| 6 | **哲学先行** | 见铁律 #8 使用细则：问人前先过哲学，哲学能裁决→标注 `[哲学先行: #N→action]` 直接执行；仅用户偏好/不可逆/授权/合规可例外 | 跳过哲学直接问人 |
+| 6 | **哲学先行** | 见下方「推荐行为：哲学先行」使用细则：问人前先过哲学，哲学能裁决→标注 `[哲学先行: #N→action]` 直接执行；仅用户偏好/不可逆/授权/合规可例外 | 跳过哲学直接问人 |
 
 ### 输出格式标准
 
@@ -1201,7 +1200,7 @@ AI 申请权限时，**必须**说明当前任务和理由：
 
 ### 机制→哲学 逆向追溯矩阵
 
-> 完整双向追溯矩阵（覆盖 46 hooks + 25 skills + 28 scripts + 8 条铁律）→ `Read .claude/reference/philosophy-mechanism-matrix.md`
+> 完整双向追溯矩阵（覆盖 46 hooks + 25 skills + 28 scripts + 7 条铁律）→ `Read .claude/reference/philosophy-mechanism-matrix.md`
 > 
 > 以下为快速参考速查表（仅列最常用机制，完整版含全量 99 项）：
 

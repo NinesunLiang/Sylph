@@ -3,6 +3,9 @@ name: lx-oracle
 version: v2.0.0
 description: "Oracle 独立第三方审核 — 环境自适应路由: 有 Agent 时物理隔离 spawn, 无 Agent 时本地 prompt。裁决留痕 oracle-verdicts.md。"
 role: "Independent third-party auditor for autonomous decision chains"
+when_to_use: "Use when autonomous execution hits a decision gate requiring independent review: dangerous operations, architecture decisions, direction drift, hard-boundary pre-checks, or true-blockage judgments. Trigger: '/lx-oracle', 'oracle:review'."
+harness_version: ">=6.3.0"
+status: stable
 execution_mode: stepwise
 triggers:
   - "/lx-oracle"
@@ -11,6 +14,11 @@ triggers:
   - "oracle:reject"
 # model-agnostic: 路由到 Agent 时由平台自动选择，本地 prompt 时模型无关
 ---
+
+## 原子化声明
+
+> 本 skill 无私有 references，共享能力引用 @../references/oma/。
+
 
 # lx-oracle — Oracle 独立第三方审核 (v2.0 合并版)
 
@@ -90,6 +98,6 @@ AI 直接按审核原则 + 输出格式做 Oracle 审查，结果写入 oracle-v
 
 Oracle-D (决策审核) / Oracle-V (验证审核) 完整协议 → `references/oracle-protocol.md`
 
-## 超时降级
+## 降级策略
 
 Agent spawn 超时 (120s): 记录 `pending-decisions.md` → 降级放行 → flywheel 告警 → 下次重试

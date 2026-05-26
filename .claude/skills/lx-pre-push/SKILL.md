@@ -11,7 +11,7 @@ when_to_use: "Use when user says 'pre-push', 'push check', '推送前检查', or
 
 argument-hint: "<prod-commit-hash>"
 
-harness_version: ">=1.1.0"
+harness_version: ">=6.3.0"
 status: stable
 role: "Pre-push quality gate — commit message validation, diff sanity check"
 execution_mode: stepwise

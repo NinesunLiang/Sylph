@@ -58,14 +58,7 @@ is_mechanism_file() {
 
 is_mechanism_file "$FILE_PATH" || { echo '{"continue": true}'; exit 0; }
 
-# ── 自主模式降级: goal/ghost 模式下 Oracle gate 降为 warn-only ──
-MODE=$(is_mode_active "$STATE_DIR" 2>/dev/null || echo "normal")
-if [ "$MODE" != "normal" ]; then
-    echo "[oracle-gate] WARN: ${MODE} mode — Oracle gate skipped (warn only, 与其他 gate 保持一致)" >&2
-    flywheel_event "oracle_gate" "mode_warn" "P2" || true
-    echo '{"continue": true}'
-    exit 0
-fi
+hc_gate_mode_warn "oracle_gate" && { echo '{"continue": true}'; exit 0; }
 
 # ── CAPTCHA 绕过检查 (内容验证 + 5分钟时效，参照 sensitive-edit 模式) ──
 STATE_DIR="$PROJECT_ROOT/.omc/state"

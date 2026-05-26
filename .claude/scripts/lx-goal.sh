@@ -21,7 +21,7 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 _HC_CONFIG="$PROJECT_ROOT/.claude/hooks/harness_config.sh"
 [ -f "$_HC_CONFIG" ] && source "$_HC_CONFIG"
 
-MODE_FILE="$STATE_DIR/lx-goal.json"
+MODE_FILE="$STATE_DIR/tokens/lx-goal.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
 _KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|retry"
@@ -51,7 +51,7 @@ JSON
         # 清理旧格式
         rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
-        touch "$STATE_DIR/autonomous.active"
+        touch "$STATE_DIR/tokens/autonomous.active"
         echo "✅ 目标模式已开启 — 目标: $GOAL, ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，所有 hook 降级为 warn-only"
         echo "   使用 CronCreate 跨会话恢复（无 10 轮上限）"
@@ -65,7 +65,7 @@ JSON
         fi
         # 清理旧格式
         rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
-        rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
+        rm -f "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
         echo "✅ 目标模式已关闭，所有 hook 恢复正常阻断"
         ;;
 
@@ -210,7 +210,7 @@ try:
 except: print('no')" 2>/dev/null)
             if [ "$EXPIRED" = "yes" ]; then
                 echo "⏰ 目标模式已过期（$EXPIRES），自动关闭"
-                rm -f "$POLL_FILE" "$STATE_DIR/autonomous.active" 2>/dev/null
+                rm -f "$POLL_FILE" "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
                 # 过期时自动生成报告
                 if [ -f "$MODE_FILE" ]; then
                     echo "   生成过期报告..."

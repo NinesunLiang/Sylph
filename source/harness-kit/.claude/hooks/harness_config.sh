@@ -36,6 +36,19 @@ if [ -z "${PYTHON_BIN:-}" ]; then
     export PYTHONIOENCODING=utf-8
 fi
 
+# ─── DG-82: 运行时证据自动追踪 ───
+# 每个 source 本文件的 hook 都会在退出时自动写入 hook-evidence.jsonl
+# 无需修改任何单个 hook 脚本
+_hc_evidence() {
+    local _hc_name _hc_file
+    _hc_name="${_HC_EVIDENCE_NAME:-}"
+    [ -z "$_hc_name" ] && _hc_file="${BASH_SOURCE[1]:-}" && [ -n "$_hc_file" ] && _hc_name="$(basename "$_hc_file" .sh 2>/dev/null)"
+    [ -z "$_hc_name" ] && return 0
+    local _hc_log="${_HC_STATE_DIR:-/tmp}/hook-evidence.jsonl"
+    printf '{"hook":"%s","exit":%d,"ts":%d}\n' "$_hc_name" "$?" "$(date +%s 2>/dev/null || echo 0)" >> "$_hc_log" 2>/dev/null || true
+}
+trap _hc_evidence EXIT
+
 # 确保缓存存在且新鲜
 _hc_ensure_cache() {
     # 已加载且非空 → 跳过
@@ -240,6 +253,7 @@ hc_get_list() {
 # hc_enabled "feature_name" — 检查 feature 是否启用（默认 true）
 # 先查 hooks_enabled.{name}（自动 hyphen→underscore 转换），
 # 再查 skills_enabled.{name}（原生名称），均不存在返回 true
+# v6.3.0: 返回 true 时自动设置 EXIT trap 记录运行时证据到 hook-evidence.jsonl
 hc_enabled() {
     local feature_name="$1"
     local val
@@ -248,19 +262,48 @@ hc_enabled() {
     local hook_key="${feature_name//-/_}"
     val=$(hc_get "hooks_enabled.${hook_key}" "")
     if [ -n "$val" ]; then
-        [ "$val" = "true" ]
-        return $?
+        if [ "$val" = "true" ]; then
+            _hc_set_evidence_trap "$feature_name"
+            return 0
+        fi
+        return 1
     fi
 
     # 检查 skills_enabled.{name}（skills 使用原生名称，无转换）
     val=$(hc_get "skills_enabled.${feature_name}" "")
     if [ -n "$val" ]; then
-        [ "$val" = "true" ]
-        return $?
+        if [ "$val" = "true" ]; then
+            _hc_set_evidence_trap "$feature_name"
+            return 0
+        fi
+        return 1
     fi
 
     # 默认启用
+    _hc_set_evidence_trap "$feature_name"
     return 0
+}
+
+# ── Hook runtime evidence tracking (DG-82) ──
+# 在 hc_enabled 返回 true 后自动设 trap，hook 退出时记录证据
+_HC_EVIDENCE_FILE="${_HC_STATE_DIR}/hook-evidence.jsonl"
+
+_hc_set_evidence_trap() {
+    # 避免重复设 trap（一个 hook 可能多次调用 hc_enabled）
+    [ -n "${_HC_EVIDENCE_SET:-}" ] && return 0
+    _HC_EVIDENCE_SET=1
+    _HC_TRACE_NAME="$1"
+    # EXIT trap: 无论 hook 成功/失败都记录（变量在定义时展开，避免作用域问题）
+    trap '_hc_write_evidence "$_HC_TRACE_NAME" "$_HC_EVIDENCE_FILE" "$?"' EXIT
+}
+
+_hc_write_evidence() {
+    local name="$1" file="$2" exit_code="$3"
+    local ts="$(date +%s)"
+    local session_id="${HC_SESSION_ID:-unknown}"
+    local event="${HC_EVENT_NAME:-unknown}"
+    mkdir -p "$(dirname "$file")" 2>/dev/null
+    echo "{\"hook\":\"${name}\",\"ts\":${ts},\"session\":\"${session_id}\",\"event\":\"${event}\",\"exit\":${exit_code}}" >> "$file" 2>/dev/null || true
 }
 
 # hc_hook_enabled "hook_name" — 仅检查 hooks_enabled（默认 true，自动 hyphen→underscore）

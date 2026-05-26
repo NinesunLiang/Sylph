@@ -16,7 +16,7 @@ paths:
 
  - ".claude/skills/lx-*/SKILL.md"
 
-harness_version: ">=1.1.0"
+harness_version: ">=6.3.0"
 status: draft
 role: "Skill atomization compliance validator — 11-rule architecture check"
 execution_mode: stepwise

@@ -36,6 +36,19 @@ if [ -z "${PYTHON_BIN:-}" ]; then
     export PYTHONIOENCODING=utf-8
 fi
 
+# ─── DG-82: 运行时证据自动追踪 ───
+# 每个 source 本文件的 hook 都会在退出时自动写入 hook-evidence.jsonl
+# 无需修改任何单个 hook 脚本
+_hc_evidence() {
+    local _hc_name _hc_file
+    _hc_name="${_HC_EVIDENCE_NAME:-}"
+    [ -z "$_hc_name" ] && _hc_file="${BASH_SOURCE[1]:-}" && [ -n "$_hc_file" ] && _hc_name="$(basename "$_hc_file" .sh 2>/dev/null)"
+    [ -z "$_hc_name" ] && return 0
+    local _hc_log="${_HC_STATE_DIR:-/tmp}/hook-evidence.jsonl"
+    printf '{"hook":"%s","exit":%d,"ts":%d}\n' "$_hc_name" "$?" "$(date +%s 2>/dev/null || echo 0)" >> "$_hc_log" 2>/dev/null || true
+}
+trap _hc_evidence EXIT
+
 # 确保缓存存在且新鲜
 _hc_ensure_cache() {
     # 已加载且非空 → 跳过
@@ -240,6 +253,7 @@ hc_get_list() {
 # hc_enabled "feature_name" — 检查 feature 是否启用（默认 true）
 # 先查 hooks_enabled.{name}（自动 hyphen→underscore 转换），
 # 再查 skills_enabled.{name}（原生名称），均不存在返回 true
+# v6.3.0: 返回 true 时自动设置 EXIT trap 记录运行时证据到 hook-evidence.jsonl
 hc_enabled() {
     local feature_name="$1"
     local val
@@ -248,19 +262,48 @@ hc_enabled() {
     local hook_key="${feature_name//-/_}"
     val=$(hc_get "hooks_enabled.${hook_key}" "")
     if [ -n "$val" ]; then
-        [ "$val" = "true" ]
-        return $?
+        if [ "$val" = "true" ]; then
+            _hc_set_evidence_trap "$feature_name"
+            return 0
+        fi
+        return 1
     fi
 
     # 检查 skills_enabled.{name}（skills 使用原生名称，无转换）
     val=$(hc_get "skills_enabled.${feature_name}" "")
     if [ -n "$val" ]; then
-        [ "$val" = "true" ]
-        return $?
+        if [ "$val" = "true" ]; then
+            _hc_set_evidence_trap "$feature_name"
+            return 0
+        fi
+        return 1
     fi
 
     # 默认启用
+    _hc_set_evidence_trap "$feature_name"
     return 0
+}
+
+# ── Hook runtime evidence tracking (DG-82) ──
+# 在 hc_enabled 返回 true 后自动设 trap，hook 退出时记录证据
+_HC_EVIDENCE_FILE="${_HC_STATE_DIR}/hook-evidence.jsonl"
+
+_hc_set_evidence_trap() {
+    # 避免重复设 trap（一个 hook 可能多次调用 hc_enabled）
+    [ -n "${_HC_EVIDENCE_SET:-}" ] && return 0
+    _HC_EVIDENCE_SET=1
+    _HC_TRACE_NAME="$1"
+    # EXIT trap: 无论 hook 成功/失败都记录（变量在定义时展开，避免作用域问题）
+    trap '_hc_write_evidence "$_HC_TRACE_NAME" "$_HC_EVIDENCE_FILE" "$?"' EXIT
+}
+
+_hc_write_evidence() {
+    local name="$1" file="$2" exit_code="$3"
+    local ts="$(date +%s)"
+    local session_id="${HC_SESSION_ID:-unknown}"
+    local event="${HC_EVENT_NAME:-unknown}"
+    mkdir -p "$(dirname "$file")" 2>/dev/null
+    echo "{\"hook\":\"${name}\",\"ts\":${ts},\"session\":\"${session_id}\",\"event\":\"${event}\",\"exit\":${exit_code}}" >> "$file" 2>/dev/null || true
 }
 
 # hc_hook_enabled "hook_name" — 仅检查 hooks_enabled（默认 true，自动 hyphen→underscore）
@@ -311,7 +354,7 @@ is_mode_active() {
     now_epoch=$(date +%s 2>/dev/null || echo 0)
 
     # ── 检查 lx-ghost mode（新格式）──
-    local ghost_new="$state_dir/lx-ghost.json"
+    local ghost_new="$state_dir/tokens/lx-ghost.json"
     if [ -f "$ghost_new" ]; then
         local expired
         expired=$($PYTHON_BIN -c "
@@ -373,7 +416,7 @@ except Exception:
     fi
 
     # ── 检查 lx-goal mode（新格式）──
-    local goal_new="$state_dir/lx-goal.json"
+    local goal_new="$state_dir/tokens/lx-goal.json"
     if [ -f "$goal_new" ]; then
         local expired
         expired=$($PYTHON_BIN -c "
@@ -446,8 +489,8 @@ except Exception:
 _mode_file_for() {
     local state_dir="$1" mode="$2"
     case "$mode" in
-        ghost) echo "$state_dir/lx-ghost.json" ;;
-        goal)  echo "$state_dir/lx-goal.json" ;;
+        ghost) echo "$state_dir/tokens/lx-ghost.json" ;;
+        goal)  echo "$state_dir/tokens/lx-goal.json" ;;
         unattended) echo "$state_dir/unattended-mode.json" ;;
         *)     echo "$state_dir/${mode}-mode.json" ;;
     esac
@@ -627,4 +670,90 @@ flywheel_event() {
     local project="${4:-carror-os}"
     local flywheel_log="${HOME}/.claude/flywheel.log"
     echo "$(date +%Y-%m-%d),${hook_name}_${event_type},${severity},${project}" >> "$flywheel_log" 2>/dev/null || true
+}
+
+# ─── P4: 模式感知 Gate 函数（原子化：8 hooks → 1 函数）───
+# hc_gate_mode_warn — 非 normal 模式时降级 gate 为 warn-only
+# 用法: hc_gate_mode_warn "oracle_gate" && { echo '{"continue": true}'; exit 0; }
+# 返回: 0=应降级跳过, 1=继续正常门禁逻辑
+hc_gate_mode_warn() {
+    local gate_name="${1:-unknown}"
+    local mode
+    mode=$(is_mode_active "${_HC_STATE_DIR:-.omc/state}" 2>/dev/null || echo "normal")
+    if [ "$mode" != "normal" ]; then
+        echo "[$gate_name] WARN: ${mode} mode — gate skipped (mode downgrade)" >&2
+        flywheel_event "$gate_name" "mode_warn" "P2" "carror-os" || true
+        return 0
+    fi
+    return 1
+}
+
+# P4 扩展: hc_gate_mode_block — 非 normal 模式时硬阻断（用于 pre-ask-guard 等）
+# 返回: 0=应阻断, 1=继续正常
+hc_gate_mode_block() {
+    local gate_name="${1:-unknown}"
+    local mode
+    mode=$(is_mode_active "${_HC_STATE_DIR:-.omc/state}" 2>/dev/null || echo "normal")
+    if [ "$mode" != "normal" ]; then
+        echo "⛔ [$gate_name] BLOCKED: ${mode} mode — gate enforced" >&2
+        flywheel_event "$gate_name" "mode_blocked" "P1" "carror-os" || true
+        return 0
+    fi
+    return 1
+}
+
+# ─── P5: Token/CAPTCHA 生成器（原子化：4 hooks → 1 函数）───
+# hc_generate_token — 生成随机 hex token（四级降级）
+hc_generate_token() {
+    local len="${1:-8}"
+    local byte_count=$((len / 2))
+    local token
+    token=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex($byte_count))" 2>/dev/null) || \
+    token=$(od -vAn -N"$byte_count" -tx1 /dev/urandom 2>/dev/null | tr -d ' \n') || \
+    token=$(openssl rand -hex "$byte_count" 2>/dev/null) || \
+    token=$(printf "%0${len}x" "$(($$ * $(date +%s) & 0xFFFFFFFF))")
+    echo "$token"
+}
+
+# hc_captcha_check — 检查 CAPTCHA 验证码 + 新鲜度
+# 用法: hc_captcha_check "$REQUIRED_FILE" "$APPROVED_FILE" [freshness_sec]
+# 返回: 0=通过, 1=未通过
+hc_captcha_check() {
+    local required_file="${1:-}" approved_file="${2:-}" freshness_sec="${3:-300}"
+    [ -f "$required_file" ] || return 1
+    [ -f "$approved_file" ] || return 1
+    local expected approved
+    expected=$(cat "$required_file" 2>/dev/null)
+    approved=$(cat "$approved_file" 2>/dev/null)
+    [ "$expected" = "$approved" ] || return 1
+    [ -z "$expected" ] && return 1
+    ${PYTHON_BIN:-python3} -c "
+import os, time
+try:
+    age = time.time() - os.path.getmtime('$approved_file')
+    exit(0 if age < $freshness_sec else 1)
+except: exit(1)" 2>/dev/null
+}
+
+# ─── P8: Gate 输出宏（原子化：8 hooks → 3 函数）───
+# hc_gate_block — 标准阻断输出（stderr 给人, stdout JSON 给 AI）
+hc_gate_block() {
+    local name="${1:-gate}" stderr_msg="${2:-blocked}"
+    echo "⛔ [${name}] ${stderr_msg}" >&2
+    flywheel_event "$name" "blocked" "P1" || true
+    printf '{"continue": false, "reason": "%s"}\n' "$stderr_msg"
+    exit 2
+}
+
+# hc_gate_warn_output — 标准 warn 输出
+hc_gate_warn_output() {
+    local name="${1:-gate}" stderr_msg="${2:-warning}"
+    echo "⚠️ [${name}] ${stderr_msg}" >&2
+    flywheel_event "$name" "warn" "P2" || true
+}
+
+# hc_gate_pass — 标准放行输出
+hc_gate_pass() {
+    printf '{"continue": true}\n'
+    exit 0
 }

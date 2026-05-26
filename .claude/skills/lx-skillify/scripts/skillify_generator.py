@@ -74,11 +74,16 @@ def build_skel(name: str, description: str, triggers: str = "") -> dict:
 
     template = TEMPLATE_PATH.read_text(encoding='utf-8')
 
-    # 读取 VERSION 文件
-    version_file = SKILLS_DIR / "VERSION"
-    harness_version = "6.2.1"
+    # 读取 VERSION.json（唯一真相源）
+    project_root = SKILLS_DIR.parent.parent  # skills/ -> .claude/ -> project root
+    version_file = project_root / "VERSION.json"
+    harness_version = "6.3.0"
     if version_file.exists():
-        harness_version = version_file.read_text(encoding='utf-8').strip()
+        try:
+            data = json.loads(version_file.read_text(encoding='utf-8'))
+            harness_version = data.get('version', '6.3.0').strip()
+        except Exception:
+            harness_version = "6.3.0"
 
     # 生成触发词列表
     trigger_list = f'"/lx-{name}"'

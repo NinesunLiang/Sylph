@@ -90,7 +90,7 @@ _test "context-guard enabled" "true" "$(grep -c 'context_guard: true' .claude/ha
 
 # [14] pretool-edit-scope — goal mode 守卫
 echo ""; echo "=== [14] pretool-edit-scope: goal mode 守卫 ==="
-R14=$(grep -c "lx-goal.json" $H/pretool-edit-scope.sh 2>/dev/null || echo 0)
+R14=$(grep -c "tokens/lx-goal.json" $H/pretool-edit-scope.sh 2>/dev/null || echo 0)
 _test "scope has goal mode detection" "[1-9]" "$R14"
 
 # [15] pretool-retry-check — 3轮上限

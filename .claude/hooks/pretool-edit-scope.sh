@@ -135,8 +135,8 @@ PYEOF
 
 # Goal/Ghost 模式检测 — 无人值守时范围自动扩展但有迹可查
 MODE="normal"
-if [ -f "$PROJECT_ROOT/.omc/state/lx-goal.json" ]; then MODE="goal"; fi
-if [ -f "$PROJECT_ROOT/.omc/state/lx-ghost.json" ]; then MODE="ghost"; fi
+if [ -f "$PROJECT_ROOT/.omc/state/tokens/lx-goal.json" ]; then MODE="goal"; fi
+if [ -f "$PROJECT_ROOT/.omc/state/tokens/lx-ghost.json" ]; then MODE="ghost"; fi
 
 if [ ! -f "$SCOPE_FILE" ]; then
     AUTO_SCOPE="$PROJECT_ROOT/.claude/scripts/auto-scope.sh"

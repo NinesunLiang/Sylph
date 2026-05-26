@@ -9,8 +9,8 @@ source "$SCRIPT_DIR/harness_config.sh"
 set -f
 
 STATE_DIR="$PROJECT_ROOT/.omc/state"
-GOAL_FILE="$STATE_DIR/lx-goal.json"
-GHOST_FILE="$STATE_DIR/lx-ghost.json"
+GOAL_FILE="$STATE_DIR/tokens/lx-goal.json"
+GHOST_FILE="$STATE_DIR/tokens/lx-ghost.json"
 
 RESUME_CTX=""
 

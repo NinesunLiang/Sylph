@@ -18,7 +18,8 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 # source harness_config for hc_get defaults
 source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 
-MODE_FILE="$STATE_DIR/lx-ghost.json"
+mkdir -p "$STATE_DIR/tokens" 2>/dev/null
+MODE_FILE="$STATE_DIR/tokens/lx-ghost.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作方向描述自动激活
 _KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|hard-boundary-hit|blocked-human|retry"
@@ -66,7 +67,7 @@ with open(tmp, 'w', encoding='utf-8') as f:
 os.rename(tmp, mode_file)
 PYEOF
         # 创建 autonomous.active 信号供 completion-gate 等降级
-        touch "$STATE_DIR/autonomous.active"
+        touch "$STATE_DIR/tokens/autonomous.active"
         # 清理旧格式文件
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
 DATE=$(date +%Y-%m-%d)
@@ -150,7 +151,7 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
 		fi
 		# 清理旧格式文件
 		rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/ghost-mode.active" 2>/dev/null
-		rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
+		rm -f "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
 		echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
 		;;
     status)
@@ -172,7 +173,7 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
         else
             echo "📋 幽灵模式 (lx-ghost): ⚪ 已关闭"
         fi
-        if [ -f "$STATE_DIR/autonomous.active" ]; then
+        if [ -f "$STATE_DIR/tokens/autonomous.active" ]; then
             echo "   autonomous.active 信号: ✅ 存在"
         fi
         ;;
@@ -233,7 +234,7 @@ try:
 except: print('no')" 2>/dev/null)
             if [ "$EXPIRED" = "yes" ]; then
                 echo "⏰ 幽灵模式已过期（$EXPIRES），自动关闭"
-                rm -f "$MODE_FILE" "$STATE_DIR/autonomous.active" 2>/dev/null
+                rm -f "$MODE_FILE" "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
                 exit 0
             fi
         fi

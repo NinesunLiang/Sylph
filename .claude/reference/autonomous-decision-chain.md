@@ -7,68 +7,110 @@
 >
 > **If autonomous mode expires mid-task**: the chain is no longer authoritative. Revert to standard interaction mode. Notify the human if work was interrupted.
 
-## How to Use (matrix first, chain second)
+---
 
-1. **Situation Matrix first** — check if your exact scenario matches a row below. If yes, follow that row's action.
-2. **Chain second** — if no matrix row matches, use the 5-level decision chain.
-3. **Tiebreaker** — when matrix and chain conflict, the matrix wins (it encodes specific, hard-won lessons).
+## 决策链：逐层升级（4 层）
 
-## The Chain (always in order)
+AI 不做"能自己决定 vs 要问人"的二分判断。而是逐层升级——大部分决策在前两层就被消化，只有极少穿透到人。
 
 ```
-1. Philosophy (7 principles)  →  Can I decide this?
-   YES → Execute, annotate [哲学先行: #N→action]
-   NO  → Proceed to Iron Rules
+Layer 1. AI 自行判断
+   → 项目惯例（kernel.md / claude-next.md / 现有代码模式）能覆盖？
+   → YES: 执行，标注 [AI: 惯例]
+   → NO:  进入 Layer 2
 
-2. Iron Rules (8 rules)       →  Does a hard rule apply?
-   YES → Follow the rule, no questions
-   NO  → Proceed to Oracle
+Layer 2. 静态分析门禁
+   → hook 规则匹配：这操作安全吗？在范围内吗？铁律允许吗？
+   → 安全 + 范围内 → 放行，执行
+   → 不安全 / 越界 / 违反铁律 → 进入 Layer 3
 
-3. Oracle agent (critic)      →  Independent review needed?
-   YES → Spawn Agent(critic), follow verdict
-   NO  → Proceed to AI judgment
+Layer 3. 运行时分析
+   → 真跑一下：烟雾测试 / 编译 / Oracle 审核 / Meta-Oracle (G1-G4)
+   → 通过 → 放行
+   → 不通过 → 进入 Layer 4
 
-4. AI autonomous judgment     →  Use existing practices (claude-next.md/kernel.md/conventions)
-   Execute, record rationale, continue
-
-5. Meta-Oracle (G1-G4 only)   →  Architecture/PRD/Release decision?
-   YES → Independent 2nd review
-   NO  → Continue
+Layer 4. 需人裁决 ← 仅以下四类穿透到此
+   a. 权限（sudo / rm -rf / 生产环境写入）
+   b. 风险级别（不可逆操作、数据删除）
+   c. 方案路线（跨架构选型、新依赖引入）
+   d. 资源分配（大文件下载、费用产生）
 ```
+
+### 自主模式：Layer 4 截断为「记录↷跳过」
+
+> **自主模式（lx-goal / lx-ghost）下，穿透到 Layer 4 的操作一律「记录↷跳过」，不问人。**
+> 事后在退出报告中汇总，由人统一审阅裁决。
+
+| 正常模式 | 自主模式 |
+|---------|---------|
+| Layer 4 → 问人 | Layer 4 → `skip-risk` / `hard-boundary-hit` / `blocked-human` → 跳过继续 |
+| 人实时参与决策 | 人只看退出报告，批量裁决 |
+
+---
+
+## Standard Mode: The Chain (always in order)
+
+```
+1. AI judgment (conventions / kernel.md / claude-next.md)
+   → Execute, annotate rationale
+
+2. Static analysis (hooks: pretool-edit-scope / permission-gate / privacy-gate / context-guard)
+   → PASS → continue
+   → BLOCK → escalate to Layer 3
+
+3. Runtime analysis (Oracle / Meta-Oracle G1-G4 / smoke test / compile)
+   → PASS → continue
+   → FAIL → escalate to Layer 4 (human)
+
+4. Human decision — only these 4 categories:
+   a. Permission   (sudo / rm -rf / production write)
+   b. Risk level   (irreversible op / data deletion)
+   c. Approach     (cross-architecture / new dependency)
+   d. Resource     (large download / cost incurring)
+```
+
+## Autonomous Mode: Layer 4 → Record & Skip
+
+```
+1. AI judgment → Execute
+2. Static analysis → PASS or record rationale
+3. Runtime analysis → Oracle/Meta-Oracle still run
+4. Human-required? → Record to exit report (skip-risk / hard-boundary-hit / blocked-human)
+   → Continue to next task
+```
+
+---
 
 ## Situation Matrix
 
 | You encounter... | Action |
 |-----------------|--------|
-| A decision philosophy already covers | **Execute**. Annotate `[哲学先行: #N→action]`. Do NOT ask. |
+| A decision conventions already cover | **Execute**. Annotate `[AI: 惯例]`. Do NOT ask. |
 | An iron rule violation | **Follow the rule**. Block/refuse as required. |
 | A dangerous operation (rm/git push/etc.) | **Hard boundary**: skip, record, report at end. NEVER execute. |
 | Uncertainty about code behavior | **Read the file**. Do NOT guess. Do NOT ask the user. |
 | A fix that failed 3 times | **BLOCKED**: record hypothesis, skip, continue other tasks. |
 | An ambiguous requirement | **AI judgment**. Use existing conventions. Record rationale. |
 | A decision affecting ≥2 subsystems | **Oracle agent**. Spawn Agent(critic) for independent review. |
-| Oracle ACCEPT with score ≥8.5, OR any CRITICAL finding, OR architecture/PRD/release gate (G1-G4) | **Meta-Oracle mandatory**. Use runtime trace method (execution path tracing, condition branch verification), not static review alone. DG-56: static-only Meta-Oracle missed critical logic bugs. |
+| Oracle ACCEPT with score ≥8.5, OR any CRITICAL finding, OR G1-G4 | **Meta-Oracle mandatory**. Use runtime trace, not static-only. DG-56. |
 | Something outside task scope | **Record as side finding**. Do NOT fix. Do NOT expand scope. |
 | Need to commit/push | **Hard boundary**: list changed files, let human decide at end. |
-| Non-dangerous actionable items within scope | **Execute immediately**. DO NOT ask "要不要"/"需要我"/"是否应该". Annotate rationale and go. Philosophy #5 (reduce mental burden): human only sees results in exit report. DG-57. |
-| Non-trivial task completed / bug fix applied | **Spawn Oracle critic for independent re-review**. AI cannot self-certify its own work. Philosophy #4 (not verified = not done) + Philosophy #6 (0 trust). DG-18, DG-23, DG-33. |
-| Sub-agent / child agent returned data to use | **Verify against source files before writing to output**. Sub-agent data defaults to [推断,待确认]. Never treat as verified fact without reading origin files. DG-44 (primary: cross-agent info-chain untrustworthy). |
-| Oracle findings received (CRITICAL/MAJOR/REVISE) | **Evaluate against design intent first**. Not all Oracle findings are actionable bugs — some are correct design decisions the Oracle misjudged. Separate real bugs from design disagreements before acting. DG-21. |
-| Security mechanism or safety-critical change | **Oracle + Meta-Oracle DUAL sign-off required**. No single-reviewer shortcuts. Philosophy #6 (0 trust): two independent reviews are the minimum for safety. DG-32. |
-| Ghost vs Goal mode selection ambiguous | **AI self-evaluates direction type** (do NOT ask human): deterministic task list with action verbs (修复/优化/实现) → goal mode. Open exploration (分析/调研/阅读) → ghost mode. Never use ghost mode for fixed fix lists. DG-55, GL-01. |
-| Writing persuasive / marketing / non-technical content | **Apply stricter verification**. All numeric claims must be traceable to source files. This output mode historically produces unverified assertions. Use `[内部自检]` markers when no external source exists. DG-43 (primary: marketing/semantic-gate blind spot). |
-| Autonomous mode nearing completion / phase end | **Generate exit report section immediately**. Mandatory fields: (1) hard-boundary items (2) skip-risk items w/ rationale (3) BLOCKED items (4) side findings (5) Oracle/Meta-Oracle verdicts. Do NOT defer report writing. DG-58. |
-| Oracle REVISE/REJECT with clear, fixable issues | **Fix immediately, re-submit to Oracle**. Do NOT ask "要修吗". Philosophy #2 (少量大增益): direct fix loop is highest value. DG-91. |
-| ROI data contradicts philosophy/iron-rule support | **Philosophy > ROI**. Zero flywheel data ≠ zero value. Flag for review, not deletion. DG-94. |
-| Governance file (harness.yaml/settings.json) deletion or rename | **grep -r first, list ALL hit files, clean ALL**. Do NOT clean only root. DG-81. |
-| A genuinely novel situation | **Try AI judgment first**. If truly blocked, record for human report. |
+| Non-dangerous actionable items within scope | **Execute immediately**. DO NOT ask "要不要/需要我/是否应该". |
+| Non-trivial task completed / bug fix applied | **Spawn Oracle critic for independent re-review**. DG-18, DG-23, DG-33. |
+| Sub-agent / child agent returned data | **Verify against source files before writing**. DG-44. |
+| Oracle findings (CRITICAL/MAJOR/REVISE) | **Evaluate against design intent first**. Separate real bugs from design disagreements. DG-21. |
+| Security mechanism or safety-critical change | **Oracle + Meta-Oracle DUAL sign-off**. DG-32. |
+| Ghost vs Goal mode selection | **AI self-evaluates direction type**. DG-55, GL-01. |
+| Writing persuasive / marketing / non-technical content | **Apply stricter verification**. All numeric claims traceable. DG-43. |
+| Autonomous mode nearing completion / phase end | **Generate exit report immediately**. DG-58. |
+| Oracle REVISE/REJECT with clear, fixable issues | **Fix immediately, re-submit to Oracle**. DG-91. |
+| ROI data vs philosophy/iron-rule | **Philosophy > ROI**. DG-94. |
+| Governance file deletion or rename | **grep -r first, clean ALL hits**. DG-81. |
+| A genuinely novel situation | **Try AI judgment first**. If blocked, record for human report. |
+
+---
 
 ## Forbidden in Autonomous Mode
-
-> **Enforcement note**: These rules rely on AI compliance with injected context. They are verified by
-> post-session audit (exit report review), not runtime physical enforcement. `posttool-claim-audit` + `meta-oracle-trigger` enforce philosophy-first rules at runtime (replaced deprecated `pretool-ask-guard`, removed 2026-05-17)
-> violations to stderr without blocking during autonomous mode — this is a safety tradeoff to preserve
-> the human escape hatch if the AI enters a broken state.
 
 - ❌ AskUserQuestion (except Phase 0 clarification window)
 - ❌ "需要我...吗？" / "要我...吗？" / "是否应该..." — just do it
@@ -76,43 +118,52 @@
 - ❌ Stopping execution to report progress (report only at end)
 - ❌ Asking for preferences between valid options — pick the best one
 - ❌ Manually creating `autonomous.active` or mode signal files — always use `lx-goal.sh on` or `lx-ghost.sh on`. Manual touch bypasses half the activation chain. DG-46.
+- ❌ Skipping the 4-layer chain and jumping directly to Layer 4 — use Layer 1→2→3 first
+
+---
 
 ## What Goes in the Exit Report
 
-## ⚠️ Needs Human Decision — Aggregated Summary (REQUIRED in every exit report)
+### ⚠️ Needs Human Decision — Aggregated Summary (REQUIRED)
 
 > **Every exit report MUST include this aggregated section** as the first "needs attention" block.
-> It consolidates ALL items requiring human review across categories so the human doesn't hunt through sections.
 
 Format:
 ```
 ## ⚠️ 需人为决策汇总
 
-| # | 类型 | 描述 | AI 推荐 | 依据 |
-|---|------|------|---------|------|
-| 1 | 硬边界 | ... | 建议人类执行: ... | 触碰哪条硬边界 |
-| 2 | 阻断 | ... | 已尝试方案: A/B/C | 为何无法继续 |
-| 3 | 推迟决策 | ... | 推荐方案 + 理由 | 决策链依据 |
+| # | 类型 | 层级 | 描述 | AI 推荐 | 依据 |
+|---|------|------|------|---------|------|
+| 1 | 硬边界 | L4a 权限 | ... | 建议人类执行: ... | 触碰哪条硬边界 |
+| 2 | 阻断 | L3 运行时 | ... | 已尝试方案: A/B/C | 为何无法继续 |
+| 3 | 跳过风险 | L4b 风险 | ... | 推荐方案 + 理由 | 决策链依据 |
+| 4 | 推迟决策 | L4c 方案 | ... | 推荐方案 + 理由 | 决策链依据 |
+| 5 | 资源 | L4d 资源 | ... | 推荐方案 + 理由 | 决策链依据 |
 ```
 
 ### Categories to aggregate:
-- **Hard boundary items** — operations AI cannot execute (rm, git push, commit, credentials)
-- **BLOCKED items** — core path blocked, 3 hypotheses tried and failed
-- **Postponed decisions** — decisions deferred to exit report (with AI recommendation + rationale)
-- **Uncertain judgments** — decisions AI made with low confidence, flagged for human review
+- **Hard boundary items** (L4a 权限) — operations AI cannot execute (rm, git push, commit, credentials)
+- **Skip-risk items** (L4b 风险) — irreversible ops skipped, with rationale
+- **BLOCKED items** (L3 运行时) — core path blocked, 3 hypotheses tried and failed
+- **Postponed decisions** (L4c 方案路线) — cross-architecture / new dependency choices
+- **Resource items** (L4d 资源) — large downloads / cost-incurring operations skipped
+- **Uncertain judgments** — low-confidence AI decisions flagged for human review
 
 ### Per-item format:
 - **What was blocked/postponed** — specific operation or decision
-- **Why** — which hard boundary, rule, or uncertainty triggered the postponement
+- **Which Layer** — L3 (runtime) or L4a/b/c/d (permission/risk/approach/resource)
+- **Why** — which condition triggered the postponement
 - **AI recommendation** — what the AI would do if authorized
-- **Decision basis** — philosophy/iron-rule/Oracle verdict that informed the AI's recommendation
+- **Decision basis** — which step in the chain informed the recommendation
 
 ---
 
 ## Standard Exit Report Sections
 
-- Skipped hard-boundary items (for human to execute)
-- Skip-risk items (with rationale)
-- BLOCKED items (with 3 hypotheses tried)
+- Skipped hard-boundary items (for human to execute) — L4a
+- Skip-risk items (with rationale) — L4b
+- Postponed approach decisions (with recommendation) — L4c
+- Postponed resource decisions (with recommendation) — L4d
+- BLOCKED items (with 3 hypotheses tried) — L3
 - Side findings (out of scope, not acted on)
 - Oracle/Meta-Oracle verdicts (with trace)

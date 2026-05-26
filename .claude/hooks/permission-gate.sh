@@ -36,7 +36,7 @@ DESTRUCTIVE_RE=$(hc_get "permission_gate.destructive_regex" '\brm\s+-rf\b|\bdrop
 SUDO_RE=$(hc_get "permission_gate.sudo_regex" '^\s*sudo\b|sudo\s')
 GH_WRITE_RE=$(hc_get "permission_gate.gh_write_regex" 'gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))')
 BYPASS_RE=$(hc_get "permission_gate.bypass_regex" $'base64\\s+(-d|--decode).*\\|.*\\b(bash|sh|dash|zsh)\\b|xxd\\s+-r.*\\|.*\\b(bash|sh)\\b|printf\\s+[\\"\\x27\\\\047]%[bdh]|eval\\s+\\\\$\\(echo')
-SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|sensitive-approved')
+SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|sensitive-approved|permission-approved')
 
 # C1: encoding bypass detection (DG-11) — 无条件硬阻断，任何模式都不允许
 if echo "$COMMAND" | grep -qE "$BYPASS_RE"; then
@@ -142,10 +142,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 
-# ─── 统一模式检测 + 缓存 ──────────────────────────
-# ghost/unattended 模式: 记录 flywheel + skipped-errors，不 exit 2
+# ─── 缓存 ──────────────────────────
 # approved-ops 缓存: 5 分钟内相同签名自动放行（UX-2.3）
-MODE=$(is_mode_active "$STATE_DIR")
 CACHE_FILE="$STATE_DIR/approved-ops.json"
 
 # 检查缓存：相同命令签名在 5 分钟内是否已批准
@@ -191,6 +189,8 @@ CACHEPY
 }
 
 # 统一模式检测: ghost/unattended 降级为"记录+跳过"，不阻断
+# 默认 normal 模式（未显式设置 MODE 时等效于 normal）
+MODE="${MODE:-normal}"
 if [ "$MODE" != "normal" ]; then
     flywheel_event "permission_gate" "blocked_${DANGER_TYPE// /_}" "P1" || true
     SKIPPED_FILE="$STATE_DIR/skipped-errors.md"

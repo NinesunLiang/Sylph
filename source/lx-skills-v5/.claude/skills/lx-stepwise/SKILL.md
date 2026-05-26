@@ -6,9 +6,17 @@ category: infrastructure
 type: orchestrator
 execution_mode: stepwise
 enabled_by_default: true
-harness_version: "6.2.31"
+harness_version: ">=6.3.0"
+status: stable
+role: "Stepwise debugger — serial deep-dive, each step verified"
 evidence_level: L3
+when_to_use: "Use for high-difficulty serial debugging: unknown root cause, cross-module (>3 files), failed prior fixes (2+), complex state machines or concurrency. Auto-routed by goal/ghost, not manually invoked."
 ---
+
+## 原子化声明
+
+> 本 skill 无私有 references，共享能力引用 @../references/oma/。
+
 
 # lx-stepwise — 逐步攻坚模式
 
@@ -62,3 +70,11 @@ Step 5: 加固 — 添加/更新测试，确保同类 bug 不再漏过
 - 每 Step 完成必须写验证证据（file:line 或 命令输出）
 - 3 轮上限仍适用（铁律 #5）
 - Step 3（方案）涉及治理文件时必须触发 pretool-sensitive-edit CAPTCHA
+
+## 降级策略
+| 场景 | 降级路径 |
+|------|---------|
+| Step 验证失败 | 回到上一步重新执行 |
+| 3 轮上限触发 | 标记 blocked，升级 lx-root-cause-analysis |
+| 子步骤无法完成 | 标注 [blocked]，输出当前证据 |
+

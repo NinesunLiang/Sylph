@@ -4,7 +4,7 @@ version: v1.0.0
 description: "变更后一致性检查：frontmatter↔registry 漂移、source mirror 同步、harness_version 对齐、重复 key、引用完整性。修完任何治理文件后调用。"
 when_to_use: "Use after modifying SKILL.md, feature-registry.yaml, VERSION, or any governance file. Trigger: 'lx-sync', 'sync check', '一致性检查', 'check drift'."
 argument-hint: "[--skill lx-name]"
-harness_version: "6.2.31"
+harness_version: ">=6.3.0"
 role: "Post-change consistency checker — 6 checks covering drift, mirror, version, duplicates, references"
 execution_mode: stepwise
 triggers:
@@ -13,6 +13,11 @@ triggers:
   - "check drift"
 status: stable
 ---
+
+## 原子化声明
+
+> 本 skill 无私有 references，共享能力引用 @../references/oma/。
+
 
 # lx-sync — 变更后一致性检查
 
@@ -53,7 +58,7 @@ JSON 输出：`python3 .claude/skills/lx-sync/scripts/sync_check.py --json`
   ✅ source-mirror (26 skills)
 
   ❌ version (4 skills)
-     [FAIL] lx-oma-hier: harness_version=6.1.9 but VERSION=6.2.0
+     [FAIL] lx-oma-hier: harness_version=6.1.9 but VERSION=6.3.0
 
   ✅ duplicate-key (26 skills)
   ✅ references (26 skills)

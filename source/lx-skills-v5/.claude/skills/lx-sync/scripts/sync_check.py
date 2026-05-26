@@ -21,7 +21,7 @@ PROJECT = Path(os.environ.get('CLAUDE_PROJECT_DIR', Path.cwd()))
 SKILLS_DIR = PROJECT / '.claude' / 'skills'
 SOURCE_SKILLS = PROJECT / 'source' / 'lx-skills-v5' / '.claude' / 'skills'
 REGISTRY = PROJECT / '.claude' / 'feature-registry.yaml'
-VERSION_FILE = SKILLS_DIR / 'VERSION'
+VERSION_FILE = PROJECT / 'VERSION.json'
 DEPS_FILE = SKILLS_DIR / 'skill-dependencies.yaml'
 NODES_DIR = PROJECT / '.claude' / 'nodes'
 SCHEMAS_DIR = PROJECT / '.claude' / 'schemas'
@@ -158,11 +158,15 @@ class SyncCheck:
 
     # ── Check 3: harness_version vs VERSION ──
     def check_versions(self):
-        current_ver = read_file(VERSION_FILE)
-        if current_ver:
-            current_ver = current_ver.strip()
-        else:
-            self.add('WARN', 'version', 'all', 'VERSION file missing or empty')
+        current_ver = None
+        if VERSION_FILE.exists():
+            try:
+                data = json.loads(read_file(VERSION_FILE))
+                current_ver = data.get('version', '').strip()
+            except Exception:
+                current_ver = read_file(VERSION_FILE).strip()
+        if not current_ver:
+            self.add('WARN', 'version', 'all', 'VERSION.json missing or version field empty')
             current_ver = 'unknown'
 
         for d in self.skill_dirs:
@@ -206,6 +210,9 @@ class SyncCheck:
             for line_num, line in enumerate(lines):
                 line = line.strip()
                 if ':' not in line:
+                    continue
+                # Skip YAML list items (e.g. "- value:with:colons")
+                if line.startswith('- ') or line == '-':
                     continue
                 key = line.split(':')[0].strip()
                 if not key or key.startswith('#'):

@@ -11,7 +11,7 @@ when_to_use: "Use when user says 'pre-commit', 'commit check', '提交前检查'
 
 argument-hint: "[--skip-review]"
 
-harness_version: ">=1.1.0"
+harness_version: ">=6.3.0"
 status: stable
 role: "Pre-commit quality gate — compile, test, lint, coverage check"
 execution_mode: stepwise

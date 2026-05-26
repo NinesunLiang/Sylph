@@ -868,6 +868,17 @@ else
 fi
 rm -f "$_SKILL_REF_OUT"
 
+# --- v6.3.0: harness_version 必须是 >= 格式（单一版本源） ---
+TOTAL=$((TOTAL+1))
+log ""
+log "[$TOTAL] v6.3.0 harness_version: 所有 SKILL.md 必须使用 >= 格式（非硬编码版本号）"
+_BAD_VERSIONS=$(grep -rn 'harness_version: *"' .claude/skills/*/SKILL.md .claude/skills/TEMPLATE.md 2>/dev/null | grep -v '>=' | grep -v 'harness_version: ">=' || true)
+if [ -z "$_BAD_VERSIONS" ]; then
+    pass "v6.3.0 harness_version: 全部 >= 格式"
+else
+    fail "v6.3.0 harness_version: 发现硬编码版本号: $(echo "$_BAD_VERSIONS" | head -3)"
+fi
+
 # --- R34: audit-hooks --check-source-mirror 扩展: settings.json + harness.yaml 三方对账 ---
 # NOTE: AGENTS.md/CLAUDE.md 有意不同 — "有意分歧" 消息正常，不影响判定
 TOTAL=$((TOTAL+1))
