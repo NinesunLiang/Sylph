@@ -90,9 +90,9 @@ _MODE_BACKUP_DIR="/tmp/smoke-mode-backup-$$"
 rm -rf "$_MODE_BACKUP_DIR" 2>/dev/null
 mkdir -p "$_MODE_BACKUP_DIR" 2>/dev/null
 for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
-    [ -f ".omc/state/$_mf" ] && cp ".omc/state/$_mf" "$_MODE_BACKUP_DIR/$_mf"
+    [ -f ".omc/state/tokens/$_mf" ] && cp ".omc/state/tokens/$_mf" "$_MODE_BACKUP_DIR/$_mf"
 done
-rm -f .omc/state/.unattended-mode .omc/state/autonomous.active .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/session-turns.json
+rm -f .omc/state/.unattended-mode .omc/state/tokens/autonomous.active .omc/state/ghost-mode.json .omc/state/tokens/ghost-mode.active .omc/state/tokens/lx-ghost.json .omc/state/tokens/lx-goal.json .omc/state/session-turns.json
 export CONTEXT_FORCE_HEURISTIC=1
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 # R29: heuristic 数据不用于阻断决策（仅 transcript real 触发硬阻断）
@@ -129,7 +129,7 @@ rm -f .omc/state/token-tracking-index.json
 
 # --- ghost/goal mode 降级测试（P0 改造验证）---
 # 测试前清理任何残留
-rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active
+rm -f .omc/state/ghost-mode.json .omc/state/unattended-mode.json .omc/state/tokens/lx-ghost.json .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active
 # R40: Ghost mode 下所有门禁降级为"记录+跳过"
 
 # ---- Setup: 创建活跃 lx-ghost.json ----
@@ -137,7 +137,7 @@ ${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
-json.dump(d, open('.omc/state/lx-ghost.json', 'w'))
+json.dump(d, open('.omc/state/tokens/lx-ghost.json', 'w'))
 "
 # R40-1: Ghost mode 下 context-guard Write @ 95% 不应阻断（仅记录）
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
@@ -167,7 +167,7 @@ ${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'ghost', 'direction': 'test', 'cycle_interval_seconds': 600,
      'expires_at': '2020-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': []}
-json.dump(d, open('.omc/state/lx-ghost.json', 'w'))
+json.dump(d, open('.omc/state/tokens/lx-ghost.json', 'w'))
 "
 # R40-4: 过期 ghost mode 应恢复阻断（context-guard Write 恢复 hard block）
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
@@ -177,7 +177,7 @@ run_case "R40 ghost mode expired: context-guard Write heuristic 告警不阻断 
 rm -f .omc/state/token-tracking-index.json
 # DG-49: 恢复 goal/ghost 模式信号文件（避免破坏正在运行的自主模式）
 for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
-    [ -f "$_MODE_BACKUP_DIR/$_mf" ] && cp "$_MODE_BACKUP_DIR/$_mf" ".omc/state/$_mf"
+    [ -f "$_MODE_BACKUP_DIR/$_mf" ] && cp "$_MODE_BACKUP_DIR/$_mf" ".omc/state/tokens/$_mf"
 done
 
 # ---- Setup: 创建活跃 lx-goal.json ----
@@ -185,7 +185,7 @@ ${PYTHON_BIN:-python3} -c "
 import json
 d = {'active': True, 'mode': 'goal', 'goal': 'test',
      'expires_at': '2099-01-01T00:00:00', 'retry_count': 0, 'skipped_risks': [], 'completed_tasks': []}
-json.dump(d, open('.omc/state/lx-goal.json', 'w'))
+json.dump(d, open('.omc/state/tokens/lx-goal.json', 'w'))
 "
 # R40-5: Goal mode 下 permission-gate 应降级
 run_case "R40 goal mode: permission-gate rm -rf 降级放行" \
@@ -220,7 +220,7 @@ run_case "R40 legacy unattended-mode.json: permission-gate 降级放行" \
   "permission-gate.sh" 2 "破坏性|强制终端|Token"
 
 # 测试完成后清理模式文件 + 恢复真实上下文读取
-rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active
+rm -f .omc/state/ghost-mode.json .omc/state/tokens/ghost-mode.active .omc/state/unattended-mode.json .omc/state/tokens/lx-ghost.json .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active
 unset CONTEXT_FORCE_HEURISTIC
 
 # --- privacy-gate (R13 + R15 + R16) ---
@@ -1087,7 +1087,7 @@ fi
 # ========================================
 
 # 清理可能残留的模式文件
-rm -f .omc/state/ghost-mode.json .omc/state/ghost-mode.active .omc/state/unattended-mode.json .omc/state/lx-ghost.json .omc/state/lx-goal.json .omc/state/autonomous.active .omc/state/permission-required .omc/state/permission-approved .omc/state/approved-ops.json
+rm -f .omc/state/ghost-mode.json .omc/state/tokens/ghost-mode.active .omc/state/unattended-mode.json .omc/state/tokens/lx-ghost.json .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active .omc/state/permission-required .omc/state/permission-approved .omc/state/approved-ops.json
 
 # ========================================
 # ED-R: Error-DNA Escape Detection Tests
@@ -1276,7 +1276,7 @@ log "========== E2E-4: 格式化门禁 -- TaskUpdate 无结构输出应收到格
 # Mode suppression: 临时重命名 autonomous 信号文件，使 format-gate 正常执行
 # (goal/ghost mode 下 format-gate 会直接 exit 0，跳过格式检查)
 E2E4_MODE_FILES=()
-for _f in .omc/state/autonomous.active .omc/state/lx-goal.json .omc/state/lx-ghost.json .omc/state/ghost-mode.active; do
+for _f in .omc/state/tokens/autonomous.active .omc/state/tokens/lx-goal.json .omc/state/tokens/lx-ghost.json .omc/state/tokens/ghost-mode.active; do
     [ -f "$_f" ] && E2E4_MODE_FILES+=("$_f") && mv "$_f" "${_f}.smoke-bak" 2>/dev/null
 done
 
@@ -1605,7 +1605,7 @@ if [ -f .omc/state/context-cache.md ] && [ -s .omc/state/context-cache.md ]; the
 
 # --- session-resume ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] session-resume: 静默放行"
-rm -f .omc/state/lx-goal.json .omc/state/autonomous.active
+rm -f .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active
 S_OUT=$(echo '{"hook_event_name":"SessionStart"}' | bash .claude/hooks/session-resume.sh 2>/dev/null)
 if echo "$S_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "session-resume: 放行"; else pass "session-resume: 无崩溃"; fi
@@ -1805,7 +1805,7 @@ fi
 	# DG-49 (final restore): 从备份恢复 goal/ghost 模式信号文件
 	if [ -d "$_MODE_BACKUP_DIR" ] 2>/dev/null; then
 	    for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
-	        [ -f "$_MODE_BACKUP_DIR/$_mf" ] && cp "$_MODE_BACKUP_DIR/$_mf" ".omc/state/$_mf"
+	        [ -f "$_MODE_BACKUP_DIR/$_mf" ] && cp "$_MODE_BACKUP_DIR/$_mf" ".omc/state/tokens/$_mf"
 	    done
 	    rm -rf "$_MODE_BACKUP_DIR" 2>/dev/null
 	fi
@@ -1873,7 +1873,7 @@ TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: .git 目录"
 log "=== 信号文件 ==="
 TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: 无残留自主模式信号"
 _HAS_MODE=0
-for _mf in .omc/state/lx-goal.json .omc/state/lx-ghost.json .omc/state/autonomous.active; do
+for _mf in .omc/state/tokens/lx-goal.json .omc/state/tokens/lx-ghost.json .omc/state/tokens/autonomous.active; do
     [ -f "$_mf" ] && { _HAS_MODE=1; log "  ⚠️ $_mf 存在"; }
 done
 [ "$_HAS_MODE" -eq 0 ] && pass "跨平台: 无残留信号文件"

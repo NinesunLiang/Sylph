@@ -112,7 +112,7 @@ fi
 
 # 检测是否 ghost/goal 模式（已生成退出报告则跳过）
 _IS_AUTONOMOUS=false
-[ -f "$STATE_DIR/autonomous.active" ] || [ -f "$STATE_DIR/lx-ghost.json" ] || [ -f "$STATE_DIR/lx-goal.json" ] && _IS_AUTONOMOUS=true
+[ -f "$STATE_DIR/tokens/autonomous.active" ] || [ -f "$STATE_DIR/tokens/lx-ghost.json" ] || [ -f "$STATE_DIR/tokens/lx-goal.json" ] && _IS_AUTONOMOUS=true
 
 # 写结构化 Session Exit Report（3 节，覆盖式 — 始终最新状态）
 cat > "$HANDOFF_FILE" <<EOF

@@ -161,7 +161,7 @@ score_UX5() {
   fi
 
   # 运行时验证 (1分): autonomous.active 存在 + subagent-usage 有实际调用
-  if [ -f "$STATE_DIR/autonomous.active" ]; then
+  if [ -f "$STATE_DIR/tokens/autonomous.active" ]; then
     if has_runtime_data "$STATE_DIR/subagent-usage.jsonl"; then
       local agent_calls
       agent_calls=$(wc -l < "$STATE_DIR/subagent-usage.jsonl" 2>/dev/null | tr -d ' ')

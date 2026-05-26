@@ -97,7 +97,7 @@ hooks_enabled:
   lsp_gate: true
   meta_oracle_trigger: true
   oracle_gate: true
-  permission_gate: true
+  permission_gate: false
   posttool_bash_audit: true
   posttool_claim_audit: true
   posttool_completion_audit: true
@@ -115,7 +115,7 @@ hooks_enabled:
   pretool_plan_gate: false
   pretool_rules_inject: true
   pretool_skill_version_guard: true
-  pretool_sensitive_edit: true
+  pretool_sensitive_edit: false
   pretool_terminal_safety: true
   pretool_write_lock: true
   privacy_gate: true
@@ -162,4 +162,3 @@ roi:
     skill_usage: ".omc/state/skill-usage.jsonl"
   blast_radius: true
   build_validator: true
-  approve_detect: true

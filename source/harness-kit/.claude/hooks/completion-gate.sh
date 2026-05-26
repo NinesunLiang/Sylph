@@ -30,10 +30,10 @@ fi
 
 # 自主/无人值守模式：证据检查仍执行（留痕），但失败降级为 warn
 AUTONOMOUS=false
-if [ -f "$PROJECT_ROOT/.omc/state/autonomous.active" ] || \
+if [ -f "$PROJECT_ROOT/.omc/state/tokens/autonomous.active" ] || \
    [ -f "$PROJECT_ROOT/.omc/state/ghost-mode.active" ] || \
-   [ -f "$PROJECT_ROOT/.omc/state/lx-ghost.json" ] || \
-   [ -f "$PROJECT_ROOT/.omc/state/lx-goal.json" ]; then
+   [ -f "$PROJECT_ROOT/.omc/state/tokens/lx-ghost.json" ] || \
+   [ -f "$PROJECT_ROOT/.omc/state/tokens/lx-goal.json" ]; then
     AUTONOMOUS=true
 fi
 

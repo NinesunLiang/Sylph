@@ -11,6 +11,17 @@ if [ -z "${_HC_PROJECT_ROOT:-}" ]; then
     _HC_CACHE_LOADED=""
 fi
 
+# ─── hc_init — 标准路径变量初始化（替代各 hook 内联的 SCRIPT_DIR/PROJECT_ROOT/STATE_DIR）───
+# 用法: source harness_config.sh && hc_init
+# 效果: 导出 SCRIPT_DIR, PROJECT_ROOT, STATE_DIR + 自动 mkdir -p STATE_DIR
+hc_init() {
+    local _caller="${BASH_SOURCE[1]:-$0}"
+    export SCRIPT_DIR="$(cd "$(dirname "$_caller")" && pwd)"
+    export PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+    export STATE_DIR="$PROJECT_ROOT/.omc/state"
+    mkdir -p "$STATE_DIR" 2>/dev/null
+}
+
 # ─── Cross-platform Python binary resolution (DG-105, DG-106) ───
 # Runs once at source time; all hooks sourcing this file inherit $PYTHON_BIN.
 # Priority: python3 > python (Windows) > common install paths.

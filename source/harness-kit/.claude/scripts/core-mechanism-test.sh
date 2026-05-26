@@ -56,7 +56,7 @@ _t "铁律#8 哲学先行" "[1-9]" "$(grep -c '哲学先行' .claude/reference/p
 echo ""; echo "=== 4. 全自动化 (goal/ghost) ==="
 _t "lx-goal skill exists" "true" "$([ -d .claude/skills/lx-goal ] && echo true)"
 _t "lx-ghost skill exists" "true" "$([ -d .claude/skills/lx-ghost ] && echo true)"
-_t "lx-goal.sh activation" "[1-9]" "$(grep -c 'autonomous.active\|lx-goal.json' .claude/skills/lx-goal/scripts/lx-goal.sh 2>/dev/null)"
+_t "lx-goal.sh activation" "[1-9]" "$(grep -c 'tokens/lx-goal.json\|tokens/autonomous.active' .claude/skills/lx-goal/scripts/lx-goal.sh 2>/dev/null)"
 _t "hard boundary protocol" "[1-9]" "$(grep -c '硬边界\|hard.boundary' .claude/skills/lx-goal/SKILL.md 2>/dev/null)"
 _t "autonomous decision chain loaded" "[1-9]" "$(wc -c < .claude/reference/autonomous-decision-chain.md 2>/dev/null | tr -d ' ')"
 _t "goal mode gate degradation" "[1-9]" "$(grep -c 'is_mode_active\|autonomous' .claude/hooks/permission-gate.sh 2>/dev/null)"

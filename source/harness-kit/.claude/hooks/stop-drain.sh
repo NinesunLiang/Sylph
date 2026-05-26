@@ -25,8 +25,8 @@ STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR" 2>/dev/null
 
 # B1: Ghost mode detection + flywheel P0 events (Stop hook兜底：检测幽灵模式异常退出)
-_ghost_json="$STATE_DIR/lx-ghost.json"
-_ghost_auto="$STATE_DIR/autonomous.active"
+_ghost_json="$STATE_DIR/tokens/lx-ghost.json"
+_ghost_auto="$STATE_DIR/tokens/autonomous.active"
 _exit_report="$STATE_DIR/ghost-exit-report.md"
 _pending="$STATE_DIR/ghost-exit-pending"
 _ghost_mode=false

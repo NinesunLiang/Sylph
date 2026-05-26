@@ -826,7 +826,7 @@ def score_UX5():
             config_ok = 1
 
     runtime_ok = 0
-    auto_active = os.path.join(STATE_DIR, "autonomous.active")
+    auto_active = os.path.join(STATE_DIR, "tokens", "autonomous.active")
     if os.path.isfile(auto_active):
         su_path = os.path.join(STATE_DIR, "subagent-usage.jsonl")
         if _has_content(su_path) and _read_lines(su_path) >= 1:

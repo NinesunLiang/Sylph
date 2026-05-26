@@ -18,7 +18,7 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 # source harness_config for hc_get defaults
 source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 
-MODE_FILE="$STATE_DIR/lx-ghost.json"
+MODE_FILE="$STATE_DIR/tokens/lx-ghost.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作方向描述自动激活
 _KNOWN_SUBCOMMANDS="on|off|status|set|poll|report|skip-risk|hard-boundary-hit|retry"
@@ -51,14 +51,14 @@ case "${1:-status}" in
 JSON
         mv -f "$tmp" "$MODE_FILE" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
-        touch "$STATE_DIR/autonomous.active"
+        touch "$STATE_DIR/tokens/autonomous.active"
         # B3: flywheel telemetry
         mkdir -p "$HOME/.claude" 2>/dev/null
         echo "$(date +%Y-%m-%d),ghost_activated,P2,$(basename "$PROJECT_ROOT" 2>/dev/null || echo unknown)" >> "$HOME/.claude/flywheel-buffer.jsonl"
         # B5: sticky marker for crash detection
         date -u +%Y-%m-%dT%H:%M:%SZ > "$STATE_DIR/ghost-session-active-at"
         # 清理旧格式文件
-        rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
+        rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/tokens/ghost-mode.active" 2>/dev/null
         echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
         echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
         echo "   调用 /loop ${INTERVAL}s lx-ghost poll 驱动探索轮次"
@@ -134,8 +134,8 @@ JSON
             rm -f "$MODE_FILE"
         fi
         # 清理旧格式文件
-        rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/ghost-mode.active" 2>/dev/null
-        rm -f "$STATE_DIR/autonomous.active" "$STATE_DIR/ghost-session-active-at" 2>/dev/null
+        rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/tokens/ghost-mode.active" 2>/dev/null
+        rm -f "$STATE_DIR/tokens/autonomous.active" "$STATE_DIR/ghost-session-active-at" 2>/dev/null
         echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
         if [ -f "$EXIT_REPORT" ]; then
             echo "   退出报告: $EXIT_REPORT"
@@ -168,7 +168,7 @@ JSON
         else
             echo "📋 幽灵模式 (lx-ghost): ⚪ 已关闭"
         fi
-        if [ -f "$STATE_DIR/autonomous.active" ]; then
+        if [ -f "$STATE_DIR/tokens/autonomous.active" ]; then
             echo "   autonomous.active 信号: ✅ 存在"
         fi
         ;;
@@ -220,7 +220,7 @@ except: print('no')" 2>/dev/null)
                 # B3: flywheel telemetry (expired, not forced)
                 mkdir -p "$HOME/.claude" 2>/dev/null
                 echo "$(date +%Y-%m-%d),ghost_expired_no_report,P1,$(basename "$PROJECT_ROOT" 2>/dev/null || echo unknown)" >> "$HOME/.claude/flywheel-buffer.jsonl"
-                rm -f "$MODE_FILE" "$STATE_DIR/autonomous.active" 2>/dev/null
+                rm -f "$MODE_FILE" "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
                 exit 0
             fi
         fi

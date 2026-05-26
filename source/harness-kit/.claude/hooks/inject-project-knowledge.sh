@@ -721,7 +721,7 @@ fi
 # ghost-session-active-at 在 lx-ghost on 时创建，off 时清理。
 # 如果标记存在但 lx-ghost.json 不存在 → 会话异常中断（崩溃/强杀）
 GHOST_STICKY="$STATE_DIR/ghost-session-active-at"
-if [ -f "$GHOST_STICKY" ] && [ ! -f "$STATE_DIR/lx-ghost.json" ] && [ ! -f "$STATE_DIR/ghost-exit-report.md" ] && [ ! -f "$GHOST_EXIT_PENDING" ]; then
+if [ -f "$GHOST_STICKY" ] && [ ! -f "$STATE_DIR/tokens/lx-ghost.json" ] && [ ! -f "$STATE_DIR/ghost-exit-report.md" ] && [ ! -f "$GHOST_EXIT_PENDING" ]; then
     echo ""
     echo "⚠️ [Ghost 会话异常中断] 上次幽灵模式会话异常结束（会话中断或进程崩溃），未生成退出报告。"
     echo "   请检查探索状态，确认是否需要补交报告。"

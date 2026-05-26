@@ -162,4 +162,3 @@ roi:
     skill_usage: ".omc/state/skill-usage.jsonl"
   blast_radius: true
   build_validator: true
-  approve_detect: true

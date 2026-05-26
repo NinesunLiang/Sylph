@@ -68,7 +68,7 @@ fi
 # Goal 模式: 必须通过 phase0-done 验证 (检查 lx-goal.json 而非 state.json)
 # 哲学 #6 (0信任): state.json 是 AI 可写的，不可信。lx-goal.json 的 phase0_passed_at 只有 phase0-done 写入
 if [ "$MODE" = "goal" ]; then
-    GOAL_FILE="$STATE_DIR/lx-goal.json"
+    GOAL_FILE="$STATE_DIR/tokens/lx-goal.json"
     if [ -f "$GOAL_FILE" ]; then
         PHASE0_PASSED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GOAL_FILE', encoding="utf-8")); print(d.get('phase0_passed_at',''))" 2>/dev/null || echo "")
         if [ -n "$PHASE0_PASSED" ]; then

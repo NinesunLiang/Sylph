@@ -31,7 +31,8 @@ print(text, end="")
 '
 }
 
-MODE_FILE="$STATE_DIR/lx-goal.json"
+mkdir -p "$STATE_DIR/tokens" 2>/dev/null
+MODE_FILE="$STATE_DIR/tokens/lx-goal.json"
 
 # 智能参数检测：第一个参数不是已知子命令 → 当作目标描述自动激活
 _KNOWN_SUBCOMMANDS="on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry|phase0-done"
@@ -78,7 +79,7 @@ PYEOF
         # 清理旧格式
         rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
         # 创建 autonomous.active 信号供 completion-gate 等降级
-        touch "$STATE_DIR/autonomous.active"
+        touch "$STATE_DIR/tokens/autonomous.active"
 DATE=$(date +%Y-%m-%d)
 SLUG=$(echo "$GOAL" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
 [ -z "$SLUG" ] && SLUG="goal-$(date +%H%M%S)"
@@ -162,7 +163,7 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
 		fi
 		# 清理旧格式
 		rm -f "$STATE_DIR/unattended-mode.json" "$STATE_DIR/.unattended-mode" 2>/dev/null
-		rm -f "$STATE_DIR/autonomous.active" 2>/dev/null
+		rm -f "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
 		echo "✅ 目标模式已关闭，所有 hook 恢复正常阻断"
 		;;
     status)
@@ -456,7 +457,7 @@ except: print('no')" 2>/dev/null)
                     echo "   生成过期报告..."
                     bash "$0" report 2>/dev/null
                 fi
-                rm -f "$POLL_FILE" "$STATE_DIR/autonomous.active" 2>/dev/null
+                rm -f "$POLL_FILE" "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
                 exit 0
             fi
         fi
