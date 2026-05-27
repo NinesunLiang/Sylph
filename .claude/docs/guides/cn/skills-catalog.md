@@ -169,3 +169,6 @@ OMA 管线流 →
 `autopilot` `ultrawork` `ralph` `team` `ccg` `ralplan` `deep-interview` `ai-slop-cleaner` `omc-setup` `omc-doctor` `omc-plan` 等
 
 完整列表见 `/omc-reference`。
+
+## lx-purify — 思想纯度审计
+三 Pass 审计（哲学→铁律→现状）+ 双法官审核。runtime hook: pretool-purify-gate.sh。
