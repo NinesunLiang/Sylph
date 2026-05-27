@@ -517,3 +517,19 @@ evidence: pretool-oracle-gate.sh false->true; session interruptions went from 10
 trigger: posttool-checkpoint output hookSpecificOutput on Stop event caused schema validation failure
 fix: Stop schema only has continue/suppressOutput/stopReason/systemMessage. Human-visible goes to stderr. AI context uses PostToolUse additionalContext.
 evidence: checkpoint now outputs stderr+continue:true on Stop, additionalContext on PostToolUse; error eliminated
+
+### [DG-129] install.sh merge must deep-preserve client hooks per event
+
+@2026-05-27 hits:1
+trigger: v6.3.3 upgrade overwrote v6.2.38 client-registered hooks
+root: install.sh merge only compared top-level event keys, not matcher hooks within events
+fix: deep merge per event matcher hook, append client-only hooks, never delete
+evidence: install.sh:618-622 replaced; fe_react_anka audit
+
+### [DG-130] 5-phase Structured Execution Protocol
+
+@2026-05-27 hits:1
+trigger: repeated cycle of research plan dual-review execute dual-review acceptance
+protocol: P1 research P2 plan review P3 autonomous execution P4 result review P5 acceptance report
+human: Phase 1/2/5. AI autonomous: Phase 3-4 (no pause, no ask, no interrupt)
+evidence: .claude/reference/structured-execution-protocol.md
