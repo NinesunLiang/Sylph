@@ -1,4 +1,4 @@
-harness_version: 6.3.8
+harness_version: 6.3.22
 workflow:
   doc_root: rpe
   executor_doc: executor.md
