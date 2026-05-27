@@ -246,6 +246,15 @@ function getKnowledgeInjection(): string {
     ["anti-patterns.md", "summary"], ["claude-next.md", "summary"],
   ];
   let injected = "";
+
+  // Dehydrated session context (14.7x compression) — loaded first, matching AGENTS.md @ reference
+  const cachePath = join(STATE_DIR, "context-cache.md");
+  if (existsSync(cachePath)) {
+    try {
+      injected += `\n[.omc/state/context-cache.md · 脱水上下文 · ${(readFileSync(cachePath, \"utf-8\").length / 1024).toFixed(1)}KB]\n${readFileSync(cachePath, \"utf-8\")}\n`;
+    } catch {}
+  }
+
   for (const [name, mode] of files) {
     const fp = join(claudeDir, name);
     if (!existsSync(fp)) continue;

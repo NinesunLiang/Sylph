@@ -472,3 +472,45 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 **问题**：（待本对话补充具体纠正内容）
 **纠正**：（AI 完成任务前应引用此记录并补充根因分析）
 
+
+### 🐶 [DG-123] oracle-gate 触发后 AI 应自动 spawn Oracle+Meta-Oracle 双审 (@LuangSir)
+
+@2026-05-27 hits:1
+触发条件：AI 编辑治理文件被 oracle-gate 阻断（continue:false + CAPTCHA bypass token），AI 看到 blocked 就停住，不自动走双审
+正确行为：自主模式下不等待人类输入 CAPTCHA 绕过命令，自动 spawn Agent(critic) 走 Oracle+Meta-Oracle 双审 → ACCEPT 裁决自动满足 24h 检查 → 重试编辑。CAPTCHA 绕过仅用于有人值守模式
+证据：autonomous-decision-chain.md Situation Matrix + Forbidden 新增条目; pretool-oracle-gate.sh 阻断消息新增自主模式路径; 本次会话"为什么就停止了"事件
+
+### 🐶 [DG-124] JSON 协议 hook (continue:false) 的烟雾测试必须解析 JSON 而非检查 exit code (@LuangSir)
+
+@2026-05-27 hits:1
+触发条件：烟雾测试对 oracle-gate 等使用 hc_emit_hook_json continue:false 的 hook 用 $? -eq 2 检测阻断，但这类 hook exit=0 且通过 JSON 协议通信
+正确行为：同时检查 exit=2（传统 exit code 协议）和 JSON continue=false（JSON 协议）。使用 python3 -c "json.load(sys.stdin).get('continue')==False" 双协议兼容
+证据：harness-smoke-test.sh 场景B 从 [ $? -eq 2 ] 改为双协议检测; 206/206 全绿
+
+### 🐶 [DG-125] harness.yaml 关闭 gate 时必须同步更新 feature-registry 和烟雾测试 (@LuangSir)
+
+@2026-05-27 hits:1
+触发条件：v6.3.1 原子化重构设置 permission_gate: false / pretool_sensitive_edit: false 但 feature-registry 仍声明 enabled_by_default: true，烟雾测试仍期望 exit=2 → 11 个假失败
+正确行为：关闭 gate 的三步同步：① harness.yaml 设置 false → ② feature-registry 同步 enabled_by_default: false → ③ 烟雾测试用 check_gate_enabled 守卫，禁用时 SKIP 而非 FAIL。三步缺一不可
+证据：feature-registry.yaml:7 + :194; harness-smoke-test.sh check_gate_enabled/skip_test 守卫; 11失败→0失败
+
+### 🐶 [DG-126] Gate 阻断后 AI 必须向人类说明原因+选项，不可静默跳过 (@LuangSir)
+
+@2026-05-27 hits:1
+触发条件：oracle-gate/permission-gate 等阻断 Edit/Write/Bash 时，hook 的阻断消息在 stderr/JSON 中，人类不可见。AI 看到"stopped continuation"后静默继续，人类完全不知道发生了什么、该做什么
+正确行为：gate 阻断后 AI 必须立即向人类报告：① 哪个 gate 阻断了什么操作 ② 阻断原因 ③ 下一步选项（绕过 token / 自动双审 / 跳过此变更）。禁止静默跳过或仅内部处理
+证据：本次会话中 oracle-gate 多次阻断但人类困惑"为什么就停止了"；哲学#5(以人为本)要求心智负担最小化
+
+### [DG-127] continue:false only for end and ask-user
+
+@2026-05-27 hits:1
+trigger: oracle-gate continue:false interrupted tool chain on every governance edit
+fix: continue:false only for completion-gate and safety gates (permission/privacy/blast-radius). All others use continue:true + additionalContext warning. AI handles warnings per protocol without interrupting human.
+evidence: pretool-oracle-gate.sh false->true; session interruptions went from 10+ to 0
+
+### [DG-128] Stop event has no additionalContext
+
+@2026-05-27 hits:1
+trigger: posttool-checkpoint output hookSpecificOutput on Stop event caused schema validation failure
+fix: Stop schema only has continue/suppressOutput/stopReason/systemMessage. Human-visible goes to stderr. AI context uses PostToolUse additionalContext.
+evidence: checkpoint now outputs stderr+continue:true on Stop, additionalContext on PostToolUse; error eliminated

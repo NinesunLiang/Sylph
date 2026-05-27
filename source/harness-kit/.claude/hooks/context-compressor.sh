@@ -15,6 +15,45 @@ CACHE="$STATE_DIR/context-cache.md"
 
 mkdir -p "$STATE_DIR"
 
+# Bootstrap: 首次安装时 context-cache.md 不存在 → 生成最小脱水上下文
+# 确保 AGENTS.md/CLAUDE.md 中的 @.omc/state/context-cache.md 引用不落空
+if [ ! -f "$CACHE" ]; then
+    cat > "$CACHE" <<'BOOTSTRAP'
+<!-- CONTEXT-COMPRESSOR: bootstrap 自动生成 -->
+<!-- 首次安装，完整脱水上下文将在首次 SessionStart 后由 context-compressor.sh 生成 -->
+
+铁律:
+1.禁止编造:断言必有file:line/命令输出,找不到→BLOCKED
+2.用户裁定:验收/选型/冲突由Boss决定,AI不可自判
+3.证据门禁:无VERIFIED证据禁止说"已完成/已验证"
+4.Git门禁:编译→功能→报告→Boss批准→提交,跳步=回滚
+5.范围冻结:一次一个Step,非核心只写TODO,越界撤销
+6.隐私防线:禁读.env/私钥,禁Bash敲明文Token
+7.断言真实:百分比/评分须有来源URL/file:line,无来源标注[内部自检]
+8.哲学先行:问人前先过哲学7条,哲学能裁决→[哲学先行:#N→action]直接执行
+
+#8细则:过程性问题直接执行/抉择性问题哲学裁决
+禁止问:"跑X?"→[#4→执行] "A还是B?"→[#2→选A]
+哲学优先级:#4(验证)>#6(0信任)>#3(守护)>#7(文档)>#5(人)>#2(增益)>#1(less)
+
+软完成语禁令→必须VERIFIED:
+应该没问题/基本完成/理论上/看起来正常/差不多了/之前验证过
+should be fine/basically done/mostly complete/seems to work
+
+操作约束:
+-编辑:Read-before-Edit|current-scope越界→BLOCKED
+-Bash:git commit/push|rm -rf|sudo→BLOCKED
+-完成:VERIFIED|evidence≥60|fresh≤300s
+-隐私:.env|Token|密钥→BLOCKED
+
+权威:Boss指令>项目宪法>PRD>Skill>设计文档>代码
+
+---
+<!-- 反模式/教训/架构铁律 将在首次完整生成后注入 -->
+BOOTSTRAP
+    echo "[context-compressor] bootstrap: 最小脱水上下文已生成 ($CACHE)"
+fi
+
 # 跨平台 mtime 提取: macOS (stat -f%m) / Linux (stat -c%Y)
 _stat_mtime() { stat -f%m "$1" 2>/dev/null || stat -c%Y "$1" 2>/dev/null || echo 0; }
 

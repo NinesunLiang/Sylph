@@ -24,8 +24,8 @@ if echo "$COMMAND" | grep -qE 'git checkout (HEAD )?(-- )?\.(\s|;|$|\||&)'; then
     echo "[blast-radius]    DG-100: 本操作曾在 2026-05-22 导致 71 文件静默退化。" >&2
     echo "[blast-radius]    正确做法: git checkout HEAD -- path/to/specific/file" >&2
     flywheel_event "blast_radius" "blocked_checkout_dot" "P0" "cmd=$(echo "$COMMAND" | cut -c1-80)" || true
-    echo '{"continue": false, "reason": "git checkout . 全量回退已被 blast-radius 硬阻断 (DG-100)。请改用选择性路径恢复。"}'
-    exit 0
+    echo '{"continue": true, "reason": "git checkout . 全量回退已被 blast-radius 硬阻断 (DG-100)。请改用选择性路径恢复。"}'
+    exit 2
 fi
 
 # 1b: git reset --hard (全量回退变体 — Oracle 发现)
@@ -33,8 +33,8 @@ if echo "$COMMAND" | grep -qE 'git reset --hard(\s|;|$|\||&)'; then
     echo "[blast-radius] 🔴 硬阻断: 'git reset --hard' 会丢弃所有未提交修改。" >&2
     echo "[blast-radius]    DG-100: 此操作等同于 'git checkout .' 的全量回退效果。" >&2
     flywheel_event "blast_radius" "blocked_reset_hard" "P0" "cmd=$(echo "$COMMAND" | cut -c1-80)" || true
-    echo '{"continue": false, "reason": "git reset --hard 全量回退已被 blast-radius 硬阻断 (DG-100)。"}'
-    exit 0
+    echo '{"continue": true, "reason": "git reset --hard 全量回退已被 blast-radius 硬阻断 (DG-100)。"}'
+    exit 2
 fi
 
 WARN=""

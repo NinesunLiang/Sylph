@@ -48,8 +48,8 @@ if [ -n "$HV_LINE" ]; then
             echo "❌ [version-guard] $FILE_PATH: harness_version=\"$HV_VALUE\" 是硬编码版本号" >&2
             echo "   规则: SKILL.md 必须使用 >= 格式（如 \">=6.3.0\"），不能写具体版本号" >&2
             echo "   原因: 版本号唯一真相源是 VERSION.json，SKILL.md 只声明最低兼容版本" >&2
-            echo '{"continue": false, "reason": "harness_version must use >= format (e.g. \">=6.3.0\"), not hardcoded version. See VERSION.json for current version."}'
-            exit 0
+            echo '{"continue": true, "reason": "harness_version must use >= format (e.g. \">=6.3.0\"), not hardcoded version. See VERSION.json for current version."}'
+            exit 2
         fi
     fi
 fi

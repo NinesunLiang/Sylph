@@ -42,8 +42,8 @@ if [ ! -f "$EVIDENCE_FILE" ]; then
     flywheel_event "pre_completion_gate" "no_evidence" "P2" || true
     agentic_menu \
         "前置完成门禁" \
-        "调用 TaskUpdate(completed) 但无证据文件" \
-        "取消操作" "不执行任何操作"
+        "调用 TaskUpdate(completed) 但无 VERIFIED 证据。需要: 运行验证命令并截图输出 / 标注 [VERIFIED: file:line] 或 [已测试: cmd+output] / 证据 ≥60 chars 且 ≤300s 新鲜度" \
+        "取消操作" "补充证据后重试"
     exit 0
     fi
 

@@ -68,7 +68,7 @@ for p in patterns:
             "Privacy Gate 触发" \
             "检测到在命令中包含明文 API Key 或 Token！这是严重的数据泄露风险。" \
             "请使用 /lx-varlock 脱敏代理安全执行，绝不能让明文凭据泄漏到 AI 上下文中。"
-        printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Hook-Skill桥] privacy-gate → /lx-varlock: 命令中包含 API Key 明文，已被拦截。请用 /lx-varlock 脱敏代理安全执行此命令。"}}\n'
+        printf '{"continue":false,"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"[Hook-Skill桥] privacy-gate → /lx-varlock: 命令中包含 API Key 明文，已被拦截。请用 /lx-varlock 脱敏代理安全执行此命令。"}}\n'
         exit 2
     fi
 fi

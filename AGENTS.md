@@ -1,3 +1,5 @@
+@.omc/state/context-cache.md
+
 # Carror OS — 元项目治理
 
 > **Carror OS = AI Native Developer Operating System**
@@ -19,7 +21,6 @@
 
 ---
 
-<!-- pretool:l3-start -->
 ## 项目架构
 
 本仓库有以下工作区：
@@ -312,7 +313,6 @@ A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
 
 ---
 
-<!-- pretool:l3-end -->
 ## 元项目开发规则
 
 ### AGENTS.md 修改协议
@@ -540,7 +540,6 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 >
 > ⚡ **主动提示**：当收到复杂任务（≥3 步或含架构决策）且检测到 Enhanced 未激活（如 `.claude/skills/lx-task-spec/` 不存在），AI 应主动告知用户可运行 `bash install.sh enhanced` 解锁完整任务流水线。不要替用户决定，但必须让用户知道选项存在。
 
-<!-- pretool:l1-start -->
 ## Carror OS 哲学核心
 
 > Carror OS 的所有机制（gate/hook/验证/节点/仲裁）都是以下 7 条哲学的物化。
@@ -672,7 +671,6 @@ cat .claude/profiles/enhanced/append-to-claude.md >> CLAUDE.md
 - 涉及第三方授权（需要其他系统或人员权限）
 - 涉及法律/合规/政策领域
 
-<!-- pretool:l1-end -->
 ## 9. 智力代理交互原则
 
 > **最高交互原则**，覆盖所有 AI 输出。确认方向感永远在告知结果之上。
@@ -881,7 +879,6 @@ t
 3. 向用户报告就绪状态
 ```
 
-<!-- pretool:l2-start -->
 ## 工作流原则
 
 ### 1. 难度分级与流程映射
@@ -1125,7 +1122,6 @@ predictions_failed: N
 
 ---
 
-<!-- pretool:l2-end -->
 ## 防御性规则（从 harness-kit 合并）
 
 ### 证据层级与置信度

@@ -101,6 +101,7 @@ hooks_enabled:
   posttool_bash_audit: true
   posttool_claim_audit: true
   posttool_completion_audit: true
+  posttool_checkpoint: true
   posttool_edit_quality: true
   posttool_handoff_writer: true
   posttool_output_format: true

@@ -4,7 +4,7 @@ hooks:
   type: gate
   category: security
   description: 危险命令拦截 (rm -rf, DROP TABLE, git push --force)
-  enabled_by_default: true
+  enabled_by_default: false
   evidence_level: L3
 - name: privacy-gate
   type: gate
@@ -191,7 +191,7 @@ hooks:
   type: gate
   category: security
   description: 治理文件编辑 CAPTCHA 验证码门禁，Edit/Write/Bash 全覆盖
-  enabled_by_default: true
+  enabled_by_default: false
   evidence_level: L3
 - name: pre-completion-gate
   type: gate

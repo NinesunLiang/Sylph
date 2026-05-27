@@ -24,7 +24,7 @@ fi
 # 命令提取失败 → fail-closed: 不确定时阻断，不允许静默放行
 if [ -z "$COMMAND" ]; then
     echo "⛔ [Permission Gate] 无法解析命令文本 — 安全门禁默认阻断。请在终端手动执行或确认命令。" >&2
-    printf '{"continue":false,"hookSpecificOutput":{"additionalContext":"[Permission Gate] 命令提取失败，安全门禁默认阻断。请人类在终端手动执行此命令，或明确确认放行。"}}\n'
+    printf '{"continue":false,"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":"[Permission Gate] 命令提取失败，安全门禁默认阻断。请人类在终端手动执行此命令，或明确确认放行。"}}\n'
     exit 2
 fi
 

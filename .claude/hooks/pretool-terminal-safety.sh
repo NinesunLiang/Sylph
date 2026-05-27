@@ -48,7 +48,7 @@ if echo "$CMD" | grep -qE '${PYTHON_BIN:-python3} -c|python -c' && [ ${#CMD} -gt
     echo "" >&2
     echo "   然后输出: bash ${SCRIPT_NAME}" >&2
     flywheel_event "pretool_terminal_safety" "blocked_long_command" "P1" "len=${#CMD}" || true
-    echo '{"continue": false, "hookSpecificOutput": {"additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，终端截断风险。请用 Write 创建 scripts/task-xxx.sh，然后让用户 bash scripts/task-xxx.sh 执行。"}}'
+    echo '{"continue": true, "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，终端截断风险。请用 Write 创建 scripts/task-xxx.sh，然后让用户 bash scripts/task-xxx.sh 执行。"}}'
     exit 2
 fi
 
@@ -58,7 +58,7 @@ if [ ${#CMD} -gt 200 ]; then
     echo "🛑 [terminal-safety·Rule6] 命令超过200字符 (${#CMD}字符) — 不可复制执行" >&2
     echo "   AI 必须用 Write 创建: ${SCRIPT_NAME}" >&2
     flywheel_event "pretool_terminal_safety" "blocked_long_command" "P1" "len=${#CMD}" || true
-    echo '{"continue": false, "hookSpecificOutput": {"additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，请用 Write 创建脚本文件。"}}'
+    echo '{"continue": true, "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，请用 Write 创建脚本文件。"}}'
     exit 2
 fi
 

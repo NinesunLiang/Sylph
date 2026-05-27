@@ -120,7 +120,7 @@ if [ -x "$PYTHON_SCRIPT" ]; then
     if [ -n "$SWEET_WARNING" ]; then
         SWEET_JSON=$(echo "$SWEET_WARNING" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.dumps(json.dumps(sys.stdin.buffer.read().decode('utf-8','replace').strip())))" 2>/dev/null)
         SWEET_JSON="${SWEET_JSON:-\"\"}"
-        printf '{"continue":true,"hookSpecificOutput":{"additionalContext":%s}}\n' "$SWEET_JSON"
+        printf '{"continue":true,"hookSpecificOutput":{"hookEventName":"PreToolUse","additionalContext":%s}}\n' "$SWEET_JSON"
     fi
 fi
 
