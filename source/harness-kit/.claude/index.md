@@ -15,8 +15,9 @@
 | **跳过升级** | `bash install.sh --no-upgrade` | 仅安装新依赖，不覆盖现有配置 |
 | **卸载** | `bash install.sh --uninstall` | 移除 Carror OS（可选保留 .omc/ 状态数据） |
 | **回滚** | `bash .omc/backup-*/rollback.sh` | 恢复到升级前的版本 |
+| **发版** | `bash scripts/release-checklist.sh [版本号]` | 7 Phase 完整发版流程 (版本更新→冒烟→漂移→文档→构建→发布) |
 
-AI 引导原则：用户问"怎么更新/升级/卸载"→ 直接给出对应命令，不需要查找外部文档。
+AI 引导原则：用户说"发版/release/发布"→ 直接运行 `bash scripts/release-checklist.sh`。不指定版本号则自动升 patch。
 
 ---
 
