@@ -53,9 +53,9 @@ if echo "$CMD" | grep -qE '${PYTHON_BIN:-python3} -c|python -c' && [ ${#CMD} -gt
 fi
 
 # Rule 6b: any command >200 chars → HARD BLOCK (general safety net)
-if [ ${#CMD} -gt 200 ]; then
+if [ ${#CMD} -gt 500 ]; then
     SCRIPT_NAME="scripts/task-$(date +%Y%m%d-%H%M%S).sh"
-    echo "🛑 [terminal-safety·Rule6] 命令超过200字符 (${#CMD}字符) — 不可复制执行" >&2
+    echo "🛑 [terminal-safety·Rule6] 命令超过500字符 (${#CMD}字符) — 不可复制执行" >&2
     echo "   AI 必须用 Write 创建: ${SCRIPT_NAME}" >&2
     flywheel_event "pretool_terminal_safety" "blocked_long_command" "P1" "len=${#CMD}" || true
     echo '{"continue": true, "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，请用 Write 创建脚本文件。"}}'
