@@ -4,7 +4,7 @@
 set -eo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 cd "$PROJECT_DIR"
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
@@ -12,12 +12,25 @@ log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
 log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
-VERSION=$(python3 -c "import json; print(json.load(open('VERSION.json'))['version'])")
+VERSION=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('VERSION.json'))['version'])")
 TAG="v${VERSION}-stable"
 log_info "版本：$TAG"
 PKG_DIR="$PROJECT_DIR/packages"
 HARNESS_SRC="source/harness-kit"
 LX_SRC="source/lx-skills-v5"
+
+# ─── G0 Release Checklist（发版前必检清单）───
+log_step "G0 Release Checklist..."
+CHECKLIST="$PROJECT_DIR/scripts/release-checklist.sh"
+if [ -x "$CHECKLIST" ]; then
+    bash "$CHECKLIST"
+    if [ $? -ne 0 ]; then
+        log_warn "  ⚠️  Release Checklist 未通过。--force 可跳过。"
+        [ "${1:-}" != "--force" ] && [ "${2:-}" != "--force" ] && exit 1
+    fi
+else
+    log_warn "  ⚠️  release-checklist.sh 未找到，跳过"
+fi
 
 # ─── G4 Meta-Oracle Release 门禁（打包前最后守门）───
 log_step "G4 Meta-Oracle Release 门禁检查..."
@@ -65,7 +78,7 @@ if [ -x "$META_ORACLE_SCRIPT" ]; then
     # 3. VERSION.json 一致性
     if [ -f "$PROJECT_DIR/VERSION.json" ]; then
         log_info "[G4.3] VERSION.json 一致性..."
-        VER=$(python3 -c "import json; print(json.load(open('$PROJECT_DIR/VERSION.json'))['version'])" 2>/dev/null)
+        VER=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$PROJECT_DIR/VERSION.json'))['version'])" 2>/dev/null)
         if [ -n "$VER" ] && [ "$VER" = "$VERSION" ]; then
             log_info "  ✅ VERSION.json 一致 ($VER)"
         else
@@ -166,11 +179,12 @@ cp CLAUDE.md "$HARNESS_SRC/CLAUDE.md"
 rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
 rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
 rsync -a --delete .claude/reference/   "$HARNESS_SRC/.claude/reference/"
+rsync -a --delete .claude/docs/        "$HARNESS_SRC/.claude/docs/"
 # 清理历史遗留的 references/ 目录（已合并到 reference/）
 rm -rf "$HARNESS_SRC/.claude/references"
 cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"
 # 将开发机绝对路径替换为占位符，install.sh 安装时还原为实际项目路径
-sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
+sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json" 2>/dev/null || sed -i "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
 cp .claude/harness.yaml     "$HARNESS_SRC/.claude/harness.yaml"
 cp .claude/kernel.md        "$HARNESS_SRC/.claude/kernel.md"
 cp .claude/index.md         "$HARNESS_SRC/.claude/index.md"
@@ -216,7 +230,7 @@ log_info "  lx-skills 同步完成"
 # ─── Step 3: package harness-kit ───
 log_step "3/4 构建 harness-kit..."
 cd "$HARNESS_SRC"
-tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
+COPYFILE_DISABLE=1 tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
   --exclude=.omc --exclude=node_modules --exclude='*.pyc' \
   AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/
 cd "$PROJECT_DIR"
@@ -228,7 +242,7 @@ log_info "  harness-kit-${TAG}.tar.gz ($(du -h "$PKG_DIR/harness-kit-${TAG}.tar.
 # ─── Step 4: package lx-skills ───
 log_step "4/4 构建 lx-skills..."
 cd "$LX_SRC"
-tar czf "$PKG_DIR/lx-skills-${TAG}.tar.gz" \
+COPYFILE_DISABLE=1 tar czf "$PKG_DIR/lx-skills-${TAG}.tar.gz" \
   --exclude=.omc --exclude=__pycache__ --exclude='*.pyc' \
   .claude/
 cd "$PROJECT_DIR"
@@ -236,6 +250,36 @@ L_CONTAM=$(tar tzf "$PKG_DIR/lx-skills-${TAG}.tar.gz" \
   | grep -cE '\.claude/(hooks|scripts|references)/' || true)
 [ "$L_CONTAM" -gt 0 ] && log_warn "  ⚠️ lx-skills: $L_CONTAM 越界文件"
 log_info "  lx-skills-${TAG}.tar.gz ($(du -h "$PKG_DIR/lx-skills-${TAG}.tar.gz" | cut -f1))"
+
+# ─── sha256 完整性校验（防打包退化，DG-105）───
+log_step "sha256 完整性校验..."
+verify_package() {
+    local src_dir="$1" tar_file="$2"
+    local fail=0
+    while IFS= read -r f; do
+        [ -z "$f" ] && continue
+        [[ "$f" == */ ]] && continue
+        local tar_sha src_sha
+        tar_sha=$(tar -xzf "$tar_file" -O "$f" 2>/dev/null | shasum -a 256 | cut -d' ' -f1)
+        src_sha=$(shasum -a 256 "$src_dir/$f" 2>/dev/null | cut -d' ' -f1)
+        if [ "$tar_sha" != "$src_sha" ] || [ -z "$tar_sha" ]; then
+            log_warn "  ⚠️  $f: tar=$tar_sha vs src=$src_sha"
+            fail=1
+        fi
+    done < <(tar -tzf "$tar_file" 2>/dev/null)
+    return $fail
+}
+
+PKG_FAIL=0
+verify_package "source/harness-kit" "packages/harness-kit-${TAG}.tar.gz" || PKG_FAIL=1
+verify_package "source/lx-skills-v5" "packages/lx-skills-${TAG}.tar.gz" || PKG_FAIL=1
+
+if [ "$PKG_FAIL" -eq 1 ]; then
+    log_warn "sha256 校验失败！打包内容与源文件不一致。"
+    log_warn "建议重新执行 rsync 同步后重试。"
+    exit 1
+fi
+log_info "✅ sha256 全部一致"
 
 # ─── Step 5: 同步后三源验证 (DG-100) ───
 log_step "5/5 同步后三源验证..."
