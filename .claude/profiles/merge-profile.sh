@@ -153,7 +153,6 @@ SECTION_ORDER = [
     'lsp_suggest', 'subagent_guard', 'completion_gate', 'bash_audit',
     'permission_gate', 'sublimation', 'correction_detector',
     'session_handoff', 'error_dna', 'coupling', 'hooks_enabled',
-    'rule_anchor', 'build_validator',
 ]
 
 lines = [

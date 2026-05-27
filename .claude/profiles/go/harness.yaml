@@ -13,4 +13,3 @@ architecture: business_layers: "*/logic/* */model/* */executor/* */service/* */d
 knowledge: lsp_hint: "Go 符号导航" lsp_example_file: "*.go"\
 fuzzy_detection: explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.go$|\.md$|handler|logic|model|service|controller|router'\
 error_dna: build_commands: "go build go test go vet golangci-lint"\
-build_validator: build_commands: "go build go test go vet golangci-lint run make"

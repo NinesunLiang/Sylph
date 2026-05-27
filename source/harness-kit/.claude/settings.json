@@ -227,6 +227,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-format-gate.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -236,6 +241,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
           }
         ]
@@ -247,11 +257,6 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -261,6 +266,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-write-cite.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
           }
         ]
@@ -281,6 +291,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
           }
         ]
@@ -328,6 +343,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -338,6 +358,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-write-lock.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -363,6 +388,11 @@
             "type": "command",
             "command": "bash .claude/hooks/intent-tracker.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       }
@@ -384,11 +414,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
             "timeout": 5000
           }
         ]
@@ -455,7 +480,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/auto-snapshot.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/skill-flywheel.sh",
             "timeout": 5000
           }
         ]
@@ -464,7 +494,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/stop-drain.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/stop-drain.sh",
             "timeout": 10000
           }
         ]

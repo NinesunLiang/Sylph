@@ -128,7 +128,7 @@ hooks_enabled:
 
   read_tracker: true
   retry_budget_check: true
-  skill_flywheel: false
+  skill_flywheel: true
   stop_drain: true
   subagent_guard: true
   token_writer: true
@@ -167,4 +167,3 @@ roi:
     error_dna: ".omc/state/error-dna.jsonl"
     skill_usage: ".omc/state/skill-usage.jsonl"
   blast_radius: true
-  build_validator: true

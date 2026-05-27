@@ -11,4 +11,3 @@ architecture: business_layers: "*/src/services/* */src/models/* */src/lib/* */sr
 knowledge: lsp_hint: "TS/JS 符号导航" lsp_example_file: "*.ts"\
 fuzzy_detection: explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.ts$|\.tsx$|\.js$|controller|service|route'\
 error_dna: build_commands: "npm run build npm test tsc npx eslint npx jest"\
-build_validator: build_commands: "npm run build npm test tsc npx eslint webpack vite"

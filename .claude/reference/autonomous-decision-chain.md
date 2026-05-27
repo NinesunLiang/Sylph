@@ -107,6 +107,7 @@ Layer 4. 需人裁决 ← 仅以下四类穿透到此
 | ROI data vs philosophy/iron-rule | **Philosophy > ROI**. DG-94. |
 | Governance file deletion or rename | **grep -r first, clean ALL hits**. DG-81. |
 | oracle-gate blocks Edit/Write (governance file) | **Auto-spawn Oracle+Meta-Oracle dual review**. DO NOT stop and wait. ① Spawn Agent(critic) with the change description → get ACCEPT/ADVISORY/REJECT verdict → ② If ACCEPT, the verdict auto-satisfies oracle-gate's 24h check → ③ Retry the edit. If REJECT, record to exit report and skip. The gate's CAPTCHA bypass is for HUMAN mode only; autonomous mode resolves via dual review. DG-67, DG-115. |
+| Non-trivial task (>3 files / new feature / architecture) | **Follow 5-phase Structured Execution Protocol**: ① Research → Execution Plan → ② Dual-Judge Review (Oracle+Meta-Oracle ACCEPT) → ③ Execute → ④ Result Review (Oracle+Meta-Oracle ACCEPT) → ⑤ Acceptance Report to human. Reference: `.claude/reference/structured-execution-protocol.md`. |
 | A genuinely novel situation | **Try AI judgment first**. If blocked, record for human report. |
 
 ---

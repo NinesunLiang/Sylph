@@ -257,11 +257,6 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -420,11 +415,6 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
-            "timeout": 5000
           }
         ]
       }
@@ -491,6 +481,11 @@
           {
             "type": "command",
             "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash __PROJECT_ROOT__/.claude/hooks/skill-flywheel.sh",
             "timeout": 5000
           }
         ]

@@ -615,11 +615,25 @@ try:
 except Exception as e:
     print(f'ERROR: 无法读取 .claude/settings.json: {e}', file=sys.stderr)
     sys.exit(2)
-old_hooks = set(old.get('hooks', {}).keys())
-new_hooks = set(new.get('hooks', {}).keys())
-extra = {k: old['hooks'][k] for k in (old_hooks - new_hooks)}
-if extra:
-    new.setdefault('hooks', {}).update(extra)
+old_hooks = old.get('hooks', {})
+new_hooks = new.get('hooks', {})
+for event, old_matchers in old_hooks.items():
+    if event not in new_hooks:
+        new_hooks[event] = old_matchers
+    else:
+        new_matchers = new_hooks[event]
+        for old_block in old_matchers:
+            old_matcher = old_block.get('matcher', '')
+            new_block = next((b for b in new_matchers if b.get('matcher','') == old_matcher), None)
+            if not new_block:
+                new_matchers.append(old_block)
+            else:
+                new_cmds = [h.get('command','') for h in new_block.get('hooks',[])]
+                for h in old_block.get('hooks',[]):
+                    if h.get('command','') not in new_cmds:
+                        new_block.setdefault('hooks',[]).append(h)
+new['hooks'] = new_hooks
+extra = old.get('hooks', {})
 old_skills = old.get('skills_enabled', {})
 for k, v in old_skills.items():
     new.setdefault('skills_enabled', {})[k] = v

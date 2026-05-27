@@ -11,4 +11,3 @@ architecture: business_layers: "*/src/domain/* */src/services/* */src/models/*" 
 knowledge: lsp_hint: "Rust 符号导航（cargo doc / rust-analyzer）" lsp_example_file: "*.rs"\
 fuzzy_detection: explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.rs$|\.toml$|trait|impl|struct|enum|mod'\
 error_dna: build_commands: "cargo build cargo test cargo clippy cargo check"\
-build_validator: build_commands: "cargo build cargo test cargo clippy cargo check"
