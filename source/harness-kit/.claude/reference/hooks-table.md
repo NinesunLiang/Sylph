@@ -1,4 +1,4 @@
-## Hooks 速查（共 50 个）
+## Hooks 速查（共 51 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
@@ -37,6 +37,7 @@
 |`pretool-edit-scope` | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anch|
 |`pretool-oracle-gate.py` | PreToolUse | Platform routing: on macOS/Linux the bash .sh version handles execution|
 |`pretool-oracle-gate` | PreToolUse | pretool-oracle-gate.sh — PreToolUse:Edit|Write — Oracle 审查前置门禁 (DG-115)|
+|`pretool-purify-gate` | PreToolUse | pretool-purify-gate.sh — PreToolUse:Edit|Write — lx-purify runtime hook|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-rules-inject` | UserPromptSubmit | pretool-rules-inject.sh — UserPromptSubmit — 3级脱水分层注入|
 |`pretool-sensitive-file-guard` | PreToolUse | pretool-sensitive-file-guard.sh — PreToolUse:Edit|Write — 保护门禁文件不被 AI 直接写入|

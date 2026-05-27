@@ -189,6 +189,12 @@ Oracle 不是绝对正确的。它用的评分方法论可能有 bug（auto-scor
 3. ADVISORY → 建议修正但不阻断，AI 自行判断是否采纳
 4. REJECT → 强烈建议阻断，AI 必须有**明确书面理由**才能覆写（记录到 `.omc/state/meta-oracle-overrides.md`）
 5. 连续 2 次 REJECT → 升级为事实阻断，需人工介入
+#### Gate 阻断协议
+
+> 只有"结束"和"问用户问题"才能打断工作流。其余 gate 阻断不打断。
+
+- continue:false (Python): 硬阻断,停止工具链。适用: permission-gate, privacy-gate
+- exit2+continue:true (Bash): 阻断工具,不打断链。适用: oracle-gate, blast-radius, terminal-safety
 
 **在 A→B→A 三重门中的位置**：
 ```

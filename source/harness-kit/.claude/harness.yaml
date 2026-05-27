@@ -114,6 +114,7 @@ hooks_enabled:
   session_resume: true
   pretool_edit_scope: true
   pretool_plan_gate: false
+  pretool_purify_gate: true
   pretool_rules_inject: true
   pretool_skill_version_guard: true
   pretool_sensitive_edit: false
