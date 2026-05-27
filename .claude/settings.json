@@ -485,7 +485,7 @@
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/skill-flywheel.sh",
+            "command": "bash /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/skill-flywheel.sh",
             "timeout": 5000
           }
         ]
