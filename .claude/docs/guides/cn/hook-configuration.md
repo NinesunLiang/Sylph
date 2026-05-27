@@ -195,3 +195,31 @@ cat .omc/state/error-dna.jsonl 2>/dev/null | tail -20
 ## posttool-checkpoint.sh
 
 TaskUpdate(completed) + Stop 双事件。输出结构化收尾摘要到 stderr(人类可见) + additionalContext(AI上下文)。
+
+
+## v6.3.x 新增 Hook
+
+| Hook | 事件 | 功能 | 版本 |
+|------|------|------|------|
+| pretool-blast-radius.sh | PreToolUse:Bash | git checkout . / git reset --hard 硬阻断 (DG-100) | v6.3.1 |
+| pretool-purify-gate.sh | PreToolUse:Edit\|Write | lx-purify runtime hook, 哲学纯度提醒 | v6.3.5 |
+| pretool-node-reference.sh | PreToolUse:Agent | nodes/ 编排节点 bridge, Agent spawn时注入节点列表 | v6.3.6 |
+| posttool-template-check.sh | PostToolUse:Write | task_sys/ 模板格式校验 | v6.3.6 |
+| posttool-checkpoint.sh | PostToolUse:TaskUpdate + Stop | 工作流结束统一checkpoint | v6.3.2 |
+
+## v6.3.x 移除/禁用
+
+| Hook | 状态 | 原因 | 版本 |
+|------|------|------|------|
+| build-validator.sh | 文件已删除, 注册已清理 | ROI为零, 被 blast-radius 取代 (DG-100) | v6.2.38→v6.3.7 |
+| pretool-sensitive-edit.sh | 禁用 (harness.yaml false) | 门禁体系原子化重构, 功能分散到 oracle-gate + sensitive-file-guard | v6.3.1 |
+| permission-gate.sh | 禁用 (harness.yaml false) | 原子化重构, continue:false 仅用于安全暂停 | v6.3.1 |
+
+
+## 已废弃能力
+
+| 能力 | 废弃时间 | 替代 |
+|------|---------|------|
+| AGENTS.md 直接AI上下文 | v6.3.2 | context-cache.md 单源三层注入 |
+| CLAUDE.md 完整配置 | v6.3.2 | 降级为 @AGENTS.md 桥接 |
+| pretool-rules-inject AGENTS.md extract_section | v6.3.2 | context-cache.md Python section parser |

@@ -180,3 +180,25 @@ Agent spawn时自动注入可用编排节点列表。v{V} 新增。
 
 ## posttool-checkpoint.sh
 工作流结束统一checkpoint输出。覆盖RPE/TODO/Task-Spec/Goal/Ghost。v{V} 新增。
+
+
+## v6.3.8 新增机制
+
+### posttool-checkpoint.sh (通用节点)
+所有工作流(RPE/TODO/Task-Spec/Goal/Ghost)结束时输出结构化checkpoint。
+Stop事件走 stderr(人类可见), PostToolUse事件走 additionalContext(AI上下文)。
+
+### release-checklist.sh (发版流程)
+7 Phase完整发版流程: 版本更新→质量门禁→源镜像→文档一致性→版本说明→构建→发布。
+
+### 5-Phase Structured Execution Protocol
+非trivial任务自动走: 调研→方案双审(Oracle+Meta-Oracle)→无人执行→结果双审→验收报告。
+Phase 3-4为无人区: AI不暂停、不提问、不中断、只记录。
+
+### Gate阻断协议
+- continue:false (Python): 硬阻断,停止工具链。permission-gate, privacy-gate
+- exit2+continue:true (Bash): 阻断工具,不打断链。oracle-gate, blast-radius, terminal-safety
+
+### context-cache 分层注入
+L1每轮(铁律+哲学) / L2每5轮(操作约束+反模式) / L3每10轮(教训+禁止项)。
+148KB源文件→5.4KB脱水 (27.2x压缩)。单源防漂移。
