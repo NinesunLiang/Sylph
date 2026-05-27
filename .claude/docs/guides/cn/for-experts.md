@@ -113,3 +113,7 @@ bash install.sh base
 | RPE 深度了解 | [工作流概念](../concepts/workflow.md) |
 | 完整功能参考 | [功能特性](../governance/features.md) |
 | 升级说明 | [版本选择](../governance/editions.md) |
+
+
+## 5-Phase Structured Execution Protocol
+非trivial任务自动走: 调研→方案双审→无人执行→结果双审→验收报告。`.claude/reference/structured-execution-protocol.md`

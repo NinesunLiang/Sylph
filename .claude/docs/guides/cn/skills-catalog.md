@@ -172,3 +172,11 @@ OMA 管线流 →
 
 ## lx-purify — 思想纯度审计
 三 Pass 审计（哲学→铁律→现状）+ 双法官审核。runtime hook: pretool-purify-gate.sh。
+
+
+## pretool-node-reference.sh
+Agent spawn时自动注入可用编排节点列表。v{V} 新增。
+
+
+## posttool-checkpoint.sh
+工作流结束统一checkpoint输出。覆盖RPE/TODO/Task-Spec/Goal/Ghost。v{V} 新增。

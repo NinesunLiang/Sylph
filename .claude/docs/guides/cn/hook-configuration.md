@@ -1,6 +1,6 @@
 # Hook 配置指南
 
-> 基于源码 `.claude/hooks/`（60 个脚本）+ `.claude/harness.yaml` + `.claude/settings.json` 实测提取。+ `.claude/harness.yaml` + `.claude/settings.json` 实测提取。
+> 基于源码 `.claude/hooks/`（60 个脚本）+ `.claude/harness.yaml` + `.claude/settings.json` 实测提取。
 
 ## 什么是 Hook？
 
@@ -182,3 +182,16 @@ ls -lt .omc/state/ | head -10
 # 查看 error-dna 历史错误
 cat .omc/state/error-dna.jsonl 2>/dev/null | tail -20
 ```
+
+
+## Gate 阻断协议 (v6.3.8)
+
+| 协议 | 机制 | 适用 |
+|------|------|------|
+| continue:false | Python硬阻断,停止工具链 | permission-gate,privacy-gate |
+| exit2+continue:true | Bash阻断工具,不打断链 | oracle-gate,blast-radius,terminal-safety |
+
+
+## posttool-checkpoint.sh
+
+TaskUpdate(completed) + Stop 双事件。输出结构化收尾摘要到 stderr(人类可见) + additionalContext(AI上下文)。
