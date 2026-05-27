@@ -757,6 +757,13 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
         fi
     fi
 
+    # 缓存用户 AGENTS.md 到 .omc/cache/ 供手动 diff 恢复
+    mkdir -p .omc/cache 2>/dev/null
+    if [ -n "$USER_CONTENT" ]; then
+        echo "$USER_CONTENT" > .omc/cache/pre-upgrade-AGENTS.md
+        log_info "用户 AGENTS.md 已缓存到 .omc/cache/pre-upgrade-AGENTS.md"
+    fi
+
     # 检测用户旧 AGENTS.md 是否已包含 Carror OS 内容（防重复叠加）
     # 注意：必须检查 BACKUP 中的用户旧内容，不能检查刚解压的新模板
     USER_HAD_CAROR=false
@@ -768,7 +775,7 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
         # 用户已有 Carror OS → 智能替换：去掉旧 Carror OS 段，追加新版
         log_info "检测到用户 AGENTS.md 已含旧版 Carror OS，执行智能替换..."
         # 去掉旧 Carror OS 分隔线和之后的所有内容
-        USER_ONLY=$(echo "$USER_CONTENT" | sed '/^## ═════════.*Carror OS\|^## Carror OS 治理框架\|^# Carror OS — AI 行为治理框架/,$ d')
+        USER_ONLY=$(echo "$USER_CONTENT" | sed '/^## ═════════.*Carror OS\|^# Carror OS — 元项目治理\|^@\.omc\|^## Carror OS 治理框架\|^# Carror OS — AI 行为治理框架/,$ d')
         TEMPLATE=$(cat "AGENTS.md")
         DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
         {
