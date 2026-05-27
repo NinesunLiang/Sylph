@@ -115,6 +115,10 @@ hooks_enabled:
   pretool_edit_scope: true
   pretool_plan_gate: false
   pretool_purify_gate: true
+  pretool_node_reference: true
+  posttool_template_check: true
+  pretool_node_reference: true
+  pretool_node_reference: true
   pretool_rules_inject: true
   pretool_skill_version_guard: true
   pretool_sensitive_edit: false

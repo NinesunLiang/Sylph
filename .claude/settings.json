@@ -227,6 +227,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-format-gate.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -236,6 +241,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
           }
         ]
@@ -262,6 +272,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-write-cite.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -281,6 +296,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
           }
         ]
@@ -328,6 +348,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -338,6 +363,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-write-lock.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -362,6 +392,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/intent-tracker.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
           }
         ]
