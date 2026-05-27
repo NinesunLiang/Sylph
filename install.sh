@@ -63,6 +63,7 @@ for arg in "$@"; do
         --lang) SKIP_NEXT=1 ;;
         --lsp) LSP_MODE="install" ;;
         --no-lsp) LSP_MODE="skip" ;;
+        --uninstall) UNINSTALL=true ;;
         go|node|python|rust|generic)
             [ "${SKIP_NEXT:-0}" -eq 1 ] && { LANG_SPEC="$arg"; SKIP_NEXT=0; continue; }
             POSITIONAL+=("$arg") ;;
@@ -70,6 +71,42 @@ for arg in "$@"; do
     esac
 done
 INSTALL_MODE="${POSITIONAL[0]:-base}"
+
+# ─── 卸载模式 ───────────────────────────────────────────────
+if [ "${UNINSTALL:-false}" = "true" ]; then
+    echo "╔══════════════════════════════════════════╗"
+    echo "║  🧹 Carror OS 卸载                       ║"
+    echo "╚══════════════════════════════════════════╝"
+    echo ""
+    PROJECT_DIR="${PROJECT_DIR:-$(pwd)}"
+
+    # 1. 恢复 CLAUDE.md/AGENTS.md（移除 governance 块）
+    for _uf in "$PROJECT_DIR/CLAUDE.md" "$PROJECT_DIR/AGENTS.md"; do
+        [ -f "$_uf" ] && sed -i.bak '/harness-kit:governance-start/,/harness-kit:governance-end/d' "$_uf" 2>/dev/null
+        rm -f "${_uf}.bak" 2>/dev/null
+    done
+
+    # 2. 移除 Carror OS 核心目录
+    for _ud in "$PROJECT_DIR/.claude" "$PROJECT_DIR/.opencode" "$PROJECT_DIR/.cursor" "$PROJECT_DIR/.hooks"; do
+        if [ -d "$_ud" ]; then
+            rm -rf "$_ud" && echo "  已移除: $_ud"
+        fi
+    done
+
+    # 3. 可选: 移除 .omc/ 状态目录（会话数据）
+    if [ -d "$PROJECT_DIR/.omc" ]; then
+        echo ""
+        echo "  ⚠️  .omc/state/ 包含会话交接、错误记忆等历史数据。"
+        echo "  是否同时删除？(y/N)"
+        read -r _ans
+        case "$_ans" in [Yy]*) rm -rf "$PROJECT_DIR/.omc" && echo "  已移除: .omc/" ;; *) echo "  保留: .omc/" ;; esac
+    fi
+
+    echo ""
+    echo "✅ Carror OS 已卸载。"
+    echo "   重新安装: curl -sSL https://... | bash"
+    exit 0
+fi
 
 # ─── 平台检测 + Windows 引导 ─────────────────────────────────
 PLATFORM_OS="unknown"
