@@ -36,13 +36,21 @@ if [ -z "${PYTHON_BIN:-}" ]; then
                 echo "python"; return
             fi
         fi
-        for _p in /c/Python3*/python.exe /mingw64/bin/python3.exe /usr/bin/python3.exe; do
-            if [ -x "$_p" ]; then echo "$_p"; return; fi
+        # DG-131 followup: 扩展 Windows 路径扫描，对齐 install.sh resolve_python()
+        # winget → AppData, choco → ProgramData, MSYS2 → /mingw64
+        for _p in \
+            /c/Python3*/python.exe /c/Python3*/python3.exe \
+            "/c/Program Files/Python3*/python.exe" \
+            /c/Users/*/AppData/Local/Programs/Python/Python3*/python.exe \
+            /c/ProgramData/chocolatey/bin/python3.exe /c/ProgramData/chocolatey/bin/python.exe \
+            /mingw64/bin/python3.exe /mingw64/bin/python.exe \
+            /usr/bin/python3.exe /usr/bin/python3 /usr/bin/python; do
+            [ -f "$_p" ] && [ -x "$_p" ] && { echo "$_p"; return; }
         done
-        echo "python3"  # fallback — let it fail at call time so hook can detect
+        echo ""  # empty = let caller detect via ${PYTHON_BIN:-python3}
     }
     PYTHON_BIN="$(_resolve_python)"
-    export PYTHON_BIN
+    [ -n "$PYTHON_BIN" ] && export PYTHON_BIN
     # DG-XXX: Windows GBK encoding breaks Python stdout → UnicodeDecodeError
     export PYTHONIOENCODING=utf-8
 fi
