@@ -15,10 +15,10 @@
 | **跳过升级** | `bash install.sh --no-upgrade` | 仅安装新依赖，不覆盖现有配置 |
 | **卸载** | `bash install.sh --uninstall` | 移除 Carror OS（可选保留 .omc/ 状态数据） |
 | **回滚** | `bash .omc/backup-*/rollback.sh` | 恢复到升级前的版本 |
-| **发版** | `bash scripts/release.sh <patch\|minor\|major> "release notes"` | 7 步发版流程 |
-| **发版前检查** | `bash scripts/release-checklist.sh` | 纯检查清单 (质量门禁→源镜像→文档一致性) |
+| **发版** | `bash scripts/release.sh <patch\|minor\|major> "release notes"` | 7 步发版流程 (版本递增→同步→打包→审计→提交→推送→Release) |
+| **发版前检查** | `bash scripts/release-checklist.sh` | 纯检查清单 (质量门禁→源镜像→文档一致性), 不修改版本号 |
 
-AI 引导原则：用户说"发版/release/发布"→ `bash scripts/release.sh patch "notes"`。
+AI 引导原则：用户说"发版/release/发布"→ 直接运行 `bash scripts/release.sh patch "notes"`。跳过确认加 `--yes`。发版前可用 `release-checklist.sh` 做预检。
 
 ---
 

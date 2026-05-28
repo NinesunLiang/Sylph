@@ -1,5 +1,8 @@
 # 工坊变迁录 — 圣器的兴与废
 
+> v6.3.8 · Carror OS
+
+
 > 📍 弧4：工程：工坊变迁录 | [⬅ 上篇](story-10.md) | [下篇 ➡](story-11.md)
 
 
@@ -21,15 +24,24 @@
 ### 测试工坊
 **lx-test-gen** — 语言无关的测试生成器。自动检测项目语言（Go/TS/Python/Rust/Java），路由到对应模式。不生成"能通过的测试"——生成"能发现 bug 的测试"。
 
-### 任务工坊：从轻到重的四级升级链
+### 任务工坊：从轻到重的五级升级链
 ```
-lx-todo (轻量) → lx-task-spec (中等) → lx-rpe (重量: 9步闭环) → lx-stepwise (原子级)
+lx-todo (轻量) → lx-task-spec (中等) → lx-rpe (feature级) → lx-oma (PRD/项目级) → lx-stepwise (原子级)
 ```
 升级不是惩罚——是承认当前工具的复杂度天花板。用小刀削苹果，用大斧砍树。
 
-**lx-rpe** 是链上的重武器：TDD → Code Review → Acceptance → Graded Rollback。输出四份文件——design.md / spec.md / executor.md / qa.md——形成完整的可审计开发记录。
+**lx-rpe** 是 feature 级重武器，四文档闭环：
 
-**lx-stepwise** 是最新的成员：强制将任何任务拆分为不可再分的原子步骤，每步完成后必须有 VERIFIED 证据。
+| 文档 | 职责 | 一句话 |
+|------|------|--------|
+| **prd** | 需求澄清、意图澄清、未知项澄清 | 决定方向 |
+| **research** | 调研可用资源、评估实施路径 | 决定路径 |
+| **plan** | Phase 一级 + Step list 二级，串行/并发控制 | 管理进度 |
+| **executor** | executor_log（执行记录 + error_log 防重走错路）+ checklist（验证通关点）+ report（退出无人模式的钥匙） | 执行与验收 |
+
+**lx-oma** 是链上的项目级编排器：将超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD，每个 Sub PRD 委托 lx-rpe 执行。OMA 四站流水线：hier（分层拆解）→ split（Feature 正交拆分）→ orch（管线编排）→ gov（治理同步）。
+
+**lx-stepwise** 是链尾的原子刀：强制将高难度 bug 拆分为不可再分的原子步骤，每步独立验证，不可跳过。
 
 ### 运维工坊：门禁与监控
 **lx-pre-commit** — 四步质量门：项目类型检测 → 编译 → 测试 → 代码审查。在代码进入 git 历史之前拦住有问题的一切。
@@ -99,3 +111,4 @@ lx-todo (轻量) → lx-task-spec (中等) → lx-rpe (重量: 9步闭环) → l
 - [证据裁判庭](story-04.md) — lx-code-review 的双模审查与证据链
 - [工具进化](story-10.md) — 旧审计军团如何消逝、新脚本如何进化
 - [三重门神谕](story-11.md) — Oracle 门禁与工坊产物的质量验收
+- [Gate阻断协议演进](story-20.md) — v6.3.8 Stop hooks 注册、install.sh DG-129 deep merge

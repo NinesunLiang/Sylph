@@ -1,4 +1,5 @@
      1|# 门禁骑士团 — 层层安检的边防哨所
+> v6.3.8 · Carror OS
 
 > 📍 弧2：防御：门禁骑士团 | [⬅ 上篇](story-02.md) | [下篇 ➡](story-04.md)
 
@@ -18,7 +19,7 @@
 | 翼 | 骑士 | 驻守位置 | 职责 |
 |----|------|---------|------|
 | **真理翼** | edit-guard, lsp-suggest | Edit, Grep | 确保 AI 在正确信息基础上操作 |
-| **安全翼** | permission-gate, privacy-gate, pretool-sensitive-edit, pretool-retry-check, subagent-guard, pre-ask-guard | Bash, Read, Edit/Write, AskUserQuestion | 拦截危险操作、隐私泄露、资源滥用、无意义提问 |
+| **安全翼** | permission-gate, privacy-gate, pretool-retry-check, subagent-guard, pre-ask-guard, pretool-oracle-gate, pretool-sensitive-file-guard | Bash, Read, Edit/Write, AskUserQuestion | 拦截危险操作、隐私泄露、资源滥用、无意义提问 |
 | **范围翼** | context-guard, pretool-edit-scope, fuzzy-block, pre-completion-gate, plan-gate | Edit/Write, TaskUpdate | 确保 AI 不在错误时间做错误范围的事 |
 
 ---
@@ -68,13 +69,15 @@ privacy-gate 没有商量的余地。他对 `.env`、`.pem`、`.key`、`credenti
 
 他不关心上下文。不关心"只是为了检查格式"。不关心"只读第一行"。密钥就是密钥。触碰即死。
 
-### pretool-sensitive-edit — 治理文件的第二道门禁
+### pretool-sensitive-edit — 治理文件的第二道门禁 †已禁用
+
+> ⚠️ **已禁用 (v6.3.1)**：门禁体系原子化重构后，pretool-sensitive-edit 的 CAPTCHA 验证功能已分散到 oracle-gate + sensitive-file-guard。以下为历史档案，记录了这个门禁曾经守护的边界。
 
 即使 permission-gate 放行了，pretool-sensitive-edit 还会再查一次——这一次专盯**治理文件**：CLAUDE.md、AGENTS.md、settings.json、harness.yaml。
 
 这些文件是 Carror OS 自身的控制面板。修改它们等同于修改系统的 DNA。pretool-sensitive-edit 要求独立的 CAPTCHA 验证——和 permission-gate 一样，AI 不能自己批准。
 
-R43 记录了一次惨痛的教训：有人创建了一个 `approve-sen.sh` 脚本让 AI 自己调用它来批准治理文件编辑。这等于在 CAPTCHA 体系上开了一扇 AI 可自行穿越的暗门。现在 governance file 编辑的批准通道被硬性设计为必须由用户在独立终端输入，AI 无法自行触发。
+R43 记录了一次惨痛的教训：有人创建了一个 `approve-sen.sh` 脚本让 AI 自己调用它来批准治理文件编辑。这等于在 CAPTCHA 体系上开了一扇 AI 可自行穿越的暗门。
 
 ### pretool-retry-check — 修复上限的执法者
 
@@ -168,7 +171,7 @@ hc_enabled "permission_gate" || exit 0
 AI: 我要编辑 CLAUDE.md（未读过文件）
 
 → edit-guard:    "你没读过这个文件" → blocked
-→ pretool-sensitive-edit: "这是治理文件改动" → 需要用户 CAPTCHA
+→ oracle-gate / sensitive-file-guard: "这是治理文件改动" → 需要 Oracle 双审
 → context-guard: "上下文使用率 92%" → blocked
 → pretool-edit-scope: "这个文件在任务范围内吗？"
 

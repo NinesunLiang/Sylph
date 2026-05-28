@@ -1,4 +1,5 @@
      1|# 上下文守望者 — 防止记忆洪灾的资源哨兵
+> v6.3.8 · Carror OS
 
 > 📍 弧3：记忆：上下文守望者 | [⬅ 上篇](story-05.md) | [下篇 ➡](story-18.md)
 
@@ -136,3 +137,4 @@ Round 30, AI: (修复完成)
 - [门禁骑士团](story-03.md) — context-guard 在骑士团的"范围翼"中的位置
 - [记忆神殿](story-05.md) — compact-detect 在 compact 后重新注入记忆
 - [双生之子](story-08.md) — ghost/goal 模式下 context-guard 降级为 warn-only
+- [5-Phase Structured Execution Protocol](story-19.md) — 上下文守卫在非trivial任务5阶段流水线中的定位
