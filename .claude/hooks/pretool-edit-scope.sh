@@ -1,10 +1,49 @@
 #!/usr/bin/env bash
-# pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定（合并 pretool-rule-anchor）
-# Role: 范围文件匹配 + 自动加入 + 核心文件警告 + 长对话规则锚定（R40: 不再硬阻断越界编辑）
+# pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定 + completion-blocked 提醒 (DG-131)
+# Role: 范围文件匹配 + 自动加入 + 核心文件警告 + 长对话规则锚定 + 无证据完成提醒
+# Known limit: DG-131 completion-blocked 仅覆盖 Edit|Write，Bash sed/echo 可绕过（设计取舍，误杀率过高）
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pretool_edit_scope" || { echo '{"continue": true}'; exit 0; }
 INPUT=$(cat)
+
+# ─── DG-131: completion-blocked 最小范围阻断 ───
+# pre-completion-gate 拦截无证据完成声明后，写入 completion-blocked 状态文件
+# 本段在后续 Edit/Write 时检测该状态，阻断 1-2 轮强制 AI 处理证据问题
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+BLOCKED_FILE="$PROJECT_ROOT/.omc/state/completion-blocked"
+if [ -f "$BLOCKED_FILE" ]; then
+    BLOCK_INFO=$(${PYTHON_BIN:-python3} -c "
+import json, time
+try:
+    with open('$BLOCKED_FILE') as f:
+        data = json.load(f)
+    age = time.time() - data.get('blocked_at', 0)
+    count = data.get('block_count', 0)
+    # >5min or >=2 blocks → auto-clear (anti-deadlock)
+    if age > 300 or count >= 2:
+        print('CLEAR')
+    else:
+        data['block_count'] = count + 1
+        with open('$BLOCKED_FILE', 'w') as f:
+            json.dump(data, f)
+        print(f'BLOCK:{count+1}')
+except:
+    print('CLEAR')" 2>/dev/null || echo "CLEAR")
+    case "$BLOCK_INFO" in
+        CLEAR)
+            rm -f "$BLOCKED_FILE" 2>/dev/null || true
+            ;;
+        BLOCK:*)
+            BLOCK_COUNT="${BLOCK_INFO#BLOCK:}"
+            flywheel_event "pretool_edit_scope" "completion_blocked_turn${BLOCK_COUNT}" "P2" || true
+            printf '{"continue": true, "additionalContext": "⚠️ [completion-blocked·第%s轮] Reminder: you tried to mark TaskUpdate(completed) without VERIFIED evidence.\\nPlease: (1) run a verification command (2) cite output with VERIFIED: [已测试: ...] tag (3) retry TaskUpdate(completed).\\nThis reminder auto-clears after 2 rounds."}' "$BLOCK_COUNT"
+            exit 0
+            ;;
+    esac
+fi
+# ─── end completion-blocked ───
 
 # 解析 file_path
 if command -v jq &>/dev/null; then

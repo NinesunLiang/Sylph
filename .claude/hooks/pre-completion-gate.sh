@@ -36,34 +36,34 @@ if [ -f "$PROJECT_ROOT/.omc/state/tokens/autonomous.active" ] || \
     exit 0
 fi
 
-# 检查证据文件
+# 检查证据文件 + completion-blocked 状态 (DG-131: 最小范围阻断)
 EVIDENCE_FILE="$PROJECT_ROOT/.omc/state/.completion-evidence-$(date +%Y%m%d)"
-if [ ! -f "$EVIDENCE_FILE" ]; then
-    flywheel_event "pre_completion_gate" "no_evidence" "P2" || true
-    agentic_menu \
-        "前置完成门禁" \
-        "调用 TaskUpdate(completed) 但无 VERIFIED 证据。需要: 运行验证命令并截图输出 / 标注 [VERIFIED: file:line] 或 [已测试: cmd+output] / 证据 ≥60 chars 且 ≤300s 新鲜度" \
-        "取消操作" "补充证据后重试"
-    exit 0
-    fi
-
-# 检查证据文件新鲜度
-FRESH=$(${PYTHON_BIN:-python3} -c "
+BLOCKED_FILE="$PROJECT_ROOT/.omc/state/completion-blocked"
+EVIDENCE_OK=false
+if [ -f "$EVIDENCE_FILE" ]; then
+    FRESH=$(${PYTHON_BIN:-python3} -c "
 import os, time
 try:
     age = time.time() - os.path.getmtime('$EVIDENCE_FILE')
     print('yes' if age < 300 else 'no')
 except:
     print('no')" 2>/dev/null)
-
-if [ "$FRESH" != "yes" ]; then
-    agentic_menu \
-        "前置完成门禁" \
-        "证据文件已过期（超过 5 分钟）" \
-        "重新运行验证并写入新证据" "生成新鲜证据到 ${EVIDENCE_FILE}" \
-        "强制完成" "跳过新鲜度检查，直接标记完成"
-    exit 0  # agentic_menu 已 exit 2，此行仅为语法占位
+    [ "$FRESH" = "yes" ] && EVIDENCE_OK=true
 fi
 
+if [ "$EVIDENCE_OK" != true ]; then
+    flywheel_event "pre_completion_gate" "no_evidence" "P2" || true
+    # DG-131: 写入 completion-blocked 状态 — 触发后续 Edit/Write 最小范围阻断
+    mkdir -p "$(dirname "$BLOCKED_FILE")" 2>/dev/null || true
+    ${PYTHON_BIN:-python3} -c "
+import json, time
+with open('$BLOCKED_FILE', 'w') as f:
+    json.dump({'blocked_at': time.time(), 'block_count': 0, 'reason': 'no_evidence'}, f)" 2>/dev/null || true
+    printf '{"continue": false, "additionalContext": "⚠️ [pre-completion-gate] TaskUpdate(completed) blocked: no VERIFIED evidence.\\nTo unblock: (1) run a verification command (2) cite output with VERIFIED: tag (3) retry.\\nEdit/Write blocked for 2 turns until evidence provided."}'
+    exit 0
+fi
+
+# 有证据 → 清除 completion-blocked 状态，放行
+rm -f "$BLOCKED_FILE" 2>/dev/null || true
 echo '{"continue": true}'
 exit 0

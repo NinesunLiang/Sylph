@@ -1,7 +1,7 @@
 .claude/docs/story/cn/story-21.md
 # Story 21: context-cache 分层脱水注入
 
-> v6.3.8 · 哲学#1(The Less,The More) + #7(文档优先)
+> v6.3.8 · Carror OS — 哲学#1(The Less,The More)+#7(文档优先)
 
 ## 问题
 

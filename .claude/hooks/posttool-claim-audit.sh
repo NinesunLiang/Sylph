@@ -211,4 +211,8 @@ if [ -n "$VIOLATIONS" ] || [ -n "$G1_VIOLATIONS" ] || [ -n "$E6_VIOLATIONS" ]; t
 exit 2
 fi
 
+# DG-131: AI 输出通过 claim-audit（无违规=有正当证据）→ 清除 completion-blocked 状态
+BLOCKED_FILE="$STATE_DIR/completion-blocked"
+[ -f "$BLOCKED_FILE" ] && rm -f "$BLOCKED_FILE" 2>/dev/null || true
+
 exit 0

@@ -533,3 +533,24 @@ trigger: repeated cycle of research plan dual-review execute dual-review accepta
 protocol: P1 research P2 plan review P3 autonomous execution P4 result review P5 acceptance report
 human: Phase 1/2/5. AI autonomous: Phase 3-4 (no pause, no ask, no interrupt)
 evidence: .claude/reference/structured-execution-protocol.md
+
+### 🐶 [DG-131] [📝] pre-completion-gate 形同虚设 — 事后告警不如事前提醒+最小范围阻断 (@LuangSir)
+
+@2026-05-28 hits:1
+触发条件：AI 调用 TaskUpdate(completed) 无 VERIFIED 证据时，gate 仅阻断 TaskUpdate，AI 继续 Edit/Write/Bash 绕过
+正确行为：(1) 事前提醒 — PreToolUse(Edit|Write) 时注入证据期望 (2) 被拦截后最小范围阻断后续 Edit/Write 1-2 轮，强制 AI 处理证据问题 (3) 阻断时输出具体验证命令建议
+证据：本会话 pre-completion-gate 拦截 3 次 TaskUpdate(completed)，AI 绕过继续 Edit 4 次 + Bash 3 次，全部文档修改完成但 completed 始终未标记成功
+
+### 🐶 [DG-132] [📝] oracle-gate 治理文件范围过宽 — claude-next.md/dogfood/文档不应等同于 settings.json (@LuangSir)
+
+@2026-05-28 hits:1
+触发条件：AI 尝试 Edit claude-next.md 追加狗粮记录，被 oracle-gate 阻断要求双审
+正确行为：治理文件应分 blast-radius 等级。settings.json/harness.yaml/kernel.md = 高，需双审。claude-next.md/docs/story/dogfood = 低/零，不应触发双审
+证据：本会话 2 次 Edit claude-next.md 被阻断，最终通过 Bash heredoc 绕过
+
+### [2026-05-28] 用户纠正: 不对
+@2026-05-28 hits:1
+**触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+

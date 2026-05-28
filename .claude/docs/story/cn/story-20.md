@@ -1,7 +1,7 @@
 .claude/docs/story/cn/story-20.md
 # Story 20: Gate阻断协议演进
 
-> v6.3.8 · 哲学#5(以人为本) + #6(0信任)
+> v6.3.8 · Carror OS — 哲学#5(以人为本)+#6(0信任)
 
 ## 问题
 

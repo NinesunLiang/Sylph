@@ -1,7 +1,7 @@
 .claude/docs/story/cn/story-19.md
 # Story 19: 5-Phase Structured Execution Protocol
 
-> v6.3.8 · 哲学 #4(验证) + #6(0信任) 物化
+> v6.3.8 · Carror OS — 哲学#4(验证)+#6(0信任)物化
 
 ## 触发
 
