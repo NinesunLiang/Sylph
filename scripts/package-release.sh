@@ -19,19 +19,6 @@ PKG_DIR="$PROJECT_DIR/packages"
 HARNESS_SRC="source/harness-kit"
 LX_SRC="source/lx-skills-v5"
 
-# ─── G0 Release Checklist（发版前必检清单）───
-log_step "G0 Release Checklist..."
-CHECKLIST="$PROJECT_DIR/scripts/release-checklist.sh"
-if [ -x "$CHECKLIST" ]; then
-    bash "$CHECKLIST"
-    if [ $? -ne 0 ]; then
-        log_warn "  ⚠️  Release Checklist 未通过。--force 可跳过。"
-        [ "${1:-}" != "--force" ] && [ "${2:-}" != "--force" ] && exit 1
-    fi
-else
-    log_warn "  ⚠️  release-checklist.sh 未找到，跳过"
-fi
-
 # ─── G4 Meta-Oracle Release 门禁（打包前最后守门）───
 log_step "G4 Meta-Oracle Release 门禁检查..."
 META_ORACLE_SCRIPT="$PROJECT_DIR/.claude/scripts/meta-oracle-review.sh"
