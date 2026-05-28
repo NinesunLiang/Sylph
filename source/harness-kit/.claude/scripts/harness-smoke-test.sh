@@ -1459,12 +1459,12 @@ rm -f .omc/state/session-snapshot.json .omc/state/session-snapshot.json.sha256 .
 # --- pretool-rules-inject ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-rules-inject: L1 每轮必须注入 additionalContext"
 INJECT_OUT=$(echo '{"hook_event_name":"UserPromptSubmit","prompt":"test"}' | bash .claude/hooks/pretool-rules-inject.sh 2>/dev/null)
-if echo "$INJECT_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if 'L1' in ctx else 1)" 2>/dev/null; then
+if echo "$INJECT_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if 'L1' in ctx else 1)" 2>/dev/null; then
   pass "pretool-rules-inject: L1 铁律注入成功"
 else fail "pretool-rules-inject: L1 注入缺失"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-rules-inject: 输出必须 continue=true"
-if echo "$INJECT_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+if echo "$INJECT_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "pretool-rules-inject: continue=true 放行"
 else fail "pretool-rules-inject: 错误阻断"; fi
 
@@ -1487,15 +1487,15 @@ run_case "pretool-terminal-safety: 正常命令放行" '{"hook_event_name":"PreT
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-retry-check: 无超限放行"
 rm -f .omc/state/retry-budget.json
 RETRY_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm test"}}' | bash .claude/hooks/pretool-retry-check.sh 2>/dev/null)
-if echo "$RETRY_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+if echo "$RETRY_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "pretool-retry-check: 无超限放行"; else fail "pretool-retry-check: 无超限阻断"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-retry-check: 超限命令应阻断或警告"
-python3 -c "import json; json.dump({'signatures':{'abc':{'retry_count':5,'command':'npm test'}}}, open('.omc/state/retry-budget.json','w'))" 2>/dev/null
+${PYTHON_BIN:-python3} -c "import json; json.dump({'signatures':{'abc':{'retry_count':5,'command':'npm test'}}}, open('.omc/state/retry-budget.json','w'))" 2>/dev/null
 RETRY_BLOCK=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm test"}}' | bash .claude/hooks/pretool-retry-check.sh 2>/dev/null)
-if echo "$RETRY_BLOCK" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
+if echo "$RETRY_BLOCK" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
   pass "pretool-retry-check: 超限阻断"
-elif echo "$RETRY_BLOCK" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if 'retry' in ctx.lower() or '重试' in ctx else 1)" 2>/dev/null; then
+elif echo "$RETRY_BLOCK" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if 'retry' in ctx.lower() or '重试' in ctx else 1)" 2>/dev/null; then
   pass "pretool-retry-check: 超限软提示"
 else pass "pretool-retry-check: 超限已处理"; fi
 rm -f .omc/state/retry-budget.json
@@ -1504,7 +1504,7 @@ rm -f .omc/state/retry-budget.json
 run_case "pre-ask-guard: 无问题数组" '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[]}}' "pre-ask-guard.sh" 0 ""
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pre-ask-guard: 有问题应输出 continue"
 ASK_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"继续？"}]}}' | bash .claude/hooks/pre-ask-guard.sh 2>/dev/null)
-if echo "$ASK_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'continue' in d else 1)" 2>/dev/null; then
+if echo "$ASK_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'continue' in d else 1)" 2>/dev/null; then
   pass "pre-ask-guard: 输出含 continue"; elif [ -n "$ASK_OUT" ]; then pass "pre-ask-guard: 有响应"; else fail "pre-ask-guard: 无响应"; fi
 
 # --- pre-completion-gate ---
@@ -1522,16 +1522,16 @@ rm -f .omc/state/.oracle-gate-session-approved 2>/dev/null
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-oracle-gate: 无裁决应阻断或警告"
 rm -f .omc/oracle_verdict.json
 OG_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null)
-if echo "$OG_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+if echo "$OG_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "pretool-oracle-gate: 无裁决注入警告"; else fail "pretool-oracle-gate: 无裁决未拦截"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-oracle-gate: 有 ACCEPT 应放行"
 # Write ACCEPT verdict to the file the gate actually reads (.omc/state/oracle-verdicts.md, not .omc/oracle_verdict.json)
 _OV_BAK=""
 [ -f .omc/state/oracle-verdicts.md ] && _OV_BAK=$(cat .omc/state/oracle-verdicts.md)
-python3 -c "import time; ts=time.strftime('%Y-%m-%d %H:%M:%S'); open('.omc/state/oracle-verdicts.md','w').write(f'## Oracle ACCEPT — {ts}\n\nVerdict: ACCEPT\n')" 2>/dev/null
+${PYTHON_BIN:-python3} -c "import time; ts=time.strftime('%Y-%m-%d %H:%M:%S'); open('.omc/state/oracle-verdicts.md','w').write(f'## Oracle ACCEPT — {ts}\n\nVerdict: ACCEPT\n')" 2>/dev/null
 OG_PASS=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null)
-if echo "$OG_PASS" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+if echo "$OG_PASS" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "pretool-oracle-gate: ACCEPT 放行"; elif [ -n "$OG_PASS" ]; then pass "pretool-oracle-gate: ACCEPT 已处理"; else fail "pretool-oracle-gate: ACCEPT 无响应"; fi
 # Restore or clean up
 if [ -n "$_OV_BAK" ]; then echo "$_OV_BAK" > .omc/state/oracle-verdicts.md; else rm -f .omc/state/oracle-verdicts.md; fi
@@ -1539,17 +1539,17 @@ if [ -n "$_OV_BAK" ]; then echo "$_OV_BAK" > .omc/state/oracle-verdicts.md; else
 # --- meta-oracle-trigger ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] meta-oracle-trigger: Oracle ACCEPT 触发二审"
 META_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Task","tool_response":{"content":"Oracle ACCEPT — 方案通过"}}' | bash .claude/hooks/meta-oracle-trigger.sh 2>/dev/null)
-if echo "$META_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+if echo "$META_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "meta-oracle-trigger: G3 触发二审"; elif [ -n "$META_OUT" ]; then pass "meta-oracle-trigger: G3 已处理"; else fail "meta-oracle-trigger: G3 无响应"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] meta-oracle-trigger: 高分触发二审"
 META_S=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Task","tool_response":{"content":"评分: 9.2"}}' | bash .claude/hooks/meta-oracle-trigger.sh 2>/dev/null)
-if echo "$META_S" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+if echo "$META_S" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "meta-oracle-trigger: 高分触发"; elif [ -n "$META_S" ]; then pass "meta-oracle-trigger: 高分已处理"; else fail "meta-oracle-trigger: 高分无响应"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] meta-oracle-trigger: 普通输出不触发"
 META_P=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_response":{"content":"ok"}}' | bash .claude/hooks/meta-oracle-trigger.sh 2>/dev/null)
-if echo "$META_P" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if not ctx else 1)" 2>/dev/null; then
+if echo "$META_P" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if not ctx else 1)" 2>/dev/null; then
   pass "meta-oracle-trigger: 不误触发"; else fail "meta-oracle-trigger: 误触发"; fi
 rm -f .omc/oracle_verdict.json .omc/state/.meta-oracle-cooldown
 
@@ -1575,14 +1575,14 @@ rm -f .omc/state/.sensitive-edit-triggered
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] skeptic-role: 无触发静默"
 SK_P=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' | bash .claude/hooks/skeptic-role.sh 2>/dev/null)
-if echo "$SK_P" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+if echo "$SK_P" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "skeptic-role: 静默放行"; else fail "skeptic-role: 误触发"; fi
 else pass "skeptic-role: 跳过(脚本不存在)"; fi
 
 # --- pretool-oma-path-guard ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-oma-path-guard: 错误路径拦截"
 OMA_B=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"rpe/wrong/plan.md","content":"x"}}' | bash .claude/hooks/pretool-oma-path-guard.sh 2>/dev/null)
-if echo "$OMA_B" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+if echo "$OMA_B" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "pretool-oma-path-guard: 拦截"; else pass "pretool-oma-path-guard: 无崩溃"; fi
 if [ -f .claude/hooks/pretool-oma-path-guard.sh ]; then
 run_case "pretool-oma-path-guard: 普通路径放行" '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"src/Button.tsx","content":"x"}}' "pretool-oma-path-guard.sh" 0 ""; else pass "pretool-oma-path-guard: 跳过(脚本不存在)"; fi
@@ -1590,7 +1590,7 @@ run_case "pretool-oma-path-guard: 普通路径放行" '{"hook_event_name":"PreTo
 # --- posttool-claim-audit ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] posttool-claim-audit: 软完成语检测"
 C_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"应该没问题了"}}' | bash .claude/hooks/posttool-claim-audit.sh 2>/dev/null)
-if echo "$C_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
+if echo "$C_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "posttool-claim-audit: 检测软完成语"; else pass "posttool-claim-audit: 无崩溃"; fi
 run_case "posttool-claim-audit: 正常放行" '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"完成 [已验证: src/foo.ts:10]"}}' "posttool-claim-audit.sh" 0 ""
 
@@ -1619,13 +1619,13 @@ TOTAL=$((TOTAL+1)); log "[$TOTAL] agentic-ui: source 无崩溃"
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] fuzzy-block: 无标记放行"
 rm -f .omc/state/.fuzzy-block-active
 FZ_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' | bash .claude/hooks/fuzzy-block.sh 2>/dev/null)
-if echo "$FZ_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+if echo "$FZ_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "fuzzy-block: 放行"; else fail "fuzzy-block: 误阻断"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] fuzzy-block: 有标记阻断"
 touch .omc/state/.fuzzy-block-active 2>/dev/null
 FZ_B=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' | bash .claude/hooks/fuzzy-block.sh 2>/dev/null)
-if echo "$FZ_B" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
+if echo "$FZ_B" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
   pass "fuzzy-block: 阻断"; elif [ -f .omc/state/.fuzzy-block-active ]; then pass "fuzzy-block: 标记已创建"; else fail "fuzzy-block: 无响应(marker=$([ -f .omc/state/.fuzzy-block-active ] && echo yes || echo no))"; fi
 rm -f .omc/state/.fuzzy-block-active
 
@@ -1640,7 +1640,7 @@ if [ -f .omc/state/context-cache.md ] && [ -s .omc/state/context-cache.md ]; the
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] session-resume: 静默放行"
 rm -f .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active
 S_OUT=$(echo '{"hook_event_name":"SessionStart"}' | bash .claude/hooks/session-resume.sh 2>/dev/null)
-if echo "$S_OUT" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
+if echo "$S_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "session-resume: 放行"; else pass "session-resume: 无崩溃"; fi
 
 # --- ecosystem-probe ---
@@ -1677,7 +1677,7 @@ if [ "$BAD" -lt 2000 ]; then pass "flywheel.log: 格式合规(${BAD}行异常)";
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] session-turns.json: count>0"
 if [ -f .omc/state/session-turns.json ]; then
-  CNT=$(python3 -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count',0))" 2>/dev/null)
+  CNT=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count',0))" 2>/dev/null)
   if [ "$CNT" -gt 0 ]; then pass "session-turns.json: count=${CNT}"; else fail "session-turns.json: count=0"; fi
 else pass "session-turns.json: 暂无"; TOTAL=$((TOTAL+1)); fi
 
@@ -1689,7 +1689,7 @@ else pass "error-dna.jsonl: 无错误记录"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] session-snapshot.json: 字段完整"
 if [ -f .omc/state/session-snapshot.json ]; then
-  OK=$(python3 -c "import json; d=json.load(open('.omc/state/session-snapshot.json')); k=list(d.keys()); print('OK' if 'turns' in k and 'timestamp' in k else 'MISS')" 2>/dev/null)
+  OK=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('.omc/state/session-snapshot.json')); k=list(d.keys()); print('OK' if 'turns' in k and 'timestamp' in k else 'MISS')" 2>/dev/null)
   if [ "$OK" = "OK" ]; then pass "session-snapshot.json: 完整"; else fail "session-snapshot.json: $OK"; fi
 else pass "session-snapshot.json: 未触发"; fi
 
@@ -1699,7 +1699,7 @@ if [ -f .omc/state/context-cache.md ] && [ -s .omc/state/context-cache.md ]; the
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] token-tracking-index.json: 格式"
 if [ -f .omc/state/token-tracking-index.json ]; then
-  OK=$(python3 -c "import json; d=json.load(open('.omc/state/token-tracking-index.json')); print('OK' if 'usage' in d else 'FAIL')" 2>/dev/null)
+  OK=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('.omc/state/token-tracking-index.json')); print('OK' if 'usage' in d else 'FAIL')" 2>/dev/null)
   if [ "$OK" = "OK" ]; then pass "token-tracking-index.json: 合规"; else fail "token-tracking-index.json: 异常"; fi
 else fail "token-tracking-index.json: 不存在"; fi
 
@@ -1757,8 +1757,8 @@ IJ=$(echo "$SI" | bash .claude/hooks/inject-project-knowledge.sh 2>/dev/null)
 echo "$SI" | bash .claude/hooks/context-compressor.sh >/dev/null 2>&1; CE=$?
 SR=$(echo "$SI" | bash .claude/hooks/session-resume.sh 2>/dev/null)
 IJ_OK=false; SR_OK=false
-echo "$IJ" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null && IJ_OK=true
-echo "$SR" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null && SR_OK=true
+echo "$IJ" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null && IJ_OK=true
+echo "$SR" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null && SR_OK=true
 if $IJ_OK && [ "$CE" -eq 0 ] && $SR_OK; then pass "场景E: 全链路通"; else pass "场景E: inject=$IJ_OK compress=$([ $CE -eq 0 ]) resume=$SR_OK"; fi
 
 # 场景F: 用户纠正信号
@@ -1767,8 +1767,8 @@ CR='{"hook_event_name":"UserPromptSubmit","prompt":"不对，应该是另一种�
 CO=$(echo "$CR" | bash .claude/hooks/pretool-user-correction.sh 2>/dev/null)
 TC=$(echo "$CR" | bash .claude/hooks/turn-counter.sh 2>/dev/null)
 CO_OK=false; TC_OK=false
-echo "$CO" | python3 -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null && CO_OK=true
-echo "$TC" | python3 -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null && TC_OK=true
+echo "$CO" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null && CO_OK=true
+echo "$TC" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null && TC_OK=true
 if $CO_OK && $TC_OK; then pass "场景F: 链路完整"; else pass "场景F: correction=$CO_OK turn=$TC_OK"; fi
 
 # ═══════════════════════════════════════════════════════
@@ -1806,7 +1806,7 @@ MISS_SCR=""; while IFS= read -r sp; do [ ! -f "$sp" ] && MISS_SCR="$MISS_SCR $sp
 if [ -z "$MISS_SCR" ]; then pass "sylph-hooks.ts: 全文件存在"; else fail "sylph-hooks.ts: 缺$MISS_SCR"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] sylph-hooks.ts: blocking=true 仅安全类"
-BLK=$(python3 -c "import re; m=re.findall(r'name:\s*\"(\w+)\".*?blocking:\s*true', open('.opencode/plugins/sylph-hooks.ts').read(), re.DOTALL); print(' '.join(m))" 2>/dev/null)
+BLK=$(${PYTHON_BIN:-python3} -c "import re; m=re.findall(r'name:\s*\"(\w+)\".*?blocking:\s*true', open('.opencode/plugins/sylph-hooks.ts').read(), re.DOTALL); print(' '.join(m))" 2>/dev/null)
 WRONG=""; SAFE="permission_gate privacy_gate write_lock_pre edit_scope oracle_gate oma_path_guard completion_gate"
 for h in $BLK; do echo "$SAFE" | grep -qw "$h" || WRONG="$WRONG $h"; done
 if [ -z "$WRONG" ]; then pass "sylph-hooks.ts: blocking 约束正确"; else fail "sylph-hooks.ts: 非安全类 blocking:$WRONG"; fi
