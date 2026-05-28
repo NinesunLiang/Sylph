@@ -24,7 +24,18 @@ hc_init() {
 
 # ─── Cross-platform Python binary resolution (DG-105, DG-106) ───
 # Runs once at source time; all hooks sourcing this file inherit $PYTHON_BIN.
-# Priority: bash PATH > Windows where.exe > glob scan > fallback
+# Priority: env var > file cache > bash PATH > Windows where.exe > glob scan
+if [ -z "${PYTHON_BIN:-}" ]; then
+    _PY_CACHE="$HOME/.carror-python-path"
+    # Fast path: cached result from previous hook (avoids where.exe on every hook)
+    if [ -f "$_PY_CACHE" ]; then
+        _cached=$(${PYTHON_BIN:-python3} -c "print(open('$_PY_CACHE').read().strip())" 2>/dev/null || cat "$_PY_CACHE" 2>/dev/null)
+        if [ -n "$_cached" ] && [ -f "$_cached" ] && [ -x "$_cached" ]; then
+            PYTHON_BIN="$_cached"
+            export PYTHON_BIN
+        fi
+    fi
+fi
 if [ -z "${PYTHON_BIN:-}" ]; then
     _resolve_python() {
         # Step 1: bash PATH (fast, works on macOS/Linux/MSYS2 with python in PATH)
@@ -52,7 +63,6 @@ if [ -z "${PYTHON_BIN:-}" ]; then
             fi
         fi
         # Step 3: glob scan — common Windows Python install paths (last resort)
-        # winget → AppData, choco → ProgramData, MSYS2 → /mingw64
         for _p in \
             /c/Python3*/python.exe /c/Python3*/python3.exe \
             "/c/Program Files/Python3*/python.exe" \
@@ -66,6 +76,8 @@ if [ -z "${PYTHON_BIN:-}" ]; then
     }
     PYTHON_BIN="$(_resolve_python)"
     [ -n "$PYTHON_BIN" ] && export PYTHON_BIN
+    # Cache result so subsequent hooks skip the expensive resolution
+    [ -n "$PYTHON_BIN" ] && echo "$PYTHON_BIN" > "$_PY_CACHE" 2>/dev/null || true
     # DG-XXX: Windows GBK encoding breaks Python stdout → UnicodeDecodeError
     export PYTHONIOENCODING=utf-8
 fi
