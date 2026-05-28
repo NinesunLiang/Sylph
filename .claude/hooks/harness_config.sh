@@ -24,9 +24,10 @@ hc_init() {
 
 # ─── Cross-platform Python binary resolution (DG-105, DG-106) ───
 # Runs once at source time; all hooks sourcing this file inherit $PYTHON_BIN.
-# Priority: python3 > python (Windows) > common install paths.
+# Priority: bash PATH > Windows where.exe > glob scan > fallback
 if [ -z "${PYTHON_BIN:-}" ]; then
     _resolve_python() {
+        # Step 1: bash PATH (fast, works on macOS/Linux/MSYS2 with python in PATH)
         if command -v python3 &>/dev/null; then
             echo "python3"; return
         fi
@@ -36,7 +37,21 @@ if [ -z "${PYTHON_BIN:-}" ]; then
                 echo "python"; return
             fi
         fi
-        # DG-131 followup: 扩展 Windows 路径扫描，对齐 install.sh resolve_python()
+        # Step 2: Windows where.exe — searches Windows PATH (catches winget/choco/scoop installs
+        #          that are in Windows PATH but not visible to bash command -v)
+        if command -v where &>/dev/null; then
+            local _wp
+            _wp=$(where python3 2>/dev/null | head -1)
+            [ -n "$_wp" ] && [ -f "$_wp" ] && { echo "$_wp"; return; }
+            _wp=$(where python 2>/dev/null | head -1)
+            if [ -n "$_wp" ] && [ -f "$_wp" ]; then
+                local _pver; _pver=$("$_wp" --version 2>&1)
+                if echo "$_pver" | grep -q "Python 3"; then
+                    echo "$_wp"; return
+                fi
+            fi
+        fi
+        # Step 3: glob scan — common Windows Python install paths (last resort)
         # winget → AppData, choco → ProgramData, MSYS2 → /mingw64
         for _p in \
             /c/Python3*/python.exe /c/Python3*/python3.exe \
