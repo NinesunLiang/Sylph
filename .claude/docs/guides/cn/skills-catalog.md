@@ -188,8 +188,8 @@ Agent spawn时自动注入可用编排节点列表。v{V} 新增。
 所有工作流(RPE/TODO/Task-Spec/Goal/Ghost)结束时输出结构化checkpoint。
 Stop事件走 stderr(人类可见), PostToolUse事件走 additionalContext(AI上下文)。
 
-### release-checklist.sh (发版流程)
-7 Phase完整发版流程: 版本更新→质量门禁→源镜像→文档一致性→版本说明→构建→发布。
+### release-checklist.sh (发版前检查清单)
+3 Phase 发版前检查: 质量门禁→源镜像→文档一致性。版本递增和构建由 release.sh 负责。
 
 ### 5-Phase Structured Execution Protocol
 非trivial任务自动走: 调研→方案双审(Oracle+Meta-Oracle)→无人执行→结果双审→验收报告。
