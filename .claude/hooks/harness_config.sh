@@ -40,12 +40,12 @@ if [ -z "${PYTHON_BIN:-}" ]; then
     _resolve_python() {
         # Step 1: bash PATH (fast, works on macOS/Linux/MSYS2 with python in PATH)
         if command -v python3 &>/dev/null; then
-            echo "python3"; return
+            command -v python3; return
         fi
         if command -v python &>/dev/null; then
             local _pver; _pver=$(python --version 2>&1)
             if echo "$_pver" | grep -q "Python 3"; then
-                echo "python"; return
+                command -v python; return
             fi
         fi
         # Step 2: Windows where.exe — searches Windows PATH (catches winget/choco/scoop installs
@@ -602,7 +602,7 @@ os.rename(tmp, file)
 hc_emit_hook_json() {
     export _HC_EVENT_NAME="${1:-PostToolUse}"
     export _HC_CONTINUE_VAL="${2:-true}"
-    $PYTHON_BIN -c "
+    ${PYTHON_BIN:-python3} -c "
 import os, sys, json, re
 event = os.environ.get('_HC_EVENT_NAME', 'PostToolUse')
 continue_val = os.environ.get('_HC_CONTINUE_VAL', 'true')

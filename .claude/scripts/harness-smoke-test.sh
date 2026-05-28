@@ -991,6 +991,7 @@ else
 fi
 else
     log "[SKIP] R36 knowledge-condenser: 文件不存在（已废弃清理），跳过全部测试"
+    TOTAL=$((TOTAL+5))  # maintain ordinal consistency with 5 skipped tests
 fi
 
 # --- R37: posttool-handoff-writer.sh 回归 ---
