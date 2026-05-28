@@ -1,7 +1,7 @@
 # claude-next.md — AI 学习笔记
 
 > 上次升华: 2026-05-17 — 9 条通用铁律升华到 [kernel.md](kernel.md), ~81 条归档到 [lessons-archive.md](archive/lessons-archive.md)
-> 当前保留: 2026-05-17 活跃条目（DG-80~DG-88） + 2026-05-19 Oracle Agent v2 狗粮（DG-89~DG-92）+ Phase 1-4 系统性优化（DG-93~DG-95）
+> 当前保留: 2026-05-17 活跃条目（DG-80~DG-88） + 2026-05-19 Oracle Agent v2（DG-89~DG-92）+ Phase 1-4（DG-93~DG-95）+ 2026-05-22/24/25/27/28（DG-96~DG-132）
 >
 > 升华规则: 条目≥20 | 年龄≥10天 | hits≥5 — 满足任一条件进入升华候选
 

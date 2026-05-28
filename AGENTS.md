@@ -338,7 +338,7 @@ A 预测 → B 盲执行 → A 自证 → Oracle 审核（常规守门员）
 
 1. **调研**：搜索项目同类实现、读取相关文档、理解现有架构。所有不确定信息询问用户。
 2. **方案（PRD/Spec）**：出 PRD 或设计文档，含候选方案对比、选型理由、风险点。
-   - RPE feature：`rpe/{feature}/design.md` + `spec.md`
+   - RPE feature：`rpe/{feature}/` 四文档闭环（`prd.md` / `research.md` / `plan.md` / `executor.md`），旧 feature 可能使用 `design.md` + `spec.md` 命名
    - Feature 间必须 MECE 正交，用 `lx-oma-split` 拆分
 3. **Oracle 方案审核**：方案提交 Oracle 审核，通过后方可执行。
    - 不通过 → 返回 Step 2 优化方案

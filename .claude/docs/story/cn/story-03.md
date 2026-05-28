@@ -19,7 +19,7 @@
 | 翼 | 骑士 | 驻守位置 | 职责 |
 |----|------|---------|------|
 | **真理翼** | edit-guard, lsp-suggest | Edit, Grep | 确保 AI 在正确信息基础上操作 |
-| **安全翼** | permission-gate, privacy-gate, pretool-retry-check, subagent-guard, pre-ask-guard, oracle-gate, sensitive-file-guard | Bash, Read, Edit/Write, AskUserQuestion | 拦截危险操作、隐私泄露、资源滥用、无意义提问 |
+| **安全翼** | permission-gate, privacy-gate, pretool-retry-check, subagent-guard, pre-ask-guard, pretool-oracle-gate, pretool-sensitive-file-guard | Bash, Read, Edit/Write, AskUserQuestion | 拦截危险操作、隐私泄露、资源滥用、无意义提问 |
 | **范围翼** | context-guard, pretool-edit-scope, fuzzy-block, pre-completion-gate, plan-gate | Edit/Write, TaskUpdate | 确保 AI 不在错误时间做错误范围的事 |
 
 ---

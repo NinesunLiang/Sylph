@@ -38,7 +38,7 @@ except:
         BLOCK:*)
             BLOCK_COUNT="${BLOCK_INFO#BLOCK:}"
             flywheel_event "pretool_edit_scope" "completion_blocked_turn${BLOCK_COUNT}" "P2" || true
-            printf '{"continue": true, "additionalContext": "⚠️ [completion-blocked·第%s轮] Reminder: you tried to mark TaskUpdate(completed) without VERIFIED evidence.\\nPlease: (1) run a verification command (2) cite output with VERIFIED: [已测试: ...] tag (3) retry TaskUpdate(completed).\\nThis reminder auto-clears after 2 rounds."}' "$BLOCK_COUNT"
+            printf '{"continue": true, "additionalContext": "⚠️ [completion-blocked·第%s轮] Reminder: you tried to mark TaskUpdate(completed) without VERIFIED evidence.\\nPlease: (1) run a verification command (2) cite output with VERIFIED: [已测试: ...] tag (3) retry TaskUpdate(completed).\\nNote: pre-completion-gate still hard-blocks TaskUpdate(completed). This Edit/Write warning stops after 2 rounds, but evidence is required to mark complete."}' "$BLOCK_COUNT"
             exit 0
             ;;
     esac

@@ -4,7 +4,6 @@
 
 source "$(dirname "$0")/harness_config.sh"
 hc_enabled "pre_completion_gate" || { echo '{"continue": true}'; exit 0; }
-source "$(dirname "$0")/agentic-ui.sh"
 set -f
 INPUT=$(cat)
 
@@ -59,7 +58,7 @@ if [ "$EVIDENCE_OK" != true ]; then
 import json, time
 with open('$BLOCKED_FILE', 'w') as f:
     json.dump({'blocked_at': time.time(), 'block_count': 0, 'reason': 'no_evidence'}, f)" 2>/dev/null || true
-    printf '{"continue": false, "additionalContext": "⚠️ [pre-completion-gate] TaskUpdate(completed) blocked: no VERIFIED evidence.\\nTo unblock: (1) run a verification command (2) cite output with VERIFIED: tag (3) retry.\\nEdit/Write blocked for 2 turns until evidence provided."}'
+    printf '{"continue": false, "additionalContext": "⚠️ [pre-completion-gate] TaskUpdate(completed) BLOCKED: no VERIFIED evidence.\\nTo unblock: (1) run a verification command (2) cite output with VERIFIED: tag (3) retry.\\nEdit/Write will be reminded for 2 turns (warning only, continue:true)."}'
     exit 0
 fi
 
