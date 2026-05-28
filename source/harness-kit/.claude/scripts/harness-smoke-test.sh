@@ -923,6 +923,8 @@ rm -f "$_SM_EXT_OUT"
 # Tests removed to match current state: script deleted, harness.yaml disabled, settings.json unregistered
 
 # --- R36: knowledge-condenser.sh 回归 ---
+# DG-105: 已废弃 hook，harness.yaml false。文件可能不存在（清理后），跳过测试。
+if [ -f ".claude/hooks/knowledge-condenser.sh" ]; then
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R36 knowledge-condenser: 语法检查"
@@ -958,7 +960,6 @@ _NEXT_HITS=$(${PYTHON_BIN:-python3} -c "
 import re
 try:
     c = open('.claude/claude-next.md').read()
-    # [seed:*] format
     m1 = re.findall(r'hits:(\d+)', c)
     print(','.join(m1) if m1 else '0')
 except: print('err')
@@ -987,6 +988,9 @@ elif grep -q "knowledge_condenser: false" .claude/harness.yaml; then
     pass "R36 knowledge-condenser harness.yaml 已关闭（废弃hook，预期行为）"
 else
     fail "R36 knowledge-condenser harness.yaml 开关缺失"
+fi
+else
+    log "[SKIP] R36 knowledge-condenser: 文件不存在（已废弃清理），跳过全部测试"
 fi
 
 # --- R37: posttool-handoff-writer.sh 回归 ---
