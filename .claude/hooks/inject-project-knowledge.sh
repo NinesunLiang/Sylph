@@ -28,7 +28,8 @@ for entry in $INJECT_FILES; do
         MODE="${entry##*:}"
         FILE_PATH="$CLAUDE_DIR/$FILE_NAME"
         [ ! -f "$FILE_PATH" ] && continue
-        echo "[.claude/$FILE_NAME] ⏭ R39 预算已满，请 Read 查看"
+        echo "[.claude/$FILE_NAME] ⚠️ 未注入 — R39 预算已满。禁止基于记忆断言此文件内容，必须先 Read。"
+        echo "$FILE_NAME" >> "$STATE_DIR/truncated-files.txt"
         continue
     fi
 
@@ -49,16 +50,18 @@ for entry in $INJECT_FILES; do
                 r39_used=$((r39_used + REMAINING + 2))
                 echo "[.claude/$FILE_NAME 前${REMAINING}/${FILE_LINES}行]"
                 head -"$REMAINING" "$FILE_PATH" | hc_sanitize_utf8
-                echo "--- ⏭ R39 预算限制，剩余 $(($FILE_LINES - REMAINING)) 行请 Read"
+                echo "--- ⚠️ R39 预算限制，剩余 $(($FILE_LINES - REMAINING)) 行未注入。禁止基于摘要断言，必须先 Read 完整文件。"
                 echo ""
                 R39_EXCEEDED=true
                 flywheel_event "inject_project_knowledge" "triggered" "P2" || true
                 echo "⚠️ [R39 注入预算] 已超 ${R39_BUDGET_LINES} 行上限，后续文件仅摘要。" >&2
+                echo "$FILE_NAME" >> "$STATE_DIR/truncated-files.txt"
             else
                 # 预算几乎耗尽 (<10行)，跳过此文件
                 R39_EXCEEDED=true
-                echo "[.claude/$FILE_NAME] ⏭ R39 预算已满 (剩余 ${REMAINING} 行)，请 Read 查看"
+                echo "[.claude/$FILE_NAME] ⚠️ 未注入 — R39 预算耗尽 (仅剩 ${REMAINING} 行)。禁止基于记忆断言此文件内容，必须先 Read。"
                 flywheel_event "inject_project_knowledge" "triggered" "P2" || true
+                echo "$FILE_NAME" >> "$STATE_DIR/truncated-files.txt"
             fi
             continue
         fi

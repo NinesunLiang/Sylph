@@ -262,6 +262,17 @@ else:
     jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
 
 os.makedirs(state_dir, exist_ok=True)
+# -- RCA lightweight classification (v3) --
+_rca = "unknown"
+_msg = (stderr + stdout + top_error).lower()
+if "terminal-safety" in _msg: _rca = "gate_overreach"
+elif "permission denied" in _msg or "eacces" in _msg: _rca = "permission"
+elif "command not found" in _msg or "no such file" in _msg: _rca = "missing_dep"
+elif "governance_bypass" in _msg: _rca = "governance_bypass"
+elif "traceback" in _msg or "exception" in _msg: _rca = "python_exception"
+elif "non-zero exit" in _msg or "exit code 1" in _msg: _rca = "non_zero_exit"
+record["rca_category"] = _rca
+# -- end RCA --
 with open(jsonl_path, 'a', encoding="utf-8") as f:
     f.write(json.dumps(record, ensure_ascii=False) + '\n')
 

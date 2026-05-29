@@ -1,6 +1,6 @@
 # hard-boundary-check — 硬边界检查
 
-> 审判节点。检查操作是否触碰硬边界（物理禁区）。引用 `@../../references/oma/decision-chain.md`。
+> 审判节点。检查操作是否触碰硬边界（物理禁区）。引用 `@../../reference/oma/decision-chain.md`。
 
 ## 输入
 

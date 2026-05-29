@@ -24,7 +24,7 @@ triggers: ["/lx-ghost"]
 | `references/ghost-oracle-audit.md` | Phase 0.5 Oracle 审核 |
 | `references/ghost-polling.md` | 全自动轮询 |
 
-> 共享 OMA 能力 `@../references/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining
+> 共享 OMA 能力 `@../reference/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining
 > 复用 lx-goal: `@../lx-goal/references/autonomous-execution.md` · `@../lx-goal/references/exit-report.md`
 
 ## 与 lx-goal 的区别

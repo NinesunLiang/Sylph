@@ -1,6 +1,6 @@
 # danger-escalation — 三级危险裁决
 
-> 决策节点。遇到危险操作时按三级链条裁决。引用 `@../../references/oma/decision-chain.md`。
+> 决策节点。遇到危险操作时按三级链条裁决。引用 `@../../reference/oma/decision-chain.md`。
 
 ## 输入
 

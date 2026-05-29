@@ -32,9 +32,9 @@ triggers:
 | `references/cross-platform-arch.md` | cross platform arch 阶段 |
 | `references/worker-protocol.md` | worker protocol 阶段 |
 
-> 降级升级: @../references/oma/degradation-escalation.md
-> 裁决链: @../references/oma/decision-chain.md
-> 执行工作流: @../references/oma/execution-workflow.md
+> 降级升级: @../reference/oma/degradation-escalation.md
+> 裁决链: @../reference/oma/decision-chain.md
+> 执行工作流: @../reference/oma/execution-workflow.md
 
 ## 状态机
 
@@ -44,10 +44,10 @@ need_input → [register → dispatch → collect → report] → done
 
 ## 降级策略
 
-> 降级升级: `@../references/oma/degradation-escalation.md`
-> 裁决链: `@../references/oma/decision-chain.md`
-> 执行工作流: `@../references/oma/execution-workflow.md`
-> 链式承接: `@../references/oma/skill-chaining.md`
+> 降级升级: `@../reference/oma/degradation-escalation.md`
+> 裁决链: `@../reference/oma/decision-chain.md`
+> 执行工作流: `@../reference/oma/execution-workflow.md`
+> 链式承接: `@../reference/oma/skill-chaining.md`
 
 | 场景 | 主路径 | 降级 |
 |------|--------|------|

@@ -1,6 +1,6 @@
 # OMA 全生命周期管线
 
-> 本文件为 lx-oma-hier 的管线集成参考。完整契约见 `@../../references/oma/pipeline-contract.md`。
+> 本文件为 lx-oma-hier 的管线集成参考。完整契约见 `@../../reference/oma/pipeline-contract.md`。
 
 ## PRD 全生命周期
 

@@ -16,7 +16,7 @@ status: stable
 
 ## 原子化声明
 
-> 本 skill 无私有 references，共享能力引用 @../references/oma/。
+> 本 skill 无私有 references，共享能力引用 @../reference/oma/。
 
 
 # lx-sync — 变更后一致性检查

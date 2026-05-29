@@ -1,7 +1,8 @@
 # 哲学-机制 完整追溯矩阵
 
 > 生成: 2026-05-17 — 全量审计 7 条哲学 + 8 条铁律的一致性贯彻
-> 审计范围: 46 hooks + 25 skills + 28 scripts + 8 iron rules
+> 更新: 2026-05-29 — feature-registry 哲学字段已覆盖 38 条目 (53.5%)
+> 审计范围: 62 hooks + 26 skills + 44 scripts + 8 iron rules
 > 
 > 本文件是 **权威双向追溯矩阵**。正向（哲学→机制）和逆向（机制→哲学）均在本文档维护。
 > AGENTS.md 和 philosophy.md 中的缩写版（~20 行）指向本文件。

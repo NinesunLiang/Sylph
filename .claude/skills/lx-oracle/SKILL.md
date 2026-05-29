@@ -17,7 +17,7 @@ triggers:
 
 ## 原子化声明
 
-> 本 skill 无私有 references，共享能力引用 @../references/oma/。
+> 本 skill 无私有 references，共享能力引用 @../reference/oma/。
 
 
 # lx-oracle — Oracle 独立第三方审核 (v2.0 合并版)

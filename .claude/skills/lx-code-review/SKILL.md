@@ -30,9 +30,9 @@ Schema: scan_target / severity / finding / scan_report / fix_record / verdict �
 | `references/auto-fix-templates.md` | auto fix templates 阶段 |
 | `references/rules-catalog.md` | rules catalog 阶段 |
 
-> 降级升级: @../references/oma/degradation-escalation.md
-> 裁决链: @../references/oma/decision-chain.md
-> 执行工作流: @../references/oma/execution-workflow.md
+> 降级升级: @../reference/oma/degradation-escalation.md
+> 裁决链: @../reference/oma/decision-chain.md
+> 执行工作流: @../reference/oma/execution-workflow.md
 
 ## 状态机
 

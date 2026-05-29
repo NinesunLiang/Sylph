@@ -49,9 +49,9 @@ Schema: scan_target / finding / scan_report / fix_record / verdict
 | `references/rpe_phases.md` | rpe_phases 阶段 |
 | `references/security-scan-rules.md` | security scan rules 阶段 |
 
-> 降级升级: @../references/oma/degradation-escalation.md
-> 裁决链: @../references/oma/decision-chain.md
-> 执行工作流: @../references/oma/execution-workflow.md
+> 降级升级: @../reference/oma/degradation-escalation.md
+> 裁决链: @../reference/oma/decision-chain.md
+> 执行工作流: @../reference/oma/execution-workflow.md
 
 ## 状态机
 
@@ -98,7 +98,7 @@ Phase 1 Research → 用户审阅 → Gate-R → Phase 2 Plan（Task+AC+测试+�
 
 ## 降级策略
 
-> 共享降级: `@../references/oma/degradation-escalation.md`
+> 共享降级: `@../reference/oma/degradation-escalation.md`
 
 | 场景 | 主路径 | 降级 |
 |------|--------|------|

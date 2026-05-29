@@ -41,7 +41,7 @@ execution_mode: stepwise
 | `references/interface-contract.md` | 接口契约 |
 | `references/manual-review.md` | 人工审核 |
 
-> 共享 OMA 能力 `@../references/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining
+> 共享 OMA 能力 `@../reference/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining
 
 ## 状态机
 

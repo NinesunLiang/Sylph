@@ -15,7 +15,7 @@ when_to_use: "Use for high-difficulty serial debugging: unknown root cause, cros
 
 ## 原子化声明
 
-> 本 skill 无私有 references，共享能力引用 @../references/oma/。
+> 本 skill 无私有 references，共享能力引用 @../reference/oma/。
 
 
 # lx-stepwise — 逐步攻坚模式

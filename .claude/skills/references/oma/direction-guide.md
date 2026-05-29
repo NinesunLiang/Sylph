@@ -1,7 +1,7 @@
 # 方向指引
 
 > 遵循 AGENTS.md §9 智力代理交互原则。每个 skill 交付后输出。
-> 引用：`@references/oma/direction-guide.md`
+> 引用：`@reference/oma/direction-guide.md`
 
 ## 模板
 

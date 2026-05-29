@@ -1,7 +1,7 @@
 # 错误码体系
 
 > OMA 系列 skill 共享错误码。各 skill 前缀不同，语义模式统一。
-> 引用：`@references/oma/error-codes.md`
+> 引用：`@reference/oma/error-codes.md`
 
 ## 前缀约定
 

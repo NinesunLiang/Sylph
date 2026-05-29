@@ -18,9 +18,9 @@ triggers:
 |------|---------|
 | `references/oracle-protocol.md` | oracle protocol 阶段 |
 
-> 降级升级: @../references/oma/degradation-escalation.md
-> 裁决链: @../references/oma/decision-chain.md
-> 执行工作流: @../references/oma/execution-workflow.md
+> 降级升级: @../reference/oma/degradation-escalation.md
+> 裁决链: @../reference/oma/decision-chain.md
+> 执行工作流: @../reference/oma/execution-workflow.md
 
 
 # lx-oracle-v2 — 已废弃

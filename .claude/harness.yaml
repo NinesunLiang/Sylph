@@ -16,13 +16,13 @@ task_decomposition:
   half_open_retry: true
   rollback_declaration: required_for_strict_mode
 knowledge:
-  inject_files:
-  - index.md:full
-  - kernel.md:summary
-  - claude-next.md:summary
-  - anti-patterns.md:summary
-  - terminal-safety.md:summary
-  - rules/bash-style.md:summary
+  inject_files: false
+  # - index.md:full
+  # - kernel.md:summary
+  # - claude-next.md:summary
+  # - anti-patterns.md:summary
+  # - terminal-safety.md:summary
+  # - rules/bash-style.md:summary
   snapshot_expiry_sec: 86400
 ghost_mode:
   exit_report_gate: true
@@ -92,7 +92,7 @@ hooks_enabled:
   inject_project_knowledge: true
   intent_tracker: true
   issue_triage: true
-  knowledge_condenser: false
+  knowledge_condenser: true
   lsp_suggest: true
   lsp_gate: true
   meta_oracle_trigger: true
@@ -117,9 +117,8 @@ hooks_enabled:
   pretool_purify_gate: true
   pretool_node_reference: true
   posttool_template_check: true
-  pretool_node_reference: true
-  pretool_node_reference: true
-  pretool_rules_inject: true
+  pretool_rules_inject: false
+  # pretool_rules_inject: ture
   pretool_skill_version_guard: true
   pretool_sensitive_edit: false
   pretool_terminal_safety: true

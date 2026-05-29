@@ -33,7 +33,7 @@ execution_mode: stepwise
 | `references/commands-audit.md` | audit |
 | `references/pipeline-integration.md` | pipeline |
 
-> 共享 OMA 能力 `@../references/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining · observability
+> 共享 OMA 能力 `@../reference/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining · observability
 
 ## 状态机
 

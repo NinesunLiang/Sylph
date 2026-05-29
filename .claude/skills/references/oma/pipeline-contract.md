@@ -1,7 +1,7 @@
 # Pipeline 集成契约
 
 > OMA skill 通过 `state/pipeline.yaml` 与 orch 编排器集成。
-> 引用：`@references/oma/pipeline-contract.md`
+> 引用：`@reference/oma/pipeline-contract.md`
 
 ## 管线阶段
 

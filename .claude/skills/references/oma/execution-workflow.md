@@ -1,7 +1,7 @@
 # 执行工作流 (Execution Workflow)
 
-> 所有 OMA skill 共享的完整任务执行流水线。引用：`@references/oma/execution-workflow.md`
-> 裁决链详情 → `@references/oma/decision-chain.md`
+> 所有 OMA skill 共享的完整任务执行流水线。引用：`@reference/oma/execution-workflow.md`
+> 裁决链详情 → `@reference/oma/decision-chain.md`
 
 ## 完整生命周期
 

@@ -38,9 +38,9 @@ triggers:
 | `references/feed-protocol.md` | feed protocol 阶段 |
 | `references/structure-ecosystem.md` | structure ecosystem 阶段 |
 
-> 降级升级: @../references/oma/degradation-escalation.md
-> 裁决链: @../references/oma/decision-chain.md
-> 执行工作流: @../references/oma/execution-workflow.md
+> 降级升级: @../reference/oma/degradation-escalation.md
+> 裁决链: @../reference/oma/decision-chain.md
+> 执行工作流: @../reference/oma/execution-workflow.md
 
 
 # lx-dogfood — 主动投喂狗粮

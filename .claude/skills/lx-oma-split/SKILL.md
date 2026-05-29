@@ -29,7 +29,7 @@ execution_mode: race
 | `references/interface-verification.md` | 接口归属校验 |
 | `references/delivery-report.md` | 战报交付 |
 
-> 共享 OMA 能力 `@../references/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining · pipeline-contract · observability
+> 共享 OMA 能力 `@../reference/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining · pipeline-contract · observability
 
 ## 状态机
 
@@ -58,7 +58,7 @@ need_input → [reading → analyzing → scaffolding → verifying] → done
 ## Pipeline 集成
 
 入口 `--pipeline <id>` → 检查 `hier_done` → 出口 `features[].stage=oma_created`。
-> 完整契约 → `@../references/oma/pipeline-contract.md`
+> 完整契约 → `@../reference/oma/pipeline-contract.md`
 
 ## 人工审核门禁
 ```

@@ -693,9 +693,9 @@ score_G2() {
   if [ -f .omc/state/b-terminal-result.json ]; then
     ${PYTHON_BIN:-python3} -c "import json; d=json.load(open('.omc/state/b-terminal-result.json')); assert d.get('failed',1)==0" 2>/dev/null && bterm_pass=1
   fi
-  # 铁律条数合理 (6<=N<=10) — DG-125 精确提取「8 条铁律」段
+  # 铁律条数合理 (6<=N<=10) — 精确提取铁律段
   local rule_count
-  rule_count=$(sed -n '/^## 8 条铁律/,/^## /p' AGENTS.md 2>/dev/null | grep -c '^| [0-9] |' 2>/dev/null); rule_count="${rule_count:-0}"
+  rule_count=$(sed -n '/^## 7 条铁律/,/^## /p' AGENTS.md 2>/dev/null | grep -c '^| [0-9] |' 2>/dev/null); rule_count="${rule_count:-0}"
   [ "$rule_count" -ge 6 ] 2>/dev/null && [ "$rule_count" -le 10 ] 2>/dev/null && rule_count_ok=1
 
   score=$(( audit_pass * 3 + smoke_pass * 3 + bterm_pass * 2 + rule_count_ok * 2 ))

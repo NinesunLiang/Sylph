@@ -24,7 +24,7 @@ triggers: ["/lx-goal"]
 | `references/autonomous-execution.md` | Phase 1→N 全自动执行 |
 | `references/exit-report.md` | 退出报告 |
 
-> 共享 OMA 能力 `@../references/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining
+> 共享 OMA 能力 `@../reference/oma/`: degradation-escalation · decision-chain · execution-workflow · skill-chaining
 
 ## 执行模型
 

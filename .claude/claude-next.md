@@ -442,7 +442,7 @@ macOS: brew | Linux: apt/yum/dnf/pacman/apk | Windows(MSYS): winget→choco→sc
 **触发场景**：Boss 要求「进去ghost模式，持续优化」— 用 purify 三 Pass 框架遍历全仓。
 **完成修复**：
 - 4 skill frontmatter 补全（lx-dogfood/oracle-v2/oracle/stepwise）
-- OMA 4 skill 瘦身（重复段提取到 references/oma/，-190行）
+- OMA 4 skill 瘦身（重复段提取到 reference/oma/，-190行）
 - hooks: skill_flywheel 移除(settings.json)+build-validator注册
 - source/ 5文件同步
 - lx-purify skill创建+purify-compact.md
@@ -558,6 +558,13 @@ evidence: .claude/reference/structured-execution-protocol.md
 ### [2026-05-29] 用户纠正: 不对
 @2026-05-29 hits:1
 **触发场景**：检测到纠正信号「不对」（你错了，这个不对）
+**问题**：（待本对话补充具体纠正内容）
+**纠正**：（AI 完成任务前应引用此记录并补充根因分析）
+
+
+### [2026-05-30] 用户纠正: 应该是
+@2026-05-30 hits:1
+**触发场景**：检测到纠正信号「应该是」（{"session_id":"e9c1a8c5-efef-48e5-9d4d-a189bb7684a）
 **问题**：（待本对话补充具体纠正内容）
 **纠正**：（AI 完成任务前应引用此记录并补充根因分析）
 

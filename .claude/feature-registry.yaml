@@ -1,18 +1,21 @@
 version: 1
 hooks:
 - name: permission-gate
+  philosophy: ["#6", "#3"]
   type: gate
   category: security
   description: 危险命令拦截 (rm -rf, DROP TABLE, git push --force)
   enabled_by_default: false
   evidence_level: L3
 - name: privacy-gate
+  philosophy: ['#6', '#3']
   type: gate
   category: security
   description: 敏感文件/DLP 保护，防止 .env/私钥泄露
   enabled_by_default: true
   evidence_level: L3
 - name: subagent-guard
+  philosophy: ['#6', '#3']
   type: gate
   category: security
   description: 子代理类型安全门禁，限制 executor/designer/scientist
@@ -25,12 +28,14 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 - name: edit-guard
+  philosophy: ['#4', '#6']
   type: guard
   category: quality
   description: 编辑内容质量门禁，拦截空/越界编辑
   enabled_by_default: true
   evidence_level: L3
 - name: lsp-suggest
+  philosophy: ['#5', '#7']
   type: monitor
   category: observability
   description: LSP 诊断建议注入
@@ -55,66 +60,77 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 - name: auto-snapshot
+  philosophy: ['#7', '#3']
   type: monitor
   category: knowledge
   description: 自动会话快照（根据 turn 间隔）
   enabled_by_default: true
   evidence_level: L3
 - name: postTool-edit-quality
+  philosophy: ['#4', '#5']
   type: guard
   category: quality
   description: 编辑后质量检查
   enabled_by_default: true
   evidence_level: L3
 - name: inject-project-knowledge
+  philosophy: ['#7', '#1']
   type: injector
   category: knowledge
   description: 会话启动时注入 kernel.md / claude-next.md / anti-patterns.md
   enabled_by_default: true
   evidence_level: L3
 - name: plan-gate
+  philosophy: ['#4', '#7']
   type: gate
   category: delivery
   description: 非琐碎任务强制 planning
   enabled_by_default: false
   evidence_level: L3
 - name: turn-counter
+  philosophy: ['#1', '#5']
   type: monitor
   category: observability
   description: 轮次计数器，控制 todo 刷新间隔
   enabled_by_default: true
   evidence_level: L3
 - name: read-tracker
+  philosophy: ['#6', '#1']
   type: monitor
   category: observability
   description: 读取跟踪，记录已读取文件
   enabled_by_default: true
   evidence_level: L3
 - name: error-dna
+  philosophy: ['#4', '#6']
   type: monitor
   category: observability
   description: 错误 DNA 分析，跟踪错误模式
   enabled_by_default: true
   evidence_level: L3
 - name: skill-flywheel
+  philosophy: ['#1', '#7']
   type: monitor
   category: runtime
   description: Skill 飞轮，技能使用统计和优化建议
   enabled_by_default: true
   evidence_level: L3
 - name: pretool-user-correction
+  philosophy: ['#4', '#5']
   type: monitor
   category: quality
   description: 用户纠正检测，触发纠正学习
   enabled_by_default: true
   evidence_level: L3
 - name: completion-gate
+  philosophy: ['#4', '#6']
   type: gate
   category: delivery
   description: 假完成拦截，要求 VERIFIED 证据
   enabled_by_default: true
   evidence_level: L3
 - name: context-guard
+  philosophy: ['#3']
   type: gate
   category: runtime
   description: 上下文守卫，50% 甜点区警告 + 80% 硬阻断写/执行操作
@@ -133,12 +149,14 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 - name: flywheel-report
+  philosophy: ['#4', '#1']
   type: monitor
   category: runtime
   description: 飞轮报告生成，输出技能使用统计
   enabled_by_default: true
   evidence_level: L3
 - name: feature-probe
+  philosophy: ['#4', '#7']
   type: tool
   category: observability
   path: .claude/scripts/feature-probe.sh
@@ -146,120 +164,140 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 - name: ecosystem_probe
+  philosophy: ['#4', '#7']
   type: probe
   category: observability
   description: 生态探针，检测运行平台（CC/OC）与 OMO 安装状态，AI 据此调整策略
   enabled_by_default: true
   evidence_level: L2
 - name: meta_oracle_trigger
+  philosophy: ['#6', '#4']
   type: hook
   category: quality
   description: Meta-Oracle 自动触发 — 检测 Oracle ACCEPT/高分时提醒 AI 执行独立二审。哲学#4+#6 物化
   enabled_by_default: true
   evidence_level: L3
 - name: oracle_gate
+  philosophy: ['#6', '#4']
   type: hook
   category: quality
   description: Oracle 审查前置门禁 — 编辑机制/治理文件前检查 24h 内 Oracle/Meta-Oracle ACCEPT 裁决，无则阻断。DG-67 双签强制物化为硬门禁 (DG-115)
   enabled_by_default: true
   evidence_level: L3
 - name: harness_config
+  philosophy: ['#1', '#3']
   type: shared
   category: utility
   description: 共享配置读取器，所有 hook source 的工具库
   enabled_by_default: true
   evidence_level: L3
 - name: token_writer
+  philosophy: ['#1', '#4']
   type: monitor
   category: observability
   description: 写入 token 追踪索引，由 context-guard 调用
   enabled_by_default: true
   evidence_level: L3
 - name: oma_lock
+  philosophy: ['#3', '#6']
   type: gate
   category: runtime
   description: OMA 并发写锁门禁，多 Agent 写同一文件时排队互斥
   enabled_by_default: true
   evidence_level: L3
 - name: fuzzy-block
+  philosophy: ['#4', '#5']
   type: gate
   category: quality
   description: 模糊指令硬阻断，C1 指令清晰度门禁
   enabled_by_default: true
   evidence_level: L3
 - name: pretool-sensitive-edit
+  philosophy: ['#6', '#3']
   type: gate
   category: security
   description: 治理文件编辑 CAPTCHA 验证码门禁，Edit/Write/Bash 全覆盖
   enabled_by_default: false
   evidence_level: L3
 - name: pre-completion-gate
+  philosophy: ['#4', '#6']
   type: gate
   category: delivery
   description: 前置完成门禁，阻止无证据 TaskUpdate(completed)，节省浪费轮次
   enabled_by_default: true
   evidence_level: L3
 - name: posttool-anti-pattern-detect
+  philosophy: ['#6', '#4']
   type: gate
   category: quality
   description: 反模式检测，A2/F1/G1/H1 四类阻断（虚假完成/假设驱动/伪诚信/语义作弊）
   enabled_by_default: true
   evidence_level: L3
 - name: posttool-claim-audit
+  philosophy: ['#6', '#4', '#1']
   type: audit
   category: audit
   description: 铁律
   enabled_by_default: true
   evidence_level: L3
 - name: posttool-subagent-audit
+  philosophy: ['#6', '#4']
   type: audit
   category: audit
   description: 子 agent 字节数审计，超阈值写入 flywheel P0
   enabled_by_default: true
   evidence_level: L3
 - name: posttool-completion-audit
+  philosophy: ['#4', '#6']
   type: audit
   category: audit
   description: 完成声明审计，交叉验证 TaskUpdate 与实际产物
   enabled_by_default: true
   evidence_level: L3
 - name: posttool-handoff-writer
+  philosophy: ['#7', '#5']
   type: monitor
   category: knowledge
   description: 完成时自动写交接备忘录，session-handoff 持久化
   enabled_by_default: true
   evidence_level: L3
 - name: posttool-output-format
+  philosophy: ['#5', '#4']
   type: guard
   category: quality
   description: 输出格式方向感检查，哲学
   enabled_by_default: true
   evidence_level: L3
 - name: intent-tracker
+  philosophy: ['#6', '#4']
   type: monitor
   category: quality
   description: 声明矛盾检测，编辑抖动/内容回退追踪
   enabled_by_default: true
   evidence_level: L3
 - name: compact-detect
+  philosophy: ['#3', '#1']
   type: monitor
   category: runtime
   description: /compact 检测 + 铁律/kernel/AGENTS/skill-graph/session-handoff 全量重注
   enabled_by_default: true
   evidence_level: L3
 - name: knowledge-condenser
+  philosophy: ['#7', '#1']
   type: monitor
   category: knowledge
   description: claude-next.md 压缩归档，长期会话知识密度管理
   enabled_by_default: true
   evidence_level: L3
 - name: stop-drain
+  philosophy: ['#3', '#7']
   type: monitor
   category: runtime
   description: Stop hook 兜底重放，确保会话结束持久化
   enabled_by_default: true
   evidence_level: L3
 - name: retry-budget-check
+  philosophy: ['#4', '#2']
   type: gate
   category: quality
   description: 重试预算检查，同签名 3 轮上限阻断
