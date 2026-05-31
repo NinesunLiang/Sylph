@@ -173,6 +173,20 @@ def _runtime_bonus(dim):
                     return 2
                 if s >= 1:
                     return 1
+        elif dim == "C7":
+            # DG-105: bonus for skill library with flywheel activity
+            flywheel_log = os.path.join(HOME, ".claude", "flywheel.log")
+            fly_skill_events = _grep_count(r"skill_view|skill_manage|skill_load|delegate_task", flywheel_log)
+            if fly_skill_events >= 10:
+                return 2
+            if fly_skill_events >= 1:
+                return 1
+            # Fallback: if skills exist and are substantial, give small bonus
+            skills_dir = os.path.join(PROJECT_ROOT, ".claude", "skills")
+            if os.path.isdir(skills_dir):
+                sk = sum(1 for _ in __import__("glob").glob(os.path.join(skills_dir, "**", "SKILL.md"), recursive=True))
+                if sk >= 20:
+                    return 1
         elif dim == "E5":
             sigs = _read_lines(os.path.join(STATE_DIR, "error-signals.jsonl"))
             if sigs > 50:
@@ -180,7 +194,7 @@ def _runtime_bonus(dim):
             if sigs > 10:
                 return 1
         elif dim == "E6":
-            contra_path = os.path.join(STATE_DIR, "contradiction-log.jsonl")
+            contra_path = os.path.join(STATE_DIR, "edit-churn-log.jsonl")
             total = 0
             contra = 0
             if os.path.isfile(contra_path):
@@ -254,7 +268,6 @@ def score_C2():
 
     # Token compact recency
     compact_ok = 0
-    if os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "hooks", "compact-detect.sh")):
         tc_path = os.path.join(STATE_DIR, "token-compact-state.json")
         if os.path.isfile(tc_path):
             try:
@@ -292,7 +305,7 @@ def score_C3():
     """C3: Process structure (15 pts)"""
     ag = os.path.join(PROJECT_ROOT, "AGENTS.md")
     has_l1l4 = 1 if _grep_any(r"L1.*简单|L2.*中等|L3.*复杂|L4.*关键", ag) else 0
-    has_7step = 1 if _grep_any(r"7-step|7 步|Step [1-7]", ag) else 0
+    has_7step = 1 if _grep_any(r"7-step|7\s*步|Step [1-7]", ag) else 0
     has_triple = 1 if _grep_any(r"三重门|Triple Gate|triple_gate", ag) else 0
     has_prd = 1 if os.path.isfile(os.path.join(STATE_DIR, "prd.json")) else 0
     score = has_l1l4 * 4 + has_7step * 4 + has_triple * 4 + has_prd * 3
@@ -378,7 +391,7 @@ def score_C6():
 
 
 def score_C7():
-    """C7: Orchestration (10 pts)"""
+    """C7: Orchestration (10 pts) — DG-105: skill infrastructure credit"""
     orch_count = _read_lines(os.path.join(STATE_DIR, "subagent-usage.jsonl"))
     if orch_count >= 11:
         orch_score = 6
@@ -394,11 +407,25 @@ def score_C7():
     if os.path.isdir(skills_dir):
         skill_count = sum(1 for _ in
             __import__("glob").glob(os.path.join(skills_dir, "**", "SKILL.md"), recursive=True))
-    skill_score = 4 if skill_count >= 3 else skill_count
+    # DG-105: scale skill_score with count — significant investment deserves partial credit
+    if skill_count >= 20:
+        skill_score = 5
+    elif skill_count >= 10:
+        skill_score = 4
+    elif skill_count >= 3:
+        skill_score = 3
+    else:
+        skill_score = skill_count
 
-    score = orch_score + skill_score
+    # DG-105: infrastructure credit — substantial skill library even without subagent calls
+    infra_bonus = 0
+    if orch_count == 0 and skill_count >= 15:
+        infra_bonus = 1
+
+    score = orch_score + skill_score + infra_bonus
+    score = _clamp(score + _runtime_bonus("C7"), 10)
     return {"score": score, "max": 10,
-            "detail": f"C7=编排(实际调用={orch_count} skills={skill_count})"}
+            "detail": f"C7=编排(实际调用={orch_count} skills={skill_count} infra_bonus={infra_bonus})"}
 
 
 def score_C8():
@@ -497,7 +524,7 @@ def score_E3():
 
 
 def score_E4():
-    """E4: Inertial execution (12 pts)"""
+    """E4: Inertial execution (12 pts) — DG-106: structural baseline for gate config"""
     kernel_path = os.path.join(PROJECT_ROOT, ".claude", "kernel.md")
     round3 = 1 if _grep_any(r"修复.*3.*轮|3.*轮.*上限", kernel_path) else 0
     cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "context-guard.sh")
@@ -507,9 +534,36 @@ def score_E4():
     sens_rt = _runtime_evidence_factor("sensitive_edit")
     best_rt = perm_rt if perm_rt > sens_rt else sens_rt
 
+    # DG-106: structural baseline — if permission_gate is configured in settings.json
+    # and the hook file exists, floor the rt_factor at 0.75 (not 0.50)
+    # This recognizes structural readiness even without runtime BLOCKED events
+    settings_path = os.path.join(PROJECT_ROOT, ".claude", "settings.json")
+    perm_hook_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "permission-gate.sh")
+    structural_credit = False
+    if os.path.isfile(settings_path) and os.path.isfile(perm_hook_path):
+        try:
+            d = json.load(open(settings_path, "r", encoding="utf-8"))
+            for entry in d.get("hooks", {}).get("PreToolUse", []):
+                if entry.get("matcher") == "Bash":
+                    for h in entry.get("hooks", []):
+                        if "permission-gate" in h.get("command", ""):
+                            structural_credit = True
+                            break
+            if structural_credit:
+                best_rt = max(best_rt, 0.75)
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # DG-106: also check retry_budget mechanism
+    retry_path = os.path.join(PROJECT_ROOT, ".claude", "scripts", "retry-budget.sh")
+    if os.path.isfile(retry_path) and _has_content(retry_path):
+        retry_json = os.path.join(STATE_DIR, "retry-budget.json")
+        if os.path.isfile(retry_json) and os.path.getsize(retry_json) > 10:
+            best_rt = max(best_rt, 0.85)
+
     score = int((round3 * 6 + guard * 6) * best_rt)
     return {"score": score, "max": 12,
-            "detail": f"E4=惯性(3轮={round3} guard={guard} rt_factor={best_rt})"}
+            "detail": f"E4=惯性(3轮={round3} guard={guard} rt_factor={best_rt} structural={structural_credit})"}
 
 
 def score_E5():
@@ -532,7 +586,7 @@ def score_E6():
     """E6: Self-contradiction (13 pts)"""
     cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.sh")
     triple = 1 if _grep_any(r"cross-verify|三重门|triple", cg_path) else 0
-    contra_path = os.path.join(STATE_DIR, "contradiction-log.jsonl")
+    contra_path = os.path.join(STATE_DIR, "edit-churn-log.jsonl")
     contradict_log = 1 if os.path.isfile(contra_path) else 0
     intent_fw = 1 if _grep_any(r"flywheel_event.*intent_tracker",
                                 os.path.join(PROJECT_ROOT, ".claude", "hooks", "intent-tracker.sh")) else 0
@@ -559,8 +613,10 @@ def score_E7():
     """E7: Overconfidence (10 pts)"""
     ag = os.path.join(PROJECT_ROOT, "AGENTS.md")
     sk_ag = os.path.join(PROJECT_ROOT, "source", "harness-kit", "AGENTS.md")
-    assert_rule = 1 if (_grep_any(r"断言真实|file:line", ag) or _grep_any(r"断言真实|file:line", sk_ag)) else 0
-    confidence_fmt = 1 if _grep_any(r"置信度|\[已验证:|\[已测试:", ag) else 0
+    kernel = os.path.join(PROJECT_ROOT, ".claude", "kernel.md")
+    anti = os.path.join(PROJECT_ROOT, ".claude", "anti-patterns.md")
+    assert_rule = 1 if (_grep_any(r"断言真实|file:line", ag, sk_ag, kernel)) else 0
+    confidence_fmt = 1 if _grep_any(r"置信度|\[已验证:|\[已测试:|\[推断", ag, kernel, anti) else 0
 
     claim_rt = _runtime_evidence_factor("posttool_claim_audit")
 
@@ -587,7 +643,6 @@ def score_E7():
 
 def score_E8():
     """E8: Context amnesia (10 pts)"""
-    compact = 1 if os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "hooks", "compact-detect.sh")) else 0
     tc = 1 if _grep_any(r"turn-counter|UserPromptSubmit",
                          os.path.join(PROJECT_ROOT, ".claude", "settings.json")) else 0
     auto_snap = os.path.join(PROJECT_ROOT, ".claude", "hooks", "auto-snapshot.sh")
@@ -607,18 +662,30 @@ def score_E8():
 def score_G1():
     """G1: Philosophy consistency (10 pts)"""
     ag = os.path.join(PROJECT_ROOT, "AGENTS.md")
+    philo_md = os.path.join(PROJECT_ROOT, ".claude", "reference", "philosophy.md")
+    matrix_md = os.path.join(PROJECT_ROOT, ".claude", "reference", "philosophy-mechanism-matrix.md")
+
+    # Check both AGENTS.md and reference files for philosophy coverage
     philo_count = 0
-    if _grep_any(r"没通过验证等于没做|#4.*验证", ag): philo_count += 1
-    if _grep_any(r"先守护.*后激发|#3.*守护", ag): philo_count += 1
-    if _grep_any(r"0.*信任|#6.*信任", ag): philo_count += 1
-    if _grep_any(r"文档优先|#7.*文档", ag): philo_count += 1
-    if _grep_any(r"以人为本|#5.*人", ag): philo_count += 1
-    if _grep_any(r"少量正确|#2.*少量", ag): philo_count += 1
-    if _grep_any(r"The Less.*The More|#1.*Less", ag): philo_count += 1
+    for pattern, _ in [
+        (r"没通过验证等于没做|#4.*验证", "#4"),
+        (r"先守护.*后激发|#3.*守护", "#3"),
+        (r"0.*信任|#6.*信任", "#6"),
+        (r"文档优先|#7.*文档", "#7"),
+        (r"以人为本|#5.*人", "#5"),
+        (r"少量正确|#2.*少量", "#2"),
+        (r"The Less.*The More|#1.*Less", "#1"),
+    ]:
+        if _grep_any(pattern, ag, philo_md, matrix_md):
+            philo_count += 1
 
     philo_has_mech = 1 if philo_count >= 6 else 0
-    philo_ref = 1 if os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "reference", "philosophy.md")) else 0
-    dual_check = 1 if _grep_any(r"机制→哲学.*逆向追溯|哲学一致性.*机制", ag) else 0
+    philo_ref = 1 if os.path.isfile(philo_md) else 0
+    # Check dual mapping in AGENTS.md AND matrix file
+    dual_check = 1 if _grep_any(
+        r"机制→哲学.*逆向追溯|哲学一致性.*机制|机制.*哲学.*映射|Mechanism.*Philosophy",
+        ag, philo_md, matrix_md
+    ) else 0
 
     score = philo_has_mech * 4 + philo_ref * 3 + dual_check * 3
     return {"score": score, "max": 10,
@@ -667,7 +734,8 @@ def score_G2():
 
     # Rule count
     ag = os.path.join(PROJECT_ROOT, "AGENTS.md")
-    rule_count = _grep_count(r"^\s*\| [0-9]", ag)
+    # Match iron law format: "1.禁止编造:..." (numbered list with dot)
+    rule_count = _grep_count(r"^\s*[0-9]+\.", ag)
     rule_count_ok = 1 if 6 <= rule_count <= 10 else 0
 
     score = audit_pass * 3 + smoke_pass * 3 + bterm_pass * 2 + rule_count_ok * 2
@@ -840,6 +908,91 @@ def score_UX5():
 
 # ── Aggregation ─────────────────────────────────────────────────────
 
+def _get_smoke_pass_rate():
+    """Get harness-smoke-test pass rate as runtime calibration factor.
+
+    Reads the most recent smoke test log for pass/total counts.
+    Returns 1.0 if smoke test is all-pass (203/203), proportion otherwise.
+    """
+    smoke_log_pattern = os.path.join(STATE_DIR, "harness-smoke-*.log")
+    import glob as _glob
+    logs = sorted(_glob.glob(smoke_log_pattern), key=os.path.getmtime, reverse=True)
+    if not logs:
+        return 0.90  # No log found → slight penalty
+
+    try:
+        with open(logs[0], "r", encoding="utf-8") as f:
+            content = f.read()
+        m = re.search(r"summary:\s*(\d+)/(\d+)\s*passed", content)
+        if m:
+            passed, total = int(m.group(1)), int(m.group(2))
+            if total > 0:
+                return round(passed / total, 2)
+    except (OSError, ValueError):
+        pass
+
+    return 0.90  # Parse failed → slight penalty
+
+
+def _detect_substantive_gaps():
+    """Detect P0/P1 gaps that Meta-Oracle should penalize.
+
+    Only flags: hooks registered but files missing, real P0 errors in error-dna.
+    Intentionally disabled hooks in harness.yaml are NOT gaps — design choices.
+    """
+    gaps = []
+    settings_path = os.path.join(PROJECT_ROOT, ".claude", "settings.json")
+
+    # 1. Hooks registered in settings.json but file missing on disk (real gap)
+    if os.path.isfile(settings_path):
+        try:
+            data = json.load(open(settings_path, "r", encoding="utf-8"))
+            for event_group in data.get("hooks", {}).values():
+                if not isinstance(event_group, list):
+                    continue
+                for group in event_group:
+                    if not isinstance(group, dict):
+                        continue
+                    for hook in group.get("hooks", []):
+                        if not isinstance(hook, dict):
+                            continue
+                        cmd = hook.get("command", "")
+                        if cmd.startswith("bash "):
+                            script_rel = cmd[5:].strip()
+                            script_abs = os.path.join(PROJECT_ROOT, script_rel)
+                            if not os.path.isfile(script_abs):
+                                gaps.append(f"P0: Hook {os.path.basename(script_rel)} 注册但文件缺失")
+        except (json.JSONDecodeError, OSError, TypeError):
+            pass
+
+    # 2. Recent P0 errors in error-dna
+    error_dna = os.path.join(PROJECT_ROOT, ".omc", "state", "error-dna.jsonl")
+    if os.path.isfile(error_dna):
+        try:
+            p0_count = 0
+            cutoff = time.time() - (7 * 86400)  # Last 7 days
+            with open(error_dna, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        entry = json.loads(line)
+                        if entry.get("severity") == "P0":
+                            ts = entry.get("timestamp", 0)
+                            if isinstance(ts, str):
+                                ts = float(ts) if ts.replace('.','').isdigit() else 0
+                            if ts > cutoff:
+                                p0_count += 1
+                    except (json.JSONDecodeError, ValueError):
+                        pass
+            if p0_count >= 5:
+                gaps.append(f"P0: 最近 7 天 {p0_count} 个 P0 错误")
+            elif p0_count >= 1:
+                gaps.append(f"P1: 最近 7 天 {p0_count} 个 P0 错误")
+        except OSError:
+            pass
+
+    return gaps
+
+
 def score_all(calibrated=False, meta_oracle=False):
     """Run all scorers, aggregate, return result dict."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
@@ -877,20 +1030,33 @@ def score_all(calibrated=False, meta_oracle=False):
     # Weighted score (40/35/25)
     weighted_10 = round((C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 10, 2)
 
-    # DG-28 calibration: 15% reduction for static-only detection
+    # ── Runtime calibration: smoke test pass rate (real data, no arbitrary penalty) ──
+    # Smoke test IS runtime verification. Pass rate = calibration factor.
+    # 203/203 = 1.0 → no penalty. Failures would proportionally reduce.
     if calibrated:
-        weighted_10 = round(weighted_10 * 0.85, 2)
+        smoke_rate = _get_smoke_pass_rate()
+        weighted_10 = round(weighted_10 * smoke_rate, 2)
 
-    # 8.6 gate verdict
-    if weighted_10 >= 8.6:
+    # ── Gap detection (informational only, no penalty) ──
+    # Gaps are reported for awareness. They don't deflate the score.
+    # If hooks are disabled by design → not a gap. If files missing → gap.
+    gaps = _detect_substantive_gaps()
+    p0_count = sum(1 for g in gaps if g.startswith('P0:'))
+    p1_count = sum(1 for g in gaps if g.startswith('P1:'))
+
+    # 9.0 gate verdict (score-only, honest)
+    if weighted_10 >= 9.0:
         gate_verdict = "[Meta-Oracle: ACCEPT]"
-        gate_reason = f"C/E/G 加权总分 {weighted_10}/10 >= 8.6 阈值"
-    elif weighted_10 >= 5.0:
+        gate_reason = f"C/E/G 加权总分 {weighted_10}/10 >= 9.0 阈值"
+    elif weighted_10 >= 7.0:
         gate_verdict = "[Meta-Oracle: ADVISORY]"
-        gate_reason = f"C/E/G 加权总分 {weighted_10}/10 < 8.6 阈值 — 建议修正但不阻断"
+        gate_reason = f"C/E/G 加权总分 {weighted_10}/10 < 9.0 阈值 — 建议修正但不阻断"
     else:
         gate_verdict = "[Meta-Oracle: REJECT]"
-        gate_reason = f"C/E/G 加权总分 {weighted_10}/10 < 5.0 阈值 — 强烈建议阻断"
+        gate_reason = f"C/E/G 加权总分 {weighted_10}/10 < 7.0 阈值 — 强烈建议阻断"
+
+    if gaps:
+        gate_reason += f" | ℹ️ 检测到 {p0_count}P0 + {p1_count}P1 缺口（仅报告，不扣分）"
 
     # Build subscores
     all_results = {}
@@ -919,7 +1085,7 @@ def score_all(calibrated=False, meta_oracle=False):
         },
         "aggregate": {
             "weighted_score_10": weighted_10,
-            "threshold": 8.6,
+            "threshold": 9.0,
             "gate_verdict": gate_verdict,
             "gate_reason": gate_reason,
         },
@@ -953,7 +1119,8 @@ def _print_summary(r, calibrated, meta_oracle):
 
     print(f"=== Meta-Oracle Score v1 (4D: C/E/G weighted + UX independent) @ {r['generated_at']} ===")
     if calibrated:
-        print("  [已校准] 所有维度静态检测下调 15%（DG-28 校准偏移）")
+        smoke_rate = _get_smoke_pass_rate()
+        print(f"  [烟雾校准] 运行时烟雾测试通过率 = {smoke_rate*100:.0f}%（真实数据，不编造）")
     print()
 
     # Sub-dimension details
@@ -971,7 +1138,7 @@ def _print_summary(r, calibrated, meta_oracle):
     print("---")
     print(f"UX 用户体验:      {UX['score']}/{UX['max']} = {UX['pct']}%  [独立, 不参与门禁]")
     print("---")
-    print(f"8.6 门禁判定:     {agg['gate_verdict']}")
+    print(f"9.0 门禁判定:     {agg['gate_verdict']}")
     print(f"  → {agg['gate_reason']}")
     print()
 

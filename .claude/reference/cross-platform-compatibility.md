@@ -287,3 +287,46 @@ settings.json (Hook 注册)
 | OpenCode SDK 类型 | `.opencode/node_modules/@opencode-ai/plugin/dist/index.d.ts` | 官方事件定义 |
 | 外部运行时测试 | `tmp/question.md` | 2026-05-22 OpenCode 实测报告 |
 | Windows/Mac sed 修复 | `install.sh` + `kernel.md DG-77` | sed 跨平台兼容实现 |
+
+---
+
+## 9. 三核心 Agent 能力跨平台可用性矩阵
+
+> Oracle、Meta-Oracle、Workflow `agent()` 三者在用户环境组合下的可用性。
+> OpenCode 通过 `mode: "subagent"` 原生支持子 Agent spawn（内置 plan/explore/build 等 subagent）。
+
+### 9.1 完整矩阵
+
+| 设备 | CLI | OMC/OMO | Workflow `agent()` | Oracle Agent | Meta-Oracle |
+|------|-----|---------|-------------------|-------------|-------------|
+| Mac | Claude Code | 装 OMC | ✅ | ✅ | ✅ |
+| Mac | Claude Code | 没装 OMC | ✅ | ✅（走 native 路径） | ✅ |
+| Mac | OpenCode | 装 OMO | ✅（OpenCode 原生 subagent） | ✅（subagent 模式） | ✅ |
+| Mac | OpenCode | 没装 OMO | ✅（OpenCode 原生 subagent） | ✅（subagent 模式） | ✅ |
+| Windows | Claude Code | 装 OMC | ✅ | ✅ | ✅ |
+| Windows | Claude Code | 没装 OMC | ✅ | ✅ | ✅ |
+| Windows | OpenCode | 装 OMO | ✅（OpenCode 原生 subagent） | ✅（subagent 模式） | ✅ |
+| Windows | OpenCode | 没装 OMO | ✅（OpenCode 原生 subagent） | ✅（subagent 模式） | ✅ |
+
+### 9.2 执行方式对比
+
+| 能力 | 执行方式 | 模型 | 隔离性 | 降级路径 |
+|------|---------|------|--------|---------|
+| **Workflow `agent()`** | Claude Code / OpenCode 原生子 Agent spawn | 同 main agent | 独立上下文 | 无降级 |
+| **Oracle Agent** | 输出指令 → AI 调用 `Agent(subagent_type="critic")` | 同 main agent | 独立上下文（同模型族） | 无 Agent → AI 角色扮演 |
+| **Meta-Oracle** | Python 脚本 `curl` 直调 DeepSeek API | deepseek-chat（同 provider，不同模型） | 完全独立（不同模型、不同调用路径） | API 失败 → 本地评分脚本 |
+
+### 9.3 关键依赖
+
+| 能力 | 依赖 | 用户需额外配置 |
+|------|------|--------------|
+| Workflow `agent()` | Claude Code 或 OpenCode 内置能力 | 无 |
+| Oracle Agent | Claude Code/OpenCode 的 Agent 工具 + Carror OS hook/skill 体系 | 无（装 Carror OS 即自带） |
+| Meta-Oracle | Python 3 + DeepSeek API key | `DEEPSEEK_API_KEY` 环境变量（与 main agent 共用同一 key） |
+
+### 9.4 调研依据
+
+- **OpenCode subagent 能力**: 官方技能文档确认 `mode: "subagent"` 配置模式，内置 `plan`/`explore`/`build` 等 subagent
+- **Oracle spawn 机制**: `oracle-spawn.sh` `cmd_spawn()` 输出 JSON 指令，AI 调用 `Agent(subagent_type="critic")`（源码 `lx-oracle-v2/scripts/oracle-spawn.sh:231-240`）
+- **Meta-Oracle API 调用**: `meta-oracle-review.py` `_spawn_critic_agent()` 通过 `curl` 直调 DeepSeek Anthropic 兼容端点（源码 `meta-oracle-review.py:348-415`）
+- **OMC/OMO 检测**: `detect-oracle-env.sh` 检查 `.omc/` / `.opencode/plugins/` 目录存在性，不启动任何进程（源码 `detect-oracle-env.sh:17-31`）

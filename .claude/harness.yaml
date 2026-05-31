@@ -17,12 +17,6 @@ task_decomposition:
   rollback_declaration: required_for_strict_mode
 knowledge:
   inject_files: false
-  # - index.md:full
-  # - kernel.md:summary
-  # - claude-next.md:summary
-  # - anti-patterns.md:summary
-  # - terminal-safety.md:summary
-  # - rules/bash-style.md:summary
   snapshot_expiry_sec: 86400
 ghost_mode:
   exit_report_gate: true
@@ -41,12 +35,15 @@ subagent_guard:
 context_guard:
   warn_threshold: 50
   danger_threshold: 80
+  critical_threshold: 90
 completion_gate:
   min_evidence_chars: 20
   required_keyword: VERIFIED
   quality_threshold: 60
   evidence_freshness_sec: 300
-  soft_completion_words: "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically done|mostly complete|seems to work|probably works|theoretically|should work|looks good"
+  soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
+    done|mostly complete|seems to work|probably works|theoretically|should work|looks
+    good
 bash_audit:
   dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
 permission_gate:
@@ -79,52 +76,51 @@ coupling:
   max_history_commits: 200
   max_coupled_files: 5
 hooks_enabled:
-  anti_pattern_detect: true
   auto_snapshot: true
-  compact_detect: true
+  build_validator: true
   completion_gate: true
   context_guard: true
   context_compressor: true
+  cruise_check: true
   ecosystem_probe: true
   edit_guard: true
+  error_dna_auto_fix: true
   error_dna: true
   fuzzy_block: true
   inject_project_knowledge: true
   intent_tracker: true
-  issue_triage: true
   knowledge_condenser: true
   lsp_suggest: true
-  lsp_gate: true
   meta_oracle_trigger: true
-  oracle_gate: true
-  permission_gate: false
+  permission_gate: true
   posttool_bash_audit: true
   posttool_claim_audit: true
   posttool_completion_audit: true
   posttool_checkpoint: true
   posttool_edit_quality: true
   posttool_handoff_writer: true
-  posttool_output_format: true
-
   posttool_subagent_audit: true
   posttool_write_cite: true
   posttool_write_lock: true
   pre_completion_gate: true
   pre_ask_guard: true
   session_resume: true
-  pretool_edit_scope: true
-  pretool_plan_gate: false
+  pretool_edit_scope: false
+  pretool_plan_gate: true
   pretool_purify_gate: true
   pretool_node_reference: true
   posttool_template_check: true
   pretool_rules_inject: false
-  # pretool_rules_inject: ture
   pretool_skill_version_guard: true
-  pretool_sensitive_edit: false
+  pretool_sensitive_edit: true
   pretool_terminal_safety: true
+  lsp_gate: false
+  oracle_gate: false
+  posttool_read_cite: false
+terminal_safety:
+  max_command_length: 2000
   pretool_write_lock: true
   privacy_gate: true
-
   read_tracker: true
   retry_budget_check: true
   skill_flywheel: true
@@ -140,13 +136,13 @@ rule_anchor:
 roi:
   weights:
     benefit:
-      intercept_count: 0.40
+      intercept_count: 0.4
       time_saved: 0.25
-      quality_boost: 0.20
+      quality_boost: 0.2
       knowledge_deposit: 0.15
     cost:
-      token_consumption: 0.30
-      maintenance_burden: 0.30
+      token_consumption: 0.3
+      maintenance_burden: 0.3
       false_positive_rate: 0.25
       mental_burden: 0.15
   thresholds:
@@ -162,7 +158,7 @@ roi:
     false_completion_blocked: 15
     default_intercept: 5
   data_sources:
-    flywheel_log: "~/.claude/flywheel.log"
-    error_dna: ".omc/state/error-dna.jsonl"
-    skill_usage: ".omc/state/skill-usage.jsonl"
+    flywheel_log: ~/.claude/flywheel.log
+    error_dna: .omc/state/error-dna.jsonl
+    skill_usage: .omc/state/skill-usage.jsonl
   blast_radius: true

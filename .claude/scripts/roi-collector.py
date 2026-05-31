@@ -24,7 +24,6 @@ OUTPUT_FILE = STATE_DIR / "roi-data.json"
 # ── Component inventories ──
 
 HOOKS = [
-    "anti_pattern_detect", "auto_snapshot", "compact_detect", "completion_gate",
     "context_guard", "ecosystem_probe", "edit_guard", "error_dna", "fuzzy_block",
     "inject_project_knowledge", "intent_tracker", "knowledge_condenser", "lsp_suggest",
     "meta_oracle_trigger", "permission_gate", "plan_gate", "posttool_bash_audit",
@@ -72,7 +71,6 @@ MED_FREQ = {
     "posttool_handoff_writer", "posttool_output_format", "posttool_read_cite",
     "posttool_write_cite", "posttool_subagent_audit", "knowledge_condenser",
     "lsp_suggest", "stop_drain", "subagent_guard", "auto_snapshot",
-    "compact_detect", "user_correction_detector", "retry_budget_check",
     "skill_flywheel",
 }
 

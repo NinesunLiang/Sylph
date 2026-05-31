@@ -282,6 +282,8 @@ APPROVAL_CODE=$(
 [ -z "$APPROVAL_CODE" ] && APPROVAL_CODE=$(printf '%08x' "$(( ($$ * $(date +%s) * $RANDOM) & 0xFFFFFFFF ))")
 echo "$APPROVAL_CODE" > "$PERMISSION_REQUIRED"
 
+# 保存原操作到 pending-retry.json，批准后 AI 可读取并重放
+
 flywheel_event "permission_gate" "blocked_captcha_${DANGER_TYPE// /_}" "P1" || true
 
 agentic_captcha \

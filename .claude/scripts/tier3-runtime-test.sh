@@ -42,7 +42,7 @@ _test "pre-edit-lsp chain responds" "[1-9]" "$R28_2"
 
 # Verify pipeline state exists
 _test "edit-log has entries" "true" "$([ -f .omc/state/session-edit-log.txt ] && echo true || echo false)"
-_test "contradiction-log has records" "true" "$([ -f .omc/state/contradiction-log.jsonl ] && echo true || echo false)"
+_test "edit-churn-log has records" "true" "$([ -f .omc/state/edit-churn-log.jsonl ] && echo true || echo false)"
 
 # ─── Chain 2: 错误管道 ───
 echo ""; echo "=== [29] 错误管道: error-dna→retry-budget→retry-check ==="
@@ -108,7 +108,7 @@ echo "=== 发现的问题 ==="
 R_ISSUE1=$(${PYTHON_BIN:-python3} -c "
 import json; total=0; contra=0
 try:
-  with open('.omc/state/contradiction-log.jsonl') as f:
+  with open('.omc/state/edit-churn-log.jsonl') as f:
     for l in f:
       if not l.strip(): continue
       total+=1

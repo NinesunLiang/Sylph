@@ -15,7 +15,10 @@ Outputs:
 
 import json
 import os
+import re
+import subprocess
 import sys
+import tempfile
 from datetime import datetime, timezone
 
 
@@ -254,15 +257,202 @@ def write_verdict(gate_verdict, weighted_score, ux_score, ux_max):
 
 # ── Main ─────────────────────────────────────────────────────────────
 
+# ── Critic Agent Spawn ───────────────────────────────────────────────
+
+def _build_spawn_prompt(trigger_type, methodology_lines):
+    """Build the full prompt for the independent critic agent."""
+    project_name = os.path.basename(PROJECT_ROOT)
+    return f"""{''.join(methodology_lines)}
+
+## Current Project State
+Project: {project_name}
+Root: {PROJECT_ROOT}
+Trigger: {trigger_type}
+Timestamp: {datetime.now(timezone.utc).isoformat()}
+
+CRITICAL: You are Meta-Oracle — the FINAL gatekeeper. Your verdict has real consequences:
+- ACCEPT = the change is safe and verified → proceed
+- ADVISORY = issues found but not blocking → fix recommended
+- REJECT = critical issues found → STOP, human must intervene
+
+You MUST output your verdict in this EXACT format at the end:
+[Meta-Oracle: ACCEPT]
+or
+[Meta-Oracle: ADVISORY]
+or
+[Meta-Oracle: REJECT]
+
+Before the verdict, list your key findings. Be specific — reference exact file:line.
+After the verdict, list specific recommended actions.
+"""
+
+
+def _get_api_key():
+    """Get DeepSeek API key — user-friendly, multi-source.
+
+    Priority: env var → project .env → harness.yaml → Hermes .env
+    Users just set DEEPSEEK_API_KEY in their environment or project .env.
+    """
+    # 1. Environment variable (standard for CI/docker)
+    key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if key and key != "***":
+        return key
+
+    # 2. Project .env (standard for local dev)
+    for env_path in [
+        os.path.join(PROJECT_ROOT, ".env"),
+        os.path.join(PROJECT_ROOT, ".claude", ".env"),
+    ]:
+        if os.path.isfile(env_path):
+            try:
+                with open(env_path, "r", encoding="utf-8") as f:
+                    for line in f:
+                        line = line.strip()
+                        if line.startswith("DEEPSEEK_API_KEY="):
+                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            if key and key != "***":
+                                return key
+            except OSError:
+                pass
+
+    # 3. harness.yaml (Carror OS native config)
+    harness_path = os.path.join(PROJECT_ROOT, ".claude", "harness.yaml")
+    if os.path.isfile(harness_path):
+        try:
+            with open(harness_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    if "deepseek_api_key:" in line:
+                        key = line.split(":", 1)[1].strip().strip('"').strip("'")
+                        if key and key != "***":
+                            return key
+        except OSError:
+            pass
+
+    # 4. Hermes .env (Boss's setup — last resort)
+    hermes_env = os.path.join(os.path.expanduser("~"), ".hermes", ".env")
+    if os.path.isfile(hermes_env):
+        try:
+            with open(hermes_env, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if line.startswith("DEEPSEEK_API_KEY="):
+                        key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                        if key and key != "***":
+                            return key
+        except OSError:
+            pass
+
+    return ""
+
+
+def _spawn_critic_agent(trigger_type):
+    """Primary path: spawn independent DeepSeek agent via API (same provider as main agent).
+
+    Uses the same DeepSeek Anthropic-compatible endpoint as the main Hermes agent.
+    Independence comes from separate context/call, not different model family.
+    Checks spawn readiness first — skips if startup check failed.
+
+    Returns (verdict_str, full_output) or (None, None) on failure.
+    """
+    # Fast path: startup readiness check already failed → skip spawn
+    if not is_spawn_ready():
+        return None, None
+
+    api_key = _get_api_key()
+    if not api_key:
+        print("[spawn] DEEPSEEK_API_KEY not found — 回退降级路径", file=sys.stderr)
+        return None, None
+
+    # Build methodology
+    import io
+    buf = io.StringIO()
+    old_stdout = sys.stdout
+    sys.stdout = buf
+    print_methodology()
+    sys.stdout = old_stdout
+    methodology = buf.getvalue()
+
+    full_prompt = _build_spawn_prompt(trigger_type, [methodology])
+
+    # DeepSeek Anthropic-compatible endpoint (same as main Hermes agent)
+    base_url = "https://api.deepseek.com/anthropic"
+    model = "deepseek-chat"
+
+    payload = json.dumps({
+        "model": model,
+        "max_tokens": 2000,
+        "messages": [{"role": "user", "content": full_prompt}],
+    })
+
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "--max-time", "120",
+             "-X", "POST", f"{base_url}/v1/messages",
+             "-H", "Content-Type: application/json",
+             "-H", f"x-api-key: {api_key}",
+             "-H", "anthropic-version: 2023-06-01",
+             "-d", payload],
+            capture_output=True, text=True, timeout=130,
+        )
+        if result.returncode != 0:
+            raise subprocess.SubprocessError(f"curl exit={result.returncode}")
+
+        # Parse DeepSeek Anthropic-format response
+        data = json.loads(result.stdout)
+        text = data.get("content", [{}])[0].get("text", "")
+
+        if not text:
+            # Try OpenAI-format fallback
+            text = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+        if text:
+            verdict = _parse_verdict(text)
+            if verdict:
+                return verdict, text
+    except (subprocess.SubprocessError, json.JSONDecodeError, KeyError, IndexError, OSError) as e:
+        print(f"[spawn] DeepSeek API 调用失败: {e} — 回退降级路径", file=sys.stderr)
+
+    return None, None
+
+
+def _parse_verdict(output):
+    """Extract Meta-Oracle verdict from agent output."""
+    m = re.search(r'\[Meta-Oracle:\s*(ACCEPT|ADVISORY|REJECT)\]', output)
+    if m:
+        return f"[Meta-Oracle: {m.group(1)}]"
+    return None
+
+
+def _extract_findings(output):
+    """Extract key findings from agent output (first 500 chars of non-header content)."""
+    # Strip methodology headers, take first meaningful paragraph
+    cleaned = re.sub(r'^#.*$', '', output, flags=re.MULTILINE).strip()
+    lines = [l for l in cleaned.split('\n') if l.strip() and not l.startswith('===')]
+    return '\n'.join(lines[:10])[:500]
+
+
 def main():
     print(f"=== Meta-Oracle 最后守门员 [{TRIGGER_TYPE}] ===")
     print(f"审查状态文件: {os.path.join(STATE_DIR, 'meta-oracle-verdicts.md')}")
     print(f"触发类型: {TRIGGER_TYPE}\n")
 
-    # Output methodology
+    # ── Primary Path: Spawn independent critic agent ──
+    print("--- 主路径: 启动独立 critic agent ---")
+    agent_verdict, agent_output = _spawn_critic_agent(TRIGGER_TYPE)
+
+    if agent_verdict and agent_output:
+        print(f"✅ 独立 agent 裁决: {agent_verdict}")
+        findings = _extract_findings(agent_output)
+        if findings:
+            print(f"\n关键发现:\n{findings}")
+        write_verdict(agent_verdict, "agent", "N/A", "N/A")
+        print("\n[路径] 主路径 (独立 agent) — 裁决来自独立 critic agent 审查")
+        return
+
+    # ── Degraded Path: Static scoring (agent unavailable) ──
+    print("⚠️ 独立 agent 不可用，降级为静态评分")
     print_methodology()
 
-    # Run scoring
     print("\n--- 运行四维打分 (C/E/G 加权聚合 + UX 独立) ---")
     result, used_python = run_scoring()
 
@@ -278,7 +468,6 @@ def main():
     ux_score = result.get("ux_score") if not used_python else None
     ux_max = result.get("ux_max") if not used_python else None
 
-    # For Python scoring, UX is embedded in result
     if used_python and "dimensions" in result:
         ux = result["dimensions"].get("UX", {})
         ux_score = ux.get("score", "N/A")
@@ -292,9 +481,70 @@ def main():
         print(f"\n--- UX 独立评分 ---")
         print(f"UX 得分: {ux_score}/{ux_max} (独立, 不参与 8.6 门禁)")
 
-    # Write verdict
     write_verdict(gate_verdict, weighted_score, ux_score, ux_max)
+    print(f"\n[路径] 降级路径 (静态评分) — 独立 agent 不可用时的 fallback")
+
+
+# ── Startup Readiness Check ──────────────────────────────────────────
+
+SPAWN_READY_FILE = os.path.join(STATE_DIR, ".meta-oracle-spawn-ready")
+
+
+def check_readiness():
+    """Check at session start whether Meta-Oracle spawn is viable.
+
+    Writes result to .omc/state/.meta-oracle-spawn-ready for fast lookup.
+    Returns True if spawn-ready, False otherwise.
+    """
+    os.makedirs(STATE_DIR, exist_ok=True)
+
+    # Step 1: API key available?
+    api_key = _get_api_key()
+    if not api_key:
+        with open(SPAWN_READY_FILE, "w") as f:
+            f.write("degraded:no_api_key\n")
+        print("[meta-oracle readiness] 降级 — 未检测到 DEEPSEEK_API_KEY", file=sys.stderr)
+        return False
+
+    # Step 2: Quick connectivity test (1-token call, 10s timeout)
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "--max-time", "10",
+             "-X", "POST", "https://api.deepseek.com/anthropic/v1/messages",
+             "-H", "Content-Type: application/json",
+             "-H", f"x-api-key: {api_key}",
+             "-H", "anthropic-version: 2023-06-01",
+             "-d", '{"model":"deepseek-chat","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}'],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode == 0:
+            data = json.loads(result.stdout)
+            if data.get("content") or data.get("choices"):
+                with open(SPAWN_READY_FILE, "w") as f:
+                    f.write(f"ready:{datetime.now(timezone.utc).isoformat()}\n")
+                print("[meta-oracle readiness] ✅ spawn 就绪 — DeepSeek API 连通", file=sys.stderr)
+                return True
+    except (subprocess.SubprocessError, json.JSONDecodeError, OSError) as e:
+        pass
+
+    with open(SPAWN_READY_FILE, "w") as f:
+        f.write("degraded:api_unreachable\n")
+    print("[meta-oracle readiness] 降级 — DeepSeek API 不可达", file=sys.stderr)
+    return False
+
+
+def is_spawn_ready():
+    """Fast check: was spawn verified ready at session start?"""
+    if not os.path.isfile(SPAWN_READY_FILE):
+        return False
+    try:
+        with open(SPAWN_READY_FILE, "r") as f:
+            return f.read().strip().startswith("ready:")
+    except OSError:
+        return False
 
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--check-readiness":
+        sys.exit(0 if check_readiness() else 1)
     main()

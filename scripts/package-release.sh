@@ -92,7 +92,10 @@ fi
 echo ""
 
 # ═══ DG-100 三源安全门禁 (2026-05-22) ═══
-log_step "0/4 三源安全门禁..."
+# DG-118 修复 (2026-05-31): 三源预检从 Step 0 移至 Step 1 之后
+# 原因: Step 0 时 root 已修改但 source/ 尚未 rsync → 假阳性漂移阻断
+# Step 1 rsync 后 root→source 已同步 → 预检通过 → 仅 Step 5 兜底
+log_step "0/4 三源安全门禁 (预检延迟至 Step 1.5)..."
 
 SAFETY_BRANCH="_safe/package-${VERSION}-$(date +%Y%m%d-%H%M%S)"
 
@@ -106,45 +109,7 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
         log_warn "  安全分支创建失败（继续）"
 fi
 
-# 0.2 三源一致性预检
-if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
-    log_info "  三源一致性预检..."
-    set +e
-    MIRROR_CHECK=$(bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1)
-    MIRROR_EXIT=$?
-    set -e
-    # macOS 兼容: POSIX sed 解析红字数
-    RED_COUNT=$(echo "$MIRROR_CHECK" | sed -n 's/.*🔴 严重: \([0-9]*\).*/\1/p' 2>/dev/null)
-    RED_COUNT="${RED_COUNT:-0}"
-
-    FORCE_MODE=false
-    for arg in "$@"; do [ "$arg" = "--force" ] && FORCE_MODE=true; done
-
-    # Crash 检测: 脚本异常退出
-    if [ "$MIRROR_EXIT" -ne 0 ] && [ "$RED_COUNT" -eq 0 ]; then
-        log_warn "  🔴 三源验证脚本异常退出 (exit=$MIRROR_EXIT)，可能为假阴性"
-        echo "$MIRROR_CHECK" | tail -5
-        [ "$FORCE_MODE" != "true" ] && { log_warn "  打包已阻断。--force 可跳过。"; exit 1; }
-    fi
-
-    # 漂移检测: --force 跳过，否则阻断
-    if [ "$RED_COUNT" -gt 0 ]; then
-        log_warn "  ⚠️  三源一致性: ${RED_COUNT} 项 CRITICAL 漂移"
-        echo "$MIRROR_CHECK" | grep '🔴' | head -10
-        if [ "$FORCE_MODE" != "true" ]; then
-            log_warn "  打包已阻断。--force 可跳过，或先修复漂移。"
-            log_info "  安全分支 $SAFETY_BRANCH 已保存当前状态。"
-            exit 1
-        fi
-        log_info "  --force: 跳过三源门禁（风险自负）"
-    else
-        log_info "  ✅ 三源一致性: 通过"
-    fi
-else
-    log_warn "  audit-hooks.sh 不可用，跳过三源预检"
-fi
-
-# 0.3 关键文件存在性+非空验证
+# 0.2 关键文件存在性+非空验证
 REQUIRED_FILES=".claude/hooks/error-dna.sh .claude/hooks/intent-tracker.sh .claude/hooks/context-compressor.sh .claude/hooks/pre-edit-lsp-check.sh .claude/settings.json .claude/harness.yaml"
 MISSING_FILES=""
 for rf in $REQUIRED_FILES; do
@@ -189,6 +154,41 @@ rm -rf "$HARNESS_SRC/.claude/nodes" "$HARNESS_SRC/.claude/profiles" \
 rm -f "$HARNESS_SRC/.claude/settings.local.json" \
       "$HARNESS_SRC/.claude/scheduled_tasks.lock" 2>/dev/null || true
 log_info "  harness-kit 同步完成"
+
+# ─── Step 1.5: 三源一致性预检 (DG-118: 移至 rsync 之后，消除假阳性) ───
+if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
+    log_info "  三源一致性预检 (rsync 后)..."
+    set +e
+    MIRROR_CHECK=$(bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1)
+    MIRROR_EXIT=$?
+    set -e
+    RED_COUNT=$(echo "$MIRROR_CHECK" | sed -n 's/.*🔴 严重: \([0-9]*\).*/\1/p' 2>/dev/null)
+    RED_COUNT="${RED_COUNT:-0}"
+
+    FORCE_MODE=false
+    for arg in "$@"; do [ "$arg" = "--force" ] && FORCE_MODE=true; done
+
+    if [ "$MIRROR_EXIT" -ne 0 ] && [ "$RED_COUNT" -eq 0 ]; then
+        log_warn "  🔴 三源验证脚本异常退出 (exit=$MIRROR_EXIT)，可能为假阴性"
+        echo "$MIRROR_CHECK" | tail -5
+        [ "$FORCE_MODE" != "true" ] && { log_warn "  打包已阻断。--force 可跳过。"; exit 1; }
+    fi
+
+    if [ "$RED_COUNT" -gt 0 ]; then
+        log_warn "  ⚠️  三源一致性: ${RED_COUNT} 项 CRITICAL 漂移 (rsync 后仍存在)"
+        echo "$MIRROR_CHECK" | grep '🔴' | head -10
+        if [ "$FORCE_MODE" != "true" ]; then
+            log_warn "  打包已阻断。--force 可跳过，或先修复漂移。"
+            log_info "  安全分支 $SAFETY_BRANCH 已保存当前状态。"
+            exit 1
+        fi
+        log_info "  --force: 跳过三源门禁（风险自负）"
+    else
+        log_info "  ✅ 三源一致性: 通过"
+    fi
+else
+    log_warn "  audit-hooks.sh 不可用，跳过三源预检"
+fi
 
 # ─── Step 2: root -> source/lx-skills-v5 ───
 log_step "2/4 同步 root -> source/lx-skills-v5..."

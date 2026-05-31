@@ -78,7 +78,6 @@ coupling:
 hooks_enabled:
   anti_pattern_detect: true
   auto_snapshot: true
-  compact_detect: true
   completion_gate: true
   context_guard: true
   ecosystem_probe: true

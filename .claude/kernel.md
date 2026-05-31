@@ -1,181 +1,169 @@
-<!-- PROJECT: Carror OS -->
+# 数字资产管理内核
 
-<!-- DATE: 2026-05-17 -->
+> Carror OS 知识进化引擎 — 从运行时事件到铁律生长的完整管道
+> 资产: flywheel.log / error-dna.jsonl / governance-audit.jsonl / retry-budget.json / escape-patches.json / claude-next.md
+> 全部位于 .omc/state/ 和 ~/.claude/ 下，kernel.md 是这些资产的管理员
 
-# 代码执行内核（kernel.md）
+──────────────────────
+资产地图
+──────────────────────
 
-> 本文件是 AI 执行内核 — 写代码前必读，冻结后不可随意扩展
+flywheel.log          → 全hook事件流（每个hook通过 flywheel_event 写入）
+error-dna.jsonl       → E2验证码伪造攻击记录（最高优先级，归档轮转）
+governance-audit.jsonl→ E1治理文件绕过记录（Bash绕过Edit|Write门禁）
+error-signals.jsonl   → 普通Bash错误（7天自动清除，>512KB清空）
+retry-budget.json     → 按signature追踪重试次数（3轮上限执法依据）
+escape-patches.json   → E1/E2触发后自动生成的修复建议（30天pending过期）
+claude-next.md        → 用户纠正→DG教训（58条，knowledge-condenser扫描升华）
 
-## ⚖️ 宪法冻结声明
-本文件作为 **AI 执行内核（Kernel）**：
-- ✅ 不再新增行为铁律、Gate 类型
-- ✅ 所有新经验默认进入 `.claude/claude-next.md`，验证稳定后可升华到此文件
+──────────────────────
+管道: 事件 → 教训 → 规则 → 铁律
+──────────────────────
 
----
+Phase 1: 采集（飞轮 + 错误基因）
+  每个hook调用 flywheel_event → flywheel.log
+  error-dna.sh 拦截 PostToolUse:Bash + PostToolUseFailure:Bash
+    ├─ 隐私脱敏: API key/Bearer token/JWT 自动替换为 ***
+    ├─ 签名生成: md5(cmd)[:16] → 去重统计
+    ├─ 分类器: build/test/git/dependency/lint/docker/network/file_ops/runtime
+    └─ E1/E2逃逸检测: 治理文件路径匹配 + CAPTCHA标记匹配 + 符号链接追踪
 
-## 架构铁律
-<!-- 由 R17 审计填充 @2026-05-07 -->
-- **双域架构**：harness-kit（内核层/治理） + lx-skills-v5（能力层/工程），严格按 domain 划分职责
-- **Hook 不可失败**：所有 `hooks/*.sh` 禁止 `set -e`，必须 `exit 0` 或 `echo '{"continue": true}'` 结尾
-- **hc_enabled 门禁**：每个 Hook 脚本必须通过 `hc_enabled "feature_name" || exit 0` 读取 yaml 开关
-- **最大修复上限**：同一问题最多修 3 轮，超过则 BLOCKED 升级用户
-- **harness.yaml 整数类型**：涉及 bash 整数比较（`[ "$VAL" -lt "$THRESHOLD" ]`）的配置值必须用整数。0-100 百分比刻度用 `60` 而非 `0.6`。浮点数导致 bash `[` 静默失败。（升华自 DG-54）
-- **发行包路径脱敏**：开发机绝对路径（`/Users/xxx/...`）禁止进入 `packages/`。`package-release.sh` 打包前替换为 `__PROJECT_ROOT__` 占位符，`install.sh` 安装时替换为用户实际路径。（升华自 DG-31）
+Phase 2: 感知（飞轮报告 + 高频告警）
+  flywheel-report.sh (SessionStart): 扫描30天窗口
+    P0事件 ≥5次 + 未被ack/snooze → 生成报告 + macOS通知
+    告警抑制: flywheel-ack.log (resolved/snooze N天/ignore)
+  error-dna.sh 实时高频扫描: 同一signature ≥5次 → 注入session告警
+    逃逸E1/E2: 即时写入additionalContext（Agent立即可见）
+  error-dna-auto-fix.sh (Stop): 跨会话回顾
+    扫描 error-dna.json → 顽固错误(≥3次仍active) → 写入状态文件
 
-## 命名强制规则
-<!-- 由 R17 审计填充 @2026-05-07 -->
-- **Hook 脚本**：snake-case（`context-guard.sh`、`completion-gate.sh`），与 harness.yaml key 保持连字符一致
-- **Python 脚本**：snake_case（`context_monitor.py`、`oma_lock_manager.py`）
-- **Skill 目录**：`lx-` 前缀（`lx-oma-split`、`lx-code-review`），SKILL.md 主文件
-- **YAML key**：snake_case（`hooks_enabled.completion_gate`），与脚本调用一致
-- **版本号**：始终 `6.3.0` 格式，唯一真相源 `VERSION.json`
+Phase 3: 记录（纠正检测 → claude-next）
+  pretool-user-correction.sh (UserPromptSubmit):
+    检测"不对/错了/应该是/不是这样/重新来/你弄错了"等信号
+    → 自动写入 DG-[N] 骨架到 claude-next.md（每日最多一次）
+    → 要求Agent补充根因+纠正内容后标记hits+1
+  claude-next.md 格式: ### [DG-xxx] [状态] 描述 @日期 hits:N
+    触发条件 + 正确行为 + 证据
 
-## 错误处理铁律
-<!-- 由 R17 审计填充 @2026-05-07 -->
-- **Hook 永不阻塞**：任何失败必须 `exit 0` 或 `echo '{"continue": true}'` + `exit 0`
-- **证据门禁优先**：错误修复后必须提供 VERIFIED 证据再标 completed
-- **Error DNA 捕获**：Bash 错误自动记录至 `error-dna.jsonl`，使用 `error_classifier.py` 分类
-- **修复 3 轮上限**：每轮记录根因假设，第 3 轮仍失败 → BLOCKED 升级
-- **禁止绕过门禁**：permission-gate/sensitive-edit 阻断时必须等待用户明确授权。AI 不得代用户批准或自行写入批准标记（R42 安全漏洞修复）
-- **对话内批准（DG-125）**：permission-gate 阻断时 AI 不要求用户切终端。在对话中输出以下格式：
+Phase 4: 升华（knowledge-condenser → kernel）
+  knowledge-condenser.sh (Stop, 默认禁用):
+    扫描 claude-next.md 提取 hits≥2 条目
+    hits≥5 + age≥10d + kernel已有 → "更新 kernel.md（补证据）"
+    hits≥5 + age≥10d + kernel无   → "升华至 kernel.md"
+    hits≥3 + age≥7d               → "升华至 kernel.md"
+    hits≥3 + age≥5d               → "建议升华，待确认"
+    hits=1 + age>30d              → "建议归档移除"
+    >40条目                        → "警告: 建议清理至<30条"
+  harness.yaml sublimation thresholds:
+    count_threshold: 20, age_days: 10, hit_threshold: 5
+  升华执行: AI/开发者手动将DG条目转写为kernel规则
+    规则格式: "禁止/必须 xxx — （升华自 DG-xxx）"
+    已有7条升华为kernel规则 (DG-13/29/31/36/54/68/77)
 
-  ```
-  ⚠️ Dangerous command requires approval:
-  <被阻断的命令>
-  Reason: <危险类型，如 destructive/git push/sudo/gh write>
-  Reply /approve <token> to execute, /deny to cancel.
-  ```
+Phase 5: 生长（kernel → AGENTS 铁律/哲学）
+  极稳定kernel规则 → 候选新铁律 → Boss仲裁
+  当前8条铁律均无DG来源标注（稳定到无需追溯）
 
-  用户回复后 AI 行为：
-  - `/approve <token>` → `pretool-approve-detect.sh` 自动写入 `permission-approved` → 重试原命令（5分钟缓存）
-  - `/deny` → 放弃，报告用户
-  - 禁止要求用户去终端粘贴 token
-- **原生批准优先**：敏感文件编辑优先使用 `permissionDecision: ask` 原生对话框，/approve 对话内机制作为回退
-- **关键脚本修改前备份**：修改 permission-gate.sh / settings.json 等关键治理文件前必须 `cp file file.bak`，修改后必须 `bash -n file` 语法检查。这些文件损坏 = 全 Bash 被封 = 无法自救。（升华自 DG-13, DF-04）
+──────────────────────
+资产生命周期
+──────────────────────
 
-## 测试要求
-<!-- 由 R17 审计填充 @2026-05-07 -->
-- **Harness Smoke**：修改 hook 后必须通过 `harness-smoke-test.sh`（动态计数，全绿为 pass）
-- **Hook 生产验证**：`hook-production-verify.sh`（动态计数，全绿为 pass）覆盖所有 gate 场景
-- **OMA Lock 测试**：修改锁逻辑后必须运行 `test_oma_lock.py`
-- **版本审计**：修改版本号后必须运行 `audit-hooks.sh` 确认三方对齐
-- **安全正则格式覆盖**：涉及安全门禁的正则表达式必须测试 ≥4 种路径格式：裸文件名(`AGENTS.md:42`)、相对路径(`./src/main.go:15`)、绝对路径(`/Users/x/project/file.go:42`)、点路径(`.claude/hooks/foo.sh:15`)。（升华自 DG-29）
+flywheel.log:
+  写入: 每个hook触发 flywheel_event
+  读取: flywheel-report.sh (SessionStart, 30天窗口)
+  清理: 无自动清理（用户手动管理）
+  抑制: flywheel-ack.log (resolved/snooze/ignore)
 
-## 禁止行为
-<!-- 由 R17 审计填充 @2026-05-07 -->
-- 禁止在 Hook 脚本中设置 `set -e`（会阻断工具调用）
-- 禁止 `eval`（当前 0 处，保持零容忍）
-- 禁止未引用 `file:line` 的技术断言（铁律 #1）
-- 禁止在报告中混合自创指标与行业标准（铁律 #7）
-- 禁止在 `for x in $VAR` 中使用未加引号变量（R24 教训）
-- 禁止 `json.load → str.replace → json.dump` 管道修改含转义字符的治理文件。JSON dump 会损坏嵌套引号。用 sed 纯文本替换。（升华自 DF-04, DG-12）
-- 禁止 `$(grep -c pattern || echo 0)` 模式 — `grep -c` 输出 "0" 并 exit 1，`|| echo 0` 追加第二个 "0"，产生双输出 `"0\n0"` 导致整数比较失败。正确做法：`VAR=$(grep -c pattern 2>/dev/null); VAR="${VAR:-0}"`。（升华自 DG-36）
-- 禁止 `sed -i` 使用未验证非空的变量作为行号 — `LINE=$(grep -n 'pattern' file | head -1 | cut -d: -f1)` 返回空 → `sed -i '' "${LINE}i\\..."` 空行号插入导致文件全毁。任何 sed -i 行号操作前必须 `[ -n "$LINE" ] || { echo "FATAL"; exit 1; }`。（升华自 DG-68）
-- 禁止在 macOS sed 中使用 `\\+` 量词（POSIX BRE 不兼容）— `\\+` 在 macOS 被解释为字面加号而非量词。跨平台脚本必须用 `sed -E` 启用 ERE，或改用 `[0-9][0-9]*` / `\\{1,\\}` 等 POSIX 兼容写法。（升华自 DG-77）
+error-dna.jsonl (E2 captcha forgery):
+  写入: error-dna.sh 检测E2 → append
+  轮转: >1MB → .0 → .1 → .2 (保留3个归档)
+  清理: 7天后自动删除归档文件
 
-## 三模式文档路径
+governance-audit.jsonl (E1 bypass):
+  写入: error-dna.sh 检测E1 → append
+  轮转: 无（E1比E2频率低）
+  清理: 无自动清理
 
-> 三种无人巡航模式各自有独立的文档路径约定，不可混用。
+error-signals.jsonl (普通错误):
+  写入: error-dna.sh 检测普通Bash错误 → append
+  清理: 7天自动清除 / >512KB清空重启
+  用途: C5/C9/E3 scoring数据源
 
-| 模式 | 根路径 | 信号文件 |
-|------|--------|---------|
-| **goal/ghost** | `.omc/state/{plan\|task\|test\|token}/{date}/{feature}/` | `.omc/state/tokens/lx-goal.json` |
-| **rpe** | `rpe/{feature}/` | 无独立信号文件 |
-| **oma** | `main_prd/{sub_prd}/{feature}/` | `.omc/state/tokens/autonomous.active` |
+retry-budget.json:
+  更新: 每次error-dna捕获 → signature retry_count+1
+  读取: pretool-retry-check.sh (PreToolUse:Bash, 3轮上限执法)
+  清理: 无自动清理
 
-- **goal/ghost 模式**：每个 feature 在 `{plan|task|test|token}` 四类子目录下各自存储
-- **rpe 模式**：直接位于 `rpe/{feature}/`，无日期层级
-- **oma 模式**：`main_prd`（单数），不是 `main_prds`
-- **信号文件**：统一存放在 `.omc/state/tokens/` 子目录下，不在 `.omc/state/` 根目录
+escape-patches.json:
+  写入: E1/E2首次触发 → 自动生成修复建议 (severity: critical/high)
+  过期: 30天pending → 自动标记expired
+  读取: Oracle/Meta-Oracle审查时参考
 
-> ⚠️ **违禁路径**：`prd/`、`sub-prds/`、`rpe/feat-*`（已废弃）
+claude-next.md:
+  写入: pretool-user-correction检测到纠正信号 → DG骨架
+  更新: Agent补充根因/纠正内容 → hits递增
+  升华: knowledge-condenser扫描 → 人工转写到kernel.md
+  归档: hits=1+age>30d → 建议移除（当前58条，超过40条告警线）
 
-## 无人值守模式：正式阶段
+──────────────────────
+Compact 交接 — 跨压缩知识恢复
+──────────────────────
 
-> 三种无人巡航模式各有固定阶段结构。AI 在进入对应模式后必须按阶段执行，不可跳阶段。
->
-> **核心规则**：无人值守模式下，决策链 L4（权限/风险/路线/资源）截断为「记录↷跳过」，不穿透到人。
+  1. 强制刷新 context-cache.md (context-compressor.sh, 防源文件变更陈旧)
+  2. 注入 context-cache.md (铁律+反模式+架构压缩, ~5KB)
+  3. 注入 kernel.md 架构标题摘要 (~8行)
+  4. 注入 session-handoff.md (当前Feature/进度/关键决策)
+  5. 注入 todo-queue.md (未完成任务, 最多8行)
+  6. 注入 session-dump.json (修改文件/活跃feature/编辑记录)
 
-### Goal 模式（目标驱动，有明确终点）
+涉及的资产管理:
+  context-cache.md:
+    生成: context-compressor.sh (SessionStart/mtime检测/FORCE_REGEN)
+    内容: AGENTS-compact + anti-patterns-compact + claude-next-compact + kernel-compact
+  session-handoff.md:
+    写入: posttool-handoff-writer (PostToolUse:TaskUpdate)
+    格式: Feature/进度/关键决策/TODO (max 10行 ADR, 10行 TODO, 3条 lessons)
+  session-dump.json:
+    写入: auto-snapshot.sh (PostToolUse:Edit|Write + Stop)
+    内容: git_state(modified_files) + active_features + edit_log
 
-```
-Phase 0: 澄清窗口
-  → 人确认目标，plan/prd 起草
-  → 用户可在这个窗口提问/纠偏
-  → lx-goal phase0-done → 方案通过门禁（pretool-plan-gate）
-  → 代码变更解锁，进入自主执行
+──────────────────────
+E1/E2 逃逸检测详情
+──────────────────────
 
-Phase 1-∞: 自主执行
-  → 决策链 L1→L2→L3 逐层消化
-  → L4（权限/风险/路线/资源）截断为记录↷跳过
-  → 子命令: task-done / skip-risk / hard-boundary-hit / blocked-human
-  → 3 轮修复上限，超过则 BLOCKED
+E1 (治理文件绕过):
+  触发: Bash命令中包含治理文件路径
+  检测文件: harness.yaml, settings.json, kernel.md, anti-patterns.md,
+            index.md, claude-next.md, feature-registry.yaml,
+            CLAUDE.md, AGENTS.md, .cursor/hooks.json, .opencode/opencode.json
+  符号链接追踪: 命令参数解析 → os.path.realpath → 交叉匹配治理路径
+  写入路径: governance-audit.jsonl
+  自动补丁建议: "扩展 pretool-sensitive-edit matcher 到 Bash"
 
-Phase ∞∞: 退出
-  → lx-goal report → 生成汇总报告
-  → lx-goal off → 清理信号文件，恢复 hook 正常阻断
-```
+E2 (验证码伪造):
+  触发: Bash命令中包含CAPTCHA批准标记
+  检测标记: sensitive-approved, sensitive-required,
+            permission-approved, permission-required
+  写入路径: error-dna.jsonl
+  自动补丁建议: "检查 permission-gate 的CAPTCHA文件保护"
 
-### Ghost 模式（方向驱动，开放式探索）
+──────────────────────
+运行模式（保留自旧kernel）
+──────────────────────
 
-```
-Phase 0: 澄清窗口
-  → 人确认探索方向
-  → 不限定时限，方向感驱动
+三种无人值守模式: goal / ghost / rpe
+  信号文件: .omc/state/tokens/ 子目录
+  L4权限/风险/路线/资源: 无人→记录↷跳过, 有人→穿透打断
+  ghost模式: hook不硬阻断(critical除外), 方向驱动
+  goal模式: Phase0澄清→Phase1-∞自主→Phase∞∞退出
 
-Phase 1-∞: 持续探索
-  → 阅读→记录→发现→深入（无固定任务清单）
-  → 不追求"完成"，追求"发现"
-  → 中断时自动生成探索笔记（posttool-handoff-writer）
-```
+三种有人值守模式: ToDo / Task-spec / 标准交互
+  L4行为: 穿透到人裁决
+  ToDo: 单步/明确修复
+  Task-spec: 多步/需规划, Phase0方案审批
 
-### RPE 模式（任务驱动，有 Executor）
-
-```
-Executor 阶段:
-  → 读 rpe/{feature}/executor.md（任务清单）
-  → 串行逐任务执行：读→改→验收→标记 [x]
-  → 每步独立验收，失败不阻塞其他任务
-  → 全部完成后关闭 RPE
-```
-
-### 口头进入无人模式
-
-> 用户口述"自己搞定 / 不用问我 / 全自动做完 / 你看着办"等表达 → 等同于激活 Goal 模式。
-
-```
-用户口述 → AI 提取目标 → lx-goal on "{目标}" → 进入 Phase 0
-```
-
-> ⚠️ 口头进入的 Phase 0 窗口极短——AI 应快速确认目标后直接 phase0-done，不给用户造成"还需要确认"的感觉。
-
----
-
-## 有人值守模式
-
-> 与无人值守相反——决策链 L4 **必须穿透到人**。人实时在场，升级即打断。
-
-| 模式 | 任务规模 | L4 行为 | 文档路径 |
-|------|---------|---------|---------|
-| **ToDo** | 小型（单步/明确修复） | 穿透打断 | `.omc/state/todo-queue.md` |
-| **Task-spec** | 中型（多步/需规划） | 穿透打断 | `.omc/state/tokens/lx-goal.json`（Phase 0 后人介入） |
-| **标准交互** | 默认 | 按需打断 | — |
-
-```
-ToDo（小型）:
-  用户说"修一下 X" / "加上 Y" → 单步执行 → L4 穿透到人确认
-
-Task-spec（中型）:
-  Phase 0: 方案起草 → 人审阅批准
-  Phase 1-∞: 逐步执行 → 每步 L4 穿透
-  Phase ∞∞: 人验收
-```
-
-### 无人 vs 有人：决策链 L4 行为差异
-
-| | 无人值守 | 有人值守 |
-|---|---------|---------|
-| L1 AI判断 | 执行 | 执行 |
-| L2 静态分析 | 执行/warn-only | 执行/BLOCKED |
-| L3 运行时 | Oracle 审核 | Oracle 审核 |
-| **L4 权限/风险/路线/资源** | **记录↷跳过** | **穿透打断 → 人裁决** |
+文档路径:
+  goal/ghost: .omc/state/{plan|task|test|token}/{date}/{feature}/
+  rpe: rpe/{feature}/
+  oma: main_prd/{sub_prd}/{feature}/
+  废弃路径: prd/, sub-prds/, rpe/feat-*

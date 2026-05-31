@@ -395,9 +395,7 @@ G1_SCORE=$(round2 "$(echo "scale=4; $G1_COUNT / $G1_TOTAL" | bc 2>/dev/null || e
 G1_SOURCE="anti-decay scripts: $G1_COUNT/$G1_TOTAL = $G1_SCORE"
 echo "  G1: $G1_SCORE (anti-decay: $G1_COUNT/$G1_TOTAL)" >&2
 
-# G2: AI自动化 — compact-detect + auto-snapshot + error-dna auto-capture + error-dna-auto-fix
 G2_COUNT=0; G2_TOTAL=4
-[ -f "$HOOK_DIR/compact-detect.sh" ] && G2_COUNT=$((G2_COUNT+1))
 [ -f "$HOOK_DIR/auto-snapshot.sh" ] && G2_COUNT=$((G2_COUNT+1))
 grep -q 'error-dna' "$SETTINGS_JSON" 2>/dev/null && G2_COUNT=$((G2_COUNT+1))
 [ -f "$HOOK_DIR/error-dna-auto-fix.sh" ] && G2_COUNT=$((G2_COUNT+1))
@@ -619,7 +617,6 @@ LESSON_DIM_MAP = {
     'R30': ('E2', 0.06),   # AI 用文档默认值代替配置
     'R31': ('E2', 0.04),   # gh CLI 写操作盲区
     'R32': ('C8', 0.03),   # install.sh 标题层级
-    'R33': ('E8', 0.04),   # compact-detect 知识注入
     'R34': ('E2', 0.05),   # 逐文件交叉验证
     'R35': ('C1', 0.03),   # hook 行为变更后更新注释
     'R36': ('C8', 0.04),   # hook 合并/废弃三方同步

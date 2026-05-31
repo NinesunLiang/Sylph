@@ -109,7 +109,6 @@ mkdir -p "$STATE_DIR" 2>/dev/null
 
 | Hook |
 |------|
-| auto-snapshot.sh, build-validator.sh, compact-detect.sh |
 | context-compressor.sh, error-dna.sh, intent-tracker.sh |
 | lsp-suggest.sh, posttool-bash-audit.sh, posttool-edit-quality.sh |
 | posttool-handoff-writer.sh, posttool-subagent-audit.sh |

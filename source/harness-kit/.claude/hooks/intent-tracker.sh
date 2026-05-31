@@ -31,7 +31,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR"
 
-CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
+CONTRADICTION_LOG="$STATE_DIR/edit-churn-log.jsonl"
 
 # Python 内联处理逻辑：会话级编辑计数 + 内容哈希追踪 + revert 检测
 ${PYTHON_BIN:-python3} - "$FILE_PATH" "$CONTRADICTION_LOG" <<'PYEOF'
@@ -189,7 +189,7 @@ PYEOF
 
 flywheel_event "intent_tracker" "recorded" "P2" || true
 
-	# M2: contradiction-log rotation (>512KB → archive, keep 3)
+	# M2: edit-churn-log rotation (>512KB → archive, keep 3)
 _clog_size=$(wc -c < "$CONTRADICTION_LOG" 2>/dev/null | tr -d ' ')
 if [ "$_clog_size" -gt 524288 ] 2>/dev/null; then
     _clog_ts=$(date +%s)

@@ -131,7 +131,7 @@ fi
 # v2 正确: 检查 intent-tracker 写入的 contradiction/revert_of 字段
 # 矛盾定义: contradiction=true (intent-tracker 标记) 或 revert_of 非 null (编辑被显式回退)
 E6_VIOLATIONS=""
-CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
+CONTRADICTION_LOG="$STATE_DIR/edit-churn-log.jsonl"
 if [ -f "$CONTRADICTION_LOG" ] && [ -n "$FILE_PATH" ]; then
     E6_CHECK=$(${PYTHON_BIN:-python3} - "$CONTRADICTION_LOG" "$FILE_PATH" <<'E6EOF'
 import json, sys

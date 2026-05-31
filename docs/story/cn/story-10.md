@@ -11,25 +11,23 @@ claim-lint.sh 沉默地扫描着每一份营销文档。它不关心文采——
 
 ---
 
-## 旧军团的消逝
+## 旧军团的迁移进化
 
 曾经，审计军团有六位成员。三位审计师：audit-hooks.sh（三方一致性），harness-smoke-test.sh（回归烟雾），hook-production-verify.sh（全场景覆盖）。三位事务官：pre-commit-self-review.sh（反自矛盾），doc-sync-check.sh（文档引用），score-self-check.sh（AI vs 实际配置）。
 
-他们全部消逝了。
+他们没有消逝——他们搬家了。
 
-不是被删除的——是被进化吸收的。
+从 `scripts/` 的独立角落，迁移到了 `.claude/scripts/` 的军团驻地。他们褪去了"手动运行"的旧皮，穿上了"按需触发"的新甲。`audit-hooks.sh` 如今在每次发布时与 `package-release.sh` 并肩作战，`harness-smoke-test.sh` 的 203 项测试仍在每次改动后亮起绿灯。他们不再是独立脚本——他们是 hook 军团的后备参谋部。
 
-三方一致性审计？现在的 completion-gate 家族（completion-gate + posttool-completion-audit + pre-completion-gate）在每次 TaskUpdate 时实时检查，不再需要手动运行 audit-hooks.sh。
+但同时，他们核心的逻辑，确实被更高效的机制**并行吸收**了：
 
-回归烟雾测试？Dogfood 模式（lx-dogfood skill + flywheel-report）在持续运行中覆盖了所有 hook 的功能验证，不再需要独立的 harness-smoke-test.sh。
+三方一致性审计？completion-gate 家族（completion-gate + posttool-completion-audit + pre-completion-gate）在每次 TaskUpdate 时实时检查，让 audit-hooks.sh 可以专注于发布时的全量校验而非逐个 Task。
 
-全场景门禁覆盖？posttool-anti-pattern-detect 和 fuzzy-block 在生产环境中实时检测反模式，不再需要模拟测试的 hook-production-verify.sh。
+回归烟雾测试？Dogfood 模式（lx-dogfood skill + flywheel-report）在持续运行中喂出了比烟雾测试更真实的场景——harness-smoke-test.sh 转而专注于回归基准，不再试图模拟一切。
 
-反自矛盾检查？Oracle 终审（lx-oracle）在每次关键决策时交叉验证，不再需要 pre-commit 脚本。文档引用验证？inject-project-knowledge 在每次 SessionStart 时注入最新状态，不再需要 doc-sync-check.sh。
+全场景门禁覆盖？posttool-anti-pattern-detect 和 fuzzy-block 在生产环境中实时检测反模式——hook-production-verify.sh 则退居幕后，在重大变更时做批量验证。
 
-**不是"被废弃了"。是被更高效的机制替代了。** 每一个消逝的脚本，其因果逻辑都没有消失——只是从手动脚本层进化到了 hook 实时层和 skill 智能层。
-
-脚本层变薄了。但覆盖更密了。
+这是双轨进化，不是替代。旧军团依然站着，只是不需要站在第一线了。
 
 ---
 

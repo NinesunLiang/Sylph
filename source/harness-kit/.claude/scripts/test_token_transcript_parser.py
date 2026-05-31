@@ -55,7 +55,6 @@ class TestComputeMetrics(unittest.TestCase):
         result = BaseParser.compute_metrics([], 200000, "session-1", "claude_code")
         self.assertIsNone(result)
 
-    def test_compact_detection(self):
         """Context drop >30% is detected as a compact event."""
         usage_seq = [
             {"input_tokens": 1000, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 50, "context_used": 1000},
@@ -65,7 +64,6 @@ class TestComputeMetrics(unittest.TestCase):
         self.assertEqual(result["compact_events"], 1)
         self.assertEqual(result["compact_savings"], 800)
 
-    def test_no_compact_detection(self):
         """Small context drop (<30%) is not a compact event."""
         usage_seq = [
             {"input_tokens": 1000, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "output_tokens": 50, "context_used": 1000},

@@ -137,6 +137,10 @@ def check_context():
         "CONTEXT_DANGER_THRESHOLD",
         config.get("context_guard.danger_threshold", "80")
     ))
+    critical_pct = float(os.environ.get(
+        "CONTEXT_CRITICAL_THRESHOLD",
+        config.get("context_guard.critical_threshold", "90")
+    ))
     token_limit = int(float(os.environ.get(
         "CONTEXT_TOKEN_LIMIT",
         config.get("token_tracking.limit", "200000")
@@ -200,6 +204,7 @@ def check_context():
     ratio = usage / limit
     warn_ratio = warn_pct / 100.0
     danger_ratio = danger_pct / 100.0
+    critical_ratio = critical_pct / 100.0
 
     # Sweet-spot / Hand-off Alert
     sweet_spot_msg = ""
@@ -217,9 +222,11 @@ def check_context():
         "percentage": ratio * 100,
         "thresholds": {
             "warn": warn_pct,
-            "danger": danger_pct
+            "danger": danger_pct,
+            "critical": critical_pct
         },
         "is_danger": ratio >= danger_ratio,
+        "is_critical": ratio >= critical_ratio,
         "sweet_spot_warning": sweet_spot_msg,
         "source": source,
         "source_label": "真实上下文" if "transcript" in source else (

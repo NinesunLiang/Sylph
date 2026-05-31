@@ -57,11 +57,12 @@ esac
 # 从 harness config 读取可配置阈值，传递给 Python 探针
 WARN_PCT=$(hc_get "context_guard.warn_threshold" "50")
 DANGER_PCT=$(hc_get "context_guard.danger_threshold" "80")
+CRITICAL_PCT=$(hc_get "context_guard.critical_threshold" "90")
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PYTHON_SCRIPT="$SCRIPT_DIR/../scripts/context_monitor.py"
 if [ -x "$PYTHON_SCRIPT" ]; then
-    RESULT=$(CONTEXT_WARN_THRESHOLD="$WARN_PCT" CONTEXT_DANGER_THRESHOLD="$DANGER_PCT" \
+    RESULT=$(CONTEXT_WARN_THRESHOLD="$WARN_PCT" CONTEXT_DANGER_THRESHOLD="$DANGER_PCT" CONTEXT_CRITICAL_THRESHOLD="$CRITICAL_PCT" \
         ${PYTHON_BIN:-python3} "$PYTHON_SCRIPT" 2>/dev/null)
     SOURCE=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
@@ -71,10 +72,24 @@ print(d.get('source', ''))" 2>/dev/null)
 import sys, json
 d = json.load(sys.stdin)
 print(str(d.get('is_danger', False)).lower())" 2>/dev/null)
+    IS_CRITICAL=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "
+import sys, json
+d = json.load(sys.stdin)
+print(str(d.get('is_critical', False)).lower())" 2>/dev/null)
     PCT=$(echo "$RESULT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 d = json.load(sys.stdin)
 print(d.get('percentage', 0))" 2>/dev/null)
+
+    # ── CRITICAL threshold (90%): force-block regardless of mode ──
+    # At 90% context, AI is already memory-corrupted. No autonomous exception.
+    if [ "$IS_CRITICAL" = "true" ] && [ "$SOURCE" = "transcript (real)" ]; then
+        flywheel_event "context_guard" "critical" "P0" || true
+        agentic_status block \
+            "Context Guard 紧急阻断 — 90% 临界" \
+            "会话上下文占比已达 ${PCT}%（紧急阈值: ${CRITICAL_PCT}%）。AI 记忆已不可靠，继续操作将导致数据损毁。务必立即运行 /compact 压缩会话。所有写操作已被物理阻断。${MODE_LABEL}" 
+        exit 2
+    fi
 
     # Only trust real transcript data for blocking decisions.
     # Heuristic fallbacks (turns/cumulative) are unreliable for guard decisions

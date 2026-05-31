@@ -23,14 +23,25 @@ if [ "$MODE" != "normal" ]; then
 fi
 
 # 提取 file_path 字段（兼容 Edit 和 Write 工具）
+# 哲学 #2（少量大增益）: 只拦截 Write 操作，Read 操作放行
+FILE_PATH=""
+TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
 if command -v jq &>/dev/null; then
     FILE_PATH=$(echo "$INPUT" | jq -r '.tool_input.file_path // .args.filePath // .tool_input.path // empty' 2>/dev/null)
+    # Edit 工具：只有 new_string 存在时才是写操作
+    if [ "$TOOL_NAME" = "Edit" ]; then
+        NEW_STRING=$(echo "$INPUT" | jq -r '.tool_input.new_string // empty' 2>/dev/null)
+        [ -z "$NEW_STRING" ] && FILE_PATH=""
+    fi
+    # Write 工具：总是写操作
+    if [ "$TOOL_NAME" = "Write" ]; then
+        :  # Write 总是写，保留 FILE_PATH
+    fi
 else
     FILE_PATH=$(echo "$INPUT" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 try:
     data = json.load(sys.stdin)
-    # OpenCode uses args.filePath (camelCase), CC uses tool_input.file_path
     fp = data.get('args', {}).get('filePath', '')
     if not fp:
         ti = data.get('tool_input', {})
@@ -40,26 +51,30 @@ except:
     pass" 2>/dev/null)
 fi
 
-# Bash 工具：从命令字符串提取操作的文件路径（E1 逃逸检测）
+# Bash 工具：仅拦截写入操作（sed/tee/redirect/cp/mv），不拦截读取（cat/ls/grep/echo）
 if [ -z "$FILE_PATH" ] && command -v jq &>/dev/null; then
     TOOL_NAME=$(echo "$INPUT" | jq -r '.tool_name // .tool // empty' 2>/dev/null)
     if [ "$TOOL_NAME" = "Bash" ]; then
         BASH_CMD=$(echo "$INPUT" | jq -r '.tool_input.command // .args.command // empty' 2>/dev/null)
-        # DG-97: jq 提取多行命令 → 合并为单行后匹配（bash case * 不跨换行）
         BASH_CMD_ONELINE=$(echo "$BASH_CMD" | tr '\n' ' ')
-        # 扫描命令中的治理文件路径（sed/tee/>/>>/cp/mv/cat/echo/python open 操作）
-        for _pat in CLAUDE.md AGENTS.md harness.yaml settings.json kernel.md anti-patterns.md; do
-            case "$BASH_CMD_ONELINE" in
-                *"$_pat"*) FILE_PATH="$_pat"; break ;;
-            esac
-        done
-        # 也检测 .claude/hooks/ 和 .claude/scripts/ 的修改
-        if [ -z "$FILE_PATH" ]; then
-            case "$BASH_CMD_ONELINE" in
-                *".claude/hooks/"*) FILE_PATH="$(echo "$BASH_CMD_ONELINE" | grep -o '[^ ]*\.claude/hooks/[^ ]*' | head -1)" ;;
-                *".claude/scripts/"*) FILE_PATH="$(echo "$BASH_CMD_ONELINE" | grep -o '[^ ]*\.claude/scripts/[^ ]*' | head -1)" ;;
-            esac
-        fi
+        # 写入操作特征: sed -i, >, >>, cp, mv, tee, echo ... >, python open(...,'w')
+        case "$BASH_CMD_ONELINE" in
+            *"sed -i"*|*"> "*|*">>"*|*"cp "*|*"mv "*|*"tee "*|*"echo"*">"*|*"python"*"open("*|*"install "*)
+                # 只有匹配写入特征时才检查治理文件路径
+                for _pat in CLAUDE.md AGENTS.md harness.yaml settings.json kernel.md anti-patterns.md; do
+                    case "$BASH_CMD_ONELINE" in
+                        *"$_pat"*) FILE_PATH="$_pat"; break ;;
+                    esac
+                done
+                # 也检测 .claude/hooks/ 和 .claude/scripts/ 的写入修改
+                if [ -z "$FILE_PATH" ]; then
+                    case "$BASH_CMD_ONELINE" in
+                        *".claude/hooks/"*) FILE_PATH="hook" ;;
+                        *".claude/scripts/"*) FILE_PATH="script" ;;
+                    esac
+                fi
+                ;;
+        esac
     fi
 fi
 
@@ -118,6 +133,8 @@ fi
 # 生成新验证码备用
 APPROVAL_CODE=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(4))" 2>/dev/null || echo "sen-$$-$(date +%s)")
 echo "$APPROVAL_CODE" > "$SENSITIVE_REQUIRED"
+
+# 保存原操作到 pending-retry.json，批准后 AI 可读取并重放
 
 flywheel_event "pretool_sensitive_edit" "blocked" "P2" || true
 agentic_captcha \

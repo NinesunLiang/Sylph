@@ -74,10 +74,6 @@ echo ""; echo "=== [10] pre-edit-lsp: 编辑前诊断 ==="
 R10=$(bash $H/pre-edit-lsp-check.sh 2>&1 <<< '{"tool_input":{"file_path":"test.py"}}' || true)
 _test "pre-edit-lsp triggers on .py" "lsp-gate|diagnostics" "$R10"
 
-# [11] compact-detect — /compact 恢复
-echo ""; echo "=== [11] compact-detect: /compact 知识恢复 ==="
-R11=$(bash $H/compact-detect.sh 2>&1 <<< "/compact" || true)
-_test "compact-detect restores knowledge" "知识恢复|CTX-COMPACT|铁律" "$R11"
 
 # [12] context-compressor — 缓存生成
 echo ""; echo "=== [12] context-compressor: 缓存生成 ==="

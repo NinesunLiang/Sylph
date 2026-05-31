@@ -18,7 +18,6 @@ HOOKS_DIR = os.path.join(os.path.dirname(__file__), '..', 'hooks')
 HOOK_DEFS = [
     ("auto-snapshot", "Stop / PostToolUse:Edit|Write", "会话结束时自动保存状态快照（分支/轮次/未提交文件）"),
     ("build-validator", "PostToolUse:Bash / PostToolUseFailure:Bash", "构建失败自动记录错误日志并给出针对性修复建议"),
-    ("compact-detect", "UserPromptSubmit", "检测 /compact 命令，保存 compact 前 usage 供 token 追踪"),
     ("completion-gate", "PostToolUse:TaskUpdate", "强制 TaskUpdate 前提供结构化证据文件"),
     ("context-guard", "PreToolUse:Edit|Write", "基于真实 token 百分比阻断写操作，防止上下文溢出"),
     ("edit-guard", "PreToolUse:Edit", "编辑源文件前强制先 Read，实施 Read-before-Edit 门禁"),

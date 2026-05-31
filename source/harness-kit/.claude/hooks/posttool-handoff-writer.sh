@@ -98,7 +98,7 @@ if today_entries:
 fi
 
 CONTRADICTIONS=""
-CONTRADICTION_LOG="$STATE_DIR/contradiction-log.jsonl"
+CONTRADICTION_LOG="$STATE_DIR/edit-churn-log.jsonl"
 if [ -f "$CONTRADICTION_LOG" ]; then
     CONTRADICTIONS=$(${PYTHON_BIN:-python3} -c "
 import json

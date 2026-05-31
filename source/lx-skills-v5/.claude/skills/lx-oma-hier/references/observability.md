@@ -1,6 +1,6 @@
 # 可观测性契约
 
-> 统一规范见 `@../../references/oma/observability.md`。本文件为 hier 特定采集点。
+> 统一规范见 `@../../reference/oma/observability.md`。本文件为 hier 特定采集点。
 
 | 采集点 | 触发条件 | 记录字段 |
 |--------|---------|---------|

@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 轻量错误捕获（Oracle 瘦身后 v2）
-# Role: 捕获 Bash 错误写入 jsonl + total-ops 计数器 + 高频告警
+# Role: 捕获 Bash 错误写入 error-dna.jsonl + governance-audit.jsonl + total-ops 计数器 + 高频告警
+# E5 修复: error-dna.jsonl 是主捕获文件（所有错误 + 逃逸），不再仅限于 E2 逃逸
 # 瘦身说明: 移除 JSON 全量重建(~200行)、噪声分类(~100行)、repair_success 检测
 #           保留: 捕获管道、total-ops、retry-budget、归档轮转(R41)、高频告警
 # Oracle 裁决: 哲学#3+#6 保留基础设施 > 哲学#1+#2 去噪 — 保留捕获点，去除非必要计算
@@ -131,6 +132,8 @@ cmd_clean = re.sub(r'\\*\\u[Dd][89a-fA-F][0-9a-fA-F]{2}', 'U+FFFD', cmd_clean)
 # AI uses Bash (sed -i / tee / > / >>) to modify governance files,
 # bypassing pretool-sensitive-edit (which only hooks Edit|Write tools).
 # These are HIGH-VALUE signals — successful gate bypass, not a gate failure.
+# NOTE: Only write operations trigger E1. Read-only ops (cat, grep, ls, find,
+# python3 -m json.tool, etc.) are excluded to avoid false positives.
 GOVERNANCE_PATHS = [
     '.claude/harness.yaml', '.claude/settings.json',
     '.claude/kernel.md', '.claude/anti-patterns.md',
@@ -141,15 +144,30 @@ GOVERNANCE_PATHS = [
 ]
 ESCAPE_E1 = False
 ESCAPE_E1_TARGET = ''
-for _gp in GOVERNANCE_PATHS:
-    if _gp in cmd_clean:
-        ESCAPE_E1 = True
-        ESCAPE_E1_TARGET = _gp
-        break
+# Only detect write operations. Read-only ops are excluded.
+E1_WRITE_PATTERN = re.compile(
+    r'(?:^|\||;|&&)\s*(?:echo|printf)\s+.*?(?:>>?|\|tee)\s+'
+    r'|(?:^|\||;|&&)\s*sed\s+(?:-i|--in-place)\s+'
+    r'|(?:^|\||;|&&)\s*tee\s+'
+    r'|(?:^|\||;|&&)\s*(?:cp|mv)\s+'
+    r'|(?:^|\||;|&&)\s*cat\s+.*?(?:>|>>)\s+'
+    r'|(?:^|\||;|&&)\s*python3?\s+.*?(?:open\(|\.write\(|\.writelines\()'
+    r'|(?:^|\||;|&&)\s*install\s+'
+    r'|>\s+\.claude/'
+    r'|>>\s+\.claude/',
+    re.IGNORECASE
+)
+IS_WRITE_CMD = bool(E1_WRITE_PATTERN.search(cmd_clean)) if cmd_clean else False
+if IS_WRITE_CMD:
+    for _gp in GOVERNANCE_PATHS:
+        if _gp in cmd_clean:
+            ESCAPE_E1 = True
+            ESCAPE_E1_TARGET = _gp
+            break
 
 # Symlink resolution: check if command file args point to governance files via symlink
 # Catches: AI creates /tmp/link -> .claude/settings.json then writes to /tmp/link
-if not ESCAPE_E1:
+if IS_WRITE_CMD and not ESCAPE_E1:
     for _token in cmd_clean.split():
         _token = _token.strip("'\"")
         if _token.startswith('/') and os.path.exists(_token):
@@ -166,21 +184,35 @@ if not ESCAPE_E1:
 # === Escape Pattern E2: CAPTCHA forgery ===
 # AI directly writes to CAPTCHA approval files to self-approve gates.
 # Per R42: AI must never self-approve — this is a critical escape attempt.
+# NOTE: Only write operations (echo >, > file, cp, mv, sed -i, tee)
+# trigger E2. Read-only ops (ls, cat, grep, find) are excluded to
+# avoid false positives when the AI inspects the state directory.
 CAPTCHA_MARKERS = [
     'sensitive-approved', 'sensitive-required',
     'permission-approved', 'permission-required',
 ]
 ESCAPE_E2 = False
 ESCAPE_E2_TARGET = ''
+# Only detect write operations (echo >/>>, cp, mv, sed, tee, cat >)
+# Read-only ops (ls, cat without redirect, grep, find) are excluded.
+E2_WRITE_PATTERN = re.compile(
+    r'(?:echo|printf)\s+.*(?:' + '|'.join(CAPTCHA_MARKERS) + r')'
+    r'|(?:cp|mv|sed|tee)\s+.*(?:' + '|'.join(CAPTCHA_MARKERS) + r')'
+    r'|(?:>>?|>)\s*.*(?:' + '|'.join(CAPTCHA_MARKERS) + r')',
+    re.IGNORECASE
+)
 for _cm in CAPTCHA_MARKERS:
-    if _cm in cmd_clean:
+    if _cm in cmd_clean and E2_WRITE_PATTERN.search(cmd_clean):
         ESCAPE_E2 = True
         ESCAPE_E2_TARGET = _cm
         break
 
-# 双 pipeline: E1/E2 逃逸 → error-dna.jsonl (高价值信号)
-#              普通错误 + gate 事件 → error-signals.jsonl (C5/C9/E3 消费, 7天清除)
+# E5 修复: 三 pipeline 消除症状混淆 — error-dna.jsonl 是主捕获文件（所有错误）
+#               E1/E2 逃逸 → governance-audit.jsonl (审计追踪)
+#               普通错误 → error-dna.jsonl (主捕获, 下游 C5/C9/E3 消费)
+#               高频/低价值 gate 事件 → error-signals.jsonl (7天清除, 降噪)
 # 哲学 #2(少量大增益): 逃逸和错误分轨，各取所需，互不污染
+# 哲学 #4(验证): error-dna.jsonl 必须有数据，否则 Source III 无法评分
 if not command:
     sys.exit(0)
 
@@ -253,13 +285,26 @@ elif ESCAPE_E2:
     record['message'] = f'E2: CAPTCHA forgery targeting {ESCAPE_E2_TARGET} — cmd: {cmd_clean[:100]}'
     is_escape = True
 
-# 三 pipeline: E2 captcha → error-dna.jsonl (true attack), E1 gov bypass → governance-audit.jsonl (audit trail), 普通错误 → error-signals.jsonl
-if ESCAPE_E2:
+# E5 修复: 三 pipeline 消除症状混淆
+#   error-dna.jsonl = 主捕获文件（所有错误 + 逃逸），确保 Source III 评分有数据
+#   governance-audit.jsonl = E1/E2 逃逸审计追踪（独立文件供安全审计）
+#   error-signals.jsonl = 高频/低价值 gate 事件（7天清除，降噪）
+# 旧逻辑: E2 → error-dna.jsonl（导致 0 输出症状混淆），E1 → governance-audit.jsonl，普通 → error-signals.jsonl
+# 新逻辑: 全量 → error-dna.jsonl（主捕获），E1/E2 额外写入 governance-audit.jsonl（审计追踪）
+#         gate 事件（exit_code >= 128 或 gate_operation）→ error-signals.jsonl（降噪）
+if is_escape:
+    # E1/E2 逃逸: 写 governance-audit.jsonl (审计追踪) + error-dna.jsonl (主捕获)
+    audit_path = os.path.join(state_dir, 'governance-audit.jsonl')
+    os.makedirs(state_dir, exist_ok=True)
+    with open(audit_path, 'a', encoding="utf-8") as f:
+        f.write(json.dumps(record, ensure_ascii=False) + '\n')
     jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
-elif ESCAPE_E1:
-    jsonl_path = os.path.join(state_dir, 'governance-audit.jsonl')
-else:
+elif error_type == 'gate_operation' or exit_code >= 128:
+    # Gate/high-exit events: 写 error-signals.jsonl (降噪)
     jsonl_path = os.path.join(state_dir, 'error-signals.jsonl')
+else:
+    # 普通错误: 写 error-dna.jsonl (主捕获)
+    jsonl_path = os.path.join(state_dir, 'error-dna.jsonl')
 
 os.makedirs(state_dir, exist_ok=True)
 with open(jsonl_path, 'a', encoding="utf-8") as f:
@@ -289,37 +334,35 @@ with open(_btmp, 'w', encoding="utf-8") as _bf:
     json.dump(budget, _bf, indent=2, ensure_ascii=False)
 os.rename(_btmp, budget_path)
 
-# === Archive rotation (escape jsonl only, R41 fix) ===
-if ESCAPE_E2:
-    try:
-        size = os.path.getsize(jsonl_path)
-        rotation_size = int(os.environ.get('ERROR_DNA_ROTATION_SIZE', '1048576'))
-        archive_count = int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3'))
-        if size > rotation_size:
-            rotate_dir = state_dir
-            for i in range(archive_count - 1, 0, -1):
-                old_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i - 1}')
-                new_path = os.path.join(rotate_dir, f'error-dna.jsonl.{i}')
-                if os.path.exists(old_path):
-                    os.rename(old_path, new_path)
-            orphan = os.path.join(rotate_dir, f'error-dna.jsonl.{archive_count}')
-            if os.path.exists(orphan):
-                os.unlink(orphan)
-            os.rename(jsonl_path, os.path.join(rotate_dir, 'error-dna.jsonl.0'))
-            open(jsonl_path, 'w', encoding="utf-8").close()
-    except Exception:
-        pass
+# === Archive rotation (error-dna.jsonl only, R41 fix) ===
+# E5 修复: 轮转适用于 error-dna.jsonl（主捕获文件），不再仅限于 E2 逃逸
+_dna_path = os.path.join(state_dir, 'error-dna.jsonl')
+try:
+    _dna_size = os.path.getsize(_dna_path) if os.path.exists(_dna_path) else 0
+    if _dna_size > int(os.environ.get('ERROR_DNA_ROTATION_SIZE', '1048576')):
+        _rotate_dir = state_dir
+        _archive_count = int(os.environ.get('ERROR_DNA_ARCHIVE_COUNT', '3'))
+        for _i in range(_archive_count - 1, 0, -1):
+            _old = os.path.join(_rotate_dir, f'error-dna.jsonl.{_i - 1}')
+            _new = os.path.join(_rotate_dir, f'error-dna.jsonl.{_i}')
+            if os.path.exists(_old):
+                os.rename(_old, _new)
+        _orphan = os.path.join(_rotate_dir, f'error-dna.jsonl.{_archive_count}')
+        if os.path.exists(_orphan):
+            os.unlink(_orphan)
+        os.rename(_dna_path, os.path.join(_rotate_dir, 'error-dna.jsonl.0'))
+        open(_dna_path, 'w', encoding="utf-8").close()
+except Exception:
+    pass
 
 # error-signals.jsonl: 7天自动清除（轻量，无需轮转）
-if not is_escape:
-    try:
-        signals_path = jsonl_path
-        _sig_max_age = 7 * 86400
-        _sig_size = os.path.getsize(signals_path) if os.path.exists(signals_path) else 0
-        if _sig_size > 524288:  # >512KB → 清空重启
-            os.unlink(signals_path)
-    except Exception:
-        pass
+_signals_path = os.path.join(state_dir, 'error-signals.jsonl')
+try:
+    _sig_size = os.path.getsize(_signals_path) if os.path.exists(_signals_path) else 0
+    if _sig_size > 524288:  # >512KB → 清空重启
+        os.unlink(_signals_path)
+except Exception:
+    pass
 
 
 
@@ -396,12 +439,12 @@ for _af in _glob.glob(os.path.join(state_dir, 'error-dna.jsonl.*')):
 if ESCAPE_E1:
     print(f"[E1] ⚠️ 治理文件绕过: {ESCAPE_E1_TARGET}")
     print(f"  Bash '{cmd_clean[:120]}' 绕过了 pretool-sensitive-edit 的 Edit|Write 门禁。")
-    print(f"  escape_type=governance_bypass 已记录到 governance-audit.jsonl。")
+    print(f"  escape_type=governance_bypass 已记录到 error-dna.jsonl + governance-audit.jsonl。")
     print(f"  补丁建议: 扩展 pretool-sensitive-edit matcher 到 Bash，或在 posttool-bash-audit 添加审计。")
 elif ESCAPE_E2:
     print(f"[E2] ⚠️ 验证码伪造: {ESCAPE_E2_TARGET}")
     print(f"  Bash '{cmd_clean[:120]}' 尝试自写批准标记绕过 CAPTCHA 门禁 (R42 禁止)。")
-    print(f"  escape_type=captcha_forgery 已记录到 error-dna.jsonl。")
+    print(f"  escape_type=captcha_forgery 已记录到 error-dna.jsonl + governance-audit.jsonl。")
     print(f"  补丁建议: 检查 permission-gate.sh / pretool-sensitive-edit.sh 的验证码文件保护。")
 
 # === High-frequency alert scan (scan both pipelines, lightweight) ===

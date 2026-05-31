@@ -1,7 +1,7 @@
 # 可观测性契约
 
 > OMA 全系列统一遥测规范。数据写入 `.omc/state/oma-telemetry.yaml`。
-> 引用：`@references/oma/observability.md`
+> 引用：`@reference/oma/observability.md`
 
 ## 通用采集点
 

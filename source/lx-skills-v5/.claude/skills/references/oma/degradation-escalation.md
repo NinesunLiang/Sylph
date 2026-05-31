@@ -1,6 +1,6 @@
 # 降级 & 升级策略
 
-> OMA 系列 skill 通用降级/升级表。各 skill 引用：`@references/oma/degradation-escalation.md`
+> OMA 系列 skill 通用降级/升级表。各 skill 引用：`@reference/oma/degradation-escalation.md`
 > 原 `degradation-strategies.md` 已合并至此，新增升级路径。
 
 ## 降级路径 (Degradation)

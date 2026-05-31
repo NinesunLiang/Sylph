@@ -21,7 +21,6 @@ hooks_enabled.skill_flywheel=true
 hooks_enabled.write_lock_post=true
 hooks_enabled.edit_scope=true
 hooks_enabled.flywheel_report=true
-hooks_enabled.compact_detect=true
 hooks_enabled.token_writer=true
 hooks_enabled.stop_drain=true
 hooks_enabled.lsp_suggest=false

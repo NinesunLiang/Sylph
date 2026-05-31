@@ -265,18 +265,27 @@ def _detect_g4(combined):
 
 
 def _detect_g3(combined):
-    """G3: Oracle ACCEPT/APPROVED or high score (>=8.5)."""
-    # Oracle ACCEPT/APPROVED signal
-    if re.search(r"(?:Oracle|oracle).*(?:ACCEPT|APPROVED|approve|accept)", combined):
+    """G3: Oracle ACCEPT/APPROVED (structured verdict) or high score (>=8.5).
+
+    Requires structured verdict format — NOT casual mentions of "oracle accept".
+    Structured formats: [Oracle: ACCEPT], [Oracle ACCEPT], Oracle verdict: ACCEPT
+    """
+    # Structured Oracle ACCEPT — must use bracket or verdict format
+    if re.search(
+        r"\[Oracle:\s*(ACCEPT|APPROVED)\]"
+        r"|\[Oracle\s+(ACCEPT|APPROVED)\]"
+        r"|Oracle\s+(?:verdict|ruling|裁决).*?(?:ACCEPT|APPROVED)",
+        combined,
+    ):
         return True
 
-    # High score detection
+    # High score detection (remain broad — scores are structured data)
     scores = re.findall(
         r"(?:score|Score|评分|得分)[：: ]*(\d+\.\d+)", combined
     )
     if scores:
         max_score = max(float(s) for s in scores)
-        if max_score >= 8.5:
+        if max_score >= 9.0:
             return True
 
     # Overall / weighted score
@@ -285,7 +294,7 @@ def _detect_g3(combined):
     )
     if overall:
         max_os = max(float(s) for s in overall)
-        if max_os >= 8.5:
+        if max_os >= 9.0:
             return True
 
     return False

@@ -1,6 +1,6 @@
 # 裁决链 (Decision Chain)
 
-> 所有 OMA skill 共享的 5 关裁决流水线。引用：`@references/oma/decision-chain.md`
+> 所有 OMA skill 共享的 5 关裁决流水线。引用：`@reference/oma/decision-chain.md`
 
 ## 五关裁决
 

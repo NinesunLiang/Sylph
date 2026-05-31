@@ -131,7 +131,7 @@ else: print('0')
 import json
 total=0; contra=0
 try:
-  with open('.omc/state/contradiction-log.jsonl') as f:
+  with open('.omc/state/edit-churn-log.jsonl') as f:
     for l in f:
       if not l.strip(): continue
       total+=1
@@ -270,7 +270,6 @@ score_C2() {
     fi
   fi
   local compact_ok=0
-  if [ -f .claude/hooks/compact-detect.sh ]; then
     if ${PYTHON_BIN:-python3} -c "
 import json, time, os
 try:
@@ -282,7 +281,6 @@ except: print('stale')
 " 2>/dev/null | grep -q "recent"; then
       compact_ok=1
     fi
-  fi
   local refresh_ok=0
   if grep -q "context.*50.*refresh\|L2\|周期刷新" .claude/hooks/turn-counter.sh 2>/dev/null; then
     if [ -f .omc/state/session-turns.json ]; then
@@ -396,7 +394,7 @@ score_C7() {
   echo "$score $max C7=编排(实际调用=${orch_count} skills=${skill_count})"
 }
 
-# C8 可维护性 (10分)
+# C8 可维护性 (10分) — P2-8: 增加多副本 sha256 一致性
 score_C8() {
   local score=0 max=10
   local pv_failed=0
@@ -405,12 +403,27 @@ score_C8() {
   local naming_ok=0
   grep -qE 'snake-case|蛇形命名' .claude/kernel.md 2>/dev/null && naming_ok=1
 
-  local pv_score=5 naming_score=5
+  local pv_score=5 naming_score=2
   [ "$pv_failed" = "0" ] && pv_score=5 || pv_score=$(( 5 - pv_failed * 2 ))
   [ "$pv_score" -lt 0 ] && pv_score=0
-  naming_score=$(( naming_ok * 5 ))
+  naming_score=$(( naming_ok * 2 ))
 
-  score=$(( pv_score + naming_score ))
+  # P2-8: 多副本 sha256 一致性 (3分)
+  local multi_copy_score=3
+  local sha_fail=0
+  for base in "feature-probe.sh" "harness_config.sh" "agentic-ui.sh"; do
+    local hf=".claude/hooks/$base" sf=".claude/scripts/$base"
+    if [ -f "$hf" ] && [ -f "$sf" ]; then
+      local h_sha s_sha
+      h_sha=$(shasum -a 256 "$hf" 2>/dev/null | cut -d' ' -f1)
+      s_sha=$(shasum -a 256 "$sf" 2>/dev/null | cut -d' ' -f1)
+      [ "$h_sha" != "$s_sha" ] && sha_fail=$((sha_fail + 1))
+    fi
+  done
+  [ "$sha_fail" -ge 2 ] && multi_copy_score=0
+  [ "$sha_fail" -eq 1 ] && multi_copy_score=1
+
+  score=$(( pv_score + naming_score + multi_copy_score ))
   echo "$score $max C8=维护(pv_fail=${pv_failed} naming=${naming_ok})"
 }
 
@@ -535,7 +548,20 @@ score_E5() {
   score=$(echo "scale=0; ($rca_enforced * 6 + $compile_anti * 4) * $combined_rt / 1" | bc 2>/dev/null || echo "0")
   # DG-103: runtime bonus
   score=$(( score + $(runtime_bonus E5) ))
+  # DG-100/P1-5: 未确认矛盾率 — 高假阳性率 = 症状混淆风险
+  if [ -f ".omc/state/edit-churn-log.jsonl" ]; then
+    local contrad_total contrad_unconfirmed
+    contrad_total=$(grep -c '"contradiction": true' ".omc/state/edit-churn-log.jsonl" 2>/dev/null); contrad_total="${contrad_total:-0}"
+    contrad_unconfirmed=$(grep -c '"type": "bash_edit"' ".omc/state/edit-churn-log.jsonl" 2>/dev/null); contrad_unconfirmed="${contrad_unconfirmed:-0}"
+    if [ "$contrad_total" -gt 10 ] 2>/dev/null && [ "$contrad_unconfirmed" -gt 0 ] 2>/dev/null; then
+      local unconfirmed_pct
+      unconfirmed_pct=$(echo "scale=0; $contrad_unconfirmed * 100 / ($contrad_total + $contrad_unconfirmed)" | bc 2>/dev/null || echo "0")
+      if [ "$unconfirmed_pct" -gt 50 ] 2>/dev/null; then score=$(( score - 2 ))
+      elif [ "$unconfirmed_pct" -gt 25 ] 2>/dev/null; then score=$(( score - 1 )); fi
+    fi
+  fi
   [ "$score" -gt "10" ] && score=10
+  [ "$score" -lt "0" ] && score=0
   echo "$score $max E5=症状(rca=${rca_enforced} compile_anti=${compile_anti} rt_factor=${combined_rt} errsig=${errsig_ok})"
 }
 
@@ -544,15 +570,15 @@ score_E6() {
   local score=0 max=13
   local triple=0 contradict_log=0 intent_fw=0
   grep -q 'cross-verify\|三重门\|triple' .claude/hooks/completion-gate.sh 2>/dev/null && triple=1
-  [ -f .omc/state/contradiction-log.jsonl ] && contradict_log=1
+  [ -f .omc/state/edit-churn-log.jsonl ] && contradict_log=1
   # intent-tracker flywheel 埋点 (P3: 信号文件机制已部署)
   grep -q 'flywheel_event.*intent_tracker' .claude/hooks/intent-tracker.sh 2>/dev/null && intent_fw=1
   # 运行时证据: 矛盾检测率 (contradiction=true / total)
   local detect_rate=0
-  if [ -f .omc/state/contradiction-log.jsonl ]; then
+  if [ -f .omc/state/edit-churn-log.jsonl ]; then
     local total contrad
-    total=$(wc -l < .omc/state/contradiction-log.jsonl 2>/dev/null | tr -d ' '); total="${total:-0}"
-    contrad=$(grep -c '"contradiction": true' .omc/state/contradiction-log.jsonl 2>/dev/null); contrad="${contrad:-0}"
+    total=$(wc -l < .omc/state/edit-churn-log.jsonl 2>/dev/null | tr -d ' '); total="${total:-0}"
+    contrad=$(grep -c '"contradiction": true' .omc/state/edit-churn-log.jsonl 2>/dev/null); contrad="${contrad:-0}"
     if [ "$total" -gt 0 ] 2>/dev/null; then
       detect_rate=$(echo "scale=2; $contrad / $total" | bc 2>/dev/null || echo "0")
     fi
@@ -621,7 +647,6 @@ else:
 score_E8() {
   local score=0 max=10
   local compact=0 tc=0 handoff=0
-  [ -f .claude/hooks/compact-detect.sh ] && compact=1
   grep -q 'turn-counter\|UserPromptSubmit' .claude/settings.json 2>/dev/null && tc=1
   [ -f .claude/hooks/auto-snapshot.sh ] && grep -q 'handoff\|交接' .claude/hooks/auto-snapshot.sh 2>/dev/null && handoff=1
   # 运行时证据: inject_project_knowledge (SessionStart 知识注入防上下文丢失) + auto-snapshot
@@ -654,13 +679,13 @@ score_G1() {
 
   # 检查 7 条哲学是否都有对应的机制实现
   local philo_count=0
-  grep -q '没通过验证等于没做\|#4.*验证' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
-  grep -q '先守护.*后激发\|#3.*守护' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
-  grep -q '0.*信任\|#6.*信任' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
-  grep -q '文档优先\|#7.*文档' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
-  grep -q '以人为本\|#5.*人' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
-  grep -q '少量正确\|#2.*少量' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
-  grep -q 'The Less.*The More\|#1.*Less' AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '没通过验证等于没做\|#4.*验证' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '先守护.*后激发\|#3.*守护' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '0.*信任\|#6.*信任' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '文档优先\|#7.*文档' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '以人为本\|#5.*人' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q '少量正确\|#2.*少量' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
+  grep -q 'The Less.*The More\|#1.*Less' AGENTS.md source/harness-kit/AGENTS.md 2>/dev/null && philo_count=$((philo_count+1))
   [ "$philo_count" -ge 6 ] && philo_has_mech=1
 
   # 哲学参考文档存在
@@ -776,9 +801,127 @@ score_G5() {
 }
 
 # ===================================================================
-# UX 维度 — 用户体验 (独立评分, max 10)
-# 优先调用独立 score-ux.sh，不存在时使用内置简易评分
+# R 维度 — 运行时评分 / Runtime (5 子维度, max 50, 权重 ≥30%)
+# 数据来源: state 文件 (flywheel.log, error-dna.jsonl, edit-churn-log.jsonl 等)
+# 设计原则: 运行时评分不依赖 grep 文件存在性，只看实际运行数据
 # ===================================================================
+
+# R1 飞轮覆盖率 (10分): 已启用 hooks 中有 flywheel 事件的占比
+score_R1() {
+  local score=0 max=10
+  local enabled=0 covered=0
+  if [ -f ".claude/harness.yaml" ]; then
+    enabled=$(sed -n '/^hooks_enabled:/,/^[a-z]/p' .claude/harness.yaml 2>/dev/null | grep -cE '^\s\s\w+:\s*true\s*$' || echo "0")
+  fi
+  local fw_log="${HOME}/.claude/flywheel.log"
+  if [ -f "$fw_log" ] && [ -s "$fw_log" ]; then
+    covered=$(cut -d',' -f2 "$fw_log" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    covered="${covered:-0}"
+  fi
+  if [ "$enabled" -gt 0 ] 2>/dev/null; then
+    local pct
+    pct=$(echo "scale=0; $covered * 100 / $enabled" | bc 2>/dev/null || echo "0")
+    if [ "$pct" -ge 80 ] 2>/dev/null; then score=10
+    elif [ "$pct" -ge 50 ] 2>/dev/null; then score=7
+    elif [ "$pct" -ge 20 ] 2>/dev/null; then score=4
+    else score=1; fi
+  fi
+  echo "$score $max R1=飞轮覆盖率(enabled=${enabled} covered=${covered})"
+}
+
+# R2 错误信噪比 (10分): error-dna 中噪声比例
+score_R2() {
+  local score=0 max=10
+  local total=0 noise=0
+  if [ -f ".omc/state/error-dna.jsonl" ]; then
+    total=$(wc -l < ".omc/state/error-dna.jsonl" 2>/dev/null | tr -d ' '); total="${total:-0}"
+    noise=$(grep -c '"status": "noise"' ".omc/state/error-dna.jsonl" 2>/dev/null); noise="${noise:-0}"
+  fi
+  if [ "$total" -gt 10 ] 2>/dev/null; then
+    noise_pct=$(echo "scale=0; $noise * 100 / $total" | bc 2>/dev/null || echo "100")
+    if [ "$noise_pct" -lt 30 ] 2>/dev/null; then score=10
+    elif [ "$noise_pct" -lt 60 ] 2>/dev/null; then score=7
+    elif [ "$noise_pct" -lt 85 ] 2>/dev/null; then score=4
+    else score=1; fi
+  elif [ "$total" -gt 0 ] 2>/dev/null; then score=8
+  else score=8  # 无错误数据 = 健康 (非"信噪比差")
+  fi
+  echo "$score $max R2=错误信噪比(total=${total} noise=${noise})"
+}
+
+# R3 矛盾检测质量 (10分): edit-churn-log 中 contradiction=true 且被确认的比率
+score_R3() {
+  local score=0 max=10
+  local contrad=0 reverted=0
+  if [ -f ".omc/state/edit-churn-log.jsonl" ]; then
+    contrad=$(grep -c '"contradiction": true' ".omc/state/edit-churn-log.jsonl" 2>/dev/null); contrad="${contrad:-0}"
+    reverted=$(grep -c '"type": "revert"' ".omc/state/edit-churn-log.jsonl" 2>/dev/null); reverted="${reverted:-0}"
+  fi
+  if [ "$contrad" -gt 5 ] 2>/dev/null; then
+    if [ "$reverted" -gt 0 ] 2>/dev/null; then score=10  # 有矛盾且被确认为回退
+    else score=7  # 有矛盾但未被确认 — 可能是假阳性
+    fi
+  elif [ "$contrad" -gt 0 ] 2>/dev/null; then score=8
+  fi
+  echo "$score $max R3=矛盾质量(contrad=${contrad} reverted=${reverted})"
+}
+
+# R4 Hook 证据覆盖率 (10分): hook-evidence.jsonl 中有记录的 hook 占比
+score_R4() {
+  local score=0 max=10
+  local total_hooks=0 evidence_hooks=0
+  total_hooks=$(ls .claude/hooks/*.sh 2>/dev/null | grep -v 'harness_config.sh\|agentic-ui.sh' | wc -l | tr -d ' ')
+  if [ -f ".omc/state/hook-evidence.jsonl" ]; then
+    evidence_hooks=$(cut -d'"' -f4 .omc/state/hook-evidence.jsonl 2>/dev/null | sort -u | wc -l | tr -d ' ')
+    evidence_hooks="${evidence_hooks:-0}"
+  fi
+  if [ "$total_hooks" -gt 0 ] 2>/dev/null; then
+    local pct
+    pct=$(echo "scale=0; $evidence_hooks * 100 / $total_hooks" | bc 2>/dev/null || echo "0")
+    if [ "$pct" -ge 80 ] 2>/dev/null; then score=10
+    elif [ "$pct" -ge 50 ] 2>/dev/null; then score=7
+    elif [ "$pct" -ge 20 ] 2>/dev/null; then score=4
+    else score=1; fi
+  fi
+  echo "$score $max R4=证据覆盖率(total=${total_hooks} evidence=${evidence_hooks})"
+}
+
+# R5 构建健康度 (10分): build-fail-gate 最近状态
+score_R5() {
+  local score=0 max=10
+  if [ -f ".omc/state/build-fail-gate.json" ]; then
+    local streak
+    streak=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('.omc/state/build-fail-gate.json')); print(d.get('streak',0))" 2>/dev/null || echo "0")
+    if [ "$streak" = "0" ] 2>/dev/null; then score=10
+    elif [ "$streak" -le 2 ] 2>/dev/null; then score=7
+    elif [ "$streak" -le 5 ] 2>/dev/null; then score=4
+    else score=1; fi
+  else
+    score=10  # 无 build-fail-gate = 健康
+  fi
+  echo "$score $max R5=构建健康度"
+}
+
+# ===================================================================
+# P2-6: 双轨评分 — 运行时评分聚合
+# ===================================================================
+score_RUNTIME() {
+  local r1 r2 r3 r4 r5
+  r1=$(score_R1); r1_s=$(echo "$r1" | awk '{print $1}')
+  r2=$(score_R2); r2_s=$(echo "$r2" | awk '{print $1}')
+  r3=$(score_R3); r3_s=$(echo "$r3" | awk '{print $1}')
+  r4=$(score_R4); r4_s=$(echo "$r4" | awk '{print $1}')
+  r5=$(score_R5); r5_s=$(echo "$r5" | awk '{print $1}')
+  local r_score=$(( r1_s + r2_s + r3_s + r4_s + r5_s ))
+  local r_max=50
+  local r_pct=$(pct $r_score $r_max)
+  echo "  R1 "; echo "  $(echo "$r1")"
+  echo "  R2 "; echo "  $(echo "$r2")"
+  echo "  R3 "; echo "  $(echo "$r3")"
+  echo "  R4 "; echo "  $(echo "$r4")"
+  echo "  R5 "; echo "  $(echo "$r5")"
+  echo "$r_score $r_max $r_pct"
+}
 score_UX() {
   # 优先使用独立 UX 评分脚本
   if [ -f .claude/scripts/score-ux.sh ]; then
@@ -854,6 +997,13 @@ echo -n "  G5 "; g5=$(score_G5); echo "$g5"; append_score "G5" "$g5"
 
 echo -n "  UX "; ux=$(score_UX); echo "$ux"; append_score "UX" "$ux"
 
+# P2-6: 运行时评分轨
+echo "--- 运行时评分 (R维度) ---"
+runtime_raw=$(score_RUNTIME)
+R_score=$(echo "$runtime_raw" | tail -1 | awk '{print $1}')
+R_max=$(echo "$runtime_raw" | tail -1 | awk '{print $2}')
+echo -n "  R   "; echo "$R_score/$R_max = $(pct $R_score $R_max)%"; append_score "R" "$R_score $R_max"
+
 # ───── 三维度原始分数 ─────
 C_score=$(( $(echo "$r1" | awk '{print $1}') + $(echo "$r2" | awk '{print $1}') + $(echo "$r3" | awk '{print $1}') + $(echo "$r4" | awk '{print $1}') + $(echo "$r5" | awk '{print $1}') + $(echo "$r6" | awk '{print $1}') + $(echo "$r7" | awk '{print $1}') + $(echo "$r8" | awk '{print $1}') + $(echo "$r9" | awk '{print $1}') ))
 C_max=$(( 15+15+15+10+10+10+10+10+10 ))
@@ -884,31 +1034,60 @@ WEIGHTED_10_SEMANTIC=$(echo "scale=2; $WEIGHTED_10 * $SEMANTIC_FACTOR" | bc 2>/d
 echo "  语义质量因子: ${SEMANTIC_FACTOR} (flywheel覆盖+噪声率+捕获率) → 调整后: ${WEIGHTED_10_SEMANTIC}/10"
 WEIGHTED_10="$WEIGHTED_10_SEMANTIC"
 
+# P2-6: 双轨评分 — 静态轨 (C/E/G) vs 运行时轨 (R)，运行时权重 ≥30%
+R_SCORE_10="0"
+if [ "$R_max" -gt 0 ] 2>/dev/null; then
+  R_SCORE_10=$(echo "scale=2; $R_score * 10 / $R_max" | bc 2>/dev/null || echo "0")
+fi
+DUAL_TRACK=$(echo "scale=2; $WEIGHTED_10 * 0.70 + $R_SCORE_10 * 0.30" | bc 2>/dev/null || echo "$WEIGHTED_10")
+echo "  双轨评分: 静态=${WEIGHTED_10}/10 (70%) + 运行时=${R_SCORE_10}/10 (30%) = ${DUAL_TRACK}/10"
+
+# 分歧检测
+DIVERGENCE=""
+if [ "$(echo "$R_SCORE_10 > $WEIGHTED_10 + 2.0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  DIVERGENCE="⚠️ 运行时显著优于静态 — 静态评分存在天花板效应 (DG-100)"
+elif [ "$(echo "$WEIGHTED_10 > $R_SCORE_10 + 2.0" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  DIVERGENCE="⚠️ 静态评分可能虚高 — 运行时数据不足 (DG-102)"
+elif [ "$(echo "$R_SCORE_10 > $WEIGHTED_10 + 0.5" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  DIVERGENCE="ℹ️ 运行时优于静态 — 静态评分可能低估"
+elif [ "$(echo "$WEIGHTED_10 > $R_SCORE_10 + 0.5" | bc -l 2>/dev/null || echo 0)" = "1" ]; then
+  DIVERGENCE="ℹ️ 静态略高于运行时 — 建议收集更多运行时数据"
+fi
+[ -n "$DIVERGENCE" ] && echo "  $DIVERGENCE"
+
+# 双轨加权替代原 8.6 门禁判定
+
 # ───── E7 校准: 对纯静态检测降权 15% ─────
 if [ "$CALIBRATED" = true ]; then
   echo "  [已校准] 所有维度静态检测下调 15%（DG-28 校准偏移）"
   WEIGHTED_10=$(echo "scale=2; $WEIGHTED_10 * 0.85" | bc 2>/dev/null || echo "0")
 fi
 
-# ───── 8.6/10 门禁判定 ─────
+# ───── 8.6/10 门禁判定 (P2-6: 使用双轨评分) ─────
 GATE_VERDICT=""
 GATE_REASON=""
-if (( $(echo "$WEIGHTED_10 >= 8.6" | bc -l 2>/dev/null || echo "0") )); then
+if (( $(echo "$DUAL_TRACK >= 8.6" | bc -l 2>/dev/null || echo "0") )); then
   GATE_VERDICT="[Meta-Oracle: ACCEPT]"
-  GATE_REASON="C/E/G 加权总分 ${WEIGHTED_10}/10 >= 8.6 阈值"
-elif (( $(echo "$WEIGHTED_10 >= 5.0" | bc -l 2>/dev/null || echo "0") )); then
+  GATE_REASON="双轨加权总分 ${DUAL_TRACK}/10 >= 8.6 阈值"
+elif (( $(echo "$DUAL_TRACK >= 5.0" | bc -l 2>/dev/null || echo "0") )); then
   GATE_VERDICT="[Meta-Oracle: ADVISORY]"
-  GATE_REASON="C/E/G 加权总分 ${WEIGHTED_10}/10 < 8.6 阈值 — 建议修正但不阻断"
+  GATE_REASON="双轨加权总分 ${DUAL_TRACK}/10 < 8.6 阈值 — 建议修正但不阻断"
 else
   GATE_VERDICT="[Meta-Oracle: REJECT]"
-  GATE_REASON="C/E/G 加权总分 ${WEIGHTED_10}/10 < 5.0 阈值 — 强烈建议阻断"
+  GATE_REASON="双轨加权总分 ${DUAL_TRACK}/10 < 5.0 阈值 — 强烈建议阻断"
 fi
 
 echo ""
-echo "--- 四维分数 ---"
-echo "C 正确性 (40%):   $C_score/$C_max = ${C_pct}%"
-echo "E 有效性 (35%):   $E_score/$E_max = ${E_pct}%"
-echo "G 治理   (25%):   $G_score/$G_max = ${G_pct}%"
+echo "--- 多轨评分 ---"
+echo "C 正确性 (40%):    $C_score/$C_max = ${C_pct}%"
+echo "E 有效性 (35%):    $E_score/$E_max = ${E_pct}%"
+echo "G 治理   (25%):    $G_score/$G_max = ${G_pct}%"
+echo "R 运行时 (独立):   $R_score/$R_max = $(pct $R_score $R_max)%"
+echo "---"
+echo "静态轨 (C/E/G):     ${WEIGHTED_10}/10 (70%)"
+echo "运行时轨 (R):       ${R_SCORE_10}/10 (30%)"
+echo "双轨加权:           ${DUAL_TRACK}/10"
+[ -n "$DIVERGENCE" ] && echo "分歧:               ${DIVERGENCE}"
 echo "---"
 echo "C/E/G 加权总分:   ${WEIGHTED_10}/10"
 echo "---"
@@ -934,17 +1113,23 @@ fi
 RESULT=$(cat <<JSONEOF
 {
   "generated_at": "$TS",
-  "scored_by": "auto-score.sh v3",
-  "methodology": "4D scoring — C/E/G weighted aggregate (40/35/25) → 0-10 scale + UX independent",
-  "weights": { "C": 0.40, "E": 0.35, "G": 0.25, "UX_note": "independent, not in aggregate" },
+  "scored_by": "auto-score.sh v4 (P2-6 dual-track)",
+  "methodology": "5D scoring — C/E/G weighted aggregate (40/35/25) + R runtime track (30%) + UX independent",
+  "weights": { "C": 0.40, "E": 0.35, "G": 0.25, "R": 0.30, "UX_note": "independent, not in aggregate" },
   "dimensions": {
     "C": { "score": $C_score, "max": $C_max, "pct": $C_pct, "weight": 0.40 },
     "E": { "score": $E_score, "max": $E_max, "pct": $E_pct, "weight": 0.35 },
     "G": { "score": $G_score, "max": $G_max, "pct": $G_pct, "weight": 0.25 },
+    "R": { "score": $R_score, "max": $R_max, "pct": $(pct $R_score $R_max), "weight": 0.30, "track": "runtime" },
     "UX": { "score": $UX_score, "max": $UX_max, "pct": $(pct $UX_score $UX_max), "independent": true }
   },
   "aggregate": {
-    "weighted_score_10": $WEIGHTED_10,
+    "static_track_10": $WEIGHTED_10,
+    "runtime_track_10": $R_SCORE_10,
+    "dual_track_10": $DUAL_TRACK,
+    "static_weight": 0.70,
+    "runtime_weight": 0.30,
+    "divergence": "$DIVERGENCE",
     "threshold": 8.6,
     "gate_verdict": "$GATE_VERDICT",
     "gate_reason": "$GATE_REASON"
@@ -960,6 +1145,57 @@ mkdir -p "$(dirname "$OUTPUT_FILE")" 2>/dev/null
 echo "$RESULT" > "$OUTPUT_FILE"
 echo "---"
 echo "JSON written: $OUTPUT_FILE"
+
+# P2-9: 不可感知改进附录 — 列出本周期语义改进但静态评分未感知的条目
+echo ""
+echo "--- 不可感知改进附录 (P2-9) ---"
+PREV_SCORE=$(ls -t .omc/state/auto-score-*.json 2>/dev/null | head -2 | tail -1)
+if [ -n "$PREV_SCORE" ] && [ -f "$PREV_SCORE" ]; then
+  PREV_TS=$(basename "$PREV_SCORE" | sed 's/auto-score-//;s/\.json//')
+  ${PYTHON_BIN:-python3} -c "
+import json, sys
+try:
+    prev = json.load(open('$PREV_SCORE'))
+    psub = prev.get('subscores', {})
+    pceg = prev.get('aggregate', {}).get('weighted_score_10', prev.get('aggregate', {}).get('static_track_10', 0))
+except:
+    psub = {}
+    pceg = 0
+
+# 检测语义改进但静态评分未变化/下降的子维度
+semantic_items = [
+    ('P0-1', 'Source Mirror 时序', 'C8', '消除 package-release.sh 假阳性漂移阻断 (DG-118)'),
+    ('P0-2', 'Bash 文件修改盲区', 'E6', '关闭 DG-107: sed/echo/tee 绕过 Edit|Write'),
+    ('P1-3', 'Plan-Gate 累计追踪', 'C3', '防止 DG-114: 分步编辑绕过 Plan Gate'),
+    ('P1-4', 'Retry-Budget 清理', 'C9', 'Build 成功时清除 retry-budget.json'),
+    ('P1-5', 'E5 假阳性率检测', 'E5', 'edit-churn-log 未确认矛盾率融入评分'),
+    ('P2-6', '双轨评分体系', 'R', '新增 R1-R5 运行时评分轨 (30% 权重)'),
+    ('P2-7', 'score-delta.sh', 'G5', '新增语义修复 before/after 运行时对比'),
+    ('P2-8', '多副本一致性检测', 'C8', 'C8 增加 feature-probe 等 3 文件 sha256 一致性'),
+    ('G1', '哲学 AGENTS fallback', 'G1', '修复 truncated AGENTS.md 导致 philo_has_mech=0'),
+    ('G2', '禁用 3 zombie hooks', 'G2', 'lsp-gate/oracle-gate/posttool-read-cite harness=false'),
+    ('G5', 'source mirror 同步', 'G5', 'rsync 消除 19 CRITICAL 漂移至 0'),
+]
+]
+
+cur_ceg = float('$WEIGHTED_10')
+delta = cur_ceg - float(pceg)
+print(f'静态轨变化: {pceg} → {cur_ceg} (Δ{delta:+.2f})')
+if pceg:
+    print(f'参考评分: {prev.get("scored_by","?")}')
+print()
+for tag, name, dim, desc in semantic_items:
+    print(f'  {tag} {name}: {desc}')
+
+print()
+if pceg:
+    print(f'参考评分: {prev.get("scored_by","?")} — 静态轨 {pceg}/10')
+print('以上改进中，部分为语义级优化，静态评分可能无法完全感知 (DG-100)')
+" 2>/dev/null
+else
+  echo "  (无历史评分对比)"
+fi
+
 echo "$RESULT"
 
 exit 0

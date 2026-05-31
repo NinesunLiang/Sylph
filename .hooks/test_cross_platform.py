@@ -141,7 +141,7 @@ EXPECTED_HOOK_COUNTS = {
     "codex": 22,
     "gemini": 22,
     "qwen": 22,
-    "cursor": 4,   # permission_gate + bash_audit + turn_counter + compact_detect
+    "cursor": 3,   # permission_gate + bash_audit + turn_counter
     "opencode": 20,  # all 22 portable minus 2 (edit_guard=no-op w/o read-tracker, build_validator=script missing)
 }
 

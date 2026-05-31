@@ -30,16 +30,46 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-purify-gate.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/pretool-skill-version-guard.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/context-guard.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-write-lock.sh",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-edit-scope.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-plan-gate.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -60,6 +90,11 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-blast-radius.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-terminal-safety.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -69,26 +104,6 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/privacy-gate.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/context-guard.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-edit-scope.sh",
             "timeout": 3000
           }
         ]
@@ -114,51 +129,11 @@
         ]
       },
       {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-write-lock.sh",
-            "timeout": 10000
-          }
-        ]
-      },
-      {
         "matcher": "Task",
         "hooks": [
           {
             "type": "command",
             "command": "bash .claude/hooks/subagent-guard.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/fuzzy-block.sh",
             "timeout": 3000
           }
         ]
@@ -174,11 +149,21 @@
         ]
       },
       {
-        "matcher": "Bash",
+        "matcher": "Agent",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-terminal-safety.sh",
+            "command": "bash .claude/hooks/pretool-node-reference.sh",
+            "timeout": 3000
+          }
+        ]
+      },
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/fuzzy-block.sh",
             "timeout": 3000
           }
         ]
@@ -186,12 +171,37 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Skill",
+        "matcher": "Edit|Write",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/skill-usage-tracker.sh",
+            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-edit-quality.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-write-lock.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-claim-audit.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/intent-tracker.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-write-cite.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -230,42 +240,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "TaskUpdate|Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
             "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-write-cite.sh",
             "timeout": 5000
           },
           {
@@ -282,21 +257,11 @@
             "type": "command",
             "command": "bash .claude/hooks/read-tracker.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
-            "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
-            "timeout": 5000
+            "command": "bash .claude/hooks/posttool-read-cite.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -305,64 +270,28 @@
         "hooks": [
           {
             "type": "command",
+            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh",
-            "timeout": 3000
-          },
-          {
-            "command": "python3 .claude/hooks/meta-oracle-trigger.py",
-            "hookName": "meta-oracle-trigger",
-            "type": "command",
-            "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/meta-oracle-trigger.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/agentic-ui.sh",
+            "command": "bash .claude/hooks/build-validator.sh",
             "timeout": 5000
           }
         ]
       },
       {
-        "matcher": "Edit|Write",
+        "matcher": "Skill",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-edit-quality.sh",
+            "command": "bash .claude/hooks/skill-usage-tracker.sh",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-write-lock.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
-            "timeout": 5000
           }
         ]
       },
@@ -377,21 +306,27 @@
         ]
       },
       {
-        "matcher": "Edit|Write",
+        "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-claim-audit.sh",
-            "timeout": 5000
+            "command": "bash .claude/hooks/token_writer.sh",
+            "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/intent-tracker.sh",
-            "timeout": 5000
+            "command": "python3 .claude/hooks/meta-oracle-trigger.py",
+            "hookName": "meta-oracle-trigger",
+            "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "command": "bash .claude/hooks/meta-oracle-trigger.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/agentic-ui.sh",
             "timeout": 5000
           }
         ]
@@ -405,15 +340,15 @@
             "type": "command",
             "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/build-validator.sh",
             "timeout": 5000
           }
         ]
@@ -426,51 +361,61 @@
             "type": "command",
             "command": "bash .claude/hooks/context-compressor.sh",
             "timeout": 10000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/knowledge-condenser.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/error-dna-auto-fix.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/meta-oracle-review.py --check-readiness",
+            "timeout": 20000
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/inject-project-knowledge.sh",
             "timeout": 10000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/flywheel-report.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/token_writer.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-cruise-check.sh",
+            "timeout": 3000
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/ecosystem-probe.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/session-resume.sh",
             "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/lsp-gate.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/oracle-gate.sh",
+            "timeout": 3000
           }
         ]
       }
@@ -480,28 +425,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/auto-snapshot.sh",
+            "command": "bash .claude/hooks/auto-snapshot.sh",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/skill-flywheel.sh",
+            "command": "bash .claude/hooks/skill-flywheel.sh",
             "timeout": 5000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
           {
             "type": "command",
-            "command": "bash __PROJECT_ROOT__/.claude/hooks/stop-drain.sh",
+            "command": "bash .claude/hooks/stop-drain.sh",
             "timeout": 10000
-          }
-        ]
-      },
-      {
-        "matcher": "",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/posttool-checkpoint.sh",
@@ -517,23 +453,10 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-user-correction.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/turn-counter.sh",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/compact-detect.sh",
             "timeout": 3000
           }
         ]
@@ -545,12 +468,7 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-approve-detect.sh",
             "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": ".*",
-        "hooks": [
+          },
           {
             "type": "command",
             "command": "bash .claude/hooks/pretool-rules-inject.sh",
@@ -563,7 +481,8 @@
   "env": {
     "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
     "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-pro[1m]"
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-pro[1m]",
+    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
   },
   "permissions": {
     "defaultMode": "default"

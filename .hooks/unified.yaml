@@ -56,7 +56,6 @@ events:
     typical_use: "privacy-gate, secret-scanning"
     can_block: true
 
-  compact:before:
     description: "Before context window compaction — preserve critical state, file paths, root causes"
     typical_use: "state-preservation, critical-context-survival"
 
@@ -76,7 +75,6 @@ platform_events:
     shell:before: "PreToolUse"        # Shell is a tool variant; filtered by script
     shell:after: "PostToolUse"
     file:write: "PreToolUse"          # File write is a tool variant
-    compact:before: "PreCompact"
     stop: "Stop"
 
   codex:
@@ -87,7 +85,6 @@ platform_events:
     shell:before: "PreToolUse"
     shell:after: "PostToolUse"
     file:write: "PreToolUse"
-    compact:before: "PreCompact"
     stop: "Stop"
 
   gemini:
@@ -98,7 +95,6 @@ platform_events:
     shell:before: "BeforeTool"
     shell:after: "AfterTool"
     file:write: "BeforeTool"
-    compact:before: null               # No explicit compact event in Gemini
     stop: "AfterAgent"                 # AfterAgent fires at turn end
 
   qwen:
@@ -109,7 +105,6 @@ platform_events:
     shell:before: "PreToolUse"
     shell:after: "PostToolUse"
     file:write: "PreToolUse"
-    compact:before: "PreCompact"
     stop: "Stop"
 
   cursor:
@@ -120,7 +115,6 @@ platform_events:
     shell:before: "beforeShellExecution"
     shell:after: "afterShellExecution"
     file:write: "beforeFileWrite"        # Cursor supports beforeFileWrite (verified: .cursor/hooks.json)
-    compact:before: null                # Not supported
     stop: "stop"
 
   opencode:
@@ -131,7 +125,6 @@ platform_events:
     shell:before: "tool.execute.before" # Subset; filtered by the plugin
     shell:after: "tool.execute.after"
     file:write: "tool.execute.before"   # Subset; filtered by the plugin
-    compact:before: "experimental.session.compacting"
     stop: "session.idle"
 
 # ── Hook Definitions ──────────────────────────────────────────────────────
@@ -426,11 +419,9 @@ hooks:
       - qwen
       - opencode
 
-  compact_detect:
     description: "Detect compaction signals and preserve critical context paths"
     events:
       - prompt:submit
-    script: "compact-detect.sh"
     blocking: false
     timeout: 3000
     strategy: "track"

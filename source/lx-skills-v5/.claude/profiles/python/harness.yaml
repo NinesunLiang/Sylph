@@ -1,5 +1,6 @@
 # harness-kit profile diff: Python 项目
 
+# philosophy_alignment: [#4 验证优先, #6 零信任]
 # v5.3.0: 仅包含与 base/harness.yaml 不同的字段（\~25%）
 
 # 安装：bash .claude/profiles/merge-profile.sh python

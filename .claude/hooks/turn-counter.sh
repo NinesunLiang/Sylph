@@ -94,8 +94,8 @@ try:
 except:
     print(0)" 2>/dev/null)
     fi
-    if [ -f "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" ]; then
-        CONTRADICTION_COUNT=$(grep -c '"contradiction": true' "$PROJECT_ROOT/.omc/state/contradiction-log.jsonl" 2>/dev/null); CONTRADICTION_COUNT="${CONTRADICTION_COUNT:-0}"
+    if [ -f "$PROJECT_ROOT/.omc/state/edit-churn-log.jsonl" ]; then
+        CONTRADICTION_COUNT=$(grep -c '"contradiction": true' "$PROJECT_ROOT/.omc/state/edit-churn-log.jsonl" 2>/dev/null); CONTRADICTION_COUNT="${CONTRADICTION_COUNT:-0}"
     fi
     # C8 可维护性: 三方漂移检测 — z 脚本存在+yaml 启用但 settings 未注册
     DRIFT_COUNT=0

@@ -49,9 +49,68 @@ if echo "$FILE_PATH" | grep -qE '\.omc/chats/.*/progress\.md$' 2>/dev/null; then
     echo '{"continue": true}'; exit 0
 fi
 
+# ─── 非实质性Bash操作放行: 纯重命名/目录创建/信息查询 ───
+# 只改文件名/路径不改内容的操作不应被拦截
+if [ "$TOOL_NAME" = "Bash" ]; then
+    # 检查是否只是非实质性操作 (git mv, mv, mkdir, ls, find, cp)
+    # 排除内联编辑操作 (sed -i, awk -i, tee, > 重定向, cat > 等)
+    if echo "$CMD" | grep -qE '^\s*(git\s+mv|mv\s+)\s' 2>/dev/null && \
+       ! echo "$CMD" | grep -qE '\bsed\s+-i\b|\bawk\s+.*-i\b|\btee\b|[^>]>>?\s*\S|cat\s+>' 2>/dev/null; then
+        echo '{"continue": true}'
+        flywheel_event "pretool_plan_gate" "non_substantive_bypass" "P2" "cmd=git_mv" || true
+        exit 0
+    fi
+    if echo "$CMD" | grep -qE '^\s*(mkdir|ls|find|cp|rmdir)\s' 2>/dev/null; then
+        echo '{"continue": true}'
+        flywheel_event "pretool_plan_gate" "non_substantive_bypass" "P2" "cmd=filesystem_ops" || true
+        exit 0
+    fi
+fi
+
 # ─── 门禁判断 ───
-if [ "$ESTIMATED_FILES" -lt 2 ] && [ "$ESTIMATED_LINES" -lt 15 ]; then
-    echo '{"continue": true}'; exit 0
+# DG-114: 增加会话级累计编辑检测，防止分步绕过
+CUMULATIVE_FILES=0
+CHURN_LOG="$PROJECT_ROOT/.omc/state/edit-churn-log.jsonl"
+if [ -f "$CHURN_LOG" ]; then
+    SESSION_START=$(${PYTHON_BIN:-python3} -c "
+import json,os,time
+sf='$PROJECT_ROOT/.omc/state/session-start.txt'
+if os.path.exists(sf):
+    try:
+        with open(sf) as f: ts=int(f.read().strip()); print(ts)
+    except: print(0)
+else: print(0)" 2>/dev/null || echo "0")
+    if [ "$SESSION_START" -gt 0 ] 2>/dev/null; then
+        CUMULATIVE_FILES=$(${PYTHON_BIN:-python3} -c "
+import json,os
+count=set()
+ss=$SESSION_START
+lf='$CHURN_LOG'
+if os.path.exists(lf):
+    try:
+        with open(lf) as f:
+            for line in f:
+                try:
+                    r=json.loads(line.strip())
+                    if r.get('ts',0) >= ss:
+                        count.add(r.get('file',''))
+                except: pass
+    except: pass
+print(len(count))" 2>/dev/null || echo "0")
+    fi
+fi
+TOTAL_FILES=$((ESTIMATED_FILES + CUMULATIVE_FILES))
+
+# Bash操作无法估算行数→只看文件数。Edit/Write→看文件数或行数
+if [ "$TOOL_NAME" = "Bash" ]; then
+    if [ "$ESTIMATED_FILES" -lt 2 ] && [ "$TOTAL_FILES" -lt 3 ]; then
+        echo '{"continue": true}'; exit 0
+    fi
+else
+    # Edit/Write: 可以估算行数 → 单次文件数或累计文件数或行数任一超标即阻断
+    if [ "$ESTIMATED_FILES" -lt 2 ] && [ "$TOTAL_FILES" -lt 3 ] && [ "$ESTIMATED_LINES" -lt 15 ]; then
+        echo '{"continue": true}'; exit 0
+    fi
 fi
 
 # ─── 自主模式感知 ──────────────────────────────────────────
@@ -70,7 +129,7 @@ fi
 if [ "$MODE" = "goal" ]; then
     GOAL_FILE="$STATE_DIR/tokens/lx-goal.json"
     if [ -f "$GOAL_FILE" ]; then
-        PHASE0_PASSED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GOAL_FILE', encoding="utf-8")); print(d.get('phase0_passed_at',''))" 2>/dev/null || echo "")
+        PHASE0_PASSED=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$GOAL_FILE', encoding='utf-8')); print(d.get('phase0_passed_at',''))" 2>/dev/null || echo "")
         if [ -n "$PHASE0_PASSED" ]; then
             echo '{"continue": true}'
             flywheel_event "pretool_plan_gate" "goal_phase0_verified" "P2" "passed_at=$PHASE0_PASSED" || true
@@ -101,7 +160,7 @@ if [ -d "$PLANS_DIR" ]; then
     for state_file in "$PLANS_DIR"/*/*/state.json; do
         set -f
         [ -f "$state_file" ] || continue
-        PHASE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$state_file', encoding="utf-8")).get('phase',''))" 2>/dev/null || echo "")
+        PHASE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$state_file', encoding='utf-8')).get('phase',''))" 2>/dev/null || echo "")
         if [ "$PHASE" = "approved" ] || [ "$PHASE" = "executing" ]; then
             HAS_APPROVED=true
             PLAN_PATH=$(dirname "$state_file")
@@ -144,7 +203,7 @@ if [ "$CONCEPT_RECENT" = true ]; then
 fi
 
 # ─── 阻断: 无已审批方案 ───
-echo "⛔ [Plan Gate] 检测到中等以上变更 (${ESTIMATED_FILES}文件/${ESTIMATED_LINES}行)，但无已审批方案。
+echo "⛔ [Plan Gate] 检测到中等以上变更 (本次${ESTIMATED_FILES}文件/${ESTIMATED_LINES}行, 本会话累计${CUMULATIVE_FILES}文件)，但无已审批方案。
 
 AI 必须:
 1. 先写 PRD 到 .omc/plans/{date}/{feature_slug}/prd.md

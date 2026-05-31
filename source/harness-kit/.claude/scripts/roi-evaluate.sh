@@ -14,7 +14,7 @@ ERR_SIG=".omc/state/error-signals.jsonl"
 GOV_AUD=".omc/state/governance-audit.jsonl"
 TOKEN_SAV=".omc/state/token-savings.json"
 RETRY=".omc/state/retry-budget.json"
-CONTRA=".omc/state/contradiction-log.jsonl"
+CONTRA=".omc/state/edit-churn-log.jsonl"
 
 # ─── ROI Score = Evidence(40%) + Impact(35%) + Philosophy(25%) ───
 # Evidence: flywheel events, error captures, token savings, smoke test
@@ -76,7 +76,6 @@ score_roi "posttool-completion-audit" 6 9 10
 echo ""
 echo "📊 知识/上下文类:"
 score_roi "context-compressor"   8 8 9
-score_roi "compact-detect"       7 7 8
 score_roi "inject-project-knowledge" 8 8 7
 score_roi "knowledge-condenser"  4 4 7
 score_roi "auto-snapshot"        5 4 7

@@ -54,8 +54,8 @@ _test "scope hook exists" "true" "$([ -f $H/pretool-edit-scope.sh ] && echo true
 _test "tracker hook exists" "true" "$([ -f $H/intent-tracker.sh ] && echo true)"
 _test "tracker has E6 fix" "true" "$(grep 'contradiction_level >= 2' $H/intent-tracker.sh | grep -c '2')"
 # Verify intent-tracker records exist in log
-R21=$(wc -l .omc/state/contradiction-log.jsonl 2>/dev/null | awk '{print $1}' || echo 0)
-_test "contradiction-log has runtime data (>0 entries)" "[1-9]" "$R21"
+R21=$(wc -l .omc/state/edit-churn-log.jsonl 2>/dev/null | awk '{print $1}' || echo 0)
+_test "edit-churn-log has runtime data (>0 entries)" "[1-9]" "$R21"
 
 # [22] error-dna + retry-budget — 错误捕获 → 重试追踪
 echo ""; echo "=== [22] error-dna + retry-budget ==="
@@ -70,16 +70,10 @@ print('true' if len(d.get('signatures',{})) > 0 else 'false')
 " 2>/dev/null
 )"
 
-# [23] context-compressor + compact-detect — SessionStart 压缩 → /compact 恢复
-echo ""; echo "=== [23] context-compressor + compact-detect ==="
 _test "compressor exists" "true" "$([ -f $H/context-compressor.sh ] && echo true)"
-_test "compact-detect exists" "true" "$([ -f $H/compact-detect.sh ] && echo true)"
 _test "context-cache.md has content" "true" "$(
   [ -s .omc/state/context-cache.md ] && echo true
 )"
-# Run compact-detect to verify it reads the cache
-R23=$(bash $H/compact-detect.sh 2>&1 <<< "/compact" || true)
-_test "compact-detect reads cache" "CTX-COMPACT|铁律|知识恢复" "$R23"
 
 # [24] lsp-suggest + pre-edit-lsp-check — 搜索建议 + 编辑前诊断
 echo ""; echo "=== [24] lsp-suggest + pre-edit-lsp ==="

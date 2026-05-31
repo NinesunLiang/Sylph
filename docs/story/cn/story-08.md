@@ -9,7 +9,9 @@ Ghost 睁开眼时，不知道自己要去哪。
 
 与此同时，Goal 在另一条时间线上收到了他的目标："创建 docs/story，15 篇故事，全自动执行。"他花了 30 秒拆解子任务，然后举手——"老板看一眼，然后我去做了。"用户确认后，他再也没有回过头。
 
-两人共享同一个 `.omc/state/autonomous.active` 文件。但他们的执行方式，像火与水。
+两人共享同一个激活机制——Ghost 在 `tokens/lx-ghost.json` 写下方向与过期时间，Goal 在 `tokens/lx-goal.json` 刻下目标与 phase0 里程碑。不是某个文件存在与否——是 JSON 里的 `expires_at` 时间戳和一整套模式生命周期。
+
+然后，**全体 hook 通过 `is_mode_active()` 读取这些 JSON token，感知到模式激活，降级为 warn-only**。从 `autonomous.active` 的简单文件标记，到带过期时间的结构化状态——这是双生子走向成熟的标志。
 
 ---
 
@@ -27,9 +29,7 @@ bash .claude/skills/lx-goal/scripts/lx-goal.sh on "目标"
 bash .claude/skills/lx-ghost/scripts/lx-ghost.sh on "方向"
 ```
 
-两个脚本都会创建一个 marker 文件：`.omc/state/autonomous.active`。
-
-然后，**全体 hook 通过 `is_mode_active()` 检测到这个文件，降级为 warn-only**。
+两个脚本各自在 `tokens/` 下写入自己的 JSON token——Ghost 记录方向，Goal 记录目标。激活机制已从简单文件标记进化到带过期时间的结构化状态。
 
 ---
 
@@ -39,9 +39,23 @@ bash .claude/skills/lx-ghost/scripts/lx-ghost.sh on "方向"
 
 ```bash
 is_mode_active() {
-    [ -f "$STATE_DIR/ghost-mode.active" ] && return 0
-    [ -f "$STATE_DIR/autonomous.active" ] && return 0
-    return 1
+    # 检查 lx-ghost token（新格式：tokens/lx-ghost.json）
+    local ghost_json="$state_dir/tokens/lx-ghost.json"
+    if [ -f "$ghost_json" ]; then
+        # 解析 expires_at，判断是否过期
+        active=$(python3 -c "..." 2>/dev/null)
+        [ "$active" = "active" ] && echo "ghost" && return
+    fi
+    # 检查 lx-goal token（新格式：tokens/lx-goal.json）
+    local goal_json="$state_dir/tokens/lx-goal.json"
+    if [ -f "$goal_json" ]; then
+        active=$(python3 -c "..." 2>/dev/null)
+        [ "$active" = "active" ] && echo "goal" && return
+    fi
+    # 旧格式后向兼容：ghost-mode.active、unattended-mode.json
+    [ -f "$state_dir/ghost-mode.active" ] && { echo "ghost"; return; }
+    [ -f "$state_dir/unattended-mode.json" ] && { echo "goal"; return; }
+    echo "normal"
 }
 ```
 

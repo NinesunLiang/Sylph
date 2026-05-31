@@ -114,12 +114,12 @@ if [ "$TRIGGERED" = false ]; then
 fi
 
 # G3: Oracle ACCEPT / 高分 (≥8.5) — 原有逻辑，最低优先级
+# 要求结构化格式 [Oracle: ACCEPT] 或 [Oracle ACCEPT]，不匹配日常对话中的 "oracle accept"
 if [ "$TRIGGERED" = false ]; then
-    # 检测 Oracle ACCEPT/APPROVED
-    if echo "$COMBINED" | grep -qE '(Oracle|oracle).*(ACCEPT|APPROVED|approve|accept)' 2>/dev/null; then
+    if echo "$COMBINED" | grep -qE '\[Oracle:\s*(ACCEPT|APPROVED)\]|\[Oracle\s+(ACCEPT|APPROVED)\]|Oracle\s+(verdict|ruling|裁决).*(ACCEPT|APPROVED)' 2>/dev/null; then
         TRIGGERED=true
         TRIGGER_PRIORITY="G3"
-        TRIGGER_REASON="G3 Oracle ACCEPT/APPROVED 裁决检测"
+        TRIGGER_REASON="G3 Oracle 结构化 ACCEPT/APPROVED 裁决检测"
     fi
 fi
 
@@ -127,10 +127,10 @@ if [ "$TRIGGERED" = false ]; then
     HIGH_SCORE=$(echo "$COMBINED" | grep -oE '(score|Score|评分|得分)[:： ]*[0-9]+\.[0-9]+' 2>/dev/null | head -3)
     if [ -n "$HIGH_SCORE" ]; then
         MAX_SCORE=$(echo "$HIGH_SCORE" | grep -oE '[0-9]+\.[0-9]+' | sort -rn | head -1)
-        if [ -n "$MAX_SCORE" ] && ${PYTHON_BIN:-python3} -c "exit(0 if float('$MAX_SCORE') >= 8.5 else 1)" 2>/dev/null; then
+        if [ -n "$MAX_SCORE" ] && ${PYTHON_BIN:-python3} -c "exit(0 if float('$MAX_SCORE') >= 9.0 else 1)" 2>/dev/null; then
             TRIGGERED=true
             TRIGGER_PRIORITY="G3"
-            TRIGGER_REASON="G3 Oracle 高分评分 (${MAX_SCORE} ≥ 8.5)"
+            TRIGGER_REASON="G3 Oracle 高分评分 (${MAX_SCORE} ≥ 9.0)"
         fi
     fi
 fi
@@ -139,10 +139,10 @@ if [ "$TRIGGERED" = false ]; then
     OVERALL_SCORE=$(echo "$COMBINED" | grep -oE '(综合|总分|平均|overall)[:： ]*[0-9]+\.[0-9]+' 2>/dev/null | head -3)
     if [ -n "$OVERALL_SCORE" ]; then
         MAX_OS=$(echo "$OVERALL_SCORE" | grep -oE '[0-9]+\.[0-9]+' | sort -rn | head -1)
-        if [ -n "$MAX_OS" ] && ${PYTHON_BIN:-python3} -c "exit(0 if float('$MAX_OS') >= 8.5 else 1)" 2>/dev/null; then
+        if [ -n "$MAX_OS" ] && ${PYTHON_BIN:-python3} -c "exit(0 if float('$MAX_OS') >= 9.0 else 1)" 2>/dev/null; then
             TRIGGERED=true
             TRIGGER_PRIORITY="G3"
-            TRIGGER_REASON="G3 综合评分 ≥ 8.5 (${MAX_OS})"
+            TRIGGER_REASON="G3 综合评分 ≥ 9.0 (${MAX_OS})"
         fi
     fi
 fi

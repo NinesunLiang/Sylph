@@ -38,7 +38,7 @@ _test "pre-edit-lsp ready" "true" "$([ -f $H/pre-edit-lsp-check.sh ] && echo tru
 
 # Phase 4: Intent tracking
 _test "intent-tracker ready" "true" "$([ -f $H/intent-tracker.sh ] && echo true)"
-_test "contradiction-log populated" "true" "$([ -f .omc/state/contradiction-log.jsonl ] && echo true)"
+_test "edit-churn-log populated" "true" "$([ -f .omc/state/edit-churn-log.jsonl ] && echo true)"
 
 # Phase 5: Error recovery
 _test "error-dna ready" "true" "$([ -f $H/error-dna.sh ] && echo true)"
@@ -91,7 +91,7 @@ _test "  错误可见" "true" "$([ -f .omc/state/error-signals.jsonl ] && echo t
 _test "  scope冻结" "true" "$([ -f .omc/state/current-scope.txt ] && echo true)"
 _test "  重试追踪" "true" "$([ -f .omc/state/retry-budget.json ] && echo true)"
 _test "  context压缩" "true" "$([ -s .omc/state/context-cache.md ] && echo true)"
-_test "  矛盾检测" "true" "$([ -f .omc/state/contradiction-log.jsonl ] && echo true)"
+_test "  矛盾检测" "true" "$([ -f .omc/state/edit-churn-log.jsonl ] && echo true)"
 _test "  completion证据" "true" "$(ls .omc/state/.completion-evidence-* 2>/dev/null | wc -l | xargs)"
 _test "  governance审计" "true" "$([ -f .omc/state/governance-audit.jsonl ] && echo true)"
 _test "  flywheel日志" "true" "$([ -f ~/.claude/flywheel.log ] && echo true)"

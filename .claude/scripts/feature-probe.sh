@@ -5,9 +5,11 @@
 HC_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$HC_SCRIPT_DIR/../.." && pwd)"
 FEATURE_REGISTRY="$PROJECT_ROOT/.claude/feature-registry.yaml"
+flywheel_event "feature_probe" "active" "P2" || true
 
 # 导入 harness_config.sh
 source "$HC_SCRIPT_DIR/harness_config.sh"
+set -f
 
 usage() {
     echo "Usage: $0 <feature_name> [--json]"
@@ -66,7 +68,7 @@ _registry_enabled() {
     if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         ${PYTHON_BIN:-python3} -c "
 import yaml, sys
-with open('$FEATURE_REGISTRY') as f:
+with open('$FEATURE_REGISTRY', encoding="utf-8") as f:
     data = yaml.safe_load(f)
 name = '$name'
 for hook in data.get('hooks', []):
@@ -109,7 +111,7 @@ probe() {
     if command -v "${PYTHON_BIN:-python3}" &>/dev/null && [ -f "$FEATURE_REGISTRY" ]; then
         if ${PYTHON_BIN:-python3} -c "
 import yaml, sys
-with open('$FEATURE_REGISTRY') as f:
+with open('$FEATURE_REGISTRY', encoding="utf-8") as f:
     data = yaml.safe_load(f)
 name = '$name'
 found = False
@@ -128,7 +130,7 @@ sys.exit(0 if found else 1)
             l4="NOT_REGISTERED (feature not found in registry)"
         fi
     else
-        l4="NOT_TESTABLE (python3 or registry missing)"
+        l4="NOT_TESTABLE (${PYTHON_BIN:-python3} or registry missing)"
     fi
 
     # ---- L3: 文件存在 + 语法 ----
@@ -185,8 +187,7 @@ sys.exit(0 if found else 1)
     # ---- L1: 完整功能验证（仅对已知的可执行 feature 进行） ----
     local l1=""
     if [ -n "$hook_script" ] && [ -z "$syntax_check" ]; then
-# source 执行 hook 的 exit code（不带参数，预期 exit 0 或 exit 2）
-exit 2）
+        # source 执行 hook 的 exit code（不带参数，预期 exit 0 或 exit 2）
         bash "$hook_script" 2>/dev/null
         local exit_code=$?
         if [ "$exit_code" -eq 0 ] || [ "$exit_code" -eq 2 ]; then
@@ -249,7 +250,7 @@ import json
 import yaml, sys
 registered = False
 try:
-    with open('$FEATURE_REGISTRY') as f:
+    with open('$FEATURE_REGISTRY', encoding="utf-8") as f:
         data = yaml.safe_load(f)
     name = '$name'
     for hook in data.get('hooks', []):

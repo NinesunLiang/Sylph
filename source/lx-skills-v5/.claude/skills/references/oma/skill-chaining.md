@@ -1,6 +1,6 @@
 # Skill 链式承接 (Skill Chaining)
 
-> 所有 OMA skill 的链式组合模式。引用：`@references/oma/skill-chaining.md`
+> 所有 OMA skill 的链式组合模式。引用：`@reference/oma/skill-chaining.md`
 
 ## 链式组合哲学
 
@@ -92,7 +92,7 @@ Oracle Agent ──→ Meta-Oracle ──→ 人类
 
 ### 去重
 
-如果两个 skill 的公共能力相同 → 提取到 `references/oma/`：
+如果两个 skill 的公共能力相同 → 提取到 `reference/oma/`：
 
 | 公共能力 | 引用路径 |
 |---------|---------|
