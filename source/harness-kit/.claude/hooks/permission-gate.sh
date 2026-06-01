@@ -189,8 +189,8 @@ CACHEPY
 }
 
 # 统一模式检测: ghost/unattended 降级为"记录+跳过"，不阻断
-# 默认 normal 模式（未显式设置 MODE 时等效于 normal）
-MODE="${MODE:-normal}"
+# 使用 is_mode_active 检测信号文件（兼容 goal/ghost/rpe 模式）
+MODE="$(is_mode_active "$STATE_DIR" 2>/dev/null || echo "normal")"
 if [ "$MODE" != "normal" ]; then
     flywheel_event "permission_gate" "blocked_${DANGER_TYPE// /_}" "P1" || true
     SKIPPED_FILE="$STATE_DIR/skipped-errors.md"

@@ -770,7 +770,6 @@ if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
 fi
 
 # 确保 CLAUDE.md 为 @-include 跳板格式
-# 确保 CLAUDE.md 为 @-include 跳板格式
 if ! grep -q "^@AGENTS.md" "CLAUDE.md" 2>/dev/null; then
     CLAUDE_CONTENT=$(cat CLAUDE.md 2>/dev/null || echo "")
     printf '@AGENTS.md\n\n%s\n' "$CLAUDE_CONTENT" > CLAUDE.md

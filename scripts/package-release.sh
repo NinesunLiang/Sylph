@@ -156,7 +156,7 @@ rm -rf "$HARNESS_SRC/.claude/nodes" "$HARNESS_SRC/.claude/profiles" \
 rm -f "$HARNESS_SRC/.claude/settings.local.json" \
       "$HARNESS_SRC/.claude/scheduled_tasks.lock" 2>/dev/null || true
 # 清理备份文件和缓存
-find "$HARNESS_SRC" -name '*.bak' -delete 2>/dev/null || true
+find "$HARNESS_SRC" -name '*.bak*' -delete 2>/dev/null || true
 find "$HARNESS_SRC" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 find "$HARNESS_SRC" -name '*.pyc' -delete 2>/dev/null || true
 # 清理测试/诊断脚本（含硬编码开发机路径）
@@ -230,7 +230,7 @@ log_info "  lx-skills 同步完成"
 log_step "3/4 构建 harness-kit..."
 cd "$HARNESS_SRC"
 COPYFILE_DISABLE=1 tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
-  --exclude=.omc --exclude=node_modules --exclude='*.pyc' --exclude='__pycache__' --exclude='*.bak' \
+  --exclude=.omc --exclude=node_modules --exclude='*.pyc' --exclude='__pycache__' --exclude='*.bak*' \
   AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/
 cd "$PROJECT_DIR"
 H_CONTAM=$(tar tzf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
