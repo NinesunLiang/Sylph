@@ -167,3 +167,12 @@ E2 (验证码伪造):
   rpe: rpe/{feature}/
   oma: main_prd/{sub_prd}/{feature}/
   废弃路径: prd/, sub-prds/, rpe/feat-*
+
+──────────────────────
+Skill body.md 强制执行
+──────────────────────
+skill body.md 不是可读可不读的参考文档，而是必须严格执行的执行合约。
+PreToolUse:Skill hook (pretool-skill-body-enforce.sh) 自动将 body.md 内容
+注入 AI 上下文，AI 无法"选择不看"。PostToolUse:Skill hook
+(posttool-skill-compliance.sh) 审计执行合规性，发现偏差注入警告。
+哲学 #3(先守护) + #6(0信任) 物化。

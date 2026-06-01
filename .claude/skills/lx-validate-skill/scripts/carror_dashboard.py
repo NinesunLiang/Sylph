@@ -197,7 +197,7 @@ def collect_token_savings():
         except (json.JSONDecodeError, KeyError):
             pass
 
-    # === Compact — 来自转录本实测 ===
+    # === 脱水节省 — 来自转录本实测 ===
     compact_saved = 0
     compact_events = 0
     if real_f.exists() and r is not None:
@@ -311,9 +311,9 @@ def render_token_savings(data):
                 comp_ratio = sv.get("session_ratio_pct", 0)
             except: pass
         ratio_str = f" ({colored(f'{comp_ratio}%', COLOR)} 输入压缩)" if comp_ratio > 0 else ""
-        p(f" Compact: {colored(f'{comp_ev} 次事件', COLOR)}{ratio_str}  ({colored(f'{compact:,}', COLOR)} tok)")
+        p(f" 因脱水节省: {colored(f'{compact:,}', COLOR)} tok  ({colored(f'{comp_ev} 次', COLOR)})")
     else:
-        p(f" Compact: {colored('0 次事件', DIM)}")
+        p(f" 因脱水节省: {colored('0 tok', DIM)}")
 
     # Summary line
     ti = data.get("real_total_input")

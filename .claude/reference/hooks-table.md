@@ -1,4 +1,4 @@
-## Hooks 速查（共 57 个）
+## Hooks 速查（共 59 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
@@ -28,6 +28,7 @@
 |`posttool-edit-quality` | PostToolUse | posttool-edit-quality.sh — PostToolUse:Edit|Write — 编辑后自查代码风格、文档同步、方案复用检测|
 |`posttool-format-gate` | PostToolUse | posttool-format-gate.sh — PostToolUse:TaskUpdate — 以人为本输出格式门禁（哲学 #5 物化）|
 |`posttool-handoff-writer` | PostToolUse | posttool-handoff-writer.sh — PostToolUse:TaskUpdate — 每次 Task 完成后写 handoff|
+|`posttool-skill-compliance` | PostToolUse | posttool-skill-compliance.sh — PostToolUse:Skill — 执行合规审计|
 |`posttool-subagent-audit` | PostToolUse | posttool-subagent-audit.sh — PostToolUse:Task — 子 agent 执行后审计 content 用量，超限告警|
 |`posttool-template-check` | PostToolUse | |
 |`posttool-write-cite` | PostToolUse | posttool-write-cite.sh — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式|
@@ -46,6 +47,7 @@
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|
 |`pretool-sensitive-file-guard` | PreToolUse | pretool-sensitive-file-guard.sh — PreToolUse:Edit|Write — 保护门禁文件不被 AI 直接写入|
+|`pretool-skill-body-enforce` | PreToolUse | pretool-skill-body-enforce.sh — PreToolUse:Skill — 强制执行合约注入|
 |`pretool-skill-version-guard` | PreToolUse | pretool-skill-version-guard.sh — PreToolUse:Edit|Write — SKILL.md 版本格式 + 引用有效性门禁|
 |`pretool-terminal-safety` | PreToolUse | pretool-terminal-safety.sh — PreToolUse:Bash — 终端命令格式校验|
 |`pretool-user-correction` | UserPromptSubmit | pretool-user-correction.sh — UserPromptSubmit — 检测用户纠正信号，强制记录到 claude-next.md|

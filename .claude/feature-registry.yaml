@@ -472,3 +472,19 @@ hooks:
   description: Agentic UI 状态管理 — 更新轮次/锚定信息到 AI 上下文
   enabled_by_default: true
   evidence_level: L2
+
+# ── Skill 执行合规 (2026-06-01) ──
+- name: skill-body-enforce
+  philosophy: ['#3', '#6']
+  type: injector
+  category: governance
+  description: PreToolUse:Skill — 自动将 body.md 内容注入 AI 上下文，确保 AI 看到强制执行合约
+  enabled_by_default: true
+  evidence_level: L2
+- name: skill-compliance-audit
+  philosophy: ['#4', '#6']
+  type: audit
+  category: governance
+  description: PostToolUse:Skill — 审计 AI 是否按 body.md 执行，发现偏差注入警告
+  enabled_by_default: true
+  evidence_level: L2

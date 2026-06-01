@@ -9,3 +9,4 @@ scripts/packages/
 _swebench_test/
 base_scripts/._*
 ._*
+.claude/worktrees/

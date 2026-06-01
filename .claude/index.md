@@ -20,6 +20,7 @@ Task→subagent-guard
 TaskUpdate→pre-completion-gate
 AskUserQuestion→pre-ask-guard
 Agent→pretool-node-reference
+Skill→pretool-skill-body-enforce
 .*→fuzzy-block
 
 ──────────────────────
@@ -30,7 +31,7 @@ TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion
 TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check
 Read→read-tracker|posttool-read-cite
 Bash→posttool-bash-audit|error-dna|build-validator
-Skill→skill-usage-tracker
+Skill→skill-usage-tracker|posttool-skill-compliance
 Task|Agent→posttool-subagent-audit
 .*→token_writer|meta-oracle-trigger(py+sh)|agentic-ui
 

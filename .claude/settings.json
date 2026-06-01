@@ -167,6 +167,16 @@
             "timeout": 3000
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-skill-body-enforce.sh",
+            "timeout": 5000
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -292,6 +302,11 @@
             "type": "command",
             "command": "bash .claude/hooks/skill-usage-tracker.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-skill-compliance.sh",
+            "timeout": 5000
           }
         ]
       },

@@ -43,7 +43,7 @@ Oracle:L2+非琐碎→Oracle审核,REVISE→修P0,REJECT→报Boss
 Meta-Oracle:G1架构G2 PRD G3≥85 G4 Release→软门禁
 
 ──────────────────────
-路由索引（Read on demand，无@展开）
+路由索引（Read on demand，无@展开；但 skill body.md 是强制执行合约，hook 自动注入）
 ──────────────────────
 name            | what                         | when                       | where
 ────────────────────────────────────────────────────────────────────────────────
