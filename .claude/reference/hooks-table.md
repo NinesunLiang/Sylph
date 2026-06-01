@@ -1,4 +1,4 @@
-## Hooks 速查（共 59 个）
+## Hooks 速查（共 54 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
@@ -63,7 +63,7 @@
 
 ### 已注册但默认禁用的脚本（共 5 个）
 
-以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
+以下脚本已从 settings.json 移除注册（文件保留，按需启用时重新注册）：
 
 | 脚本 | 事件 | 说明 |
 |------|------|------|

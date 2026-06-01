@@ -68,21 +68,21 @@
 正确行为：每条新反模式子模式的「狗粮证据」字段必须列出具体 DG/ED/DF 编号，不可用「多次事故」「多次触发」等模糊表述。证据链让后来者可以追溯原始事故，判断该反模式是否仍然活跃
 证据：I1 证据链: ED-01/DG-25/DG-30/DG-74/DG-82；I2: DG-09/DG-47/DG-62/DG-58；J1: DG-33/DF-04/DG-68/DG-80；J2: DG-80；K1: DG-44/DG-63/DG-61/DG-67；K2: DG-61/DG-64/DG-67；L1: DG-36/DG-54/DG-60/DG-32
 
-### 🐶 [DG-007] JSON 修复用 roundtrip 而非 raw text replace —— 多层转义陷阱 (@lucas.liang)
+### 🐶 [DG-007] JSON 修复用 roundtrip 而非 raw text replace —— 多层转义陷阱 (@dev)
 
 @2026-05-17 hits:1
 触发条件：当 jsonl/json 文件中存在需要修改的字面文本时
 正确行为：不要用字符串替换操作修改 JSON 文件内容。正确做法：parse JSON → 递归修改 decoded Python 对象中的字符串值 → json.dumps 重新序列化。JSON 中 `U+D800`（valid escaped）和 `U+D800`（invalid escape）在原始字节层面有不同数量的反斜杠，raw text replace 容易只替换部分导致残留
 证据：修复 lone surrogate API 400 错误时，raw text replace 在 transcript 遗留 13 处未替换，改用 JSON roundtrip 后一次清除
 
-### 🐶 [DG-008] 跨 session bug 需追踪 hook 注入链 —— error-signals 是隐藏传播源 (@lucas.liang)
+### 🐶 [DG-008] 跨 session bug 需追踪 hook 注入链 —— error-signals 是隐藏传播源 (@dev)
 
 @2026-05-17 hits:1
 触发条件：bug 在新 session/终端中反复出现时
 正确行为：不仅检查当前 session 的 jsonl，还要检查：(1) `.omc/state/error-signals.jsonl` — hook 注入的 `<system-reminder>` 源 (2) `~/.claude/transcripts/*.jsonl` — OpenCode session transcript (3) 子 agent 的 `subagents/` 目录 (4) 任何 hook 脚本引用并注入的文件
 证据：修复了当前 session 后 bug 仍复发，追踪到 error-signals.jsonl (6 处) 和 transcript (66 处) 后彻底解决
 
-### 🐶 [DG-009] AI 诊断输出会自指复现 bug —— 避免在诊断文本中引用 bug 模式 (@lucas.liang)
+### 🐶 [DG-009] AI 诊断输出会自指复现 bug —— 避免在诊断文本中引用 bug 模式 (@dev)
 
 @2026-05-18 hits:2
 触发条件：AI assistant 在诊断问题时，回复中包含与 bug 模式相同的字面文本

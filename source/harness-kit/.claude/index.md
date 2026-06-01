@@ -6,12 +6,12 @@
 ──────────────────────
 SessionStart
 ──────────────────────
-*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate
+*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|oracle-gate
 
 ──────────────────────
 PreToolUse（操作前阻断）
 ──────────────────────
-Edit|Write→pretool-oracle-gate(py+sh)|edit-guard|pre-edit-lsp-check|pretool-purify-gate|pretool-skill-version-guard|context-guard(W50/D80)|pretool-edit-scope|pretool-write-lock|pretool-sensitive-file-guard
+Edit|Write→pretool-oracle-gate(py+sh)|edit-guard|pre-edit-lsp-check|pretool-purify-gate|pretool-skill-version-guard|context-guard(W50/D80)|pretool-write-lock|pretool-sensitive-file-guard
 Edit|Write|Bash→pretool-sensitive-edit|pretool-plan-gate
 Bash→permission-gate|pretool-retry-check|pretool-blast-radius|pretool-terminal-safety(max:2000)
 Bash|Read|Grep→privacy-gate(.env/Token拦截)
@@ -20,6 +20,7 @@ Task→subagent-guard
 TaskUpdate→pre-completion-gate
 AskUserQuestion→pre-ask-guard
 Agent→pretool-node-reference
+Skill→pretool-skill-body-enforce
 .*→fuzzy-block
 
 ──────────────────────
@@ -28,9 +29,9 @@ PostToolUse（操作后审计）
 Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
 TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
 TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check
-Read→read-tracker|posttool-read-cite
+Read→read-tracker
 Bash→posttool-bash-audit|error-dna|build-validator
-Skill→skill-usage-tracker
+Skill→skill-usage-tracker|posttool-skill-compliance
 Task|Agent→posttool-subagent-audit
 .*→token_writer|meta-oracle-trigger(py+sh)|agentic-ui
 
@@ -43,7 +44,7 @@ Bash→error-dna|posttool-bash-audit|build-validator
 UserPromptSubmit
 ──────────────────────
 *→pretool-user-correction|turn-counter
-.*→pretool-approve-detect|pretool-rules-inject
+.*→pretool-approve-detect
 
 ──────────────────────
 Stop

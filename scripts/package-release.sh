@@ -125,9 +125,11 @@ log_info "  ✅ 关键文件存在性: 通过"
 echo ""
 
 # ─── Step 1: root -> source/harness-kit ───
-# NOTE: AGENTS.md 有意不复制（根=元项目专属，source=通用分发模板）
+# NOTE: AGENTS.md 根目录是通用分发模板（79行，仅哲学铁律+路由索引）
+# source/harness-kit/AGENTS.md 可能是旧版元项目专属内容，必须覆盖
 log_step "1/4 同步 root -> source/harness-kit..."
-cp CLAUDE.md "$HARNESS_SRC/CLAUDE.md"
+cp AGENTS.md    "$HARNESS_SRC/AGENTS.md"
+cp CLAUDE.md    "$HARNESS_SRC/CLAUDE.md"
 rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
 rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
 rsync -a --delete .claude/reference/   "$HARNESS_SRC/.claude/reference/"
@@ -145,14 +147,24 @@ cp .claude/claude-next.md   "$HARNESS_SRC/.claude/claude-next.md"
 rsync -a --delete --exclude=node_modules .cursor/  "$HARNESS_SRC/.cursor/"
 rsync -a --delete --exclude=node_modules .opencode/ "$HARNESS_SRC/.opencode/"
 rsync -a --delete --exclude=node_modules .hooks/     "$HARNESS_SRC/.hooks/"
-# 清理运行时状态 和 lx-skills 专属内容
-rm -f "$HARNESS_SRC/.omc/state/"*.json "$HARNESS_SRC/.omc/state/"*.txt 2>/dev/null || true
+# 清理运行时状态、元项目专属内容、备份文件、缓存
+rm -rf "$HARNESS_SRC/.omc" 2>/dev/null || true
 rm -rf "$HARNESS_SRC/.claude/nodes" "$HARNESS_SRC/.claude/profiles" \
        "$HARNESS_SRC/.claude/schemas" "$HARNESS_SRC/.claude/skills" \
        "$HARNESS_SRC/.claude/task_sys" "$HARNESS_SRC/.claude/plans" \
        "$HARNESS_SRC/.claude/state" 2>/dev/null || true
 rm -f "$HARNESS_SRC/.claude/settings.local.json" \
       "$HARNESS_SRC/.claude/scheduled_tasks.lock" 2>/dev/null || true
+# 清理备份文件和缓存
+find "$HARNESS_SRC" -name '*.bak' -delete 2>/dev/null || true
+find "$HARNESS_SRC" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
+find "$HARNESS_SRC" -name '*.pyc' -delete 2>/dev/null || true
+# 清理测试/诊断脚本（含硬编码开发机路径）
+rm -f "$HARNESS_SRC/.claude/scripts/task-verify-e1e2-fix.py" 2>/dev/null || true
+# 替换 claude-next.md 中的 @lucas.liang 为通用署名
+if [ -f "$HARNESS_SRC/.claude/claude-next.md" ]; then
+    sed -i '' 's/(@lucas\.liang)/(@dev)/g' "$HARNESS_SRC/.claude/claude-next.md" 2>/dev/null || true
+fi
 log_info "  harness-kit 同步完成"
 
 # ─── Step 1.5: 三源一致性预检 (DG-118: 移至 rsync 之后，消除假阳性) ───
@@ -218,7 +230,7 @@ log_info "  lx-skills 同步完成"
 log_step "3/4 构建 harness-kit..."
 cd "$HARNESS_SRC"
 COPYFILE_DISABLE=1 tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
-  --exclude=.omc --exclude=node_modules --exclude='*.pyc' \
+  --exclude=.omc --exclude=node_modules --exclude='*.pyc' --exclude='__pycache__' --exclude='*.bak' \
   AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/
 cd "$PROJECT_DIR"
 H_CONTAM=$(tar tzf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \

@@ -112,6 +112,8 @@ hooks_enabled:
   posttool_template_check: true
   pretool_rules_inject: false
   pretool_skill_version_guard: true
+  skill_body_enforce: true
+  skill_compliance_audit: true
   pretool_sensitive_edit: true
   pretool_terminal_safety: true
   lsp_gate: false

@@ -50,11 +50,6 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-edit-scope.sh",
-            "timeout": 3000
           }
         ]
       },
@@ -167,6 +162,16 @@
             "timeout": 3000
           }
         ]
+      },
+      {
+        "matcher": "Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-skill-body-enforce.sh",
+            "timeout": 5000
+          }
+        ]
       }
     ],
     "PostToolUse": [
@@ -257,11 +262,6 @@
             "type": "command",
             "command": "bash .claude/hooks/read-tracker.sh",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/posttool-read-cite.sh",
-            "timeout": 3000
           }
         ]
       },
@@ -292,6 +292,11 @@
             "type": "command",
             "command": "bash .claude/hooks/skill-usage-tracker.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/posttool-skill-compliance.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -409,11 +414,6 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/lsp-gate.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
             "command": "bash .claude/hooks/oracle-gate.sh",
             "timeout": 3000
           }
@@ -468,11 +468,6 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-approve-detect.sh",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/pretool-rules-inject.sh",
-            "timeout": 5000
           }
         ]
       }
