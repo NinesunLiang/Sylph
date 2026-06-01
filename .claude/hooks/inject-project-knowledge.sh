@@ -1,9 +1,62 @@
 #!/usr/bin/env bash
-# inject-project-knowledge.sh — SessionStart — 注入极简路由表到 AI context
-# 哲学 #1 (less is more): AGENTS.md + kernel.md + index.md 已由 CLAUDE.md 的 @ 引用链
-# 自动注入（Claude Code 内置机制），此处不再重复注入。
-# 仅注入 @ 引用链无法覆盖的补充文件（如 feature-registry 摘要）。
-# 其余所有文件通过渐进式披露 (Read on demand)
+# inject-project-knowledge.sh — SessionStart — 注入紧凑记忆恢复文件
+# Role: 注入 todo-queue.md(最近询问+任务摘要) + session-handoff.md + session-dump.json
+# 哲学 #4(验证): 压缩后记忆恢复; 哲学 #7(文档优先): 从文件恢复而非依赖记忆
 
-source "$(dirname "$0")/harness_config.sh"
-hc_enabled "inject_project_knowledge" || exit 0
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+source "$SCRIPT_DIR/harness_config.sh"
+set -f
+hc_enabled "inject_project_knowledge" || { echo '{"continue": true}'; exit 0; }
+
+STATE_DIR="$PROJECT_ROOT/.omc/state"
+
+# 1. Inject todo-queue.md (recent prompts + task summary)
+TODO_FILE="$STATE_DIR/todo-queue.md"
+if [ -f "$TODO_FILE" ]; then
+    echo ""
+    echo "--- 紧凑记忆恢复: 最近询问 + 任务摘要 ---"
+    head -40 "$TODO_FILE"
+    echo ""
+fi
+
+# 2. Inject session-handoff.md (feature progress + decisions)
+HANDOFF_FILE="$STATE_DIR/session-handoff.md"
+if [ -f "$HANDOFF_FILE" ]; then
+    echo ""
+    echo "--- 会话交接: 进度 + 决策 ---"
+    head -30 "$HANDOFF_FILE"
+    echo ""
+fi
+
+# 3. Inject session-dump.json summary (modified files + errors)
+DUMP_FILE="$STATE_DIR/session-dump.json"
+if [ -f "$DUMP_FILE" ]; then
+    echo ""
+    echo "--- 会话状态摘要 ---"
+    ${PYTHON_BIN:-python3} -c "
+import json, sys
+try:
+    d = json.load(open('$DUMP_FILE', encoding='utf-8'))
+except:
+    sys.exit(0)
+gs = d.get('git_state', {})
+mf = gs.get('modified_files', [])
+if mf:
+    print(f'修改文件 ({len(mf)}): ' + ', '.join(mf[:5]))
+el = d.get('edit_log', [])
+if el:
+    print(f'编辑文件 ({len(el)}): ' + ', '.join(el[:5]))
+es = d.get('error_summary', {})
+if es.get('unfixed_count', 0) > 0:
+    print(f'未修复错误: {es[\"unfixed_count\"]}')
+af = d.get('active_features', [])
+if af:
+    names = [str(a.get('feature', '?')) if isinstance(a, dict) else str(a) for a in af]
+    print(f'活跃特性: {\" | \".join(names[:3])}')
+" 2>/dev/null || true
+    echo ""
+fi
+
+echo '{"continue": true}'
+exit 0

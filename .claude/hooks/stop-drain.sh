@@ -198,6 +198,16 @@ else
         --write 2>/dev/null || true
 fi
 
+# Layer 5: Write compact recovery memory (todo-queue.md with recent prompts + task summary)
+# Runs on every Stop, so after /compact the next SessionStart can restore context
+if [ -f "$TRANSCRIPT" ]; then
+    ${PYTHON_BIN:-python3} "$PROJECT_ROOT/.claude/scripts/extract-compact-memory.py" \
+        --transcript "$TRANSCRIPT" \
+        --handoff "$STATE_DIR/session-handoff.md" \
+        --dump "$STATE_DIR/session-dump.json" \
+        --output "$STATE_DIR/todo-queue.md" 2>/dev/null || true
+fi
+
 # Layer 4: State directory hygiene — 1-day shelf life for all files
 # Keep: last 3 harness-smoke logs, last 5 snapshots, last 3 completion evidence
 # Remove: any file older than 1 day
