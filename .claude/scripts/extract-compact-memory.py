@@ -42,18 +42,30 @@ def extract_user_prompts(transcript_path: str) -> list[str]:
                     entry = json.loads(line)
                     if entry.get("type") != "user":
                         continue
-                    msg = entry.get("message", {})
-                    content = msg.get("content", "")
-                    if isinstance(content, list):
+                    # Claude Code transcript: user prompt is at top-level content key (plain string)
+                    content = entry.get("content", "")
+                    if isinstance(content, str) and content.strip():
+                        text = content.strip()[:MAX_PROMPT_CHARS]
+                        prompts.append(text)
+                    elif isinstance(content, list):
                         texts = []
                         for c in content:
                             if isinstance(c, dict) and c.get("type") in ("text",):
                                 texts.append(c.get("text", ""))
-                        content = " ".join(texts)
-                    if isinstance(content, str) and content.strip():
-                        # Truncate to MAX_PROMPT_CHARS
-                        text = content.strip()[:MAX_PROMPT_CHARS]
-                        prompts.append(text)
+                        combined = " ".join(texts).strip()[:MAX_PROMPT_CHARS]
+                        if combined:
+                            prompts.append(combined)
+                    # Fallback: message.content as list (OpenCode etc.)
+                    elif isinstance(entry.get("message"), dict):
+                        mc = entry["message"].get("content", "")
+                        if isinstance(mc, list):
+                            texts = []
+                            for c in mc:
+                                if isinstance(c, dict) and c.get("type") in ("text",):
+                                    texts.append(c.get("text", ""))
+                            combined = " ".join(texts).strip()[:MAX_PROMPT_CHARS]
+                            if combined:
+                                prompts.append(combined)
                 except json.JSONDecodeError:
                     continue
     except (FileNotFoundError, IOError):
@@ -68,8 +80,10 @@ def read_handoff(path: Path) -> dict:
         return result
     try:
         content = path.read_text(encoding="utf-8")
-        result["completed"] = re.findall(r'✅.*|\[x\].*', content)[:MAX_TODO_LINES]
-        result["pending"] = re.findall(r'🔄.*|⛔.*|\[·\].*|\[\s\].*', content)[:MAX_TODO_LINES]
+        # Match only task items (lines starting with - [x] or - ✅), not progress headers like "✅ 16 完成"
+        result["completed"] = re.findall(r'^\s*-\s*\[x\].*|^\s*-\s*✅.*', content, re.MULTILINE)[:MAX_TODO_LINES]
+        # Match pending task items (lines starting with - [·] or - [ ]), not status lines like "🔄 0 进行中"
+        result["pending"] = re.findall(r'^\s*-\s*\[[·\s]\].*', content, re.MULTILINE)[:MAX_TODO_LINES]
     except Exception:
         pass
     return result
@@ -113,7 +127,9 @@ def write_todo_queue(prompts: list, handoff: dict, dump_todos: list, output: Pat
     # Section 3: Pending tasks
     lines.append("## 待完成任务")
     lines.append("")
-    items = handoff["pending"] + dump_todos
+    # Filter out completed [x] items from dump_todos
+    pending_dump = [t for t in dump_todos if not re.match(r'^\s*-\s*\[x\]', str(t))]
+    items = handoff["pending"] + pending_dump
     if items:
         seen = set()
         for item in items:

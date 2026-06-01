@@ -117,11 +117,11 @@ Compact 记忆恢复 — 跨压缩知识恢复
        → 读取 session-handoff.md + session-dump.json
        → 写入 todo-queue.md (最近询问 + 任务摘要)
 
-  After compact (SessionStart):
+  After compact (SessionStart, 按注册顺序):
+    1. context-compressor.sh 注入 context-cache.md (铁律/反模式/架构压缩)
     2. inject-project-knowledge.sh 注入 todo-queue.md (最近询问 + 任务摘要)
     3. inject-project-knowledge.sh 注入 session-handoff.md (Feature/进度/决策)
     4. inject-project-knowledge.sh 注入 session-dump.json 摘要 (修改文件/错误/活跃特性)
-    5. context-compressor.sh 注入 context-cache.md (铁律/反模式/架构压缩)
 
   涉及的资产文件:
     todo-queue.md:
