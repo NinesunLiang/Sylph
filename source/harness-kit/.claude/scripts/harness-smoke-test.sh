@@ -1055,12 +1055,12 @@ fi
 # --- R36: AGENTS.md 有意分歧（根 != source/harness-kit） ---
 TOTAL=$((TOTAL+1))
 log ""
-log "[$TOTAL] R36 AGENTS.md intentional divergence: root != source/harness-kit"
+log "[$TOTAL] R36 AGENTS.md distribution template: root == source/harness-kit"
 if [ -f "source/harness-kit/AGENTS.md" ]; then
-    if ! diff -q AGENTS.md source/harness-kit/AGENTS.md > /dev/null 2>&1; then
-        pass "R36 AGENTS.md divergence confirmed (元项目专属 vs 通用分发模板)"
+    if diff -q AGENTS.md source/harness-kit/AGENTS.md > /dev/null 2>&1; then
+        pass "R36 AGENTS.md distribution template synced correctly"
     else
-        fail "R36 AGENTS.md 异常一致 — 元项目专属 drift 丢失？请检查 package-release.sh"
+        fail "R36 AGENTS.md 漂移 — root 和 source/harness-kit 不一致"
     fi
 else
     pass "R36 source/harness-kit/AGENTS.md 不存在，跳过（CI-only）"

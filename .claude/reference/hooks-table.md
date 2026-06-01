@@ -1,4 +1,4 @@
-## Hooks 速查（共 54 个）
+## Hooks 速查（共 59 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
@@ -63,12 +63,12 @@
 
 ### 已注册但默认禁用的脚本（共 5 个）
 
-以下脚本已从 settings.json 移除注册（文件保留，按需启用时重新注册）：
+以下脚本已注册到 settings.json，但在 harness.yaml 中默认关闭，按需启用：
 
 | 脚本 | 事件 | 说明 |
 |------|------|------|
-| lsp-gate | SessionStart | lsp-gate.sh — SessionStart — 检测项目语言对应的 LSP 是否可用 |
+| lsp-gate | (未注册) | lsp-gate.sh — SessionStart — 检测项目语言对应的 LSP 是否可用 |
 | oracle-gate | SessionStart | oracle-gate.sh — SessionStart — 检测 Agent 独立进程能力是否可用 |
-| posttool-read-cite | PostToolUse | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
-| pretool-edit-scope | PreToolUse | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定 + completion-blocked |
-| pretool-rules-inject | UserPromptSubmit | pretool-rules-inject.sh — UserPromptSubmit — 3级脱水分层注入 |
+| posttool-read-cite | (未注册) | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
+| pretool-edit-scope | (未注册) | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定 + completion-blocked |
+| pretool-rules-inject | (未注册) | pretool-rules-inject.sh — UserPromptSubmit — 3级脱水分层注入 |
