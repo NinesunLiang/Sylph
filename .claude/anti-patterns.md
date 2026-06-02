@@ -1,3 +1,24 @@
+---
+mechanization_status:
+  A1: "soft"
+  A2: "hard"
+  B1: "soft"
+  B2: "soft"
+  C1: "hard"
+  C2: "soft"
+  D1: "soft"
+  H1: "hard"
+  F1: "hard"
+  I1: "soft"
+  I2: "soft"
+  K1: "soft"
+  K2: "soft"
+  M1: "soft"
+  M2: "soft"
+  M3: "soft"
+  M4: "soft"
+---
+
 # anti-patterns.md — AI 反模式检测与纠偏指南
 
 > >

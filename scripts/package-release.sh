@@ -163,7 +163,11 @@ find "$HARNESS_SRC" -name '*.pyc' -delete 2>/dev/null || true
 rm -f "$HARNESS_SRC/.claude/scripts/task-verify-e1e2-fix.py" 2>/dev/null || true
 # 替换 claude-next.md 中的 @lucas.liang 为通用署名
 if [ -f "$HARNESS_SRC/.claude/claude-next.md" ]; then
-    sed -i '' 's/(@lucas\.liang)/(@dev)/g' "$HARNESS_SRC/.claude/claude-next.md" 2>/dev/null || true
+    if sed --version 2>/dev/null | grep -q GNU; then
+        sed -i 's/(@lucas\.liang)/(@dev)/g' "$HARNESS_SRC/.claude/claude-next.md" 2>/dev/null || true
+    else
+        sed -i '' 's/(@lucas\.liang)/(@dev)/g' "$HARNESS_SRC/.claude/claude-next.md" 2>/dev/null || true
+    fi
 fi
 log_info "  harness-kit 同步完成"
 

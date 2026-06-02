@@ -38,8 +38,9 @@ GH_WRITE_RE=$(hc_get "permission_gate.gh_write_regex" 'gh\s+(release\s+(upload|c
 BYPASS_RE=$(hc_get "permission_gate.bypass_regex" $'base64\\s+(-d|--decode).*\\|.*\\b(bash|sh|dash|zsh)\\b|xxd\\s+-r.*\\|.*\\b(bash|sh)\\b|printf\\s+[\\"\\x27\\\\047]%[bdh]|eval\\s+\\\\$\\(echo')
 SCOPE_WRITE_RE=$(hc_get "permission_gate.scope_write_regex" 'current-scope\.txt|sensitive-approved|permission-approved')
 
-# C1: encoding bypass detection (DG-11) — 无条件硬阻断，任何模式都不允许
-if echo "$COMMAND" | grep -qE "$BYPASS_RE"; then
+# _c1_block — C1 编码绕过阻断函数（DG-11）
+_c1_block() {
+    local BYPASS_TOKEN
     BYPASS_TOKEN=$(${PYTHON_BIN:-python3} -c "import secrets; print(secrets.token_hex(6))" 2>/dev/null || printf '%08x' "$(( ($(od -vAn -N2 -tu2 /dev/urandom 2>/dev/null || echo $RANDOM) * $RANDOM) & 0xFFFFFFFF ))")
     cat >&2 <<EOF
 
@@ -56,6 +57,16 @@ EOF
     printf '[Permission Gate] 编码绕过检测触发。AI 永远不能执行编码/动态执行命令。请人类在自己的终端中执行（Token: %s）。' "$BYPASS_TOKEN" | hc_emit_hook_json "PreToolUse" "false"
     flywheel_event "permission_gate" "blocked_encoding_bypass" "P1" || true
     exit 2
+}
+
+# C1: encoding bypass detection (DG-11) — 白名单优先，白名单匹配则跳过
+C1_WHITELIST=$(hc_get "permission_gate.c1_whitelist" "")
+if echo "$COMMAND" | grep -qE "$BYPASS_RE"; then
+    if [ -n "$C1_WHITELIST" ] && echo "$COMMAND" | grep -qE "$C1_WHITELIST"; then
+        :  # 白名单匹配，跳过 C1 阻断
+    else
+        _c1_block
+    fi
 fi
 
 # 危险命令检测
@@ -143,22 +154,24 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 
 # ─── 缓存 ──────────────────────────
-# approved-ops 缓存: 5 分钟内相同签名自动放行（UX-2.3）
+# approved-ops 缓存: TTL 秒内相同签名自动放行（UX-2.3）
 CACHE_FILE="$STATE_DIR/approved-ops.json"
+APPROVED_OPS_TTL=$(hc_get "permission_gate.approved_ops_ttl" "1800")
 
-# 检查缓存：相同命令签名在 5 分钟内是否已批准
+# 检查缓存：相同命令签名在 APPROVED_OPS_TTL 秒内是否已批准
 check_cache() {
     local cmd_sig="$1"
     if [ ! -f "$CACHE_FILE" ]; then
         return 1
     fi
-    ${PYTHON_BIN:-python3} - "$cmd_sig" "$CACHE_FILE" <<'CACHEPY' >/dev/null
+    ${PYTHON_BIN:-python3} - "$cmd_sig" "$CACHE_FILE" "$APPROVED_OPS_TTL" <<'CACHEPY' >/dev/null
 import json, time, sys
 try:
     sig = sys.argv[1]
+    ttl = int(sys.argv[3])
     d = json.load(open(sys.argv[2], encoding="utf-8"))
     entry = d.get(sig)
-    if entry and time.time() - entry.get('ts', 0) < 300:
+    if entry and time.time() - entry.get('ts', 0) < ttl:
         sys.exit(0)  # cache hit
     sys.exit(1)      # cache miss
 except:
@@ -192,7 +205,7 @@ CACHEPY
 # 使用 is_mode_active 检测信号文件（兼容 goal/ghost/rpe 模式）
 MODE="$(is_mode_active "$STATE_DIR" 2>/dev/null || echo "normal")"
 if [ "$MODE" != "normal" ]; then
-    flywheel_event "permission_gate" "blocked_${DANGER_TYPE// /_}" "P1" || true
+    flywheel_event "permission_gate" "mode_skip_${DANGER_TYPE// /_}" "P1" || true
     SKIPPED_FILE="$STATE_DIR/skipped-errors.md"
     {
         echo ""
@@ -213,10 +226,10 @@ if [ "$MODE" != "normal" ]; then
     exit 0
 fi
 
-# 检查缓存：5 分钟内已批准的同签名操作 → 自动放行
+# 检查缓存：TTL 秒内已批准的同签名操作 → 自动放行
 CMD_SIG=$(echo "$COMMAND" | head -c 120)
 if check_cache "$CMD_SIG"; then
-    echo "[权限缓存] 5 分钟内已批准的同签名操作: ${COMMAND:0:80}..." >&2
+    echo "[权限缓存] ${APPROVED_OPS_TTL} 秒内已批准的同签名操作: ${COMMAND:0:80}..." >&2
     echo '{"continue": true}'
     exit 0
 fi
@@ -233,13 +246,13 @@ if [ -f "$PERMISSION_REQUIRED" ]; then
     EXPECTED_CODE=$(cat "$PERMISSION_REQUIRED" 2>/dev/null)
     if [ -f "$PERMISSION_MARKER" ]; then
         ACTUAL_CODE=$(cat "$PERMISSION_MARKER" 2>/dev/null)
-        # 检查标记文件新鲜度（5分钟内有效）
+        # 检查标记文件新鲜度（APPROVED_OPS_TTL 秒内有效）
         if [ "$ACTUAL_CODE" = "$EXPECTED_CODE" ]; then
             if command -v python3 &>/dev/null; then
                 FRESH=$(${PYTHON_BIN:-python3} -c "import os, time
 try:
     age = time.time() - os.path.getmtime('$PERMISSION_MARKER')
-    print('yes' if age < 300 else 'no')
+    print('yes' if age < $APPROVED_OPS_TTL else 'no')
 except:
     print('no')" 2>/dev/null)
             else

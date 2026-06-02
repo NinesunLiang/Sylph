@@ -15,6 +15,34 @@ if [ ! -f "$FUZZY_MARKER" ]; then
     exit 0
 fi
 
+# 智能恢复：检查当前工具调用是否明确（有具体 file_path 或 command 则自动解除）
+INPUT=$(cat 2>/dev/null || echo "")
+if [ -n "$INPUT" ]; then
+    TOOL_NAME=$(echo "$INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    print(d.get('tool_name', ''))
+except: print('')" 2>/dev/null)
+    if [ -n "$TOOL_NAME" ]; then
+        HAS_SPECIFIC=$(echo "$INPUT" | python3 -c "
+import sys, json
+try:
+    d = json.load(sys.stdin)
+    ti = d.get('tool_input', {})
+    fp = ti.get('file_path', ti.get('command', ''))
+    print('yes' if fp else 'no')
+except: print('no')" 2>/dev/null)
+        if [ "$HAS_SPECIFIC" = "yes" ]; then
+            rm -f "$FUZZY_MARKER"
+            echo "[fuzzy-block] 自动解除：当前指令明确（${TOOL_NAME}）" >&2
+            flywheel_event "fuzzy_block" "auto_release" "P3" || true
+            printf '%s' "$INPUT"
+            exit 0
+        fi
+    fi
+fi
+
 # 读取标记中的警告信息
 WARNING_MSG=$(cat "$FUZZY_MARKER" 2>/dev/null || echo "模糊指令")
 

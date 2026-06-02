@@ -76,13 +76,14 @@ fi
 if [ -f "$CAPTCHA_APPROVED" ] && [ -s "$CAPTCHA_APPROVED" ] && [ -f "$CAPTCHA_REQUIRED" ] && [ -s "$CAPTCHA_REQUIRED" ]; then
     EXPECTED=$(cat "$CAPTCHA_REQUIRED" 2>/dev/null | head -1)
     ACTUAL=$(cat "$CAPTCHA_APPROVED" 2>/dev/null | head -1)
-    # 检查 5 分钟时效
+    # 检查时效（从 harness.yaml 读取 TTL，默认 1800 秒）
+    TTL=$(hc_get "permission_gate.approved_ops_ttl" "1800")
     FRESH=0
     if ${PYTHON_BIN:-python3} -c "
 import os, time
 try:
     mtime = os.path.getmtime('$CAPTCHA_REQUIRED')
-    if time.time() - mtime < 300:
+    if time.time() - mtime < $TTL:
         print('fresh')
 except: pass
 " 2>/dev/null | grep -q "fresh"; then

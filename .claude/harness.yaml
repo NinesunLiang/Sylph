@@ -55,12 +55,16 @@ permission_gate:
   gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
   bypass_regex: base64\s+(-d|--decode).*\|.*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|.*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
   scope_write_regex: current-scope\\.txt|sensitive-approved|permission-approved
+  approved_ops_ttl: 1800
+  c1_whitelist: ""
 sublimation:
   count_threshold: 20
   age_days: 10
   hit_threshold: 5
+  auto_execute: true
 correction_detector:
   signals: 不对 错了 你搞错了 应该是 重新来
+  auto_kernel_draft: true
 session_handoff:
   enabled: true
   max_adr_lines: 10
@@ -116,6 +120,12 @@ hooks_enabled:
   skill_compliance_audit: true
   pretool_sensitive_edit: true
   pretool_terminal_safety: true
+  cross_platform_smoke_test: true
+  phase_state_tracker: true
+  pretool_b1_detect: true
+  pretool_git_gate: true
+  pretool_scope_gate: true
+  permission_frequency_tracker: true
   lsp_gate: false
   oracle_gate: false
   posttool_read_cite: false

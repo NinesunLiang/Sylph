@@ -81,9 +81,14 @@ import sys, json
 d = json.load(sys.stdin)
 print(d.get('percentage', 0))" 2>/dev/null)
 
-    # ── CRITICAL threshold (90%): force-block regardless of mode ──
-    # At 90% context, AI is already memory-corrupted. No autonomous exception.
+    # ── CRITICAL threshold (90%): hard-block in normal mode, log+pass in autonomous ──
     if [ "$IS_CRITICAL" = "true" ] && [ "$SOURCE" = "transcript (real)" ]; then
+        if [ "$MODE" != "normal" ]; then
+            echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) | ${MODE} | context_guard | ${PCT}% | critical context but autonomous mode — skip hard block" >> "$STATE_DIR/skipped-errors.md"
+            printf '⚠️ [%s mode] 上下文占比 %s%%。超出紧急阈值但自主模式不阻断。请考虑 /compact。' \
+                "$MODE" "$PCT" | hc_emit_hook_json "PreToolUse" "true"
+            exit 0
+        fi
         flywheel_event "context_guard" "critical" "P0" || true
         agentic_status block \
             "Context Guard 紧急阻断 — 90% 临界" \

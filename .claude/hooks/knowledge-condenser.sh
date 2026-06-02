@@ -13,15 +13,19 @@ KERNEL_MD="$PROJECT_ROOT/.claude/kernel.md"
 
 [ -f "$CLAUDE_NEXT" ] || exit 0
 
-PY_OUTPUT=$(${PYTHON_BIN:-python3} - "$CLAUDE_NEXT" "$KERNEL_MD" <<'PYEOF'
-import json, re, sys, subprocess
+AUTO_EXECUTE=$(hc_get "sublimation.auto_execute" "true")
+SUBLIMATION_LOG="$PROJECT_ROOT/.omc/state/sublimation-log.jsonl"
+
+PY_OUTPUT=$(${PYTHON_BIN:-python3} - "$CLAUDE_NEXT" "$KERNEL_MD" "$AUTO_EXECUTE" <<'PYEOF'
+import json, re, sys, subprocess, os
 from datetime import datetime, date
 
 try:
     next_path = sys.argv[1]
     kernel_path = sys.argv[2]
+    auto_execute = sys.argv[3].lower() == 'true'
 except IndexError:
-    sys.exit(0)
+    auto_execute = False
 
 with open(next_path, encoding="utf-8") as f:
     text = f.read()
@@ -115,6 +119,65 @@ if not suggestions:
 suggestions.sort(key=lambda x: (-x[1], -x[2]))
 suggestions = suggestions[:7]
 
+# === 自动升华：auto_execute 开启 + 条件达标条目 ===
+sublimation_log_path = os.path.join(os.path.dirname(os.path.dirname(next_path)), '.omc', 'state', 'sublimation-log.jsonl')
+auto_sublimated = []
+if auto_execute:
+    for tag_display, hits, age, action, ln, in_kernel in suggestions:
+        if action == "升华至 kernel.md" and hits >= 5 and age >= 10 and not in_kernel:
+            # Read full claude-next.md content for this entry
+            with open(next_path, encoding="utf-8") as f:
+                full_text = f.read()
+            # Find the entry block in claude-next.md
+            entry_lines = full_text.split('\n')
+            entry_block = []
+            capture = False
+            entry_marker = None
+            for j, el in enumerate(entry_lines):
+                if j + 1 == ln:
+                    capture = True
+                    entry_marker = el.strip()
+                if capture:
+                    entry_block.append(el)
+                    # Stop at next ### or end
+                    if j + 1 > ln and el.strip().startswith('### '):
+                        break
+            if entry_block and entry_block[-1].strip().startswith('### '):
+                entry_block = entry_block[:-1]
+            entry_text = '\n'.join(entry_block).strip()
+
+            # Append to kernel.md
+            kernel_lines = []
+            if os.path.exists(kernel_path):
+                with open(kernel_path, encoding="utf-8") as f:
+                    kernel_lines = f.read().split('\n')
+            # Find insertion point: before last line if it's blank/empty, or append
+            insertion = len(kernel_lines)
+            for j in range(len(kernel_lines) - 1, -1, -1):
+                if kernel_lines[j].strip():
+                    insertion = j + 1
+                    break
+            sublimation_block = f"\n## 自动升华: {tag_display}\n\n{entry_text}\n\n— 自动升华自 claude-next.md:{ln} (hits:{hits}, age:{age}天)\n"
+            kernel_lines.insert(insertion, sublimation_block)
+            with open(kernel_path, "w", encoding="utf-8") as f:
+                f.write('\n'.join(kernel_lines))
+
+            # Write sublimation log
+            log_entry = {
+                "timestamp": datetime.now().isoformat(),
+                "source": "claude-next.md",
+                "source_line": ln,
+                "tag": tag_display,
+                "hits": hits,
+                "age_days": age,
+                "target": kernel_path,
+                "action": "auto_sublimate"
+            }
+            os.makedirs(os.path.dirname(sublimation_log_path), exist_ok=True)
+            with open(sublimation_log_path, "a", encoding="utf-8") as f:
+                f.write(json.dumps(log_entry, ensure_ascii=False) + '\n')
+            auto_sublimated.append(tag_display)
+
 lines_out = [f"[knowledge-condenser] {len(suggestions)} 个高频模式可升华:"]
 for tag_display, hits, age, action, ln, in_kernel in suggestions:
     lines_out.append(f" · {tag_display} (hits:{hits}, {age}天) → {action}")
@@ -132,6 +195,9 @@ if old_low_hit:
 # === 总量告警：超过 40 条时建议整理 ===
 if len(entries) > 40:
     lines_out.append(f"[knowledge-condenser] 警告: claude-next.md 当前 {len(entries)} 条，建议审查归档低价值条目至 <30 条")
+
+if auto_sublimated:
+    lines_out.append(f"[knowledge-condenser] 自动升华: {len(auto_sublimated)} 条已写入 kernel.md — {', '.join(auto_sublimated)}")
 
 print('|'.join(lines_out))
 PYEOF

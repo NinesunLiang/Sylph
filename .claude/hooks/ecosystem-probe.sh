@@ -97,7 +97,8 @@ command -v serena &>/dev/null || pip show serena-agent &>/dev/null 2>&1 && { LSP
 # uvx 检查加超时和缓存——避免每次 SessionStart 触发下载
 SERENA_CACHE="$PROJECT_ROOT/.omc/state/.serena-checked"
 if [ "$LSP_SERENA" = false ] && command -v uvx &>/dev/null; then
-    if [ -f "$SERENA_CACHE" ] && [ $(($(date +%s) - $(stat -f%m "$SERENA_CACHE" 2>/dev/null || echo 0))) -lt 86400 ]; then
+    CACHE_MTIME=$({ stat -c "%Y" "$SERENA_CACHE" 2>/dev/null || stat -f "%m" "$SERENA_CACHE" 2>/dev/null || python3 -c "import os; print(int(os.path.getmtime('$SERENA_CACHE')))" 2>/dev/null || echo "0"; })
+    if [ -f "$SERENA_CACHE" ] && [ $(($(date +%s) - CACHE_MTIME)) -lt 86400 ]; then
         LSP_SERENA=$(cat "$SERENA_CACHE")
     else
         timeout 5 uvx --from serena-agent serena --help &>/dev/null 2>&1 && { LSP_SERENA=true; LSP_TOTAL=$((LSP_TOTAL+1)); }

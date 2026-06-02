@@ -190,6 +190,7 @@ if IS_WRITE_CMD and not ESCAPE_E1:
 CAPTCHA_MARKERS = [
     'sensitive-approved', 'sensitive-required',
     'permission-approved', 'permission-required',
+    'oracle-gate-approved', 'oracle-gate-required',
 ]
 ESCAPE_E2 = False
 ESCAPE_E2_TARGET = ''

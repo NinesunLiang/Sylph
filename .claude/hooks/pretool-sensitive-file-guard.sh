@@ -9,6 +9,22 @@ hc_enabled "sensitive_file_guard" || exit 0
 INPUT=$(cat)
 PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 
+# Mode 检测：非 normal 模式（goal/ghost/rpe）时记录并放行
+is_mode_active() {
+    local state_dir="$1"
+    [ -f "$state_dir/tokens/goal.active" ] && echo "goal" && return 0
+    [ -f "$state_dir/tokens/ghost.active" ] && echo "ghost" && return 0
+    [ -f "$state_dir/tokens/rpe.active" ] && echo "rpe" && return 0
+    echo "normal"
+    return 0
+}
+MODE=$(is_mode_active "$PROJECT_ROOT/.omc/state" 2>/dev/null || echo "normal")
+if [ "$MODE" != "normal" ]; then
+    flywheel_event "sensitive_file_guard" "mode_skip_${MODE}" "P3" || true
+    echo '{"continue": true}'
+    exit 0
+fi
+
 # 从输入中提取文件路径
 FILE_PATH=$(echo "$INPUT" | python3 -c "
 import sys, json
@@ -28,7 +44,7 @@ fi
 # 检测是否在写敏感文件
 BASENAME=$(basename "$FILE_PATH")
 case "$BASENAME" in
-    permission-approved|permission-required|permission-marker|current-scope.txt|sensitive-approved)
+    permission-approved|permission-required|permission-marker|current-scope.txt|sensitive-approved|sensitive-required|oracle-gate-required|oracle-gate-approved)
         cat >&2 <<EOF
 
 🚫 [Sensitive File Guard] AI 不得直接写入门禁文件！
