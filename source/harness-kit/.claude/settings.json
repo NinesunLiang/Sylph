@@ -50,6 +50,21 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-b1-detect.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/workflow-standard/hooks/pretool-workflow-gate",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-scope-gate.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -89,6 +104,11 @@
           {
             "type": "command",
             "command": "bash .claude/hooks/pretool-terminal-safety.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-git-gate.sh",
             "timeout": 3000
           }
         ]
@@ -232,6 +252,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-checkpoint.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/workflow-standard/hooks/checkpoint",
+            "timeout": 5000
           }
         ]
       },
@@ -252,6 +277,11 @@
             "type": "command",
             "command": "bash .claude/hooks/posttool-template-check.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/phase-state-tracker.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -333,6 +363,11 @@
             "type": "command",
             "command": "bash .claude/hooks/agentic-ui.sh",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/permission-frequency-tracker.sh",
+            "timeout": 3000
           }
         ]
       }
@@ -416,6 +451,21 @@
             "type": "command",
             "command": "bash .claude/hooks/oracle-gate.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/workflow-standard/hooks/state-recovery",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/workflow-standard/hooks/session-inject",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/cross-platform-smoke-test.sh",
+            "timeout": 5000
           }
         ]
       }

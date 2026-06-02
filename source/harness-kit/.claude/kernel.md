@@ -106,26 +106,33 @@ claude-next.md:
   归档: hits=1+age>30d → 建议移除（当前58条，超过40条告警线）
 
 ──────────────────────
-Compact 交接 — 跨压缩知识恢复
+Compact 记忆恢复 — 跨压缩知识恢复
 ──────────────────────
 
-  1. 强制刷新 context-cache.md (context-compressor.sh, 防源文件变更陈旧)
-  2. 注入 context-cache.md (铁律+反模式+架构压缩, ~5KB)
-  3. 注入 kernel.md 架构标题摘要 (~8行)
-  4. 注入 session-handoff.md (当前Feature/进度/关键决策)
-  5. 注入 todo-queue.md (未完成任务, 最多8行)
-  6. 注入 session-dump.json (修改文件/活跃feature/编辑记录)
+  /compact 是 Claude Code 内置命令，Carror OS 通过以下机制实现记忆恢复：
 
-涉及的资产管理:
-  context-cache.md:
-    生成: context-compressor.sh (SessionStart/mtime检测/FORCE_REGEN)
-    内容: AGENTS-compact + anti-patterns-compact + claude-next-compact + kernel-compact
-  session-handoff.md:
-    写入: posttool-handoff-writer (PostToolUse:TaskUpdate)
-    格式: Feature/进度/关键决策/TODO (max 10行 ADR, 10行 TODO, 3条 lessons)
-  session-dump.json:
-    写入: auto-snapshot.sh (PostToolUse:Edit|Write + Stop)
-    内容: git_state(modified_files) + active_features + edit_log
+  Before compact (Stop 事件):
+    1. stop-drain.sh 调用 extract-compact-memory.py
+       → 从 transcript 提取最近 20 条用户询问
+       → 读取 session-handoff.md + session-dump.json
+       → 写入 todo-queue.md (最近询问 + 任务摘要)
+
+  After compact (SessionStart, 按注册顺序):
+    1. context-compressor.sh 注入 context-cache.md (铁律/反模式/架构压缩)
+    2. inject-project-knowledge.sh 注入 todo-queue.md (最近询问 + 任务摘要)
+    3. inject-project-knowledge.sh 注入 session-handoff.md (Feature/进度/决策)
+    4. inject-project-knowledge.sh 注入 session-dump.json 摘要 (修改文件/错误/活跃特性)
+
+  涉及的资产文件:
+    todo-queue.md:
+      写入: extract-compact-memory.py (via stop-drain.sh on Stop)
+      内容: 最近 20 条用户询问 + 已完成/待完成任务
+    session-handoff.md:
+      写入: auto-snapshot.sh (Stop/PostToolUse:Edit|Write) + posttool-handoff-writer (PostToolUse:TaskUpdate)
+      格式: Feature/进度/关键决策/TODO (max 10行 ADR, 10行 TODO, 3条 lessons)
+    session-dump.json:
+      写入: auto-snapshot.sh (PostToolUse:Edit|Write + Stop)
+      内容: git_state(modified_files) + active_features + edit_log + error_summary
 
 ──────────────────────
 E1/E2 逃逸检测详情

@@ -134,6 +134,7 @@ rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
 rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
 rsync -a --delete .claude/reference/   "$HARNESS_SRC/.claude/reference/"
 rsync -a --delete .claude/docs/        "$HARNESS_SRC/.claude/docs/"
+rsync -a --delete .claude/workflow-standard/ "$HARNESS_SRC/.claude/workflow-standard/"
 # 清理历史遗留的 references/ 目录（已合并到 reference/）
 rm -rf "$HARNESS_SRC/.claude/references"
 cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"

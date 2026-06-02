@@ -104,6 +104,7 @@ Layer 4. 需人裁决 ← 仅以下四类穿透到此
 | Writing persuasive / marketing / non-technical content | **Apply stricter verification**. All numeric claims traceable. DG-43. |
 | Autonomous mode nearing completion / phase end | **Generate exit report immediately**. DG-58. |
 | Oracle REVISE/REJECT with clear, fixable issues | **Fix immediately, re-submit to Oracle**. DG-91. |
+| Oracle REVISE/REJECT in autonomous mode | **Record to exit report as BLOCKED item**. Do NOT fix and re-submit (would create infinite loop). Skip this task, continue to next. The REVISE/REJECT verdict is logged for human review in the exit report. |
 | ROI data vs philosophy/iron-rule | **Philosophy > ROI**. DG-94. |
 | Governance file deletion or rename | **grep -r first, clean ALL hits**. DG-81. |
 | oracle-gate blocks Edit/Write (governance file) | **Auto-spawn Oracle+Meta-Oracle dual review**. DO NOT stop and wait. ① Spawn Agent(critic) with the change description → get ACCEPT/ADVISORY/REJECT verdict → ② If ACCEPT, the verdict auto-satisfies oracle-gate's 24h check → ③ Retry the edit. If REJECT, record to exit report and skip. The gate's CAPTCHA bypass is for HUMAN mode only; autonomous mode resolves via dual review. DG-67, DG-115. |
@@ -122,6 +123,7 @@ Layer 4. 需人裁决 ← 仅以下四类穿透到此
 - ❌ Manually creating `autonomous.active` or mode signal files — always use `lx-goal.sh on` or `lx-ghost.sh on`. Manual touch bypasses half the activation chain. DG-46.
 - ❌ Skipping the 4-layer chain and jumping directly to Layer 4 — use Layer 1→2→3 first
 - ❌ Stopping at oracle-gate block — auto-spawn Oracle+Meta-Oracle dual review, get ACCEPT verdict, retry. The CAPTCHA bypass token is for human-interactive mode only; autonomous mode resolves via dual review protocol.
+- ❌ Re-submitting to Oracle after REVISE/REJECT in autonomous mode — record and skip, do not loop
 
 ---
 

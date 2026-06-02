@@ -1,4 +1,4 @@
-## Hooks 速查（共 59 个）
+## Hooks 速查（共 65 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
@@ -7,19 +7,22 @@
 |`completion-gate` | PostToolUse | completion-gate.sh — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件|
 |`context-compressor` | SessionStart | context-compressor.sh — SessionStart — 渐进式披露：源文件精简版注入缓存|
 |`context-guard` | PreToolUse | context-guard.sh — PreToolUse:Edit|Write — 基于真实 token 百分比阻断写操作，防止上下文溢出|
+|`cross-platform-smoke-test` | SessionStart | cross-platform-smoke-test.sh — SessionStart — 检测 stat 和 sed 的跨平台兼容性，永不阻断|
 |`ecosystem-probe` | SessionStart | ecosystem-probe.sh — SessionStart — 生态探针|
 |`edit-guard` | PreToolUse | edit-guard.sh — PreToolUse:Edit — 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁|
 |`error-dna-auto-fix` | SessionStart | error-dna-auto-fix.sh — Stop — 跨会话错误回顾：扫描 error-dna.json 输出未修复的顽固错误|
 |`error-dna` | PostToolUse / PostToolUseFailure | error-dna.sh — PostToolUse:Bash / PostToolUseFailure:Bash — 轻量错误捕获（Oracle 瘦身后 v2|
 |`flywheel-report` | SessionStart | flywheel-report.sh — SessionStart — 读取飞轮日志，生成 30 天频率摘要注入会话|
 |`fuzzy-block` | PreToolUse | fuzzy-block.sh — PreToolUse — 模糊指令硬阻断（C1 指令清晰度门禁）|
-|`inject-project-knowledge` | SessionStart | inject-project-knowledge.sh — SessionStart — 注入极简路由表到 AI context|
+|`inject-project-knowledge` | SessionStart | inject-project-knowledge.sh — SessionStart — 注入紧凑记忆恢复文件|
 |`intent-tracker` | PostToolUse | intent-tracker.sh — PostToolUse:Edit|Write — 跟踪文件级编辑统计 + revert 检测|
 |`knowledge-condenser` | SessionStart | knowledge-condenser.sh — Stop — 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议|
 |`lsp-suggest` | PreToolUse | lsp-suggest.sh — PreToolUse:Grep — 检测 Grep 搜索导出符号时建议改用 LSP 工具|
 |`meta-oracle-trigger.py` | PostToolUse | ── Platform detection ──────────────────────────────────────────────|
 |`meta-oracle-trigger` | PostToolUse | meta-oracle-trigger.sh — PostToolUse:.* — Meta-Oracle 最后守门员自动触发（G1-G4）|
+|`permission-frequency-tracker` | PostToolUse | permission-frequency-tracker.sh — PostToolUse:* — 统计当前会话中 permission-required* 文|
 |`permission-gate` | PreToolUse | permission-gate.sh — PreToolUse:Bash — 执行危险命令前检查权限申请格式|
+|`phase-state-tracker` | PostToolUse | phase-state-tracker.sh — PostToolUse hook — 追踪当前任务所处的五阶段状态|
 |`posttool-anti-pattern-detect` | PostToolUse | posttool-anti-pattern-detect.sh — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测|
 |`posttool-bash-audit` | PostToolUse / PostToolUseFailure | posttool-bash-audit.sh — PostToolUse:Bash / PostToolUseFailure:Bash — Bash 执行后审计|
 |`posttool-checkpoint` | PostToolUse / Stop | posttool-checkpoint.sh — PostToolUse:TaskUpdate + Stop — 工作流闭环：所有工作流结束时输出结构化 che|
@@ -37,14 +40,17 @@
 |`pre-completion-gate` | PreToolUse | pre-completion-gate.sh — PreToolUse:TaskUpdate — 前置完成门禁，阻止无证据的 completed 调用|
 |`pre-edit-lsp-check` | PreToolUse | pre-edit-lsp-check.sh — PreToolUse:Edit — 编辑前强制诊断检查 (v2)|
 |`pretool-approve-detect` | UserPromptSubmit | pretool-approve-detect.sh — UserPromptSubmit — 检测 /approve <token> 或 /deny，自动写入/|
+|`pretool-b1-detect` | PreToolUse | pretool-b1-detect.sh — PreToolUse:Edit|Write — 检测单次编辑是否过度（新文件创建数告警）|
 |`pretool-blast-radius` | PreToolUse | pretool-blast-radius.sh — PreToolUse:Bash — 全局破坏性命令拦截 (DG-101)|
 |`pretool-cruise-check` | SessionStart | pretool-cruise-check.sh — SessionStart / PreToolUse — 巡航模式基础设施自检|
+|`pretool-git-gate` | PreToolUse | pretool-git-gate.sh — PreToolUse:Bash — Git 提交前 pre-commit 检查门禁（铁律 #4 物化）|
 |`pretool-node-reference` | PreToolUse | |
 |`pretool-oracle-gate.py` | PreToolUse | Platform routing: on macOS/Linux the bash .sh version handles execution|
 |`pretool-oracle-gate` | PreToolUse | pretool-oracle-gate.sh — PreToolUse:Edit|Write — Oracle 审查前置门禁 (DG-115)|
 |`pretool-plan-gate` | PreToolUse | pretool-plan-gate.sh — PreToolUse:Edit|Write|Bash — Plan-before-Execute 门禁|
 |`pretool-purify-gate` | PreToolUse | pretool-purify-gate.sh — PreToolUse:Edit|Write — lx-purify runtime hook|
 |`pretool-retry-check` | PreToolUse | pretool-retry-check.sh — PreToolUse — 阻断超过重试上限的 Bash 命令|
+|`pretool-scope-gate` | PreToolUse | pretool-scope-gate.sh — PreToolUse:Edit|Write — 检测 Edit/Write 是否超出 current-scope|
 |`pretool-sensitive-edit` | PreToolUse | pretool-sensitive-edit.sh — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）|
 |`pretool-sensitive-file-guard` | PreToolUse | pretool-sensitive-file-guard.sh — PreToolUse:Edit|Write — 保护门禁文件不被 AI 直接写入|
 |`pretool-skill-body-enforce` | PreToolUse | pretool-skill-body-enforce.sh — PreToolUse:Skill — 强制执行合约注入|

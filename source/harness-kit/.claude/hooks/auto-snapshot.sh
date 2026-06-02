@@ -10,6 +10,18 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
 mkdir -p "$STATE_DIR"
 
+# 跨平台获取文件 mtime（秒级时间戳）
+_get_mtime() {
+    local file="$1"
+    if stat -c "%Y" "$file" &>/dev/null; then
+        stat -c "%Y" "$file" 2>/dev/null || echo "0"
+    elif stat -f "%m" "$file" &>/dev/null; then
+        stat -f "%m" "$file" 2>/dev/null || echo "0"
+    else
+        python3 -c "import os; print(int(os.path.getmtime('$file')))" 2>/dev/null || echo "0"
+    fi
+}
+
 # 读取轮次计数（与 turn-counter.sh 共享状态文件）
 TURNS=0
 TURNS_FILE="$STATE_DIR/session-turns.json"
@@ -478,7 +490,7 @@ REG_CHANGED=false
 
 for CFG in "$PROJECT_ROOT/.claude/harness.yaml" "$PROJECT_ROOT/.claude/settings.json"; do
     [ ! -f "$CFG" ] && continue
-    CFG_MTIME=$(stat -f "%m" "$CFG" 2>/dev/null || echo "0")
+    CFG_MTIME=$(_get_mtime "$CFG")
     CFG_NAME=$(basename "$CFG")
     BASELINE_MTIME=""
     if [ -f "$REG_BASELINE" ]; then
@@ -510,7 +522,7 @@ flywheel_event "auto_snapshot" "triggered" "P2" || true
     # 更新基线
     for CFG in "$PROJECT_ROOT/.claude/harness.yaml" "$PROJECT_ROOT/.claude/settings.json"; do
         [ ! -f "$CFG" ] && continue
-        CFG_MTIME=$(stat -f "%m" "$CFG" 2>/dev/null || echo "0")
+        CFG_MTIME=$(_get_mtime "$CFG")
         CFG_NAME=$(basename "$CFG")
         echo "${CFG_NAME}=${CFG_MTIME}"
     done > "$REG_BASELINE"

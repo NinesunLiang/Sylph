@@ -10,7 +10,6 @@
                     Source Adapters
   Figma API ──────→ Figma Adapter（节点树 → computed-like）
   Chrome MCP ─────→ React Prototype Adapter（DOM + CSSOM + Fiber + Portal）
-  HTML URL ──────→ HTML Prototype Adapter（DOM + CSSOM + 语义推断）
                          │  Unified Measurement Graph
                          ▼
 ┌───────────────────────── Core Engine ──────────────────────────┐
@@ -324,7 +323,7 @@ export type LoginFormAction =
 #### 表单 useReducer
 
 ```typescript
-// components/forms/LoginForm.tsx (自动生成，验证逻辑为 stub -- 待实现为可共享 skill)
+// components/forms/LoginForm.tsx (自动生成，验证逻辑为 stub)
 
 function loginFormReducer(state: LoginFormState, action: LoginFormAction): LoginFormState {
   switch (action.type) {
@@ -343,7 +342,7 @@ function loginFormReducer(state: LoginFormState, action: LoginFormAction): Login
   }
 }
 
-// TODO: 业务逻辑——此 stub 将升级为共享 skill (lx-form-gen)
+// TODO: 业务逻辑——在此实现实际的表单提交
 async function submitLoginForm(values: LoginFormValues): Promise<void> {
   // STUB: 替换为实际 API 调用
   throw new Error('Not implemented');
@@ -515,33 +514,13 @@ export function CardList({ title, cards = [], onCardClick, loading = false }: Ca
 ## 完整流水线（6 Steps）
 
 ### Step 0：预检 & 源分析
-
-双源适配：
-
-| 源类型 | 适配器 | 数据来源 | 限制 |
-|:---|:---|:---|:---|
-| **Figma API** | Figma Adapter | 节点树 -> computed-style 映射 | 需 Figma API Token，Figma 渲染与浏览器有亚像素偏差 |
-| **HTML 原型 (URL)** | HTML Prototype Adapter | DOM + CSSOM + 语义推断 | 需可访问 URL，CSSOM 可能受跨域限制 |
-
-公共流程：CSS 框架检测 + CSSOM 去重扫描 + Fiber 组件边界识别（React 原型）或 DOM 结构分析（HTML 原型）。
+同 v6.0。CSS 框架检测 + CSSOM 去重扫描 + Fiber 组件边界识别。
 
 ### Step 1：页面分割 + 语义标注
 区域分割后，每个区域标注语义角色（header/nav/main/section/article/aside/footer/form/modal）。
 
-### Step 2：Token 初始化（串行唯一依赖 -- 测量精度基石）
-
-全量扫描原型，抽离所有一致性像素级参数：
-
-| Token 类别 | 提取内容 | 聚类算法 | 精度 |
-|:---|:---|:---|:---|
-| **颜色** | hex/rgb/hsl 值 | DE < 2 色差聚类 | 去重后 <= 20 色 |
-| **间距** | margin/padding/gap | 最近邻聚类 (<=2px 合并) | 标准化到 spacing-xs/sm/md/lg/xl |
-| **字体** | font-family/size/weight/line-height | 复合类聚类 | 生成 font-xxx 复合类 |
-| **圆角** | border-radius | 等值聚类 | 标准化到 radius-sm/md/lg/full |
-| **阴影** | box-shadow | 参数分解聚类 | 标准化到 shadow-sm/md/lg |
-| **交互态** | hover/active/focus 变体 | 差异检测 | 生成 interactions.scss |
-
-这是唯一串行步骤。所有后续区域的测量以 Token 为基准，确保跨区域一致性。
+### Step 2：Token 初始化（串行唯一依赖）
+颜色/间距/字体/交互态/断点 Token 全部提取。这是唯一串行步骤。
 
 ### Step 3：多视口测量 + 响应式推断
 4 个断点分别测量 → 推断 breakpoint → 生成响应式 SCSS。
@@ -677,18 +656,113 @@ SCSS 编译 < 5s / 区域 `.scss` < 200 行 / 组件 `.tsx` < 300 行 / CSS bund
 #### 4.3 断点续跑
 每区域完成后写 checkpoint → 会话中断/重启时跳过已完成 checkpoint。
 
-#### 4.4 并发安全 — Carror OS 竞争锁/排队机制
+#### 4.4 并发安全
+全局锁（Token 初始化单线程）+ 区域锁（每个 worker lockfile 写入）+ 共享资源只读。
 
-参考 Carror OS 的竞争锁模型，所有并发操作通过排队机制协调：
+### 防线 5：Rollback Safety（回滚）
 
-| 锁类型 | 作用域 | 实现 | 说明 |
-|:---|:---|:---|:---|
-| **全局锁** | Token 初始化 | `.omc/state/locks.json` 排队写入 | 唯一串行步骤，后续所有区域依赖 Token |
-| **区域锁** | 单区域还原 | 每个 worker 按区域排队，同一区域不可并行 | 区域间无依赖 → 可并行；同区域串行 |
-| **共享锁** | Token/SCSS 读取 | 只读不锁 | 所有 worker 可同时读取已生成的 Token |
-| **死锁预防** | 全局 | 锁获取设超时 30s，超时 → 释放并重试（最多 3 次） | 防止 worker 崩溃导致的锁残留 |
+#### 5.1 Git 策略
+执行前：`git stash && git checkout -b polish/YYYY-MM-DD`。执行后：`git add + commit`。回滚：`git checkout main && git branch -D polish/...`。
 
-排队机制：worker 启动时向 `locks.json` 注册排队序号 → 按序获取全局锁 → 释放后进入区域锁队列 → 完成后注销。
+#### 5.2 增量模式
+同一原型二次运行 → 差异检测（rect 5% 阈值 + ΔE < 3）→ 只跑变化区域。未变化区域直接跳过。
+
+──────────────────────
+## 第五层：Defense Layer（防御层）
+
+> 不在引擎内部加功能——在引擎外围布防。防御层独立存在，引擎不改一行。
+
+```
+                    Input Defense (入口哨兵)
+                         │
+                         ▼
+                    Validation Defense (测量质量)
+                         │
+        ┌────────────────┼────────────────┐
+        ▼                ▼                ▼
+     Visual          Structure          State
+     Engine           Engine           Engine
+        │                │                │
+        └────────────────┼────────────────┘
+                         ▼
+                    Output Defense (生成后门禁)
+                         │
+                         ▼
+                    Rollback Safety (回滚)
+```
+
+### 防线 1：Input Defense（入口哨兵）
+
+| 检查点 | 阻断条件 | Action |
+|:---|:---|:---|
+| 原型可达性 HTTP 200 + < 5s | 不可达 | BLOCKED 全流程 |
+| DOM 加载完整性 `readyState === 'complete'` | 3s重试仍失败 | BLOCKED |
+| React 版本兼容（`__REACT_DEVTOOLS_GLOBAL_HOOK__`） | 15.x 无 Fiber | BLOCKED |
+| CSSOM 可用性 `document.styleSheets.length` | =0 | DEGRADED（跳过去重） |
+| 测量可行性 ≥50 个可见元素 rect 非零 | < 50 | 等待 3s → 仍 < 50 → BLOCKED |
+| 断点一致性 4 视口中 ≥2 个采集成功 | < 2 | DEGRADED（单视口模式） |
+| Fiber 树完整性 ≥10 个 Fiber 节点 | < 10 | DEGRADED（跳过组件识别） |
+
+产物：`DEFENSE_LOG.json`，每项含 status/action/detail。
+
+### 防线 2：Validation Defense（测量质量）
+
+**测量数据进入引擎前，先过数据质量门禁。**
+
+| 检查 | 规则 | 失败处置 |
+|:---|:---|:---|
+| 颜色异常值 | hex 不含 `#` 或长度 ≠ 7 | `[INVALID_COLOR]` 排除 |
+| 尺寸异常值 | w/h < 0 或 > 10000px | 从测量集移除 |
+| 排版缺失 | fontSize=0 或 undefined | `[MISSING_TYPO]` 从父继承 |
+| 视口内稳定性 | 同视口 3 次测量波动 > 5% | 取中位数，`[UNSTABLE]` |
+| 跨视口一致性 | 相邻视口同属性突变 > 50% | `[ANOMALY]` 人工确认 |
+| CSS 变量残留 | 值以 `var(--` 开头 | `[UNRESOLVED_VAR]` 降级 |
+| 继承污染 | 子元素 95%+ 同父 | 重测父 1 次 |
+| z-index 爆炸 | 同区域 10+ 个唯一 z-index | `[Z_INDEX_CHAOS]` DOM 顺序重建 |
+
+产物：`MEASUREMENT_QUALITY_REPORT.json`，含每区域信噪比。
+
+### 防线 3：Output Defense（生成后门禁）
+
+#### 3.1 语法门禁
+```bash
+npx stylelint "styles/**/*.scss" --max-warnings 0 && \
+npx tsc --noEmit && \
+npx eslint "components/**/*.tsx" --max-warnings 0 && \
+npx eslint "components/**/*.tsx" --rule 'jsx-a11y/*: error'
+```
+任一失败 → `npx xxx --fix` → 重跑。3 轮 → BLOCKED。
+
+#### 3.2 语义门禁
+- 裸值扫描：颜色/间距/字号必须来自 Token → `[NAKED_VALUE]` → 自动替换
+- 语义标签：`<div>` 在 header/main 位置 → 自动推断并替换
+- a11y 属性：`<img>` 缺 `alt` / `<button>` 缺 label → `[A11Y_GAP]` → 自动补
+- 响应式覆盖：非 responsive 文件含 `@media` → 警告
+- State 完整性：每组件必须有 loading/empty/error 三态 → `[STATE_GAP]` → 自动补骨架
+
+#### 3.3 回归门禁
+生成前跑基线测试 → 生成后重跑 → 新增失败分析：是生成代码引起 → 3 轮修复。非生成引起 → 记录放行。
+
+#### 3.4 性能门禁
+SCSS 编译 < 5s / 区域 `.scss` < 200 行 / 组件 `.tsx` < 300 行 / CSS bundle < 50KB gzipped。超标 → 警告不阻断。
+
+### 防线 4：Runtime Defense（运行中）
+
+#### 4.1 自愈协议（3 级）
+| 级别 | 触发 | 动作 |
+|:---:|:---|:---|
+| L1: AutoFix | lint/format/import | 自动修复 → 重跑 → 记录 |
+| L2: Degraded | CSSOM 不可读/单视口 | 降级 → 标记 → 继续 |
+| L3: Break | 原型崩溃/3 轮失败 | 保存状态 → 中断 → 报告 |
+
+#### 4.2 熔断器
+连续 3 次失败 → OPEN（全阻断）→ 冷却 30s → HALF_OPEN（试 1 区域）→ 成功则 CLOSED，失败则 OPEN（冷却 ×2）。按区域粒度独立熔断。
+
+#### 4.3 断点续跑
+每区域完成后写 checkpoint → 会话中断/重启时跳过已完成 checkpoint。
+
+#### 4.4 并发安全
+全局锁（Token 初始化单线程）+ 区域锁（每个 worker lockfile 写入）+ 共享资源只读。
 
 ### 防线 5：Rollback Safety（回滚）
 
@@ -711,38 +785,8 @@ SCSS 编译 < 5s / 区域 `.scss` < 200 行 / 组件 `.tsx` < 300 行 / CSS bund
 - 状态管理: react-state | zustand | redux
 - 验证库: zod | yup | none
 - 原型URL: [URL]
-- 管道类型: figma | react-prototype | html-prototype
+- 管道类型: figma | react-prototype
 ```
-
-
-──────────────────────
-## 失败模式目录
-
-> 失败用例储存在 .omc/state/ui-restoration-failures/ 目录下，按日期组织。
-> 每次流水线执行后，自动将失败模式写入该目录，供后续分析、防御升级和 skill 迭代。
-
-### 已记录失败模式
-
-| 失败模式 | 严重度 | 触发条件 | 处置 | 首次记录 |
-|:---|:---:|:---|:---|:---:|
-| Figma API 不可达 | HIGH | Token 过期 / API 限频 / 网络不可达 | 切换 HTML Prototype Adapter 降级 | TBD |
-| CSSOM 跨域空集 | HIGH | 原型 CSS 通过 link 引用外部样式表 | 跳过 CSSOM 去重，降级为内联样式测量 | TBD |
-| Fiber 树为空 | HIGH | 非 React 页面或 React 版本 < 16 | 降级为 DOM 结构分析模式 | TBD |
-| 测量波动 > 5% | MEDIUM | 字体加载延迟 / 图片未加载完成 | 重试 3 次取中位数 | TBD |
-| Token 聚类漂移 | MEDIUM | 同色系值跨聚类边界 | 人工确认后调整 DE 阈值 | TBD |
-| 表单字段推断失败 | LOW | 自定义 input 组件未暴露原生属性 | 生成通用表单骨架，标注 [INFERRED] | TBD |
-| Portal 内容缺失 | MEDIUM | Modal 在 DOM 树外不可测量 | 标记 [PORTAL_GAP]，生成占位 | TBD |
-| 断点采集不足 | MEDIUM | 4 视口中 < 2 个成功 | 降级为单视口模式 | TBD |
-
-### 失败用例记录格式
-
-每个失败用例记录在 .omc/state/ui-restoration-failures/YYYY-MM-DD-N.json：
-
-
-
-### 失败模式 -> 防御层映射
-
-每条失败模式映射到 Defense Layer 的具体防线和处置策略，确保防御层随失败模式目录同步演进。
 
 ──────────────────────
 ## 版本

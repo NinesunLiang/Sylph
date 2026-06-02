@@ -1256,11 +1256,11 @@ else
 fi
 
 TOTAL=$((TOTAL+1))
-# inject-project-knowledge 在 v6.4 中静默退出（@ 引用链自动注入）
+# inject-project-knowledge 在 v6.4.1 中输出 Compact 记忆恢复内容
 if [ -z "$E2E2_OUT" ] || [ "$(wc -c < "$E2E2_OUT")" -eq 0 ]; then
     pass "E2E-2 step 2: inject-project-knowledge 静默退出 (设计行为)"
-elif grep -qE '\[AGENTS\.md|路由表|Hook路由|# Carror' "$E2E2_OUT"; then
-    pass "E2E-2 step 2: 输出含 AGENTS.md 路由表注入"
+elif grep -qE 'Compact 记忆恢复|Todo Queue|最近用户询问|任务摘要' "$E2E2_OUT"; then
+    pass "E2E-2 step 2: 输出含 Compact 记忆恢复内容"
 else
     fail "E2E-2 step 2: 输出不含预期知识引用"
 fi
@@ -1637,11 +1637,11 @@ FZ_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{
 if echo "$FZ_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
   pass "fuzzy-block: 放行"; else fail "fuzzy-block: 误阻断"; fi
 
-TOTAL=$((TOTAL+1)); log "[$TOTAL] fuzzy-block: 有标记阻断"
+TOTAL=$((TOTAL+1)); log "[$TOTAL] fuzzy-block: 有标记+明确指令=自动解除"
 touch .omc/state/.fuzzy-block-active 2>/dev/null
 FZ_B=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' | bash .claude/hooks/fuzzy-block.sh 2>/dev/null)
-if echo "$FZ_B" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if not d.get('continue',True) else 1)" 2>/dev/null; then
-  pass "fuzzy-block: 阻断"; elif [ -f .omc/state/.fuzzy-block-active ]; then pass "fuzzy-block: 标记已创建"; else fail "fuzzy-block: 无响应(marker=$([ -f .omc/state/.fuzzy-block-active ] && echo yes || echo no))"; fi
+if [ ! -f .omc/state/.fuzzy-block-active ] && [ -n "$FZ_B" ]; then
+  pass "fuzzy-block: 自动解除(标记已删+有输出)"; else fail "fuzzy-block: 无响应(marker=$([ -f .omc/state/.fuzzy-block-active ] && echo yes || echo no))"; fi
 rm -f .omc/state/.fuzzy-block-active
 
 # --- context-compressor ---

@@ -62,7 +62,7 @@ Red Team         | 持续攻击测试+防御升级      | 三源一致性进化 
 三源一致性       | 生成/静态/运行时三源验证    | Oracle/Meta-Oracle审查      | .claude/reference/three-source-consistency.md
 Meta-Oracle      | G1-G4触发点+软门禁协议     | 架构决策/PRD终审/发版       | .claude/reference/meta-oracle.md
 | 五阶工作流 v4.0  | 状态机强制执行+抗compact+Gate超时+腐蚀恢复 | L2+任务执行前              | .claude/workflow-standard/README.md |
-UI还原工作流     | 原型→数值Diff→Token匹配→SCSS生成  | UI还原/设计稿还原          | .claude/docs/ui-restoration-workflow.md
+UI还原工作流     | 四层引擎(CSS+响应式+DOM+状态)+Defense Layer | UI还原/设计稿还原          | .claude/docs/ui-restoration-workflow.md
 执行模式         | goal/ghost/rpe/有人值守详解 | 进入无人/有人模式前         | .claude/reference/execution-modes.md
 自主决策链       | L1-L4逐层消化+截断规则     | 无人值守自动决策            | .claude/reference/autonomous-decision-chain.md
 Task系统         | RPE任务模板+验收标准        | RPE模式任务编排             | .claude/task_sys/

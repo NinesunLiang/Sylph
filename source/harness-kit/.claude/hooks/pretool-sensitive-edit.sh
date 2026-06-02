@@ -111,10 +111,11 @@ if [ -f "$SENSITIVE_REQUIRED" ]; then
         ACTUAL_CODE=$(cat "$SENSITIVE_MARKER" 2>/dev/null)
         if [ "$ACTUAL_CODE" = "$EXPECTED_CODE" ]; then
             if command -v python3 &>/dev/null; then
+                CACHE_TTL=$(hc_get "permission_gate.approved_ops_ttl" "1800")
                 FRESH=$(${PYTHON_BIN:-python3} -c "import os, time
 try:
     age = time.time() - os.path.getmtime('$SENSITIVE_MARKER')
-    print('yes' if age < 300 else 'no')
+    print('yes' if age < $CACHE_TTL else 'no')
 except:
     print('no')" 2>/dev/null)
             else

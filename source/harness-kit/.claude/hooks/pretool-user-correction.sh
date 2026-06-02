@@ -48,6 +48,40 @@ if [ "$TRIGGERED" = "true" ]; then
 **纠正**：（AI 完成任务前应引用此记录并补充根因分析）
 
 CORRECTEOF
+
+        # ── Kernel draft: auto-generate draft from correction signal ──
+        DRAFT_DIR="$PROJECT_ROOT/.omc/state/kernel-drafts"
+        mkdir -p "$DRAFT_DIR"
+        DRAFT_FILE="$DRAFT_DIR/draft-${TODAY}-${MATCHED_SIGNAL}.md"
+        # Avoid overwriting if already written today
+        if [ ! -f "$DRAFT_FILE" ]; then
+            _PROMPT_SUMMARY=$(echo "$PROMPT" | head -c 200 | tr '\n' ' ')
+            cat > "$DRAFT_FILE" << DRAFTEOF
+# Kernel Draft — ${TODAY}
+
+## 触发场景
+检测到纠正信号「${MATCHED_SIGNAL}」
+
+## 用户输入摘要
+${_PROMPT_SUMMARY}
+
+## 建议规则格式
+- \`\`\`
+禁止/必须 xxx — （待补充具体规则）
+\`\`\`
+
+## 根因分析
+（待补充 — AI 应在当前会话中完成根因分析）
+
+## 证据模板
+- 触发词: ${MATCHED_SIGNAL}
+- 日期: ${TODAY}
+- 来源: pretool-user-correction.sh 自动捕获
+- 验证: （待补充 file:line 或命令输出）
+
+DRAFTEOF
+            flywheel_event "kernel_draft_created" "correction_signal:${MATCHED_SIGNAL}" "P3" "kernel_draft"
+        fi
     fi
 
     # Always output the visual reminder (regardless of whether we wrote to file)

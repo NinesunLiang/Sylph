@@ -65,7 +65,11 @@ except Exception:
     PY_EXIT=$?
     if [ $PY_EXIT -eq 2 ] && [ -n "$EXCEEDED" ]; then
         if [ "$_MODE" != "normal" ]; then
-            echo "[pretool-retry-check] 自主模式: 重置重试计数并继续" >&2
+            echo "[pretool-retry-check] 自主模式: 记录跳过错误并继续" >&2
+            # 记录到 skipped-errors.md 供退出报告汇总
+            SKIPPED_FILE="$PROJECT_ROOT/.omc/state/skipped-errors.md"
+            TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
+            printf -- "- %s | retry-budget exceeded | %s\n" "$TIMESTAMP" "$EXCEEDED" >> "$SKIPPED_FILE"
             echo '{"continue": true}'
             exit 0
         fi
