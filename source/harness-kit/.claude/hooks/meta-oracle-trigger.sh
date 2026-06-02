@@ -147,15 +147,30 @@ if [ "$TRIGGERED" = false ]; then
     fi
 fi
 
-# 输出 Meta-Oracle 触发 — 软门禁: 提醒 AI 执行最高级独立审查
+# 输出 Meta-Oracle 触发 — 自动生成交接文档 + 提醒 AI
 if [ "$TRIGGERED" = true ]; then
     # Write cooldown to prevent re-trigger (same session, 1hr)
     date +%s > "$COOLDOWN_FILE" 2>/dev/null || true
     CURRENT_COUNT=$(cat "$COUNTER_FILE" 2>/dev/null || echo 0)
     echo $((CURRENT_COUNT + 1)) > "$COUNTER_FILE" 2>/dev/null || true
-    printf '🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, 独立上下文, 模型无关) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-review.sh\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用' "$TRIGGER_PRIORITY" "$TRIGGER_REASON" | hc_emit_hook_json "PostToolUse" "true"
+
+    # 自动生成 Oracle → Meta-Oracle 交接文档
+    HANDOFF_SCRIPT="$SCRIPT_DIR/../scripts/oracle-meta-handoff.sh"
+    HANDOFF_FILE=""
+    if [ -f "$HANDOFF_SCRIPT" ]; then
+        # 从 combined 中提取审核目标文件路径
+        REVIEW_TARGET=$(echo "$COMBINED" | grep -oE '(\.claude/[^ ]+\.(md|yaml|sh|json))|(scripts/[^ ]+\.sh)|(AGENTS\.md)' | head -1)
+        [ -z "$REVIEW_TARGET" ] && REVIEW_TARGET="$PROJECT_ROOT/.claude/reference/meta-oracle.md"
+        HANDOFF_FILE=$(bash "$HANDOFF_SCRIPT" generate "$TRIGGER_REASON" "$REVIEW_TARGET" "$TRIGGER_PRIORITY" 2>/dev/null || echo "")
+        flywheel_event "meta_oracle_trigger" "handoff_generated" "P2" "file=$HANDOFF_FILE" || true
+    fi
+
+    printf '🔍 [Meta-Oracle %s 触发] %s\n→ Meta-Oracle = 最后守门员（核武器级终审），权威高于 Oracle\n→ 软门禁: 给出 ACCEPT/ADVISORY/REJECT 裁决，AI 可在明确理由下覆写\n→ 执行方式: Agent(critic, 独立上下文, 模型无关) — 运行时验证 > 静态检查\n→ 审查脚本: bash .claude/scripts/meta-oracle-agent-spawn.sh prepare\n→ 裁决留痕: .omc/state/meta-oracle-verdicts.md\n→ 注意: 同一任务最多触发 1 次 Meta-Oracle，请珍惜使用\n→ 执行步骤:\n  1. bash .claude/scripts/meta-oracle-agent-spawn.sh prepare → 获取审核上下文 JSON\n  2. Agent(subagent_type="critic", prompt=<上下文JSON + meta-oracle.md协议>) → 独立审核\n  3. bash .claude/scripts/meta-oracle-agent-spawn.sh record --verdict "<agent输出>" → 记录裁决' "$TRIGGER_PRIORITY" "$TRIGGER_REASON" | hc_emit_hook_json "PostToolUse" "true"
 flywheel_event "meta_oracle_trigger" "triggered" "P2" || true
     echo "[meta-oracle] ${TRIGGER_PRIORITY}: ${TRIGGER_REASON} — Meta-Oracle 最后守门提醒已注入" >&2
+    if [ -n "$HANDOFF_FILE" ]; then
+        echo "[meta-oracle] 📄 交接文档已生成: $HANDOFF_FILE" >&2
+    fi
     exit 0
 fi
 

@@ -131,10 +131,54 @@ check_verdict_file() {
     return 1
 }
 
-check_verdict_file "$ORACLE_VERDICTS" && APPROVED=true
-check_verdict_file "$META_VERDICTS" && APPROVED=true
+HAS_ORACLE=false; HAS_META=false
+check_verdict_file "$ORACLE_VERDICTS" && HAS_ORACLE=true
+check_verdict_file "$META_VERDICTS" && HAS_META=true
 
-if [ "$APPROVED" = true ]; then
+# 强制交接：Oracle ACCEPT 后、Meta-Oracle 未完成前，阻断编辑操作
+if [ "$HAS_ORACLE" = true ] && [ "$HAS_META" = false ]; then
+    # 检查是否有交接文档生成（表示 Meta-Oracle 流程已启动但未完成）
+    HANDOFF_DIR="$PROJECT_ROOT/.omc/plans/$(date +%Y-%m-%d)"
+    HAS_HANDOFF=false
+    [ -d "$HANDOFF_DIR" ] && find "$HANDOFF_DIR" -name 'v*.md' 2>/dev/null | head -1 | grep -q . && HAS_HANDOFF=true
+
+    if [ "$HAS_HANDOFF" = false ]; then
+        # Oracle ACCEPT 但无交接文档 → 需要先走交接流程
+        cat >&2 <<EOF
+
+⛔ [Oracle Gate] Oracle 已 ACCEPT 但 Meta-Oracle 二审尚未启动。
+
+五阶段流程要求 Oracle + Meta-Oracle 双签才能编辑机制文件。
+请先完成 Oracle → Meta-Oracle 交接流程：
+
+  1. 查看交接文档: ls .omc/plans/$(date +%Y-%m-%d)/
+  2. 选择路径: 本终端继续 / 其他终端不同模型 / 跳过
+  3. Meta-Oracle 完成后重试此操作
+
+EOF
+        flywheel_event "oracle_gate" "blocked_meta_pending" "P1" || true
+        exit 2
+    fi
+    # 有交接文档但 Meta-Oracle 未完成 → 提示用户选择路径
+    LATEST_HANDOFF=$(find "$HANDOFF_DIR" -name 'v*.md' 2>/dev/null | sort | tail -1)
+    cat >&2 <<EOF
+
+⏳ [Oracle Gate] Oracle 已 ACCEPT，Meta-Oracle 二审待完成。
+
+  交接文档: ${LATEST_HANDOFF}
+
+  请告知 AI 您的选择:
+  [A] 本终端继续 → 当前模型执行 Meta-Oracle 审查
+  [B] 其他终端 → 用不同模型执行
+  [C] 跳过 → 信任 Oracle，跳过 Meta-Oracle
+
+EOF
+        flywheel_event "oracle_gate" "blocked_meta_handoff_pending" "P1" || true
+        exit 2
+fi
+
+# 双签通过（Oracle + Meta-Oracle 都 ACCEPT）或仅 Meta-Oracle ACCEPT → 放行
+if [ "$HAS_META" = true ] || [ "$APPROVED" = true ]; then
     echo '{"continue": true}'
     exit 0
 fi
