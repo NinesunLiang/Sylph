@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# workflow-standard/hooks/pretool-workflow-gate — 工作流阶段门禁
+# 注册: PreToolUse:Edit|Write|Bash
+# 阻断超越当前阶段的编辑/写入/执行操作
+# 依赖: harness_config.sh (CarrorOS), workflow-state.json
+# 铁律 #8: 过程性阻断
+
+set -u
+source "$(dirname "$0")/../../.claude/hooks/harness_config.sh" 2>/dev/null || true
+
+STATE_FILE="${HOME}/.claude/state/workflow-state.json"
+# 若项目本地有状态文件，优先使用
+[ -f ".claude/state/workflow-state.json" ] && STATE_FILE=".claude/state/workflow-state.json"
+
+[ -f "$STATE_FILE" ] || { echo "continue"; exit 0; }
+command -v python3 &>/dev/null || { echo "continue"; exit 0; }
+
+ACTIVE=$(python3 -c "import json; s=json.load(open('$STATE_FILE')); print(s.get('active',False))" 2>/dev/null)
+[ "$ACTIVE" = "True" ] || { echo "continue"; exit 0; }
+
+STAGE=$(python3 -c "import json; s=json.load(open('$STATE_FILE')); print(s.get('stage','idle'))" 2>/dev/null)
+LEVEL=$(python3 -c "import json; s=json.load(open('$STATE_FILE')); print(s.get('task_level','L1'))" 2>/dev/null)
+
+# L1: 跳过
+[ "$LEVEL" = "L1" ] && { echo "continue"; exit 0; }
+
+FILE_PATH="${1:-}"
+TOOL_NAME="${2:-}"
+
+if [ "$STAGE" = "planning" ] || [ "$STAGE" = "gate1" ]; then
+    cat >&2 <<EOF
+[WORKFLOW GATE] BLOCKED
+当前阶段: $STAGE → Gate 1 未通过
+方案阶段不允许编辑/写入/执行。请 Boss 在 Gate 1 确认方案。
+EOF
+    exit 2
+fi
+
+if [ "$STAGE" = "executing" ] && [ -n "$FILE_PATH" ]; then
+    ALLOWED=$(python3 -c "
+import json; s=json.load(open('$STATE_FILE'))
+allowed = s.get('constraint_matrix',{}).get('allowed_files',[])
+for p in allowed:
+    if '$FILE_PATH'.startswith(p.rstrip('/')): print('MATCH'); break
+" 2>/dev/null)
+    if [ "$ALLOWED" != "MATCH" ] && [ -n "$ALLOWED" ]; then
+        cat >&2 <<EOF
+[WORKFLOW GATE] BLOCKED
+文件: $FILE_PATH — 不在约束矩阵范围内
+$(python3 -c "import json;s=json.load(open('$STATE_FILE'));[print(f'  - {p}') for p in s.get('constraint_matrix',{}).get('allowed_files',[])]" 2>/dev/null)
+EOF
+        exit 2
+    fi
+fi
+
+if [ "$STAGE" = "gate2" ] || [ "$STAGE" = "gate3" ]; then
+    echo "[WORKFLOW GATE] PAUSED: 等待 ${STAGE} 人类确认" >&2
+    exit 2
+fi
+
+echo "continue"
+exit 0
