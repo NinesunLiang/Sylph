@@ -1,7 +1,9 @@
-# 前端组件还原流水线 v7.0.0 — Production Grade
+# 前端组件还原流水线 v7.0.0 — Skill 设计文档
 
-> 从原型到生产就绪的完整 React 组件。CSS 视觉 + 响应式 + DOM 结构 + 内部状态管理。
-> 覆盖「除业务逻辑以外」的全部前端开发工作。
+> 架构说明书。描述四层引擎 + Defense Layer 的设计原理、组件关系、输出格式。
+> **使用流程请参考** [ui-restoration-workflow-guide.md](ui-restoration-workflow-guide.md)
+>
+> 覆盖「除业务逻辑以外」的全部前端开发工作。主路径：HTML 原型 URL → Puppeteer MCP 测量 → React 组件。
 
 ──────────────────────
 ## 架构总览
@@ -738,7 +740,20 @@ SCSS 编译 < 5s / 区域 `.scss` < 200 行 / 组件 `.tsx` < 300 行 / CSS bund
 
 每个失败用例记录在 .omc/state/ui-restoration-failures/YYYY-MM-DD-N.json：
 
-
+```json
+{
+  "id": "YYYY-MM-DD-N",
+  "date": "2026-06-02",
+  "mode": "html-prototype",
+  "failure": "CSSOM 跨域空集",
+  "severity": "HIGH",
+  "evidence": "document.styleSheets.length = 0",
+  "prototype_url": "https://example.com/prototype",
+  "defense_triggered": "Input Defense -> DEGRADED",
+  "recovery": "降级为内联样式测量",
+  "lesson": "HTML 原型应优先使用内联样式或同域 CSS"
+}
+```
 
 ### 失败模式 -> 防御层映射
 

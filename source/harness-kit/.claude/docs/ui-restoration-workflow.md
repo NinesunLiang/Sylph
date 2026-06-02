@@ -738,7 +738,20 @@ SCSS 编译 < 5s / 区域 `.scss` < 200 行 / 组件 `.tsx` < 300 行 / CSS bund
 
 每个失败用例记录在 .omc/state/ui-restoration-failures/YYYY-MM-DD-N.json：
 
-
+```json
+{
+  "id": "YYYY-MM-DD-N",
+  "date": "2026-06-02",
+  "mode": "html-prototype",
+  "failure": "CSSOM 跨域空集",
+  "severity": "HIGH",
+  "evidence": "document.styleSheets.length = 0",
+  "prototype_url": "https://example.com/prototype",
+  "defense_triggered": "Input Defense -> DEGRADED",
+  "recovery": "降级为内联样式测量",
+  "lesson": "HTML 原型应优先使用内联样式或同域 CSS"
+}
+```
 
 ### 失败模式 -> 防御层映射
 
