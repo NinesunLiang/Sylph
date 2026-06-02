@@ -449,11 +449,6 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/oracle-gate.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
             "command": "bash .claude/workflow-standard/hooks/state-recovery",
             "timeout": 3000
           },

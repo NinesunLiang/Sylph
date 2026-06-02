@@ -218,21 +218,31 @@ if not command:
     sys.exit(0)
 
 # === Inline classifier (lightweight, no shared lib dependency) ===
-signature = hashlib.md5(cmd_clean.encode()).hexdigest()[:16]
+# Normalize command for retry-budget: strip timestamps, session IDs, temp paths
+# so the same logical command retries produce the same signature
+cmd_normalized = re.sub(
+    r'\b\d{8}[-_]\d{6}\b'
+    r'|\b\d{4}[-_]\d{2}[-_]\d{2}[T ]\d{2}[-_:]\d{2}[-_:]\d{2}\b'
+    r'|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b'
+    r'|/tmp/[^\s]+|/private/tmp/[^\s]+',
+    '<NORMALIZED>', cmd_clean
+)
+signature = hashlib.md5(cmd_normalized.encode()).hexdigest()[:16]
 cmd_lower = cmd_clean.lower()
-if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc']):
+if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc',
+                                 'python3 -c', 'python3 -', 'node ', 'deno ', 'make ', 'cmake ', 'mvn ', 'gradle ']):
     error_type = 'build'
 elif any(x in cmd_lower for x in ['go test', 'npm test', 'pytest', 'jest']):
     error_type = 'test'
 elif any(x in cmd_lower for x in ['git']):
     error_type = 'git'
-elif any(x in cmd_lower for x in ['npm install', 'go get', 'pip install']):
+elif any(x in cmd_lower for x in ['npm install', 'go get', 'pip install', 'brew ', 'gem install', 'cargo install']):
     error_type = 'dependency'
-elif any(x in cmd_lower for x in ['lint', 'eslint', 'golangci-lint']):
+elif any(x in cmd_lower for x in ['lint', 'eslint', 'golangci-lint', 'shellcheck', 'bash -n']):
     error_type = 'lint'
 elif any(x in cmd_lower for x in ['docker']):
     error_type = 'docker'
-elif any(x in cmd_lower for x in ['curl', 'wget', 'http']):
+elif any(x in cmd_lower for x in ['curl', 'wget', 'http', 'ssh ', 'api.', 'fetch']):
     error_type = 'network'
 elif any(x in cmd_lower for x in ['find', 'grep', 'sed', 'awk']):
     error_type = 'file_ops'
@@ -379,7 +389,7 @@ if os.path.isfile(_patch_file):
 _patch_key = ''
 _is_new_patch = False
 if ESCAPE_E1:
-    _patch_key = f'e1_{ESCAPE_E1_TARGET.replace("/","_").replace(".","_")}'
+    _patch_key = 'e1_' + ESCAPE_E1_TARGET.replace("/","_").replace(".","_")
     if _patch_key not in _patches:
         _is_new_patch = True
         _patches[_patch_key] = {

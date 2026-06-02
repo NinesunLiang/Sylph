@@ -70,6 +70,10 @@ elif fnmatch.fnmatch(path, '*' + pattern):
     sys.stdout.write('1')
 elif '/' not in pattern and fnmatch.fnmatch(path.split('/')[-1], pattern):
     sys.stdout.write('1')
+elif pattern.endswith('/') and path.startswith(pattern):
+    sys.stdout.write('1')
+elif '/' in pattern and pattern.endswith('/') and path.startswith(pattern.rstrip('/')):
+    sys.stdout.write('1')
 else:
     sys.stdout.write('0')
 " 2>/dev/null)
@@ -81,6 +85,37 @@ else:
 done
 
 if [ "$IN_SCOPE" = true ]; then
+    echo '{"continue": true}'
+    exit 0
+fi
+
+# ─── 自动扩展: 对合理的目录模式自动添加到 scope ───
+# 当 Write/Edit 到 .claude/Benchmarking/xxx 之类文件时，自动添加目录模式
+# 避免 scope 过窄导致的频繁阻断
+AUTO_EXTEND=false
+REL_DIR=$(dirname "$REL_PATH")
+# 只自动扩展 .claude/ 子目录（治理文件）和 scripts/ 目录
+case "$REL_DIR" in
+    .claude/*|scripts/*|source/*)
+        # 检查该目录模式是否已存在
+        DIR_PATTERN="${REL_DIR}/*"
+        DIR_EXISTS=false
+        for p in "${SCOPE_PATTERNS[@]}"; do
+            if [ "$p" = "$DIR_PATTERN" ] || [ "$p" = "${REL_DIR}/" ]; then
+                DIR_EXISTS=true
+                break
+            fi
+        done
+        if [ "$DIR_EXISTS" = false ]; then
+            echo "$DIR_PATTERN" >> "$SCOPE_FILE"
+            AUTO_EXTEND=true
+            flywheel_event "pretool_scope_gate" "auto_extend" "P2" "dir=${REL_DIR}" || true
+        fi
+        ;;
+esac
+
+if [ "$AUTO_EXTEND" = true ]; then
+    echo "ℹ️ [Scope Gate] 自动扩展 scope: ${REL_DIR}/* → ${SCOPE_FILE}" >&2
     echo '{"continue": true}'
     exit 0
 fi

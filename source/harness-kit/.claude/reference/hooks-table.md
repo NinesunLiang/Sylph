@@ -74,7 +74,7 @@
 | 脚本 | 事件 | 说明 |
 |------|------|------|
 | lsp-gate | (未注册) | lsp-gate.sh — SessionStart — 检测项目语言对应的 LSP 是否可用 |
-| oracle-gate | SessionStart | oracle-gate.sh — SessionStart — 检测 Agent 独立进程能力是否可用 |
+| oracle-gate | (未注册) | oracle-gate.sh — SessionStart — 检测 Agent 独立进程能力是否可用 |
 | posttool-read-cite | (未注册) | posttool-read-cite.sh — PostToolUse:Read [默认关闭] — 读取文件后提示引用规范 |
 | pretool-edit-scope | (未注册) | pretool-edit-scope.sh — PreToolUse:Edit|Write — 范围管理 + 规则锚定 + completion-blocked |
 | pretool-rules-inject | (未注册) | pretool-rules-inject.sh — UserPromptSubmit — 3级脱水分层注入 |

@@ -16,7 +16,9 @@
 #   UX4 错误可理解性 — 错误信息的可操作性与分类覆盖
 #   UX5 自主模式顺畅度 — goal/ghost 模式是否无打断运行
 #
-# 评分方法: 配置存在性(1分) + 运行时验证(1分) = 每子维度满分 2 分
+# 评分方法: 配置存在性(1分) + 运行时质量验证(1分) = 每子维度满分 2 分
+# 注意: 运行时验证必须检查实际质量指标，而非仅文件存在性
+# 2026-06-02: 修复纯存在性评分膨胀 — 增加质量校准因子
 
 set -u
 cd "$(cd "$(dirname "$0")/../.." && pwd)" || exit 99
@@ -123,19 +125,25 @@ score_UX4() {
     fi
   fi
 
-  # 运行时验证 (1分): error-dna.json 有实际分类记录
-  if has_runtime_data "$STATE_DIR/error-dna.json"; then
-    local classified
-    classified=$(${PYTHON_BIN:-python3} -c "
+  # 运行时验证 (1分): error-dna.jsonl 有实际分类多样性 (≥3 种分类类型)
+  if [ -f "$STATE_DIR/error-dna.jsonl" ] && [ -s "$STATE_DIR/error-dna.jsonl" ]; then
+    local categories
+    categories=$(${PYTHON_BIN:-python3} -c "
 import json
 try:
-    d = json.load(open('$STATE_DIR/error-dna.json'))
-    patterns = d.get('patterns', d) if isinstance(d, dict) else {}
-    print(len(patterns))
+    types = set()
+    with open('$STATE_DIR/error-dna.jsonl') as f:
+        for line in f:
+            r = json.loads(line)
+            t = r.get('error_type', '')
+            if t and t != 'runtime':
+                types.add(t)
+    print(len(types))
 except: print(0)
 " 2>/dev/null || echo "0")
-    classified="${classified:-0}"
-    if [ "$classified" -ge 1 ] 2>/dev/null; then
+    categories="${categories:-0}"
+    # 至少 3 种非 runtime 分类才算质量达标
+    if [ "$categories" -ge 3 ] 2>/dev/null; then
       runtime_ok=1
     fi
   fi
@@ -213,9 +221,44 @@ done
 
 PCT=$(pct $total_score $total_max)
 
+# 质量校准: 如果总分10/10但所有runtime检查都是纯存在性(无实际质量证据), 降分
+# 检查是否有至少一个质量指标: error-dna分类多样性、实际session轮次、completion-gate拦截记录
+CALIBRATION=""
+if [ "$total_score" = "$total_max" ]; then
+  # 检查是否有真正的质量证据
+  quality_evidence=0
+  # 检查 error-dna.jsonl 是否有分类多样性
+  if [ -f "$STATE_DIR/error-dna.jsonl" ] && [ -s "$STATE_DIR/error-dna.jsonl" ]; then
+    cat_count=$(${PYTHON_BIN:-python3} -c "
+import json
+try:
+    types = set()
+    with open('$STATE_DIR/error-dna.jsonl') as f:
+        for line in f:
+            r = json.loads(line)
+            t = r.get('error_type', '')
+            if t and t != 'runtime':
+                types.add(t)
+    print(len(types))
+except: print(0)
+" 2>/dev/null || echo "0")
+    [ "$cat_count" -ge 2 ] 2>/dev/null && quality_evidence=$(( quality_evidence + 1 ))
+  fi
+  # 检查 session-turns.json 是否有实际轮次
+  if [ -f "$STATE_DIR/session-turns.json" ] && [ -s "$STATE_DIR/session-turns.json" ]; then
+    quality_evidence=$(( quality_evidence + 1 ))
+  fi
+  # 质量校准: 如果 quality_evidence < 2, 总分降1分
+  if [ "$quality_evidence" -lt 2 ] 2>/dev/null; then
+    total_score=$(( total_score - 1 ))
+    PCT=$(pct $total_score $total_max)
+    CALIBRATION=" (校准: 纯存在性评分, -1分)"
+  fi
+fi
+
 echo ""
 echo "---"
-echo "UX 总分: $total_score/$total_max ($PCT%)"
+echo "UX 总分: $total_score/$total_max ($PCT%)${CALIBRATION}"
 echo "UX 状态: 独立维度 — 不参与 C/E/G 的 8.6/10 总阈值判定"
 echo "---"
 

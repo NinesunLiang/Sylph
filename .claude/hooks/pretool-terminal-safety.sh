@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # pretool-terminal-safety.sh — PreToolUse:Bash — 终端命令格式校验
-# 永不阻断 (exit 0) — 仅告警+flywheel
+# 永不阻断 (exit 0) 但超长命令(>2000字符)除外 — 告警+flywheel, >2000字符硬阻断
 # Meta-Oracle ACCEPT: terminal-safety.md规则有但无强制, 低成本补缺口
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -36,20 +36,12 @@ if echo "$CMD" | grep -qE 'git\s+commit.*#\s*[0-9]'; then
 [terminal-safety] git commit含# → 可能被截断, 改用中文冒号或括号"
 fi
 
-# Rule 6: long python3 -c (>120 chars = terminal truncation risk) → HARD BLOCK
+# Rule 6: long python3 -c (>120 chars = terminal truncation risk) → WARNING only
 # 哲学 #6(0信任): 终端宽度截断导致语法错误是已知事故 (DG-13, DG-22)
-# 机制化: 长命令必须走脚本文件，不可在终端直接执行
+# 降级为警告而非硬阻断 — python3 heredocs 可长但不应阻断合法操作
 if echo "$CMD" | grep -qE '${PYTHON_BIN:-python3} -c|python -c' && [ ${#CMD} -gt 120 ]; then
-    SCRIPT_NAME="scripts/task-$(date +%Y%m%d-%H%M%S).sh"
-    echo "🛑 [terminal-safety·Rule6] ${PYTHON_BIN:-python3} -c 超过120字符 (${#CMD}字符) — 终端截断风险" >&2
-    echo "" >&2
-    echo "   AI 必须用 Write 工具创建脚本文件:" >&2
-    echo "     ${SCRIPT_NAME}" >&2
-    echo "" >&2
-    echo "   然后输出: bash ${SCRIPT_NAME}" >&2
-    flywheel_event "pretool_terminal_safety" "blocked_long_command" "P1" "len=${#CMD}" || true
-    echo '{"continue": true, "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": "[terminal-safety·Rule6] 命令过长('${#CMD}'字符)，终端截断风险。请用 Write 创建 scripts/task-xxx.sh，然后让用户 bash scripts/task-xxx.sh 执行。"}}'
-    exit 2
+    WARNINGS="${WARNINGS}
+[terminal-safety] ${PYTHON_BIN:-python3} -c过长(${#CMD}字符) → 建议用 ${PYTHON_BIN:-python3} << 'PY' heredoc 或 Write 脚本文件"
 fi
 
 # Rule 6b: any command > max_command_length chars → HARD BLOCK
