@@ -1,7 +1,9 @@
-# 前端组件还原流水线 v7.0.0 — Production Grade
+# 前端组件还原流水线 v7.0.0 — Skill 设计文档
 
-> 从原型到生产就绪的完整 React 组件。CSS 视觉 + 响应式 + DOM 结构 + 内部状态管理。
-> 覆盖「除业务逻辑以外」的全部前端开发工作。
+> 架构说明书。描述四层引擎 + Defense Layer 的设计原理、组件关系、输出格式。
+> **使用流程请参考** [ui-restoration-workflow-guide.md](ui-restoration-workflow-guide.md)
+>
+> 覆盖「除业务逻辑以外」的全部前端开发工作。主路径：HTML 原型 URL → Puppeteer MCP 测量 → React 组件。
 
 ──────────────────────
 ## 架构总览
