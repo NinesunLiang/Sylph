@@ -1,0 +1,78 @@
+# Carror OS 文档路径注册表 — 单一真相源
+# 所有生成文件的 hook/skill/script 必须先查此表
+# 用法: FILE_TYPE=auto-score-report bash .claude/scripts/resolve-doc-path.sh [date]
+# {date} 格式: YYYY-MM-DD  {ts} 格式: YYYYMMDD-HHMMSS
+
+version: "1.0"
+last_updated: "2026-05-29"
+
+paths:
+  # ── 评分报告 (高容量, 按日期) ──
+  auto-score-report:
+    path: ".omc/state/scores/{date}/auto-score.json"
+    retention_days: 14
+    description: "自动评分快照"
+
+  score-ux-report:
+    path: ".omc/state/scores/{date}/score-ux.json"
+    retention_days: 14
+    description: "UX 评分快照"
+
+  # ── 测试日志 (高容量, 按日期) ──
+  smoke-test-log:
+    path: ".omc/state/smoke/{date}/harness-smoke.log"
+    retention_days: 7
+    description: "烟雾测试运行日志"
+
+  smoke-failure:
+    path: ".omc/state/smoke/{date}/smoke-failure-{ts}.json"
+    retention_days: 3
+    description: "烟雾测试失败详情"
+
+  capability-test-log:
+    path: ".omc/state/capability/{date}/capability-matrix-test.log"
+    retention_days: 14
+    description: "能力矩阵测试日志"
+
+  # ── 完成证据 (短期) ──
+  completion-evidence:
+    path: ".omc/state/evidence/.completion-evidence-{ts}"
+    retention_days: 1
+    description: "TaskUpdate 完成证据"
+
+  # ── 计划/任务 ──
+  plan-document:
+    path: ".omc/plans/{date}/{slug}/"
+    retention_days: 30
+    description: "goal/ghost 模式计划文档"
+
+  task-state:
+    path: ".omc/state/tasks/{ts}-{slug}/"
+    retention_days: 14
+    description: "任务工作区状态"
+
+  # ── 狗粮记录 ──
+  dogfood-record:
+    path: ".omc/state/dogfood/dogfood-{date}-{slug}.yaml"
+    retention_days: 365
+    description: "狗粮事故记录"
+
+  # ── 能力测试报告 ──
+  capability-test-report:
+    path: "docs/internal/capability-test-report-{date}.md"
+    retention_days: 90
+    description: "全量能力测试报告 (docs/internal/, 不在 .omc/ 内)"
+
+  # ── 模式信号 / 锁文件 ──
+  mode-token:
+    path: ".omc/state/tokens/{mode}.json"
+    retention_days: null
+    description: "goal/ghost/RPE 模式激活信号"
+
+  file-lock:
+    path: ".omc/locks/{path}.lock"
+    retention_days: null
+    description: "文件操作锁 (SessionStart 自动清理 >1h 旧锁)"
+
+# ── 未注册文件类型处理 ──
+# resolve-doc-path.sh 返回 UNREGISTERED → hook 警告用户 → 用户批准后注册到此表

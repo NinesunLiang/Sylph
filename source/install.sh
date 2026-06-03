@@ -758,15 +758,65 @@ if $HAS_CURSOR; then
     echo ""
 fi
 
-# ─── AGENTS.md 全量替换 ──────────────────────────────────────
-# v6.4.1+ 修复: 旧版"智能合并"导致安装一次 AGENTS.md 多一次内容。
-# 新策略: 备份旧版到 .claude/AGENTS-bk.md，然后全量替换为新版通用模板。
+# ─── 用户治理文件合并迁移 ──────────────────────────────────────
 if [ "$HAS_BACKUP" = true ] && [ -f "AGENTS.md" ]; then
+    USER_CONTENT=""
     if [ -f "$BACKUP_DIR/AGENTS.md" ]; then
-        cp "$BACKUP_DIR/AGENTS.md" ".claude/AGENTS-bk.md"
-        log_info "旧 AGENTS.md 已备份到 .claude/AGENTS-bk.md"
+        USER_CONTENT=$(cat "$BACKUP_DIR/AGENTS.md")
+        log_info "从备份恢复用户 AGENTS.md 内容"
+    elif [ -f "$BACKUP_DIR/CLAUDE.md" ]; then
+        if ! grep -q "^@AGENTS.md" "$BACKUP_DIR/CLAUDE.md" 2>/dev/null; then
+            USER_CONTENT=$(cat "$BACKUP_DIR/CLAUDE.md")
+            log_info "从备份 CLAUDE.md 提取用户项目配置（无 @AGENTS.md 引用）"
+        fi
     fi
-    log_info "AGENTS.md 已替换为 v6.4.1+ 通用治理模板"
+
+    # 缓存用户 AGENTS.md 到 .omc/cache/ 供手动 diff 恢复
+    mkdir -p .omc/cache 2>/dev/null
+    if [ -n "$USER_CONTENT" ]; then
+        echo "$USER_CONTENT" > .omc/cache/pre-upgrade-AGENTS.md
+        log_info "用户 AGENTS.md 已缓存到 .omc/cache/pre-upgrade-AGENTS.md"
+    fi
+
+    # 检测用户旧 AGENTS.md 是否已包含 Carror OS 内容（防重复叠加）
+    # 注意：必须检查 BACKUP 中的用户旧内容，不能检查刚解压的新模板
+    USER_HAD_CAROR=false
+    if [ -n "$USER_CONTENT" ] && echo "$USER_CONTENT" | grep -q "Carror OS\|Harness 治理框架" 2>/dev/null; then
+        USER_HAD_CAROR=true
+    fi
+
+    if [ "$USER_HAD_CAROR" = true ]; then
+        # 用户已有 Carror OS → 智能替换：去掉旧 Carror OS 段，追加新版
+        log_info "检测到用户 AGENTS.md 已含旧版 Carror OS，执行智能替换..."
+        # 去掉旧 Carror OS 分隔线和之后的所有内容
+        USER_ONLY=$(echo "$USER_CONTENT" | sed '/^## ═════════.*Carror OS\|^# Carror OS — 元项目治理\|^@\.omc\|^## Carror OS 治理框架\|^# Carror OS — AI 行为治理框架/,$ d')
+        TEMPLATE=$(cat "AGENTS.md")
+        DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
+        {
+            echo "$USER_ONLY"
+            echo ""
+            echo "## ════════════════════════════════════════════"
+            echo "## Carror OS 治理框架"
+            echo "## ════════════════════════════════════════════"
+            echo ""
+            echo "$DEMOTED"
+        } > AGENTS.md
+        log_info "已合并 → AGENTS.md：旧 Carror OS 段已替换为新版，用户原创内容保留"
+    elif [ -n "$USER_CONTENT" ]; then
+        TEMPLATE=$(cat "AGENTS.md")
+        # 降级 Carror OS 标题层级：# → ##，保留用户原始 # 的原创性
+        DEMOTED=$(echo "$TEMPLATE" | sed 's/^# /## /g; s/^#$/##/')
+        {
+            echo "$USER_CONTENT"
+            echo ""
+            echo "## ════════════════════════════════════════════"
+            echo "## Carror OS 治理框架"
+            echo "## ════════════════════════════════════════════"
+            echo ""
+            echo "$DEMOTED"
+        } > AGENTS.md
+        log_info "已合并 → AGENTS.md：用户项目配置在前（#），Carror OS 治理模板在后（##）"
+    fi
 fi
 
 # 确保 CLAUDE.md 为 @-include 跳板格式
@@ -1120,6 +1170,13 @@ if [ -n "$AST_SUGGEST" ]; then
     echo ""
     echo "$AST_SUGGEST"
 fi
+# ─── 生成 settings.local.json（绝对路径版本，解决 CWD 漂移 Hook 找不到问题）───
+if [ -f ".claude/scripts/generate-local-settings.sh" ]; then
+    bash .claude/scripts/generate-local-settings.sh "$(cd . && pwd)" 2>/dev/null && \
+        log_info "settings.local.json 已生成（绝对路径 hook，防 CWD 漂移）" || \
+        log_warn "settings.local.json 生成失败（不影响核心功能）"
+fi
+
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"
 log_info "💡 运行 bash .claude/scripts/harness-smoke-test.sh 验证 hook 安装完整性"

@@ -1170,6 +1170,13 @@ if [ -n "$AST_SUGGEST" ]; then
     echo ""
     echo "$AST_SUGGEST"
 fi
+# ─── 生成 settings.local.json（绝对路径版本，解决 CWD 漂移 Hook 找不到问题）───
+if [ -f ".claude/scripts/generate-local-settings.sh" ]; then
+    bash .claude/scripts/generate-local-settings.sh "$(cd . && pwd)" 2>/dev/null && \
+        log_info "settings.local.json 已生成（绝对路径 hook，防 CWD 漂移）" || \
+        log_warn "settings.local.json 生成失败（不影响核心功能）"
+fi
+
 echo "============================================"
 log_info "Carror OS — AI Native Developer Operating System"
 log_info "💡 运行 bash .claude/scripts/harness-smoke-test.sh 验证 hook 安装完整性"
