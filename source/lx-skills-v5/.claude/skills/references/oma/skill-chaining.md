@@ -92,7 +92,7 @@ Oracle Agent ──→ Meta-Oracle ──→ 人类
 
 ### 去重
 
-如果两个 skill 的公共能力相同 → 提取到 `reference/oma/`：
+如果两个 skill 的公共能力相同 → 提取到 `references/oma/`：
 
 | 公共能力 | 引用路径 |
 |---------|---------|

@@ -17,5 +17,5 @@ execution_mode: stepwise
 
 triggers:
   - "/lx-varlock"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

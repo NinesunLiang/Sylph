@@ -9,5 +9,5 @@ role: "DEPRECATED — merged into /lx-oracle v2.0"
 execution_mode: stepwise
 triggers:
   - "/lx-oracle-v2"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

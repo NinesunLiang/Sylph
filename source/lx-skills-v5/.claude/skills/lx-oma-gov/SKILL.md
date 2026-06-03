@@ -9,5 +9,5 @@ when_to_use: 主 PRD 变更需向下游 feature 增量同步、检测漂移、PR
 triggers: ["/lx-oma-gov", "oma治理", "reconcile", "propagate", "漂移检测"]
 role: "PRD governance — drift detection, reconciliation, propagation"
 execution_mode: stepwise
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

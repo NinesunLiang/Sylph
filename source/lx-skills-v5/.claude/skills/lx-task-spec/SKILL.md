@@ -10,5 +10,5 @@ role: "Task specification engine — structured task decomposition and execution
 execution_mode: stepwise
 triggers:
   - "/lx-task-spec"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

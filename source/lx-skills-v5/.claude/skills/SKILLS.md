@@ -34,10 +34,10 @@ lx-purify ──→ lx-oracle (双法官审核)
 
 | 文件 | 被引用者 |
 |------|---------|
-| `reference/oma/degradation-strategies.md` | hier, split, orch, gov |
-| `reference/oma/observability.md` | hier, split, orch, gov |
-| `reference/oma/pipeline-contract.md` | hier, split, orch, gov |
-| `reference/oma/direction-guide.md` | hier, split, rpe |
+| `references/oma/degradation-strategies.md` | hier, split, orch, gov |
+| `references/oma/observability.md` | hier, split, orch, gov |
+| `references/oma/pipeline-contract.md` | hier, split, orch, gov |
+| `references/oma/direction-guide.md` | hier, split, rpe |
 | `schemas/atomic/error_codes.yaml` | hier(HIER), split(SPLIT), orch(ORCH), gov(GOV) |
 | `nodes/oracle_terminal.md` | orch, goal, ghost, purify |
 | `nodes/mode_selector.md` | orch, goal, ghost |

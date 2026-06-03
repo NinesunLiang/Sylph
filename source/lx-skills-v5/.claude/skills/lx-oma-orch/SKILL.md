@@ -10,5 +10,5 @@ when_to_use: |
 triggers: ["/lx-oma-orch", "pipeline", "管线状态", "orchestrate"]
 role: "Pipeline orchestrator — 4-skill lifecycle orchestration with Oracle gates"
 execution_mode: stepwise
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

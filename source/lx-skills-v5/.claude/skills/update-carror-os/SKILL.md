@@ -15,5 +15,5 @@ triggers:
   - "跑安装包"
   - "update-carror-os"
 status: stable
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

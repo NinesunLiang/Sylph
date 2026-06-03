@@ -11,5 +11,5 @@ role: "Lightweight single-terminal fix-verify-close workflow"
 execution_mode: stepwise
 triggers:
   - "/lx-todo"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

@@ -12,5 +12,5 @@ triggers:
   - "sync check"
   - "check drift"
 status: stable
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

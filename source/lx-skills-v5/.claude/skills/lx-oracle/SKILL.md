@@ -13,5 +13,5 @@ triggers:
   - "oracle:approve"
   - "oracle:reject"
 # model-agnostic: 路由到 Agent 时由平台自动选择，本地 prompt 时模型无关
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

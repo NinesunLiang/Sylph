@@ -11,5 +11,5 @@ role: "Language-agnostic test code generator — pattern-based test scaffolding"
 execution_mode: stepwise
 triggers:
   - "/lx-test-gen"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

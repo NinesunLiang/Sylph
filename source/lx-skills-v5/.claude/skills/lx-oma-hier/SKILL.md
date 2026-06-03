@@ -12,5 +12,5 @@ when_to_use: |
 triggers: ["/lx-oma-hier", "分层拆解", "prd 拆分"]
 role: "PRD hierarchical decomposer — master PRD to Sub PRDs (Level 1)"
 execution_mode: stepwise
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

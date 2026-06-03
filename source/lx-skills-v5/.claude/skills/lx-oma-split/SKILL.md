@@ -9,5 +9,5 @@ when_to_use: Sub PRD 已完成 hier 拆解，需拆解为可独立开发的 feat
 triggers: ["/lx-oma-split", "拆解需求", "一人成军拆解"]
 role: "OMA commander — Sub PRD to feature decomposition (Level 2)"
 execution_mode: race
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

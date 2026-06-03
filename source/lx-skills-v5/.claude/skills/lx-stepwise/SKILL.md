@@ -11,5 +11,5 @@ status: stable
 role: "Stepwise debugger — serial deep-dive, each step verified"
 evidence_level: L3
 when_to_use: "Use for high-difficulty serial debugging: unknown root cause, cross-module (>3 files), failed prior fixes (2+), complex state machines or concurrency. Auto-routed by goal/ghost, not manually invoked."
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

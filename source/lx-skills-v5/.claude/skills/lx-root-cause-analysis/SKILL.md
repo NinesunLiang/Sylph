@@ -12,5 +12,5 @@ execution_mode: stepwise
 triggers:
   - "/lx-root-cause-analysis"
   - "root cause"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

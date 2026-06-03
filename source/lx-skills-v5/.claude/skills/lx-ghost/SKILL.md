@@ -9,5 +9,5 @@ status: stable
 role: "Direction-driven autonomous exploration — Oracle-gated single briefing, zero interruptions"
 execution_mode: stepwise
 triggers: ["/lx-ghost"]
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

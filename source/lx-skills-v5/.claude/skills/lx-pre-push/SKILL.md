@@ -17,5 +17,5 @@ execution_mode: stepwise
 
 triggers:
   - "/lx-pre-push"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

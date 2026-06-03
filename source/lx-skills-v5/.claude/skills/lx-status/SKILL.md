@@ -20,5 +20,5 @@ triggers:
   - "/lx-status"
   - "status"
   - "dashboard"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

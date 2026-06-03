@@ -22,5 +22,5 @@ execution_mode: stepwise
 
 triggers:
   - "/lx-validate-skill"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

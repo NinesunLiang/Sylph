@@ -9,5 +9,5 @@ status: stable
 role: "Goal-driven autonomous execution — single briefing, zero interruptions, final report"
 execution_mode: stepwise
 triggers: ["/lx-goal"]
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

@@ -12,5 +12,5 @@ triggers:
   - "/skillify"
   - "skillify"
   - "创建 skill"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

@@ -11,5 +11,5 @@ role: "RPE-driven feature development — 9-step closed loop with quality gates"
 execution_mode: stepwise
 triggers:
   - "/lx-rpe"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---

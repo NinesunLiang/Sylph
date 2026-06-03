@@ -13,5 +13,5 @@ triggers:
   - "learner"
   - "extract skill"
   - "从对话中学习"
-body_ref: reference/body.md
+body_ref: references/body.md
 ---
