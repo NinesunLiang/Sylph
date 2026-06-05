@@ -65,9 +65,9 @@ cmd_prepare() {
     "trigger_type": "${TRIGGER_TYPE#G}",
     "project_root": "$PROJECT_ROOT"
   },
-  "protocol": $(echo "$protocol_content" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))"),
-  "smoke_test": $(echo "$smoke_result" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))"),
-  "oracle_verdicts": $(echo "$oracle_verdicts" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read()))"),
+  "protocol": $(echo "$protocol_content" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.dumps(sys.stdin.read()))"),
+  "smoke_test": $(echo "$smoke_result" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.dumps(sys.stdin.read()))"),
+  "oracle_verdicts": $(echo "$oracle_verdicts" | ${PYTHON_BIN:-python3} -c "import sys,json; print(json.dumps(sys.stdin.read()))"),
   "spawn": "READY",
   "agent_type": "critic",
   "instructions": "使用 Agent(subagent_type='critic') 拉起独立上下文，prompt = protocol + smoke_test + oracle_verdicts",

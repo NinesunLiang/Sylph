@@ -1039,8 +1039,8 @@ R_SCORE_10="0"
 if [ "$R_max" -gt 0 ] 2>/dev/null; then
   R_SCORE_10=$(echo "scale=2; $R_score * 10 / $R_max" | bc 2>/dev/null || echo "0")
 fi
-DUAL_TRACK=$(echo "scale=2; $WEIGHTED_10 * 0.70 + $R_SCORE_10 * 0.30" | bc 2>/dev/null || echo "$WEIGHTED_10")
-echo "  双轨评分: 静态=${WEIGHTED_10}/10 (70%) + 运行时=${R_SCORE_10}/10 (30%) = ${DUAL_TRACK}/10"
+DUAL_TRACK=$(echo "scale=2; $WEIGHTED_10 * 0.50 + $R_SCORE_10 * 0.50" | bc 2>/dev/null || echo "$WEIGHTED_10")
+echo "  双轨评分: 静态=${WEIGHTED_10}/10 (50%) + 运行时=${R_SCORE_10}/10 (50%) = ${DUAL_TRACK}/10"
 
 # 分歧检测
 DIVERGENCE=""
@@ -1084,8 +1084,8 @@ echo "E 有效性 (35%):    $E_score/$E_max = ${E_pct}%"
 echo "G 治理   (25%):    $G_score/$G_max = ${G_pct}%"
 echo "R 运行时 (独立):   $R_score/$R_max = $(pct $R_score $R_max)%"
 echo "---"
-echo "静态轨 (C/E/G):     ${WEIGHTED_10}/10 (70%)"
-echo "运行时轨 (R):       ${R_SCORE_10}/10 (30%)"
+echo "静态轨 (C/E/G):     ${WEIGHTED_10}/10 (50%)"
+echo "运行时轨 (R):       ${R_SCORE_10}/10 (50%)"
 echo "双轨加权:           ${DUAL_TRACK}/10"
 [ -n "$DIVERGENCE" ] && echo "分歧:               ${DIVERGENCE}"
 echo "---"
@@ -1114,21 +1114,21 @@ RESULT=$(cat <<JSONEOF
 {
   "generated_at": "$TS",
   "scored_by": "auto-score.sh v4 (P2-6 dual-track)",
-  "methodology": "5D scoring — C/E/G weighted aggregate (40/35/25) + R runtime track (30%) + UX independent",
+  "methodology": "5D scoring — C/E/G weighted aggregate (40/35/25) + R runtime track (50%) + UX independent",
   "weights": { "C": 0.40, "E": 0.35, "G": 0.25, "R": 0.30, "UX_note": "independent, not in aggregate" },
   "dimensions": {
     "C": { "score": $C_score, "max": $C_max, "pct": $C_pct, "weight": 0.40 },
     "E": { "score": $E_score, "max": $E_max, "pct": $E_pct, "weight": 0.35 },
     "G": { "score": $G_score, "max": $G_max, "pct": $G_pct, "weight": 0.25 },
-    "R": { "score": $R_score, "max": $R_max, "pct": $(pct $R_score $R_max), "weight": 0.30, "track": "runtime" },
+    "R": { "score": $R_score, "max": $R_max, "pct": $(pct $R_score $R_max), "weight": 0.50, "track": "runtime" },
     "UX": { "score": $UX_score, "max": $UX_max, "pct": $(pct $UX_score $UX_max), "independent": true }
   },
   "aggregate": {
     "static_track_10": $WEIGHTED_10,
     "runtime_track_10": $R_SCORE_10,
     "dual_track_10": $DUAL_TRACK,
-    "static_weight": 0.70,
-    "runtime_weight": 0.30,
+    "static_weight": 0.50,
+    "runtime_weight": 0.50,
     "divergence": "$DIVERGENCE",
     "threshold": 8.6,
     "gate_verdict": "$GATE_VERDICT",

@@ -22,13 +22,13 @@ echo "Generating $LOCAL_SETTINGS ..."
 
 # Replace relative hook paths with absolute paths
 sed -e "s|\"bash \.claude/hooks/|\"bash $PROJECT_DIR/.claude/hooks/|g" \
-    -e "s|\"python3 \.claude/hooks/|\"python3 $PROJECT_DIR/.claude/hooks/|g" \
+    -e "s|\"python3 \.claude/hooks/|\"${PYTHON_BIN:-python3} $PROJECT_DIR/.claude/hooks/|g" \
     -e "s|\"bash \.claude/workflow-standard/|\"bash $PROJECT_DIR/.claude/workflow-standard/|g" \
-    -e "s|\"python3 \.claude/scripts/|\"python3 $PROJECT_DIR/.claude/scripts/|g" \
+    -e "s|\"python3 \.claude/scripts/|\"${PYTHON_BIN:-python3} $PROJECT_DIR/.claude/scripts/|g" \
     "$SETTINGS_FILE" > "$LOCAL_SETTINGS"
 
 # Validate JSON
-if python3 -c "
+if ${PYTHON_BIN:-python3} -c "
 import json
 json.load(open('$LOCAL_SETTINGS'))
 data = json.load(open('$LOCAL_SETTINGS'))

@@ -52,7 +52,7 @@ HOOK_EVID_PCT=$(pct "$HOOK_EVID" "$HOOK_TOTAL")
 # R5: 构建健康度
 BUILD_STREAK=0
 if [ -f "$STATE_DIR/build-fail-gate.json" ]; then
-  BUILD_STREAK=$(python3 -c "import json; print(json.load(open('$STATE_DIR/build-fail-gate.json')).get('streak',0))" 2>/dev/null || echo "0")
+  BUILD_STREAK=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$STATE_DIR/build-fail-gate.json')).get('streak',0))" 2>/dev/null || echo "0")
 fi
 
 # 语义改进可感知清单
@@ -86,7 +86,7 @@ fi
 
 # Retry-Budget 清理状态 (P1-4)
 if [ -f "$STATE_DIR/retry-budget.json" ]; then
-  RB_COUNT=$(python3 -c "import json; d=json.load(open('$STATE_DIR/retry-budget.json')); print(len(d.get('signatures',{})))" 2>/dev/null || echo "N/A")
+  RB_COUNT=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$STATE_DIR/retry-budget.json')); print(len(d.get('signatures',{})))" 2>/dev/null || echo "N/A")
   DELTA_ITEMS="${DELTA_ITEMS}P1-4: retry-budget 签名数=${RB_COUNT}; "
 else
   DELTA_ITEMS="${DELTA_ITEMS}P1-4: retry-budget 已清理（build 成功自动清除）; "
