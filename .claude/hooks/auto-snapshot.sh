@@ -44,7 +44,7 @@ if [ -n "$MODIFIED_RAW" ]; then
     MODIFIED_JSON=$(echo "$MODIFIED_RAW" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 lines = [l.rstrip() for l in sys.stdin if l.rstrip()]
-print(json.dumps(lines))" 2>/dev/null || echo "[]")
+print(json.dumps(lines))" 2>/dev/null) && [ -n "$MODIFIED_JSON" ] || MODIFIED_JSON="[]"
 fi
 
 # 获取已暂存文件列表
@@ -54,7 +54,7 @@ if [ -n "$STAGED_RAW" ]; then
     STAGED_JSON=$(echo "$STAGED_RAW" | ${PYTHON_BIN:-python3} -c "
 import sys, json
 lines = [l.rstrip() for l in sys.stdin if l.rstrip()]
-print(json.dumps(lines))" 2>/dev/null || echo "[]")
+print(json.dumps(lines))" 2>/dev/null) && [ -n "$STAGED_JSON" ] || STAGED_JSON="[]"
 fi
 
 # 生成时间戳

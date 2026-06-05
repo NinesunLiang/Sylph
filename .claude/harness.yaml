@@ -37,7 +37,7 @@ context_guard:
   danger_threshold: 80
   critical_threshold: 90
 completion_gate:
-  min_evidence_chars: 20
+  min_evidence_chars: 60
   required_keyword: VERIFIED
   quality_threshold: 60
   evidence_freshness_sec: 300

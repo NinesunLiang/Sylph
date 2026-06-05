@@ -12,3 +12,6 @@ base_scripts/._*
 .claude/worktrees/
 .claude/Benchmarking
 .claude/settings.local.json
+
+# Release packages
+packages/*.tar.gz

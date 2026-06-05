@@ -24,9 +24,9 @@ if [ ! -f "$CRUISING_FILE" ]; then
     # 巡航模式激活但信号文件不存在 → 提醒创建
     FEATURE_HINT=""
     if [ -f "$STATE_DIR/goal-mode.json" ]; then
-        FEATURE_HINT=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$STATE_DIR/goal-mode.json'));print(d.get('feature','unknown'))" 2>/dev/null || echo "unknown")
+        FEATURE_HINT=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$STATE_DIR/goal-mode.json'));print(d.get('feature','unknown'))" 2>/dev/null) && [ -n "$FEATURE_HINT" ] || FEATURE_HINT="unknown"
     elif [ -f "$STATE_DIR/ghost-mode.json" ]; then
-        FEATURE_HINT=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$STATE_DIR/ghost-mode.json'));print(d.get('directive','unknown'))" 2>/dev/null || echo "unknown")
+        FEATURE_HINT=$(${PYTHON_BIN:-python3} -c "import json;d=json.load(open('$STATE_DIR/ghost-mode.json'));print(d.get('directive','unknown'))" 2>/dev/null) && [ -n "$FEATURE_HINT" ] || FEATURE_HINT="unknown"
     fi
     
     printf '{"continue":true,"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[cruise-check] %s mode 已激活但巡航基础设施未初始化。请运行: bash .claude/scripts/cruise-bootstrap.sh %s"}}\n' \
