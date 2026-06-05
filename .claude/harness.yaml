@@ -109,12 +109,12 @@ hooks_enabled:
   pre_completion_gate: true
   pre_ask_guard: true
   session_resume: true
-  pretool_edit_scope: false
+  pretool_edit_scope: true
   pretool_plan_gate: true
   pretool_purify_gate: true
   pretool_node_reference: true
   posttool_template_check: true
-  pretool_rules_inject: false
+  pretool_rules_inject: true
   pretool_skill_version_guard: true
   skill_body_enforce: true
   skill_compliance_audit: true
@@ -126,9 +126,9 @@ hooks_enabled:
   pretool_git_gate: true
   pretool_scope_gate: true
   permission_frequency_tracker: true
-  lsp_gate: false
-  oracle_gate: false
-  posttool_read_cite: false
+  lsp_gate: true
+  oracle_gate: true
+  posttool_read_cite: true
 terminal_safety:
   max_command_length: 2000
   pretool_write_lock: true
