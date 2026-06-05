@@ -18,8 +18,8 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 REGISTRY="$PROJECT_ROOT/.claude/reference/path-registry.yaml"
 
 # 优先从 YAML 注册表读取
-if [ -f "$REGISTRY" ] && command -v python3 &>/dev/null; then
-    RESULT=$(python3 -c "
+if [ -f "$REGISTRY" ] && command -v ${PYTHON_BIN:-python3} &>/dev/null; then
+    RESULT=$(${PYTHON_BIN:-python3} -c "
 import yaml, sys, os
 try:
     with open('$REGISTRY') as f:

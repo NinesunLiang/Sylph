@@ -33,13 +33,13 @@ AT_COUNT=$(grep -c "^@" AGENTS.md 2>/dev/null || echo 0)
 echo ""
 echo "── E2: 配置有效性 ──"
 
-python3 -c "import yaml; yaml.safe_load(open('.claude/harness.yaml'))" 2>/dev/null \
+${PYTHON_BIN:-python3} -c "import yaml; yaml.safe_load(open('.claude/harness.yaml'))" 2>/dev/null \
     && green "harness.yaml YAML有效" || red "harness.yaml YAML无效"
 
-python3 -c "import json; json.load(open('.claude/settings.json'))" 2>/dev/null \
+${PYTHON_BIN:-python3} -c "import json; json.load(open('.claude/settings.json'))" 2>/dev/null \
     && green "settings.json JSON有效" || red "settings.json JSON无效"
 
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 s = json.load(open('.claude/settings.json'))
 hooks = s.get('hooks', {})
@@ -98,11 +98,11 @@ grep -q "@AGENTS.md" CLAUDE.md && green "CLAUDE.md → @AGENTS.md" || red "CLAUD
 [ -f .opencode/opencode.json ] && green "opencode.json (OpenCode入口)" || red "opencode.json 缺失"
 [ -f .opencode/oh-my-openagent.json ] && green "oh-my-openagent.json (OMO桥)" || red "OMO桥缺失"
 
-python3 -c "import json; d=json.load(open('.opencode/oh-my-openagent.json')); print(f'  hooks={d[\"claude_code\"][\"hooks\"]} skills={d[\"claude_code\"][\"skills\"]}')" 2>/dev/null \
+${PYTHON_BIN:-python3} -c "import json; d=json.load(open('.opencode/oh-my-openagent.json')); print(f'  hooks={d[\"claude_code\"][\"hooks\"]} skills={d[\"claude_code\"][\"skills\"]}')" 2>/dev/null \
     && green "OMO配置有效" || red "OMO配置无效"
 
 # Check OMO hooks/skills enabled
-python3 -c "
+${PYTHON_BIN:-python3} -c "
 import json
 d = json.load(open('.opencode/oh-my-openagent.json'))
 cc = d.get('claude_code', {})
