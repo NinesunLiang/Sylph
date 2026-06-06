@@ -6,7 +6,7 @@
 
 # 审计规则：每个 schema 必须标注 consumers，零消费者的 schema 应被删除
 
-# 最后审计：2026-04-22（Oracle 评审 P0 精简）
+# 最后审计：2026-06-07（Oracle 评审 P0 精简 + 孤儿文件清理）
 
 #
 
@@ -26,17 +26,21 @@
 
 #
 
-# 已删除 schemas：
+# 已清理 schemas（文件已从磁盘删除）：
 
 # output/plan_output.yaml — 消费者 plan_node 已删除
 
-# output/spec_output.yaml — 消费者 spec_generator 已删除
+# output/spec_output.yaml — 消费者 spec_generator 已删除（2026-06-07 已清理）
 
-# output/criteria_output.yaml — 无实际消费者
+# output/criteria_output.yaml — 无实际消费者（2026-06-07 已清理）
 
-# output/acceptance_report.yaml — 无实际消费者
+# output/registry.yaml — 空文件，无实际消费者（2026-06-07 已清理）
 
 # output/fallback_output.yaml — 消费者 fallback_* 已删除
+
+# 保留（有引用争议，lx-todo 通过目录级引用提及）：
+
+# output/acceptance_report.yaml — Referenced by lx-todo Step 4（保留）
 
 
  verdict: path: schemas/atomic/verdict.yaml version: v1 description: "最终判定" consumers: [ALL]
