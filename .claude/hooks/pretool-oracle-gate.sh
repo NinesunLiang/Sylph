@@ -3,11 +3,11 @@
 # Role: 编辑机制/治理文件前检查是否有 Oracle/Meta-Oracle ACCEPT 裁决
 #       无裁决 → 阻断 + CAPTCHA 放行。物化 DG-67 双签强制为硬门禁。
 #
-# 机制文件定义 (Tier 1 — Oracle 强制):
-#   .claude/hooks/**, .claude/scripts/**, settings.json, harness.yaml
-# 治理文件定义 (Tier 2 — Oracle 建议):
-#   .hooks/unified.yaml, feature-registry.yaml, AGENTS.md, kernel.md,
-#   anti-patterns.md, claude-next.md
+# 爆炸半径分级 (DG-132 blast-radius 分层):
+# L0 — AI生产文件 (双审): .claude/hooks/*, .claude/scripts/*, settings.json, harness.yaml
+# L1 — AI治理文档 (双审): AGENTS.md, kernel.md, CLAUDE.md
+# L2 — AI治理参考 (双审): .claude/reference/*, .claude/nodes/*, .claude/schemas/*, feature-registry.yaml, anti-patterns.md
+# L3 — 学习笔记 (不触发双审): claude-next.md, docs/story/*, dogfood/*
 
 source "$(dirname "$0")/harness_config.sh"
 set -f
@@ -44,15 +44,20 @@ ABS_PATH="${FILE_PATH}"
 # 相对路径 → 绝对路径
 [[ "$FILE_PATH" != /* ]] && ABS_PATH="${PROJECT_ROOT}/${FILE_PATH}"
 
-# ── 机制文件判断 ──
+# ── 爆炸半径分层判断 ──
+# return 0 = 需双审 (L0-L2)
+# return 1 = 不触发双审 (L3 / 豁免)
 is_mechanism_file() {
     local path="$1"
-    # Exempt: smoke test file — 能力测试不需要 Oracle 门禁
+    # 豁免: 烟雾测试文件 — 能力测试不需要 Oracle 门禁
     echo "$path" | grep -q 'harness-smoke-test\.sh$' && return 1
-    # Tier 1: 机制文件 (hook/script 目录 + 核心配置)
+    # L0: AI生产文件 (hook/script 目录 + 核心配置)
     echo "$path" | grep -qE '(\.claude/hooks/|\.claude/scripts/|settings\.json$|harness\.yaml$)' && return 0
-    # Tier 2: 治理文件
-    echo "$path" | grep -qE '(\.hooks/unified\.yaml$|feature-registry\.yaml$|AGENTS\.md$|kernel\.md$|anti-patterns\.md$|claude-next\.md$|CLAUDE\.md$)' && return 0
+    # L1: AI治理文档
+    echo "$path" | grep -qE '(AGENTS\.md$|kernel\.md$|CLAUDE\.md$)' && return 0
+    # L2: AI治理参考
+    echo "$path" | grep -qE '(\.claude/reference/|\.claude/nodes/|\.claude/schemas/|feature-registry\.yaml$|anti-patterns\.md$|\.hooks/unified\.yaml$)' && return 0
+    # L3: 学习笔记/狗粮/故事 — 不触发双审 (DG-132)
     return 1
 }
 
@@ -185,8 +190,9 @@ fi
 
 # ── 无裁决 → 阻断 ──
 MECH_TYPE="机制文件"
-echo "$FILE_PATH" | grep -qE '(hooks/|scripts/)' && MECH_TYPE="机制文件"
-echo "$FILE_PATH" | grep -qE '(unified\.yaml|feature-registry\.yaml|AGENTS\.md|kernel\.md|anti-patterns\.md|claude-next\.md|CLAUDE\.md)' && MECH_TYPE="治理文件"
+echo "$FILE_PATH" | grep -qE '(hooks/|scripts/)' && MECH_TYPE="L0 生产文件"
+echo "$FILE_PATH" | grep -qE '(AGENTS\.md|kernel\.md|CLAUDE\.md)' && MECH_TYPE="L1 治理文档"
+echo "$FILE_PATH" | grep -qE '(reference/|nodes/|schemas/|feature-registry\.yaml|anti-patterns\.md|unified\.yaml)' && MECH_TYPE="L2 治理参考"
 
 CAPTCHA=$(date +%s | md5 2>/dev/null || echo "$RANDOM$RANDOM" | md5sum 2>/dev/null | cut -c1-8 || ${PYTHON_BIN:-python3} -c "import hashlib,time; print(hashlib.md5(str(time.time()).encode()).hexdigest()[:8])" 2>/dev/null)
 echo "$CAPTCHA" > "$CAPTCHA_REQUIRED"  # DG-115 fix: CAPTCHA must be written for bypass to work

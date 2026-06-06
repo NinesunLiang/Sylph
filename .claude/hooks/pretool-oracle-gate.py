@@ -57,10 +57,16 @@ def _is_feature_enabled():
 # ── Mechanism file detection ────────────────────────────────────────
 
 def _is_mechanism_file(file_path):
+    # L0: AI生产文件 (双审)
     if re.search(r"(?:\.claude/hooks/|\.claude/scripts/|settings\.json$|harness\.yaml$)", file_path):
         return True
-    if re.search(r"(?:\.hooks/unified\.yaml$|feature-registry\.yaml$|AGENTS\.md$|kernel\.md$|anti-patterns\.md$|claude-next\.md$|CLAUDE\.md$)", file_path):
+    # L1: AI治理文档 (双审)
+    if re.search(r"(?:AGENTS\.md$|kernel\.md$|CLAUDE\.md$)", file_path):
         return True
+    # L2: AI治理参考 (双审)
+    if re.search(r"(?:\.claude/reference/|\.claude/nodes/|\.claude/schemas/|feature-registry\.yaml$|anti-patterns\.md$|\.hooks/unified\.yaml$)", file_path):
+        return True
+    # L3: 学习笔记/狗粮/故事 — 不触发双审 (DG-132)
     return False
 
 
@@ -226,7 +232,14 @@ def main():
     except OSError:
         pass
 
-    mech_type = "机制文件" if re.search(r"(?:hooks/|scripts/)", file_path) else "治理文件"
+    if re.search(r"(?:hooks/|scripts/)", file_path):
+        mech_type = "L0 生产文件"
+    elif re.search(r"(?:AGENTS\.md|kernel\.md|CLAUDE\.md)", file_path):
+        mech_type = "L1 治理文档"
+    elif re.search(r"(?:reference/|nodes/|schemas/|feature-registry\.yaml|anti-patterns\.md|unified\.yaml)", file_path):
+        mech_type = "L2 治理参考"
+    else:
+        mech_type = "机制文件"
 
     ctx = (
         f"🔐 [Oracle 审查门禁] 编辑{mech_type}前必须先通过 Oracle 审查\n"

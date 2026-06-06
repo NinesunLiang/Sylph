@@ -494,6 +494,11 @@
           },
           {
             "type": "command",
+            "command": "bash .claude/hooks/sessionstart-gate-check.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/flywheel-report.sh",
             "timeout": 5000
           },

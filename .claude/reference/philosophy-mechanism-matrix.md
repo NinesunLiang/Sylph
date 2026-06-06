@@ -1,8 +1,8 @@
 # 哲学-机制 完整追溯矩阵
 
 > 生成: 2026-05-17 — 全量审计 7 条哲学 + 8 条铁律的一致性贯彻
-> 更新: 2026-05-29 — feature-registry 哲学字段已覆盖 38 条目 (53.5%)
-> 审计范围: 62 hooks + 26 skills + 44 scripts + 8 iron rules
+> 更新: 2026-06-07 — feature-registry 哲学字段已覆盖 69/69 条目 (100%)
+> 审计范围: 69 hooks + 24 skills + 28 scripts + 8 iron rules
 > 
 > 本文件是 **权威双向追溯矩阵**。正向（哲学→机制）和逆向（机制→哲学）均在本文档维护。
 > AGENTS.md 和 philosophy.md 中的缩写版（~20 行）指向本文件。
@@ -388,6 +388,51 @@
 - [ ] Oracle critic独立审核通过 — ⏳ 待执行
 - [ ] harness-smoke-test.sh无回归 — ⏳ 待执行
 
+### D6: 2026-06-07 同步验证 — feature-registry vs matrix 差异
+
+**验证方式**: 逐行对比 `.claude/feature-registry.yaml`(69条目) 与 `.claude/reference/philosophy-mechanism-matrix.md` Part B Hooks 段。
+
+| # | 严重性 | 发现 | 建议 |
+|---|--------|------|------|
+| 1 | 🟡 MAJOR | **27 个 registry hook 缺失于 matrix Part B** — 多数为 2026-06 新增：build-validator, context-compressor, error-dna-auto-fix, lsp-gate, meta-oracle-trigger-py, oma-lock, oracle-gate, posttool-checkpoint, posttool-read-cite, posttool-template-check, pre-edit-lsp-check, pretool-approve-detect, pretool-blast-radius, pretool-cruise-check, pretool-node-reference, pretool-oracle-gate/py, pretool-plan-gate, pretool-purify-gate, pretool-rules-inject, pretool-sensitive-file-guard, pretool-skill-version-guard, pretool-terminal-safety, session-resume, skill-body-enforce, skill-compliance-audit, thinking-gate | 将上述 27 条目补入 Part B Hooks 表 |
+| 2 | 🟡 MAJOR | **30 处 philosophy 归属不一致** — 相同 hook 在 registry 和 matrix 中哲学字段不同 (详见表下方) | 逐一确认后统一两文件 |
+| 3 | 🟢 MINOR | `plan-gate.sh` 存在于 matrix 但不在 registry (可能已被 `pretool-plan-gate` 替代) | 确认是否已更名，更新 matrix |
+| 4 | 🟢 MINOR | Skills 段(24个) 和 Scripts 段(28个) 完全未出现在 feature-registry | 如需全量覆盖，考虑扩展 registry 范围 |
+
+**philosophy 不一致明细**:
+| Hook | registry | matrix |
+|------|---------|-------|
+| agentic-ui | #5, #7 | #5 |
+| auto-snapshot | #3, #7 | #1, #7 |
+| context-guard | #3 | #1, #3 |
+| ecosystem-probe | #4, #7 | #3, #7 |
+| edit-guard | #4, #6 | #6 |
+| error-dna | #4, #6 | #3, #6 |
+| flywheel-report | #1, #4 | #1, #5 |
+| harness-config | #1, #3 | #3 |
+| intent-tracker | #4, #6 | #6 |
+| knowledge-condenser | #1, #4 | #1, #2, #7 |
+| lsp-suggest | #5, #7 | #2, #5 |
+| posttool-claim-audit | #1, #4, #6 | #4, #6 |
+| posttool-edit-quality | #4, #5 | #4, #6 |
+| posttool-format-gate | #5, #7 | #5 |
+| posttool-handoff-writer | #5, #7 | #7 |
+| posttool-subagent-audit | #4, #6 | #2, #3 |
+| posttool-write-cite | #4, #7 | #7 |
+| posttool-write-lock | #3, #6 | #3 |
+| pre-ask-guard | #4, #5 | #5, #8 |
+| pre-completion-gate | #4, #6 | #4 |
+| pretool-edit-scope | #4, #6 | #2 |
+| pretool-retry-check | #4, #6 | #2, #3 |
+| pretool-user-correction | #4, #5 | #5, #7 |
+| pretool-write-lock | #3, #6 | #3 |
+| privacy-gate | #3, #6 | #3 |
+| read-tracker | #1, #6 | #6 |
+| skill-flywheel | #1, #7 | #1, #2 |
+| skill-usage-tracker | #1, #4 | #1, #5 |
+| subagent-guard | #3, #6 | #2, #3 |
+| token-writer | #1, #4 | #1 |
+
 ---
 
 ## 维护约定
@@ -396,3 +441,4 @@
 2. 删除机制时移除本文档对应行
 3. 哲学优先级变更时更新 Part A 物化充足度评估
 4. 每季度对照 harness.yaml hooks_enabled 复审覆盖率
+5. 新增 hook 时确保 feature-registry.yaml 和 matrix.md 同步更新

@@ -933,13 +933,13 @@ else
 fi
 dim_total "D18-OC-PLUGIN"
 
-# D18.10: All 7 src files present
+# D18.10: All 8 src files present
 OC_FILE_COUNT=$(ls "$OC_SRC"/*.ts 2>/dev/null | wc -l | tr -d ' ')
-if [ "$OC_FILE_COUNT" -eq 7 ] 2>/dev/null; then
-    pass "D18: All 7 source files present ✓"
+if [ "$OC_FILE_COUNT" -eq 8 ] 2>/dev/null; then
+    pass "D18: All 8 source files present ✓"
     dim_pass "D18-OC-PLUGIN"
 else
-    fail "D18: Expected 7 source files, found $OC_FILE_COUNT"
+    fail "D18: Expected 8 source files, found $OC_FILE_COUNT"
     dim_fail "D18-OC-PLUGIN"
 fi
 dim_total "D18-OC-PLUGIN"

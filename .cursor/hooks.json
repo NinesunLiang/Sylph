@@ -12,6 +12,18 @@
         "command": "bash .claude/hooks/privacy-gate.sh",
         "timeout": 3,
         "description": "拦截密钥文件读取和明文 Token"
+      },
+      {
+        "type": "command",
+        "command": "bash .claude/hooks/fuzzy-block.sh",
+        "timeout": 3,
+        "description": "模糊指令硬阻断（C1 指令清晰度门禁）"
+      },
+      {
+        "type": "command",
+        "command": "bash .claude/hooks/pretool-terminal-safety.sh",
+        "timeout": 3,
+        "description": "终端命令格式校验"
       }
     ],
     "afterShellExecution": [
@@ -40,6 +52,12 @@
         "command": "bash .claude/hooks/context-guard.sh",
         "timeout": 3,
         "description": "上下文占比超阈值时阻断写入"
+      },
+      {
+        "type": "command",
+        "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
+        "timeout": 3,
+        "description": "保护门禁文件不被 AI 直接写入"
       }
     ],
     "afterFileWrite": [

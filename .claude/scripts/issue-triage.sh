@@ -194,6 +194,34 @@ dispatch_action() {
 # 核心分流函数
 # ══════════════════════════════════════════════════════════════════
 
+# auto_optimizations_archive — 当 auto-optimizations.jsonl 超过 500KB 时归档到 .omc/archive/
+auto_optimizations_archive() {
+    local opt_file="$1"
+    local archive_dir="$2"
+    [ ! -f "$opt_file" ] && return 0
+    local size
+    size=$(wc -c < "$opt_file" 2>/dev/null | tr -d ' ')
+    [ -z "$size" ] && return 0
+    # 阈值 500KB (512000 bytes)
+    if [ "$size" -gt 512000 ]; then
+        local timestamp
+        timestamp=$(date +%Y%m%d-%H%M%S 2>/dev/null || echo "unknown")
+        local archive_name="auto-optimizations-${timestamp}.tar.gz"
+        mkdir -p "$archive_dir" 2>/dev/null
+        local tmp_copy="${opt_file}.archive-tmp"
+        cp "$opt_file" "$tmp_copy" 2>/dev/null || return 0
+        # tar.gz the copy into archive
+        (cd "$(dirname "$opt_file")" && tar -czf "$archive_dir/$archive_name" "auto-optimizations.jsonl" 2>/dev/null) || {
+            rm -f "$tmp_copy" 2>/dev/null
+            return 0
+        }
+        # Truncate the original file (fresh start)
+        : > "$opt_file"
+        rm -f "$tmp_copy" 2>/dev/null
+        echo "[issue-triage] 📦 auto-optimizations.jsonl 已归档 ($size bytes → .omc/archive/$archive_name)" >&2
+    fi
+}
+
 # triage_issue "问题描述" "发现来源" "优先级提示" ["额外上下文JSON"]
 # 输出 JSON 到 stdout
 # 副作用: a-mode → auto-optimizations.jsonl, b-mode → pending-decisions.md
@@ -256,6 +284,8 @@ triage_issue() {
     # ── 副作用: a-mode 写入 auto-optimizations.jsonl ──
     if is_autonomous_mode; then
         local opt_file="$_IT_STATE_DIR/auto-optimizations.jsonl"
+        # 归档检查: 超过 500KB 自动归档
+        auto_optimizations_archive "$opt_file" "$_IT_PROJECT_ROOT/.omc/archive"
         ${PYTHON_BIN:-python3} -c "
 import json, os
 desc = os.environ.get('_IT_DESC', '')

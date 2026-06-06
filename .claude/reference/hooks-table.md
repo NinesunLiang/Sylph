@@ -1,4 +1,4 @@
-## Hooks 速查（共 81 个）
+## Hooks 速查（共 82 个）
 | Hook | 触发 | 作用|
 |------|------|------|
 |`agentic-ui` | PostToolUse | agentic-ui.sh — 共享库（非 Hook） — Agentic UI 标准化输出函数|
@@ -76,6 +76,7 @@
 |`privacy-gate.py` | PreToolUse | 导入共享库|
 |`read-tracker` | PostToolUse | read-tracker.sh — PostToolUse:Read — 记录已读文件路径供 edit-guard 检查 Read-before-Edit|
 |`session-resume` | SessionStart | session-resume.sh — SessionStart — 跨会话恢复: 注入进行中的 goal/ghost 任务上下文|
+|`sessionstart-gate-check` | SessionStart | sessionstart-gate-check.sh — SessionStart — 门禁禁用状态通知|
 |`skill-flywheel` | Stop | skill-flywheel.sh — Stop — 停止时更新 skill 使用频率，驱动飞轮优化（含时间戳追踪）|
 |`skill-usage-tracker` | PostToolUse | skill-usage-tracker.sh — UserPromptSubmit|PostToolUse:Skill — 记录 skill 调用频率|
 |`stop-drain` | Stop | stop-drain.sh — Stop — Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）|

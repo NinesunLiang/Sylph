@@ -6,7 +6,7 @@
 ──────────────────────
 SessionStart
 ──────────────────────
-*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate|cross-platform-smoke-test|session-inject
+*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|sessionstart-gate-check|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate|cross-platform-smoke-test|session-inject
 
 ──────────────────────
 PreToolUse（操作前阻断）
