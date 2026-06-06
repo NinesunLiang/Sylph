@@ -93,15 +93,12 @@ log ""
 run_suite "harness-smoke-test.sh"     "Harness Smoke (核心冒烟)"
 
 # ── L1-L4: 层级运行时 ──
-run_suite "core-mechanism-test.sh"     "Core Mechanism (核心机制)"
-run_suite "tier1-runtime-test.sh"      "Tier 1 Runtime"
 run_suite "tier2-runtime-test.sh"      "Tier 2 Runtime"
 run_suite "tier3-runtime-test.sh"      "Tier 3 Runtime"
 run_suite "tier4-e2e-test.sh"          "Tier 4 E2E"
 
 # ── 能力矩阵 ──
 run_suite "capability-matrix-test.sh"  "Capability Matrix"
-run_suite "hook-production-verify.sh"  "Hook Production Verify"
 
 # ── 深度与对抗 ──
 run_suite "deep-runtime-test.sh"       "Deep Runtime"

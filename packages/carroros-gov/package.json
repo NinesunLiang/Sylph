@@ -1,0 +1,22 @@
+{
+  "name": "@carroros/gov",
+  "version": "1.0.0",
+  "description": "CarrorOS governance plugin for OpenCode — philosophy, dual-judge, anti-pattern detection",
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "engines": {
+    "opencode": ">=1.16.0"
+  },
+  "files": ["src"],
+  "license": "MIT",
+  "dependencies": {
+    "effect": "^4.0.0",
+    "zod": "^3.24.0"
+  },
+  "peerDependencies": {
+    "@opencode-ai/plugin": "*"
+  }
+}

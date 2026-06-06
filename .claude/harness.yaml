@@ -85,7 +85,6 @@ hooks_enabled:
   completion_gate: true
   context_guard: true
   context_compressor: true
-  cruise_check: true
   ecosystem_probe: true
   edit_guard: true
   error_dna_auto_fix: true
@@ -116,8 +115,6 @@ hooks_enabled:
   posttool_template_check: true
   pretool_rules_inject: true
   pretool_skill_version_guard: true
-  skill_body_enforce: true
-  skill_compliance_audit: true
   pretool_sensitive_edit: true
   pretool_terminal_safety: true
   cross_platform_smoke_test: true

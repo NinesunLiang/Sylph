@@ -70,6 +70,21 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-scope-gate.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/edit-guard.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-plan-gate.sh",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -85,6 +100,11 @@
             "type": "command",
             "command": "python3 .claude/hooks/pretool-plan-gate.py",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pretool-edit-scope.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -115,6 +135,11 @@
             "type": "command",
             "command": "bash .claude/hooks/pretool-git-gate.sh",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/permission-gate.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -124,6 +149,11 @@
           {
             "type": "command",
             "command": "python3 .claude/hooks/privacy-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/context-guard.sh",
             "timeout": 3000
           }
         ]
@@ -135,6 +165,11 @@
             "type": "command",
             "command": "python3 .claude/hooks/pre-ask-guard.py",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-ask-guard.sh",
+            "timeout": 3000
           }
         ]
       },
@@ -144,6 +179,11 @@
           {
             "type": "command",
             "command": "python3 .claude/hooks/lsp-suggest.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/lsp-suggest.sh",
             "timeout": 3000
           }
         ]
@@ -165,6 +205,11 @@
             "type": "command",
             "command": "python3 .claude/hooks/pre-completion-gate.py",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/pre-completion-gate.sh",
+            "timeout": 5000
           }
         ]
       },
@@ -184,6 +229,11 @@
           {
             "type": "command",
             "command": "python3 .claude/hooks/fuzzy-block.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/fuzzy-block.sh",
             "timeout": 3000
           }
         ]
@@ -536,7 +586,17 @@
           },
           {
             "type": "command",
+            "command": "bash .claude/hooks/thinking-gate.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/pretool-rules-inject.sh",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/scripts/pretool-python-bridge.sh context-inject",
             "timeout": 3000
           }
         ]

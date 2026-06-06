@@ -58,5 +58,27 @@ if af:
     echo ""
 fi
 
+# 4. Inject session-handoff-v2.json (跨平台 handoff, compact后恢复)
+HANDOFF_V2="$STATE_DIR/session-handoff-v2.json"
+if [ -f "$HANDOFF_V2" ]; then
+    echo ""
+    echo "--- 会话恢复 (handoff-v2) ---"
+    ${PYTHON_BIN:-python3} -c "
+import json
+with open('$HANDOFF_V2', encoding='utf-8') as f:
+    d = json.load(f)
+print(f'任务: {d.get(\"task_summary\", \"无\")}')
+print(f'已完成: {len(d.get(\"completed_tasks\", []))}')
+print(f'待完成: {len(d.get(\"pending_tasks\", []))}')
+print(f'分支: {d.get(\"working_branch\", \"\")}')
+print(f'修改文件: {len(d.get(\"modified_files\", []))}')
+print(f'最近询问: {len(d.get(\"queries\", []))} 条')
+print(f'详情: {d.get(\"task_detail\", \"\")}')
+print()
+print('【必须遵守】禁止编造|用户裁定|证据门禁|Git门禁|范围冻结|隐私防线|断言真实|哲学先行')
+" 2>/dev/null || true
+    echo ""
+fi
+
 echo '{"continue": true}'
 exit 0
