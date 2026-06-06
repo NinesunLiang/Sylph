@@ -25,6 +25,7 @@ if command -v gh &>/dev/null; then
 fi
 
 if ! $CAN_AGENT; then
+    flywheel_event "oracle-gate" "agent_unavailable" "P2"
     printf '{"continue":true,"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"[oracle-gate] ⚠️ 未检测到 Agent 独立进程能力 (claude/opencode/gh CLI)。Oracle 双法官审核将降级为本地 prompt 审核，物理隔离打折扣。"}}\n'
 else
     echo '{"continue": true}'

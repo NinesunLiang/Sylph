@@ -268,18 +268,18 @@ def score_C2():
 
     # Token compact recency
     compact_ok = 0
-        tc_path = os.path.join(STATE_DIR, "token-compact-state.json")
-        if os.path.isfile(tc_path):
-            try:
-                d = json.load(open(tc_path, "r", encoding="utf-8"))
-                ts = d.get("timestamp", 0) or d.get("pre_compact_usage", {}).get("timestamp", 0)
-                if float(ts) > 0:
-                    if time.time() - float(ts) < 86400:
-                        compact_ok = 1
-            except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
-                pass
+    tc_path = os.path.join(STATE_DIR, "token-compact-state.json")
+    if os.path.isfile(tc_path):
+        try:
+            d = json.load(open(tc_path, "r", encoding="utf-8"))
+            ts = d.get("timestamp", 0) or d.get("pre_compact_usage", {}).get("timestamp", 0)
+            if float(ts) > 0:
+                if time.time() - float(ts) < 86400:
+                    compact_ok = 1
+        except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
+            pass
 
-    # Turn counter refresh
+    compact = compact_ok
     refresh_ok = 0
     tc_script = os.path.join(PROJECT_ROOT, ".claude", "hooks", "turn-counter.sh")
     if _grep_any(r"context.*50.*refresh|L2|周期刷新", tc_script):
@@ -647,6 +647,19 @@ def score_E8():
                          os.path.join(PROJECT_ROOT, ".claude", "settings.json")) else 0
     auto_snap = os.path.join(PROJECT_ROOT, ".claude", "hooks", "auto-snapshot.sh")
     handoff = 1 if (os.path.isfile(auto_snap) and _grep_any(r"handoff|交接", auto_snap)) else 0
+
+    # compact recency: check token-compact-state.json
+    compact = 0
+    tc_path = os.path.join(STATE_DIR, "token-compact-state.json")
+    if os.path.isfile(tc_path):
+        try:
+            import time as _t
+            d = json.load(open(tc_path, "r", encoding="utf-8"))
+            ts = d.get("timestamp", 0) or d.get("pre_compact_usage", {}).get("timestamp", 0)
+            if float(ts) > 0 and _t.time() - float(ts) < 86400:
+                compact = 1
+        except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
+            pass
 
     know_rt = _runtime_evidence_factor("inject_project_knowledge")
     snap_rt = _runtime_evidence_factor("auto_snapshot")

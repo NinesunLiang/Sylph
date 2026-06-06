@@ -1,13 +1,12 @@
-     1|# 门禁骑士团 — 层层安检的边防哨所
+# 门禁骑士团 — 层层安检的边防哨所
 
 > 📍 弧2：防御：门禁骑士团 | [⬅ 上篇](story-02.md) | [下篇 ➡](story-04.md)
-
 
 一个 Edit 工具调用正在穿越边境。它刚离开 AI 的指尖，还没到达文件系统——就被拦下了。
 
 "证件。"edit-guard 翻看访客登记簿。没有这个文件的阅读记录。"你没读过这个文件。你不能碰它。"
 
-这是今晚被拦下的第七个未授权操作。对于十五位骑士来说，这是平凡的一夜。
+这是今晚被拦下的第七个未授权操作。对于十五位核心骑士来说，这是平凡的一夜。而在他们身后，还有五十余位辅助卫士在各自哨位上值守。
 
 ---
 
@@ -15,11 +14,13 @@
 
 门禁骑士团分为三翼：
 
-| 翼 | 骑士 | 驻守位置 | 职责 |
-|----|------|---------|------|
+| 翼 | 核心骑士 | 驻守位置 | 职责 |
+|----|---------|---------|------|
 | **真理翼** | edit-guard, lsp-suggest | Edit, Grep | 确保 AI 在正确信息基础上操作 |
 | **安全翼** | permission-gate, privacy-gate, pretool-sensitive-edit, pretool-retry-check, subagent-guard, pre-ask-guard | Bash, Read, Edit/Write, AskUserQuestion | 拦截危险操作、隐私泄露、资源滥用、无意义提问 |
-| **范围翼** | context-guard, pretool-edit-scope, fuzzy-block, pre-completion-gate, plan-gate | Edit/Write, TaskUpdate | 确保 AI 不在错误时间做错误范围的事 |
+| **范围翼** | context-guard, pretool-edit-scope, fuzzy-block, pre-completion-gate, plan-gate (as pretool-plan-gate) | Edit/Write, TaskUpdate | 确保 AI 不在错误时间做错误范围的事 |
+
+> 注：核心骑士共 12 位（三翼分别 2/6/5，plan-gate 以 pretool-plan-gate.sh 文件存在）。此外整个哨所注册超过 70 位守卫——包括会话卫士（SessionStart 序列）、事后审计官（PostToolUse 序列）、停止拖拽者（Stop 序列）和用户交互检查员（UserPromptSubmit 序列），构成完整的纵深防御体系。
 
 ---
 
@@ -130,6 +131,8 @@ pretool-edit-scope 的工作是不断提醒 AI："你现在的任务范围是什
 
 同时，pretool-edit-scope 在前身 pretool-rule-anchor 被融合吸收后，继承了长对话防规则漂移的逻辑——在轮次过高时重新锚定核心规则。
 
+> 2026-06-06 更新：pretool-edit-scope 的开关已从 false 恢复为 true——所有核心骑士均已激活。
+
 ### fuzzy-block — 模糊指令的终结者
 
 当 turn-counter 检测到用户的输入含模糊动词（"优化一下"/"改改"/"修修"）且没有方向限定词时，fuzzy-block 硬阻断 AI 的所有工具调用。
@@ -144,11 +147,57 @@ pretool-edit-scope 的工作是不断提醒 AI："你现在的任务范围是什
 
 如果没有——blocked。这比 completion-gate 更早介入，在执行层就拦下没有证据的完成声明，减少无效的 completion-gate 扫描（DF-03）。
 
+### pretool-plan-gate — 计划先行的守夜人
+
+plan-gate 站在 Edit/Write/Bash 三工具合流之处。在所有操作执行前，它检查当前任务是否已有经过审批的计划文件。如果没有——blocked。
+
+"没有计划就动手，"plan-gate 说，"等于闭着眼睛开刀。"
+
+它是哲学 #5（人机协同）和 #8（哲学先行）的物化：AI 不能跳步直接执行——至少需要一份 plan.md。注意他不是 hard-block 所有 case——对于任务分解目录中已明确的步骤，如果有 step 文件作为迷你计划，也会放行。
+
+---
+
+## 补充骑士：后来加入的卫士
+
+以下几位卫士不是最初"三翼十五骑士"的原班人马，但已经在哨所中占据了关键位置：
+
+### lsp-gate — LSP 瑞士军刀的看门人
+
+lsp-gate 在 SessionStart 时启动。他检查项目是否已配置 LSP——如果没有，他自动安装对应的 LSP 语言服务器（TypeScript/Python/Go/Rust）并配置 `.claude/lsp.json`。
+
+他的哲学是：**在 AI 工作前就把工具备好。** 让 AI 用 grep 二十遍不如一次 LSP 引用跳转。lsp-gate 确保 AI 上战场时剑已经磨好了。
+
+2026-06-06 更新：已从休眠状态恢复，所有会话都会触发。
+
+### oracle-gate — 修改前的最后审批
+
+oracle-gate 在 SessionStart 时运行。他检查项目在本次会话是否有待审批的 Oracle 审核。如果有——他启动审批流程。
+
+与 meta-oracle-trigger 不同，oracle-gate 关注的是**执行前的审批流**——当你准备改一个高难度（L3+）模块时，需要先通过 Oracle 审核才能动工。
+
+2026-06-06 更新：已从休眠状态恢复。
+
+### posttool-read-cite — 阅读的证据链记录者
+
+posttool-read-cite 在每次 Read 工具调用后记录引用的文件路径、时间戳和目标。这些记录进入 .omc 域，作为 completion-gate 的"已读证据"来源。
+
+不记录——就等于没读过。edit-guard 的底气就来自这里。
+
+2026-06-06 更新：已从休眠状态恢复。
+
+### pretool-rules-inject — 规则锚定的注射器
+
+pretool-rules-inject 在 UserPromptSubmit 时工作。当 conversation turn 超过阈值（默认 15 轮）时，他自动注入核心规则锚定——防止 AI 在长对话中规则漂移。
+
+R35 记录了他的诞生：edit-scope 从 pretool-rule-anchor 融合了锚定能力后，pretool-rules-inject 作为独立卫士接替了规则注入的任务。
+
+2026-06-06 更新：已从休眠状态恢复。
+
 ---
 
 ## 共享之力：hc_enabled 门禁
 
-十一位骑士都从同一个源头汲取力量：`harness_config.sh`。
+十二位核心骑士都从同一个源头汲取力量：`harness_config.sh`。
 
 ```bash
 hc_enabled "permission_gate" || exit 0
@@ -156,7 +205,7 @@ hc_enabled "permission_gate" || exit 0
 
 每一行都是同一把钥匙。如果 `harness.yaml` 中某个机制的开关被设置为 `false`——对应的骑士瞬间沉睡，不做任何检查，直接放行。这是"先守护，后激发"（哲学 #3）的物化：所有防御默认开启，但关闭只需要一个开关。
 
-`is_mode_active()` 是另一个共享之力。当 ghost 或 goal 模式激活时——十五位骑士全体降级为 "warn-only"：不再硬阻断，改为记录警告。这是 Ghost/Goal 模式协议的核心——方向驱动的探索不应该被安全网频繁打断。
+`is_mode_active()` 是另一个共享之力。当 ghost 或 goal 模式激活时——十二位核心骑士全体降级为 "warn-only"：不再硬阻断，改为记录警告。这是 Ghost/Goal 模式协议的核心——方向驱动的探索不应该被安全网频繁打断。
 
 ---
 

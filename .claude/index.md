@@ -44,7 +44,7 @@ Bash→error-dna|posttool-bash-audit|build-validator
 UserPromptSubmit
 ──────────────────────
 *→pretool-user-correction|turn-counter|pretool-rules-inject
-.*→pretool-approve-detect
+.*→pretool-approve-detect|thinking-gate
 
 ──────────────────────
 Stop

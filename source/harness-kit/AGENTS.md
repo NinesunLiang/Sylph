@@ -76,6 +76,8 @@ Hook配置         | 完整hook注册+matcher+超时   | 排查hook不触发/超
 治理开关         | hook启用/阈值/ROI配置       | 调整治理参数               | .claude/harness.yaml
 会话交接         | 当前进度+决策+TODO          | /compact后/跨会话恢复       | .omc/state/session-handoff.md
 用户文档         | 新手入门/进阶/配置/LSP      | 需要用户侧文档              | .claude/reference/docs-index.md
-架构铁律速查     | 压缩版架构铁律             | /compact后快速参考          | .claude/kernel-compact.md
-反模式速查       | 压缩版反模式               | /compact后快速参考          | .claude/anti-patterns-compact.md
-────────────────────────────────────────────────────────────────────────────────
+架构铁律         | 8条核心铁律(已精简)        | 执行前快速复核              | .claude/kernel.md
+|跨平台路由        | CC→bash hooks / OC→npm plugin  | 需要跨平台一致时        | .claude/scripts/ + packages/carroros-gov/
+|Agent 路由        | L1-L2→current / L3→OC / L4→CC | 选择 agent/平台         | .claude/scripts/context.py
+||Thinking Gate    | thinking/reasoning内容不塞入context | 使用thinking模型前 | .claude/reference/thinking-content-gate.md
+||────────────────────────────────────────────────────────────────────────────────

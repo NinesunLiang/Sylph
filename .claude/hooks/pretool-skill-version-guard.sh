@@ -80,6 +80,7 @@ fi
 # 通过
 if [ -n "$WARNINGS" ]; then
     echo "⚠️  [version-guard] 通过但有警告:$WARNINGS" >&2
+    flywheel_event "skill-version-guard" "warnings_in_use" "P2"
 else
     echo "✅ [version-guard] $BASENAME 版本格式 + 引用检查通过" >&2
 fi

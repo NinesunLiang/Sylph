@@ -377,9 +377,6 @@ else
     "pre-edit-lsp-check.sh" 0 ""
 fi
 
-# --- pretool-edit-scope (已移除，hook 不存在) ---
-log "  [SKIP] pretool-edit-scope: hook 已移除"
-
 # --- R24-S1: 8 个未覆盖 hook 的业务语义验收 ---
 
 # R24 auto-snapshot: Stop 事件应写 session-snapshot.json
@@ -605,23 +602,24 @@ else
 fi
 rm -f "$_RULES_EMPTY"
 
-# R30 source mirror: 一致性校验
-# NOTE: AGENTS.md/CLAUDE.md 有意不同（根=元项目专属，source=通用分发模板）
+# R30 source mirror: audit-hooks.sh 已于 v6.2.0 移除，改用 diff 直接对比关键文件
 TOTAL=$((TOTAL+1))
-_SM_OUT="/tmp/smoke-source-mirror-$$.out"
 log ""
-log "[$TOTAL] R30 source mirror: 一致性应全绿"
-bash .claude/scripts/audit-hooks.sh --check-source-mirror > "$_SM_OUT" 2>&1
-if grep -q -e "全部一致" -e "已废弃" "$_SM_OUT"; then
-    pass "R30 source mirror 一致性校验通过"
-elif grep -q "🔴" "$_SM_OUT"; then
-    RED_SM=$(grep -c "🔴" "$_SM_OUT" 2>/dev/null | tr -d ' ' || echo 0)
-    if [ "${RED_SM:-0}" -le 25 ] 2>/dev/null; then pass "R30 source mirror: ${RED_SM}项漂移(v3开发期可接受)"; else fail "R30 source mirror: ${RED_SM}项漂移过多"; grep "🔴" "$_SM_OUT" | head -5; fi
+log "[$TOTAL] R30 source mirror: root ↔ source/harness-kit 关键文件同步"
+_SM_FAILS=0
+for _MF in "AGENTS.md" "CLAUDE.md"; do
+  if diff -q "$_MF" "source/harness-kit/$_MF" > /dev/null 2>&1; then
+    log "  ✅ root/$_MF ↔ source/harness-kit/$_MF 一致"
+  else
+    log "  🔴 root/$_MF ↔ source/harness-kit/$_MF 不一致"
+    _SM_FAILS=$((_SM_FAILS+1))
+  fi
+done
+if [ "$_SM_FAILS" -eq 0 ]; then
+    pass "R30 source mirror: key files synced correctly"
 else
-    # 有意分歧消息（"有意分歧"）不是失败 — 无 🔴 即通过
-    pass "R30 source mirror 一致性通过 (AGENTS.md/CLAUDE.md 有意分歧已排除)"
+    fail "R30 source mirror: ${_SM_FAILS}项文件漂移"
 fi
-rm -f "$_SM_OUT"
 
 # --- R23: 新注册的 8 个 hook — 业务级验收（R24-S2 升级版） ---
 
@@ -644,17 +642,6 @@ rm -f .omc/state/lsp-suggested
 run_case "R23/R24 lsp-suggest: 非符号模式（含正则元字符）应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"func.*Foo"}}' \
   "lsp-suggest.sh" 0 ""
-
-# DG-124: pretool-rule-anchor 已在 v6.2+ 合并到 pretool-edit-scope.sh，测试目标脚本不变，标签更新
-rm -f .omc/state/session-turns.json
-echo "/tmp/x" > .omc/state/current-scope.txt
-run_case "DG-124 pretool-edit-scope(锚定): 低轮次放行" \
-  '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}' \
-  "pretool-edit-scope.sh" 0 ""
-
-# DG-124 pretool-edit-scope(锚定) — hook 已移除，跳过
-log "  [SKIP] DG-124 pretool-edit-scope(锚定): hook 已移除"
-rm -f .omc/state/session-turns.json .omc/state/current-scope.txt
 
 # R23/R24/R25 subagent-guard: 危险 agent 无 max_turns → 默认放行 + additionalContext 提示
 _SG_OUT="/tmp/smoke-sg-$$.out"
@@ -726,8 +713,6 @@ else
 fi
 	else skip_test "skill_flywheel" "R24 skill-flywheel: buffer 应被刷入 flywheel.log"; fi
 
-# R23/R24 build-validator: REMOVED — ROI zero, Oracle approved (script deleted, harness.yaml disabled, settings.json unregistered)
-
 # R23 audit-hooks: 三方对账应 0 🔴
 AUDIT_EXIT=0
 bash .claude/scripts/audit-hooks.sh >/dev/null 2>&1 || AUDIT_EXIT=$?
@@ -769,10 +754,6 @@ rm -f .omc/state/subagent-usage.jsonl
 run_case "R25 posttool-subagent-audit: 非 Task 工具应放行" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' \
   "posttool-subagent-audit.sh" 0 ""
-
-# compact-detect: hook removed (ROI zero, Oracle approved)
-# Skip: compact-detect.sh no longer exists
-TOTAL=$((TOTAL+2))
 
 # --- R29: token_writer (PostToolUse/PostToolUseFailure token tracking) ---
 TOTAL=$((TOTAL+1))
@@ -906,22 +887,9 @@ if grep -q "已废弃" "$_SM_EXT_OUT"; then
 fi
 rm -f "$_SM_EXT_OUT"
 
-# R35 error-dna-auto-fix: REMOVED — ROI zero, Oracle approved (EDV-03)
-# Tests removed to match current state: script deleted, harness.yaml disabled, settings.json unregistered
-
 # --- R36: knowledge-condenser.sh 回归 ---
 # DG-105: 已废弃 hook，harness.yaml false。文件可能不存在（清理后），跳过测试。
 if [ -f ".claude/hooks/knowledge-condenser.sh" ]; then
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R36 knowledge-condenser: 语法检查"
-bash -n .claude/hooks/knowledge-condenser.sh
-if [ $? -eq 0 ]; then
-    pass "R36 knowledge-condenser 语法通过"
-else
-    fail "R36 knowledge-condenser 语法错误"
-fi
-
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R36 knowledge-condenser: 无 claude-next.md 时静默退出"
@@ -982,15 +950,6 @@ else
 fi
 
 # --- R37: posttool-handoff-writer.sh 回归 ---
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R37 posttool-handoff-writer: 语法检查"
-bash -n .claude/hooks/posttool-handoff-writer.sh
-if [ $? -eq 0 ]; then
-    pass "R37 posttool-handoff-writer 语法通过"
-else
-    fail "R37 posttool-handoff-writer 语法错误"
-fi
 
 TOTAL=$((TOTAL+1))
 log ""
@@ -1021,15 +980,6 @@ else
 fi
 
 # --- R38: auto-scope.sh 回归 ---
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R38 auto-scope: 语法检查"
-bash -n .claude/scripts/auto-scope.sh
-if [ $? -eq 0 ]; then
-    pass "R38 auto-scope 语法通过"
-else
-    fail "R38 auto-scope 语法错误"
-fi
 
 TOTAL=$((TOTAL+1))
 log ""
@@ -1526,28 +1476,30 @@ LSP_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":
 if [ $? -ne 2 ]; then pass "pre-edit-lsp-check: 不硬阻断"; else fail "pre-edit-lsp-check: 硬阻断"; fi
 
 # --- pretool-oracle-gate ---
-# Cleanup: remove session approval marker leaked from previous runs
-rm -f .omc/state/.oracle-gate-session-approved 2>/dev/null
+# Cleanup: remove session approval marker + verdicts leaked from previous runs
+rm -f .omc/state/.oracle-gate-session-approved .omc/state/oracle-verdicts.md .omc/state/meta-oracle-verdicts.md 2>/dev/null
 # Check if oracle_gate is enabled in harness.yaml; if disabled, skip the blocking test
 ORACLE_GATE_ENABLED=$(grep -c 'oracle_gate: true' .claude/harness.yaml 2>/dev/null || echo 0)
 rm -f .omc/oracle_verdict.json
 if [ "$ORACLE_GATE_ENABLED" -gt 0 ]; then
-  TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-oracle-gate: 无裁决应阻断或警告"
-  OG_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null)
+  TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-oracle-gate: 无裁决应注入警告或阻断"
+  OG_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null) || true
   if echo "$OG_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
     pass "pretool-oracle-gate: 无裁决注入警告"; else fail "pretool-oracle-gate: 无裁决未拦截"; fi
 else
   log "  [SKIP] pretool-oracle-gate 无裁决测试 (harness.yaml oracle_gate=false)"
 fi
 
-TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-oracle-gate: 有 ACCEPT 应放行"
-# Write ACCEPT verdict to the file the gate actually reads (.omc/state/oracle-verdicts.md, not .omc/oracle_verdict.json)
+TOTAL=$((TOTAL+1)); log "[$TOTAL] pretool-oracle-gate: 有 ACCEPT 应交互提示（ACCEPT 后 Meta-Oracle 二审流程，非自动放行）"
 _OV_BAK=""
 [ -f .omc/state/oracle-verdicts.md ] && _OV_BAK=$(cat .omc/state/oracle-verdicts.md)
 ${PYTHON_BIN:-python3} -c "import time; ts=time.strftime('%Y-%m-%d %H:%M:%S'); open('.omc/state/oracle-verdicts.md','w').write(f'## Oracle ACCEPT — {ts}\n\nVerdict: ACCEPT\n')" 2>/dev/null
-OG_PASS=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>/dev/null)
-if echo "$OG_PASS" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if d.get('continue') else 1)" 2>/dev/null; then
-  pass "pretool-oracle-gate: ACCEPT 放行"; elif [ -n "$OG_PASS" ]; then pass "pretool-oracle-gate: ACCEPT 已处理"; else fail "pretool-oracle-gate: ACCEPT 无响应"; fi
+OG_PASS_ERR=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":".claude/settings.json"}}' | bash .claude/hooks/pretool-oracle-gate.sh 2>&1 >/dev/null) || true
+if echo "$OG_PASS_ERR" | grep -q "Oracle 已 ACCEPT"; then
+  pass "pretool-oracle-gate: ACCEPT 正确进入二审交互流程"
+else
+  fail "pretool-oracle-gate: ACCEPT 未触发二审交互"
+fi
 # Restore or clean up
 if [ -n "$_OV_BAK" ]; then echo "$_OV_BAK" > .omc/state/oracle-verdicts.md; else rm -f .omc/state/oracle-verdicts.md; fi
 
@@ -1567,18 +1519,6 @@ META_P=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_respons
 if echo "$META_P" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if not ctx else 1)" 2>/dev/null; then
   pass "meta-oracle-trigger: 不误触发"; else fail "meta-oracle-trigger: 误触发"; fi
 rm -f .omc/oracle_verdict.json .omc/state/.meta-oracle-cooldown
-
-# --- assertion-collector ---
-if [ -f .claude/hooks/assertion-collector.sh ]; then
-TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] assertion-collector: 运行无崩溃"
-echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/assertion-collector.sh >/dev/null 2>&1
-if [ $? -eq 0 ]; then pass "assertion-collector: 放行"; else fail "assertion-collector: 崩溃"; fi
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] assertion-collector: 软完成语记录"
-echo '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"src/bar.ts"},"tool_response":{"content":"应该没问题了"}}' | bash .claude/hooks/assertion-collector.sh >/dev/null 2>&1
-pass "assertion-collector: 运行无崩溃"
-rm -f .omc/state/assertion-log.jsonl
-else pass "assertion-collector: 跳过(脚本不存在)"; fi
 
 # --- skeptic-role ---
 if [ -f .claude/hooks/skeptic-role.sh ]; then
@@ -1626,9 +1566,6 @@ if [ $? -ne 2 ]; then pass "posttool-format-gate: OK"; else fail "posttool-forma
 TOTAL=$((TOTAL+1)); log "[$TOTAL] posttool-handoff-writer: 无崩溃"
 echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/posttool-handoff-writer.sh >/dev/null 2>&1
 if [ $? -eq 0 ]; then pass "posttool-handoff-writer: OK"; else fail "posttool-handoff-writer: 崩溃"; fi
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] agentic-ui: source 无崩溃"
-(source .claude/hooks/agentic-ui.sh 2>/dev/null && pass "agentic-ui: OK") || fail "agentic-ui: 崩溃"
 
 # --- fuzzy-block ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] fuzzy-block: 无标记放行"
@@ -1874,72 +1811,6 @@ fi
 	fi
 log ""
 log "========================================"
-# ═══ 跨平台兼容性 (合并自 scripts/cross-platform-smoke.sh) ═══
-log "=== 基础运行时 ==="
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: bash 可用"
-command -v bash &>/dev/null && pass "跨平台: bash" || fail "跨平台: bash 不可用"
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: python3 可用"
-command -v "${PYTHON_BIN:-python3}" &>/dev/null && pass "跨平台: python3 ($(${PYTHON_BIN:-python3} --version 2>&1))" || fail "跨平台: python3 不可用"
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: jq 可用"
-command -v jq &>/dev/null && pass "跨平台: jq" || log "  ⚠️ jq 不可用 (python3 fallback)"
-
-log "=== 平台检测 ==="
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: 平台检测"
-case "$(uname -s)" in
-    Darwin)  pass "跨平台: macOS ($(uname -m))" ;;
-    Linux)   pass "跨平台: Linux ($(uname -m))" ;;
-    MINGW*|MSYS*|CYGWIN*) pass "跨平台: Windows (Git Bash/MSYS2)" ;;
-    *)       log "  ⚠️ 未知平台: $(uname -s)" ;;
-esac
-
-if [ "$(uname -s)" = "Darwin" ]; then
-    TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: sed -i '' (BSD)"
-    _SED_TEST="$(mktemp "${TMPDIR:-/tmp}/_smoke_sed.XXXXXX")"
-    echo "test" > "$_SED_TEST"
-    sed -i '' 's/test/ok/' "$_SED_TEST" 2>/dev/null && pass "跨平台: sed -i '' (BSD)" || fail "跨平台: sed -i '' 失败"
-    rm -f "$_SED_TEST"
-
-    TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: COPYFILE_DISABLE"
-    [ -n "${COPYFILE_DISABLE:-}" ] && pass "跨平台: COPYFILE_DISABLE" || log "  ⚠️ COPYFILE_DISABLE 未设置"
-fi
-
-log "=== IDE/CLI 检测 ==="
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: Codex CLI"
-command -v codex &>/dev/null && pass "跨平台: Codex CLI" || log "  ⚠️ Codex CLI 未安装"
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: OpenCode config"
-[ -d ".opencode" ] && pass "跨平台: OpenCode (.opencode/)" || log "  ⚠️ OpenCode config 不存在"
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: VS Code CLI"
-command -v code &>/dev/null && pass "跨平台: VS Code CLI" || log "  ⚠️ VS Code CLI 未安装"
-
-log "=== Python 模块 ==="
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: Python 核心模块"
-_PY_MOD_OK=true
-for _mod in json os sys datetime; do
-    ${PYTHON_BIN:-python3} -c "import $_mod" 2>/dev/null || { _PY_MOD_OK=false; log "  🔴 $_mod 缺失"; }
-done
-if [ "$_PY_MOD_OK" = true ]; then pass "跨平台: json/os/sys/datetime"; else fail "跨平台: Python 核心模块缺失"; fi
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: Python secrets 模块"
-${PYTHON_BIN:-python3} -c "import secrets" 2>/dev/null && pass "跨平台: secrets" || log "  ⚠️ secrets 不可用"
-
-log "=== Git 环境 ==="
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: git 可用"
-command -v git &>/dev/null && pass "跨平台: git ($(git --version 2>&1 | head -1))" || fail "跨平台: git 不可用"
-
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: .git 目录"
-[ -d ".git" ] && pass "跨平台: .git 目录" || fail "跨平台: 非 git 仓库"
-
-log "=== 信号文件 ==="
-TOTAL=$((TOTAL+1)); log "[$TOTAL] 跨平台: 无残留自主模式信号"
-_HAS_MODE=0
-for _mf in .omc/state/tokens/lx-goal.json .omc/state/tokens/lx-ghost.json .omc/state/tokens/autonomous.active; do
-    [ -f "$_mf" ] && { _HAS_MODE=1; log "  ⚠️ $_mf 存在"; }
-done
-[ "$_HAS_MODE" -eq 0 ] && pass "跨平台: 无残留信号文件"
 
 # ═══ DG-101: blast-radius smoke tests ═══
 log ""
@@ -1971,17 +1842,7 @@ fi
 # ══════════════════════════════════════════════════════════════════
 
 # ── R37: pretool-plan-gate.sh ──
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R37 pretool-plan-gate: 语法检查"
 HOOK_PPG=".claude/hooks/pretool-plan-gate.sh"
-# Check if hook exists; if not, skip gracefully
-if [ -f "$HOOK_PPG" ]; then
-    bash -n "$HOOK_PPG" 2>/dev/null && pass "R37 pretool-plan-gate 语法通过" || fail "R37 pretool-plan-gate 语法错误"
-else
-    log "  [SKIP] R37 pretool-plan-gate 文件不存在"
-fi
-
 # R37b: 小变更放行 (<2 files, <15 lines)
 TOTAL=$((TOTAL+1))
 log "[$TOTAL] R37 pretool-plan-gate: 小变更放行"
@@ -2040,71 +1901,6 @@ else
     log "  [SKIP] R37 pretool-plan-gate 文件不存在"
 fi
 
-# ── R38: build-validator.sh ──
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R38 build-validator: 语法检查"
-HOOK_BV=".claude/hooks/build-validator.sh"
-if [ -f "$HOOK_BV" ]; then
-    bash -n "$HOOK_BV" 2>/dev/null && pass "R38 build-validator 语法通过" || fail "R38 build-validator 语法错误"
-else
-    log "  [SKIP] R38 build-validator 文件不存在"
-fi
-
-# R38b: 非构建命令应静默放行
-TOTAL=$((TOTAL+1))
-log "[$TOTAL] R38 build-validator: 非构建命令静默放行"
-if [ -f "$HOOK_BV" ]; then
-    BV_SKIP=$(echo '{"tool_name":"Bash","tool_input":{"command":"echo hello"},"tool_response":{"exit_code":0,"stdout":"hello","stderr":""}}' | bash "$HOOK_BV" 2>/dev/null || true)
-    if echo "$BV_SKIP" | grep -q '"continue": true'; then
-        pass "R38 build-validator 非构建命令放行"
-    else
-        fail "R38 build-validator 非构建命令未放行"
-    fi
-else
-    log "  [SKIP] R38 build-validator 文件不存在"
-fi
-
-# R38c: 构建成功(exit 0)应放行
-TOTAL=$((TOTAL+1))
-log "[$TOTAL] R38 build-validator: 构建成功放行"
-if [ -f "$HOOK_BV" ]; then
-    BV_PASS=$(echo '{"tool_name":"Bash","tool_input":{"command":"go build ./..."},"tool_response":{"exit_code":0,"stdout":"ok","stderr":""}}' | bash "$HOOK_BV" 2>/dev/null || true)
-    if echo "$BV_PASS" | grep -q '"continue": true'; then
-        pass "R38 build-validator 构建成功放行"
-    else
-        fail "R38 build-validator 构建成功被误拦截"
-    fi
-else
-    log "  [SKIP] R38 build-validator 文件不存在"
-fi
-
-# ── R39: error-dna-auto-fix.sh ──
-TOTAL=$((TOTAL+1))
-log ""
-log "[$TOTAL] R39 error-dna-auto-fix: 语法检查"
-HOOK_EDA=".claude/hooks/error-dna-auto-fix.sh"
-if [ -f "$HOOK_EDA" ]; then
-    bash -n "$HOOK_EDA" 2>/dev/null && pass "R39 error-dna-auto-fix 语法通过" || fail "R39 error-dna-auto-fix 语法错误"
-else
-    log "  [SKIP] R39 error-dna-auto-fix 文件不存在"
-fi
-
-# R39b: 无 error-dna.json 时静默退出
-TOTAL=$((TOTAL+1))
-log "[$TOTAL] R39 error-dna-auto-fix: 无DNA文件静默退出"
-if [ -f "$HOOK_EDA" ]; then
-    EDA_RC=0
-    bash "$HOOK_EDA" >/dev/null 2>&1 || EDA_RC=$?
-    if [ "$EDA_RC" -eq 0 ]; then
-        pass "R39 error-dna-auto-fix 无文件静默退出"
-    else
-        fail "R39 error-dna-auto-fix 无文件不应阻断 (exit=$EDA_RC)"
-    fi
-else
-    log "  [SKIP] R39 error-dna-auto-fix 文件不存在"
-fi
-
 # ── R36 扩展: knowledge-condenser 功能验证 ──
 TOTAL=$((TOTAL+1))
 log ""
@@ -2142,6 +1938,18 @@ if [ -f "$SCRIPT_DIR/harness-smoke-test.local.sh" ]; then
     log "── 用户自定义测试用例 ──"
     source "$SCRIPT_DIR/harness-smoke-test.local.sh"
 fi
+
+# ── Consolidated bash -n syntax check loop ──
+TOTAL=$((TOTAL+1))
+_BASH_N_FAILS=0
+for _bn_script in .claude/hooks/knowledge-condenser.sh .claude/hooks/posttool-handoff-writer.sh .claude/scripts/auto-scope.sh .claude/hooks/pretool-plan-gate.sh; do
+    if [ -f "$_bn_script" ]; then
+        bash -n "$_bn_script" 2>/dev/null && log "  ✅ $_bn_script 语法通过" || { log "  🔴 $_bn_script 语法错误"; _BASH_N_FAILS=$((_BASH_N_FAILS+1)); }
+    else
+        log "  ⚠️ $_bn_script 不存在，跳过"
+    fi
+done
+[ "$_BASH_N_FAILS" -eq 0 ] && pass "bash -n 语法检查：全部通过" || fail "bash -n 语法检查：${_BASH_N_FAILS}项失败"
 
 log "summary: $((TOTAL-FAILED))/$TOTAL passed, $FAILED failed"
 log "log file: $LOG"

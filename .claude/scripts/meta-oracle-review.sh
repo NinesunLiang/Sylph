@@ -183,11 +183,15 @@ fi
 # ───── 写入裁决留痕 ─────
 VERDICT_DATE=$(date -u +%Y-%m-%d)
 VERDICT_ENTRY="[${VERDICT_DATE}] [${TRIGGER_TYPE}] [${GATE_VERDICT:-N/A}] — C/E/G 加权: ${WEIGHTED_SCORE:-N/A}/10 | UX 独立: ${UX_SCORE:-N/A}/${UX_MAX:-10}"
+mkdir -p "$STATE_DIR"
 if [ -f "$STATE_DIR/meta-oracle-verdicts.md" ]; then
   # 在第二行后追加（保留标题行和空行）
   sed -i '' "3i\\
 ${VERDICT_ENTRY}
 " "$STATE_DIR/meta-oracle-verdicts.md" 2>/dev/null || echo "$VERDICT_ENTRY" >> "$STATE_DIR/meta-oracle-verdicts.md"
+else
+  # 首次创建：写标题行+空行+裁决
+  { echo "# Meta-Oracle 裁决记录"; echo "---"; echo "$VERDICT_ENTRY"; } > "$STATE_DIR/meta-oracle-verdicts.md"
 fi
 
 echo ""

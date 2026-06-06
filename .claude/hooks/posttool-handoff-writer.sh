@@ -135,6 +135,10 @@ $(if [ -n "$LESSONS" ]; then echo "${LESSONS}"; else echo "- Lessons: (none)"; f
 $(if [ -n "$CONTRADICTIONS" ]; then echo "- Contradictions: ${CONTRADICTIONS}"; fi)
 EOF
 
+# 同时写入 session-handoff-v2.json（跨平台 handoff，供 OC 插件和 context.py 使用）
+export STATE_DIR
+${PYTHON_BIN:-python3} "$SCRIPT_DIR/../scripts/handoff.py" before-compact 2>/dev/null || true
+
 # 同步 pipeline.yaml 状态（若有活跃 feature）
 if [ -n "$ACTIVE_FEATURE" ]; then
     PIPELINE_FILE="$PROJECT_ROOT/.claude/skills/lx-orch/state/pipeline.yaml"
