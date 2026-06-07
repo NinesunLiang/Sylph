@@ -43,7 +43,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-write-lock.sh",
+            "command": "python3 .claude/hooks/pretool-write-lock.py",
             "timeout": 10000
           },
           {
@@ -63,7 +63,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/pretool-workflow-gate",
+            "command": "python3 .claude/workflow-standard/hooks/pretool-workflow-gate.py",
             "timeout": 3000
           },
           {
@@ -255,12 +255,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "command": "python3 .claude/hooks/auto-snapshot.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-edit-quality.sh",
+            "command": "python3 .claude/hooks/posttool-edit-quality.py",
             "timeout": 3000
           },
           {
@@ -270,7 +270,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-claim-audit.sh",
+            "command": "python3 .claude/hooks/posttool-claim-audit.py",
             "timeout": 5000
           },
           {
@@ -290,7 +290,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/completion-gate.sh",
+            "command": "python3 .claude/hooks/completion-gate.py",
             "timeout": 10000
           },
           {
@@ -310,7 +310,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/checkpoint",
+            "command": "python3 .claude/workflow-standard/hooks/checkpoint.py",
             "timeout": 5000
           }
         ]
@@ -350,7 +350,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-read-cite.sh",
+            "command": "python3 .claude/hooks/posttool-read-cite.py",
             "timeout": 3000
           }
         ]
@@ -360,17 +360,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "command": "python3 .claude/hooks/posttool-bash-audit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna.sh",
+            "command": "python3 .claude/hooks/error-dna.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
+            "command": "python3 .claude/hooks/build-validator.py",
             "timeout": 5000
           }
         ]
@@ -405,7 +405,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh",
+            "command": "python3 .claude/hooks/token_writer.py",
             "timeout": 3000
           },
           {
@@ -438,17 +438,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna.sh",
+            "command": "python3 .claude/hooks/error-dna.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "command": "python3 .claude/hooks/posttool-bash-audit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
+            "command": "python3 .claude/hooks/build-validator.py",
             "timeout": 5000
           }
         ]
@@ -504,7 +504,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh",
+            "command": "python3 .claude/hooks/token_writer.py",
             "timeout": 3000
           },
           {
@@ -524,12 +524,12 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/state-recovery",
+            "command": "python3 .claude/workflow-standard/hooks/state-recovery.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/session-inject",
+            "command": "python3 .claude/workflow-standard/hooks/session-inject.py",
             "timeout": 3000
           },
           {
@@ -545,7 +545,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "command": "python3 .claude/hooks/auto-snapshot.py",
             "timeout": 5000
           },
           {
@@ -576,7 +576,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/turn-counter.sh",
+            "command": "python3 .claude/hooks/turn-counter.py",
             "timeout": 3000
           }
         ]
@@ -586,7 +586,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-approve-detect.sh",
+            "command": "python3 .claude/hooks/pretool-approve-detect.py",
             "timeout": 3000
           },
           {
@@ -601,7 +601,7 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/scripts/pretool-python-bridge.sh context-inject",
+            "command": "python3 .claude/scripts/pretool-python-bridge.py",
             "timeout": 3000
           }
         ]
