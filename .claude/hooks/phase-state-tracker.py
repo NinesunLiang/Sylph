@@ -153,7 +153,7 @@ def main():
         f"- 未提交文件: {uncommitted_count} 个\n"
         f"- 文件: {phase_file}\n"
     )
-    output_additional_context(ctx, "PostToolUse")
+    output_additional_context(ctx)
     flywheel_event("phase_state_tracker", "tracked", "P3")
 
 

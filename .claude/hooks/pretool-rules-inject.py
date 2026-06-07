@@ -170,7 +170,7 @@ def main():
         ctx += f"\n\n{l3}"
 
     # Output
-    output_additional_context(ctx, "UserPromptSubmit")
+    output_additional_context(ctx)
     flywheel_event("pretool_rules_inject", "injected", "P2", f"turn={turn_count}")
 
 

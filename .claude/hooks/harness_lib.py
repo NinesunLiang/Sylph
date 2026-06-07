@@ -660,3 +660,85 @@ def agentic_menu(title, reason, opt1_label, opt1_desc, opt2_label, opt2_desc,
 """
     print(menu_text, file=sys.stderr, flush=True)
     sys.exit(2)
+
+
+# ─── hc_read_input: 从 stdin 读取完整输入 ───
+READ_BUFFER = []
+
+
+def read_input():
+    """从 stdin 读取完整输入（兼容 hc_read_config），返回字符串。"""
+    if READ_BUFFER:
+        return READ_BUFFER.pop(0)
+    try:
+        return sys.stdin.read()
+    except Exception:
+        return ""
+
+
+def hc_read_config():
+    """读取 harness.yaml 配置（与 bash hc_read_config 等价）"""
+    try:
+        if _HC_YAML.exists():
+            return _parse_yaml_simple(str(_HC_YAML))
+    except Exception:
+        pass
+    return {}
+
+
+# ─── output_continue: 标准 continue 输出 ───
+def output_continue():
+    """输出 continue JSON（等价的简短函数名）"""
+    hc_emit_hook_json("ok")
+
+
+# ─── 公开路径常量（供 from harness_lib import * / 单独引用）───
+HOME_DIR = Path.home()
+PROJECT_ROOT = _PROJECT_ROOT
+STATE_DIR = _STATE_DIR
+
+
+# ─── extract_* 工具函数（供各 hook 使用）───
+def extract_event_name(text=None):
+    """从 stdin 文本提取事件名称。返回 '' 或事件名。"""
+    if text is None:
+        text = read_input()
+    for keyword in ["PreToolUse", "PostToolUse", "UserPromptSubmit", "SessionStart", "Stop"]:
+        if keyword in text:
+            return keyword
+    return ""
+
+
+def extract_tool_name(text=None):
+    """提取工具名称。"""
+    if text is None:
+        text = read_input()
+    m = re.search(r'"tool_name":\s*"([^"]+)"', text)
+    return m.group(1) if m else ""
+
+
+def extract_file_path(text=None):
+    """提取文件路径。"""
+    if text is None:
+        text = read_input()
+    m = re.search(r'"file_path":\s*"([^"]+)"', text)
+    return m.group(1) if m else ""
+
+
+def extract_tool_input_status(text=None):
+    """提取工具输入状态。"""
+    if text is None:
+        text = read_input()
+    m = re.search(r'"status":\s*"([^"]+)"', text)
+    return m.group(1) if m else ""
+
+
+def sanitize_text(text):
+    """清理输入文本中的不可打印字符。"""
+    return re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', text)
+
+
+def output_additional_context(text):
+    """输出额外上下文（到 stderr 以便注入）。"""
+    if text:
+        print(f"[上下文注入] {text[:200]}", file=sys.stderr, flush=True)
