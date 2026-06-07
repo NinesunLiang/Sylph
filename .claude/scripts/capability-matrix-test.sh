@@ -103,70 +103,70 @@ while IFS= read -r hook_name; do
     # map hook_name to script filename
     script=""
     case "$hook_name" in
-        anti_pattern_detect)       script="posttool-anti-pattern-detect.sh" ;;
-        auto_snapshot)             script="auto-snapshot.sh" ;;
-        completion_gate)           script="completion-gate.sh" ;;
-        context_guard)             script="context-guard.sh" ;;
-        context_compressor)        script="context-compressor.sh" ;;
-        ecosystem_probe)           script="ecosystem-probe.sh" ;;
-        edit_guard)                script="edit-guard.sh" ;;
-        error_dna)                 script="error-dna.sh" ;;
-        fuzzy_block)               script="fuzzy-block.sh" ;;
-        inject_project_knowledge)  script="inject-project-knowledge.sh" ;;
-        intent_tracker)            script="intent-tracker.sh" ;;
+        anti_pattern_detect)       script="posttool-anti-pattern-detect.py" ;;
+        auto_snapshot)             script="auto-snapshot.py" ;;
+        completion_gate)           script="completion-gate.py" ;;
+        context_guard)             script="context-guard.py" ;;
+        context_compressor)        script="context-compressor.py" ;;
+        ecosystem_probe)           script="ecosystem-probe.py" ;;
+        edit_guard)                script="edit-guard.py" ;;
+        error_dna)                 script="error-dna.py" ;;
+        fuzzy_block)               script="fuzzy-block.py" ;;
+        inject_project_knowledge)  script="inject-project-knowledge.py" ;;
+        intent_tracker)            script="intent-tracker.py" ;;
         issue_triage)              script="" ;;
-        knowledge_condenser)       script="knowledge-condenser.sh" ;;
-        lsp_suggest)               script="lsp-suggest.sh" ;;
-        lsp_gate)                  script="pre-edit-lsp-check.sh" ;;
-        meta_oracle_trigger)       script="meta-oracle-trigger.sh" ;;
-        permission_gate)           script="permission-gate.sh" ;;
-        plan_gate)                 script="plan-gate.sh" ;;
-        posttool_bash_audit)       script="posttool-bash-audit.sh" ;;
-        posttool_claim_audit)      script="posttool-claim-audit.sh" ;;
-        posttool_completion_audit) script="posttool-completion-audit.sh" ;;
-        posttool_edit_quality)     script="posttool-edit-quality.sh" ;;
-        posttool_handoff_writer)   script="posttool-handoff-writer.sh" ;;
-        posttool_output_format)    script="posttool-format-gate.sh" ;;
-        posttool_subagent_audit)   script="posttool-subagent-audit.sh" ;;
-        posttool_write_cite)       script="posttool-write-cite.sh" ;;
-        posttool_write_lock)       script="posttool-write-lock.sh" ;;
-        pre_completion_gate)       script="pre-completion-gate.sh" ;;
-        pre_ask_guard)             script="pre-ask-guard.sh" ;;
-        pretool_edit_scope)        script="pretool-edit-scope.sh" ;;
-        pretool_sensitive_edit)    script="pretool-sensitive-edit.sh" ;;
-        pretool_write_lock)        script="pretool-write-lock.sh" ;;
-        privacy_gate)              script="privacy-gate.sh" ;;
-        read_tracker)              script="read-tracker.sh" ;;
-        retry_budget_check)        script="pretool-retry-check.sh" ;;
-        skill_flywheel)            script="skill-flywheel.sh" ;;
-        stop_drain)                script="stop-drain.sh" ;;
-        subagent_guard)            script="subagent-guard.sh" ;;
-        token_writer)              script="token_writer.sh" ;;
-        skill_usage_tracker)       script="skill-usage-tracker.sh" ;;
-        turn_counter)              script="turn-counter.sh" ;;
-        user_correction_detector)  script="pretool-user-correction.sh" ;;
-        build_validator)           script="build-validator.sh" ;;
+        knowledge_condenser)       script="knowledge-condenser.py" ;;
+        lsp_suggest)               script="lsp-suggest.py" ;;
+        lsp_gate)                  script="pre-edit-lsp-check.py" ;;
+        meta_oracle_trigger)       script="meta-oracle-trigger.py" ;;
+        permission_gate)           script="permission-gate.py" ;;
+        plan_gate)                 script="plan-gate.py" ;;
+        posttool_bash_audit)       script="posttool-bash-audit.py" ;;
+        posttool_claim_audit)      script="posttool-claim-audit.py" ;;
+        posttool_completion_audit) script="posttool-completion-audit.py" ;;
+        posttool_edit_quality)     script="posttool-edit-quality.py" ;;
+        posttool_handoff_writer)   script="posttool-handoff-writer.py" ;;
+        posttool_output_format)    script="posttool-format-gate.py" ;;
+        posttool_subagent_audit)   script="posttool-subagent-audit.py" ;;
+        posttool_write_cite)       script="posttool-write-cite.py" ;;
+        posttool_write_lock)       script="posttool-write-lock.py" ;;
+        pre_completion_gate)       script="pre-completion-gate.py" ;;
+        pre_ask_guard)             script="pre-ask-guard.py" ;;
+        pretool_edit_scope)        script="pretool-edit-scope.py" ;;
+        pretool_sensitive_edit)    script="pretool-sensitive-edit.py" ;;
+        pretool_write_lock)        script="pretool-write-lock.py" ;;
+        privacy_gate)              script="privacy-gate.py" ;;
+        read_tracker)              script="read-tracker.py" ;;
+        retry_budget_check)        script="pretool-retry-check.py" ;;
+        skill_flywheel)            script="skill-flywheel.py" ;;
+        stop_drain)                script="stop-drain.py" ;;
+        subagent_guard)            script="subagent-guard.py" ;;
+        token_writer)              script="token_writer.py" ;;
+        skill_usage_tracker)       script="skill-usage-tracker.py" ;;
+        turn_counter)              script="turn-counter.py" ;;
+        user_correction_detector)  script="pretool-user-correction.py" ;;
+        build_validator)           script="build-validator.py" ;;
         cruise_check)              script="" ;;
-        error_dna_auto_fix)        script="error-dna-auto-fix.sh" ;;
-        posttool_checkpoint)       script="posttool-checkpoint.sh" ;;
-        session_resume)            script="session-resume.sh" ;;
-        pretool_plan_gate)         script="pretool-plan-gate.sh" ;;
-        pretool_purify_gate)       script="pretool-purify-gate.sh" ;;
-        pretool_node_reference)    script="pretool-node-reference.sh" ;;
-        posttool_template_check)   script="posttool-template-check.sh" ;;
-        pretool_rules_inject)      script="pretool-rules-inject.sh" ;;
-        pretool_skill_version_guard) script="pretool-skill-version-guard.sh" ;;
+        error_dna_auto_fix)        script="error-dna-auto-fix.py" ;;
+        posttool_checkpoint)       script="posttool-checkpoint.py" ;;
+        session_resume)            script="session-resume.py" ;;
+        pretool_plan_gate)         script="pretool-plan-gate.py" ;;
+        pretool_purify_gate)       script="pretool-purify-gate.py" ;;
+        pretool_node_reference)    script="pretool-node-reference.py" ;;
+        posttool_template_check)   script="posttool-template-check.py" ;;
+        pretool_rules_inject)      script="pretool-rules-inject.py" ;;
+        pretool_skill_version_guard) script="pretool-skill-version-guard.py" ;;
         skill_body_enforce)        script="" ;;
         skill_compliance_audit)    script="" ;;
-        pretool_terminal_safety)   script="pretool-terminal-safety.sh" ;;
-        cross_platform_smoke_test) script="cross-platform-smoke-test.sh" ;;
-        phase_state_tracker)       script="phase-state-tracker.sh" ;;
-        pretool_b1_detect)         script="pretool-b1-detect.sh" ;;
-        pretool_git_gate)          script="pretool-git-gate.sh" ;;
-        pretool_scope_gate)        script="pretool-scope-gate.sh" ;;
-        permission_frequency_tracker) script="permission-frequency-tracker.sh" ;;
-        oracle_gate)               script="oracle-gate.sh" ;;
-        posttool_read_cite)        script="posttool-read-cite.sh" ;;
+        pretool_terminal_safety)   script="pretool-terminal-safety.py" ;;
+        cross_platform_smoke_test) script="cross-platform-smoke-test.py" ;;
+        phase_state_tracker)       script="phase-state-tracker.py" ;;
+        pretool_b1_detect)         script="pretool-b1-detect.py" ;;
+        pretool_git_gate)          script="pretool-git-gate.py" ;;
+        pretool_scope_gate)        script="pretool-scope-gate.py" ;;
+        permission_frequency_tracker) script="permission-frequency-tracker.py" ;;
+        oracle_gate)               script="oracle-gate.py" ;;
+        posttool_read_cite)        script="posttool-read-cite.py" ;;
         rule_anchor)               script="" ;;
         *)                         script="" ;;
     esac
@@ -207,9 +207,9 @@ for sfile in "$PROJECT_ROOT"/.claude/hooks/*.sh "$PROJECT_ROOT"/.claude/hooks/*.
         # Skip utility scripts that don't need settings.json registration
         case "$sname" in
             posttool-output-compressor.sh|posttool-workflow-checkpoint.sh|\
-            pretool-python-bridge.sh|pretool-retry-check.sh|\
+            pretool-python-bridge.py|pretool-retry-check.sh|\
             pretool-workflow-gate.sh|sessionstart-workflow-inject.sh|\
-            workflow-state-recovery.sh|privacy-gate.sh|subagent-guard.sh|\
+            workflow-state-recovery.sh|privacy-gate.py|subagent-guard.sh|\
             posttool-output-compressor.py|harness_lib.py)
                 info "[$sname] 辅助工具/桥接脚本, 不强制 settings 注册"
                 dim_pass "D2-SETTINGS-REGISTRATION"
@@ -556,7 +556,7 @@ run_hook_test() {
 
 # 铁律#1: 禁止编造 — claim-audit checks Edit/Write for file:line references
 # Needs $1="Edit" + tool_input.file_path + file:line refs in description (to trigger claim detection)
-run_hook_test "#1-禁止编造" "posttool-claim-audit.sh" \
+run_hook_test "#1-禁止编造" "posttool-claim-audit.py" \
     '{"tool_input":{"file_path":"src/main.go","description":"修复 AGENTS.md:42 和 core.go:15 的bug"}}' 2 "Edit"
 
 # 铁律#2: 用户裁定 — permission-gate blocks unauthorized git operations
@@ -570,7 +570,7 @@ print('true' if hooks.get('permission_gate', False) else 'false')
 " 2>/dev/null || echo "false")
 
 if [ "$PG_ENABLED" = "true" ]; then
-    run_hook_test "#2-用户裁定" "permission-gate.sh" \
+    run_hook_test "#2-用户裁定" "permission-gate.py" \
         '{"tool_name":"Bash","tool_input":{"command":"git push --force"}}' 2
 else
     warn "D11: #2-用户裁定 → permission_gate DISABLED in harness.yaml (设计选择)"
@@ -578,12 +578,12 @@ else
 fi
 
 # 铁律#3: 证据门禁 — completion-gate blocks soft-completion words
-run_hook_test "#3-证据门禁" "completion-gate.sh" \
+run_hook_test "#3-证据门禁" "completion-gate.py" \
     '{"tool_name":"TaskUpdate","tool_input":{"description":"应该没问题了","status":"completed"}}' 2
 
 # 铁律#4: Git门禁 — permission-gate blocks unauthorized commit
 if [ "$PG_ENABLED" = "true" ]; then
-    run_hook_test "#4-Git门禁" "permission-gate.sh" \
+    run_hook_test "#4-Git门禁" "permission-gate.py" \
         '{"tool_name":"Bash","tool_input":{"command":"git commit -m test"}}' 2
 else
     warn "D11: #4-Git门禁 → permission_gate DISABLED (同上)"
@@ -592,26 +592,26 @@ fi
 
 # 铁律#5: 范围冻结 — edit-scope 是软门禁（自动扩展+提醒，永不硬阻断）
 # 设计如此：scope 不存在时自动扩展，文件不匹配时自动加入。exit=0 是正确的。
-run_hook_test "#5-范围冻结(软门禁)" "pretool-edit-scope.sh" \
+run_hook_test "#5-范围冻结(软门禁)" "pretool-edit-scope.py" \
     '{"tool_input":{"file_path":"/etc/hosts"}}' 0
 
 # 铁律#6: 隐私防线 — privacy-gate blocks .env access
-run_hook_test "#6-隐私防线" "privacy-gate.sh" \
+run_hook_test "#6-隐私防线" "privacy-gate.py" \
     '{"tool_name":"Read","tool_input":{"file_path":".env"}}' 2
 
 # 铁律#7: 断言真实 — anti-pattern detect: H1 检测 百分比+无来源
 # Needs tool_response.result format (post-tool hook, reads AI output)
-run_hook_test "#7-断言真实" "posttool-anti-pattern-detect.sh" \
+run_hook_test "#7-断言真实" "posttool-anti-pattern-detect.py" \
     '{"tool_response":{"result":"完成率95%，无来源验证"}}' 2
 
 # 铁律#8: 哲学先行 — pre-ask-guard blocks AskUserQuestion not covered by decision chain
 # Needs tool_input.questions[].question array format
-run_hook_test "#8-哲学先行" "pre-ask-guard.sh" \
+run_hook_test "#8-哲学先行" "pre-ask-guard.py" \
     '{"tool_input":{"questions":[{"question":"用A方案还是B方案？"}]}}' 2
 
 info "D11: 铁律 8 条运行时测试 | 评分=$(dim_score "D11-IRON-LAWS")%"
 # D11 #9: 安全命令接受（原D14 Test1）
-run_hook_test "#9-安全命令放行" "permission-gate.sh"     '{"tool_name":"Bash","tool_input":{"command":"echo hello"}}' 0
+run_hook_test "#9-安全命令放行" "permission-gate.py"     '{"tool_name":"Bash","tool_input":{"command":"echo hello"}}' 0
 
 info "D11: 铁律+安全命令 | 评分=$(dim_score "D11-IRON-LAWS")%"
 
@@ -644,11 +644,11 @@ info "D13: 评分=$(dim_score "D13-KNOWN-DEFECTS")%"
 dim_header "D15-CROSS-PLATFORM"
 
 # D15.1: Python bridge script exists
-if [ -f "$PROJECT_ROOT/.claude/scripts/pretool-python-bridge.sh" ]; then
-    pass "D15: pretool-python-bridge.sh exists ✓"
+if [ -f "$PROJECT_ROOT/.claude/scripts/pretool-python-bridge.py" ]; then
+    pass "D15: pretool-python-bridge.py exists ✓"
     dim_pass "D15-CROSS-PLATFORM"
 else
-    fail "D15: pretool-python-bridge.sh MISSING"
+    fail "D15: pretool-python-bridge.py MISSING"
     dim_fail "D15-CROSS-PLATFORM"
 fi
 dim_total "D15-CROSS-PLATFORM"
@@ -674,11 +674,11 @@ fi
 dim_total "D15-CROSS-PLATFORM"
 
 # D15.4: bridge smoke test
-if bash "$PROJECT_ROOT/.claude/scripts/pretool-python-bridge.sh" smoke 2>/dev/null; then
-    pass "D15: pretool-python-bridge.sh smoke OK ✓"
+if bash "$PROJECT_ROOT/.claude/scripts/pretool-python-bridge.py" smoke 2>/dev/null; then
+    pass "D15: pretool-python-bridge.py smoke OK ✓"
     dim_pass "D15-CROSS-PLATFORM"
 else
-    fail "D15: pretool-python-bridge.sh smoke FAILED"
+    fail "D15: pretool-python-bridge.py smoke FAILED"
     dim_fail "D15-CROSS-PLATFORM"
 fi
 dim_total "D15-CROSS-PLATFORM"
