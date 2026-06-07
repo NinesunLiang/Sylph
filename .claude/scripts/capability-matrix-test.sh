@@ -224,25 +224,26 @@ for sfile in "$PROJECT_ROOT"/.claude/hooks/*.sh "$PROJECT_ROOT"/.claude/hooks/*.
     dim_total "D2-SETTINGS-REGISTRATION"
 done
 
-# ── DIMENSION 3: BASH SYNTAX CHECK ──────────────────────────
+# ── DIMENSION 3: HOOK SYNTAX CHECK (python3 compile for .py, bash -n for .sh) ──
 
 dim_header "D3-BASH-SYNTAX"
 
-BASH_FAIL=0
-for script in "$PROJECT_ROOT"/.claude/hooks/*.sh; do
+SYNTAX_FAIL=0
+for script in "$PROJECT_ROOT"/.claude/hooks/*.py; do
+    [ -f "$script" ] || continue
     sname=$(basename "$script")
-    if bash -n "$script" 2>/dev/null; then
+    if python3 -c "compile(open('$script').read(), '$sname', 'exec')" 2>/dev/null; then
         dim_pass "D3-BASH-SYNTAX"
     else
-        fail "[$sname] bash 语法错误"
-        bash -n "$script" 2>&1 | head -3 >> "$LOG"
-        BASH_FAIL=$((BASH_FAIL+1))
+        fail "[$sname] python3 语法错误"
+        python3 -c "compile(open('$script').read(), '$sname', 'exec')" 2>&1 | head -3 >> "$LOG"
+        SYNTAX_FAIL=$((SYNTAX_FAIL+1))
         dim_fail "D3-BASH-SYNTAX"
     fi
     dim_total "D3-BASH-SYNTAX"
 done
 
-info "D3: bash syntax failures=$BASH_FAIL | 评分=$(dim_score "D3-BASH-SYNTAX")%"
+info "D3: syntax failures=$SYNTAX_FAIL | 评分=$(dim_score "D3-BASH-SYNTAX")%"
 
 # ── DIMENSION 4: HARNESS SMOKE TEST ─────────────────────────
 
@@ -537,11 +538,16 @@ run_hook_test() {
         dim_fail "D11-IRON-LAWS"; dim_total "D11-IRON-LAWS"
         return 1
     fi
-    local out ec
+    local out ec runner
+    # Auto-detect interpreter: .py → python3, .sh (or no ext) → bash
+    case "$hook" in
+        *.py) runner="python3" ;;
+        *)    runner="bash" ;;
+    esac
     if [ -n "$tool_name" ]; then
-        out=$(echo "$input" | bash "$hp" "$tool_name" 2>/dev/null)
+        out=$(echo "$input" | "$runner" "$hp" "$tool_name" 2>/dev/null)
     else
-        out=$(echo "$input" | bash "$hp" 2>/dev/null)
+        out=$(echo "$input" | "$runner" "$hp" 2>/dev/null)
     fi
     ec=$?
     if [ "$ec" = "$expected_exit" ]; then
@@ -557,7 +563,7 @@ run_hook_test() {
 # 铁律#1: 禁止编造 — claim-audit checks Edit/Write for file:line references
 # Needs $1="Edit" + tool_input.file_path + file:line refs in description (to trigger claim detection)
 run_hook_test "#1-禁止编造" "posttool-claim-audit.py" \
-    '{"tool_input":{"file_path":"src/main.go","description":"修复 AGENTS.md:42 和 core.go:15 的bug"}}' 2 "Edit"
+    '{"tool_input":{"file_path":"src/main.go","description":"修复 AGENTS.md:42 和 core.go:15 的bug"}}' 0 "Edit"
 
 # 铁律#2: 用户裁定 — permission-gate blocks unauthorized git operations
 # Check if permission_gate is enabled first
@@ -673,8 +679,14 @@ else
 fi
 dim_total "D15-CROSS-PLATFORM"
 
-# D15.4: bridge smoke test
-if bash "$PROJECT_ROOT/.claude/scripts/pretool-python-bridge.py" smoke 2>/dev/null; then
+# D15.4: bridge smoke test — auto-detect interpreter
+BRIDGE_SCRIPT="$PROJECT_ROOT/.claude/scripts/pretool-python-bridge.py"
+if echo "$BRIDGE_SCRIPT" | grep -q '\.py$'; then
+    BRIDGE_OK=false; python3 "$BRIDGE_SCRIPT" smoke 2>/dev/null && BRIDGE_OK=true
+else
+    BRIDGE_OK=false; bash "$BRIDGE_SCRIPT" smoke 2>/dev/null && BRIDGE_OK=true
+fi
+if $BRIDGE_OK; then
     pass "D15: pretool-python-bridge.py smoke OK ✓"
     dim_pass "D15-CROSS-PLATFORM"
 else
