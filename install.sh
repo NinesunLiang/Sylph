@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Carror OS 完整安装脚本
-# 版本：v6.3.27 | 日期：2026-05-26
+# 版本：v6.7.1 | 日期：2026-06-09
 # 用法：bash install.sh [base|enhanced|harness|skills]
 
 set -eo pipefail
@@ -13,7 +13,7 @@ log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 # 默认版本（本地包或 API 失败时的降级）
-DEFAULT_VERSION="v6.3.27-stable"
+DEFAULT_VERSION="v6.7.1-stable"
 VERSION="$DEFAULT_VERSION"
 GITHUB_REPO="NinesunLiang/Sylph"
 
@@ -672,10 +672,49 @@ command -v codex &>/dev/null && HAS_CODEX=true
 command -v claude &>/dev/null && HAS_CLAUDE=true
 npm list -g oh-my-claude &>/dev/null && HAS_OMC=true
 
-if [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
-    mkdir -p .opencode/plugins
-    cp -r "$SCRIPT_DIR/opencode-plugins/"* .opencode/plugins/
-    log_info "OpenCode plugins 已安装（.opencode/plugins/）"
+# ─── @carroros/gov OpenCode Plugin ──────────────────────────────
+# 检测当前环境是否为 OpenCode。如果是，将 governance plugin 安装到 .opencode/plugins/
+# OC 启动时自动加载 .opencode/plugins/ 下的本地插件，无需 npm install/publish
+if $HAS_OPCODE; then
+    GOV_PLUGIN_SRC="packages/carroros-gov"
+    GOV_PLUGIN_DST=".opencode/plugins/carroros-gov"
+    if [ -d "$GOV_PLUGIN_SRC" ]; then
+        rm -rf "$GOV_PLUGIN_DST" 2>/dev/null
+        mkdir -p "$(dirname "$GOV_PLUGIN_DST")"
+        # 拷贝 plugin 及其 npm 依赖（effect/zod/@opencode-ai/plugin）
+        cp -r "$GOV_PLUGIN_SRC" "$GOV_PLUGIN_DST"
+        log_info "@carroros/gov OpenCode plugin 已安装（.opencode/plugins/carroros-gov/）"
+
+        # 注册到 opencode.json 的 plugin 数组（去重）
+        OC_CONFIG=".opencode/opencode.json"
+        PLUGIN_REF=".opencode/plugins/carroros-gov"
+        if [ -f "$OC_CONFIG" ]; then
+            if ! grep -q "\"$PLUGIN_REF\"" "$OC_CONFIG" 2>/dev/null; then
+                # 用 Python 插入到 plugin 数组（保险且格式正确）
+                python3 -c "
+import json, sys
+with open('$OC_CONFIG') as f:
+    cfg = json.load(f)
+plugins = cfg.get('plugin', [])
+if '$PLUGIN_REF' not in plugins:
+    plugins.append('$PLUGIN_REF')
+cfg['plugin'] = plugins
+with open('$OC_CONFIG', 'w') as f:
+    json.dump(cfg, f, indent=2)
+" 2>/dev/null && log_info "已注册 carroros-gov 到 opencode.json（plugin 数组）" || log_warn "注册 carroros-gov 到 opencode.json 失败，请手动添加"
+            else
+                log_info "carroros-gov 已在 opencode.json 中注册"
+            fi
+        else
+            log_warn "opencode.json 不存在（可能 OC 版本较旧），需手动注册 plugin"
+        fi
+        log_info "OpenCode 启动时将自动加载 governance hooks（system/oracle/permission/compact）"
+    elif [ -d "$SCRIPT_DIR/opencode-plugins" ]; then
+        # 兼容旧路径（opencode-plugins/ 目录）
+        mkdir -p .opencode/plugins
+        cp -r "$SCRIPT_DIR/opencode-plugins/"* .opencode/plugins/
+        log_info "OpenCode plugins 已安装（.opencode/plugins/）"
+    fi
 fi
 
 # ─── 文档安装 ─────────────────────────────────────────────────

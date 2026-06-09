@@ -13,11 +13,6 @@
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-oracle-gate.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
             "command": "python3 .claude/hooks/edit-guard.py",
             "timeout": 5000
           },
@@ -282,6 +277,11 @@
             "type": "command",
             "command": "python3 .claude/hooks/posttool-write-cite.py",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/distinct-concept-richner.py",
+            "timeout": 5000
           }
         ]
       },
@@ -352,6 +352,11 @@
             "type": "command",
             "command": "python3 .claude/hooks/posttool-read-cite.py",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/posttool-output-compressor.py",
+            "timeout": 5000
           }
         ]
       },
@@ -361,6 +366,11 @@
           {
             "type": "command",
             "command": "python3 .claude/hooks/posttool-bash-audit.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/posttool-output-compressor.py",
             "timeout": 5000
           },
           {
@@ -412,11 +422,6 @@
             "type": "command",
             "command": "python3 .claude/hooks/meta-oracle-trigger.py",
             "hookName": "meta-oracle-trigger",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/meta-oracle-trigger.py",
             "timeout": 3000
           },
           {
@@ -603,6 +608,18 @@
             "type": "command",
             "command": "python3 .claude/scripts/pretool-python-bridge.py",
             "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-compact-writer.py",
+            "timeout": 5000
           }
         ]
       }

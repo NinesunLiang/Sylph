@@ -131,6 +131,38 @@ contracts:
     artifact: state/pipeline.yaml
     schema: pipeline 状态机 YAML
 
+# ─── 隐式依赖: Hook 门禁 → Skill ───
+# 这些依赖是通过运行时 hook 系统注入的，skill 本身不显式引用，
+# 但执行时必须有对应的 hook 门禁支持。
+hook_gates:
+  - gate: pretool_plan_gate
+    protects: [lx-goal, lx-rpe, lx-ghost]
+    description: Plan-before-Execute 门禁，阻断未审批的代码变更
+  - gate: permission_gate
+    protects: [lx-goal, lx-ghost, lx-rpe]
+    description: 危险命令拦截 + CAPTCHA 文件保护，自主执行安全网
+  - gate: pretool_oracle_gate
+    protects: [lx-oracle, lx-ghost]
+    description: Oracle 审核前置门禁
+  - gate: pre_ask_guard
+    protects: [lx-goal, lx-ghost]
+    description: 决策链过滤，减少自主模式下的不必要打断
+  - gate: pretool_git_gate
+    protects: [lx-pre-commit, lx-pre-push]
+    description: Git 提交前检查门禁
+  - gate: pretool_purify_gate
+    protects: [lx-purify]
+    description: 隐私脱敏运行时 hook
+  - gate: pretool_skill_version_guard
+    protects: [lx-validate-skill, lx-skillify]
+    description: SKILL.md 版本格式门禁
+  - gate: pretool_skill_body_enforce
+    protects: [lx-skillify]
+    description: Skill body 强制执行合约注入
+  - gate: pre_completion_gate
+    protects: [lx-oracle]
+    description: 完成前证据质量验证
+
 # ─── 校验规则 ───
 validation:
   # 禁止循环依赖：skills[].references 必须形成 DAG

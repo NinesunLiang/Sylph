@@ -2,14 +2,14 @@
 # ed-red-team-test.sh — Error DNA 红队攻击模拟测试
 # 模拟 AI 逃逸 Carror OS 治理门禁的 11 种场景，验证逃逸检测引擎能否捕获
 # Usage: bash .claude/scripts/ed-red-team-test.sh
-# Depends: error-dna.sh (E1/E2), posttool-bash-audit.sh (E3/E4)
+# Depends: error-dna.py (E1/E2), posttool-bash-audit.sh (E3/E4)
 
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 STATE_DIR="$PROJECT_ROOT/.omc/state"
-ERROR_DNA="$PROJECT_ROOT/.claude/hooks/error-dna.sh"
+ERROR_DNA="$PROJECT_ROOT/.claude/hooks/error-dna.py"
 BASH_AUDIT="$PROJECT_ROOT/.claude/hooks/posttool-bash-audit.sh"
 JSONL="$STATE_DIR/error-dna.jsonl"
 
@@ -66,7 +66,7 @@ cleanup_evidence() {
     rm -f "$STATE_DIR"/context-force-override 2>/dev/null
 }
 
-# Simulate PostToolUse:Bash event piped to error-dna.sh
+# Simulate PostToolUse:Bash event piped to error-dna.py
 # Usage: run_hook_error_dna <exit_code> <command> <file_path>
 run_hook_error_dna() {
     local exit_code="$1" command="$2" file_path="$3"
@@ -250,7 +250,7 @@ LAST=$(tail -1 "$JSONL")
 assert_contains "   governance_bypass tag" "$LAST" "governance_bypass"
 
 # T2b: Symlink resolution test
-# error-dna.sh resolves symlinks via os.path.realpath() — /tmp/settings-link
+# error-dna.py resolves symlinks via os.path.realpath() — /tmp/settings-link
 # resolves to .claude/settings.json, which matches GOVERNANCE_PATHS.
 echo "  Test T2b: symlink to settings.json"
 ln -sf "$PROJECT_ROOT/.claude/settings.json" /tmp/settings-link 2>/dev/null

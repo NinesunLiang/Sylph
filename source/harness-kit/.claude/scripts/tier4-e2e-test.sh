@@ -29,28 +29,28 @@ _test "scope file exists" "true" "$([ -f .omc/state/current-scope.txt ] && echo 
 _test "scope entries present" "true" "$([ $(wc -l < .omc/state/current-scope.txt 2>/dev/null || echo 0) -gt 0 ] && echo true)"
 
 # Phase 2: Edit guard chain
-_test "edit-guard ready" "true" "$([ -f $H/edit-guard.sh ] && echo true)"
-_test "pretool-edit-scope ready" "true" "$([ -f $H/pretool-edit-scope.sh ] && echo true)"
+_test "edit-guard ready" "true" "$([ -f $H/edit-guard.py ] && echo true)"
+_test "pretool-edit-scope ready" "true" "$([ -f $H/pretool-edit-scope.py ] && echo true)"
 
 # Phase 3: LSP chain
-_test "lsp-suggest ready" "true" "$([ -f $H/lsp-suggest.sh ] && echo true)"
-_test "pre-edit-lsp ready" "true" "$([ -f $H/pre-edit-lsp-check.sh ] && echo true)"
+_test "lsp-suggest ready" "true" "$([ -f $H/lsp-suggest.py ] && echo true)"
+_test "pre-edit-lsp ready" "true" "$([ -f $H/pre-edit-lsp-check.py ] && echo true)"
 
 # Phase 4: Intent tracking
-_test "intent-tracker ready" "true" "$([ -f $H/intent-tracker.sh ] && echo true)"
+_test "intent-tracker ready" "true" "$([ -f $H/intent-tracker.py ] && echo true)"
 _test "edit-churn-log populated" "true" "$([ -f .omc/state/edit-churn-log.jsonl ] && echo true)"
 
 # Phase 5: Error recovery
-_test "error-dna ready" "true" "$([ -f $H/error-dna.sh ] && echo true)"
+_test "error-dna ready" "true" "$([ -f $H/error-dna.py ] && echo true)"
 _test "retry-budget tracking" "true" "$([ -f .omc/state/retry-budget.json ] && echo true)"
 
 # Phase 6: Completion verification
-_test "completion-gate ready" "true" "$([ -f $H/completion-gate.sh ] && echo true)"
-_test "posttool-completion-audit ready" "true" "$([ -f $H/posttool-completion-audit.sh ] && echo true)"
+_test "completion-gate ready" "true" "$([ -f $H/completion-gate.py ] && echo true)"
+_test "posttool-completion-audit ready" "true" "$([ -f $H/posttool-completion-audit.py ] && echo true)"
 
 # Phase 7: Oracle review
-_test "Oracle trigger available" "true" "$([ -f $H/meta-oracle-trigger.sh ] && echo true)"
-R33=$(grep -c "Oracle\|oracle" $H/meta-oracle-trigger.sh 2>/dev/null || echo 0)
+_test "Oracle trigger available" "true" "$([ -f $H/meta-oracle-trigger.py ] && echo true)"
+R33=$(grep -c "Oracle\|oracle" $H/meta-oracle-trigger.py 2>/dev/null || echo 0)
 _test "Oracle trigger logic present" "[1-9]" "$R33"
 
 echo "  📋 33: Bug修复全流程 — 7/7 phases verified"
@@ -69,7 +69,7 @@ echo "  📋 source mirror red count: $R34_2 (new test scripts = expected drift)
 _warn "New test scripts not yet in source mirror (expected)"
 
 # Gate 3: G4 Meta-Oracle trigger
-_test "G4 Meta-Oracle trigger exists" "true" "$(grep -c 'G4' $H/meta-oracle-trigger.sh 2>/dev/null)"
+_test "G4 Meta-Oracle trigger exists" "true" "$(grep -c 'G4' $H/meta-oracle-trigger.py 2>/dev/null)"
 
 # Gate 4: Blast-radius protection
 R34_4=$(echo '{"tool_name":"Bash","tool_input":{"command":"git checkout ."}}' | bash $H/pretool-blast-radius.sh 2>/dev/null | grep -c '"continue": false' || echo 0)

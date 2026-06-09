@@ -3,11 +3,28 @@
 > 知识进化引擎 — 运行时事件→铁律生长管道
 > 资产路径: .omc/state/ + ~/.claude/ — kernel.md 是管理员
 
+## 架构铁律
+
+> 完整铁律见 AGENTS.md §哲学铁律 — kernel.md 只维护增量。
+
+- 知识管道：事件 → 计数 → 升华 → kernel.md
+- 资产状态：运行时数据不可假造，不可写入 kernel.md
+- 守护原则：Asset 守卫优先于功能
+- **读不阻断：Read/Grep/非写Bash 永不阻断，仅敏感路径拦截**
+
 ## 资产地图
 
 | 资产 | 用途 | 守卫 |
 |:---|:---|:---|
 | flywheel.log | 全hook事件流 | flywheel_report SessionStart |
+| 蛇形命名(snake-case) | hook/script命名规范 | 一致性检查 |
+
+## 架构铁律
+
+执行前快速复核——8条核心铁律（完整版见 AGENTS.md）：
+1. 禁止编造、2. 用户裁定、3. 证据门禁、4. Git门禁
+5. 范围锁定、6. 隐私防线、7. 断言真实、8. 哲学先行
+
 | error-dna.jsonl | E2验证码伪造 | 归档轮转 >1MB |
 | governance-audit.jsonl | E1治理绕过 | 无自动清理 |
 | error-signals.jsonl | 普通Bash错误 | 7天/512KB清空 |
@@ -36,6 +53,15 @@
 
 - **E1**: Bash含治理文件路径(harness.yaml, settings.json, kernel.md, anti-patterns.md, index.md, claude-next.md, AGENTS.md等)→governance-audit.jsonl→自动补丁
 - **E2**: Bash含CAPTCHA标记(sensitive-approved/permission-required等)→error-dna.jsonl→自动补丁
+
+## 置信度管道
+
+输出必须带置信度标记：
+| 标记 | 含义 | 使用条件 |
+|:---|:---|:---|
+| [已验证:file:line] | 断言有源码/输出证据 | 引用具体文件+行号 |
+| [已测试:命令+输出] | 实际运行验证过 | 附命令和结果摘要 |
+| [推断,待确认] | 推理，未经证实 | 所有非验证断言 |
 
 ## 运行模式
 

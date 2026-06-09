@@ -1,5 +1,7 @@
 # Autonomous Decision Chain
-
+>
+> **所有决策按铁律 #8「哲学先行」:** 过程性问题直接执行，抉择性问题先过哲学7条再裁决。
+>
 > **This file is injected into AI context whenever goal/ghost mode is active.**
 > Every decision during autonomous execution follows this chain. No exceptions.
 >

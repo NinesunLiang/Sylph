@@ -30,7 +30,7 @@ Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-cl
 TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
 TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check|phase-state-tracker
 Read→read-tracker|posttool-read-cite
-Bash→posttool-bash-audit|error-dna|build-validator
+Bash→posttool-bash-audit|posttool-output-compressor|error-dna|build-validator
 Skill→skill-usage-tracker|posttool-skill-compliance
 Task|Agent→posttool-subagent-audit
 .*→token_writer|meta-oracle-trigger(py+sh)|agentic-ui|permission-frequency-tracker

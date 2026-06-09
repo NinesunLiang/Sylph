@@ -30,19 +30,19 @@ else
 fi
 
 # 1.2 pre-edit-lsp 对 .py 文件的运行时行为
-LSP_PY=$(echo '{"tool_input":{"file_path":"test.py"}}' | bash $H/pre-edit-lsp-check.sh 2>&1)
+LSP_PY=$(echo '{"tool_input":{"file_path":"test.py"}}' | bash $H/pre-edit-lsp-check.py 2>&1)
 _t "pre-edit-lsp .py responds" "continue" "$LSP_PY"
 
 # 1.3 pre-edit-lsp 对 .md 的跳过
-LSP_MD=$(echo '{"tool_input":{"file_path":"readme.md"}}' | bash $H/pre-edit-lsp-check.sh 2>&1)
+LSP_MD=$(echo '{"tool_input":{"file_path":"readme.md"}}' | bash $H/pre-edit-lsp-check.py 2>&1)
 _t "pre-edit-lsp skips .md" "continue" "$LSP_MD"
 
 # 1.4 lsp-suggest 对 CamelCase 的反应
-LSP_SUG=$(echo '{"tool_input":{"pattern":"TaskRunner"}}' | bash $H/lsp-suggest.sh 2>&1)
+LSP_SUG=$(echo '{"tool_input":{"pattern":"TaskRunner"}}' | bash $H/lsp-suggest.py 2>&1)
 _t "lsp-suggest triggers on CamelCase" "LSP 建议|lsp_suggest" "$LSP_SUG"
 
 # 1.5 lsp-suggest 对小写的跳过
-LSP_SKIP=$(echo '{"tool_input":{"pattern":"task"}}' | bash $H/lsp-suggest.sh 2>&1)
+LSP_SKIP=$(echo '{"tool_input":{"pattern":"task"}}' | bash $H/lsp-suggest.py 2>&1)
 _t "lsp-suggest skips lowercase" "continue" "$LSP_SKIP"
 
 # 1.6 LSP 工具可用性 (Claude Code getDiagnostics)
@@ -110,7 +110,7 @@ _t "3-level decision chain" "[1-9]" "$(grep -c 'Level [123]\|三级\|3.*level' .
 _t "blocking classification matrix" "[1-9]" "$(grep -c '卡点类型\|硬边界\|可跳过\|可绕行\|真阻断' .claude/skills/lx-goal/SKILL.md 2>/dev/null)"
 
 # 4.5 Goal mode gate degradation
-_t "permission-gate degrades in goal" "[1-9]" "$(grep -c 'is_mode_active\|autonomous' $H/permission-gate.sh 2>/dev/null)"
+_t "permission-gate degrades in goal" "[1-9]" "$(grep -c 'is_mode_active\|autonomous' $H/permission-gate.py 2>/dev/null)"
 
 # 4.6 Race mode parallel execution
 _t "lx-race parallel agents" "true" "$([ -d .claude/skills/lx-race ] && echo true)"

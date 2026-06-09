@@ -155,6 +155,45 @@ def _has_recent_verdict():
     return _check_verdict_file(oracle_v) or _check_verdict_file(meta_v)
 
 
+# ── Autonomous mode detection ──────────────────────────────────────
+
+def _check_auto_mode():
+    """Check if goal/ghost/rpe autonomous mode is active.
+    Returns True if autonomous mode is running (record & skip, don't block)."""
+    markers = [
+        os.path.join(STATE_DIR, "tokens", "autonomous.active"),
+        os.path.join(STATE_DIR, "tokens", "lx-ghost.json"),
+        os.path.join(STATE_DIR, "tokens", "lx-goal.json"),
+    ]
+    for marker in markers:
+        if os.path.isfile(marker):
+            return True
+    # Also check rpe directory for active executor files
+    rpe_dir = os.path.join(PROJECT_ROOT, "rpe")
+    if os.path.isdir(rpe_dir):
+        try:
+            for f in os.listdir(rpe_dir):
+                if f.endswith(".active"):
+                    return True
+        except OSError:
+            pass
+    return False
+
+
+def _log_auto_mode_skip(file_path):
+    """Log a blocked decision that was skipped due to autonomous mode."""
+    from datetime import datetime
+    log_file = os.path.join(STATE_DIR, "auto-mode-skip.log")
+    entry = f"[{datetime.now().isoformat()}] auto_mode_skip: oracle_gate would have blocked {file_path}\n"
+    try:
+        os.makedirs(STATE_DIR, exist_ok=True)
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(entry)
+    except OSError:
+        pass
+    _flywheel_event("oracle_gate", "auto_mode_skip", "P3")
+
+
 # ── Flywheel ────────────────────────────────────────────────────────
 
 def _flywheel_event(hook, event, severity="P2"):
@@ -178,11 +217,9 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Platform routing: macOS/Linux → bash .sh handles execution (hc_enabled integration).
-    # Windows (no bash) → Python .py takes over. Prevents double-block from dual registration.
-    if not IS_WINDOWS:
-        print(json.dumps({"continue": True}))
-        return
+    # Cross-platform Oracle gate: macOS/Linux now uses Python path too
+    # (original .sh was removed during .sh→.py migration — only .py remains).
+    # No platform skip needed anymore.
 
     # Parse stdin
     try:
@@ -202,8 +239,9 @@ def main():
         print(json.dumps({"continue": True}))
         return
 
-    # Normalize path
-    file_path = file_path.lstrip("./")
+    # Normalize path (use removeprefix to avoid lstrip stripping leading dots)
+    if file_path.startswith("./"):
+        file_path = file_path[2:]
 
     if not _is_mechanism_file(file_path):
         print(json.dumps({"continue": True}))
@@ -219,6 +257,14 @@ def main():
 
     # Verdict check
     if _has_recent_verdict():
+        print(json.dumps({"continue": True}))
+        return
+
+    # Autonomous mode check — record & skip, don't block
+    if _check_auto_mode():
+        _log_auto_mode_skip(file_path)
+        msg = f"[oracle-gate] AUTO MODE: would have blocked {file_path}, recorded as skip"
+        print(msg, file=sys.stderr)
         print(json.dumps({"continue": True}))
         return
 

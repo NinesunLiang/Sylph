@@ -10,9 +10,12 @@
 **核心契约**：结构化任务输入
 
 ```yaml
-e
-: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} # stepwise | racepriority: {$6} # p0 | p1 | p2
-yamltask_name: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} # stepwise | racepriority: {$6} # p0 | p1 | p2
+task_name: {$1}
+role: {$2}
+target: {$3}
+pass_criteria: {$4}
+executor_mode: {$5}  # stepwise | race
+priority: {$6}  # p0 | p1 | p2
 ```
 
 ---
@@ -21,10 +24,12 @@ yamltask_name: {$1}role: {$2}target: {$3}pass_criteria: {$4}executor_mode: {$5} 
 
 ### 状态机（v5.1.0 简化版）
 
-```need_clarificati
-o
-n → ready → planning → executing → done ↑ ↑ ↑ ↑ └──── blocked ─────┘ └─ fallback ┘ ↓ need_clarification (偏差时)
-need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑ └──── blocked ─────┘ └─ fallback ┘ ↓ need_clarification (偏差时)
+```
+need_clarification → ready → planning → executing → done
+                         ↑ ↑             ↑           ↑
+                         └──── blocked ─────┘
+                         └─ fallback ┘
+                         ↓ need_clarification (偏差时)
 ```
 
 ### 状态定义
@@ -118,8 +123,10 @@ need_clarification → ready → planning → executing → done ↑ ↑ ↑ ↑
 
 ### Fallback 降级流程
 
-```执行失
-败
-（≥2轮） → 触发 Fallback Exploration ├─ explore agent: 搜索代码库既有解法 ├─ librarian agent: 搜索外部最佳实践 └─ 产出：方案对比表 + 降级路径（A→B→C） → 用户确认方案 → 轮次计数重置 → 回到 executing
-执行失败（≥2轮） → 触发 Fallback Exploration ├─ explore agent: 搜索代码库既有解法 ├─ librarian agent: 搜索外部最佳实践 └─ 产出：方案对比表 + 降级路径（A→B→C） → 用户确认方案 → 轮次计数重置 → 回到 executing
+```text
+执行失败（≥2轮） → 触发 Fallback Exploration
+├─ explore agent: 搜索代码库既有解法
+├─ librarian agent: 搜索外部最佳实践
+└─ 产出：方案对比表 + 降级路径（A→B→C）
+    → 用户确认方案 → 轮次计数重置 → 回到 executing
 ```

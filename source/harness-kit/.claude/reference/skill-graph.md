@@ -32,16 +32,35 @@ L1：基础设施
 | lx-oma-orch | lx-oma-hier / lx-oma-split / lx-oma-gov | 管线编排 |
 | lx-pre-push | lx-pre-commit | push 前完整门禁 |
 
+## 隐式依赖 — Hook 门禁与 Skill 的关系
+
+| Skill | 隐式依赖的 Hook 门禁 | 说明 |
+|-------|---------------------|------|
+| lx-goal | pretool-plan-gate | Goal 模式 phase0-done 验证依赖 plan-gate 阻断未审批的代码变更 |
+| lx-goal | permission-gate | 自主执行时的安全网：拦截危险命令 + CAPTCHA 文件保护 |
+| lx-goal | pre-ask-guard | 自主模式需要决策链过滤，减少不必要的人类打断 |
+| lx-ghost | permission-gate | 幽灵模式的安全网：拦截危险命令（ghost 绕过 plan-gate） |
+| lx-ghost | pretool-oracle-gate | Ghost 的 Oracle 计划审核前置门禁 |
+| lx-ghost | pre-ask-guard | 幽灵模式需要决策链过滤 |
+| lx-oracle | pretool-oracle-gate | Oracle 审核任务触发前，确保上下文符合审核标准 |
+| lx-oracle | pre-completion-gate | Oracle 完成前验证证据质量 |
+| lx-rpe | pretool-plan-gate | RPE 模式需要 plan 批准后才能进入 execution phase |
+| lx-pre-commit | pretool-git-gate | 提交前门禁：git commit 必须通过 pre-commit 检查 |
+| lx-pre-push | pretool-git-gate | 推送前深度检查的 Git 门禁 |
+| lx-purify | pretool-purify-gate | 隐私脱敏运行时 hook 支持 |
+| lx-validate-skill | pretool-skill-version-guard | SKILL.md 格式版本校验门禁 |
+| lx-skillify | pretool-skill-body-enforce | skill body 强制执行合约注入 |
+
 ## 数据流
 
 ```
 prd.md → lx-oma-hier → domain-*.md → lx-oma-split → prd/{name}/feat-*/prd.md
-                                                          ↓
-                                                    state/progress.md
-                                                          ↓
-                                                    lx-pre-commit (门禁)
-                                                          ↓
-                                                    lx-pre-push (深度门禁)
+                                                         ↓
+                                                   state/progress.md
+                                                         ↓
+                                                   lx-pre-commit (门禁)
+                                                         ↓
+                                                   lx-pre-push (深度门禁)
 ```
 
 ## 触发词索引

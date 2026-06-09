@@ -234,6 +234,14 @@ hooks:
   enabled_by_default: true
   evidence_level: L3
 
+- name: thinking-gate
+  philosophy: ['#1', '#6', '#4']
+  type: gate
+  category: quality
+  description: Thinking/Reasoning 内容门禁 — 在消息进入 context 前剥离 reasoning_content，防止 token 膨胀
+  enabled_by_default: true
+  evidence_level: L2
+
 # ── 以下为 2026-05 补全（lx-sync 全量同步） ──
 
 # Security

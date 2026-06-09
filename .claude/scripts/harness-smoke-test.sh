@@ -61,7 +61,12 @@ run_case() {
     log ""
     log "[$TOTAL] $name"
     local out_err="$(mktemp "${TMPDIR:-/tmp}/smoke-err-XXXXX")"
+    local hook_ext="${hook##*.}"
+if [ "$hook_ext" = "py" ]; then
+    echo "$input" | python3 ".claude/hooks/$hook" >/dev/null 2>"$out_err"
+else
     echo "$input" | bash ".claude/hooks/$hook" >/dev/null 2>"$out_err"
+fi
     local actual_exit=$?
     local actual_err
     actual_err=$(cat "$out_err")
@@ -110,32 +115,32 @@ echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 # 烟雾测试使用 token-tracking-index.json 假数据 → SOURCE="heuristic" → warn-only, exit 0
 run_case "context-guard: Write @ 95% heuristic 应告警不阻断 (R29)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 "告警|warn|9[0-9]"
+  "context-guard.py" 0 "告警|warn|9[0-9]"
 
 run_case "context-guard: Edit @ 95% heuristic 应告警不阻断 (R29)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 "告警|warn|9[0-9]"
+  "context-guard.py" 0 "告警|warn|9[0-9]"
 
 run_case "context-guard: Bash @ 95% 应放行 (R29 诊断通道)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' \
-  "context-guard.sh" 0 ""
+  "context-guard.py" 0 ""
 
 # 正常占比测试 (25%)
 echo '{"usage":50000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "context-guard: 正常占比不应拦截 Write" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 ""
+  "context-guard.py" 0 ""
 
 # R26: 正常占比下 Read 放行
 run_case "context-guard: 正常占比 Read 应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 ""
+  "context-guard.py" 0 ""
 
 # R29: 诊断通道（Read/Grep/Bash）在高上下文时放行
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "R29 context-guard: Read @ 95% 应放行 (诊断通道)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 ""
+  "context-guard.py" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
 # --- ghost/goal mode 降级测试（P0 改造验证）---
@@ -154,14 +159,14 @@ json.dump(d, open('.omc/state/tokens/lx-ghost.json', 'w'))
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "R40 ghost mode: context-guard Write @ 95% 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 ""
+  "context-guard.py" 0 ""
 rm -f .omc/state/token-tracking-index.json
 
 	if check_gate_enabled "permission_gate"; then
 # R40-2: Ghost mode 下 destructive ops 仍被 token 模式阻断 (C-3 最小门禁)
 run_case "R40 ghost mode: permission-gate rm -rf 应阻断 (token模式永远生效)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 2 "破坏性|强制终端|Token"
+  "permission-gate.py" 2 "破坏性|强制终端|Token"
 	else skip_test "permission_gate" "R40 ghost mode: permission-gate rm -rf 应阻断 (token模式永远生效)"; fi
 
 # R40-3: Ghost mode 下 edit-guard 未 Read 不应阻断 (已知: mode检测时序敏感, exit 0/2 均接受)
@@ -186,7 +191,7 @@ json.dump(d, open('.omc/state/tokens/lx-ghost.json', 'w'))
 echo '{"usage":190000,"limit":200000}' > .omc/state/token-tracking-index.json
 run_case "R40 ghost mode expired: context-guard Write heuristic 告警不阻断 (R29)" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 "告警|warn|Context"
+  "context-guard.py" 0 "告警|warn|Context"
 rm -f .omc/state/token-tracking-index.json
 # DG-49: 恢复 goal/ghost 模式信号文件（避免破坏正在运行的自主模式）
 for _mf in autonomous.active ghost-mode.active lx-ghost.json lx-goal.json; do
@@ -204,7 +209,7 @@ json.dump(d, open('.omc/state/tokens/lx-goal.json', 'w'))
 # R40-5: Goal mode 下 permission-gate 应降级
 run_case "R40 goal mode: permission-gate rm -rf 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 2 "破坏性|强制终端|Token"
+  "permission-gate.py" 2 "破坏性|强制终端|Token"
 	else skip_test "permission_gate" "R40 goal mode: permission-gate rm -rf 降级放行"; fi
 
 # ---- Setup: 创建旧格式 ghost-mode.json（后向兼容测试）----
@@ -217,7 +222,7 @@ json.dump(d, open('.omc/state/ghost-mode.json', 'w'))
 # R40-6: 旧格式 ghost-mode.json 应仍被识别
 run_case "R40 legacy ghost-mode.json: context-guard 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"x"}}' \
-  "context-guard.sh" 0 ""
+  "context-guard.py" 0 ""
 
 # 清理 ghost 文件后再测试 goal 兼容，防止 ghost 优先级遮蔽 goal
 rm -f .omc/state/ghost-mode.json
@@ -233,7 +238,7 @@ json.dump(d, open('.omc/state/unattended-mode.json', 'w'))
 # R40-7: 旧格式 unattended-mode.json 应返回 "goal"（已改名）
 run_case "R40 legacy unattended-mode.json: permission-gate 降级放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/test"}}' \
-  "permission-gate.sh" 2 "破坏性|强制终端|Token"
+  "permission-gate.py" 2 "破坏性|强制终端|Token"
 	else skip_test "permission_gate" "R40 legacy unattended-mode.json: permission-gate 降级放行"; fi
 
 # 测试完成后清理模式文件 + 恢复真实上下文读取
@@ -243,29 +248,29 @@ unset CONTEXT_FORCE_HEURISTIC
 # --- privacy-gate (R13 + R15 + R16) ---
 run_case "privacy-gate: Read .env 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":".env"}}' \
-  "privacy-gate.sh" 2 "Privacy Gate"
+  "privacy-gate.py" 2 "Privacy Gate"
 
 run_case "privacy-gate: Read id_rsa 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"/home/user/.ssh/id_rsa"}}' \
-  "privacy-gate.sh" 2 "Privacy Gate"
+  "privacy-gate.py" 2 "Privacy Gate"
 
 run_case "privacy-gate: Bash 明文 sk-ant Token 应阻断（R16 跨平台正则修复）" \
   "$(printf '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"curl -H %cAuth: sk-ant-12345678901234567890abc%c"}}' 34 34)" \
-  "privacy-gate.sh" 2 "明文 API Key"
+  "privacy-gate.py" 2 "明文 API Key"
 
 run_case "privacy-gate: Bash 明文 ghp_ Token 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"gh api -H Authorization:token ghp_abcdefghijklmnopqrstuvwxyz1234567890"}}' \
-  "privacy-gate.sh" 2 "明文"
+  "privacy-gate.py" 2 "明文"
 
 run_case "privacy-gate: 正常 Read 不拦" \
   '{"hook_event_name":"PreToolUse","tool_name":"Read","tool_input":{"file_path":"README.md"}}' \
-  "privacy-gate.sh" 0 ""
+  "privacy-gate.py" 0 ""
 
 # --- error-dna (R17 position args → stdin) ---
 rm -f .omc/state/error-signals.jsonl .omc/state/error-dna.jsonl
 run_case "error-dna: PostToolUse Bash 失败应落盘（R17 无位置参数场景）" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"go build"},"tool_response":{"stderr":"undefined: X","exit_code":1}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 # v3: 普通错误(exit_code=1)写 error-dna.jsonl, gate 事件(exit_code>=128)写 error-signals.jsonl
 if [ -s .omc/state/error-dna.jsonl ] && grep -q '"signature"' .omc/state/error-dna.jsonl; then
     pass "error-dna.jsonl (v3) 已落盘且含 signature"
@@ -279,13 +284,13 @@ rm -f .omc/state/error-signals.jsonl .omc/state/error-dna.jsonl
 
 run_case "error-dna: Edit 工具不应触发" \
   '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 
 # --- R22: PostToolUseFailure schema (顶层 error 字段，无 tool_response) ---
 rm -f .omc/state/error-signals.jsonl .omc/state/error-dna.jsonl
 run_case "error-dna: PostToolUseFailure schema 应落盘（R22 顶层 error）" \
   '{"hook_event_name":"PostToolUseFailure","tool_name":"Bash","tool_input":{"command":"false"},"error":"Command failed with exit code 1","is_interrupt":false}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 if [ -s .omc/state/error-dna.jsonl ] && grep -q '"signature"' .omc/state/error-dna.jsonl; then
     pass "R22 error-dna.jsonl (v3) 已落盘（PostToolUseFailure schema）"
 elif [ -s .omc/state/error-signals.jsonl ] && grep -q '"signature"' .omc/state/error-signals.jsonl; then
@@ -304,7 +309,7 @@ TJSONL
 rm -f .omc/state/error-dna.jsonl
 run_case "stop-drain: 扫 transcript 补录失败 tool_use（R22）" \
   "$(printf '{"hook_event_name":"Stop","session_id":"smoke-R22","transcript_path":"%s"}' "$TRANSCRIPT_FAKE")" \
-  "stop-drain.sh" 0 ""
+  "stop-drain.py" 0 ""
 if [ -s .omc/state/error-signals.jsonl ] && grep -q '"origin": "stop-drain"' .omc/state/error-signals.jsonl; then
     pass "R22 stop-drain (v3) 补录成功（origin=stop-drain → error-signals.jsonl）"
 else
@@ -318,28 +323,28 @@ rm -f .omc/state/error-dna.jsonl "$TRANSCRIPT_FAKE"
 LOCK_PATH="/tmp/smoke-lock-$$-$TS.txt"
 run_case "pretool-write-lock: Write 应成功获锁（R17 无位置参数场景）" \
   "$(printf '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$LOCK_PATH")" \
-  "pretool-write-lock.sh" 0 ""
+  "pretool-write-lock.py" 0 ""
 
 run_case "posttool-write-lock: 释放该锁" \
   "$(printf '{"hook_event_name":"PostToolUse","tool_name":"Write","tool_input":{"file_path":"%s"}}' "$LOCK_PATH")" \
-  "posttool-write-lock.sh" 0 ""
+  "posttool-write-lock.py" 0 ""
 
 	if check_gate_enabled "permission_gate"; then
 # --- permission-gate ---
 run_case "permission-gate: rm -rf 无 marker 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/x"}}' \
-  "permission-gate.sh" 2 "Permission Gate"
+  "permission-gate.py" 2 "Permission Gate"
 	else skip_test "permission_gate" "permission-gate: rm -rf 无 marker 应阻断"; fi
 
 	if check_gate_enabled "permission_gate"; then
 run_case "permission-gate: git commit 无 marker 应阻断" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git commit -m foo"}}' \
-  "permission-gate.sh" 2 "Permission Gate"
+  "permission-gate.py" 2 "Permission Gate"
 	else skip_test "permission_gate" "permission-gate: git commit 无 marker 应阻断"; fi
 
 run_case "permission-gate: 普通 ls 不拦" \
   '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"}}' \
-  "permission-gate.sh" 0 ""
+  "permission-gate.py" 0 ""
 
 # --- edit-guard ---
 # R18 已修复：case *.go 对 basename 匹配，生产全路径亦生效
@@ -347,34 +352,34 @@ mkdir -p .omc/state
 echo "/tmp/some-other-file.go" > .omc/state/read-tracker.txt
 run_case "edit-guard: 未 Read 就 Edit 应阻断（R18 全路径场景）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/Users/demo/project/src/main.go"}}' \
-  "edit-guard.sh" 2 "Read-before-Edit"
+  "edit-guard.py" 2 "Read-before-Edit"
 
 # R18 回归：非源文件应放行
 run_case "edit-guard: 非 .go 文件应放行（R18）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/notes.txt"}}' \
-  "edit-guard.sh" 0 ""
+  "edit-guard.py" 0 ""
 rm -f .omc/state/read-tracker.txt
 
 # --- pre-edit-lsp-check ---
 # LSP-EYE-01: LSP 不可用时放行（不阻断）
 run_case "pre-edit-lsp-check: LSP 不可用应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/test.py"}}' \
-  "pre-edit-lsp-check.sh" 0 ""
+  "pre-edit-lsp-check.py" 0 ""
 
 # LSP-EYE-02: 非代码文件跳过
 run_case "pre-edit-lsp-check: .txt 文件应跳过" \
   '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"/tmp/notes.txt"}}' \
-  "pre-edit-lsp-check.sh" 0 ""
+  "pre-edit-lsp-check.py" 0 ""
 
 # LSP-EYE-03: Python 文件触发提醒（仅当 lsp_gate 启用时检查 stderr）
 if grep -q 'lsp_gate: true' .claude/harness.yaml 2>/dev/null; then
   run_case "pre-edit-lsp-check: .py 文件应提醒 LSP 检查" \
     '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/main.py"}}' \
-    "pre-edit-lsp-check.sh" 0 "LSP|lsp"
+    "pre-edit-lsp-check.py" 0 "LSP|lsp"
 else
   run_case "pre-edit-lsp-check: .py 文件应放行 (lsp_gate=false)" \
     '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"/tmp/main.py"}}' \
-    "pre-edit-lsp-check.sh" 0 ""
+    "pre-edit-lsp-check.py" 0 ""
 fi
 
 # --- R24-S1: 8 个未覆盖 hook 的业务语义验收 ---
@@ -383,7 +388,7 @@ fi
 rm -f .omc/state/session-snapshot.json .omc/state/session-snapshot.json.sha256
 run_case "R24 auto-snapshot: Stop 应写 session-snapshot.json" \
   '{"hook_event_name":"Stop","session_id":"smoke-R24"}' \
-  "auto-snapshot.sh" 0 ""
+  "auto-snapshot.py" 0 ""
 if [ -s .omc/state/session-snapshot.json ] && grep -q '"turns"' .omc/state/session-snapshot.json; then
     pass "R24 auto-snapshot 已落盘 session-snapshot.json 且含 turns"
 else
@@ -401,13 +406,13 @@ if [ -f "$_EVID_PATH" ]; then
 fi
 run_case "R24 completion-gate: 无证据应硬阻断 completed" \
   '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"taskId":"X","status":"completed"}}' \
-  "completion-gate.sh" 2 "Completion Gate|证据"
+  "completion-gate.py" 2 "Completion Gate|证据"
 [ -n "$_EVID_BAK" ] && mv "$_EVID_BAK" "$_EVID_PATH"
 
 # R24 completion-gate: pending/in_progress 应放行
 run_case "R24 completion-gate: 非 completed 应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"taskId":"X","status":"in_progress"}}' \
-  "completion-gate.sh" 0 ""
+  "completion-gate.py" 0 ""
 
 # R24 inject-project-knowledge: SessionStart 静默退出（@ 引用链已自动注入，hook 不再重复）
 _INJECT_OUT="/tmp/smoke-inject-$$.out"
@@ -461,7 +466,7 @@ rm -f "$_PCITE_OUT"
 rm -f .omc/state/read-tracker.txt
 run_case "R24 read-tracker: PostToolUse Read 应落盘" \
   '{"hook_event_name":"PostToolUse","tool_name":"Read","tool_input":{"file_path":"/tmp/smoke-read-target-xyz"}}' \
-  "read-tracker.sh" 0 ""
+  "read-tracker.py" 0 ""
 if [ -s .omc/state/read-tracker.txt ] && grep -q "smoke-read-target-xyz" .omc/state/read-tracker.txt; then
     pass "R24 read-tracker.txt 已落盘记录"
 else
@@ -501,7 +506,7 @@ rm -f "$_CLAIM_OUT" .omc/state/read-tracker.txt
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R38 posttool-claim-audit: settings.json 注册"
-if grep -q "posttool-claim-audit.sh" .claude/settings.json; then
+if grep -q "posttool-claim-audit.py" .claude/settings.json; then
     pass "R38 posttool-claim-audit 已注册 settings.json"
 else
     fail "R38 posttool-claim-audit 未注册 settings.json"
@@ -627,7 +632,7 @@ fi
 rm -f .omc/state/lsp-suggested
 run_case "UX-1.3 lsp-suggest: 首次 Grep 导出符号应提示 LSP（不阻断）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"SomeExportedSymbol"}}' \
-  "lsp-suggest.sh" 0 "LSP 建议|lsp_workspace_symbols"
+  "lsp-suggest.py" 0 "LSP 建议|lsp_workspace_symbols"
 if [ -f .omc/state/lsp-suggested ]; then
     pass "R24 lsp-suggest 写入会话标记（首次后不再重提）"
 else
@@ -636,12 +641,12 @@ fi
 TOTAL=$((TOTAL+1))
 run_case "R23/R24 lsp-suggest: 会话内第二次应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"AnotherSymbol"}}' \
-  "lsp-suggest.sh" 0 ""
+  "lsp-suggest.py" 0 ""
 rm -f .omc/state/lsp-suggested
 
 run_case "R23/R24 lsp-suggest: 非符号模式（含正则元字符）应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Grep","tool_input":{"pattern":"func.*Foo"}}' \
-  "lsp-suggest.sh" 0 ""
+  "lsp-suggest.py" 0 ""
 
 # R23/R24/R25 subagent-guard: 危险 agent 无 max_turns → 默认放行 + additionalContext 提示
 _SG_OUT="/tmp/smoke-sg-$$.out"
@@ -659,17 +664,17 @@ rm -f "$_SG_OUT"
 # R23/R24/R25 subagent-guard: prompt 声明 max_turns=N 应放行（无提示）
 run_case "R25 subagent-guard: prompt 含 max_turns=30 应放行（explicit）" \
   '{"hook_event_name":"PreToolUse","tool_name":"Task","tool_input":{"subagent_type":"executor","description":"max_turns=30 x"}}' \
-  "subagent-guard.sh" 0 ""
+  "subagent-guard.py" 0 ""
 
 # R23/R24 subagent-guard: tool_input.max_turns（未来 schema 支持）应放行
 run_case "R23/R24 subagent-guard: 带 max_turns 应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Task","tool_input":{"subagent_type":"executor","max_turns":20,"description":"x"}}' \
-  "subagent-guard.sh" 0 ""
+  "subagent-guard.py" 0 ""
 
 # R23/R24 subagent-guard: 安全 agent 应放行
 run_case "R23/R24 subagent-guard: 安全 agent 应放行" \
   '{"hook_event_name":"PreToolUse","tool_name":"Task","tool_input":{"subagent_type":"general-purpose","description":"x"}}' \
-  "subagent-guard.sh" 0 ""
+  "subagent-guard.py" 0 ""
 
 # R23/R24 posttool-edit-quality: Edit .go 文件应输出 hookSpecificOutput 自查清单
 _EQ_OUT="/tmp/smoke-eq-$$.out"
@@ -688,13 +693,13 @@ rm -f "$_EQ_OUT"
 # R23/R24 flywheel-report: SessionStart 不崩（业务上无副作用/日志为空时静默）
 run_case "R23/R24 flywheel-report: SessionStart 不崩" \
   '{"hook_event_name":"SessionStart","session_id":"smoke-R24","source":"startup"}' \
-  "flywheel-report.sh" 0 ""
+  "flywheel-report.py" 0 ""
 
 # R23/R24 skill-flywheel: Stop 无 buffer 应静默退出（语法修复后）
 rm -f "$HOME/.claude/flywheel-buffer.jsonl"
 run_case "R23/R24 skill-flywheel: 无 buffer 应静默退出 (语法修复验证)" \
   '{"hook_event_name":"Stop","session_id":"smoke-R24"}' \
-  "skill-flywheel.sh" 0 ""
+  "skill-flywheel.py" 0 ""
 
 	if check_gate_enabled "skill_flywheel"; then
 # R24 skill-flywheel: 有 buffer 应刷入 flywheel.log
@@ -742,7 +747,7 @@ TOTAL=$((TOTAL+1))
 rm -f .omc/state/subagent-usage.jsonl
 run_case "R25 posttool-subagent-audit: 危险 agent 应记 usage" \
   '{"hook_event_name":"PostToolUse","tool_name":"Task","tool_input":{"subagent_type":"executor"},"tool_response":{"content":"small result"}}' \
-  "posttool-subagent-audit.sh" 0 ""
+  "posttool-subagent-audit.py" 0 ""
 if [ -s .omc/state/subagent-usage.jsonl ] && grep -q '"agent":"executor"' .omc/state/subagent-usage.jsonl; then
     pass "R25 subagent-usage.jsonl 已记录"
 else
@@ -753,14 +758,14 @@ rm -f .omc/state/subagent-usage.jsonl
 
 run_case "R25 posttool-subagent-audit: 非 Task 工具应放行" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"ls"}}' \
-  "posttool-subagent-audit.sh" 0 ""
+  "posttool-subagent-audit.py" 0 ""
 
 # --- R29: token_writer (PostToolUse/PostToolUseFailure token tracking) ---
 TOTAL=$((TOTAL+1))
 rm -f .omc/state/token-tracking-index.json
 run_case "R29 token_writer: --reset 应设 usage=0" \
   '' \
-  "token_writer.sh" 0 ""
+  "token_writer.py" 0 ""
 # token_writer without args is a no-op for default values; use --reset
 echo "" | bash .claude/hooks/token_writer.sh --reset 2>/dev/null
 if [ -f .omc/state/token-tracking-index.json ]; then
@@ -777,7 +782,7 @@ fi
 TOTAL=$((TOTAL+1))
 run_case "R29 token_writer: --increment 应递增 usage" \
   '' \
-  "token_writer.sh" 0 ""
+  "token_writer.py" 0 ""
 echo "" | bash .claude/hooks/token_writer.sh --increment 2>/dev/null
 if [ -f .omc/state/token-tracking-index.json ]; then
     USAGE=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('.omc/state/token-tracking-index.json')).get('usage', 0))" 2>/dev/null)
@@ -887,15 +892,15 @@ if grep -q "已废弃" "$_SM_EXT_OUT"; then
 fi
 rm -f "$_SM_EXT_OUT"
 
-# --- R36: knowledge-condenser.sh 回归 ---
+# --- R36: knowledge-condenser.py 回归 ---
 # DG-105: 已废弃 hook，harness.yaml false。文件可能不存在（清理后），跳过测试。
-if [ -f ".claude/hooks/knowledge-condenser.sh" ]; then
+if [ -f ".claude/hooks/knowledge-condenser.py" ]; then
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R36 knowledge-condenser: 无 claude-next.md 时静默退出"
 _OLD_NEXT=""
 [ -f ".claude/claude-next.md" ] && _OLD_NEXT=$(cat .claude/claude-next.md) && mv .claude/claude-next.md /tmp/smoke-next-$$.bak
-echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/knowledge-condenser.sh > /dev/null 2>&1
+echo '{"hook_event_name":"Stop"}' | bash .claude/hooks/knowledge-condenser.py > /dev/null 2>&1
 _RC=$?
 if [ -f "/tmp/smoke-next-$$.bak" ]; then
     mv /tmp/smoke-next-$$.bak .claude/claude-next.md
@@ -928,7 +933,7 @@ fi
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R36 knowledge-condenser: settings.json 注册（v6.3.27+ 已激活作为知识管道 Phase 4）"
-if grep -q "knowledge-condenser.sh" .claude/settings.json 2>/dev/null; then
+if grep -q "knowledge-condenser.py" .claude/settings.json 2>/dev/null; then
     pass "R36 knowledge-condenser 已注册（知识管道激活）"
 else
     fail "R36 knowledge-condenser 未注册（知识管道缺失）"
@@ -949,12 +954,12 @@ else
     TOTAL=$((TOTAL+5))  # maintain ordinal consistency with 5 skipped tests
 fi
 
-# --- R37: posttool-handoff-writer.sh 回归 ---
+# --- R37: posttool-handoff-writer.py 回归 ---
 
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R37 posttool-handoff-writer: 非 completed 静默退出"
-echo '{"tool":"TaskUpdate","tool_input":{"status":"in_progress"}}' | bash .claude/hooks/posttool-handoff-writer.sh > /dev/null 2>&1
+echo '{"tool":"TaskUpdate","tool_input":{"status":"in_progress"}}' | bash .claude/hooks/posttool-handoff-writer.py > /dev/null 2>&1
 if [ $? -eq 0 ]; then
     pass "R37 posttool-handoff-writer 非 completed 静默退出"
 else
@@ -964,7 +969,7 @@ fi
 TOTAL=$((TOTAL+1))
 log ""
 log "[$TOTAL] R37 posttool-handoff-writer: settings.json 注册"
-if grep -q "posttool-handoff-writer.sh" .claude/settings.json; then
+if grep -q "posttool-handoff-writer.py" .claude/settings.json; then
     pass "R37 posttool-handoff-writer 已注册 settings.json"
 else
     fail "R37 posttool-handoff-writer 未注册 settings.json"
@@ -1062,7 +1067,7 @@ rm -f .omc/state/ghost-mode.json .omc/state/tokens/ghost-mode.active .omc/state/
 rm -f .omc/state/governance-audit.jsonl
 run_case "ED-R-1 E1: governance bypass via sed" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"sed -i '''s/true/false/''' .claude/harness.yaml"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 if [ -s .omc/state/governance-audit.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/governance-audit.jsonl; then
     pass "ED-R-1 E1: governance_bypass escape recorded in jsonl"
 else
@@ -1074,7 +1079,7 @@ rm -f .omc/state/error-dna.jsonl
 # ED-R-2: E2 CAPTCHA forgery detection (exit_code=0, writing to sensitive-approved)
 run_case "ED-R-2 E2: CAPTCHA forgery via echo to sensitive-approved" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''abc123''' > .omc/state/sensitive-approved"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "captcha_forgery"' .omc/state/error-dna.jsonl; then
     pass "ED-R-2 E2: captcha_forgery escape recorded in jsonl"
 else
@@ -1087,7 +1092,7 @@ rm -f .omc/state/error-dna.jsonl
 rm -f .omc/state/error-dna.jsonl .omc/state/error-signals.jsonl
 run_case "ED-R-3: normal successful command NOT recorded" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo hello"},"tool_response":{"exit_code":0,"stdout":"hello","stderr":""}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 # error-dna.sh records ALL commands (runtime audit), but should NOT mark as escape/failure
 if [ -s .omc/state/error-dna.jsonl ]; then
     # Check it's recorded as runtime (not escape/failure)
@@ -1105,7 +1110,7 @@ rm -f .omc/state/error-dna.jsonl .omc/state/error-signals.jsonl
 # ED-R-4: E1 bypass to settings.json via tee
 run_case "ED-R-4 E1: governance bypass via tee to settings.json" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''{}''' | tee .claude/settings.json"},"tool_response":{"exit_code":0,"stdout":"{}","stderr":""}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 if [ -s .omc/state/governance-audit.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/governance-audit.jsonl; then
     pass "ED-R-4 E1 (tee): governance_bypass recorded in jsonl"
 else
@@ -1117,7 +1122,7 @@ rm -f .omc/state/error-dna.jsonl
 # ED-R-5: E2 CAPTCHA forgery to permission-approved
 run_case "ED-R-5 E2: CAPTCHA forgery via echo to permission-approved" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''xyz789''' > .omc/state/permission-approved"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 if [ -s .omc/state/error-dna.jsonl ] && grep -q '"escape_type": "captcha_forgery"' .omc/state/error-dna.jsonl; then
     pass "ED-R-5 E2 (permission-approved): captcha_forgery recorded in jsonl"
 else
@@ -1145,7 +1150,7 @@ rm -f .omc/state/error-dna.jsonl .omc/state/error-signals.jsonl "$_E4_FILE"
 rm -f .omc/state/governance-audit.jsonl
 run_case "ED-R-7 E1: governance bypass via echo redirect" \
   '{"hook_event_name":"PostToolUse","tool_name":"Bash","tool_input":{"command":"echo '''new_config''' > .claude/harness.yaml"},"tool_response":{"exit_code":0,"stdout":"","stderr":""}}' \
-  "error-dna.sh" 0 ""
+  "error-dna.py" 0 ""
 if [ -s .omc/state/governance-audit.jsonl ] && grep -q '"escape_type": "governance_bypass"' .omc/state/governance-audit.jsonl; then
     pass "ED-R-7 E1 (echo redirect): governance_bypass recorded in jsonl"
 else
@@ -1429,18 +1434,18 @@ fi
 	if check_gate_enabled "pretool_sensitive_edit"; then
 # --- pretool-sensitive-edit ---
 # agentic_captcha 通过 hook 框架输出(exit=0, stderr 被框架拦截为空)，仅检查 exit=0
-run_case "pretool-sensitive-edit: 编辑 AGENTS.md" '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"AGENTS.md"}}' "pretool-sensitive-edit.sh" 0 ""
-run_case "pretool-sensitive-edit: 编辑普通文件" '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' "pretool-sensitive-edit.sh" 0 ""
+run_case "pretool-sensitive-edit: 编辑 AGENTS.md" '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"AGENTS.md"}}' "pretool-sensitive-edit.py" 0 ""
+run_case "pretool-sensitive-edit: 编辑普通文件" '{"hook_event_name":"PreToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"}}' "pretool-sensitive-edit.py" 0 ""
 	else skip_test "pretool_sensitive_edit" "pretool-sensitive-edit: 编辑 AGENTS.md"; fi
 
 # --- pretool-blast-radius ---
-run_case "pretool-blast-radius: git checkout ." '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git checkout ."}}' "pretool-blast-radius.sh" 2 "(blast|全量|checkout)"
-run_case "pretool-blast-radius: rm -rf /" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' "pretool-blast-radius.sh" 0 ""
-run_case "pretool-blast-radius: 普通命令" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"}}' "pretool-blast-radius.sh" 0 ""
+run_case "pretool-blast-radius: git checkout ." '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"git checkout ."}}' "pretool-blast-radius.py" 2 "(blast|全量|checkout)"
+run_case "pretool-blast-radius: rm -rf /" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"rm -rf /"}}' "pretool-blast-radius.py" 0 ""
+run_case "pretool-blast-radius: 普通命令" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"ls -la"}}' "pretool-blast-radius.py" 0 ""
 
 # --- pretool-terminal-safety ---
-run_case "pretool-terminal-safety: 危险命令放行但告警" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sudo rm -rf /tmp/test"}}' "pretool-terminal-safety.sh" 0 ""
-run_case "pretool-terminal-safety: 正常命令放行" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install"}}' "pretool-terminal-safety.sh" 0 ""
+run_case "pretool-terminal-safety: 危险命令放行但告警" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"sudo rm -rf /tmp/test"}}' "pretool-terminal-safety.py" 0 ""
+run_case "pretool-terminal-safety: 正常命令放行" '{"hook_event_name":"PreToolUse","tool_name":"Bash","tool_input":{"command":"npm install"}}' "pretool-terminal-safety.py" 0 ""
 
 # --- pretool-retry-check ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pretool-retry-check: 无超限放行"
@@ -1460,15 +1465,15 @@ else pass "pretool-retry-check: 超限已处理"; fi
 rm -f .omc/state/retry-budget.json
 
 # --- pre-ask-guard ---
-run_case "pre-ask-guard: 无问题数组" '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[]}}' "pre-ask-guard.sh" 0 ""
+run_case "pre-ask-guard: 无问题数组" '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[]}}' "pre-ask-guard.py" 0 ""
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pre-ask-guard: 有问题应输出 continue"
 ASK_OUT=$(echo '{"hook_event_name":"PreToolUse","tool_name":"AskUserQuestion","tool_input":{"questions":[{"question":"继续？"}]}}' | bash .claude/hooks/pre-ask-guard.sh 2>/dev/null)
 if echo "$ASK_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); exit(0 if 'continue' in d else 1)" 2>/dev/null; then
   pass "pre-ask-guard: 输出含 continue"; elif [ -n "$ASK_OUT" ]; then pass "pre-ask-guard: 有响应"; else fail "pre-ask-guard: 无响应"; fi
 
 # --- pre-completion-gate ---
-run_case "pre-completion-gate: completed 触发检查" '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"}}' "pre-completion-gate.sh" 2 ""
-run_case "pre-completion-gate: in_progress 放行" '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"in_progress","content":"working"}}' "pre-completion-gate.sh" 0 ""
+run_case "pre-completion-gate: completed 触发检查" '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"}}' "pre-completion-gate.py" 2 ""
+run_case "pre-completion-gate: in_progress 放行" '{"hook_event_name":"PreToolUse","tool_name":"TaskUpdate","tool_input":{"status":"in_progress","content":"working"}}' "pre-completion-gate.py" 0 ""
 
 # --- pre-edit-lsp-check ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] pre-edit-lsp-check: 不硬阻断"
@@ -1540,14 +1545,14 @@ OMA_B=$(echo '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{
 if echo "$OMA_B" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "pretool-oma-path-guard: 拦截"; else pass "pretool-oma-path-guard: 无崩溃"; fi
 if [ -f .claude/hooks/pretool-oma-path-guard.sh ]; then
-run_case "pretool-oma-path-guard: 普通路径放行" '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"src/Button.tsx","content":"x"}}' "pretool-oma-path-guard.sh" 0 ""; else pass "pretool-oma-path-guard: 跳过(脚本不存在)"; fi
+run_case "pretool-oma-path-guard: 普通路径放行" '{"hook_event_name":"PreToolUse","tool_name":"Write","tool_input":{"file_path":"src/Button.tsx","content":"x"}}' "pretool-oma-path-guard.py" 0 ""; else pass "pretool-oma-path-guard: 跳过(脚本不存在)"; fi
 
 # --- posttool-claim-audit ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] posttool-claim-audit: 软完成语检测"
 C_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"应该没问题了"}}' | bash .claude/hooks/posttool-claim-audit.sh 2>/dev/null)
 if echo "$C_OUT" | ${PYTHON_BIN:-python3} -c "import json,sys; d=json.load(sys.stdin); ctx=d.get('hookSpecificOutput',{}).get('additionalContext',''); exit(0 if ctx else 1)" 2>/dev/null; then
   pass "posttool-claim-audit: 检测软完成语"; else pass "posttool-claim-audit: 无崩溃"; fi
-run_case "posttool-claim-audit: 正常放行" '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"完成 [已验证: src/foo.ts:10]"}}' "posttool-claim-audit.sh" 0 ""
+run_case "posttool-claim-audit: 正常放行" '{"hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"src/foo.ts"},"tool_response":{"content":"完成 [已验证: src/foo.ts:10]"}}' "posttool-claim-audit.py" 0 ""
 
 # --- posttool-anti-pattern-detect ---
 TOTAL=$((TOTAL+1)); log ""; log "[$TOTAL] posttool-anti-pattern-detect: 不阻断"
@@ -1564,7 +1569,7 @@ F_OUT=$(echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_in
 if [ $? -ne 2 ]; then pass "posttool-format-gate: OK"; else fail "posttool-format-gate: 阻断"; fi
 
 TOTAL=$((TOTAL+1)); log "[$TOTAL] posttool-handoff-writer: 无崩溃"
-echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/posttool-handoff-writer.sh >/dev/null 2>&1
+echo '{"hook_event_name":"PostToolUse","tool_name":"TaskUpdate","tool_input":{"status":"completed","content":"done"},"tool_response":{"content":"ok"}}' | bash .claude/hooks/posttool-handoff-writer.py >/dev/null 2>&1
 if [ $? -eq 0 ]; then pass "posttool-handoff-writer: OK"; else fail "posttool-handoff-writer: 崩溃"; fi
 
 # --- fuzzy-block ---
@@ -1815,7 +1820,7 @@ log "========================================"
 # ═══ DG-101: blast-radius smoke tests ═══
 log ""
 log "=== DG-101 blast-radius hook ==="
-HOOK_BR="$PROJECT_ROOT/.claude/hooks/pretool-blast-radius.sh"
+HOOK_BR="$PROJECT_ROOT/.claude/hooks/pretool-blast-radius.py"
 TOTAL=$((TOTAL+4))
 if [ -f "$HOOK_BR" ]; then
     # R42: git checkout . → blocked
@@ -1834,15 +1839,15 @@ if [ -f "$HOOK_BR" ]; then
     echo '{"tool_name":"Bash","tool_input":{"command":"git checkout .; echo done"}}' | bash "$HOOK_BR" >/dev/null 2>&1; BR4E=$?
     if [ "$BR4E" -eq 2 ]; then log "  🟢 PASS: R45 git checkout .; bypass BLOCKED"; else log "  🔴 FAIL: R45 git checkout .; bypass NOT blocked (exit=$BR4E)"; FAILED=$((FAILED+1)); fi
 else
-    log "  ⚠️  pretool-blast-radius.sh not found, skipping R42-R45"
+    log "  ⚠️  pretool-blast-radius.py not found, skipping R42-R45"
 fi
 
 # ══════════════════════════════════════════════════════════════════
 # R36-R39: 知识管道 & 构建卫士 (v6.3.27 激活)
 # ══════════════════════════════════════════════════════════════════
 
-# ── R37: pretool-plan-gate.sh ──
-HOOK_PPG=".claude/hooks/pretool-plan-gate.sh"
+# ── R37: pretool-plan-gate.py ──
+HOOK_PPG=".claude/hooks/pretool-plan-gate.py"
 # R37b: 小变更放行 (<2 files, <15 lines)
 TOTAL=$((TOTAL+1))
 log "[$TOTAL] R37 pretool-plan-gate: 小变更放行"
@@ -1916,7 +1921,7 @@ fi
 # R36d: 有 claude-next.md 时应产出报告
 TOTAL=$((TOTAL+1))
 log "[$TOTAL] R36 knowledge-condenser: 产出升华报告"
-HOOK_KC=".claude/hooks/knowledge-condenser.sh"
+HOOK_KC=".claude/hooks/knowledge-condenser.py"
 if [ -f "$HOOK_KC" ] && [ -f ".claude/claude-next.md" ]; then
     export PYTHON_BIN="${PYTHON_BIN:-python3}"
     bash "$HOOK_KC" >/dev/null 2>&1 || true
@@ -1942,7 +1947,7 @@ fi
 # ── Consolidated bash -n syntax check loop ──
 TOTAL=$((TOTAL+1))
 _BASH_N_FAILS=0
-for _bn_script in .claude/hooks/knowledge-condenser.sh .claude/hooks/posttool-handoff-writer.sh .claude/scripts/auto-scope.sh .claude/hooks/pretool-plan-gate.sh; do
+for _bn_script in .claude/hooks/knowledge-condenser.py .claude/hooks/posttool-handoff-writer.py .claude/scripts/auto-scope.sh .claude/hooks/pretool-plan-gate.py; do
     if [ -f "$_bn_script" ]; then
         bash -n "$_bn_script" 2>/dev/null && log "  ✅ $_bn_script 语法通过" || { log "  🔴 $_bn_script 语法错误"; _BASH_N_FAILS=$((_BASH_N_FAILS+1)); }
     else

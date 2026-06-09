@@ -27,17 +27,21 @@ echo "╚═══════════════════════�
 
 # ─── Chain 1: 编辑管道 ───
 echo ""; echo "=== [28] 编辑管道: guard→scope→lsp→tracker→completion ==="
-_test "edit-guard exists" "true" "$([ -f $H/edit-guard.sh ] && echo true)"
-_test "pretool-edit-scope exists" "true" "$([ -f $H/pretool-edit-scope.sh ] && echo true)"
-_test "pre-edit-lsp-check exists" "true" "$([ -f $H/pre-edit-lsp-check.sh ] && echo true)"
-_test "intent-tracker exists" "true" "$([ -f $H/intent-tracker.sh ] && echo true)"
-_test "completion-gate exists" "true" "$([ -f $H/completion-gate.sh ] && echo true)"
+_test "edit-guard exists" "true" "$([ -f $H/edit-guard.py -o -f $H/edit-guard.py ] && echo true)"
+_test "pretool-edit-scope exists" "true" "$([ -f $H/pretool-edit-scope.py ] -o -f $H/pretool-edit-scope.py && echo true)"
+_test "pre-edit-lsp-check exists" "true" "$([ -f $H/pre-edit-lsp-check.py -o -f $H/pre-edit-lsp-check.py ] && echo true)"
+_test "intent-tracker exists" "true" "$([ -f $H/intent-tracker.py -o -f $H/intent-tracker.py ] && echo true)"
+_test "completion-gate exists" "true" "$([ -f $H/completion-gate.py -o -f $H/completion-gate.py ] && echo true)"
 
 # Chain verification: simulate a full edit pipeline
-R28_1=$(echo '{"tool_input":{"file_path":"test.py"}}' | bash $H/edit-guard.sh 2>&1 | grep -c 'continue' || echo 0)
+_EDIT_GUARD="${H}/edit-guard.py"
+[ ! -f "$_EDIT_GUARD" ] && _EDIT_GUARD="${H}/edit-guard.py"
+R28_1=$(echo '{"tool_input":{"file_path":"test.py"}}' | bash "$_EDIT_GUARD" 2>&1 | grep -c 'continue' || echo 0)
 _test "edit-guard responds" "[1-9]" "$R28_1"
 
-R28_2=$(echo '{"tool_input":{"file_path":"test.py"}}' | bash $H/pre-edit-lsp-check.sh 2>&1 | grep -c 'continue' || echo 0)
+_PRE_LSP="${H}/pre-edit-lsp-check.py"
+[ ! -f "$_PRE_LSP" ] && _PRE_LSP="${H}/pre-edit-lsp-check.py"
+R28_2=$(echo '{"tool_input":{"file_path":"test.py"}}' | bash "$_PRE_LSP" 2>&1 | grep -c 'continue' || echo 0)
 _test "pre-edit-lsp chain responds" "[1-9]" "$R28_2"
 
 # Verify pipeline state exists
@@ -46,8 +50,8 @@ _test "edit-churn-log has records" "true" "$([ -f .omc/state/edit-churn-log.json
 
 # ─── Chain 2: 错误管道 ───
 echo ""; echo "=== [29] 错误管道: error-dna→retry-budget→retry-check ==="
-_test "error-dna exists" "true" "$([ -f $H/error-dna.sh ] && echo true)"
-_test "pretool-retry-check exists" "true" "$([ -f $H/pretool-retry-check.sh ] && echo true)"
+_test "error-dna exists" "true" "$([ -f $H/error-dna.py -o -f $H/error-dna.py ] && echo true)"
+_test "pretool-retry-check exists" "true" "$([ -f $H/pretool-retry-check.sh -o -f $H/pretool-retry-check.py ] && echo true)"
 _test "retry-budget.json exists" "true" "$([ -f .omc/state/retry-budget.json ] && echo true)"
 
 # Check runtime pipeline data
@@ -68,7 +72,7 @@ echo ""; echo "=== [30] 打包管道: precheck→audit→package→postcheck ===
 _test "package-release.sh exists" "true" "$([ -f scripts/package-release.sh ] && echo true)"
 _test "DG-100 precheck gate present" "true" "$(grep -c 'DG-100\|三源安全门禁' scripts/package-release.sh 2>/dev/null)"
 _test "Step 5 post-check present" "true" "$(grep -c 'Step 5.*同步后' scripts/package-release.sh 2>/dev/null)"
-_test "audit-hooks available" "true" "$([ -f $S/audit-hooks.sh ] && echo true)"
+_test "audit-hooks available" "true" "$([ -f $S/audit-hooks.sh -o -f $S/audit-hooks.py ] && echo true)"
 
 # Syntax check
 R30=$(bash -n scripts/package-release.sh 2>&1 && echo true || echo false)
@@ -76,8 +80,8 @@ _test "package-release syntax OK" "true" "$R30"
 
 # ─── Chain 4: 审查管道 ───
 echo ""; echo "=== [31] 审查管道: AI→Oracle→Meta-Oracle ==="
-_test "Oracle agent spawn capability" "true" "$([ -f $H/meta-oracle-trigger.sh ] && echo true)"
-_test "Meta-Oracle G1-G4 trigger" "true" "$(grep -c 'G[1-4]' $H/meta-oracle-trigger.sh 2>/dev/null)"
+_test "Oracle agent spawn capability" "true" "$([ -f $H/meta-oracle-trigger.py ] && echo true)"
+_test "Meta-Oracle G1-G4 trigger" "true" "$(grep -c 'G[1-4]' $H/meta-oracle-trigger.py 2>/dev/null)"
 _test "meta-oracle-review script" "true" "$([ -f $S/meta-oracle-review.sh ] && echo true)"
 _test "oracle verdicts tracked" "true" "$([ -f .omc/state/oracle-verdicts.md ] && echo true)"
 _test "meta-oracle verdicts tracked" "true" "$([ -f .omc/state/meta-oracle-verdicts.md ] && echo true)"
@@ -88,9 +92,9 @@ _test "meta-oracle verdicts have history (>0 lines)" "[1-9]" "$R31"
 
 # ─── Chain 5: 会话管道 ───
 echo ""; echo "=== [32] 会话管道: compressor→knowledge→probe ==="
-_test "context-compressor exists" "true" "$([ -f $H/context-compressor.sh ] && echo true)"
-_test "inject-project-knowledge exists" "true" "$([ -f $H/inject-project-knowledge.sh ] && echo true)"
-_test "ecosystem-probe exists" "true" "$([ -f $H/ecosystem-probe.sh ] && echo true)"
+_test "context-compressor exists" "true" "$([ -f $H/context-compressor.py ] && echo true)"
+_test "inject-project-knowledge exists" "true" "$([ -f $H/inject-project-knowledge.py ] && echo true)"
+_test "ecosystem-probe exists" "true" "$([ -f $H/ecosystem-probe.py ] && echo true)"
 
 # Session pipeline evidence
 _test "context-cache.md generated" "true" "$([ -s .omc/state/context-cache.md ] && echo true)"

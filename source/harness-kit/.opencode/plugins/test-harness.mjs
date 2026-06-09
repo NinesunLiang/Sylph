@@ -191,7 +191,10 @@ assert(existsSync(opencodeJsonPath), ".opencode/opencode.json 存在");
 const ocConfig = JSON.parse(readFileSync(opencodeJsonPath, "utf-8"));
 const plugins = ocConfig.plugin || [];
 assert(plugins.includes("oh-my-openagent"), "OMO 插件已注册");
-assert(plugins.includes(".opencode/plugins/carror-hooks-compat.ts"), "carror-hooks-compat 插件已注册");
+assert(
+  plugins.includes(".opencode/plugins/carroros-gov") || plugins.includes("@carroros/gov") || plugins.includes(".opencode/plugins/carror-hooks-compat.ts"),
+  "carror-hooks-compat 插件已注册"
+);
 
 // 检查 package.json 没有 "main" 字段毒化
 const pkgPath = join(PROJECT_ROOT, ".opencode", "plugins", "package.json");

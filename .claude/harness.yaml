@@ -120,6 +120,7 @@ hooks_enabled:
   cross_platform_smoke_test: true
   phase_state_tracker: true
   pretool_b1_detect: true
+  pretool_compact_writer: true
   pretool_git_gate: true
   pretool_scope_gate: true
   permission_frequency_tracker: true
@@ -139,6 +140,7 @@ terminal_safety:
   skill_usage_tracker: true
   turn_counter: true
   user_correction_detector: true
+  plan_system: true
 rule_anchor:
   turn_threshold: 15
   interval: 5
@@ -171,3 +173,17 @@ roi:
     error_dna: .omc/state/error-dna.jsonl
     skill_usage: .omc/state/skill-usage.jsonl
   blast_radius: true
+
+# C5: 分层 fail-safe 策略 — 安全门禁 fail-close(exit 2), 日志钩子 fail-open(exit 0)
+fail_closure:
+  security_gates: close
+  quality_gates: close
+  critical_hooks: close
+  auditing_hooks: open
+  logging_hooks: open
+
+# C9: 读操作豁免 — Read/Grep/非写Bash 永不 fail-close
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true  # 仅在 .env/密钥 等敏感路径保留拦截

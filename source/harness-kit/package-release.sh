@@ -219,7 +219,7 @@ log_step "3/4 构建 harness-kit..."
 cd "$HARNESS_SRC"
 COPYFILE_DISABLE=1 tar czf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
   --exclude=.omc --exclude=node_modules --exclude='*.pyc' \
-  AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/
+  AGENTS.md CLAUDE.md .claude/ .cursor/ .opencode/ .hooks/ packages/carroros-gov/
 cd "$PROJECT_DIR"
 H_CONTAM=$(tar tzf "$PKG_DIR/harness-kit-${TAG}.tar.gz" \
   | grep -cE '\.claude/(nodes|profiles|schemas|skills|task_sys)/' || true)

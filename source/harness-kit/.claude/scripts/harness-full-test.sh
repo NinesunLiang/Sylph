@@ -29,27 +29,48 @@ suite_log() {
 }
 
 # ── 解析领域套件的 summary 行 ──
-# 格式: "summary: X/Y passed, Z failed" 或 "Core: X/Y passed, Z failed"
+# 支持多种输出格式:
+#   F1: summary: X/Y passed, Z failed
+#   F2: (Tier|Deep|Capability|Red) XXX: X/Y passed, Z failed
+#   F3: PASS=XX FAIL=YY WARN=ZZ (harness-smoke-test.py)
+#   F4: Checks: XX pass  YY fail ... Total=ZZ (capability-matrix)
+#   F5: Results: XX PASS / YY FAIL / (test_race.sh)
+#   F6: PASS: XX FAIL: YY (旧格式)
+#   F7: 🔴 严重: XX  (audit-hooks — 0 严重=正常)
 parse_summary() {
     local output="$1" suite_name="$2"
     local pass=0 fail=0 warn=0
 
-    # 尝试匹配各种 summary 格式
-    # 格式1: summary: X/Y passed, Z failed
-    if echo "$output" | grep -qE "summary: [0-9]+/[0-9]+ passed, [0-9]+ failed"; then
+    # F3: PASS=XX FAIL=YY WARN=ZZ (harness-smoke-test.py)
+    if echo "$output" | grep -qE "PASS=[0-9]+\s+FAIL=[0-9]+"; then
+        pass=$(echo "$output" | grep -oE "PASS=[0-9]+" | grep -oE "[0-9]+")
+        fail=$(echo "$output" | grep -oE "FAIL=[0-9]+" | grep -oE "[0-9]+")
+        warn=$(echo "$output" | grep -oE "WARN=[0-9]+" | grep -oE "[0-9]+")
+    # F4: Checks: XX pass  YY fail ... Total=ZZ
+    elif echo "$output" | grep -qE "Checks: +[0-9]+ +pass"; then
+        pass=$(echo "$output" | grep -oE "Checks: +[0-9]+" | grep -oE "[0-9]+")
+        fail=$(echo "$output" | grep -oE "[0-9]+ +fail" | grep -oE "[0-9]+")
+    # F5: Results: XX PASS / YY FAIL /
+    elif echo "$output" | grep -qE "Results: +[0-9]+ +PASS */ *[0-9]+ +FAIL"; then
+        pass=$(echo "$output" | grep -oE "[0-9]+ +PASS" | grep -oE "[0-9]+")
+        fail=$(echo "$output" | grep -oE "[0-9]+ +FAIL" | grep -oE "[0-9]+")
+    # F1: summary: X/Y passed, Z failed
+    elif echo "$output" | grep -qE "summary: [0-9]+/[0-9]+ passed, [0-9]+ failed"; then
         pass=$(echo "$output" | grep -oE "summary: [0-9]+/[0-9]+" | grep -oE "[0-9]+" | head -1)
         fail=$(echo "$output" | grep -oE "[0-9]+ failed" | grep -oE "[0-9]+")
-    # 格式2: Core/Tier N/Domain: X/Y passed, Z failed
+    # F2: Core/Tier N/Domain: X/Y passed, Z failed
     elif echo "$output" | grep -qE "(Core|Tier|Capability|Domain|Deep|Red).*: [0-9]+/[0-9]+ passed"; then
         pass=$(echo "$output" | grep -oE "[0-9]+/[0-9]+ passed" | grep -oE "^[0-9]+")
         fail=$(echo "$output" | grep -oE "[0-9]+ failed" | grep -oE "[0-9]+")
-    # 格式3: Capability Matrix 使用 PASS 计数
-    elif echo "$output" | grep -qE "PASS: [0-9]+"; then
-        pass=$(echo "$output" | grep -oE "PASS: [0-9]+" | grep -oE "[0-9]+" | tail -1)
-        fail=$(echo "$output" | grep -oE "FAIL: [0-9]+" | grep -oE "[0-9]+" | tail -1 || echo 0)
+    # F6: PASS: XX  FAIL: YY (旧格式, 无 /total)
+    elif echo "$output" | grep -qE "PASS:\s+[0-9]+"; then
+        pass=$(echo "$output" | grep -oE "PASS:\s+[0-9]+" | grep -oE "[0-9]+" | tail -1)
+        fail=$(echo "$output" | grep -oE "FAIL:\s+[0-9]+" | grep -oE "[0-9]+" | tail -1 || echo 0)
+    # F7: audit-hooks — 🔴 严重: XX (0=pass)
+    elif echo "$output" | grep -qE "🔴 严重: [0-9]+"; then
+        fail=$(echo "$output" | grep -oE "🔴 严重: [0-9]+" | grep -oE "[0-9]+")
     fi
 
-    warn=$(echo "$output" | grep -oE "[0-9]+ warn" | grep -oE "[0-9]+" || echo 0)
     [ -z "$pass" ] && pass=0
     [ -z "$fail" ] && fail=0
     [ -z "$warn" ] && warn=0
@@ -70,10 +91,16 @@ run_suite() {
 
     local start_ts=$(date +%s)
     local output
-    output=$(bash "$SCRIPT_DIR/$script" 2>&1)
+    case "$script" in
+        *.py) output=$(python3 "$SCRIPT_DIR/$script" 2>&1) ;;
+        *)    output=$(bash "$SCRIPT_DIR/$script" 2>&1) ;;
+    esac
     local rc=$?
     local end_ts=$(date +%s)
     local duration=$((end_ts - start_ts))
+
+    # 去掉 ANSI 转义码，保证 parse_summary 可见纯文本
+    output=$(echo "$output" | sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g')
 
     echo "$output" | tee -a "$LOG"
     log "  ⏱️  ${duration}s (exit=$rc)"
@@ -90,7 +117,12 @@ log "  PID: $$  日志: $LOG"
 log ""
 
 # ── L0: 基础设施 ──
-run_suite "harness-smoke-test.sh"     "Harness Smoke (核心冒烟)"
+# detect .py (primary) then .sh (legacy)
+if [ -f "$SCRIPT_DIR/harness-smoke-test.py" ]; then
+    run_suite "harness-smoke-test.py"     "Harness Smoke (核心冒烟)"
+else
+    run_suite "harness-smoke-test.sh"     "Harness Smoke (核心冒烟,legacy)"
+fi
 
 # ── L1-L4: 层级运行时 ──
 run_suite "tier2-runtime-test.sh"      "Tier 2 Runtime"

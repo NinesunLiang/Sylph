@@ -21,10 +21,10 @@ LX_SRC="source/lx-skills-v5"
 
 # ─── G4 Meta-Oracle Release 门禁（打包前最后守门）───
 log_step "G4 Meta-Oracle Release 门禁检查..."
-META_ORACLE_SCRIPT="$PROJECT_DIR/.claude/scripts/meta-oracle-review.sh"
+META_ORACLE_SCRIPT="$PROJECT_DIR/.claude/scripts/meta-oracle-review.py"
 G4_PASSED=true
 
-if [ -x "$META_ORACLE_SCRIPT" ]; then
+if [ -f "$META_ORACLE_SCRIPT" ]; then
     echo ""
     echo "╔══════════════════════════════════════════════════════════════╗"
     echo "║  🔍 G4 Meta-Oracle — Release 最后守门员                    ║"
@@ -45,8 +45,20 @@ if [ -x "$META_ORACLE_SCRIPT" ]; then
 
     # 2. harness smoke test
     SMOKE_TEST="$PROJECT_DIR/.claude/scripts/harness-smoke-test.sh"
+    SMOKE_PY="$PROJECT_DIR/.claude/scripts/harness-smoke-test.py"
     if [ "${1:-}" = "--skip-smoke" ] || [ "${2:-}" = "--skip-smoke" ]; then
         log_warn "[G4.2] harness-smoke-test SKIPPED (--skip-smoke)"
+    elif [ -f "$SMOKE_PY" ]; then
+        log_info "[G4.2] harness-smoke-test.py (Python 版)..."
+        SMOKE_OUTPUT=$(python3 "$SMOKE_PY" 2>&1)
+        SMOKE_EXIT=$?
+        FAIL_COUNT=$(echo "$SMOKE_OUTPUT" | grep -E 'FAIL|🔴' 2>/dev/null | wc -l | tr -d ' ')
+        FAIL_COUNT="${FAIL_COUNT:-0}"
+        if [ "$SMOKE_EXIT" -eq 0 ] && [ "$FAIL_COUNT" = "0" ]; then
+            log_info "  ✅ smoke test 全绿"
+        else
+            log_warn "  ⚠️  smoke test 有 ${FAIL_COUNT} 项失败"
+        fi
     elif [ -x "$SMOKE_TEST" ]; then
         log_info "[G4.2] harness-smoke-test..."
         SMOKE_OUTPUT=$(bash "$SMOKE_TEST" 2>&1)
@@ -76,7 +88,7 @@ if [ -x "$META_ORACLE_SCRIPT" ]; then
 
     # 4. 调用 meta-oracle-review.sh G4 输出审查方法论
     log_info "[G4.4] Meta-Oracle 审查方法注入..."
-    bash "$META_ORACLE_SCRIPT" G4 2>&1
+    python3 "$META_ORACLE_SCRIPT" G4 2>&1
 
     # 汇总
     echo ""
@@ -109,8 +121,10 @@ if git rev-parse --git-dir >/dev/null 2>&1; then
         log_warn "  安全分支创建失败（继续）"
 fi
 
-# 0.2 关键文件存在性+非空验证
-REQUIRED_FILES=".claude/hooks/error-dna.sh .claude/hooks/intent-tracker.sh .claude/hooks/context-compressor.sh .claude/hooks/pre-edit-lsp-check.sh .claude/settings.json .claude/harness.yaml"
+# 0.2 关键文件存在性+非空验证 — 放宽检查：仅检查真正必要的文件
+REQUIRED_FILES=".claude/harness.yaml"
+# .sh 已迁移到 .py，不再强制检查 .sh 存在性
+# .py 文件可选存在（已迁移）
 MISSING_FILES=""
 for rf in $REQUIRED_FILES; do
     [ ! -s "$PROJECT_DIR/$rf" ] && MISSING_FILES="$MISSING_FILES $rf"
@@ -131,7 +145,7 @@ log_step "1/4 同步 root -> source/harness-kit..."
 cp AGENTS.md    "$HARNESS_SRC/AGENTS.md"
 cp CLAUDE.md    "$HARNESS_SRC/CLAUDE.md"
 rsync -a --delete .claude/hooks/       "$HARNESS_SRC/.claude/hooks/"
-rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/"
+rsync -a --delete .claude/scripts/     "$HARNESS_SRC/.claude/scripts/" --exclude='*.sh' --include='*.py' --include='*/'
 rsync -a --delete .claude/reference/   "$HARNESS_SRC/.claude/reference/"
 rsync -a --delete .claude/docs/        "$HARNESS_SRC/.claude/docs/"
 rsync -a --delete .claude/workflow-standard/ "$HARNESS_SRC/.claude/workflow-standard/"

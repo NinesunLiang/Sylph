@@ -13,57 +13,72 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-oracle-gate.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/edit-guard.sh",
+            "command": "python3 .claude/hooks/edit-guard.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pre-edit-lsp-check.sh",
+            "command": "python3 .claude/hooks/pre-edit-lsp-check.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-purify-gate.sh",
+            "command": "python3 .claude/hooks/pretool-purify-gate.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-skill-version-guard.sh",
+            "command": "python3 .claude/hooks/pretool-skill-version-guard.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/context-guard.sh",
+            "command": "python3 .claude/hooks/context-guard.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-write-lock.sh",
+            "command": "python3 .claude/hooks/pretool-write-lock.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-sensitive-file-guard.sh",
+            "command": "python3 .claude/hooks/pretool-sensitive-file-guard.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-b1-detect.sh",
+            "command": "python3 .claude/hooks/pretool-b1-detect.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/pretool-workflow-gate",
+            "command": "python3 .claude/hooks/pretool-edit-scope.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/workflow-standard/hooks/pretool-workflow-gate.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-scope-gate.sh",
+            "command": "python3 .claude/hooks/pretool-scope-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/edit-guard.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-plan-gate.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-sensitive-edit.py",
             "timeout": 3000
           }
         ]
@@ -73,13 +88,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-sensitive-edit.sh",
+            "command": "python3 .claude/hooks/pretool-sensitive-edit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-plan-gate.sh",
+            "command": "python3 .claude/hooks/pretool-plan-gate.py",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-edit-scope.py",
+            "timeout": 3000
           }
         ]
       },
@@ -88,28 +108,33 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/permission-gate.sh",
+            "command": "python3 .claude/hooks/permission-gate.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-retry-check.sh",
+            "command": "python3 .claude/hooks/pretool-retry-check.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-blast-radius.sh",
+            "command": "python3 .claude/hooks/pretool-blast-radius.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-terminal-safety.sh",
+            "command": "python3 .claude/hooks/pretool-terminal-safety.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-git-gate.sh",
+            "command": "python3 .claude/hooks/pretool-git-gate.py",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/permission-gate.py",
+            "timeout": 5000
           }
         ]
       },
@@ -118,7 +143,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/privacy-gate.sh",
+            "command": "python3 .claude/hooks/privacy-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/context-guard.py",
             "timeout": 3000
           }
         ]
@@ -128,8 +158,13 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pre-ask-guard.sh",
+            "command": "python3 .claude/hooks/pre-ask-guard.py",
             "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pre-ask-guard.py",
+            "timeout": 3000
           }
         ]
       },
@@ -138,7 +173,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/lsp-suggest.sh",
+            "command": "python3 .claude/hooks/lsp-suggest.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/lsp-suggest.py",
             "timeout": 3000
           }
         ]
@@ -148,7 +188,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/subagent-guard.sh",
+            "command": "python3 .claude/hooks/subagent-guard.py",
             "timeout": 3000
           }
         ]
@@ -158,7 +198,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pre-completion-gate.sh",
+            "command": "python3 .claude/hooks/pre-completion-gate.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pre-completion-gate.py",
             "timeout": 5000
           }
         ]
@@ -168,7 +213,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-node-reference.sh",
+            "command": "python3 .claude/hooks/pretool-node-reference.py",
             "timeout": 3000
           }
         ]
@@ -178,7 +223,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/fuzzy-block.sh",
+            "command": "python3 .claude/hooks/fuzzy-block.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/fuzzy-block.py",
             "timeout": 3000
           }
         ]
@@ -188,7 +238,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-skill-body-enforce.sh",
+            "command": "python3 .claude/hooks/pretool-skill-body-enforce.py",
             "timeout": 5000
           }
         ]
@@ -200,32 +250,37 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "command": "python3 .claude/hooks/auto-snapshot.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-edit-quality.sh",
+            "command": "python3 .claude/hooks/posttool-edit-quality.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-write-lock.sh",
+            "command": "python3 .claude/hooks/posttool-write-lock.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-claim-audit.sh",
+            "command": "python3 .claude/hooks/posttool-claim-audit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/intent-tracker.sh",
+            "command": "python3 .claude/hooks/intent-tracker.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-write-cite.sh",
+            "command": "python3 .claude/hooks/posttool-write-cite.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/distinct-concept-richner.py",
             "timeout": 5000
           }
         ]
@@ -235,27 +290,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/completion-gate.sh",
+            "command": "python3 .claude/hooks/completion-gate.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-handoff-writer.sh",
+            "command": "python3 .claude/hooks/posttool-handoff-writer.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-completion-audit.sh",
+            "command": "python3 .claude/hooks/posttool-completion-audit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-checkpoint.sh",
+            "command": "python3 .claude/hooks/posttool-checkpoint.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/checkpoint",
+            "command": "python3 .claude/workflow-standard/hooks/checkpoint.py",
             "timeout": 5000
           }
         ]
@@ -265,22 +320,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-format-gate.sh",
+            "command": "python3 .claude/hooks/posttool-format-gate.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-anti-pattern-detect.sh",
+            "command": "python3 .claude/hooks/posttool-anti-pattern-detect.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-template-check.sh",
+            "command": "python3 .claude/hooks/posttool-template-check.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/phase-state-tracker.sh",
+            "command": "python3 .claude/hooks/phase-state-tracker.py",
             "timeout": 3000
           }
         ]
@@ -290,8 +345,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/read-tracker.sh",
+            "command": "python3 .claude/hooks/read-tracker.py",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/posttool-read-cite.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/posttool-output-compressor.py",
+            "timeout": 5000
           }
         ]
       },
@@ -300,17 +365,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "command": "python3 .claude/hooks/posttool-bash-audit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna.sh",
+            "command": "python3 .claude/hooks/posttool-output-compressor.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/error-dna.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
+            "command": "python3 .claude/hooks/build-validator.py",
             "timeout": 5000
           }
         ]
@@ -320,12 +390,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/skill-usage-tracker.sh",
+            "command": "python3 .claude/hooks/skill-usage-tracker.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-skill-compliance.sh",
+            "command": "python3 .claude/hooks/posttool-skill-compliance.py",
             "timeout": 5000
           }
         ]
@@ -335,7 +405,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-subagent-audit.sh",
+            "command": "python3 .claude/hooks/posttool-subagent-audit.py",
             "timeout": 5000
           }
         ]
@@ -345,7 +415,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh",
+            "command": "python3 .claude/hooks/token_writer.py",
             "timeout": 3000
           },
           {
@@ -356,17 +426,12 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/meta-oracle-trigger.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/agentic-ui.sh",
+            "command": "python3 .claude/hooks/agentic-ui.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/permission-frequency-tracker.sh",
+            "command": "python3 .claude/hooks/permission-frequency-tracker.py",
             "timeout": 3000
           }
         ]
@@ -378,17 +443,17 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna.sh",
+            "command": "python3 .claude/hooks/error-dna.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-bash-audit.sh",
+            "command": "python3 .claude/hooks/posttool-bash-audit.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/build-validator.sh",
+            "command": "python3 .claude/hooks/build-validator.py",
             "timeout": 5000
           }
         ]
@@ -399,17 +464,27 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/context-compressor.sh",
+            "command": "python3 .claude/hooks/lsp-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/oracle-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/context-compressor.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/knowledge-condenser.sh",
+            "command": "python3 .claude/hooks/knowledge-condenser.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/error-dna-auto-fix.sh",
+            "command": "python3 .claude/hooks/error-dna-auto-fix.py",
             "timeout": 5000
           },
           {
@@ -419,47 +494,52 @@
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/inject-project-knowledge.sh",
+            "command": "python3 .claude/hooks/inject-project-knowledge.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/flywheel-report.sh",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/token_writer.sh",
+            "command": "python3 .claude/hooks/sessionstart-gate-check.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-cruise-check.sh",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/ecosystem-probe.sh",
+            "command": "python3 .claude/hooks/flywheel-report.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/session-resume.sh",
+            "command": "python3 .claude/hooks/token_writer.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-cruise-check.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/ecosystem-probe.py",
+            "timeout": 5000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/session-resume.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/state-recovery",
+            "command": "python3 .claude/workflow-standard/hooks/state-recovery.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/workflow-standard/hooks/session-inject",
+            "command": "python3 .claude/workflow-standard/hooks/session-inject.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/cross-platform-smoke-test.sh",
+            "command": "python3 .claude/hooks/cross-platform-smoke-test.py",
             "timeout": 5000
           }
         ]
@@ -470,22 +550,22 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/auto-snapshot.sh",
+            "command": "python3 .claude/hooks/auto-snapshot.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/skill-flywheel.sh",
+            "command": "python3 .claude/hooks/skill-flywheel.py",
             "timeout": 5000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/stop-drain.sh",
+            "command": "python3 .claude/hooks/stop-drain.py",
             "timeout": 10000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/posttool-checkpoint.sh",
+            "command": "python3 .claude/hooks/posttool-checkpoint.py",
             "timeout": 5000
           }
         ]
@@ -496,12 +576,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-user-correction.sh",
+            "command": "python3 .claude/hooks/pretool-user-correction.py",
             "timeout": 3000
           },
           {
             "type": "command",
-            "command": "bash .claude/hooks/turn-counter.sh",
+            "command": "python3 .claude/hooks/turn-counter.py",
             "timeout": 3000
           }
         ]
@@ -511,8 +591,35 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/pretool-approve-detect.sh",
+            "command": "python3 .claude/hooks/pretool-approve-detect.py",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/thinking-gate.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-rules-inject.py",
+            "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/scripts/pretool-python-bridge.py",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-compact-writer.py",
+            "timeout": 5000
           }
         ]
       }

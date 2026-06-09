@@ -37,7 +37,7 @@ context_guard:
   danger_threshold: 80
   critical_threshold: 90
 completion_gate:
-  min_evidence_chars: 20
+  min_evidence_chars: 60
   required_keyword: VERIFIED
   quality_threshold: 60
   evidence_freshness_sec: 300
@@ -85,7 +85,6 @@ hooks_enabled:
   completion_gate: true
   context_guard: true
   context_compressor: true
-  cruise_check: true
   ecosystem_probe: true
   edit_guard: true
   error_dna_auto_fix: true
@@ -109,26 +108,25 @@ hooks_enabled:
   pre_completion_gate: true
   pre_ask_guard: true
   session_resume: true
-  pretool_edit_scope: false
+  pretool_edit_scope: true
   pretool_plan_gate: true
   pretool_purify_gate: true
   pretool_node_reference: true
   posttool_template_check: true
-  pretool_rules_inject: false
+  pretool_rules_inject: true
   pretool_skill_version_guard: true
-  skill_body_enforce: true
-  skill_compliance_audit: true
   pretool_sensitive_edit: true
   pretool_terminal_safety: true
   cross_platform_smoke_test: true
   phase_state_tracker: true
   pretool_b1_detect: true
+  pretool_compact_writer: true
   pretool_git_gate: true
   pretool_scope_gate: true
   permission_frequency_tracker: true
-  lsp_gate: false
-  oracle_gate: false
-  posttool_read_cite: false
+  lsp_gate: true
+  oracle_gate: true
+  posttool_read_cite: true
 terminal_safety:
   max_command_length: 2000
   pretool_write_lock: true
@@ -142,6 +140,7 @@ terminal_safety:
   skill_usage_tracker: true
   turn_counter: true
   user_correction_detector: true
+  plan_system: true
 rule_anchor:
   turn_threshold: 15
   interval: 5
@@ -174,3 +173,17 @@ roi:
     error_dna: .omc/state/error-dna.jsonl
     skill_usage: .omc/state/skill-usage.jsonl
   blast_radius: true
+
+# C5: 分层 fail-safe 策略 — 安全门禁 fail-close(exit 2), 日志钩子 fail-open(exit 0)
+fail_closure:
+  security_gates: close
+  quality_gates: close
+  critical_hooks: close
+  auditing_hooks: open
+  logging_hooks: open
+
+# C9: 读操作豁免 — Read/Grep/非写Bash 永不 fail-close
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true  # 仅在 .env/密钥 等敏感路径保留拦截
