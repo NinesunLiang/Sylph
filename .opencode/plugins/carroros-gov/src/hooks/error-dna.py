@@ -256,34 +256,48 @@ def main():
         record['message'] = f'E2: CAPTCHA forgery targeting {ESCAPE_E2_TARGET} — cmd: {cmd_clean[:100]}'
         is_escape = True
 
+    # C9: 三管道写入 — error-dna.jsonl + error-signals.jsonl + governance-audit.jsonl
+    # 同时双写旧格式 error-dna.json 确保 auto-fix 兼容
     if is_escape:
-        audit_path = STATE_DIR / 'governance-audit.jsonl'
-        STATE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(audit_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(record, ensure_ascii=False) + '\n')
-        # 逃逸记录同时写入 error-dna.jsonl 和 error-signals.jsonl
-        # error-signals 供 retry-budget + 红队测试消费
+        for _p in (STATE_DIR / 'governance-audit.jsonl', STATE_DIR / 'error-dna.jsonl', STATE_DIR / 'error-signals.jsonl'):
+            with open(_p, 'a', encoding='utf-8') as _f:
+                _f.write(json.dumps(record, ensure_ascii=False) + '\n')
         jsonl_path = STATE_DIR / 'error-dna.jsonl'
-        signals_path = STATE_DIR / 'error-signals.jsonl'
-        STATE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(signals_path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(record, ensure_ascii=False) + '\n')
     elif error_type == 'gate_operation' or exit_code >= 128:
         jsonl_path = STATE_DIR / 'error-signals.jsonl'
     else:
         jsonl_path = STATE_DIR / 'error-dna.jsonl'
 
     STATE_DIR.mkdir(parents=True, exist_ok=True)
+    # 写入新格式 jsonl
     with open(jsonl_path, 'a', encoding='utf-8') as f:
         f.write(json.dumps(record, ensure_ascii=False) + '\n')
+    # 双写旧格式 error-dna.json (兼容 auto-fix 旧版读取)
+    _old_dna = STATE_DIR / 'error-dna.json'
+    _old_sigs = {}
+    if _old_dna.exists():
+        try:
+            _old_sigs = json.loads(_old_dna.read_text(encoding='utf-8'))
+        except Exception:
+            _old_sigs = {}
+    _old_sigs.setdefault('error_signatures', {})
+    _old_sigs['error_signatures'][signature] = {
+        'count': _old_sigs['error_signatures'].get(signature, {}).get('count', 0) + 1,
+        'fix_count': _old_sigs['error_signatures'].get(signature, {}).get('fix_count', 0),
+        'status': 'active',
+        'last_seen': TS,
+        'message': message[:80],
+        'error_type': error_type,
+        'repair_command': _old_sigs['error_signatures'].get(signature, {}).get('repair_command', ''),
+    }
+    _old_dna.write_text(json.dumps(_old_sigs, indent=2, ensure_ascii=False), encoding='utf-8')
 
-    # === Retry budget update (C9) ===
+    # === Retry budget update (C9) — 强制创建/更新 retry-budget.json ===
     budget_path = STATE_DIR / 'retry-budget.json'
     budget = {'signatures': {}}
-    if budget_path.is_file():
+    if budget_path.exists():
         try:
-            with open(budget_path, encoding='utf-8') as _bf:
-                budget = json.load(_bf)
+            budget = json.loads(budget_path.read_text(encoding='utf-8'))
         except Exception:
             pass
     sigs = budget.get('signatures', {})
@@ -296,10 +310,7 @@ def main():
     sigs[signature]['last_retry'] = TS
     sigs[signature]['label'] = message[:80]
     budget['signatures'] = sigs
-    _btmp = str(budget_path) + '.tmp'
-    with open(_btmp, 'w', encoding='utf-8') as _bf:
-        json.dump(budget, _bf, indent=2, ensure_ascii=False)
-    os.rename(_btmp, budget_path)
+    budget_path.write_text(json.dumps(budget, indent=2, ensure_ascii=False), encoding='utf-8')
 
     # === Archive rotation (error-dna.jsonl only) ===
     _dna_path = STATE_DIR / 'error-dna.jsonl'
@@ -414,9 +425,7 @@ def main():
 
     # === High-frequency alert scan ===
     _scanned = {}
-    _scan_paths = [jsonl_path]
-    if _signals_path.exists() and _signals_path != jsonl_path:
-        _scan_paths.append(_signals_path)
+    _scan_paths = [p for p in [jsonl_path, _signals_path] if p is not None and p.exists()]
 
     for _sp in _scan_paths:
         try:

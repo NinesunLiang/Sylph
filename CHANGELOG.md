@@ -4,6 +4,28 @@
 
 ---
 
+## [v6.7.0] — 2026-06-09
+
+> OC plugin 漂移修复 + packages/ 与 .opencode/plugins/ 一致性同步 + error-dna 数据链闭环修复
+
+**新增**:
+- plan-gate.py 存根 hook 创建，capability-matrix D1 全绿（75 PASS/0 FAIL）
+
+**修复**:
+- OC carroros-gov plugin 5 文件漂移: error-dna.py / harness_lib.py / posttool-claim-audit.py / pretool-oracle-gate.py / privacy-gate.py — packages/ 版（更新版）同步覆盖 .opencode/plugins/
+- error-dna.py 三管道写入数据链断裂修复：旧格式双写 + retry-budget.json 强制创建，闭环 error-dna.py → retry-budget.json → pretool-retry-check.py 完整工作
+- error-dna-auto-fix.py 读取优先 retry-budget.json，旧格式 fallback
+- test-harness.mjs carror-hooks-compat 注册断言修复（49/49 全绿）
+- harness_lib.py: 新增 hc_fail_closure() 函数（fail-close/fail-open 配置支持）
+- posttool-claim-audit.py: E6 v2 机制升级（content_flip 检测 + edit_repeat 检测）
+- pretool-oracle-gate.py: 移除 IS_WINDOWS 跳跃（macOS/Linux Oracle 门禁恢复）
+- privacy-gate.py: C5 fail-close（harness.yaml 缺失时拒绝放行）
+
+**自动化保证**:
+- install.sh 安装时自动 `cp -r packages/carroros-gov .opencode/plugins/` — 用户安装/更新即获取最新版
+
+---
+
 ## [v6.4.0] — 2026-05-31
 
 > 知识管道激活 + 四hook接线上线 + 三门户路由完善 + Story对齐 + 全量测试框架
