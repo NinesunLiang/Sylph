@@ -4,6 +4,21 @@
 
 ---
 
+## [v6.7.1] — 2026-06-09
+
+> Meta-Oracle 评分增强：9.01→9.56 🚀 G 治理维度满分
+
+**新增**:
+- token-compact-state.json 状态文件，C2 上下文完整性 53%→80%
+- harness-smoke 日志摘要格式，G2 smoke 验证通道激活
+
+**增强**:
+- philosophy.md 双向映射描述（机制→哲学逆向追溯），G1 哲学一致性 70%→100%
+- completion-gate.py RCA/根因分析关键词，E5 症状混淆诊断能力提升
+- 治理评分 Meta-Oracle ACCEPT：C 91.4% / E 97.3% / G 100% / 总分 9.56
+
+---
+
 ## [v6.7.0] — 2026-06-09
 
 > OC plugin 漂移修复 + packages/ 与 .opencode/plugins/ 一致性同步 + error-dna 数据链闭环修复

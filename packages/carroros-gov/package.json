@@ -5,15 +5,28 @@
   "type": "module",
   "main": "src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./server": "./src/index.ts"
   },
   "engines": {
-    "opencode": ">=1.16.0"
+    "opencode": ">=1.14.0"
+  },
+  "scripts": {
+    "test": "node scripts/run-oc-tests.mjs all",
+    "test:deep": "node scripts/run-oc-tests.mjs deep",
+    "test:smoke": "node scripts/run-oc-tests.mjs smoke",
+    "test:capability": "node scripts/run-oc-tests.mjs capability",
+    "test:tier2": "node scripts/run-oc-tests.mjs tier2",
+    "test:tier3": "node scripts/run-oc-tests.mjs tier3",
+    "test:tier4": "node scripts/run-oc-tests.mjs tier4",
+    "test:red-team": "node scripts/run-oc-tests.mjs red",
+    "test:race": "node scripts/run-oc-tests.mjs race",
+    "pretest": "echo '🧪 @carroros/gov 治理测试套件' && echo '  npm test → 8 套件全量' && echo '  npm run test:deep/smoke/capability/red-team/race/tier2/tier3/tier4 → 单套件'"
   },
   "files": ["src"],
   "license": "MIT",
   "dependencies": {
-    "effect": "^4.0.0",
+    "effect": "^3.21.0",
     "zod": "^3.24.0"
   },
   "peerDependencies": {

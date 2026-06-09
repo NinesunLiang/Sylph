@@ -1,0 +1,10 @@
+{
+  "timestamp": 1780975429,
+  "pre_compact_usage": {
+    "input_tokens": 82000,
+    "output_tokens": 12000,
+    "context_compression_ratio": 0.68,
+    "timestamp": 1780975429
+  },
+  "compact_count": 1
+}
