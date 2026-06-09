@@ -286,6 +286,16 @@
         ]
       },
       {
+        "matcher": "AGENTS.md",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-agents-merge.py",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
         "matcher": "TaskUpdate",
         "hooks": [
           {

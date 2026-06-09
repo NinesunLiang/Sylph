@@ -47,7 +47,9 @@ chmod +x .claude/hooks/*.sh 2>/dev/null || true
 
 # 平台兼容：生成 AGENTS.md 和更新 CLAUDE.md 为 @-include 跳板
 if [ -f "AGENTS.md" ]; then
-    log_info "AGENTS.md 已存在"
+    log_info "AGENTS.md 已存在，执行智能合并..."
+    python3 .claude/hooks/pretool-agents-merge.py --force 2>/dev/null || \
+        log_warn "pretool-agents-merge.py 合并警告（非致命）"
 else
     cp "CLAUDE.md" "AGENTS.md" 2>/dev/null || true
     log_info "AGENTS.md 生成（OpenCode / 全平台主治理文件）"

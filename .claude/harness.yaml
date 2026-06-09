@@ -37,6 +37,7 @@ context_guard:
   danger_threshold: 80
   critical_threshold: 90
 completion_gate:
+  fallback_level: 1  # 1=完整, 2=降级, 3=紧急
   min_evidence_chars: 60
   required_keyword: VERIFIED
   quality_threshold: 60
@@ -46,6 +47,8 @@ completion_gate:
     good
 bash_audit:
   dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
+  fail_streak_threshold: 3
+  hard_block_threshold: 10
 permission_gate:
   git_commit_regex: git\s+(commit|add\s+--?all|\badd\b.*-A)
   git_push_force_regex: git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force

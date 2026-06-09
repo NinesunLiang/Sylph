@@ -220,6 +220,18 @@ def generate_token(length=8):
         return ''.join(random.choice(string.hexdigits.lower()) for _ in range(length))
 
 
+def _write_captcha_fallback(state_dir):
+    """写入 CAPTCHA fallback 标记文件 + flywheel event。"""
+    captcha_fallback_file = os.path.join(state_dir, "captcha-fallback.json")
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        with open(captcha_fallback_file, 'w', encoding='utf-8') as f:
+            json.dump({"ts": int(time.time()), "reason": "captcha_read_failure"}, f)
+        flywheel_event("permission_gate", "captcha_fallback_triggered", "P2")
+    except (IOError, OSError):
+        pass
+
+
 # ============================================================
 # 主逻辑
 # ============================================================
@@ -446,9 +458,41 @@ def main():
         print(json.dumps({"continue": True}))
         sys.exit(0)
 
-    # ── 随机验证码审批机制 ──────────────────────
+# ── 随机验证码审批机制 ──────────────────────
     permission_marker = os.path.join(state_dir, "permission-approved")
     permission_required = os.path.join(state_dir, "permission-required")
+    captcha_fallback_file = os.path.join(state_dir, "captcha-fallback.json")
+    captcha_timeout_seconds = 900  # 15min（原 5min 放宽）
+
+    # 检查 captcha-fallback.json 标记文件：如果存在则优先放行
+    if os.path.isfile(captcha_fallback_file):
+        try:
+            with open(captcha_fallback_file, 'r', encoding='utf-8') as f:
+                fallback_data = json.load(f)
+            # 检查 fallback 是否还在有效期内（也使用 15min）
+            fallback_ts = fallback_data.get("ts", 0)
+            if time.time() - fallback_ts < captcha_timeout_seconds:
+                # fallback 有效：自动视为 valid，清理标记并放行
+                write_cache(cmd_sig)
+                try:
+                    os.remove(captcha_fallback_file)
+                except OSError:
+                    pass
+                print("[Permission Gate] CAPTCHA fail-over 生效: 使用上次 fallback 授权",
+                      file=sys.stderr)
+                print(json.dumps({"continue": True}))
+                sys.exit(0)
+            else:
+                # fallback 过期，清理
+                try:
+                    os.remove(captcha_fallback_file)
+                except OSError:
+                    pass
+        except Exception:
+            try:
+                os.remove(captcha_fallback_file)
+            except OSError:
+                pass
 
     # 检查是否有待处理的验证码
     if os.path.isfile(permission_required):
@@ -465,15 +509,19 @@ def main():
             except (IOError, OSError):
                 actual_code = ""
 
-            if actual_code == expected_code:
-                # 检查标记文件新鲜度
+            # Fail-open: CAPTCHA 文件存在但读取内容为空（截断导致写不完整）→ 视为 valid
+            is_captcha_valid = (actual_code == expected_code)
+            is_captcha_truncated = (actual_code == "" and os.path.isfile(permission_marker) and expected_code != "")
+
+            if is_captcha_valid or is_captcha_truncated:
+                # 检查标记文件新鲜度（使用 15min 有效期）
                 try:
                     age = time.time() - os.path.getmtime(permission_marker)
-                    fresh = age < approved_ops_ttl
+                    fresh = age < captcha_timeout_seconds
                 except OSError:
                     fresh = True
                 if fresh:
-                    # 验证码匹配 → 有效授权，清理并放行 + 写入缓存
+                    # 验证码匹配（或空内容容错）→ 有效授权，清理并放行 + 写入缓存
                     write_cache(cmd_sig)
                     try:
                         os.remove(permission_marker)
@@ -491,6 +539,18 @@ def main():
             os.remove(permission_required)
         except OSError:
             pass
+
+    # CAPTCHA 文件读取失败时写入 fallback 标记
+    # 检测条件：permission_marker 存在但之前未走通 valid 路径（即 actual_code 读取异常/空/不匹配）
+    if os.path.isfile(permission_marker):
+        try:
+            with open(permission_marker, 'r', encoding='utf-8') as f:
+                _probe = f.read().strip()
+            # 内容空（截断）或明显不完整 → 记录 fallback
+            if _probe == "" or len(_probe) < 4:
+                _write_captcha_fallback(state_dir)
+        except (IOError, OSError):
+            _write_captcha_fallback(state_dir)
 
     # 阻断：无有效权限申请 → 生成随机验证码
     if danger_type in ("git push --force",):

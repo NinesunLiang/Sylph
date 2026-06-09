@@ -14,10 +14,10 @@
 
 ## 资产地图
 
-| 资产 | 用途 | 守卫 |
-|:---|:---|:---|
-| flywheel.log | 全hook事件流 | flywheel_report SessionStart |
-| 蛇形命名(snake-case) | hook/script命名规范 | 一致性检查 |
+| 资产 | 用途 | 守卫 | 运行时路径 |
+|:---|:---|:---|:---|
+| flywheel.log | 全hook事件流 (CSV格式) | flywheel_report SessionStart | `~/.claude/flywheel.log` (HOME) |
+| 蛇形命名(snake-case) | hook/script命名规范 | 一致性检查 | — |
 
 ## 架构铁律
 

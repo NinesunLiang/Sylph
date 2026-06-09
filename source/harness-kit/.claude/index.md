@@ -27,6 +27,7 @@ Skill→pretool-skill-body-enforce
 PostToolUse（操作后审计）
 ──────────────────────
 Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
+AGENTS.md→pretool-agents-merge
 TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
 TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check|phase-state-tracker
 Read→read-tracker|posttool-read-cite

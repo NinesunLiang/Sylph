@@ -59,6 +59,18 @@ def main():
     # DG-87: ensure error-dna.jsonl exists
     open(STATE_DIR / 'error-dna.jsonl', 'a').close()
 
+    # === C6: max_errors 限制 — 已有行数 > 100 时不再写入新记录 ===
+    _max_errors = int(os.environ.get('ERROR_DNA_MAX_ERRORS', '100'))
+    for _jsonl_path in [STATE_DIR / 'error-dna.jsonl', STATE_DIR / 'error-signals.jsonl']:
+        if _jsonl_path.exists():
+            try:
+                _line_count = sum(1 for _ in open(_jsonl_path, encoding='utf-8') if _.strip())
+                if _line_count > _max_errors:
+                    output_continue()
+                    return
+            except Exception:
+                pass
+
     # DG-90: flywheel telemetry
     flywheel_event('error_dna', 'capture', 'P2')
 

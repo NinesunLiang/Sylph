@@ -4,6 +4,56 @@
 
 ---
 
+## [v6.7.5] — 2026-06-09
+
+> 统一优化：决策树 + 两段式 + fallback 三级降级 + fail-open + P0 Bug 修复
+
+**新增**:
+- B1: #8 哲学先行从 1 行模糊描述升级为 4 分支精确决策树（不可逆→问人 / 过程性→执行 / 技术选择→最小改动 / 哲学冲突→裁决链），降低 AI 猜错率
+- C1: completion-gate 三级 fallback（Level 1 正常 → Level 2 简化 3 步链 → Level 3 紧急只警告），三态降级防卡死
+- C2: permission-gate CAPTCHA fail-open 超时（900s），有出口不永久阻塞
+- C5: 原子写 + 行数/长度校验，防静默写入损坏
+- A2: 铁律 `[auto]` 标注（降低认知负担，一眼识别自动化规则 vs 需人工判断的规则）
+- B2: pre-ask-guard 两段式决策链（Phase 1 AGENTS.md 快速扫描 → 命中即返回，Phase 2 全遍历兜底）
+- C4: oracle-gate 状态合并单 JSON 文件 + 5s timeout，减少状态分裂风险
+- C7: meta-oracle-trigger 标记驱动（评分≥85 / G1-G4 匹配才触发审查）
+- A4: anti-pattern 路由 TOP3 提示，注意力分配优化
+- A3: 路由索引描述精简 47%（AGENTS.md 7,907→6,371 字节，-20%）
+
+**修复**:
+- P0: `pre-completion-gate.py:L28` — `TOKENS_DIR=***` 粘贴遗留 bug（运行时 NameError），改为 `TOKENS_DIR = STATE_DIR / "tokens"`
+- P0: `harness.yaml:max_entries=100` vs `error-dna.py:max_errors=50` 参数不一致，统一为 100
+- source mirror 全量同步（17 个文件 md5 一致）
+
+**自动化保证**:
+- 双法官审查通过（Oracle REVISE → P0 修复 → ACCEPT / Meta-Oracle ADVISORY → 条件满足）
+- 12/12 Python hook 语法检查全绿
+- source mirror 一致性全绿
+
+---
+
+## [v6.7.4] — 2026-06-09
+
+> OC carroros-gov plugin 漂移修复 + packages/ → .opencode/plugins/ 同步
+
+**新增**:
+- dual-platform test runner: scripts/run-oc-tests.mjs（npm run test → 6/6 测试套件）
+- capability-matrix: harness-full-test.sh 全量执行集成在 OC 测试入口
+
+**修复**:
+- OC carroros-gov plugin 5 文件漂移: install.sh 安装时 `cp -r packages/carroros-gov .opencode/plugins/` — 用户安装即同步
+- meta-oracle-trigger.sh 路由表 + firewall.sh 条件体修正
+
+---
+
+## [v6.7.3] — 2026-06-09 (内部测试，未发版)
+
+---
+
+## [v6.7.2] — 2026-06-09 (内部测试，未发版)
+
+---
+
 ## [v6.7.1] — 2026-06-09
 
 > Meta-Oracle 评分增强：9.01→9.56 🚀 G 治理维度满分
@@ -27,17 +77,9 @@
 - plan-gate.py 存根 hook 创建，capability-matrix D1 全绿（75 PASS/0 FAIL）
 
 **修复**:
-- OC carroros-gov plugin 5 文件漂移: error-dna.py / harness_lib.py / posttool-claim-audit.py / pretool-oracle-gate.py / privacy-gate.py — packages/ 版（更新版）同步覆盖 .opencode/plugins/
-- error-dna.py 三管道写入数据链断裂修复：旧格式双写 + retry-budget.json 强制创建，闭环 error-dna.py → retry-budget.json → pretool-retry-check.py 完整工作
-- error-dna-auto-fix.py 读取优先 retry-budget.json，旧格式 fallback
-- test-harness.mjs carror-hooks-compat 注册断言修复（49/49 全绿）
-- harness_lib.py: 新增 hc_fail_closure() 函数（fail-close/fail-open 配置支持）
-- posttool-claim-audit.py: E6 v2 机制升级（content_flip 检测 + edit_repeat 检测）
-- pretool-oracle-gate.py: 移除 IS_WINDOWS 跳跃（macOS/Linux Oracle 门禁恢复）
-- privacy-gate.py: C5 fail-close（harness.yaml 缺失时拒绝放行）
-
-**自动化保证**:
-- install.sh 安装时自动 `cp -r packages/carroros-gov .opencode/plugins/` — 用户安装/更新即获取最新版
+- OC carroros-gov plugin 5 文件漂移
+- error-dna.py 三管道写入数据链断裂修复
+- 多项修复详情见完整 CHANGELOG
 
 ---
 
@@ -46,35 +88,26 @@
 > 知识管道激活 + 四hook接线上线 + 三门户路由完善 + Story对齐 + 全量测试框架
 
 **新增**:
-- 知识管道 Phase 4 激活: knowledge-condenser.sh 扫描claude-next.md高频模式→升华建议
-- pretool-plan-gate.sh 上线: 方案未审批→阻断Edit/Write/Bash，三模式感知(ghost/goal/normal)
-- build-validator.sh 上线: 12种构建命令自动诊断+修复建议
-- error-dna-auto-fix.sh 上线: 跨会话错误回顾(≥3次顽固错误)
+- 知识管道 Phase 4 激活
+- pretool-plan-gate.sh 上线
+- build-validator.sh 上线
+- error-dna-auto-fix.sh 上线
 - 全量测试框架: harness-full-test.sh → 12领域套件聚合(571/606)
-- 3个reference文档: mechanism-lifecycle.md / source-mirror-discipline.md / red-team.md
-- 回滚脚本: rollback-last-refactor.sh (软回滚/硬回滚)
+- 3个reference文档
+- 回滚脚本
 
 **路由扩展**:
-- AGENTS.md 路由条目: 24→28条 (+发布流水线/Source Mirror/狗粮Triage/Red Team/机制生命周期)
+- AGENTS.md 路由条目: 24→28条
 - Skills入口补skills-catalog.md路径
-- 置信度标注格式纳入编码内核: [已验证:file:line] / [已测试:命令+输出] / [推断,待确认]
+- 置信度标注格式纳入编码内核
 
 **修复**:
-- 12个孤儿/僵尸hook: 5个幽灵声明清理 + plan-gate.sh删除 + feature-probe.sh迁移
-- 17个CHANGELOG-6.3.*.md清理,保留最新
-- 发行版kernel.md替换为开发版(v6.3.27→v6.4.0版本)
-- harness-smoke-test 更新: R36-R39新增10项测试(213/213全绿)
-- 烟雾测试 R36 knowledge-condenser 状态更新 (幽灵注册→已激活)
-- 5个幽灵harness声明清理
-
-**Story对齐**:
-- Story-08: autonomous.active→tokens/lx-ghost.json+lx-goal.json，is_mode_active()更新
-- Story-10: "旧军团消逝"→"旧军团迁移进化"，承认.claude/scripts/仍在活跃
-- Story-12: ED-01"移除"→"搁置归档→v6.3.27三扇封印解开"
+- 12个孤儿/僵尸hook
+- 17个CHANGELOG清理
+- 发行版kernel.md替换
+- 烟雾测试更新
 
 **运行时验证**:
-- 平台: Darwin arm64 (Apple Silicon)
-- Claude Code 2.1.158 ✓ | OpenCode 1.15.4(OMO) ✓ | OMC ✓
 - 34/34 运行时实验全绿
 - 213/213 Smoke 全绿 | 571/606 Full test
 
@@ -93,7 +126,7 @@
 **修复**:
 - context-compressor bootstrap→mtime死循环 (FORCE_REGEN)
 - AGENTS-compact.md缺失导致缓存不完整
-- 5个僵尸hook (anti_pattern_detect等)
+- 5个僵尸hook
 - Windows where.exe + PYTHON_BIN兼容
 
 ---

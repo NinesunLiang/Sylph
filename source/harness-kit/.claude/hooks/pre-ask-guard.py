@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-pre-ask-guard.py — PreToolUse:AskUserQuestion — 问人前强制过决策链四层评估
+pre-ask-guard.py — PreToolUse:AskUserQuestion — 两段式决策链评估
 
 Role: 拦截 AskUserQuestion，检查决策链是否已有答案。能自主决策则阻断提问，降低人类心智负担。
 
-决策链（自上而下）：
-  Philosophy (7条) → Iron Rules (8条) → Existing Practices (claude-next.md)
-  → Behavior Patterns (behavior-patterns.md) → AI 自判
-以上全部穷尽仍不确定 → 才允许问人
+决策链（两段式）：
+  Phase 1 (快速扫描): AGENTS.md → kernel.md（高频匹配层，单次读取）
+  Phase 2 (完整遍历): anti-patterns.md → claude-next.md → behavior-patterns.md
+仅全部不确定 → 放行问人
 
 Conversion from pre-ask-guard.sh
 """
@@ -58,7 +58,9 @@ def extract_keywords(question: str) -> list[str]:
 
 def search_decision_chain(question: str, files: list[tuple[str, str]]) -> tuple[str, str, str]:
     """
-    搜索决策链文件（从 Philosophy 层开始）。
+    两段式搜索决策链文件。
+    Phase 1 (快速扫描): 只用第一个文件（AGENTS.md），匹配即返回
+    Phase 2 (完整遍历): 匹配到则返回，否则继续下一个文件
     返回: (matched_layer_name, matched_line_content, layer_display_name)
     """
     keywords = extract_keywords(question)
@@ -138,13 +140,14 @@ def main():
         print(hc_emit_hook_json(ctx, event="PreToolUse", continue_val=False))
         sys.exit(2)
 
-    # ─── 决策链文件 ──────────────────────────────────────────────
-    decision_files = [
+    # ─── 决策链文件（Phase 1: AGENTS.md + kernel.md 快速扫描 → Phase 2: 完整遍历） ─────
+    quick_files = [
         (_PROJECT_ROOT / "AGENTS.md", "AGENTS.md"),
+    ]
+    deep_files = [
         (_PROJECT_ROOT / ".claude" / "kernel.md", "kernel.md"),
         (_PROJECT_ROOT / ".claude" / "anti-patterns.md", "anti-patterns.md"),
         (_PROJECT_ROOT / ".claude" / "claude-next.md", "claude-next.md"),
-        (_PROJECT_ROOT / ".claude" / "behavior-patterns.md", "behavior-patterns.md"),
     ]
 
     # ─── 逐问题检查 ──────────────────────────────────────────────
@@ -155,7 +158,12 @@ def main():
         if not question:
             continue
 
-        matched_layer, matched_line, display_name = search_decision_chain(question, decision_files)
+        # Phase 1: 快速扫描 AGENTS.md
+        matched_layer, matched_line, display_name = search_decision_chain(question, quick_files)
+
+        # Phase 2: 未命中则完整遍历
+        if not matched_layer:
+            matched_layer, matched_line, display_name = search_decision_chain(question, deep_files)
 
         if matched_layer:
             resolvable_count += 1

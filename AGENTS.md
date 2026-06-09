@@ -12,15 +12,20 @@
 1.禁止编造:断言必有file:line/命令输出→BLOCKED,回滚+重做
 2.用户裁定:验收/选型/冲突由Boss决定→AI不可自判,等待指令
 3.证据门禁:无VERIFIED证据禁止说"已完成/已验证"→重新验证
-4.Git门禁:编译→功能→报告→Boss批准→提交,跳步=回滚
-5.范围冻结:一次一Step,非核心→TODO,越界→撤销
+4.Git门禁[auto]:编译→功能→报告→Boss批准→提交,跳步=回滚
+5.范围冻结[auto]:一次一Step,非核心→TODO,越界→撤销
 6.隐私防线:禁读.env/私钥,禁Bash敲明文Token→强阻断
-7.断言真实:百分比/评分须有来源URL/file:line,无→标注[内部自检]
+7.断言真实[auto]:百分比/评分须有来源URL/file:line,无→标注[内部自检]
 8.哲学先行:问人前先过哲学7条,能裁决→[哲学先行:#N→action]直接执行;仅偏好/不可逆/授权/合规可例外
-9.读操作不阻断:Read/Grep/非写Bash 永不阻断，仅在敏感路径( .env/密钥 )保留隐私拦截。所有 hook 不得因读操作 exit(2)，违者 P0
+9.读操作不阻断[auto]:Read/Grep/非写Bash 永不阻断，仅在敏感路径( .env/密钥 )保留隐私拦截。所有 hook 不得因读操作 exit(2)，违者 P0
 
-#8细则:过程性→直接执行,抉择性→哲学裁决(#2改动小者优先)
-#8与#2边界:分野抉择(不可逆/删除/发布/安全)→#2优先必问人;技术选择→#8优先
+#8细则:过程性→直接执行；抉择性→按决策树裁决
+决策树：
+  操作是否不可逆/删除/发布/涉及安全？
+  ├─ YES → #2 用户裁定 → 问 Boss
+  └─ NO  → 技术或过程性决策？
+       ├─ 过程性(已验证路径) → 直接执行
+       └─ 技术选择 → #2 最小改动原则选方案，标注理由
 哲学冲突裁决:#4>#6>#3>#7>#5>#2>#1
 权威链:Boss指令>项目宪法>PRD>Skill>设计文档>代码
 
@@ -39,46 +44,44 @@ hook铁则:禁set -e,必须exit 0/echo continue|hc_enabled门禁|永不阻断
 ──────────────────────
 难度分级
 ──────────────────────
-    L1单步→直接（简单任务）|L2多步→Step清单（中等复杂度）|L3架构→7步（复杂）|L4关键→7步+三重门+Oracle（关键架构）
-Oracle:L2+非琐碎→Oracle审核,REVISE→修P0,REJECT→报Boss
-Meta-Oracle:G1架构G2 PRD G3≥85 G4 Release→软门禁
+    L1单步→直接（简单）|L2多步→Step清单（中等）|L3+→需审核（复杂）
+    审核门:L2+非琐碎→审核,通过→继续,修改→重审,拒绝→报Boss
 
 ──────────────────────
 路由索引（Read on demand，无@展开；但 skill body.md 是强制执行合约，hook 自动注入）
 ──────────────────────
-name            | what                         | when                       | where
-────────────────────────────────────────────────────────────────────────────────
-铁律压缩         | 8条铁律+反模式+架构压缩     | /compact后知识恢复          | .omc/state/context-cache.md
-接入表           | Event:Matcher→Hooks路由     | 需要知道哪个hook何时触发    | .claude/index.md
-Skills(26个)     | lx-* 能力模块,10类域     | 选型/调用/编排工作流   | .claude/skills/ + docs/guides/cn/skills-catalog.md
-Skill依赖图      | Skills间调用+依赖关系      | 了解skill链式调用        | .claude/reference/skill-graph.md
-Nodes            | 20个原子工作流组件          | 构建复杂多步流程            | .claude/nodes/README.md
-Feature Registry | hook功能注册+哲学归属       | 新增/修改hook               | .claude/feature-registry.yaml
-Schemas          | 输入/输出/合约数据结构      | 数据格式校验                | .claude/schemas/registry.yaml
-Profiles         | 5语言治理配置(base/go/node/python/rust) | 跨语言项目切换     | .claude/profiles/
-发布流水线       | package-release + 同步+验证  | 发版/打包                  | scripts/package-release.sh
-Source Mirror    | 发布时root→source同步纪律   | 打包前检查                  | .claude/reference/source-mirror-discipline.md
-狗粮Triage       | 狗粮发现→归类→修复→反哺   | 遇到AI问题诊断              | .claude/skills/lx-dogfood/SKILL.md
-Red Team         | 持续攻击测试+防御升级      | 三源一致性进化             | .claude/reference/red-team.md
-三源一致性       | 生成/静态/运行时三源验证    | Oracle/Meta-Oracle审查      | .claude/reference/three-source-consistency.md
-Meta-Oracle      | G1-G4触发点+软门禁协议     | 架构决策/PRD终审/发版       | .claude/reference/meta-oracle.md
-| 五阶工作流 v4.0  | 状态机强制执行+抗compact+Gate超时+腐蚀恢复 | L2+任务执行前              | .claude/workflow-standard/README.md |
-UI还原工作流     | 四层引擎(CSS+响应式+DOM+状态)+Defense Layer | UI还原/设计稿还原          | .claude/docs/ui-restoration-workflow.md
-执行模式         | goal/ghost/rpe/有人值守详解 | 进入无人/有人模式前         | .claude/reference/execution-modes.md
-自主决策链       | L1-L4逐层消化+截断规则     | 无人值守自动决策            | .claude/reference/autonomous-decision-chain.md
-Task系统         | RPE任务模板+验收标准        | RPE模式任务编排             | .claude/task_sys/
-Race检测         | 竞态条件状态机              | 并行操作冲突检测            | .claude/race/state-machine.md
-编码规范         | bash-style+terminal-safety   | 写hook/Bash脚本前           | .claude/rules/
-反模式           | 17种常见AI失败模式+对策     | 遇到重复错误/异常行为       | .claude/anti-patterns.md
-学习笔记         | 历史踩坑记录+DG修复经验     | 遇到未知错误/设计决策       | .claude/claude-next.md
-机制矩阵         | 哲学→机制追溯关系           | 理解某条规则的实现          | .claude/reference/philosophy-mechanism-matrix.md
-机制生命周期     | 保留/删除/激活判定三标准   | 评估hook/skill去留          | .claude/reference/mechanism-lifecycle.md
-Hook配置         | 完整hook注册+matcher+超时   | 排查hook不触发/超时         | .claude/settings.json
-治理开关         | hook启用/阈值/ROI配置       | 调整治理参数               | .claude/harness.yaml
-会话交接         | 当前进度+决策+TODO          | /compact后/跨会话恢复       | .omc/state/session-handoff.md
-用户文档         | 新手入门/进阶/配置/LSP      | 需要用户侧文档              | .claude/reference/docs-index.md
-架构铁律         | 8条核心铁律(已精简)        | 执行前快速复核              | .claude/kernel.md
-|跨平台路由        | CC→bash hooks / OC→npm plugin  | 需要跨平台一致时        | .claude/scripts/ + packages/carroros-gov/
-|Agent 路由        | L1-L2→current / L3→OC / L4→CC | 选择 agent/平台         | .claude/scripts/context.py
-||Thinking Gate    | thinking/reasoning内容不塞入context | 使用thinking模型前 | .claude/reference/thinking-content-gate.md
-||────────────────────────────────────────────────────────────────────────────────
+name            | 场景                    | where
+─────────────────────────────────────────────────────────────
+铁律压缩         | /compact后知识恢复       | .omc/state/context-cache.md
+接入表           | 查hook触发链             | .claude/index.md
+Skills(26个)     | 选型/编排               | .claude/skills/ + docs/guides/cn/skills-catalog.md
+Skill依赖图      | 查skill链式调用          | .claude/reference/skill-graph.md
+Nodes            | 20个原子工作流组件        | .claude/nodes/README.md
+Feature Registry | hook功能注册+哲学归属     | .claude/feature-registry.yaml
+Schemas          | 数据结构校验              | .claude/schemas/registry.yaml
+Profiles         | 5语言治理配置             | .claude/profiles/
+发布流水线       | 发版/打包                | scripts/package-release.sh
+Source Mirror    | 打包前检查                | .claude/reference/source-mirror-discipline.md
+狗粮Triage       | 问题诊断                  | .claude/skills/lx-dogfood/SKILL.md
+Red Team         | 防御升级                  | .claude/reference/red-team.md
+三源一致性       | 一致性验证                | .claude/reference/three-source-consistency.md
+审核门           | 架构/PRD/高分/发版时      | .claude/reference/meta-oracle.md
+五阶工作流 v4.0  | L2+任务前                | .claude/workflow-standard/README.md
+UI还原工作流     | UI还原                   | .claude/docs/ui-restoration-workflow.md
+执行模式         | 模式选择                  | .claude/reference/execution-modes.md
+自主决策链       | 无人值守决策              | .claude/reference/autonomous-decision-chain.md
+Task系统         | RPE任务模板               | .claude/task_sys/
+Race检测         | 并行冲突检测              | .claude/race/state-machine.md
+编码规范         | 写hook/Bash前             | .claude/rules/
+反模式           | 17种AI失败模式+对策       | .claude/anti-patterns.md
+学习笔记         | 历史踩坑记录               | .claude/claude-next.md
+机制矩阵         | 规则实现追溯               | .claude/reference/philosophy-mechanism-matrix.md
+Hook配置         | 排查hook不触发             | .claude/settings.json
+治理开关         | 调整参数                   | .claude/harness.yaml
+会话交接         | compact后/跨会话恢复        | .omc/state/session-handoff.md
+用户文档         | 入门/进阶/LSP              | .claude/reference/docs-index.md
+架构铁律         | 执行前快速复核              | .claude/kernel.md
+跨平台路由       | 跨平台切换                | .claude/scripts/ + packages/carroros-gov/
+Agent 路由       | 选择agent                 | .claude/scripts/context.py
+Thinking Gate    | thinking过滤               | .claude/reference/thinking-content-gate.md
+─────────────────────────────────────────────────────────────

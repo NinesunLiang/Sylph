@@ -209,7 +209,8 @@ def main():
                 json.dump(streak_data, f)
 
             streak = streak_data["count"]
-            fail_streak_threshold = int(hc_get("posttool_bash_audit.fail_streak_threshold", "2"))
+            fail_streak_threshold = int(hc_get("posttool_bash_audit.fail_streak_threshold", "3"))
+            hard_block_threshold = int(hc_get("posttool_bash_audit.hard_block_threshold", "10"))
 
             if streak >= fail_streak_threshold:
                 distinct = len(streak_data.get("signatures", []))
@@ -231,6 +232,18 @@ def main():
                 }
                 with open(str(gate_file), "w", encoding="utf-8") as f:
                     json.dump(gate, f, indent=2)
+
+            # E5 Hard Block: excessive consecutive failures → hard exit(2)
+            if streak >= hard_block_threshold:
+                print(f"[Build Fail Gate] ⛔ 连续 {streak} 次构建失败（硬阻断阈值: {hard_block_threshold}）。"
+                      f"禁止继续盲修。请执行根因分析后再试。",
+                      file=sys.stderr, flush=True)
+                flywheel_event("posttool_bash_audit", "build_fail_hard_block", "P0", "carror-os")
+                print(json.dumps({
+                    "continue": False,
+                    "reason": f"连续 {streak} 次构建失败达到硬阻断阈值 {hard_block_threshold}。执行根因分析后再试。"
+                }))
+                sys.exit(2)
         else:
             # Build succeeded, reset streak
             try:

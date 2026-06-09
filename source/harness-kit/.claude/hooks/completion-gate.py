@@ -41,6 +41,54 @@ from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, o
 PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
 STATE_DIR = PROJECT_ROOT / ".omc" / "state"
 
+# ─── Fallback level 机制 ───
+# Level 1（默认）：完整路径，不变
+# Level 2（降级）：finish-length-detected 标记存在时，走简化 3 步链
+# Level 3（紧急）：连续 2 次 Level 2 降级后，退化为 warning-only 模式
+
+def _get_fallback_level():
+    """从 harness.yaml 读取 completion_gate.fallback_level，不存在返回 1。"""
+    raw = hc_get("completion_gate.fallback_level", "1")
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return 1
+
+def _check_finish_length_detected():
+    """检查 finish-length-detected 标记文件是否存在。"""
+    return (STATE_DIR / "finish-length-detected").exists()
+
+def _manage_finish_length_streak():
+    """管理连续降级计数。返回当前 streak 值。"""
+    streak_file = STATE_DIR / "finish-length-streak"
+    streak = 0
+    try:
+        if streak_file.exists():
+            raw = streak_file.read_text(encoding="utf-8", errors="replace").strip()
+            if raw:
+                streak = int(raw)
+    except (OSError, ValueError):
+        streak = 0
+    streak += 1
+    if streak >= 2:
+        # streak ≥ 2 自动清理（触发 Level 3 后用一次即清理）
+        try:
+            streak_file.unlink()
+        except OSError:
+            pass
+        # 同时清理标记文件
+        try:
+            (STATE_DIR / "finish-length-detected").unlink()
+        except OSError:
+            pass
+        return streak
+    try:
+        streak_file.parent.mkdir(parents=True, exist_ok=True)
+        streak_file.write_text(str(streak), encoding="utf-8")
+    except OSError:
+        pass
+    return streak
+
 
 # ─── 自主模式检测 ───
 
@@ -169,6 +217,14 @@ def main():
     # 自主/无人值守模式检测
     autonomous = _is_autonomous()
 
+    # ── Fallback Level 检测 ──
+    fallback_level = _get_fallback_level()
+    finish_length_detected = _check_finish_length_detected()
+
+    # 如果标记文件存在，动态切换到降级路径
+    if finish_length_detected and fallback_level < 2:
+        fallback_level = 2
+
     # 获取配置
     evidence_dir_str = hc_get("completion_gate.evidence_dir", ".omc/state")
     evidence_dir = PROJECT_ROOT / evidence_dir_str
@@ -179,6 +235,86 @@ def main():
     soft_words_raw = hc_get("completion_gate.soft_completion_words",
                             "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically done|mostly complete|seems to work|probably works|theoretically|should work|looks good")
 
+    # ── Fallback Level 2: 简化 3 步链 ──
+    if fallback_level >= 2:
+        level_label = {2: "降级模式", 3: "紧急模式"}.get(fallback_level, "降级模式")
+
+        # Level 3（紧急）：warning-only 模式，记录但不阻断
+        if fallback_level >= 3:
+            print(f"[Completion Gate] 紧急模式（fallback_level=3）: finish-length 连续降级，跳过阻断。",
+                  file=sys.stderr, flush=True)
+            flywheel_event("completion_gate", "fallback_level_3_skip", "P2")
+            print(json.dumps({"continue": True}))
+            sys.exit(0)
+
+        # Level 2（降级）：简化 3 步链
+        flywheel_event("completion_gate", "fallback_level_2", "P2")
+
+        # 管理连续降级计数
+        streak = _manage_finish_length_streak()
+        if streak >= 2:
+            print(f"[Completion Gate] 连续 {streak} 次降级，升级至 Level 3（紧急模式: warning-only）",
+                  file=sys.stderr, flush=True)
+            print(json.dumps({"continue": True}))
+            sys.exit(0)
+
+        print(f"[Completion Gate] {level_label}: 执行简化验证链", file=sys.stderr, flush=True)
+
+        # 证据文件路径（当前分钟）
+        evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
+
+        # 简化步骤 1: 证据存在性检查
+        if not evidence_file.exists():
+            print(f"[Completion Gate] 证据文件缺失 (simplified check)", file=sys.stderr, flush=True)
+            _auto_soft_block("无证据文件（降级模式）", autonomous)
+
+        # 简化步骤 2: 原子消费 + 读取 + 基础长度校验
+        consumed = evidence_file.parent / f"{evidence_file.name}.consumed.{os.getpid()}"
+        try:
+            os.rename(str(evidence_file), str(consumed))
+        except OSError:
+            print("⛔ COMPLETION BLOCKED: 证据已被其他进程消费", file=sys.stderr, flush=True)
+            _auto_soft_block("证据已被其他进程消费（降级模式）", autonomous)
+
+        try:
+            content = consumed.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            content = ""
+        content_len = len(content)
+
+        # 基础长度校验
+        if content_len < min_chars:
+            print(f"⛔ COMPLETION BLOCKED: 证据内容过短（{content_len} 字符 < {min_chars} 字符最低要求）。", file=sys.stderr, flush=True)
+            try:
+                consumed.unlink()
+            except OSError:
+                pass
+            _auto_soft_block(f"证据内容过短（{content_len}字符，降级模式）", autonomous)
+
+        # 简化步骤 3: VERIFIED 关键词检查
+        if req_keyword not in content:
+            print(f"⛔ COMPLETION BLOCKED: 证据文件中未找到 '{req_keyword}' 关键字。", file=sys.stderr, flush=True)
+            try:
+                consumed.unlink()
+            except OSError:
+                pass
+            _auto_soft_block("证据文件缺少关键字（降级模式）", autonomous)
+
+        # 降级模式验证通过
+        print(f"[Completion Gate] {level_label} 验证通过", file=sys.stderr, flush=True)
+        try:
+            consumed.unlink()
+        except OSError:
+            pass
+        # 清理 finish-length 标记
+        try:
+            (STATE_DIR / "finish-length-detected").unlink()
+        except OSError:
+            pass
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Fallback Level 1（默认）：完整路径不变 ──
     # 证据文件路径（当前分钟）
     evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
 

@@ -214,22 +214,20 @@ def _filter_system_reminders(text):
 
 
 def _detect_g1(combined):
-    """G1: Architecture decision final review.
+    """G1: Architecture decision final review — relaxed matching.
 
     >=2 subsystems + irreversible change + Oracle ACCEPT.
     """
-    # Step 1: architecture decision context
-    arch_ctx = re.search(
-        r"(?:架构|architecture|子系统|subsystem|domain.*split|功能域)"
-        r".*(?:决策|decision|终审|final|不可逆|irreversible)",
+    # Step 1: architecture decision context (relaxed)
+    if not re.search(
+        r"(?:架构|architecture|子系统|subsystem|domain)\w*\s*(?:决策|decision|终审|final|不可逆|irreversible|split)",
         combined,
         re.IGNORECASE,
-    )
-    if not arch_ctx:
+    ):
         return False
 
     # Step 2: must have Oracle ACCEPT
-    if not re.search(r"(?:Oracle|oracle).*(?:ACCEPT|APPROVED|通过)", combined):
+    if not re.search(r"(?:Oracle|oracle)\s*(?:verdict|裁决|:|).*\s*(?:ACCEPT|APPROVED|通过)", combined):
         return False
 
     # Step 3: irreversible marker OR multi-subsystem signal (>=3)
@@ -301,34 +299,32 @@ def _detect_g3(combined):
 
 
 def _detect_trigger(combined):
-    """Run G1-G4 detection in priority order. Returns (priority, reason) or (None, None)."""
+    """Run G1-G4 detection in priority order. Returns (priority, reason) or (None, None).
+
+    Priority 1: Environment variable _meta_oracle_trigger (set by key nodes).
+    If not set, fallback to content detection for G1 and G4 only.
+    G2/G3 are env-var-only (no content scanning).
+    """
+    # === Priority 1: Env var check ===
+    env_trigger = os.environ.get('META_ORACLE_TRIGGER', '').strip().upper()
+    if env_trigger in ('G1', 'G2', 'G3', 'G4'):
+        priority = env_trigger
+        reasons = {
+            'G1': 'G1 架构决策终审 — 环境变量 _meta_oracle_trigger 已设置',
+            'G2': 'G2 PRD/方案最后一步 — 环境变量 _meta_oracle_trigger 已设置',
+            'G3': 'G3 Oracle ACCEPT 环境变量 _meta_oracle_trigger 已设置',
+            'G4': 'G4 Release 门禁 — 环境变量 _meta_oracle_trigger 已设置',
+        }
+        return (priority, reasons[priority])
+
+    # === Fallback: content detection for G1 + G4 only ===
     # G1: Architecture decision
     if _detect_g1(combined):
         return ("G1", "G1 架构决策终审 — ≥2 子系统 + 不可逆变更 + Oracle 已 ACCEPT")
 
-    # G2: PRD final step
-    if _detect_g2(combined):
-        return ("G2", "G2 PRD/方案最后一步 — PRD 生命周期完成 + Oracle 已 ACCEPT")
-
     # G4: Release gate
     if _detect_g4(combined):
         return ("G4", "G4 Release 门禁 — package-release.sh 执行前安全检查")
-
-    # G3: Oracle ACCEPT / high score
-    if _detect_g3(combined):
-        # Determine specific reason
-        if re.search(r"(?:Oracle|oracle).*(?:ACCEPT|APPROVED)", combined):
-            return ("G3", "G3 Oracle ACCEPT/APPROVED 裁决检测")
-        scores = re.findall(r"(?:score|Score|评分|得分)[：: ]*(\d+\.\d+)", combined)
-        if scores:
-            max_score = max(float(s) for s in scores)
-            if max_score >= 8.5:
-                return ("G3", f"G3 Oracle 高分评分 ({max_score} ≥ 8.5)")
-        overall = re.findall(r"(?:综合|总分|平均|overall)[：: ]*(\d+\.\d+)", combined)
-        if overall:
-            max_os = max(float(s) for s in overall)
-            if max_os >= 8.5:
-                return ("G3", f"G3 综合评分 ≥ 8.5 ({max_os})")
 
     return (None, None)
 

@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import time
+import zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -276,9 +277,19 @@ def main():
                 has_structured = bool(re.search(r'(\|.*\|.*\|.*\||^#+\s|\*\*|`[^`]+`|---|\d+\.\s+\*\*)', prompt_text, re.MULTILINE))
 
                 if prompt_len < 100 and not has_structured:
-                    # 写模糊阻断标记
+                    # 写模糊阻断标记（原子写：先 .tmp 再 mv）+ CRC 校验
                     fuzzy_block_active = project_root / ".omc" / "state" / ".fuzzy-block-active"
-                    fuzzy_block_active.write_text(f"指令含模糊动词'{fuzzy_verb}'。请指定 Step 编号/文件路径/功能名称", encoding="utf-8")
+                    fuzzy_block_active_tmp = project_root / ".omc" / "state" / ".fuzzy-block-active.tmp"
+                    marker_text = f"指令含模糊动词'{fuzzy_verb}'。请指定 Step 编号/文件路径/功能名称"
+                    try:
+                        # 写入带 CRC32 校验的内容
+                        text_bytes = marker_text.encode("utf-8")
+                        crc = format(zlib.crc32(text_bytes) & 0xFFFFFFFF, '08x')
+                        fuzzy_block_active_tmp.write_bytes(text_bytes + b"||" + crc.encode("utf-8"))
+                        fuzzy_block_active_tmp.rename(fuzzy_block_active)
+                    except OSError:
+                        # Fallback: direct write without CRC
+                        fuzzy_block_active.write_text(marker_text, encoding="utf-8")
 
                 # 检查活跃 feature 状态
                 doc_search_path = project_root / doc_root

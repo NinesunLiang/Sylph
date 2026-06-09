@@ -1,16 +1,191 @@
-# harness-kit profile diff: Go 项目
+harness_version: 6.5.0
+workflow:
+  doc_root: rpe
+  executor_doc: executor.md
+  plan_doc: plan.md
+  research_doc: research.md
+task_decomposition:
+  require_step_file: true
+  step_file_path: .claude/{YYYY-M-D}/{task}_step.md
+  substep_format: '[ ] {描述} → 验收标准'
+  timeout_minutes: 10
+  max_different_approaches: 3
+  on_exceed_attempts: record_in_step_file_and_continue
+  sync_rule: complete_one_mark_one
+  circuit_breaker_states: Closed → Open → Half-Open
+  half_open_retry: true
+  rollback_declaration: required_for_strict_mode
+knowledge:
+  inject_files: false
+  snapshot_expiry_sec: 86400
+ghost_mode:
+  exit_report_gate: true
+  default_poll_interval: 600
+  default_expiry_hours: 3
+  default_min_iterations: 0
+turn_counter:
+  todo_refresh_interval: 10
+  todo_max_items: 15
+fuzzy_detection:
+  fuzzy_verbs: 继续 优化 修复 改进 完善 处理一下 看一下 搞一下
+lsp_suggest:
+  enabled: true
+subagent_guard:
+  dangerous_types: executor designer scientist
+context_guard:
+  warn_threshold: 50
+  danger_threshold: 80
+  critical_threshold: 90
+completion_gate:
+  min_evidence_chars: 60
+  required_keyword: VERIFIED
+  quality_threshold: 60
+  evidence_freshness_sec: 300
+  soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
+    done|mostly complete|seems to work|probably works|theoretically|should work|looks
+    good
+bash_audit:
+  dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
+  fail_streak_threshold: 3
+  hard_block_threshold: 10
+permission_gate:
+  git_commit_regex: git\s+(commit|add\s+--?all|\badd\b.*-A)
+  git_push_force_regex: git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force
+  git_push_regex: git\s+push\b
+  destructive_regex: \brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b
+  sudo_regex: ^\s*sudo\b|sudo\s
+  gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
+  bypass_regex: base64\s+(-d|--decode).*\|.*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|.*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
+  scope_write_regex: current-scope\\.txt|sensitive-approved|permission-approved
+  approved_ops_ttl: 1800
+  c1_whitelist: ""
+sublimation:
+  count_threshold: 20
+  age_days: 10
+  hit_threshold: 5
+  auto_execute: true
+correction_detector:
+  signals: 不对 错了 你搞错了 应该是 重新来
+  auto_kernel_draft: true
+session_handoff:
+  enabled: true
+  max_adr_lines: 10
+  max_todo_lines: 10
+  max_lessons: 3
+error_dna:
+  enabled: true
+  max_entries: 100
+escape_detection: true
+coupling:
+  enabled: true
+  min_co_change: 3
+  max_history_commits: 200
+  max_coupled_files: 5
+hooks_enabled:
+  auto_snapshot: true
+  build_validator: true
+  completion_gate: true
+  context_guard: true
+  context_compressor: true
+  ecosystem_probe: true
+  edit_guard: true
+  error_dna_auto_fix: true
+  error_dna: true
+  fuzzy_block: true
+  inject_project_knowledge: true
+  intent_tracker: true
+  knowledge_condenser: true
+  lsp_suggest: true
+  meta_oracle_trigger: true
+  permission_gate: true
+  posttool_bash_audit: true
+  posttool_claim_audit: true
+  posttool_completion_audit: true
+  posttool_checkpoint: true
+  posttool_edit_quality: true
+  posttool_handoff_writer: true
+  posttool_subagent_audit: true
+  posttool_write_cite: true
+  posttool_write_lock: true
+  pre_completion_gate: true
+  pre_ask_guard: true
+  session_resume: true
+  pretool_edit_scope: true
+  pretool_plan_gate: true
+  pretool_purify_gate: true
+  pretool_node_reference: true
+  posttool_template_check: true
+  pretool_rules_inject: true
+  pretool_skill_version_guard: true
+  pretool_sensitive_edit: true
+  pretool_terminal_safety: true
+  cross_platform_smoke_test: true
+  phase_state_tracker: true
+  pretool_b1_detect: true
+  pretool_compact_writer: true
+  pretool_git_gate: true
+  pretool_scope_gate: true
+  permission_frequency_tracker: true
+  lsp_gate: true
+  oracle_gate: true
+  posttool_read_cite: true
+terminal_safety:
+  max_command_length: 2000
+  pretool_write_lock: true
+  privacy_gate: true
+  read_tracker: true
+  retry_budget_check: true
+  skill_flywheel: true
+  stop_drain: true
+  subagent_guard: true
+  token_writer: true
+  skill_usage_tracker: true
+  turn_counter: true
+  user_correction_detector: true
+  plan_system: true
+rule_anchor:
+  turn_threshold: 15
+  interval: 5
+roi:
+  weights:
+    benefit:
+      intercept_count: 0.4
+      time_saved: 0.25
+      quality_boost: 0.2
+      knowledge_deposit: 0.15
+    cost:
+      token_consumption: 0.3
+      maintenance_burden: 0.3
+      false_positive_rate: 0.25
+      mental_burden: 0.15
+  thresholds:
+    low_roi: 10
+    medium_roi: 30
+    high_roi: 60
+  time_saved_matrix:
+    git_push_blocked: 15
+    rm_rf_blocked: 30
+    sensitive_file_blocked: 10
+    destructive_op_blocked: 20
+    context_overflow_prevented: 10
+    false_completion_blocked: 15
+    default_intercept: 5
+  data_sources:
+    flywheel_log: ~/.claude/flywheel.log
+    error_dna: .omc/state/error-dna.jsonl
+    skill_usage: .omc/state/skill-usage.jsonl
+  blast_radius: true
 
-# philosophy_alignment: [#4 验证优先, #3 先守护]
-# v5.3.0: 仅包含与 base/harness.yaml 不同的字段（\~25%）
+# C5: 分层 fail-safe 策略 — 安全门禁 fail-close(exit 2), 日志钩子 fail-open(exit 0)
+fail_closure:
+  security_gates: close
+  quality_gates: close
+  critical_hooks: close
+  auditing_hooks: open
+  logging_hooks: open
 
-# 安装：bash .claude/profiles/merge-profile.sh go
-
-# 直接用：bash .claude/profiles/merge-profile.sh go > .claude/harness.yaml
-
-\
-project: language: go source_extensions: "*.go" cite_extensions: "*.go *.mod *.sum"\
-protected_files: warn_on_edit: "main.go go.mod"\
-architecture: business_layers: "*/logic/* */model/* */executor/* */service/* */domain/*" handler_layers: "*/handler/* */api/* */router/* */controller/*" quality_checklist: "命名规范§4.2 | 导入三段式 | 错误处理必须含上下文 | 函数≤50行 | 日志纯英文" handler_constraint: "Handler 禁止直接调用 Model，必须经由 Logic/Service 层" doc_sync_target: "executor.md"\
-knowledge: lsp_hint: "Go 符号导航" lsp_example_file: "*.go"\
-fuzzy_detection: explicit_target_regex: 'Step\s*[0-9]+|rpe/[a-zA-Z_]+|\.go$|\.md$|handler|logic|model|service|controller|router'\
-error_dna: build_commands: "go build go test go vet golangci-lint"\
+# C9: 读操作豁免 — Read/Grep/非写Bash 永不 fail-close
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true  # 仅在 .env/密钥 等敏感路径保留拦截
