@@ -37,6 +37,7 @@ context_guard:
   danger_threshold: 80
   critical_threshold: 90
 completion_gate:
+  fallback_level: 1  # 1=完整, 2=降级, 3=紧急
   min_evidence_chars: 60
   required_keyword: VERIFIED
   quality_threshold: 60
@@ -91,6 +92,9 @@ hooks_enabled:
   edit_guard: true
   error_dna_auto_fix: true
   error_dna: true
+  error_dna_shard: true
+  error_dna_aggregator: true
+  score_archiver: true
   fuzzy_block: true
   inject_project_knowledge: true
   intent_tracker: true

@@ -66,4 +66,8 @@
 ## 运行模式
 
 - **无人**: goal/ghost/rpe → L4权限/风险→记录跳过 | **有人**: ToDo/Task-spec/标准 → L4穿透到人
+- **模式选择**: L2+ 任务先过 `docs/technical/cn/execution-mode-matrix.md` 选 race / stepwise / direct
+  - race（并行）: MECE 分解 ≥3 同构子任务 → `race-tool.py` 文档驱动
+  - stepwise（串行）: 有依赖/根因不明/跨模块 → 每步验证
+  - direct: 单文件小改 → 直接执行+证据门禁
 - Skill body.md强制执行: PreToolUse:Skill自动注入, PostToolUse:Skill审计合规

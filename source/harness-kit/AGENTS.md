@@ -70,7 +70,8 @@ Red Team         | 防御升级                  | .claude/reference/red-team.md
 审核门           | 架构/PRD/高分/发版时      | .claude/reference/meta-oracle.md
 五阶工作流 v4.0  | L2+任务前                | .claude/workflow-standard/README.md
 UI还原工作流     | UI还原                   | .claude/docs/ui-restoration-workflow.md
-执行模式         | 模式选择                  | .claude/reference/execution-modes.md
+执行模式         | 模式选择（Race/Stepwise 状态机）      | .claude/reference/execution-modes.md
+执行模式矩阵     | RPE/Ghost/Goal/监督模式选 race/stepwise | docs/technical/cn/execution-mode-matrix.md
 自主决策链       | 无人值守决策              | .claude/reference/autonomous-decision-chain.md
 Task系统         | RPE任务模板               | .claude/task_sys/
 Race检测         | 并行冲突检测              | .claude/race/state-machine.md
@@ -79,7 +80,7 @@ RaceSwarm并行(v2) | 文档驱动并行(新)        | packages/carroros-gov/src
 编码规范         | 写hook/Bash前             | .claude/rules/
 反模式           | 17种AI失败模式+对策       | .claude/anti-patterns.md
 学习笔记         | 历史踩坑记录               | .claude/claude-next.md
-机制矩阵         | 规则实现追溯               | .claude/reference/philosophy-mechanism-matrix.md
+机制矩阵         | 规则实现追溯 / 哲学一致性回顾  | .claude/reference/philosophy-mechanism-matrix.md
 Hook配置         | 排查hook不触发             | .claude/settings.json
 治理开关         | 调整参数                   | .claude/harness.yaml
 会话交接         | compact后/跨会话恢复        | .omc/state/session-handoff.md

@@ -25,7 +25,7 @@
 ## Ghost 专属
 
 ### Phase 0: 前置澄清 → `@references/ghost-phase0.md`
-方向自检 → 穷举不确定项 → 探索计划 → 激活脚本 + CronCreate 轮询。
+方向自检 → 穷举不确定项 → 探索计划（含模式选择：执行模式决策矩阵 `docs/technical/cn/execution-mode-matrix.md` #5-#6）→ 激活脚本 + CronCreate 轮询。
 
 ### Phase 0.5: Oracle 审核 → `@references/ghost-oracle-audit.md`
 五维门禁（方向适配/歧义穷尽/硬边界/决策链/退出条件），独立 Oracle 对抗性审查。
