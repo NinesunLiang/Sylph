@@ -409,6 +409,19 @@ case "$INSTALL_MODE" in
         ;;
 esac
 
+# ═══ DG-VJSON: 同步根级 VERSION.json ═══
+# extract_tar 只解压 harness-kit/lx-skills（.claude/ 目录），不覆盖根级 VERSION.json
+if [ -f "$SCRIPT_DIR/VERSION.json" ]; then
+    cp "$SCRIPT_DIR/VERSION.json" VERSION.json
+    log_info "✅ VERSION.json 已同步 ($(grep version VERSION.json | head -1 | tr -d ' ",:'))"
+elif [ -n "$GITHUB_RELEASE_URL" ]; then
+    if curl -sSL --connect-timeout 10 --max-time 30 -o VERSION.json "$GITHUB_RELEASE_URL/VERSION.json" 2>/dev/null; then
+        log_info "✅ VERSION.json 已从云端同步 ($(grep version VERSION.json | head -1 | tr -d ' ",:'))"
+    else
+        log_warn "⚠️ 无法获取 VERSION.json（本地无副本且云端下载失败），版本标识可能不准确"
+    fi
+fi
+
 chmod +x .claude/hooks/*.sh 2>/dev/null || true
 chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
 chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
@@ -590,10 +603,19 @@ if [ "$HAS_BACKUP" = true ]; then
             [ -d "$f" ] || continue
             base=$(basename "$f")
             [[ "$base" == lx-* ]] && continue
+            # 跳过本身就是嵌套副本的目录（旧 bug 遗留：references/references/）
+            [[ "$base" == "$(basename "$(dirname "$f")")" ]] && continue
             cp -r "$f" ".claude/skills/$base" 2>/dev/null
             log_info "已恢复第三方 skill：$base"
         done
     fi
+    # ═══ DG-NEST: 清理嵌套目录残留（旧版 install.sh 备份恢复累积的 bug）═══
+    for _nd in references update-carror-os; do
+        while [ -d ".claude/skills/$_nd/$_nd" ]; do
+            rm -rf ".claude/skills/$_nd/$_nd"
+            log_info "🧹 清理嵌套目录：.claude/skills/$_nd/$_nd"
+        done
+    done
 
     # settings.json 3-way merge（python3 实现）
     # DG-102: 修复 pipefail 吞错 — 用临时文件替代管道，防止 Python 失败时 set -eo pipefail 静默杀脚本

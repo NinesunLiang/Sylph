@@ -197,6 +197,18 @@ def main():
     except OSError:
         pass
 
+    # Phase 4.1: 归档 handoff 副本到 archive/{date}.md
+    try:
+        archive_dir = STATE_DIR / "handoff" / "archive"
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        date_str = timestamp[:10]  # YYYY-MM-DD
+        archive_file = archive_dir / f"{date_str}.md"
+        # Only archive once per day (don't overwrite)
+        if not archive_file.exists():
+            archive_file.write_text(handoff_content, encoding="utf-8")
+    except OSError:
+        pass
+
     output_continue()
     flywheel_event("posttool_handoff_writer", "handoff_written", "P2")
 

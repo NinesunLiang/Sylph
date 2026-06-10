@@ -2,6 +2,10 @@
 
 > CarrorOS 治理层。状态机 + Hook 强制执行。抗 context compaction。
 > 部署在 cc/oc 之上，无需修改宿主代码。
+>
+> **Stage 2 执行模式选择**：参见 `docs/technical/cn/execution-mode-matrix.md`
+> - 监督模式 + L2+ → 根据矩阵选 race / stepwise / direct
+> - 自主模式 (goal/ghost) → Phase 0 时按矩阵选引擎
 
 ──────────────────────
 ## 快速开始

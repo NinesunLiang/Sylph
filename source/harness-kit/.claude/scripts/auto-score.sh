@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # auto-score.sh v3 — Meta-Oracle 四维打分体系 (C/E/G 加权聚合 + UX 独立)
 # Cross-platform Python resolution (DG-105)
-[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
+[ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_core.py" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_core.py" 2>/dev/null || true
 
 # Role: 对 C/E/G 三维度加权聚合评分，UX 独立展示不参与总阈值
 #
@@ -10,7 +10,7 @@
 #
 # 评分方法:
 #   C/E/G 每子维度独立检测 (0-100%)，按权重 (40/35/25) 聚合为 0-10 分
-#   UX 独立评分（调用 score-ux.sh 或内置简易评分），不参与 8.6/10 门禁
+#   UX 独立评分（调用 score-ux.py 或内置简易评分），不参与 8.6/10 门禁
 #   8.6/10 门禁: >= 8.6 → ACCEPT, < 8.6 → ADVISORY
 #
 # 权重: C=40% (哲学#4+#6 正确性是基础), E=35% (哲学#3 机制必须生效), G=25% (哲学#7 治理是长期保障)
@@ -265,7 +265,7 @@ score_C2() {
   local score=0 max=15
   local index_ok=0
   if [ -f .claude/index.md ]; then
-    if bash .claude/scripts/audit-hooks.sh --check-index 2>/dev/null | grep -qE "主表.*实际活跃|🔴 严重: 0"; then
+    if python3 .claude/scripts/audit-hooks.py --check-index 2>/dev/null | grep -qE "主表.*实际活跃|🔴 严重: 0"; then
       index_ok=1
     fi
   fi
@@ -282,7 +282,7 @@ except: print('stale')
       compact_ok=1
     fi
   local refresh_ok=0
-  if grep -q "context.*50.*refresh\|L2\|周期刷新" .claude/hooks/turn-counter.sh 2>/dev/null; then
+  if grep -q "context.*50.*refresh\|L2\|周期刷新" .claude/hooks/turn-counter.py 2>/dev/null; then
     if [ -f .omc/state/session-turns.json ]; then
       TC_COUNT=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('.omc/state/session-turns.json')).get('count', 0))" 2>/dev/null || echo "0")
       [ "$TC_COUNT" -ge 1 ] 2>/dev/null && refresh_ok=1
@@ -316,8 +316,8 @@ score_C3() {
 score_C4() {
   local score=0 max=10
   local soft_detect=0 direction_fmt=0 evidence_level=0
-  grep -q "A2_SOFT_WORDS" .claude/hooks/posttool-anti-pattern-detect.sh 2>/dev/null && soft_detect=1
-  grep -qr "方向指引\|suggested_next" .claude/ --include="*.sh" --include="*.md" 2>/dev/null && direction_fmt=1
+  grep -q "A2_SOFT_WORDS" .claude/hooks/posttool-anti-pattern-detect.py 2>/dev/null && soft_detect=1
+  grep -qr "方向指引\|suggested_next" .claude/ --include="*.py" --include="*.md" 2>/dev/null && direction_fmt=1
   grep -q '证据层级\|L1.*L2.*L3.*L4' AGENTS.md 2>/dev/null && evidence_level=1
 
   local aspects=$(( soft_detect + direction_fmt + evidence_level ))
@@ -333,10 +333,10 @@ score_C4() {
 score_C5() {
   local score=0 max=10
   local audit_red=0
-  AUDIT_RED=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
+  AUDIT_RED=$(python3 .claude/scripts/audit-hooks.py 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
   local settings_count disk_count
   settings_count=$(grep -cE '\.claude/hooks/' .claude/settings.json 2>/dev/null); settings_count="${settings_count:-0}"
-  disk_count=$(ls .claude/hooks/*.sh 2>/dev/null | grep -v 'harness_config.sh\|agentic-ui.sh' | grep -v '\.bak$\|\.disabled$' | wc -l | tr -d ' ')
+  disk_count=$(ls .claude/hooks/*.py 2>/dev/null | grep -v 'harness_core.py\|agentic-ui.py' | grep -v '\.bak$\|\.disabled$' | wc -l | tr -d ' ')
   local reg_rate=0
   [ "$disk_count" -gt 0 ] && reg_rate=$(( settings_count * 100 / disk_count ))
 
@@ -398,7 +398,7 @@ score_C7() {
 score_C8() {
   local score=0 max=10
   local pv_failed=0
-  pv_failed=$(bash .claude/scripts/hook-production-verify.sh 2>/dev/null | grep '^summary:' | sed -n 's/.* \([0-9]*\) failed.*/\1/p' || echo "0")
+  pv_failed=$(python3 .claude/scripts/hook-production-verify.py 2>/dev/null | grep '^summary:' | sed -n 's/.* \([0-9]*\) failed.*/\1/p' || echo "0")
   [ -z "$pv_failed" ] && pv_failed=0
   local naming_ok=0
   grep -qE 'snake-case|蛇形命名' .claude/kernel.md 2>/dev/null && naming_ok=1
@@ -411,7 +411,7 @@ score_C8() {
   # P2-8: 多副本 sha256 一致性 (3分)
   local multi_copy_score=3
   local sha_fail=0
-  for base in "feature-probe.sh" "harness_config.sh" "agentic-ui.sh"; do
+  for base in "feature-probe.py" "harness_core.py" "agentic-ui.py"; do
     local hf=".claude/hooks/$base" sf=".claude/scripts/$base"
     if [ -f "$hf" ] && [ -f "$sf" ]; then
       local h_sha s_sha
@@ -432,8 +432,8 @@ score_C9() {
   local score=0 max=10
   local edna_auto=0 escape=0 rca=0
   [ -f .omc/state/error-signals.jsonl ] && [ -s .omc/state/error-signals.jsonl ] && edna_auto=1
-  grep -q 'context-force-override\|force.override' .claude/hooks/context-guard.sh 2>/dev/null && escape=1
-  [ -f .claude/hooks/posttool-completion-audit.sh ] && rca=1
+  grep -q 'context-force-override' .claude/hooks/context-guard.py 2>/dev/null && escape=1
+  [ -f .claude/hooks/posttool-completion-audit.py ] && rca=1
 
   score=$(( edna_auto * 4 + escape * 3 + rca * 3 ))
   # DG-103: runtime bonus
@@ -452,8 +452,8 @@ score_E1() {
   local scope=0 freeze=0 scope_from_goal=0 intent_rt=0
   grep -q 'pretool-edit-scope' .claude/settings.json 2>/dev/null && scope=1
   grep -q '范围冻结\|scope.freeze' AGENTS.md 2>/dev/null && freeze=1
-  # Scope-from-Goal: lx-goal 激活时自动调用 auto-scope.sh 推导范围（意志延伸物化）
-  grep -q 'auto-scope.sh' .claude/skills/lx-goal/scripts/lx-goal.sh 2>/dev/null && scope_from_goal=1
+  # Scope-from-Goal: lx-goal 激活时自动调用 auto-scope.py 推导范围（意志延伸物化）
+  grep -q 'auto-scope.py' .claude/skills/lx-goal/scripts/lx-goal.py 2>/dev/null && scope_from_goal=1
   # pre-ask-guard: 问人前强制过决策链，杜绝无意义打断
   grep -q 'pre-ask-guard' .claude/settings.json 2>/dev/null && grep -q 'pre_ask_guard.*true' .claude/harness.yaml 2>/dev/null && scope_from_goal=1
   # 运行时证据: 仅用 pretool-edit-scope（不应跨机制代理 intent_tracker 的证据）
@@ -474,8 +474,8 @@ score_E2() {
   local score=0 max=20
   local no_fabricate=0 evidence_gate=0 dual_source=0
   (grep -q '禁止编造\|no.fabricate' AGENTS.md 2>/dev/null || grep -q '禁止编造\|no.fabricate' source/harness-kit/AGENTS.md 2>/dev/null) && no_fabricate=1
-  grep -q 'EVIDENCE_FILE\|evidence_freshness' .claude/hooks/completion-gate.sh 2>/dev/null && evidence_gate=1
-  grep -q 'cross-verify-handoff' .claude/hooks/completion-gate.sh 2>/dev/null && dual_source=1
+  grep -qE 'EVIDENCE_FILE|evidence_freshness' .claude/hooks/completion-gate.py 2>/dev/null && evidence_gate=1
+  grep -q 'cross-verify-handoff' .claude/hooks/completion-gate.py 2>/dev/null && dual_source=1
   # 运行时证据: claim-audit 和 anti-pattern-detect 都有 flywheel 事件
   local claim_rt anti_rt best_rt
   claim_rt=$(runtime_evidence_factor "posttool_claim_audit")
@@ -494,8 +494,8 @@ score_E2() {
 score_E3() {
   local score=0 max=15
   local qc=0 soft_word=0
-  grep -q 'VERIFIED\|required_keyword' .claude/hooks/completion-gate.sh 2>/dev/null && qc=1
-  grep -q 'A2_SOFT_WORDS' .claude/hooks/posttool-anti-pattern-detect.sh 2>/dev/null && soft_word=1
+  grep -qE 'VERIFIED|required_keyword' .claude/hooks/completion-gate.py 2>/dev/null && qc=1
+  grep -q 'A2_SOFT_WORDS' .claude/hooks/posttool-anti-pattern-detect.py 2>/dev/null && soft_word=1
   # 运行时证据: completion_gate + autonomous log 非空
   local cg_rt
   cg_rt=$(runtime_evidence_factor "completion_gate")
@@ -514,7 +514,7 @@ score_E4() {
   local score=0 max=12
   local round3=0 guard=0
   grep -q '修复.*3.*轮\|3.*轮.*上限' .claude/kernel.md 2>/dev/null && round3=1
-  grep -q 'context-guard\|Context Guard' .claude/hooks/context-guard.sh 2>/dev/null && guard=1
+  grep -qE 'context-guard|Context Guard' .claude/hooks/context-guard.py 2>/dev/null && guard=1
   # 运行时证据: permission_gate + sensitive_edit 都有 flywheel
   local perm_rt sens_rt best_rt
   perm_rt=$(runtime_evidence_factor "permission_gate")
@@ -533,7 +533,7 @@ score_E4() {
 score_E5() {
   local score=0 max=10
   local rca_enforced=0 compile_anti=0
-  grep -qE 'RCA|根因' .claude/hooks/completion-gate.sh 2>/dev/null && rca_enforced=1
+  grep -qE 'RCA|根因' .claude/hooks/completion-gate.py 2>/dev/null && rca_enforced=1
   grep -q '编译错误盲修\|编译盲修' .claude/anti-patterns.md 2>/dev/null && compile_anti=1
   # 运行时证据: pretool-retry-check 有诊断门禁执行记录 + error-signals 有数据
   local retry_rt errsig_ok
@@ -569,10 +569,10 @@ score_E5() {
 score_E6() {
   local score=0 max=13
   local triple=0 contradict_log=0 intent_fw=0
-  grep -q 'cross-verify\|三重门\|triple' .claude/hooks/completion-gate.sh 2>/dev/null && triple=1
+  grep -qE 'cross-verify|三重门|triple' .claude/hooks/completion-gate.py 2>/dev/null && triple=1
   [ -f .omc/state/edit-churn-log.jsonl ] && contradict_log=1
   # intent-tracker flywheel 埋点 (P3: 信号文件机制已部署)
-  grep -q 'flywheel_event.*intent_tracker' .claude/hooks/intent-tracker.sh 2>/dev/null && intent_fw=1
+  grep -q 'flywheel_event.*intent_tracker' .claude/hooks/intent-tracker.py 2>/dev/null && intent_fw=1
   # 运行时证据: 矛盾检测率 (contradiction=true / total)
   local detect_rate=0
   if [ -f .omc/state/edit-churn-log.jsonl ]; then
@@ -648,7 +648,7 @@ score_E8() {
   local score=0 max=10
   local compact=0 tc=0 handoff=0
   grep -q 'turn-counter\|UserPromptSubmit' .claude/settings.json 2>/dev/null && tc=1
-  [ -f .claude/hooks/auto-snapshot.sh ] && grep -q 'handoff\|交接' .claude/hooks/auto-snapshot.sh 2>/dev/null && handoff=1
+  [ -f .claude/hooks/posttool-handoff-writer.py ] && grep -qE 'handoff|交接' .claude/hooks/posttool-handoff-writer.py 2>/dev/null && handoff=1
   # 运行时证据: inject_project_knowledge (SessionStart 知识注入防上下文丢失) + auto-snapshot
   # inject-project-knowledge 将核心规则注入每会话 = 最直接的上下文遗忘防御
   local know_rt snap_rt best_rt
@@ -692,7 +692,7 @@ score_G1() {
   [ -f .claude/reference/philosophy.md ] && philo_ref=1
 
   # 哲学→机制 逆向追溯矩阵存在
-  grep -q '机制→哲学.*逆向追溯\|哲学一致性.*机制' AGENTS.md 2>/dev/null && dual_check=1
+  grep -qiE '哲学一致性|机制.*哲学' AGENTS.md 2>/dev/null && dual_check=1
 
   score=$(( philo_has_mech * 4 + philo_ref * 3 + dual_check * 3 ))
   echo "$score $max G1=哲学一致性(mech=${philo_has_mech} ref=${philo_ref} dual=${dual_check})"
@@ -705,12 +705,12 @@ score_G2() {
 
   # audit-hooks 红色错误 = 0
   local aud_red
-  aud_red=$(bash .claude/scripts/audit-hooks.sh 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
+  aud_red=$(python3 .claude/scripts/audit-hooks.py 2>/dev/null | grep -oE '🔴 严重: [0-9]+' | grep -oE '[0-9]+' || echo "99")
   [ "$aud_red" = "0" ] 2>/dev/null && audit_pass=1
 
   # harness-smoke-test 全绿
   local smoke_failed
-  smoke_failed=$(bash .claude/scripts/harness-smoke-test.sh 2>/dev/null | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "99")
+  smoke_failed=$(python3 .claude/scripts/harness-smoke-test.py 2>/dev/null | grep -oE '[0-9]+ failed' | grep -oE '[0-9]+' || echo "99")
   [ "$smoke_failed" = "0" ] 2>/dev/null && smoke_pass=1
 
   # B-terminal: 独立跨终端验证 (三扇门 B 环节)
@@ -778,15 +778,28 @@ score_G5() {
 
   # source mirror 一致性检查
   # DG-95: "有意分歧" is an info header, not a pass signal. Use precise match.
-  if bash .claude/scripts/audit-hooks.sh --check-source-mirror 2>/dev/null | grep -qE '✅|通过|无漂移[^:]*$'; then
+  if python3 .claude/scripts/audit-hooks.py --check-source-mirror 2>/dev/null | grep -qE '✅|通过|无漂移[^:]*$'; then
     source_mirror_ok=1
   fi
 
   # index.md 与 hooks 表一致性
   if [ -f .claude/index.md ]; then
     local idx_hooks disk_hooks
-    idx_hooks=$(grep -c '\.claude/hooks/' .claude/index.md 2>/dev/null); idx_hooks="${idx_hooks:-0}"
-    disk_hooks=$(ls .claude/hooks/*.sh 2>/dev/null | wc -l | tr -d ' ')
+    # 统计 index.md 中 `→` 后的独立条目（去重 # hook 后缀），对比磁盘文件数
+    idx_hooks=$(${PYTHON_BIN:-python3} -c "
+import re
+with open('.claude/index.md') as f:
+    content = f.read()
+entries = set()
+for line in content.split('\n'):
+    if '→' in line:
+        for e in line.split('→',1)[1].split('|'):
+            base = re.sub(r'\([^)]+\)', '', e.strip()).strip()
+            if base:
+                entries.add(base)
+print(len(entries))
+" 2>/dev/null || echo "0")
+    disk_hooks=$(ls .claude/hooks/*.py .claude/hooks/*.py 2>/dev/null | wc -l | tr -d ' ')
     # 允许 ±5 的容差（index.md 可能不是 1:1 映射）
     local diff=$(( idx_hooks - disk_hooks ))
     [ "$diff" -lt 0 ] && diff=$(( -diff ))
@@ -794,7 +807,7 @@ score_G5() {
   fi
 
   # doc-sync-check 脚本存在
-  [ -f .claude/scripts/doc-sync-check.sh ] && doc_refs_ok=1
+  [ -f .claude/scripts/doc-sync-check.py ] && doc_refs_ok=1
 
   score=$(( source_mirror_ok * 4 + index_consistent * 3 + doc_refs_ok * 3 ))
   echo "$score $max G5=文档漂移(mirror=${source_mirror_ok} index=${index_consistent} docs=${doc_refs_ok})"
@@ -870,7 +883,7 @@ score_R3() {
 score_R4() {
   local score=0 max=10
   local total_hooks=0 evidence_hooks=0
-  total_hooks=$(ls .claude/hooks/*.sh 2>/dev/null | grep -v 'harness_config.sh\|agentic-ui.sh' | wc -l | tr -d ' ')
+  total_hooks=$(ls .claude/hooks/*.py 2>/dev/null | grep -v 'harness_core.py\|agentic-ui.py' | wc -l | tr -d ' ')
   if [ -f ".omc/state/hook-evidence.jsonl" ]; then
     evidence_hooks=$(cut -d'"' -f4 .omc/state/hook-evidence.jsonl 2>/dev/null | sort -u | wc -l | tr -d ' ')
     evidence_hooks="${evidence_hooks:-0}"
@@ -924,15 +937,15 @@ score_RUNTIME() {
 }
 score_UX() {
   # 优先使用独立 UX 评分脚本
-  if [ -f .claude/scripts/score-ux.sh ]; then
+  if [ -f .claude/scripts/score-ux.py ]; then
     local ux_output
-    ux_output=$(bash .claude/scripts/score-ux.sh 2>/dev/null)
+    ux_output=$(python3 .claude/scripts/score-ux.py 2>/dev/null)
     local ux_score ux_max
     ux_score=$(echo "$ux_output" | grep 'UX 总分:' | grep -oE '[0-9]+/[0-9]+' | cut -d'/' -f1)
     ux_max=$(echo "$ux_output" | grep 'UX 总分:' | grep -oE '[0-9]+/[0-9]+' | cut -d'/' -f2)
     ux_score="${ux_score:-0}"
     ux_max="${ux_max:-10}"
-    echo "$ux_score $ux_max UX=独立评分(score-ux.sh)"
+    echo "$ux_score $ux_max UX=独立评分(score-ux.py)"
     return 0
   fi
 
@@ -941,10 +954,10 @@ score_UX() {
   local has_decision_chain=0 has_meta_oracle=0 has_auto_mode=0 has_error_class=0 has_completion_gate=0
 
   [ -f .claude/reference/autonomous-decision-chain.md ] && has_decision_chain=1
-  grep -q 'meta_oracle_trigger' .claude/hooks/meta-oracle-trigger.sh 2>/dev/null && has_meta_oracle=1
-  [ -f .claude/skills/lx-goal/scripts/lx-goal.sh ] && [ -f .claude/skills/lx-ghost/scripts/lx-ghost.sh ] && has_auto_mode=1
+  grep -q 'meta_oracle_trigger' .claude/hooks/meta-oracle-trigger.py 2>/dev/null && has_meta_oracle=1
+  [ -f .claude/skills/lx-goal/scripts/lx-goal.py ] && [ -f .claude/skills/lx-ghost/scripts/lx-ghost.py ] && has_auto_mode=1
   grep -q 'error-dna\|error_classifier' .claude/settings.json 2>/dev/null && has_error_class=1
-  grep -q 'SOFT_WORDS\|违禁词\|evidence.*gate' .claude/hooks/completion-gate.sh 2>/dev/null && has_completion_gate=1
+  grep -q 'SOFT_WORDS\|违禁词\|evidence.*gate' .claude/hooks/completion-gate.py 2>/dev/null && has_completion_gate=1
 
   score=$(( has_decision_chain * 2 + has_meta_oracle * 2 + has_auto_mode * 2 + has_error_class * 2 + has_completion_gate * 2 ))
   [ "$score" -gt "$max" ] && score=$max

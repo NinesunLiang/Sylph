@@ -86,6 +86,25 @@ def main():
         except Exception:
             pass
 
+    # ─── P3-2: 状态同步 — 写 subagent-state.md (main ↔ subagent 状态通道) ───
+    try:
+        state_file = state_dir / "subagent-state.md"
+        # 本次 subagent 调用的 goal 和 context 在 tool_input 中
+        goal = str(parsed.get("tool_input", {}).get("goal", "") or "") if 'parsed' in dir() else ""
+        context = str(parsed.get("tool_input", {}).get("context", "") or "") if 'parsed' in dir() else ""
+        # 只写入有意义的调用
+        if agent_type and (len(goal) > 10 or len(context) > 10):
+            with open(str(state_file), "a", encoding="utf-8") as sf:
+                sf.write(f"\n## {ts} | {agent_type}\n")
+                if goal:
+                    sf.write(f"- 目标: {goal[:200]}\n")
+                if context:
+                    sf.write(f"- 上下文: {context[:200]}\n")
+                sf.write(f"- 输出大小: {content_len} 字节\n")
+                sf.write(f"- 高用量: {'是' if is_high else '否'}\n")
+    except Exception:
+        pass
+
     # K1 跨Agent数据链: 子Agent输出 >=10KB → 注入验证提醒
     try:
         verify_threshold = int(hc_get("subagent_guard.verify_reminder_threshold_bytes", "10240"))

@@ -1,66 +1,66 @@
-# lx-race — 蜂群协调层
+# lx-race — 文档驱动蜂群并行层
 
-## 原子化声明
+> 版本: v2.0 | 哲学: #7(文档优先)、#4(验收)、#2(最小改动)
 
-| 节点 | 路径 | 用途 |
+## 核心变化 (v2.0)
+
+- ❌ 旧: `race_manager.sh` + `.omc/race/` + `delegate_task` 直接对接
+- ✅ 新: `race-tool.py` + `.omc/plan/{date}/{taskid}/` + 文档契约
+
+## 四步流程
+
+```
+main agent: init → dispatch → delegate_task (循环) → report / collect
+                                  ↑ (轮询 task-state.md)
+subagent:   读 task.md → 执行 → 写 result.md → 更新 task-state.md
+```
+
+| Step | 命令 | 产出 |
 |------|------|------|
-| report_generator | `../../nodes/report_generator.md` | 聚合报告生成 |
-| behavior_rules | `../../nodes/behavior_rules.md` | 派发/收集阶段行为约束 |
+| 1. init | `race-tool.py init <title>` | batch manifest.md |
+| 2. dispatch | `race-tool.py dispatch <batch_id> --tasks <json>` | 子任务目录(task.md + state) |
+| 3. execute | `delegate_task` 带路径 | subagent 写 result.md |
+| 4. report | `race-tool.py report <batch_id>` | 汇总报告 |
 
-| 脚本 | 用途 |
-|------|------|
-| `scripts/race_manager.sh` | 状态引擎：register/status/report |
+## 命令参考
 
-### references/（按需加载）
-| 文件 | 加载时机 |
-|------|---------|
-| `references/coordination-flow.md` | coordination flow 阶段 |
-| `references/cross-platform-arch.md` | cross platform arch 阶段 |
-| `references/worker-protocol.md` | worker protocol 阶段 |
+```
+race-tool.py init <title> [--parallel N] [--desc "<desc>"]
+race-tool.py dispatch <batch_id> --tasks '<json_array>'
+race-tool.py status <batch_id>
+race-tool.py collect <batch_id>
+race-tool.py report <batch_id>
+race-tool.py update <task_dir> <state> [message]
+race-tool.py list [--limit N]
+```
 
-> 降级升级: @../references/oma/degradation-escalation.md
-> 裁决链: @../references/oma/decision-chain.md
-> 执行工作流: @../references/oma/execution-workflow.md
+## 子任务目录结构
+
+```
+.omc/plan/{YYYYMMDD}/{batch_id}/
+  manifest.md    — batch 元信息
+  {taskid}/
+    task.md       — goal + context + criteria
+    executor.md   — 执行步骤
+    result.md     — 产出
+    task-state.md — 状态机
+```
 
 ## 状态机
 
 ```
-need_input → [register → dispatch → collect → report] → done
+pending → running → done
+                 → failed → retry(≤3) → running
+                                → blocked(>3)
 ```
 
-## 降级策略
+## 与 old race_manager.sh 关系
 
-> 降级升级: `@../references/oma/degradation-escalation.md`
-> 裁决链: `@../references/oma/decision-chain.md`
-> 执行工作流: `@../references/oma/execution-workflow.md`
-> 链式承接: `@../references/oma/skill-chaining.md`
+- `race_manager.sh` 保留（旧任务兼容），但新任务全部走 `race-tool.py`
+- `.omc/race/` 路径逐步迁移到 `.omc/plan/{date}/`
 
-| 场景 | 主路径 | 降级 |
-|------|--------|------|
-| 无子任务 | register | 报告退出 |
-| Task() API 不可用 | Task 派发 | run_in_background |
-| 后台不可用 | run_in_background | 顺序执行 |
-| 脚本缺失 | 脚本执行 | 提示重新安装 |
-| 全部失败 | 聚合报告 | 不阻断父任务 |
+## 参考文档
 
-## 跨平台架构 → `@references/cross-platform-arch.md`
-
-核心哲学：Race 不做调度（复用平台 Task API），不做写锁（复用 OMA Lock），只做**状态跟踪 + 冲突协调**。
-
-## 协调流程 → `@references/coordination-flow.md`
-
-1. **Register** — `race_manager.sh register` 创建 `.omc/race/<parent>/` 状态树
-2. **Dispatch** — 路径 A: Task()（Claude Code）/ 路径 B: run_in_background（5 平台）
-3. **Collect** — `race_manager.sh status --all` 轮询
-4. **Report** — `race_manager.sh report` 聚合所有 result.json
-
-## Worker 协议 → `@references/worker-protocol.md`
-
-环境变量 `RACE_PARENT_ID` / `RACE_SUBTASK_ID` / `RACE_SUBTASK_PATH`。
-完成契约：写入 `$RACE_SUBTASK_PATH/result.json`（status + output）。
-
-## 限制
-
-- 不做调度引擎、不做写锁、不新增 Hook
-- 复用 `owner.json` + `result.json` 格式
-- 子任务独立可验收，避免依赖链
+- `.claude/reference/race-subagent-protocol.md` — subagent 执行契约
+- `.claude/scripts/race-tool.py` — 核心 CLI 工具（在 packages/ 下，link 到此处）
+- `race-tool.py` 主要源码: `packages/carroros-gov/src/scripts/race-tool.py`

@@ -210,7 +210,7 @@ if SCAN_INTERNAL:
                     ))
 
 # === D. Index.md hooks 速查表对账 ===
-if check_index or sync_index:
+if CHECK_INDEX or SYNC_INDEX:
     TABLE_PATH = ".claude/reference/hooks-table.md"
     index_src = Path(TABLE_PATH).read_text(encoding="utf-8")
 
@@ -346,7 +346,7 @@ if check_index or sync_index:
             print(f"  🔄 原表 {len(cur_names)} 个 → 新表 {len(active_names)} 个")
 
 # === E. Source Mirror Consistency Check ===
-if check_source_mirror:
+if CHECK_SOURCE_MIRROR:
     if not os.path.isdir("source"):
         print("  ⚠️  source mirror 目录不存在（已废弃），跳过检查")
     else:
@@ -431,7 +431,7 @@ if check_source_mirror:
             print(f"  ℹ️  有意分歧（不参与 mirror 检查）: {div_str}")
 
 # === H. feature-registry 完整性检查 (--check-registry) ===
-if check_registry:
+if CHECK_REGISTRY:
     registry_hooks = set()
     registry_skills = set()
     try:
