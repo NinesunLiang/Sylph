@@ -262,8 +262,24 @@ def write_verdict(gate_verdict, weighted_score, ux_score, ux_max):
 def _build_spawn_prompt(trigger_type, methodology_lines):
     """Build the full prompt for the independent critic agent."""
     project_name = os.path.basename(PROJECT_ROOT)
-    return f"""{''.join(methodology_lines)}
+    
+    # G4: inject actual check results to prevent false-positive "not executed" claims
+    g4_evidence = ""
+    if trigger_type == "G4":
+        g4_evidence = os.environ.get("G4_CHECK_RESULTS", "")
+        if g4_evidence:
+            g4_evidence = f"""
+## G4 实际检查结果（已执行）
 
+以下检查已在调用你之前由 package-release.sh 执行完毕，**请直接参考结果，不要声称未执行**：
+
+{g4_evidence}
+
+你的审查应聚焦在：这些检查是否充分、有无遗漏、有无运行时盲区，而非断言检查未执行。
+"""
+    
+    return f"""{''.join(methodology_lines)}
+{g4_evidence}
 ## Current Project State
 Project: {project_name}
 Root: {PROJECT_ROOT}
