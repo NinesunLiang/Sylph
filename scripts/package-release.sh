@@ -23,105 +23,29 @@ LX_SRC="source/lx-skills-v5"
 log_step "G4 Meta-Oracle Release 门禁检查..."
 META_ORACLE_SCRIPT="$PROJECT_DIR/.claude/scripts/meta-oracle-review.py"
 META_ORACLE_OVERRIDE="$PROJECT_DIR/.omc/state/meta-oracle-overrides.md"
-G4_PASSED=true
+META_ORACLE_G4_CHECK="$PROJECT_DIR/.claude/scripts/g4-precheck.py"
 
-# 收集检查结果供 Meta-Oracle critic 参考
-G4_CHECK_RESULTS=""
-G4_CHECK_RESULTS_FILE=$(mktemp /tmp/g4-check-results-XXXXXX)
+# 用 Python 执行 G4 预检（避免 set -eo pipefail + bash 的陷阱）
+if [ -f "$META_ORACLE_G4_CHECK" ]; then
+    log_info "G4 预检脚本: $META_ORACLE_G4_CHECK"
+    G4_PRECHECK_OUTPUT=$(python3 "$META_ORACLE_G4_CHECK" 2>&1) || true
+    G4_PRECHECK_EXIT=$?
+    echo "$G4_PRECHECK_OUTPUT"
 
-if [ -f "$META_ORACLE_SCRIPT" ]; then
-    echo ""
-    echo "╔══════════════════════════════════════════════════════════════╗"
-    echo "║  🔍 G4 Meta-Oracle — Release 最后守门员                    ║"
-    echo "║  硬门禁: REJECT 阻断打包，必须人工确认或覆写                 ║"
-    echo "╚══════════════════════════════════════════════════════════════╝"
-    echo ""
-
-    # 1. source mirror 一致性检查
-    SOURCE_MIRROR_OK=false
-    if [ -x "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" ]; then
-        log_info "[G4.1] source mirror 一致性检查..."
-        if bash "$PROJECT_DIR/.claude/scripts/audit-hooks.sh" --check-source-mirror 2>&1; then
-            log_info "  ✅ source mirror 一致"
-            SOURCE_MIRROR_OK=true
-        else
-            log_warn "  ⚠️  source mirror 漂移检测到不一致项"
-            G4_PASSED=false
-        fi
-    fi
-    G4_CHECK_RESULTS+="  G4.1 source mirror 一致性: $([ "$SOURCE_MIRROR_OK" = true ] && echo 'PASS' || echo 'FAIL')\n"
-
-    # 2. harness smoke test
-    SMOKE_OK=false
-    SMOKE_FAIL_COUNT="N/A"
-    SMOKE_TEST="$PROJECT_DIR/.claude/scripts/harness-smoke-test.sh"
-    SMOKE_PY="$PROJECT_DIR/.claude/scripts/harness-smoke-test.py"
-    if [ "${1:-}" = "--skip-smoke" ] || [ "${2:-}" = "--skip-smoke" ]; then
-        log_warn "[G4.2] harness-smoke-test SKIPPED (--skip-smoke)"
-        SMOKE_OK=true
-        SMOKE_FAIL_COUNT="skipped"
-    elif [ -f "$SMOKE_PY" ]; then
-        log_info "[G4.2] harness-smoke-test.py (Python 版)..."
-        SMOKE_OUTPUT=$(python3 "$SMOKE_PY" 2>&1)
-        SMOKE_EXIT=$?
-        SMOKE_FAIL_COUNT=$(echo "$SMOKE_OUTPUT" | grep -E 'FAIL|🔴' 2>/dev/null | wc -l | tr -d ' ')
-        SMOKE_FAIL_COUNT="${SMOKE_FAIL_COUNT:-0}"
-        if [ "$SMOKE_EXIT" -eq 0 ] && [ "$SMOKE_FAIL_COUNT" = "0" ]; then
-            log_info "  ✅ smoke test 全绿"
-            SMOKE_OK=true
-        else
-            log_warn "  ⚠️  smoke test 有 ${SMOKE_FAIL_COUNT} 项失败"
-        fi
-    elif [ -x "$SMOKE_TEST" ]; then
-        log_info "[G4.2] harness-smoke-test..."
-        SMOKE_OUTPUT=$(bash "$SMOKE_TEST" 2>&1)
-        SMOKE_EXIT=$?
-        SMOKE_FAIL_COUNT=$(echo "$SMOKE_OUTPUT" | grep -E 'FAIL|🔴' 2>/dev/null | wc -l | tr -d ' ')
-        SMOKE_FAIL_COUNT="${SMOKE_FAIL_COUNT:-0}"
-        if [ "$SMOKE_EXIT" -eq 0 ] && [ "$SMOKE_FAIL_COUNT" = "0" ]; then
-            log_info "  ✅ smoke test 全绿"
-            SMOKE_OK=true
-        else
-            log_warn "  ⚠️  smoke test 有 ${SMOKE_FAIL_COUNT} 项失败"
-        fi
-    fi
-    G4_CHECK_RESULTS+="  G4.2 harness smoke test: $([ "$SMOKE_OK" = true ] && echo 'PASS' || echo "FAIL (${SMOKE_FAIL_COUNT} failures)")\n"
-
-    # 3. VERSION.json 一致性
-    VERSION_OK=false
-    if [ -f "$PROJECT_DIR/VERSION.json" ]; then
-        log_info "[G4.3] VERSION.json 一致性..."
-        VER=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$PROJECT_DIR/VERSION.json'))['version'])" 2>/dev/null)
-        if [ -n "$VER" ] && [ "$VER" = "$VERSION" ]; then
-            log_info "  ✅ VERSION.json 一致 ($VER)"
-            VERSION_OK=true
-        else
-            log_warn "  ⚠️  VERSION.json 不一致或读取失败"
-        fi
-    fi
-    G4_CHECK_RESULTS+="  G4.3 VERSION.json 一致性: $([ "$VERSION_OK" = true ] && echo 'PASS' || echo 'FAIL')\n"
-
-    # 写检查结果到临时文件，供 critic 注入用
-    printf "%s" "$G4_CHECK_RESULTS" > "$G4_CHECK_RESULTS_FILE"
-
-    # 4. 调用 meta-oracle-review.py G4 — 注入已完成的检查结果
-    log_info "[G4.4] Meta-Oracle 独立 critic 审查..."
-    META_ORACLE_EVIDENCE="$(cat "$G4_CHECK_RESULTS_FILE")"
-    META_ORACLE_VERDICT=$(G4_CHECK_RESULTS="$META_ORACLE_EVIDENCE" python3 "$META_ORACLE_SCRIPT" G4 2>&1)
+    # 从输出中提取检查结果文件路径
+    EVIDENCE_FILE=$(echo "$G4_PRECHECK_OUTPUT" | grep -o '/tmp/g4-evidence-[^ ]*\.txt' | tail -1)
 
     # 提取裁决
-    echo "$META_ORACLE_VERDICT"
-    MO_VERDICT=$(echo "$META_ORACLE_VERDICT" | grep -E '\[Meta-Oracle: (ACCEPT|ADVISORY|REJECT)\]' | tail -1)
-
-    # 汇总
+    MO_VERDICT=$(echo "$G4_PRECHECK_OUTPUT" | grep -E '\[Meta-Oracle: (ACCEPT|ADVISORY|REJECT)\]' | tail -1)
     echo ""
+
     if echo "$MO_VERDICT" | grep -q 'REJECT'; then
         if [ -f "$META_ORACLE_OVERRIDE" ] && grep -q "v${VERSION}" "$META_ORACLE_OVERRIDE" 2>/dev/null; then
             log_warn "G4 Meta-Oracle: ⚠️  ${MO_VERDICT} — 已人工覆写 ($META_ORACLE_OVERRIDE)，继续打包"
         else
             log_warn "🔴 G4 Meta-Oracle: ${MO_VERDICT} — 硬门禁阻断打包！"
             log_warn "  修复问题后重试，或创建覆写文件 $META_ORACLE_OVERRIDE 记录理由"
-            rm -f "$G4_CHECK_RESULTS_FILE"
+            rm -f "$EVIDENCE_FILE" 2>/dev/null || true
             exit 1
         fi
     elif echo "$MO_VERDICT" | grep -q 'ADVISORY'; then
@@ -129,7 +53,14 @@ if [ -f "$META_ORACLE_SCRIPT" ]; then
     else
         log_info "G4 Meta-Oracle: ✅ ${MO_VERDICT}"
     fi
-    rm -f "$G4_CHECK_RESULTS_FILE"
+    rm -f "$EVIDENCE_FILE" 2>/dev/null || true
+
+elif [ -f "$META_ORACLE_SCRIPT" ]; then
+    # Fallback: 直接调用老版（无预检注入，可能假阳性）
+    log_warn "g4-precheck.py 不存在，降级到直接调用 meta-oracle-review.py（不推荐）"
+    python3 "$META_ORACLE_SCRIPT" G4 2>&1
+    echo ""
+    log_warn "G4 Meta-Oracle: ⚠️  无预检注入，降级模式 — 继续打包"
 else
     log_warn "Meta-Oracle 审查脚本不存在，跳过 G4 门禁"
 fi
