@@ -68,37 +68,12 @@
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/edit-guard.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
             "command": "python3 .claude/hooks/pretool-plan-gate.py",
             "timeout": 5000
           },
           {
             "type": "command",
             "command": "python3 .claude/hooks/pretool-sensitive-edit.py",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Edit|Write|Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-sensitive-edit.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-plan-gate.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-edit-scope.py",
             "timeout": 3000
           }
         ]
@@ -130,11 +105,6 @@
             "type": "command",
             "command": "python3 .claude/hooks/pretool-git-gate.py",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/permission-gate.py",
-            "timeout": 5000
           }
         ]
       },
@@ -160,22 +130,12 @@
             "type": "command",
             "command": "python3 .claude/hooks/pre-ask-guard.py",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pre-ask-guard.py",
-            "timeout": 3000
           }
         ]
       },
       {
         "matcher": "Grep",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/lsp-suggest.py",
-            "timeout": 3000
-          },
           {
             "type": "command",
             "command": "python3 .claude/hooks/lsp-suggest.py",
@@ -200,11 +160,6 @@
             "type": "command",
             "command": "python3 .claude/hooks/pre-completion-gate.py",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pre-completion-gate.py",
-            "timeout": 5000
           }
         ]
       },
@@ -221,11 +176,6 @@
       {
         "matcher": ".*",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/fuzzy-block.py",
-            "timeout": 3000
-          },
           {
             "type": "command",
             "command": "python3 .claude/hooks/fuzzy-block.py",
