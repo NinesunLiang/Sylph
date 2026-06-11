@@ -134,8 +134,8 @@ done
 # install.sh (4 处版本引用)
 for f in install.sh source/harness-kit/install.sh source/install.sh; do
     [ -f "$f" ] || continue
-    sed -i '' "s/DEFAULT_VERSION=\"v[0-9.]*-stable\"/DEFAULT_VERSION=\"v${NEW_VER}-stable\"/" "$f" 2>/dev/null || \
-    sed -i "s/DEFAULT_VERSION=\"v[0-9.]*-stable\"/DEFAULT_VERSION=\"v${NEW_VER}-stable\"/" "$f"
+    sed -i '' "s/DEFAULT_VERSION=\"v[0-9.]*\"/DEFAULT_VERSION=\"v${NEW_VER}\"/" "$f" 2>/dev/null || \
+    sed -i "s/DEFAULT_VERSION=\"v[0-9.]*\"/DEFAULT_VERSION=\"v${NEW_VER}\"/" "$f"
     sed -i '' "s/# 版本：v[0-9.]* |/# 版本：v${NEW_VER} |/" "$f" 2>/dev/null || \
     sed -i "s/# 版本：v[0-9.]* |/# 版本：v${NEW_VER} |/" "$f"
     log_info "  $f"
