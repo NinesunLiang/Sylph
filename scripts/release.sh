@@ -146,15 +146,18 @@ sed -i '' "s/Base 版本 v[0-9.]*/Base 版本 v${NEW_VER}/" source/harness-kit/A
 sed -i "s/Base 版本 v[0-9.]*/Base 版本 v${NEW_VER}/" source/harness-kit/AGENTS.md
 log_info "  source/harness-kit/AGENTS.md"
 
+# kernel.md 不打包进 harness-kit（已在开发源 AGENTS.md @kernel.md 注入），
+# 此处不再需要更新版本号；用户自己项目的 kernel.md 版本与 CarrorOS 解耦。
+# 保留 kernel-compact.md 更新（仍打包）
 # kernel.md
-for kf in source/harness-kit/.claude/kernel.md; do
-    [ -f "$kf" ] || continue
-    sed -i '' "s/始终 \`[0-9.]*\` 格式/始终 \`${NEW_VER}\` 格式/" "$kf" 2>/dev/null || \
-    sed -i "s/始终 \`[0-9.]*\` 格式/始终 \`${NEW_VER}\` 格式/" "$kf"
-    sed -i '' "s/无前缀 \`[0-9.]*\`/无前缀 \`${NEW_VER}\`/" "$kf" 2>/dev/null || \
-    sed -i "s/无前缀 \`[0-9.]*\`/无前缀 \`${NEW_VER}\`/" "$kf"
-    log_info "  $kf"
-done
+# for kf in source/harness-kit/.claude/kernel.md; do
+#     [ -f "$kf" ] || continue
+#     sed -i '' "s/始终 \`[0-9.]*\` 格式/始终 \`${NEW_VER}\` 格式/" "$kf" 2>/dev/null || \
+#     sed -i "s/始终 \`[0-9.]*\` 格式/始终 \`${NEW_VER}\` 格式/" "$kf"
+#     sed -i '' "s/无前缀 \`[0-9.]*\`/无前缀 \`${NEW_VER}\`/" "$kf" 2>/dev/null || \
+#     sed -i "s/无前缀 \`[0-9.]*\`/无前缀 \`${NEW_VER}\`/" "$kf"
+#     log_info "  $kf"
+# done
 
 # kernel-compact.md
 sed -i '' "s/版本=[0-9.]*/版本=${NEW_VER}/" source/harness-kit/.claude/kernel-compact.md 2>/dev/null || \
@@ -217,7 +220,8 @@ if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
             source/harness-kit/VERSION source/lx-skills-v5/VERSION \
             .claude/skills/VERSION source/lx-skills-v5/.claude/skills/VERSION \
             source/harness-kit/AGENTS.md \
-            source/harness-kit/.claude/kernel.md \
+            # kernel.md 不再打包进 harness-kit，与用户环境解耦
+            # source/harness-kit/.claude/kernel.md \
             source/harness-kit/.claude/kernel-compact.md \
             install.sh source/install.sh source/harness-kit/install.sh \
             packages/harness-kit-v${NEW_VER}-stable.tar.gz \

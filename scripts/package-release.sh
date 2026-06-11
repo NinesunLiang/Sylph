@@ -118,7 +118,8 @@ cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"
 # 将开发机绝对路径替换为占位符，install.sh 安装时还原为实际项目路径
 sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json" 2>/dev/null || sed -i "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
 cp .claude/harness.yaml     "$HARNESS_SRC/.claude/harness.yaml"
-cp .claude/kernel.md        "$HARNESS_SRC/.claude/kernel.md"
+# kernel.md 不打包 — 用户在 Agent 上下文中已有（AGENTS.md @kernel.md），同时避免每次重复安装叠加副本
+# cp .claude/kernel.md        "$HARNESS_SRC/.claude/kernel.md"
 cp .claude/index.md         "$HARNESS_SRC/.claude/index.md"
 cp .claude/anti-patterns.md "$HARNESS_SRC/.claude/anti-patterns.md"
 cp .claude/claude-next.md   "$HARNESS_SRC/.claude/claude-next.md"
@@ -137,6 +138,8 @@ rm -f "$HARNESS_SRC/.claude/settings.local.json" \
 find "$HARNESS_SRC" -name '*.bak*' -delete 2>/dev/null || true
 find "$HARNESS_SRC" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true
 find "$HARNESS_SRC" -name '*.pyc' -delete 2>/dev/null || true
+# 清理 kernel.md — 已在开发源 AGENTS.md @kernel.md 注入，不打包进 harness-kit 避免重复
+rm -f "$HARNESS_SRC/.claude/kernel.md" 2>/dev/null || true
 # 清理测试/诊断脚本（含硬编码开发机路径）
 rm -f "$HARNESS_SRC/.claude/scripts/task-verify-e1e2-fix.py" 2>/dev/null || true
 # 替换 claude-next.md 中的 @lucas.liang 为通用署名

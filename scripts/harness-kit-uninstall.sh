@@ -39,8 +39,8 @@ LOCAL_LX_COUNT=0; for _s in .claude/skills/lx-*; do [ -d "$_s" ] && LOCAL_LX_COU
 GLOBAL_LX_COUNT=0; for _s in "$GLOBAL_SKILLS"/lx-*; do [ -d "$_s" ] && GLOBAL_LX_COUNT=$((GLOBAL_LX_COUNT+1)); done
 
 echo "以下文件将被删除："
-echo " - CLAUDE.md | .claude/harness.yaml | .claude/kernel.md"
-echo " - .claude/anti-patterns.md | .claude/claude-next.md | .claude/index.md"
+echo " - CLAUDE.md | .claude/harness.yaml | .claude/index.md | .claude/anti-patterns.md | .claude/claude-next.md"
+echo " - .claude/kernel.md（如存在，由 install.sh 按需创建，不是打包产物）"
 echo " - .claude/hooks/（全部 ${HOOK_COUNT} 个）"
 echo ""
 echo "始终删除（install.sh 安装的，卸载时自动清理）："
@@ -63,8 +63,9 @@ if [ "$DRY_RUN" = true ]; then
 fi
 
 log_step "删除 harness-kit 文件..."
-rm -f CLAUDE.md .claude/harness.yaml .claude/kernel.md \
+rm -f CLAUDE.md .claude/harness.yaml \
     .claude/anti-patterns.md .claude/claude-next.md .claude/index.md \
+    .claude/kernel.md \
     skill-atomization-guide.md
 rm -rf .claude/hooks/
 log_info "✅ harness-kit 卸载完成"

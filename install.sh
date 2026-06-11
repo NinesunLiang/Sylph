@@ -430,6 +430,7 @@ chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
 # 防止旧版安装残留的僵尸脚本污染新版本
 DEPRECATED_HOOKS="pretool-rule-anchor|proactive-handoff|build-validator|error-dna-auto-fix|posttool-read-cite|plan-gate|knowledge-condenser|pretool-ask-guard"
 CLEANED=0
+CLEANED_JSON=0
 if [ -d ".claude/hooks" ]; then
     for hook_file in .claude/hooks/*.sh; do
         hook_name=$(basename "$hook_file" .sh)
@@ -443,8 +444,51 @@ if [ -d ".claude/hooks" ]; then
                 "${SED_INPLACE[@]}" "/^  ${hook_name_under}:.*$/d" ".claude/harness.yaml" 2>/dev/null || true
         fi
     done
+
+    # ── 额外: 同步清理 settings.json 中的废弃/不存在的 hook 引用 ──
+    if [ -f ".claude/settings.json" ]; then
+        CLEANED_JSON=$("${PYTHON_BIN:-python3}" -c "
+import json, os, re
+path = '.claude/settings.json'
+data = json.load(open(path))
+deprecated = r'${DEPRECATED_HOOKS}'
+changed = False
+for key in data.get('hook', {}):
+    hooks = data['hook'][key]
+    original_count = len(hooks)
+    filtered = []
+    for h in hooks:
+        fp = h.get('file', '')
+        # 移除规则1: 废弃 hook 名匹配
+        if re.search(deprecated, fp):
+            changed = True
+            continue
+        # 移除规则2: 引用 .sh 文件但该文件不存在
+        if fp.endswith('.sh') and not os.path.exists(fp):
+            changed = True
+            continue
+        filtered.append(h)
+    if len(filtered) != original_count:
+        data['hook'][key] = filtered
+if changed:
+    with open(path, 'w') as f:
+        json.dump(data, f, indent=2)
+    # 计数
+    count = 0
+    for key in data.get('hook', {}):
+        count += original_count - len(data['hook'][key])
+    print(count)
+else:
+    print(0)
+" 2>/dev/null)
+        CLEANED_JSON="${CLEANED_JSON:-0}"
+        [ "$CLEANED_JSON" -gt 0 ] && log_info "  🧹 settings.json 已清理 $CLEANED_JSON 个废弃/不存在的 hook 引用"
+    fi
 fi
-[ "$CLEANED" -gt 0 ] && log_info "✅ 已清理 $CLEANED 个废弃 hook + harness.yaml 配置 (DG-97)"
+DG97_MSG=""
+[ "$CLEANED" -gt 0 ] && DG97_MSG="$DG97_MSG $CLEANED 个废弃 hook 文件"
+[ "$CLEANED_JSON" -gt 0 ] && DG97_MSG="$DG97_MSG + $CLEANED_JSON 个 settings.json 引用"
+[ -n "$DG97_MSG" ] && log_info "✅ 已清理${DG97_MSG} (DG-97)"
 
 # DG-104: 生成上游 hook 基线（原始安装状态，用于下次升级 3-way merge）
 # line 262 cp -r .claude/* → $BACKUP_DIR/.claude/ 会在下次安装前自动将此文件带入备份
@@ -476,15 +520,36 @@ if [ "$INSTALL_MODE" = "base" ] || [ "$INSTALL_MODE" = "enhanced" ] || [ "$INSTA
     log_info "✅ 全局 Skill 符号链接完成（OpenCode 兼容）"
 fi
 
-# ─── 填充模板占位符 ──────────────────────────────────────────
-# 自动替换 kernel.md 中的 {project_name} 和 {date}
+# ─── kernel.md 不存在才创建（与用户 Agent 上下文解耦） ───
+# 开发源的 AGENTS.md @kernel.md 已在用户 Agent 上下文中注入。
+# 打包时不再包含 kernel.md。安装时如果目标项目已有 kernel.md，说明
+# 用户自行维护了项目级版本，不覆盖。只在完全不存在时创建一份精简版。
 PROJECT_NAME=$(basename "$(pwd)")
 INSTALL_DATE=$(date +%Y-%m-%d)
-if [ -f ".claude/kernel.md" ]; then
-    if grep -q '{project_name}' ".claude/kernel.md" 2>/dev/null; then
-        "${SED_INPLACE[@]}" "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
-        log_info "已填充 kernel.md 模板占位符（project=${PROJECT_NAME}, date=${INSTALL_DATE}）"
-    fi
+if [ ! -f ".claude/kernel.md" ]; then
+    cat > ".claude/kernel.md" << 'KERNEL_EOF'
+# kernel.md — Carror OS 编码内核
+#
+# 注意：
+# - 本文件是用户项目级副本，用于 AI Agent 在无线网络/无 AGENTS.md @ 能力时的兜底
+# - 完整治理内核请参考 Carror OS 开发源的 AGENTS.md §编码内核
+#
+# 版本：{project_name} | 最后同步：{date}
+#
+# 编码内核速查：
+# - 软完成语 → VERIFIED
+# - hook 必须 exit 0 / echo {"continue": true}
+# - 同一问题最多 3 轮修复
+# - Read-before-Edit + scope 冻结
+# - 哲学冲突：#4 > #6 > #3 > #7 > #5 > #2 > #1
+# - 铁律 9 条：禁止编造、用户裁定、证据门禁、Git门禁、范围冻结、
+#             隐私防线、断言真实、哲学先行、读操作不阻断
+KERNEL_EOF
+    # 填充占位符
+    "${SED_INPLACE[@]}" "s/{project_name}/$PROJECT_NAME/g; s/{date}/$INSTALL_DATE/g" ".claude/kernel.md"
+    log_info "✅ 已创建项目级 .claude/kernel.md（精简版，完整治理源见 AGENTS.md）"
+else
+    log_info "⏩ .claude/kernel.md 已存在（跳过创建，保留用户现有版本）"
 fi
 
 # ─── 路径重写：settings.json __PROJECT_ROOT__ → 实际项目路径 ───
