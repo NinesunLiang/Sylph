@@ -552,8 +552,9 @@ else
     log_info "⏩ .claude/kernel.md 已存在（跳过创建，保留用户现有版本）"
 fi
 
-# ─── 路径重写：settings.json __PROJECT_ROOT__ → 实际项目路径 ───
-# 跨平台 sed -i: macOS BSD 需 -i ''，Linux/Win GNU 只需 -i
+# ─── 路径重写：已废弃保留做兼容 ───
+# 早期版本使用了 __PROJECT_ROOT__ 占位符机制，当前 settings.json
+# 已全部使用相对路径，无需替换。保留 if 块只为兼容旧版 tarball。
 if [ -f ".claude/settings.json" ]; then
     if grep -q '__PROJECT_ROOT__' ".claude/settings.json" 2>/dev/null; then
         USER_PROJECT_DIR="$(pwd)"
@@ -562,7 +563,7 @@ if [ -f ".claude/settings.json" ]; then
         else
             sed -i "s@__PROJECT_ROOT__@$USER_PROJECT_DIR@g" ".claude/settings.json" 2>/dev/null
         fi
-        log_info "已重写 settings.json 路径为实际项目目录（${USER_PROJECT_DIR}）"
+        log_warn "旧版 tarball：已重写 __PROJECT_ROOT__ → ${USER_PROJECT_DIR}（建议升级新版）"
     fi
 fi
 
@@ -1306,11 +1307,10 @@ if [ -n "$AST_SUGGEST" ]; then
     echo ""
     echo "$AST_SUGGEST"
 fi
-# ─── 生成 settings.local.json（绝对路径版本，解决 CWD 漂移 Hook 找不到问题）───
+# ─── 旧版 settings.local.json 生成（已废弃，全部使用相对路径）───
+# 不再生成 settings.local.json。settings.json 已全是相对路径。
 if [ -f ".claude/scripts/generate-local-settings.sh" ]; then
-    bash .claude/scripts/generate-local-settings.sh "$(cd . && pwd)" 2>/dev/null && \
-        log_info "settings.local.json 已生成（绝对路径 hook，防 CWD 漂移）" || \
-        log_warn "settings.local.json 生成失败（不影响核心功能）"
+    log_info "⏩ settings.local.json 已废弃（settings.json 使用相对路径）"
 fi
 
 echo "============================================"

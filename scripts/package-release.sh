@@ -115,8 +115,8 @@ rsync -a --delete .claude/workflow-standard/ "$HARNESS_SRC/.claude/workflow-stan
 # 清理历史遗留的 references/ 目录（已合并到 reference/）
 rm -rf "$HARNESS_SRC/.claude/references"
 cp .claude/settings.json    "$HARNESS_SRC/.claude/settings.json"
-# 将开发机绝对路径替换为占位符，install.sh 安装时还原为实际项目路径
-sed -i '' "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json" 2>/dev/null || sed -i "s|$PROJECT_DIR|__PROJECT_ROOT__|g" "$HARNESS_SRC/.claude/settings.json"
+# settings.json 全部使用相对路径，无需做任何路径替换
+# 历史逻辑（__PROJECT_ROOT__ 占位符 → install.sh 还原）已废弃
 cp .claude/harness.yaml     "$HARNESS_SRC/.claude/harness.yaml"
 # kernel.md 不打包 — 用户在 Agent 上下文中已有（AGENTS.md @kernel.md），同时避免每次重复安装叠加副本
 # cp .claude/kernel.md        "$HARNESS_SRC/.claude/kernel.md"
