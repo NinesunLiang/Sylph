@@ -155,8 +155,8 @@ if version_file.exists():
         version = "6.3.0"
 else:
     version = "6.3.0"
-_test("harness-kit package exists", "true", "true" if (PROJECT_ROOT / "packages" / f"harness-kit-v{version}-stable.tar.gz").exists() else "")
-_test("lx-skills package exists", "true", "true" if (PROJECT_ROOT / "packages" / f"lx-skills-v{version}-stable.tar.gz").exists() else "")
+_test("harness-kit package exists", "true", "true" if (PROJECT_ROOT / "packages" / f"harness-kit-v{version}.tar.gz").exists() else "")
+_test("lx-skills package exists", "true", "true" if (PROJECT_ROOT / "packages" / f"lx-skills-v{version}.tar.gz").exists() else "")
 
 print("  📋 34: 安装包发布 — 4/4 gates verified")
 

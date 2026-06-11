@@ -141,10 +141,13 @@ for f in install.sh source/harness-kit/install.sh source/install.sh; do
     log_info "  $f"
 done
 
-# AGENTS.md
-sed -i '' "s/Base 版本 v[0-9.]*/Base 版本 v${NEW_VER}/" source/harness-kit/AGENTS.md 2>/dev/null || \
-sed -i "s/Base 版本 v[0-9.]*/Base 版本 v${NEW_VER}/" source/harness-kit/AGENTS.md
-log_info "  source/harness-kit/AGENTS.md"
+# AGENTS.md — 无 Base 版本行则不操作
+if grep -q 'Base 版本' source/harness-kit/AGENTS.md 2>/dev/null; then
+    sed -i '' "s/Base 版本 v[0-9.]*/Base 版本 v${NEW_VER}/" source/harness-kit/AGENTS.md
+    log_info "  source/harness-kit/AGENTS.md (版本行已更新)"
+else
+    log_info "  source/harness-kit/AGENTS.md (无 Base 版本行，跳过)"
+fi
 
 # kernel.md 不打包进 harness-kit（已在开发源 AGENTS.md @kernel.md 注入），
 # 此处不再需要更新版本号；用户自己项目的 kernel.md 版本与 CarrorOS 解耦。
@@ -159,10 +162,13 @@ log_info "  source/harness-kit/AGENTS.md"
 #     log_info "  $kf"
 # done
 
-# kernel-compact.md
-sed -i '' "s/版本=[0-9.]*/版本=${NEW_VER}/" source/harness-kit/.claude/kernel-compact.md 2>/dev/null || \
-sed -i "s/版本=[0-9.]*/版本=${NEW_VER}/" source/harness-kit/.claude/kernel-compact.md
-log_info "  source/harness-kit/.claude/kernel-compact.md"
+# kernel-compact.md（可能不存在，跳过而非报错）
+if [ -f source/harness-kit/.claude/kernel-compact.md ]; then
+    sed -i '' "s/版本=[0-9.]*/版本=${NEW_VER}/" source/harness-kit/.claude/kernel-compact.md
+    log_info "  source/harness-kit/.claude/kernel-compact.md"
+else
+    log_info "  source/harness-kit/.claude/kernel-compact.md (不存在，跳过)"
+fi
 
 # ═══════════════════════════════════════════════════════════════
 log_step "3/7 同步 install.sh 到所有副本..."
@@ -175,8 +181,8 @@ log_step "4/7 构建安装包..."
 bash scripts/package-release.sh --skip-smoke --force 2>&1 | grep -E "版本|完成|越界|✅|❌" || {
     log_error "打包失败"; exit 1
 }
-log_info "  packages/harness-kit-v${NEW_VER}-stable.tar.gz"
-log_info "  packages/lx-skills-v${NEW_VER}-stable.tar.gz"
+log_info "  packages/harness-kit-v${NEW_VER}.tar.gz"
+log_info "  packages/lx-skills-v${NEW_VER}.tar.gz"
 
 # ═══════════════════════════════════════════════════════════════
 log_step "5/7 三源一致性审计..."
@@ -198,7 +204,7 @@ echo "  即将提交以下文件:"
 git status -s | head -30
 echo ""
 
-TAG="v${NEW_VER}-stable"
+TAG="v${NEW_VER}"
 COMMIT_MSG="chore: release v${NEW_VER} — $NOTES"
 
 if [ "$AUTO_YES" = true ]; then
@@ -213,7 +219,7 @@ if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
         # --yes模式: 提交所有改动(排除临时文件), 不漏新脚本
         git add -A
         git reset -- packages/harness-kit-v*.tar.gz packages/lx-skills-v*.tar.gz 2>/dev/null || true
-        git add packages/harness-kit-v${NEW_VER}-stable.tar.gz packages/lx-skills-v${NEW_VER}-stable.tar.gz
+        git add packages/harness-kit-v${NEW_VER}.tar.gz packages/lx-skills-v${NEW_VER}.tar.gz
     else
         # 交互模式: 只提交版本文件
         git add VERSION.json \
@@ -224,8 +230,8 @@ if [ "$CONFIRM" = "y" ] || [ "$CONFIRM" = "Y" ]; then
             # source/harness-kit/.claude/kernel.md \
             source/harness-kit/.claude/kernel-compact.md \
             install.sh source/install.sh source/harness-kit/install.sh \
-            packages/harness-kit-v${NEW_VER}-stable.tar.gz \
-            packages/lx-skills-v${NEW_VER}-stable.tar.gz
+            packages/harness-kit-v${NEW_VER}.tar.gz \
+            packages/lx-skills-v${NEW_VER}.tar.gz
     fi
 
     git commit -m "$COMMIT_MSG"
@@ -239,7 +245,7 @@ fi
 log_step "7/7 GitHub Release..."
 
 # 删除旧 release（同大版本号的前一个 patch）
-OLD_TAG="v${MAJ}.${MIN}.$((PAT-1))-stable"
+OLD_TAG="v${MAJ}.${MIN}.$((PAT-1))"
 if gh release view -R NinesunLiang/Sylph "$OLD_TAG" &>/dev/null; then
     gh release delete -R NinesunLiang/Sylph "$OLD_TAG" -y 2>/dev/null && \
         log_info "  已清理旧 release: $OLD_TAG" || true

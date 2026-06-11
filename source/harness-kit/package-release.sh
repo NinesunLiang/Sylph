@@ -13,7 +13,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 VERSION=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('VERSION.json'))['version'])")
-TAG="v${VERSION}-stable"
+TAG="v${VERSION}"
 log_info "版本：$TAG"
 PKG_DIR="$PROJECT_DIR/packages"
 HARNESS_SRC="source/harness-kit"

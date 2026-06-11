@@ -89,7 +89,7 @@ print('Session recovery prompt injected into inject-project-knowledge.sh')
 bash -n "$INJECT_SCRIPT" && echo "Syntax OK" || { echo "Syntax FAILED, restoring backup"; cp "$INJECT_SCRIPT.bak" "$INJECT_SCRIPT"; exit 1; }
 
 # Cleanup old packages
-rm -f "$PROJECT/packages/harness-kit-v6.2.2"[4-5]-stable.tar.gz "$PROJECT/packages/lx-skills-v6.2.2"[4-5]-stable.tar.gz 2>/dev/null || true
+rm -f "$PROJECT/packages/harness-kit-v6.2.2"[4-5].tar.gz "$PROJECT/packages/lx-skills-v6.2.2"[4-5].tar.gz 2>/dev/null || true
 
 echo "=== Ready to release ==="
 echo "Run: bash scripts/release.sh patch 'feat: 跨会话恢复 — SessionStart提示继续/重新开始' --yes"

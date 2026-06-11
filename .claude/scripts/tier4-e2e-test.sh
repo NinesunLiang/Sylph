@@ -111,8 +111,8 @@ fi
 
 # Package integrity
 _VERSION=$(jq -r '.version' VERSION.json 2>/dev/null || echo "6.3.0")
-_test "harness-kit package exists" "true" "$([ -f packages/harness-kit-v${_VERSION}-stable.tar.gz ] && echo true)"
-_test "lx-skills package exists" "true" "$([ -f packages/lx-skills-v${_VERSION}-stable.tar.gz ] && echo true)"
+_test "harness-kit package exists" "true" "$([ -f packages/harness-kit-v${_VERSION}.tar.gz ] && echo true)"
+_test "lx-skills package exists" "true" "$([ -f packages/lx-skills-v${_VERSION}.tar.gz ] && echo true)"
 
 echo "  📋 34: 安装包发布 — 4/4 gates verified"
 
