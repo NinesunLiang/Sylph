@@ -380,17 +380,37 @@ CRITICAL: You are Meta-Oracle — the FINAL gatekeeper.
 """
 
 def _get_api_key():
-    """Get DeepSeek API key — user-friendly, multi-source.
+    """Get model API key — provider-agnostic, multi-source.
 
-    Priority: env var → project .env → harness.yaml → Hermes .env
-    Users just set DEEPSEEK_API_KEY in their environment or project .env.
+    Detects the best available key for the current model provider.
+    Priority:
+      ANTHROPIC_AUTH_TOKEN (agent proxy) →
+      DEEPSEEK_API_KEY →
+      OPENAI_API_KEY →
+      project .env / harness.yaml / Hermes .env
+
+    Returns (key, provider_name) or ("", "").
     """
-    # 1. Environment variable (standard for CI/docker)
+    # 0. Detect active agent configuration
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    using_proxy = bool(base_url and base_url != "https://api.anthropic.com")
+
+    # 1. ANTHROPIC_AUTH_TOKEN — catches any Anthropic-compatible proxy (DeepSeek/XAI/etc.)
+    key = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
+    if key and key != "***":
+        return key, "any_provider"
+
+    # 2. DEEPSEEK_API_KEY (most common provider for local setups)
     key = os.environ.get("DEEPSEEK_API_KEY", "")
     if key and key != "***":
-        return key
+        return key, "deepseek"
 
-    # 2. Project .env (standard for local dev)
+    # 3. OPENAI_API_KEY (generic fallback, works with many providers)
+    key = os.environ.get("OPENAI_API_KEY", "")
+    if key and key != "***":
+        return key, "openai"
+
+    # 4. Project .env (standard for local dev)
     for env_path in [
         os.path.join(PROJECT_ROOT, ".env"),
         os.path.join(PROJECT_ROOT, ".claude", ".env"),
@@ -400,47 +420,53 @@ def _get_api_key():
                 with open(env_path, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
-                        if line.startswith("DEEPSEEK_API_KEY="):
-                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                            if key and key != "***":
-                                return key
+                        for var in ["ANTHROPIC_AUTH_TOKEN", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]:
+                            if line.startswith(f"{var}=***"):
+                                key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                                if key and key != "***":
+                                    provider = var.lower().replace("_auth_token", "").replace("_api_key", "")
+                                    return key, provider
             except OSError:
                 pass
 
-    # 3. harness.yaml (Carror OS native config)
+    # 5. harness.yaml (Carror OS native config — check all key variants)
     harness_path = os.path.join(PROJECT_ROOT, ".claude", "harness.yaml")
     if os.path.isfile(harness_path):
         try:
             with open(harness_path, "r", encoding="utf-8") as f:
                 for line in f:
-                    if "deepseek_api_key:" in line:
-                        key = line.split(":", 1)[1].strip().strip('"').strip("'")
-                        if key and key != "***":
-                            return key
+                    for var in ["anthropic_auth_token:", "deepseek_api_key:", "openai_api_key:"]:
+                        if var in line:
+                            key = line.split(":", 1)[1].strip().strip('"').strip("'")
+                            if key and key != "***":
+                                provider = var.replace("_auth_token:", "").replace("_api_key:", "")
+                                return key, provider
         except OSError:
             pass
 
-    # 4. Hermes .env (Boss's setup — last resort)
+    # 6. Hermes .env (Boss's setup — last resort)
     hermes_env = os.path.join(os.path.expanduser("~"), ".hermes", ".env")
     if os.path.isfile(hermes_env):
         try:
             with open(hermes_env, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
-                    if line.startswith("DEEPSEEK_API_KEY="):
-                        key = line.split("=", 1)[1].strip().strip('"').strip("'")
-                        if key and key != "***":
-                            return key
+                    for var in ["ANTHROPIC_AUTH_TOKEN", "DEEPSEEK_API_KEY", "OPENAI_API_KEY"]:
+                        if line.startswith(f"{var}=***"):
+                            key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                            if key and key != "***":
+                                provider = var.lower().replace("_auth_token", "").replace("_api_key", "")
+                                return key, provider
         except OSError:
             pass
 
-    return ""
+    return "", ""
 
 
 def _spawn_critic_agent(trigger_type):
-    """Primary path: spawn independent DeepSeek agent via API (same provider as main agent).
+    """Primary path: spawn independent critic agent via API (provider-agnostic).
 
-    Uses the same DeepSeek Anthropic-compatible endpoint as the main Hermes agent.
+    Uses the same API provider as the main Hermes agent.
     Independence comes from separate context/call, not different model family.
     Checks spawn readiness first — skips if startup check failed.
 
@@ -450,9 +476,9 @@ def _spawn_critic_agent(trigger_type):
     if not is_spawn_ready():
         return None, None
 
-    api_key = _get_api_key()
+    api_key, provider = _get_api_key()
     if not api_key:
-        print("[spawn] DEEPSEEK_API_KEY not found — 回退降级路径", file=sys.stderr)
+        print("[spawn] API key not found — 回退降级路径", file=sys.stderr)
         return None, None
 
     # Build methodology
@@ -466,9 +492,43 @@ def _spawn_critic_agent(trigger_type):
 
     full_prompt = _build_spawn_prompt(trigger_type, [methodology])
 
-    # DeepSeek Anthropic-compatible endpoint (same as main Hermes agent)
-    base_url = "https://api.deepseek.com/anthropic"
-    model = "deepseek-chat"
+    # ── Provider-agnostic endpoint detection ──
+    # Detect the active model provider from environment.
+    # Priority: ANTHROPIC_BASE_URL (proxy) → DeepSeek native → OpenAI-compatible
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    model = os.environ.get("ANTHROPIC_MODEL", "").strip()
+
+    # Use the same endpoint as the main Hermes agent if a proxy is set
+    if base_url:
+        if not model:
+            # Try to infer model from provider URL
+            if "deepseek" in base_url.lower():
+                model = "deepseek-chat"
+            elif "xai" in base_url.lower():
+                model = "grok-3"
+            else:
+                model = "claude-sonnet-4"  # safe fallback for generic Anthropic-compatible
+        api_endpoint = f"{base_url.rstrip('/')}/v1/messages"
+        auth_header = "x-api-key"
+    elif provider == "deepseek":
+        base_url = "https://api.deepseek.com/anthropic"
+        model = model or "deepseek-chat"
+        api_endpoint = f"{base_url}/v1/messages"
+        auth_header = "x-api-key"
+    elif provider == "openai":
+        # OpenAI format — use proxy for Anthropic-compatible endpoint
+        base_url = "https://api.openai.com/v1"
+        model = model or "gpt-4o"
+        api_endpoint = f"{base_url}/v1/messages"
+        auth_header = "x-api-key"
+    else:
+        # Default fallback — DeepSeek is most common for self-hosted
+        base_url = "https://api.deepseek.com/anthropic"
+        model = model or "deepseek-chat"
+        api_endpoint = f"{base_url}/v1/messages"
+        auth_header = "x-api-key"
+
+    print(f"[spawn] endpoint={api_endpoint} model={model}", file=sys.stderr)
 
     payload = json.dumps({
         "model": model,
@@ -479,9 +539,9 @@ def _spawn_critic_agent(trigger_type):
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "120",
-             "-X", "POST", f"{base_url}/v1/messages",
+             "-X", "POST", api_endpoint,
              "-H", "Content-Type: application/json",
-             "-H", f"x-api-key: {api_key}",
+             "-H", f"{auth_header}: {api_key}",
              "-H", "anthropic-version: 2023-06-01",
              "-d", payload],
             capture_output=True, text=True, timeout=130,
@@ -489,7 +549,7 @@ def _spawn_critic_agent(trigger_type):
         if result.returncode != 0:
             raise subprocess.SubprocessError(f"curl exit={result.returncode}")
 
-        # Parse DeepSeek Anthropic-format response
+        # Parse Anthropic-format response
         data = json.loads(result.stdout)
         text = data.get("content", [{}])[0].get("text", "")
 
@@ -502,7 +562,7 @@ def _spawn_critic_agent(trigger_type):
             if verdict:
                 return verdict, text
     except (subprocess.SubprocessError, json.JSONDecodeError, KeyError, IndexError, OSError) as e:
-        print(f"[spawn] DeepSeek API 调用失败: {e} — 回退降级路径", file=sys.stderr)
+        print(f"[spawn] API 调用失败: {e} — 回退降级路径", file=sys.stderr)
 
     return None, None
 
@@ -590,23 +650,47 @@ def check_readiness():
     """
     os.makedirs(STATE_DIR, exist_ok=True)
 
-    # Step 1: API key available?
-    api_key = _get_api_key()
+    # Step 1: API key available? (any provider — not just DeepSeek)
+    api_key, provider = _get_api_key()
     if not api_key:
         with open(SPAWN_READY_FILE, "w") as f:
             f.write("degraded:no_api_key\n")
-        print("[meta-oracle readiness] 降级 — 未检测到 DEEPSEEK_API_KEY", file=sys.stderr)
+        print("[meta-oracle readiness] 降级 — 未检测到可用 API key", file=sys.stderr)
         return False
 
     # Step 2: Quick connectivity test (1-token call, 10s timeout)
+    # Detect endpoint to test — same logic as _spawn_critic_agent
+    base_url_env = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    if base_url_env:
+        test_endpoint = f"{base_url_env.rstrip('/')}/v1/messages"
+        test_model = os.environ.get("ANTHROPIC_MODEL", "").strip() or "deepseek-chat"
+        api_header = "x-api-key"
+    elif provider == "deepseek":
+        test_endpoint = "https://api.deepseek.com/anthropic/v1/messages"
+        test_model = "deepseek-chat"
+        api_header = "x-api-key"
+    elif provider == "openai":
+        test_endpoint = "https://api.openai.com/v1/chat/completions"
+        test_model = "gpt-4o"
+        api_header = "x-api-key"
+    elif provider == "any_provider":
+        # Token found but can't determine endpoint — test DeepSeek as most common self-host
+        test_endpoint = "https://api.deepseek.com/anthropic/v1/messages"
+        test_model = "deepseek-chat"
+        api_header = "x-api-key"
+    else:
+        test_endpoint = "https://api.deepseek.com/anthropic/v1/messages"
+        test_model = "deepseek-chat"
+        api_header = "x-api-key"
+
     try:
         result = subprocess.run(
             ["curl", "-s", "--max-time", "10",
-             "-X", "POST", "https://api.deepseek.com/anthropic/v1/messages",
+             "-X", "POST", test_endpoint,
              "-H", "Content-Type: application/json",
-             "-H", f"x-api-key: {api_key}",
+             "-H", f"{api_header}: {api_key}",
              "-H", "anthropic-version: 2023-06-01",
-             "-d", '{"model":"deepseek-chat","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}'],
+             "-d", json.dumps({"model": test_model, "max_tokens": 1, "messages": [{"role": "user", "content": "ping"}]})],
             capture_output=True, text=True, timeout=15,
         )
         if result.returncode == 0:
@@ -614,14 +698,14 @@ def check_readiness():
             if data.get("content") or data.get("choices"):
                 with open(SPAWN_READY_FILE, "w") as f:
                     f.write(f"ready:{datetime.now(timezone.utc).isoformat()}\n")
-                print("[meta-oracle readiness] ✅ spawn 就绪 — DeepSeek API 连通", file=sys.stderr)
+                print(f"[meta-oracle readiness] ✅ spawn 就绪 — {test_model} API 连通 ({test_endpoint})", file=sys.stderr)
                 return True
     except (subprocess.SubprocessError, json.JSONDecodeError, OSError) as e:
         pass
 
     with open(SPAWN_READY_FILE, "w") as f:
         f.write("degraded:api_unreachable\n")
-    print("[meta-oracle readiness] 降级 — DeepSeek API 不可达", file=sys.stderr)
+    print(f"[meta-oracle readiness] 降级 — API 不可达 ({test_endpoint})", file=sys.stderr)
     return False
 
 

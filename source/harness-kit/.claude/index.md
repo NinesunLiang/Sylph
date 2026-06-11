@@ -1,53 +1,43 @@
-# Hook路由注册表
+# Hook 路由注册表（用户版）
 
-> 接入表: Event:Matcher→Hooks — 与 AGENTS.md 路由索引格式一致,权责不重复
-> 注: 所有 hook 注册在 `settings.hooks.*` 下，settings.json 顶层无独立 hook 注册段。
+> 精简版 — 仅注册核心治理 hook，完整代码库保留在 hooks/ 中以备扩展
 
-──────────────────────
-SessionStart
-──────────────────────
-*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|sessionstart-gate-check|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate|cross-platform-smoke-test|session-inject
+## SessionStart
+- `session-resume.py` — compact 后恢复会话状态
 
-──────────────────────
-PreToolUse（操作前阻断）
-──────────────────────
-Edit|Write→pretool-oracle-gate(py+sh)|edit-guard|pre-edit-lsp-check|pretool-purify-gate|pretool-skill-version-guard|context-guard(W50/D80)|pretool-write-lock|pretool-sensitive-file-guard|pretool-b1-detect|pretool-edit-scope|pretool-scope-gate|pretool-workflow-gate|pretool-git-gate
-Edit|Write|Bash→pretool-sensitive-edit|pretool-plan-gate
-Bash→permission-gate|pretool-retry-check|pretool-blast-radius|pretool-terminal-safety(max:2000)
-Bash|Read|Grep→privacy-gate(.env/Token拦截)
-Grep→lsp-suggest
-Task→subagent-guard
-TaskUpdate→pre-completion-gate
-AskUserQuestion→pre-ask-guard
-Agent→pretool-node-reference
-Skill→pretool-skill-body-enforce
-.*→fuzzy-block
+## PreToolUse
 
-──────────────────────
-PostToolUse（操作后审计）
-──────────────────────
-Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
-AGENTS.md→pretool-agents-merge
-TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
-TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check|phase-state-tracker
-Read→read-tracker|posttool-read-cite
-Bash→posttool-bash-audit|posttool-output-compressor|error-dna|build-validator
-Skill→skill-usage-tracker|posttool-skill-compliance
-Task|Agent→posttool-subagent-audit
-.*→token_writer|meta-oracle-trigger(py+sh)|agentic-ui|permission-frequency-tracker
+**Edit|Write** → 编辑保护
+- `edit-guard.py` — 编辑合法性校验
+- `pretool-edit-scope.py` — 一次只改一个范围
 
-──────────────────────
-PostToolUseFailure
-──────────────────────
-Bash→error-dna|posttool-bash-audit|build-validator
+**Bash** → 安全保护
+- `permission-gate.py` — Bash 执行安全门禁
+- `pretool-retry-check.py` — 3 次修复上限
 
-──────────────────────
-UserPromptSubmit
-──────────────────────
-*→pretool-user-correction|turn-counter|pretool-rules-inject
-.*→pretool-approve-detect|thinking-gate
+**Bash|Read|Grep** → 隐私
+- `privacy-gate.py` — 防止读取 .env/密钥
 
-──────────────────────
-Stop
-──────────────────────
-*→auto-snapshot|skill-flywheel|stop-drain|posttool-checkpoint
+**AskUserQuestion** → 事前检查
+- `pre-ask-guard.py` — 问人前先走哲学
+
+**TaskUpdate** → 完成预检
+- `pre-completion-gate.py` — 完成前检查
+
+## PostToolUse
+
+**TaskUpdate** → 诚实门禁
+- `completion-gate.py` — 软完成语拦截
+
+**Bash** → 错误追踪
+- `error-dna.py` — 错误 DNA 记录
+- `posttool-error-dna-shard.py` — 错误碎片分析
+
+## UserPromptSubmit
+- `pretool-approve-detect.py` — 对话内 /approve
+- `thinking-gate.py` — Thinking 内容过滤
+- `turn-counter.py` — 10 轮铁律锚定注入
+- `pretool-rules-inject.py` — 规则注入
+
+## PreCompact
+- `pretool-compact-writer.py` — compact 前保存会话状态

@@ -2,15 +2,21 @@
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "disableAllHooks": false,
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/session-resume.py",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Edit|Write",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-oracle-gate.py",
-            "timeout": 3000
-          },
           {
             "type": "command",
             "command": "python3 .claude/hooks/edit-guard.py",
@@ -18,63 +24,8 @@
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pre-edit-lsp-check.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-purify-gate.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-skill-version-guard.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/context-guard.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-write-lock.py",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-sensitive-file-guard.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-b1-detect.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
             "command": "python3 .claude/hooks/pretool-edit-scope.py",
             "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/workflow-standard/hooks/pretool-workflow-gate.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-scope-gate.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-plan-gate.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-sensitive-edit.py",
-            "timeout": 3000
           }
         ]
       },
@@ -90,21 +41,6 @@
             "type": "command",
             "command": "python3 .claude/hooks/pretool-retry-check.py",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-blast-radius.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-terminal-safety.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-git-gate.py",
-            "timeout": 3000
           }
         ]
       },
@@ -114,11 +50,6 @@
           {
             "type": "command",
             "command": "python3 .claude/hooks/privacy-gate.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/context-guard.py",
             "timeout": 3000
           }
         ]
@@ -134,26 +65,6 @@
         ]
       },
       {
-        "matcher": "Grep",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/lsp-suggest.py",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Task",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/subagent-guard.py",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
         "matcher": "TaskUpdate",
         "hooks": [
           {
@@ -162,89 +73,9 @@
             "timeout": 5000
           }
         ]
-      },
-      {
-        "matcher": "Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-node-reference.py",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/fuzzy-block.py",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-skill-body-enforce.py",
-            "timeout": 5000
-          }
-        ]
       }
     ],
     "PostToolUse": [
-      {
-        "matcher": "Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/auto-snapshot.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-edit-quality.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-write-lock.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-claim-audit.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/intent-tracker.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-write-cite.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/distinct-concept-richner.py",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "AGENTS.md",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-agents-merge.py",
-            "timeout": 5000
-          }
-        ]
-      },
       {
         "matcher": "TaskUpdate",
         "hooks": [
@@ -252,87 +83,12 @@
             "type": "command",
             "command": "python3 .claude/hooks/completion-gate.py",
             "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-handoff-writer.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-completion-audit.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-checkpoint.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/workflow-standard/hooks/checkpoint.py",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "TaskUpdate|Edit|Write",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-format-gate.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-anti-pattern-detect.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-template-check.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/phase-state-tracker.py",
-            "timeout": 3000
-          }
-        ]
-      },
-      {
-        "matcher": "Read",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/read-tracker.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-read-cite.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-output-compressor.py",
-            "timeout": 5000
           }
         ]
       },
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-bash-audit.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-output-compressor.py",
-            "timeout": 5000
-          },
           {
             "type": "command",
             "command": "python3 .claude/hooks/error-dna.py",
@@ -341,206 +97,6 @@
           {
             "type": "command",
             "command": "python3 .claude/hooks/posttool-error-dna-shard.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/error-dna-aggregator.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/build-validator.py",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Skill",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/skill-usage-tracker.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-skill-compliance.py",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": "Task|Agent",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-subagent-audit.py",
-            "timeout": 5000
-          }
-        ]
-      },
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/token_writer.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/meta-oracle-trigger.py",
-            "hookName": "meta-oracle-trigger",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/agentic-ui.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/permission-frequency-tracker.py",
-            "timeout": 3000
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/error-dna.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-bash-audit.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/build-validator.py",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/lsp-gate.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/oracle-gate.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/context-compressor.py",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/knowledge-condenser.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/score-archiver.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/error-dna-auto-fix.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/scripts/meta-oracle-review.py --check-readiness",
-            "timeout": 20000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/inject-project-knowledge.py",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/sessionstart-gate-check.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/flywheel-report.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/token_writer.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/pretool-cruise-check.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/ecosystem-probe.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/session-resume.py",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/workflow-standard/hooks/state-recovery.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/workflow-standard/hooks/session-inject.py",
-            "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/cross-platform-smoke-test.py",
-            "timeout": 5000
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/auto-snapshot.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/skill-flywheel.py",
-            "timeout": 5000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/stop-drain.py",
-            "timeout": 10000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/posttool-checkpoint.py",
             "timeout": 5000
           }
         ]
@@ -578,11 +134,6 @@
             "type": "command",
             "command": "python3 .claude/hooks/pretool-rules-inject.py",
             "timeout": 3000
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/scripts/pretool-python-bridge.py",
-            "timeout": 3000
           }
         ]
       }
@@ -599,15 +150,5 @@
         ]
       }
     ]
-  },
-  "env": {
-    "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-pro[1m]",
-    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
-  },
-  "permissions": {
-    "defaultMode": "default"
-  },
-  "effortLevel": "high"
+  }
 }
