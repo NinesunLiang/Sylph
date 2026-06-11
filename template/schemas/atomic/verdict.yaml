@@ -1,0 +1,41 @@
+# Schema: verdict
+
+# Version: v2
+
+# Owner: harness-kit (shared)
+
+# Description: 最终判定，被 14 个 skill 全部复用。v2 新增 confidence 字段用于 E2 幻觉守卫
+
+# Consumers: ALL lx-* skills
+
+
+status:
+  type: enum
+  values: [pass, blocked, warn, incomplete]
+  required: true
+  description: "判定状态"
+confidence:
+  type: enum
+  values: [high, medium, low]
+  required: false
+  description: "判定置信度 — E2 幻觉守卫。high=有可复现证据支撑; medium=推理合理但未直接验证; low=推测/待确认"
+summary:
+  type: string
+  required: true
+  description: "判定摘要"
+next_actions:
+  type: array
+  required: false
+  items:
+  type: object
+  properties:
+  action:
+  type: string
+  priority:
+  type: enum
+  values: [p0, p1, p2, p3]
+  description: "建议的下一步动作"
+evidence_summary:
+  type: string
+  required: true
+  description: "证据摘要"
