@@ -262,6 +262,89 @@ def write_verdict(gate_verdict, weighted_score, ux_score, ux_max):
 def _build_spawn_prompt(trigger_type, methodology_lines):
     """Build the full prompt for the independent critic agent."""
     project_name = os.path.basename(PROJECT_ROOT)
+
+    # ═══════ Pre-collect runtime evidence ═══════
+    import glob
+    import subprocess
+
+    # 1. Flywheel
+    flywheel_status = "NOT FOUND"
+    flywheel_size = "N/A"
+    for fw in [
+        os.path.join(STATE_DIR, "flywheel.log"),
+        os.path.join(PROJECT_ROOT, ".claude", "flywheel.log"),
+        os.path.join(os.path.expanduser("~"), ".claude", "flywheel.log"),
+    ]:
+        if os.path.isfile(fw):
+            sz = os.path.getsize(fw)
+            flywheel_status = "EXISTS at " + fw
+            flywheel_size = "{} bytes ({:.0f}KB)".format(sz, sz / 1024)
+            break
+        elif os.path.islink(fw):
+            real = os.path.realpath(fw)
+            if os.path.exists(real):
+                sz = os.path.getsize(real)
+                flywheel_status = "EXISTS (symlink -> " + real + ")"
+                flywheel_size = "{} bytes ({:.0f}KB)".format(sz, sz / 1024)
+                break
+
+    # 2. set -e in ACTIVELY REGISTERED hooks only
+    set_e_hooks = "None (dormant .sh or .py only)"
+    settings_path = os.path.join(PROJECT_ROOT, ".claude", "settings.json")
+    if os.path.isfile(settings_path):
+        try:
+            with open(settings_path) as f:
+                cfg = json.load(f)
+            cmds = set()
+            for hl in cfg.get("hooks", {}).values():
+                if isinstance(hl, list):
+                    for h in hl:
+                        if isinstance(h, dict):
+                            cmds.add(h.get("command", ""))
+            found = []
+            for cmd in sorted(cmds):
+                if ".sh" in cmd:
+                    parts = cmd.split()
+                    script = parts[-1]
+                    full = script if script.startswith("/") else os.path.join(PROJECT_ROOT, script)
+                    if os.path.isfile(full):
+                        r = subprocess.run(["grep", "-l", "set -e", full],
+                                           capture_output=True, text=True)
+                        if r.stdout.strip():
+                            found.append(script)
+            if found:
+                set_e_hooks = ", ".join(found)
+        except Exception:
+            set_e_hooks = "Error checking"
+
+    # 3. Session health
+    session_health = "NOT FOUND"
+    shp = os.path.join(STATE_DIR, "session-health.json")
+    if os.path.isfile(shp):
+        try:
+            with open(shp) as f:
+                sd = json.load(f)
+            la = sd.get("last_audit", "missing_key")
+            session_health = "EXISTS, last_audit=" + str(la)
+        except Exception as e:
+            session_health = "EXISTS but error: " + str(e)
+
+    # 4. Smoke test
+    smoke_result = "NOT FOUND"
+    logs = sorted(glob.glob(os.path.join(STATE_DIR, "harness-smoke-*.log")),
+                  key=os.path.getmtime, reverse=True)
+    if logs:
+        latest = logs[0]
+        try:
+            with open(latest) as f:
+                content = f.read()
+            p = content.count("PASS")
+            f_cnt = content.count("FAIL")
+            smoke_result = "Last log: {}  PASS={}  FAIL={}".format(
+                os.path.basename(latest), p, f_cnt)
+        except Exception:
+            smoke_result = "Exists but unreadable"
+
     return f"""{''.join(methodology_lines)}
 
 ## Current Project State
@@ -270,22 +353,31 @@ Root: {PROJECT_ROOT}
 Trigger: {trigger_type}
 Timestamp: {datetime.now(timezone.utc).isoformat()}
 
-CRITICAL: You are Meta-Oracle — the FINAL gatekeeper. Your verdict has real consequences:
-- ACCEPT = the change is safe and verified → proceed
-- ADVISORY = issues found but not blocking → fix recommended
-- REJECT = critical issues found → STOP, human must intervene
+## Pre-collected Runtime Evidence (verified by scoring system)
+### Flywheel File
+- {flywheel_status}
+- Size: {flywheel_size}
 
-You MUST output your verdict in this EXACT format at the end:
-[Meta-Oracle: ACCEPT]
-or
-[Meta-Oracle: ADVISORY]
-or
-[Meta-Oracle: REJECT]
+### Hook Safety
+- Active registered hooks with `set -e`: {set_e_hooks}
+- Note: `.py` hooks do not use `set -e` by design
 
-Before the verdict, list your key findings. Be specific — reference exact file:line.
-After the verdict, list specific recommended actions.
+### Session Health
+- `session-health.json`: {session_health}
+
+### Smoke Test
+- {smoke_result}
+
+## VERIFICATION RULES (MANDATORY)
+1. Only report findings traceable to EXACT file:line or command output.
+2. Do NOT report "flywheel.log NOT FOUND" — already verified by scoring system.
+3. Do NOT report "set -e in hooks" unless verified in an ACTIVE hook (registered in settings.json).
+4. Do NOT report "session-health last_audit=null" — verify the actual JSON value.
+5. All runtime claims must cross-check against this pre-collected evidence section.
+6. If you cannot find file:line for a finding, DO NOT report it.
+
+CRITICAL: You are Meta-Oracle — the FINAL gatekeeper.
 """
-
 
 def _get_api_key():
     """Get DeepSeek API key — user-friendly, multi-source.

@@ -116,12 +116,6 @@ export async function privacyGate(
   _output: PrivacyGateOutput,
 ): Promise<void> {
   const { tool, args } = input
-
-  // C9: 读操作不阻断 — Read/Grep 永不阻断，Boss 铁律
-  if (tool === "Read" || tool === "Grep") {
-    return
-  }
-
   const extractedPaths = extractSensitivePaths(tool, args)
 
   if (extractedPaths.length > 0) {
@@ -134,8 +128,7 @@ export async function privacyGate(
 
 /**
  * Extract path-like strings from tool call arguments.
- * Supports Bash/Write/Edit tools and any tool with path/file/directory params.
- * Read/Grep 排除（C9 读不阻断），仅写/执行工具检查敏感路径。
+ * Supports Bash/Read/Write/Edit tools and any tool with path/file/directory params.
  */
 function extractSensitivePaths(tool: string, args: any): string[] {
   const found: string[] = []
@@ -175,7 +168,10 @@ function extractSensitivePaths(tool: string, args: any): string[] {
       }
     }
 
-    // NOTE: content 参数是文件读取结果，不是路径，不检查（C9 读不阻断）
+    // Content parameter might contain paths too (Read file content)
+    if (keyLower === "content" && typeof value === "string") {
+      values.push(value)
+    }
   }
 
   // Check each collected value against sensitive patterns

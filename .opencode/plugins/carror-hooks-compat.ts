@@ -66,18 +66,13 @@ interface HooksConfig {
 }
 
 function loadClaudeHooksConfig(): HooksConfig | null {
-  const paths = [
-    resolve(PROJECT_ROOT, ".claude", "settings.json"),
-    resolve(PROJECT_ROOT, ".claude", "settings.local.json"),
-  ];
-  for (const p of paths) {
-    if (existsSync(p)) {
-      try {
-        const raw = JSON.parse(readFileSync(p, "utf-8"));
-        return raw.hooks || null;
-      } catch (e) {
-        log("Failed to parse", p, e);
-      }
+  const settingsPath = resolve(PROJECT_ROOT, ".claude", "settings.json");
+  if (existsSync(settingsPath)) {
+    try {
+      const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      return raw.hooks || null;
+    } catch (e) {
+      log("Failed to parse", settingsPath, e);
     }
   }
   log("No .claude/settings.json found");

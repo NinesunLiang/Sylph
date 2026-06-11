@@ -134,6 +134,15 @@ rm -rf "$HARNESS_SRC/.claude/nodes" "$HARNESS_SRC/.claude/profiles" \
        "$HARNESS_SRC/.claude/state" 2>/dev/null || true
 rm -f "$HARNESS_SRC/.claude/settings.local.json" \
       "$HARNESS_SRC/.claude/scheduled_tasks.lock" 2>/dev/null || true
+# 清理旧版 OC plugin 残留（防止 carror-hooks-compat.ts 等旧版 plugin 引用 .sh hook）
+rm -f "$HARNESS_SRC/.opencode/plugins/carror-hooks-compat.ts" \
+      "$HARNESS_SRC/.opencode/plugins/session-guardian.ts" \
+      "$HARNESS_SRC/.opencode/plugins/sylph-hooks.ts" \
+      "$HARNESS_SRC/.opencode/plugins/sylph-hooks.ts.disabled" \
+      "$HARNESS_SRC/.opencode/plugins/harness-config.ts.disabled" \
+      "$HARNESS_SRC/.opencode/plugins/harness-kit.ts.disabled" 2>/dev/null || true
+# 清理旧版 opengrep/opencode/plugin 测试文件
+rm -rf "$HARNESS_SRC/.opencode/test" 2>/dev/null || true
 # 清理备份文件和缓存
 find "$HARNESS_SRC" -name '*.bak*' -delete 2>/dev/null || true
 find "$HARNESS_SRC" -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true

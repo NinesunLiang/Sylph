@@ -426,6 +426,22 @@ chmod +x .claude/hooks/*.sh 2>/dev/null || true
 chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
 chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
 
+# ═══ 清理旧版 OC plugin（防止 carror-hooks-compat.ts 等引用 .sh hook）═══
+if [ -d ".opencode/plugins" ]; then
+    rm -f .opencode/plugins/carror-hooks-compat.ts \
+          .opencode/plugins/session-guardian.ts \
+          .opencode/plugins/sylph-hooks.ts \
+          .opencode/plugins/sylph-hooks.ts.disabled \
+          .opencode/plugins/harness-config.ts.disabled \
+          .opencode/plugins/harness-kit.ts.disabled 2>/dev/null || true
+    NUM_REMOVED=0
+    for _f in .opencode/plugins/carror-hooks-compat.ts .opencode/plugins/session-guardian.ts; do
+        [ ! -f "$_f" ] && NUM_REMOVED=$((NUM_REMOVED+1))
+    done
+    rm -rf .opencode/test 2>/dev/null || true
+    [ "$NUM_REMOVED" -gt 0 ] && log_info "  🧹 旧版 OC plugin 已清理 ($NUM_REMOVED 个)"
+fi
+
 # ═══ DG-97: 升级时自动清理已废弃 hook ═══
 # 防止旧版安装残留的僵尸脚本污染新版本
 DEPRECATED_HOOKS="pretool-rule-anchor|proactive-handoff|build-validator|error-dna-auto-fix|posttool-read-cite|plan-gate|knowledge-condenser|pretool-ask-guard"

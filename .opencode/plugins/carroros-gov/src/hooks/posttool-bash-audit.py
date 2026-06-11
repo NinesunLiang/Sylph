@@ -95,8 +95,10 @@ def main():
     scan_files = []
     if ev_signals_jsonl.exists():
         scan_files.append(str(ev_signals_jsonl))
+        #print(f"[DEBUG] E4: {ev_signals_jsonl} exists", file=sys.stderr)
     if ev_dna_jsonl.exists():
         scan_files.append(str(ev_dna_jsonl))
+        #print(f"[DEBUG] E4: {ev_dna_jsonl} exists", file=sys.stderr)
 
     if scan_files:
         try:
@@ -114,7 +116,11 @@ def main():
                 except OSError:
                     pass
 
-            recent = sorted(all_entries, key=lambda r: r.get("ts", r.get("timestamp", 0)), reverse=True)[:20]
+            def _safe_ts(r):
+                ts = r.get("ts", r.get("timestamp", 0))
+                return ts if isinstance(ts, (int, float)) else 0
+
+            recent = sorted(all_entries, key=_safe_ts, reverse=True)[:20]
 
             # Detect completion-gate blocks
             gate_blocks = [r for r in recent
@@ -203,7 +209,8 @@ def main():
                 json.dump(streak_data, f)
 
             streak = streak_data["count"]
-            fail_streak_threshold = int(hc_get("posttool_bash_audit.fail_streak_threshold", "2"))
+            fail_streak_threshold = int(hc_get("posttool_bash_audit.fail_streak_threshold", "3"))
+            hard_block_threshold = int(hc_get("posttool_bash_audit.hard_block_threshold", "10"))
 
             if streak >= fail_streak_threshold:
                 distinct = len(streak_data.get("signatures", []))
@@ -225,6 +232,18 @@ def main():
                 }
                 with open(str(gate_file), "w", encoding="utf-8") as f:
                     json.dump(gate, f, indent=2)
+
+            # E5 Hard Block: excessive consecutive failures → hard exit(2)
+            if streak >= hard_block_threshold:
+                print(f"[Build Fail Gate] ⛔ 连续 {streak} 次构建失败（硬阻断阈值: {hard_block_threshold}）。"
+                      f"禁止继续盲修。请执行根因分析后再试。",
+                      file=sys.stderr, flush=True)
+                flywheel_event("posttool_bash_audit", "build_fail_hard_block", "P0", "carror-os")
+                print(json.dumps({
+                    "continue": False,
+                    "reason": f"连续 {streak} 次构建失败达到硬阻断阈值 {hard_block_threshold}。执行根因分析后再试。"
+                }))
+                sys.exit(2)
         else:
             # Build succeeded, reset streak
             try:
