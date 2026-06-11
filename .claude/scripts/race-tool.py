@@ -38,8 +38,14 @@ from pathlib import Path
 # 需要升4级回到仓库根
 _script_path = Path(__file__).resolve()
 _script_parents = list(_script_path.parents)
-# _script_parents[0] = scripts/, [1] = src/, [2] = carroros-gov/, [3] = packages/, [4] = Carror_OS/
-PROJECT_ROOT = _script_parents[4] if len(_script_parents) > 4 else _script_parents[0]
+# 动态检测项目根（支持 packages 和 .claude 两种运行路径）
+PROJECT_ROOT = None
+for _p in _script_parents[:8]:
+    if (_p / "AGENTS.md").exists() and (_p / ".claude").is_dir():
+        PROJECT_ROOT = _p
+        break
+if PROJECT_ROOT is None:
+    PROJECT_ROOT = _script_parents[0]
 PLAN_BASE = PROJECT_ROOT / ".omc" / "plan"
 DATE_FMT = "%Y%m%d"
 TIMESTAMP_FMT = "%Y%m%d-%H%M%S"
@@ -269,7 +275,8 @@ def cmd_dispatch(args: list) -> None:
         t_dir = batch_dir / t_id
         t_dir.mkdir(parents=True, exist_ok=True)
 
-        # Write task.md
+        # Build criteria + depends_on
+        deps = task.get("depends_on", [])
         task_md = [
             f"# {t_id}",
             "",
@@ -283,26 +290,45 @@ def cmd_dispatch(args: list) -> None:
         ]
         for c in task.get("criteria", []):
             task_md.append(f"- [ ] {c}")
+        if deps:
+            task_md.append("")
+            task_md.append("## Depends On")
+            for d in deps:
+                task_md.append(f"- `{d}`")
         task_md.append("")
         _write_file(task_path(t_dir), "\n".join(task_md))
 
-        # Write executor.md (placeholder for subagent)
+        # Write executor.md (with retry_count/step for checkpoint)
         executor_md = [
             f"# Executor — {t_id}",
             "",
             f"> batch: {batch_id}",
             f"> created: {_ts()}",
             f"> state: pending",
+            f"> step: 0",
+            f"> retry_count: 0",
+            f"> last_checkpoint: {_ts()}",
             "",
             "## Steps",
             "",
-            "- [ ] Step 1: 分析任务",
-            "- [ ] Step 2: 执行",
-            "- [ ] Step 3: 验证",
-            "- [ ] Step 4: 写入 result.md",
-            "- [ ] Step 5: 更新 task-state.md -> done",
-            "",
         ]
+        # Support custom steps from --steps N
+        steps = task.get("steps", 5)
+        default_steps = [
+            "分析任务",
+            "执行",
+            "验证",
+            "写入 result.md",
+            "更新 task-state.md -> done",
+        ]
+        for i in range(steps):
+            label = default_steps[i] if i < len(default_steps) else f"{i+1}: 执行步骤 {i+1}"
+            no = i + 1
+            executor_md.append(f"- [ ] Step {no}: {label}")
+            executor_md.append(f"  - checkpoint: ckpt-{no}")
+            executor_md.append(f"  - completed: (pending)")
+            executor_md.append(f"  - summary: ")
+        executor_md.append("")
         _write_file(executor_path(t_dir), "\n".join(executor_md))
 
         # Write task-state.md
@@ -318,6 +344,7 @@ def cmd_dispatch(args: list) -> None:
             "                                    -> blocked(>3)",
         ]
         _write_file(state_path(t_dir), "\n".join(task_state))
+
 
         created.append({
             "id": t_id,
@@ -586,9 +613,317 @@ def cmd_list(args: list) -> None:
     print(json.dumps(output, ensure_ascii=False, indent=2))
 
 
+
+
+# ─── 新命令: timeout-check / recover ───
+
+
+
+def _read_executor_field(task_dir, field):
+    """读取 executor.md 中 frontmatter 某字段的值"""
+    content = _read_file(_executor_path(task_dir))
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith(f"> {field}:"):
+            return line.split(":", 1)[1].strip()
+    return ""
+
+
+def _now_ts():
+    """当前时间戳（秒）"""
+    return datetime.now().timestamp()
+
+
+def _parse_updated(content):
+    """解析 task-state.md 的 updated 字段为时间戳"""
+    if not content:
+        return 0.0
+    for line in content.splitlines():
+        line = line.strip()
+        if line.startswith("updated:"):
+            val = line.split(":", 1)[1].strip()
+            try:
+                dt = datetime.strptime(val, "%Y-%m-%d %H:%M:%S")
+                return dt.timestamp()
+            except ValueError:
+                return 0.0
+    return 0.0
+
+
+def _check_elapsed(task_dir, timeout_seconds=600):
+    """
+    检查任务是否超时。
+    返回 (is_timeout, elapsed)
+    """
+    content = _read_file(_state_path(task_dir))
+    ts = _parse_updated(content)
+    if ts == 0.0:
+        return (False, 0.0)
+    elapsed = _now_ts() - ts
+    return (elapsed > timeout_seconds, elapsed)
+
+
+def _dispatch_pending(batch_dir, batch_id, parallel):
+    """扫描 pending 任务，在 parallel 上限内 dispatch。返回 dispatch 数量"""
+    running = 0
+    pending_tasks = []
+    for td in sorted(batch_dir.iterdir()):
+        if not td.is_dir():
+            continue
+        sp = _state_path(td)
+        if not sp.exists():
+            continue
+        state = _read_state(td)
+        if state == "pending":
+            pending_tasks.append(td)
+        elif state in ("running",):
+            running += 1
+
+    available = parallel - running
+    if available <= 0 or not pending_tasks:
+        return 0
+
+    dispatched = 0
+    for td in pending_tasks:
+        if dispatched >= available:
+            break
+        # 检查 depends_on
+        tm = _read_file(_task_path(td))
+        deps = []
+        in_depends = False
+        for line in tm.splitlines():
+            if line.strip() == "## Depends On":
+                in_depends = True
+                continue
+            if line.startswith("## ") and line.strip() != "## Depends On":
+                in_depends = False
+            if in_depends:
+                stripped = line.strip().strip("- ").strip("`")
+                if stripped:
+                    deps.append(stripped)
+        if deps:
+            all_met = True
+            for dep in deps:
+                dep_dir = batch_dir / dep
+                if dep_dir.exists() and _state_path(dep_dir).exists():
+                    dep_state = _read_state(dep_dir)
+                    if dep_state != "done":
+                        all_met = False
+                        break
+                else:
+                    all_met = False
+            if not all_met:
+                continue
+
+        _write_state(td, "running", td.name, "auto-dispatch by timeout-check")
+        dispatched += 1
+
+    return dispatched
+
+
+def cmd_timeout_check(args: list) -> None:
+    """
+    race-tool.py timeout-check <batch_id> [--timeout <seconds>] [--watch <interval>] [--once]
+    检查批次中超时的任务，超时则自动 update 为 failed。
+    """
+    if not args:
+        print("用法: race-tool.py timeout-check <batch_id> [--timeout <seconds>] [--watch <interval>] [--once]", file=sys.stderr)
+        sys.exit(1)
+
+    batch_id = args[0]
+    timeout_sec = 600
+    watch_sec = 0
+    once = False
+
+    i = 1
+    while i < len(args):
+        if args[i] == '--timeout' and i + 1 < len(args):
+            timeout_sec = int(args[i + 1])
+            i += 2
+        elif args[i] == '--watch' and i + 1 < len(args):
+            watch_sec = int(args[i + 1])
+            i += 2
+        elif args[i] == '--once':
+            once = True
+            i += 1
+        else:
+            i += 1
+
+    batch_dir = _find_batch(batch_id)
+    if batch_dir is None:
+        sys.exit(1)
+
+    # Read parallel from manifest
+    parallel = 5
+    manifest_content = _read_file(batch_dir / 'manifest.md')
+    for line in manifest_content.splitlines():
+        if line.strip().startswith('> parallel:'):
+            try:
+                parallel = int(line.split(':', 1)[1].strip())
+            except ValueError:
+                pass
+            break
+
+    import time as _time
+
+    while True:
+        timed_out = 0
+        for td in sorted(batch_dir.iterdir()):
+            if not td.is_dir():
+                continue
+            sp = _state_path(td)
+            if not sp.exists():
+                continue
+            state = _read_state(td)
+            if state != 'running':
+                continue
+            is_timeout, elapsed = _check_elapsed(td, timeout_sec)
+            if is_timeout:
+                task_id = td.name
+                _write_state(td, 'failed', task_id, f'超时 (elapsed={int(elapsed)}s)')
+                print(f'  ⏰ {task_id}: 超时 (elapsed={int(elapsed)}s, timeout={timeout_sec}s) → failed')
+                timed_out += 1
+
+        # Auto-dispatch pending tasks after timeout check
+        dispatched = _dispatch_pending(batch_dir, batch_id, parallel)
+        if dispatched > 0:
+            print(f'  📦 auto-dispatched {dispatched} pending tasks')
+
+        if once or timed_out == 0 and dispatched == 0:
+            print(f'✅ timeout-check complete: {timed_out} timed out, {dispatched} dispatched')
+            return
+
+        if watch_sec > 0:
+            print(f'  ⏳ waiting {watch_sec}s...')
+            _time.sleep(watch_sec)
+        else:
+            break
+
+
+def cmd_recover(args: list) -> None:
+    """
+    race-tool.py recover <batch_id> [--timeout <seconds>]
+    main agent 死亡恢复：扫描批次目录，恢复所有任务状态。
+    """
+    if not args:
+        print("用法: race-tool.py recover <batch_id> [--timeout <seconds>]", file=sys.stderr)
+        sys.exit(1)
+
+    batch_id = args[0]
+    timeout_sec = 600
+    if len(args) > 1 and args[1] == '--timeout' and len(args) > 2:
+        timeout_sec = int(args[2])
+
+    batch_dir = _find_batch(batch_id)
+    if batch_dir is None:
+        sys.exit(1)
+
+    print(f'🔍 Recovering batch: {batch_id}')
+    print(f'   Path: {batch_dir}')
+    print()
+
+    states = {'done': 0, 'failed': 0, 'pending': 0, 'running': 0, 'blocked': 0, 'recovered': 0}
+    for td in sorted(batch_dir.iterdir()):
+        if not td.is_dir():
+            continue
+        sp = _state_path(td)
+        if not sp.exists():
+            continue
+        state = _read_state(td)
+        task_id = td.name
+
+        if state == 'done':
+            print(f'  ✅ {task_id}: done (跳过)')
+            states['done'] += 1
+        elif state == 'failed':
+            # Check retry_count from executor.md
+            retry_count = _read_executor_field(td, 'retry_count')
+            try:
+                rc = int(retry_count) if retry_count else 0
+            except ValueError:
+                rc = 0
+            if rc >= 3:
+                _write_state(td, 'blocked', task_id, f'recover: retry次数已达上限({rc})')
+                print(f'  🔴 {task_id}: failed (retry={rc}) → blocked (已达上限)')
+                states['blocked'] += 1
+            else:
+                _write_state(td, 'retry', task_id, 'recover: 自动重试')
+                _write_state(td, 'running', task_id, 'recover: 重试中')
+                print(f'  🟡 {task_id}: failed (retry={rc}) → running (第{rc+1}次重试)')
+                states['recovered'] += 1
+        elif state == 'pending':
+            print(f'  📋 {task_id}: pending (待dispatch)')
+            states['pending'] += 1
+        elif state == 'running':
+            is_timeout, elapsed = _check_elapsed(td, timeout_sec)
+            if is_timeout:
+                _write_state(td, 'failed', task_id, f'recover: 超时 (elapsed={int(elapsed)}s)')
+                retry_count = _read_executor_field(td, 'retry_count')
+                try:
+                    rc = int(retry_count) if retry_count else 0
+                except ValueError:
+                    rc = 0
+                if rc >= 3:
+                    _write_state(td, 'blocked', task_id, f'recover: 超时+retry上限')
+                    print(f'  🔴 {task_id}: running (超时, retry={rc}) → blocked')
+                    states['blocked'] += 1
+                else:
+                    _write_state(td, 'retry', task_id, 'recover: 超时自动重试')
+                    _write_state(td, 'running', task_id, 'recover: 重试中')
+                    print(f'  🟡 {task_id}: running (超时, elapsed={int(elapsed)}s) → running (第{rc+1}次重试)')
+                    states['recovered'] += 1
+            else:
+                print(f'  🔄 {task_id}: running (未超时, elapsed={int(elapsed)}s, 保留)')
+                states['running'] += 1
+        elif state in ('blocked', 'retry'):
+            print(f'  ⚪ {task_id}: {state} (保留)')
+            states[state] = states.get(state, 0) + 1
+
+    # Update manifest.md recovery info
+    print()
+    print(f'📊 Recovery Summary:')
+    for k, v in states.items():
+        if v > 0:
+            print(f'    {k}: {v}')
+
+    manifest_path = batch_dir / 'manifest.md'
+    if manifest_path.exists():
+        manifest_content = _read_file(manifest_path)
+        recovery_block = [
+            '',
+            '---',
+            '## Recovery Info',
+            f'- status: recovered',
+            f'- total_tasks: {sum(states.values())}',
+            f'- recovered: {states["recovered"]}',
+            f'- blocked: {states["blocked"]}',
+            f'- done: {states["done"]}',
+            f'- last_updated: {_ts()}',
+        ]
+        manifest_content = manifest_content.rstrip() + '\n' + '\n'.join(recovery_block) + '\n'
+        _write_file(manifest_path, manifest_content)
+        print(f'  📝 manifest.md 已更新 Recovery Info')
+
+    print(f'✅ Recover complete')
+
+    # Auto-dispatch pending tasks after recovery
+    parallel = 5
+    manifest_content = _read_file(batch_dir / 'manifest.md')
+    for line in manifest_content.splitlines():
+        if line.strip().startswith('> parallel:'):
+            try:
+                parallel = int(line.split(':', 1)[1].strip())
+            except ValueError:
+                pass
+            break
+    dispatched = _dispatch_pending(batch_dir, batch_id, parallel)
+    if dispatched > 0:
+        print(f'  📦 auto-dispatched {dispatched} pending tasks')
+
+
 def cmd_help() -> None:
     """打印帮助信息"""
-    print("Race Tool — 文档驱动并行 Swarm 引擎")
+    print("Race Tool — 文档驱动并行 Swarm 引擎 (v3.0)")
     print("")
     print("用法: race-tool.py <command> [args]")
     print("")
@@ -598,14 +933,17 @@ def cmd_help() -> None:
     print("  status <batch_id>                          查询状态")
     print("  collect <batch_id>                         收集结果")
     print("  report <batch_id>                          生成汇总报告")
+    print("  timeout-check <batch_id> [opts]            超时检测 [--timeout N] [--watch N] [--once]")
+    print("  recover <batch_id> [--timeout N]           死亡恢复扫描")
     print("  update <task_dir> <state> [msg]            更新子任务状态")
     print("  list [--limit N]                           列出所有批次")
     print("")
     print("Examples:")
     print("  race-tool.py init \"代码审查\" --parallel 5")
     print("  race-tool.py dispatch <id> --tasks '[{\"id\":\"t1\",\"goal\":\"...\"}]'")
+    print("  race-tool.py timeout-check <batch_id> --watch 30")
+    print("  race-tool.py recover <batch_id>")
     print("  race-tool.py report <batch_id>")
-
 
 def main() -> None:
     if len(sys.argv) < 2:
@@ -621,6 +959,8 @@ def main() -> None:
         "status": cmd_status,
         "collect": cmd_collect,
         "report": cmd_report,
+        "timeout-check": cmd_timeout_check,
+        "recover": cmd_recover,
         "update": cmd_update,
         "list": cmd_list,
         "help": lambda a: cmd_help(),  # ignore args

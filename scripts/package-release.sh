@@ -13,7 +13,7 @@ log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 log_step() { echo -e "${BLUE}[STEP]${NC} $1"; }
 
 VERSION=$(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('VERSION.json'))['version'])")
-TAG="v${VERSION}-stable"
+TAG="v${VERSION}"
 log_info "版本：$TAG"
 PKG_DIR="$PROJECT_DIR/packages"
 HARNESS_SRC="source/harness-kit"
@@ -293,3 +293,4 @@ H_COUNT=$(tar tzf "$PKG_DIR/harness-kit-${TAG}.tar.gz" | wc -l)
 L_COUNT=$(tar tzf "$PKG_DIR/lx-skills-${TAG}.tar.gz" | wc -l)
 echo "  harness-kit: ${H_COUNT} 文件, 越界: ${H_CONTAM:-0}"
 echo "  lx-skills:   ${L_COUNT} 文件, 越界: ${L_CONTAM:-0}"
+log_info "✅ 打包完成，文件统一使用 ${TAG} 命名"

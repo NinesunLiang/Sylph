@@ -107,7 +107,7 @@ idle
 | Context isolation | Each worker receives sub-task spec only (no full parent context) |
 | Write conflict | OMA Lock for shared files; partitioned paths for independent state |
 | Worker lifecycle | Timeout = 2× estimated max sub-task duration |
-| Progress tracking | `race_manager.sh` register → status → report |
+| Progress tracking | `race-tool.py` dispatch → status → collect → report |
 
 ### Collect Protocol
 

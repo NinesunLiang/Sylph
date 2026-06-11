@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# race_manager.sh — Race 蜂群协调引擎
+# ⚠ DEPRECATED — 请使用 race-tool.py (packages/carroros-gov/src/scripts/race-tool.py)
+# 保留此文件以兼容历史任务。新任务不要再使用此脚本。
+# race_manager.sh — Race 蜂群协调引擎 (DEPRECATED)
 # Cross-platform Python resolution (DG-105)
 [ -f "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" ] && source "$(cd "$(dirname "$0")/../.." 2>/dev/null && pwd)/.claude/hooks/harness_config.sh" 2>/dev/null || true
 
