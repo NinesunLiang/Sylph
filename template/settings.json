@@ -3,84 +3,34 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/pretool-edit-scope.py", "timeout": 5000 },
-          { "type": "command", "command": "python3 .claude/hooks/pretool-plan-gate.py", "timeout": 5000 }
-        ]
-      },
-      {
         "matcher": "Bash",
         "hooks": [
           { "type": "command", "command": "python3 .claude/hooks/permission-gate.py", "timeout": 5000 },
+          { "type": "command", "command": "python3 .claude/hooks/privacy-gate.py", "timeout": 3000 },
+          { "type": "command", "command": "python3 .claude/hooks/fuzzy-block.py", "timeout": 3000 },
           { "type": "command", "command": "python3 .claude/hooks/pretool-retry-check.py", "timeout": 3000 }
         ]
       },
       {
-        "matcher": "Bash|Read|Grep",
+        "matcher": "Edit|Write",
         "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/privacy-gate.py", "timeout": 3000 }
+          { "type": "command", "command": "python3 .claude/hooks/pretool-plan-gate.py", "timeout": 5000 }
         ]
       },
       {
-        "matcher": "Task",
+        "matcher": "delegate_task",
         "hooks": [
           { "type": "command", "command": "python3 .claude/hooks/subagent-guard.py", "timeout": 3000 }
-        ]
-      },
-      {
-        "matcher": ".*",
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/fuzzy-block.py", "timeout": 3000 }
         ]
       }
     ],
     "PostToolUse": [
       {
-        "matcher": "TaskUpdate",
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/completion-gate.py", "timeout": 10000 },
-          { "type": "command", "command": "python3 .claude/hooks/posttool-handoff-writer.py", "timeout": 5000 },
-          { "type": "command", "command": "python3 .claude/hooks/posttool-checkpoint.py", "timeout": 5000 }
-        ]
-      },
-      {
         "matcher": ".*",
         "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/meta-oracle-trigger.py", "timeout": 3000 }
-        ]
-      }
-    ],
-    "SessionStart": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/context-compressor.py", "timeout": 10000 },
-          { "type": "command", "command": "python3 .claude/hooks/knowledge-condenser.py", "timeout": 5000 },
-          { "type": "command", "command": "python3 .claude/hooks/session-resume.py", "timeout": 10000 },
-          { "type": "command", "command": "python3 .claude/hooks/inject-project-knowledge.py", "timeout": 10000 },
-          { "type": "command", "command": "python3 .claude/hooks/skill-flywheel.py", "timeout": 5000 }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/skill-flywheel.py", "timeout": 5000 }
-        ]
-      }
-    ],
-    "UserPromptSubmit": [
-      {
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/pretool-rules-inject.py", "timeout": 3000 }
-        ]
-      }
-    ],
-    "PreCompact": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          { "type": "command", "command": "python3 .claude/hooks/session-resume.py", "timeout": 5000 }
+          { "type": "command", "command": "python3 .claude/hooks/completion-gate.py", "timeout": 3000 },
+          { "type": "command", "command": "python3 .claude/hooks/skill-flywheel.py", "timeout": 10000 },
+          { "type": "command", "command": "python3 .claude/hooks/meta-oracle-trigger.py", "timeout": 5000 }
         ]
       }
     ]
