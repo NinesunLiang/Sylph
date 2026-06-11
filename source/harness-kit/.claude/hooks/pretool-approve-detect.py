@@ -46,7 +46,7 @@ def main():
             print("🚫 /deny — 危险操作已取消。审批文件已清理。", file=sys.stderr, flush=True)
         else:
             print("ℹ️ 当前无待批准的危险操作（/deny 忽略）。", file=sys.stderr, flush=True)
-        print(prompt, end="")
+        print(json.dumps({"continue": True}))
         sys.exit(0)
 
     # ─── /approve <token> 处理 ───
@@ -54,8 +54,8 @@ def main():
     approve_token = approve_match.group(1) if approve_match else None
 
     if approve_token is None:
-        # 无 /approve 指令 → 透传
-        print(prompt, end="")
+        # 无 /approve 指令 → 只写 continue，不透传原始输入
+        print(json.dumps({"continue": True}))
         sys.exit(0)
 
     # 有 /approve → 循环验证三套 CAPTCHA
@@ -85,8 +85,8 @@ def main():
         print("❌ /approve 失败：验证码不匹配或无可匹配的待批准操作。", file=sys.stderr, flush=True)
         flywheel_event("pretool_approve_detect", "token_mismatch", "P3")
 
-    # 透传原始输入（Claude Code 协议要求）
-    print(prompt, end="")
+    # 只写 continue，不透传原始输入
+    print(json.dumps({"continue": True}))
     sys.exit(0)
 
 

@@ -16,10 +16,12 @@ from harness_lib import hc_enabled, hc_get, flywheel_event
 
 def main():
     if not hc_enabled("user_correction_detector"):
+        # Drain stdin (required by UserPromptSubmit protocol) but only write continue
         try:
-            print(sys.stdin.read())
+            sys.stdin.read()
         except Exception:
             pass
+        print(json.dumps({"continue": True}))
         sys.exit(0)
 
     # 从 stdin 读取完整用户输入
@@ -129,10 +131,14 @@ def main():
         print("╚══════════════════════════════════════════════════════════════════╝", file=sys.stderr)
         print(file=sys.stderr)
 
-    # 透传原始输入（Claude Code 协议要求：UserPromptSubmit hook 必须将用户输入回写 stdout）
-    print(prompt, end="")
+    # 输出修正后的提示（只在有修正时写回）
+    # UserPromptSubmit 的 stdout = 额外上下文，不是"替换后的用户输入"
+    # 没修正时只写 continue，不 echo 原始用户输入（否则每轮 reprompt 都在追加）
+    print(json.dumps({"continue": True}))
     if triggered:
         flywheel_event("pretool_user_correction", "correction_detected", "P2", "correction_signal")
+        # 同时将原始 prompt 输出到 stderr 用于记录
+        print(f"[pretool-user-correction] 检测到纠正信号 '{matched_signal}'，用户输入已记录。", file=sys.stderr)
     sys.exit(0)
 
 

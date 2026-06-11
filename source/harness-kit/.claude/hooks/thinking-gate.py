@@ -96,8 +96,11 @@ def main():
         leak_evidence = f"已自动剥离 thinking 内容 ({leak_type})"
         sys.stderr.write(f"[thinking-gate] ✅ {leak_evidence}\n")
 
-    # ── Always pass through (never block) — output the original prompt ──
-    print(prompt)
+    # ── Never block — just pass through with continue signal ──
+    # IMPORTANT: Do NOT print(prompt) here! Printing user prompt to stdout
+    # causes CC's UserPromptSubmit to accumulate it as the "new input",
+    # leading to repeated injection of the same text across turns.
+    print(json.dumps({"continue": True}))
     sys.exit(0)
 
 
