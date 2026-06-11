@@ -39,7 +39,8 @@ def main():
     # 同时写入文件并输出到 stdout（tee 效果）
     with open(str(fuzzy_check), "w", encoding="utf-8") as f:
         f.write(prompt)
-    print(prompt, end="")
+    print(json.dumps({"continue": True}))
+    sys.stdout.flush()
 
     # 【追加】写入环形 query 日志（供 pretool-compact-writer.py 收集最后20条）
     try:
