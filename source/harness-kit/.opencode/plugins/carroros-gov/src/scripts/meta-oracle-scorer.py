@@ -28,19 +28,7 @@ IS_WINDOWS = os.name == "nt"
 HOME = os.path.expanduser("~")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-# Bug1 fix: allow environment variable override — $CARROROS_ROOT takes priority
-# This ensures the scorer runs against the correct project root when invoked
-# from capability-matrix-test.sh or other harness scripts.
-PROJECT_ROOT = os.environ.get("CARROROS_ROOT")
-if not PROJECT_ROOT:
-    # Fallback: script in src/scripts/ → ../../ = plugins/carroros-gov/
-    PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
-    # If the fallback doesn't have .claude/ (aka we're in package dir not project root),
-    # try walking up until we find the CarrorOS repo marker files.
-    if not os.path.isdir(os.path.join(PROJECT_ROOT, ".claude")):
-        p = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", "..", ".."))
-        if os.path.isdir(os.path.join(p, ".claude")):
-            PROJECT_ROOT = p
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", ".."))
 STATE_DIR = os.path.join(PROJECT_ROOT, ".omc", "state")
 
 
@@ -116,15 +104,9 @@ def _runtime_evidence_factor(hook_name):
     5+ events → 1.00 (sufficient runtime evidence)
     """
     count = 0
-    # Source 1: global flywheel.log (Claude Code activity)
     flywheel_log = os.path.join(HOME, ".claude", "flywheel.log")
     if os.path.isfile(flywheel_log):
-        count += _grep_count(hook_name, flywheel_log)
-    # Source 2: project-level flywheel.jsonl (CarrorOS tracked events)
-    project_fw = os.path.join(STATE_DIR, "flywheel.jsonl")
-    if os.path.isfile(project_fw):
-        count += _grep_count(hook_name.replace("_", "-"), project_fw)
-        count += _grep_count(hook_name, project_fw)
+        count = _grep_count(hook_name, flywheel_log)
     # Also check flywheel-report.json
     report_path = os.path.join(STATE_DIR, "flywheel-report.json")
     if os.path.isfile(report_path):
@@ -1049,54 +1031,29 @@ def _detect_substantive_gaps():
     return gaps
 
 
-def score_all(calibrated=False, meta_oracle=False, ci_mode=False):
-    """Run all scorers, aggregate, return result dict.
-
-    Args:
-        calibrated: Apply smoke test pass rate calibration.
-        meta_oracle: Run full Meta-Oracle mode (prints sub-dim details).
-        ci_mode: CI mode — only run C dimension (static file checks).
-                 E (effectiveness) and G (governance) skip runtime scorers
-                 because CI test environments lack session-level runtime data.
-                 E is reported as "CI skip (runtime data unavailable)" with
-                 weight redistributed to C. G runs completely (static checks only).
-    """
+def score_all(calibrated=False, meta_oracle=False):
+    """Run all scorers, aggregate, return result dict."""
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
 
-    # C dimension — always runs (static file checks, no runtime dependency)
+    # C dimension
     c_scorers = [score_C1, score_C2, score_C3, score_C4, score_C5, score_C6, score_C7, score_C8, score_C9]
     c_results = {f"C{i+1}": fn() for i, fn in enumerate(c_scorers)}
     C_score = sum(r["score"] for r in c_results.values())
     C_max = sum(r["max"] for r in c_results.values())
 
-    if ci_mode:
-        # CI mode: skip E dimension (runtime-dependent), run G static checks only.
-        # Redistribute E's weight (35%) to C (from 40% to 75%).
-        e_results = {}
-        E_score = 0
-        E_max = 0
-        E_pct = 0.0
-        g_scorers = [score_G1, score_G2, score_G3, score_G4, score_G5]
-        g_results = {f"G{i+1}": fn() for i, fn in enumerate(g_scorers)}
-        G_score = sum(r["score"] for r in g_results.values())
-        G_max = sum(r["max"] for r in g_results.values())
-        # In CI mode: C gets full 75% (40% + redistributed 35%), G gets 25%
-        ci_weight_c = 0.75
-        ci_weight_g = 0.25
-    else:
-        # E dimension
-        e_scorers = [score_E1, score_E2, score_E3, score_E4, score_E5, score_E6, score_E7, score_E8]
-        e_results = {f"E{i+1}": fn() for i, fn in enumerate(e_scorers)}
-        E_score = sum(r["score"] for r in e_results.values())
-        E_max = sum(r["max"] for r in e_results.values())
+    # E dimension
+    e_scorers = [score_E1, score_E2, score_E3, score_E4, score_E5, score_E6, score_E7, score_E8]
+    e_results = {f"E{i+1}": fn() for i, fn in enumerate(e_scorers)}
+    E_score = sum(r["score"] for r in e_results.values())
+    E_max = sum(r["max"] for r in e_results.values())
 
-        # G dimension
-        g_scorers = [score_G1, score_G2, score_G3, score_G4, score_G5]
-        g_results = {f"G{i+1}": fn() for i, fn in enumerate(g_scorers)}
-        G_score = sum(r["score"] for r in g_results.values())
-        G_max = sum(r["max"] for r in g_results.values())
+    # G dimension
+    g_scorers = [score_G1, score_G2, score_G3, score_G4, score_G5]
+    g_results = {f"G{i+1}": fn() for i, fn in enumerate(g_scorers)}
+    G_score = sum(r["score"] for r in g_results.values())
+    G_max = sum(r["max"] for r in g_results.values())
 
-    # UX dimension (independent, runs always)
+    # UX dimension (independent)
     ux_scorers = [score_UX1, score_UX2, score_UX3, score_UX4, score_UX5]
     ux_results = {f"UX{i+1}": fn() for i, fn in enumerate(ux_scorers)}
     UX_score = sum(r["score"] for r in ux_results.values())
@@ -1104,22 +1061,12 @@ def score_all(calibrated=False, meta_oracle=False, ci_mode=False):
 
     # Percentages
     C_pct = _pct(C_score, C_max)
-    if ci_mode:
-        E_pct = 0.0  # CI mode: dimensional E is empty, weight redistributed via ci_weight_c
-        E_score = 0
-        E_max = 0
-    else:
-        E_pct = _pct(E_score, E_max)
+    E_pct = _pct(E_score, E_max)
     G_pct = _pct(G_score, G_max)
     UX_pct = _pct(UX_score, UX_max)
 
-    # Weighted score: CI mode uses 75/25, normal uses 40/35/25
-    if ci_mode:
-        weighted_10 = round((C_pct * ci_weight_c + G_pct * ci_weight_g) / 10, 2)
-        used_weights = {"C": ci_weight_c, "G": ci_weight_g, "E": "skipped (CI)"}
-    else:
-        weighted_10 = round((C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 10, 2)
-        used_weights = {"C": 0.40, "E": 0.35, "G": 0.25}
+    # Weighted score (40/35/25)
+    weighted_10 = round((C_pct * 0.40 + E_pct * 0.35 + G_pct * 0.25) / 10, 2)
 
     # ── Runtime calibration: smoke test pass rate (real data, no arbitrary penalty) ──
     # Smoke test IS runtime verification. Pass rate = calibration factor.
@@ -1166,13 +1113,12 @@ def score_all(calibrated=False, meta_oracle=False, ci_mode=False):
     result = {
         "generated_at": ts,
         "scored_by": "meta-oracle-scorer.py v1",
-        "methodology": f"4D scoring — C/E/G weighted aggregate ({'75/25 — CI mode E skipped' if ci_mode else '40/35/25'}) → 0-10 scale + UX independent",
-        "ci_mode": ci_mode,
-        "weights": used_weights,
+        "methodology": "4D scoring — C/E/G weighted aggregate (40/35/25) → 0-10 scale + UX independent",
+        "weights": {"C": 0.40, "E": 0.35, "G": 0.25, "UX_note": "independent, not in aggregate"},
         "dimensions": {
-            "C": {"score": C_score, "max": C_max, "pct": C_pct, "weight": used_weights.get("C", 0.40)},
-            "E": {"score": E_score, "max": E_max, "pct": E_pct, "weight": used_weights.get("E", 0.35)},
-            "G": {"score": G_score, "max": G_max, "pct": G_pct, "weight": used_weights.get("G", 0.25)},
+            "C": {"score": C_score, "max": C_max, "pct": C_pct, "weight": 0.40},
+            "E": {"score": E_score, "max": E_max, "pct": E_pct, "weight": 0.35},
+            "G": {"score": G_score, "max": G_max, "pct": G_pct, "weight": 0.25},
             "UX": {"score": UX_score, "max": UX_max, "pct": UX_pct, "independent": True},
         },
         "aggregate": {
@@ -1210,9 +1156,6 @@ def _print_summary(r, calibrated, meta_oracle):
     agg = r["aggregate"]
 
     print(f"=== Meta-Oracle Score v1 (4D: C/E/G weighted + UX independent) @ {r['generated_at']} ===")
-    is_ci = r.get("ci_mode", False)
-    if is_ci:
-        print("  [CI MODE] E 维度跳过（运行时数据不可用，权重再分配给 C）")
     if calibrated:
         smoke_rate = _get_smoke_pass_rate()
         print(f"  [烟雾校准] 运行时烟雾测试通过率 = {smoke_rate*100:.0f}%（真实数据，不编造）")
@@ -1256,8 +1199,7 @@ def _print_summary(r, calibrated, meta_oracle):
 def main():
     calibrated = "--calibrated" in sys.argv
     meta_oracle = "--meta-oracle" in sys.argv
-    ci_mode = "--ci-mode" in sys.argv
-    score_all(calibrated=calibrated, meta_oracle=meta_oracle, ci_mode=ci_mode)
+    score_all(calibrated=calibrated, meta_oracle=meta_oracle)
 
 
 if __name__ == "__main__":

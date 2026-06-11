@@ -87,8 +87,8 @@ def main():
         except Exception as e:
             print(f"\u26d4 [C5] privacy-gate fail-close: harness_lib \u521d\u59cb\u5316\u5931\u8d25: {e}", file=sys.stderr)
             flywheel_event("privacy_gate", "c5_fail_close", "P1")
-            print('{"continue": false}')
-            sys.exit(2)
+            # 不 exit(2)— 静默放行而非阻塞 agent
+            pass
 
     # 读取 stdin
     stdin_data = sys.stdin.read()

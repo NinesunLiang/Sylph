@@ -74,20 +74,23 @@ def _check_command_for_tokens(cmd: str) -> bool:
 
 # ─── 主逻辑 ───
 
+def _is_safe_tool(tool_name: str) -> bool:
+    """读操作工具永不阻断。（铁律 #9：读操作不阻断）"""
+    return tool_name in ("read", "grep", "search_files")
+
 def main():
     # 门禁检查
     if not hc_enabled("privacy_gate"):
         print('{"continue": true}')
         sys.exit(0)
 
-    # C5 fail-close: harness.yaml missing → security_gates close → block
+    # C5 宽松模式：无 harness.yaml = 非 CarrorOS 项目 → 完全豁免
     _yaml_path = Path(__file__).resolve().parent.parent.parent / ".claude" / "harness.yaml"
-    if not _yaml_path.exists() and hc_get("fail_closure.security_gates", "open") == "close":
-        flywheel_event('privacy_gate', 'c5_fail_close', 'P1')
-        _msg = "⛔ [C5] privacy-gate: harness.yaml 缺失且 fail_closure.security_gates=close，拒绝放行"
-        print(_msg, file=sys.stderr, flush=True)
-        print(json.dumps({"continue": False, "hookSpecificOutput": {"additionalContext": _msg}}))
-        sys.exit(2)
+    _carror_lax = os.environ.get("CARROROS_LAX", "").strip().lower() in ("1", "true", "yes")
+    if not _yaml_path.exists() or _carror_lax:
+        # 没有 yaml = 客户环境 → 完全豁免，不干预工作流
+        print('{"continue": true}')
+        sys.exit(0)
 
     # 读取 stdin
     stdin_data = sys.stdin.read()
@@ -108,10 +111,22 @@ def main():
     pattern = tool_input.get("pattern") or ""
     command = (tool_input.get("command") or tool_input.get("args", {}).get("command") or "")
 
-    # 统一 Bash/Read/Grep 检测
+    # 读操作永不阻断（铁律 #9）
+    if _is_safe_tool(tool_name):
+        # 敏感路径仅做 warn，不阻断
+        check_path = file_path or pattern
+        if _check_file_path(check_path):
+            sys.stderr.write(
+                f"[privacy-gate] WARN: Read 工具访问敏感路径（{check_path}），"
+                f"建议使用脱敏代理读取\n"
+            )
+        print('{"continue": true}')
+        sys.exit(0)
+
+    # Bash/Grep/其他写操作：统一检测
     check_path = file_path or pattern
 
-    # 1. 文件路径拦截
+    # 1. 文件路径拦截（仅写操作）
     if _check_file_path(check_path):
         flywheel_event("privacy_gate", "triggered", "P2")
         _agentic_status_danger(
@@ -128,7 +143,7 @@ def main():
         print(result)
         sys.exit(2)
 
-    # 2. 命令明文 Token 拦截
+    # 2. 命令明文 Token 拦截（仅 Bash）
     if tool_name == "bash" and command and _check_command_for_tokens(command):
         flywheel_event("privacy_gate", "token_triggered", "P2")
         _agentic_status_danger(

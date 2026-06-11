@@ -278,6 +278,7 @@ for sfile in list((PROJECT_ROOT / ".claude/hooks").glob("*.py")) + list((PROJECT
             "pretool-workflow-gate.py", "sessionstart-workflow-inject.py",
             "workflow-state-recovery.py", "privacy-gate.py", "subagent-guard.py",
             "posttool-output-compressor.py", "harness_lib.py", "harness_lib.sh",
+            "harness_core.py", "pretool-agents-merge.sh",
         ):
             info(f"[{sname}] 辅助工具/桥接脚本, 不强制 settings 注册")
             dim_pass("D2-SETTINGS-REGISTRATION")

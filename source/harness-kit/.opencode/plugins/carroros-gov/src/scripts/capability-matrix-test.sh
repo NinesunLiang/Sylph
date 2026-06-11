@@ -442,7 +442,7 @@ if [ -f "$META_SCORER" ]; then
 VERDINIT
     fi
     log "  🚀 Spawning Meta-Oracle runtime scorer (30-60s)..."
-    SCORER_OUT=$(CARROROS_ROOT="$PROJECT_ROOT" ${PYTHON_BIN:-python3} "$META_SCORER" --calibrated --meta-oracle --ci-mode 2>&1)
+    SCORER_OUT=$(${PYTHON_BIN:-python3} "$META_SCORER" --calibrated --meta-oracle 2>&1)
     SCORER_EXIT=$?
 
     if [ "$SCORER_EXIT" = "0" ]; then

@@ -946,6 +946,16 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
         cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
             && log_info "使用 Generic profile（base）→ .claude/harness.yaml"
     fi
+
+    # 客户环境统一覆写为 lax 模式（元项目走 base 模板的 strict）
+    if [ -f ".claude/harness.yaml" ]; then
+        if grep -q "^mode:" ".claude/harness.yaml" 2>/dev/null; then
+            "${SED_INPLACE[@]}" "s/^mode:.*/mode: lax/" ".claude/harness.yaml"
+        else
+            # 旧版 harness.yaml 可能没有 mode 字段，追加
+            echo "mode: lax" >> ".claude/harness.yaml"
+        fi
+    fi
 fi
 
 # ─── LSP/AST 语言服务器检测与安装建议 ─────────────────────────

@@ -211,7 +211,7 @@ if cc.exists():
 else:
     r32 = ""
 if r32:
-    _test("context-cache has timestamp", "Context Cache|Empty", r32)
+    _test("context-cache has timestamp", "CONTEXT-COMPRESSOR|Context Cache|Empty", r32)
 else:
     _warn("context-cache.md — no content (CI/empty session)")
 

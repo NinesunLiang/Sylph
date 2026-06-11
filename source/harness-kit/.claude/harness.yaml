@@ -1,4 +1,5 @@
 harness_version: 6.5.0
+mode: strict
 workflow:
   doc_root: rpe
   executor_doc: executor.md

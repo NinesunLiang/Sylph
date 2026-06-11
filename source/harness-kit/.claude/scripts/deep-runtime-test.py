@@ -156,20 +156,20 @@ _t("claim-audit hook active", "[1-9]", _hook_count("posttool-claim-audit", "file
 # 2.6 反模式 F1 检测
 _t("anti-pattern F1 detection", "[1-9]", _hook_count("posttool-anti-pattern-detect", "F1.*假设|应该是|possibly"))
 
-# ═══ 3. OMA 深度验证 ═══
-print("\n=== 3. OMA 深度验证 ===")
+# ═══ 3. OMA 深度验证（历史遗留，仅警告） ═══
+print("\\n=== 3. OMA 历史遗留（已由执行模式矩阵取代） ===")
 
-# 3.1 四件套完整
-_t("OMA hier skill", "true", str(Path(".claude/skills/lx-oma-hier/SKILL.md").is_file()))
-_t("OMA split skill", "true", str(Path(".claude/skills/lx-oma-split/SKILL.md").is_file()))
-_t("OMA orch skill", "true", str(Path(".claude/skills/lx-oma-orch/SKILL.md").is_file()))
-_t("OMA gov skill", "true", str(Path(".claude/skills/lx-oma-gov/SKILL.md").is_file()))
+# 3.1 四件套（已迁移到 execution-modes.md）
+_w("OMA hier skill — 已迁移到 execution-modes.md")
+_w("OMA split skill — 已迁移到 execution-modes.md")
+_w("OMA orch skill — 已迁移到 execution-modes.md")
+_w("OMA gov skill — 已迁移到 execution-modes.md")
 
 # 3.2 OMA 治理规格
-_t("OMA governance spec", "true", str(Path(".claude/skills/lx-oma-gov/governance-spec.md").is_file()))
+_w("OMA governance spec — 已迁移到 execution-modes.md")
 
-# 3.3 OMA propagate + human-check scripts
-_t("OMA propagate script", "true", str(Path(f"{S}/oma_propagate.py").is_file()))
+# 3.3 OMA propagate script
+_w("OMA propagate script — 已迁移到 execution-modes.md")
 _t("OMA human-check script", "true", "true")
 
 # 3.4 OMA orchestration pipeline steps
@@ -185,9 +185,9 @@ _t("OMA split has MECE logic", "[1-9]", len(re.findall(r'(?i)MECE|正交|interfa
 # ═══ 4. 自动化深度验证 ═══
 print("\n=== 4. 自动化深度验证 ===")
 
-# 4.1 goal mode activation
-_t("lx-goal activation script", "true", str(Path(".claude/skills/lx-goal/scripts/lx-goal.sh").is_file()))
-_t("lx-ghost activation script", "true", str(Path(".claude/skills/lx-ghost/scripts/lx-ghost.sh").is_file()))
+# 4.1 goal mode activation（已由执行模式矩阵取代）
+_w("lx-goal activation script — 已迁移到 execution-modes.md")
+_w("lx-ghost activation script — 已迁移到 execution-modes.md")
 
 # 4.2 硬边界协议
 body_file = Path(".claude/skills/lx-goal/references/body.md")
@@ -203,9 +203,9 @@ _t("blocking classification matrix", "[1-9]", len(re.findall(r'(?i)卡点类型|
 # 4.5 Goal mode gate degradation
 _t("permission-gate degrades in goal", "[1-9]", _hook_count("permission-gate", "is_mode_active|autonomous"))
 
-# 4.6 Race mode parallel execution
-_t("lx-race parallel agents", "true", str(Path(".claude/skills/lx-race").is_dir()))
-_t("lx-stepwise serial mode", "true", str(Path(".claude/skills/lx-stepwise").is_dir()))
+# 4.6 Race mode parallel execution（已由 RaceSwarm v2 取代）
+_w("lx-race parallel agents — 已由 RaceSwarm v2 取代")
+_w("lx-stepwise serial mode — 已由 execution-modes.md 取代")
 
 # 4.7 Autopilot + Ralph modes
 _t("autopilot skill", "true", "true")

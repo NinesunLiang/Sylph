@@ -21,6 +21,7 @@ from harness_core import (
     _HOOKS_DIR, _PROJECT_ROOT, _STATE_DIR, _EVIDENCE_FILE,
     _HC_CACHE, _HC_YAML, _FLYWHEEL_LOG, _PYTHON_CACHE,
     PYTHON_BIN, HC_SESSION_ID, HC_EVENT_NAME,
+    _ensure_cache, _CORE_HOOKS, _get_harness_mode,
 )
 
 # ─── hc_init: 标准路径变量初始化（替代各 hook 内联的 SCRIPT_DIR/PROJECT_ROOT/STATE_DIR）───
@@ -108,14 +109,14 @@ def hc_fail_closure(gate_name: str) -> bool:
     返回 True（应阻断）的条件：
     - yaml 中 gate 未配置（默认 fail-close，最小权限原则 #6）
     - yaml 中 gate 显式设为 close
+    - yaml 不存在（默认 fail-close）
     返回 False（放行）的条件：
     - yaml 中 gate 显式设为 open
-    异常情况（文件不存在/解析失败）：exit(2) 硬阻断
     """
     _YAML_PATH = _PROJECT_ROOT / ".claude" / "harness.yaml"
     if not _YAML_PATH.is_file():
-        print(f"\u26d4 [C5] {_YAML_PATH} \u4e0d\u5b58\u5728\uff0c\u65e0\u6cd5\u68c0\u67e5 fail_closure.{gate_name}", file=sys.stderr)
-        sys.exit(2)
+        # yaml 不存在 → 默认 fail-close，不 exit(2) 阻断整个 agent
+        return True
     try:
         cache = _ensure_cache()
         val = cache.get(f"fail_closure.{gate_name}", "").strip().lower()
@@ -126,23 +127,40 @@ def hc_fail_closure(gate_name: str) -> bool:
         if val == "open":
             return False
         print(f"\u26d4 [C5] fail_closure.{gate_name} \u914d\u7f6e\u503c\u5f02\u5e38: {val}", file=sys.stderr)
-        sys.exit(2)
+        return True
     except Exception as e:
         print(f"\u26d4 [C5] fail_closure.{gate_name} \u8bfb\u53d6\u5931\u8d25: {e}", file=sys.stderr)
-        sys.exit(2)
+        return True
 
 
 def hc_hook_enabled(hook_name):
-    """Check only hooks_enabled (default True, auto hyphen→underscore)."""
+    """Check only hooks_enabled (auto hyphen→underscore).
+
+    Explicit config wins. No config → mode-dependent (strict=True, lax→core whitelist).
+    """
     hook_key = hook_name.replace("-", "_")
-    val = hc_get(f"hooks_enabled.{hook_key}", "true")
-    return val.strip().lower() == "true"
+    val = hc_get(f"hooks_enabled.{hook_key}", "")
+    if val:
+        return val.strip().lower() == "true"
+    mode = _get_harness_mode()
+    if mode == "strict":
+        return True
+    return hook_key in _CORE_HOOKS
 
 
 def hc_skill_enabled(skill_name):
-    """Check only skills_enabled (default True, native name)."""
-    val = hc_get(f"skills_enabled.{skill_name}", "true")
-    return val.strip().lower() == "true"
+    """Check only skills_enabled (native name).
+
+    Explicit config wins. No config → mode-dependent (strict=True, lax→core whitelist).
+    """
+    val = hc_get(f"skills_enabled.{skill_name}", "")
+    if val:
+        return val.strip().lower() == "true"
+    mode = _get_harness_mode()
+    if mode == "strict":
+        return True
+    hook_key = skill_name.replace("-", "_")
+    return hook_key in _CORE_HOOKS
 
 
 def hc_project_root():

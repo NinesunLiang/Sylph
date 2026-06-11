@@ -248,14 +248,42 @@ def _write_evidence(name, event="hc_enabled", exit_code=0):
         pass
 
 
+# ─── harness mode: strict / lax ───
+
+_CORE_HOOKS = frozenset({
+    # S — 安全门禁
+    "privacy_gate", "permission_gate", "fuzzy_block",
+    # A — 提效+正确性
+    "completion_gate", "turn_counter", "session_resume",
+    "inject_project_knowledge", "knowledge_condenser",
+    "pretool_rules_inject", "pretool_compact_writer",
+    "posttool_checkpoint", "posttool_handoff_writer",
+    "posttool_output_compressor", "user_correction_detector",
+    "error_dna", "lsp_suggest", "lsp_gate", "build_validator",
+    "posttool_edit_quality", "posttool_format_gate",
+    "posttool_read_cite", "posttool_write_cite",
+    "posttool_write_lock", "read_tracker", "token_writer",
+})
+
+
+def _get_harness_mode():
+    """读取 harness mode: strict|lax，默认 lax（客户环境宽松模式）。"""
+    val = hc_get("mode", "lax")
+    return val.strip().lower()
+
+
 # ─── hc_enabled: check feature enablement ───
 
 def hc_enabled(feature_name):
-    """Check if a feature is enabled in harness.yaml (default: True).
+    """Check if a feature is enabled in harness.yaml.
 
-    Checks hooks_enabled.{name} (hyphen→underscore) first,
-    then skills_enabled.{name} (native name), returns True if not explicitly false.
+    Explicit hooks_enabled.{name} / skills_enabled.{name} always win.
+    No explicit config → mode-dependent:
+      - strict: True (元项目，全开)
+      - lax:    feature in core whitelist (客户环境，仅保留高价值安全 hook)
     """
+    if feature_name is None:
+        return False
     hook_key = feature_name.replace("-", "_")
 
     val = hc_get(f"hooks_enabled.{hook_key}", "")
@@ -272,9 +300,15 @@ def hc_enabled(feature_name):
             _write_evidence(feature_name, "hc_enabled", 0)
         return result
 
-    # Default enabled
-    _write_evidence(feature_name, "hc_enabled", 0)
-    return True
+    # No explicit config — delegate to mode
+    mode = _get_harness_mode()
+    if mode == "strict":
+        result = True
+    else:
+        result = hook_key in _CORE_HOOKS
+
+    _write_evidence(feature_name, "hc_enabled", 0 if result else 1)
+    return result
 
 
 # ─── hc_emit_hook_json: safe JSON hook response ───
