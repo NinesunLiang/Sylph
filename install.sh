@@ -148,8 +148,8 @@ echo "============================================"
 echo ""
 
 case "$INSTALL_MODE" in
-    base|enhanced|full|harness|skills) ;;
-    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|harness|skills]）"; exit 1 ;;
+    base|enhanced|enhanced-lite|full|harness|skills) ;;
+    *) log_error "未知模式：${INSTALL_MODE}（用法：$0 [base|enhanced|enhanced-lite|harness|skills]）"; exit 1 ;;
 esac
 
 [ "$INSTALL_MODE" = "full" ] && INSTALL_MODE="enhanced"
@@ -396,6 +396,44 @@ case "$INSTALL_MODE" in
         done
         log_info "已精简为 10 个静默门禁 Skill。"
         ;;
+    enhanced-lite)
+        log_step "安装 Carror OS Lite (用户轻量版: 17 个价值 hook, 零元项目重量)..."
+        # 从 template/ 目录复制轻量版 hook 和配置
+        TEMPLATE_BASE="https://raw.githubusercontent.com/$GITHUB_REPO/main/template"
+        if [ -d "$SCRIPT_DIR/template" ]; then
+            # 本地安装
+            cp -r "$SCRIPT_DIR/template/hooks/" .claude/hooks/
+            [ -f "$SCRIPT_DIR/template/CLAUDE.md" ] && cp "$SCRIPT_DIR/template/CLAUDE.md" CLAUDE.md
+            [ -f "$SCRIPT_DIR/template/settings.json" ] && cp "$SCRIPT_DIR/template/settings.json" .claude/settings.json
+            [ -f "$SCRIPT_DIR/template/harness.yaml" ] && cp "$SCRIPT_DIR/template/harness.yaml" .claude/harness.yaml
+            [ ! -f ".claude/claude-next.md" ] && [ -f "$SCRIPT_DIR/template/claude-next.md" ] && cp "$SCRIPT_DIR/template/claude-next.md" .claude/claude-next.md
+        else
+            # 远程安装（curl | bash 场景）
+            log_info "从 GitHub 下载 Lite 版组件..."
+            mkdir -p .claude/hooks
+            for _lh in permission-gate privacy-gate fuzzy-block pretool-retry-check completion-gate \
+                       context-compressor inject-project-knowledge knowledge-condenser \
+                       pretool-rules-inject pretool-plan-gate meta-oracle-trigger skill-flywheel \
+                       subagent-guard posttool-handoff-writer posttool-checkpoint session-resume \
+                       pretool-edit-scope harness_lib; do
+                curl -sSL --connect-timeout 10 --max-time 30 \
+                    -o ".claude/hooks/${_lh}.py" \
+                    "$TEMPLATE_BASE/hooks/${_lh}.py" || true
+            done
+            for _lc in CLAUDE.md settings.json harness.yaml claude-next.md; do
+                curl -sSL --connect-timeout 10 --max-time 30 \
+                    -o ".claude/$_lc" "$TEMPLATE_BASE/$_lc" 2>/dev/null || true
+                # CLAUDE.md 放项目根目录
+                [ "$_lc" = "CLAUDE.md" ] && mv ".claude/CLAUDE.md" "CLAUDE.md" 2>/dev/null || true
+            done
+            log_info "从 GitHub 下载完成。"
+        fi
+        chmod +x .claude/hooks/*.py 2>/dev/null || true
+        log_info "✅ Carror OS Lite 安装完成（17 hooks + 轻量配置）"
+        log_info "   🔧 如需调整 hook 开关 → 编辑 .claude/harness.yaml"
+        log_info "   📖 踩坑笔记 → .claude/claude-next.md"
+        ;;
+
     enhanced)
         log_step "安装 Carror OS 增强版 (Enhanced Edition: 高阶武器库)..."
         extract_tar "harness-kit-$VERSION.tar.gz" "治理层（32 hooks）"

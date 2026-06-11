@@ -1,0 +1,36 @@
+# Carror OS Lite harness config
+# 治理开关：false = 关闭（代码保留磁盘），true = 开启
+# 默认值：缺省 = true（向前兼容）
+
+hooks_enabled:
+  # 安全（不可协商）
+  permission_gate: true
+  privacy_gate: true
+  fuzzy_block: true
+  pretool_retry_check: true
+  completion_gate: true
+
+  # 能力
+  context_compressor: true
+  inject_project_knowledge: true
+  knowledge_condenser: true
+  pretool_rules_inject: true
+  pretool_plan_gate: true
+  meta_oracle_trigger: true
+  skill_flywheel: true
+  subagent_guard: true
+
+  # 提效
+  posttool_handoff_writer: true
+  posttool_checkpoint: true
+  session_resume: true
+  pretool_edit_scope: true
+
+fail_closure:
+  security_gates: close
+  quality_gates: close
+
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true
