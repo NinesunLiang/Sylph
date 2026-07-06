@@ -1,0 +1,18 @@
+{
+  "hooks": {
+    "PretoolUseExecution": [
+      ".claude/hooks/pretool-fallback-check.py",
+      ".claude/hooks/pretool-action-gate.py",
+      ".claude/hooks/pretool-edit-scope.py",
+      ".claude/hooks/pretool-sensitive-edit.py"
+    ],
+    "PostToolUse": [
+      ".claude/hooks/posttool-audit.py",
+      ".claude/hooks/completion-gate.py"
+    ],
+    "UserPromptSubmit": [
+      ".claude/hooks/pretool-session-resume.py",
+      ".claude/hooks/pretool-compact-writer.py"
+    ]
+  }
+}

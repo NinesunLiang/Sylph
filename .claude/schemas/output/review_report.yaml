@@ -1,0 +1,82 @@
+# review_report.yaml
+# Schema: 代码审查/安全审查报告输出契约
+# 用途：标准化审查发现项的输出格式，确保每个 finding 可追溯、可复验
+version: "1.0"
+fields:
+  report_id:
+    type: string
+    description: "审查报告 ID"
+    required: true
+  skill:
+    type: string
+    enum: [code_review, react_review, security_review]
+    description: "执行审查的 skill 类型"
+    required: true
+  target:
+    type: string
+    description: "审查目标（文件路径或 git ref）"
+    required: true
+  findings:
+    type: array
+    description: "发现的问题列表"
+    items:
+      type: object
+      properties:
+        finding_id:
+          type: string
+          pattern: "F-\\d{3}"
+          required: true
+        severity:
+          type: string
+          enum: [P0, P1, P2, P3]
+          description: "P0=blocker, P1=must-fix, P2=should-fix, P3=nice-to-have"
+          required: true
+        category:
+          type: string
+          description: "问题类别（如 error-handling, performance, security）"
+          required: true
+        description:
+          type: string
+          description: "问题描述"
+          required: true
+        file_ref:
+          type: string
+          description: "问题所在文件"
+          required: true
+        line_ref:
+          type: string
+          optional: true
+          description: "问题所在行号"
+        recommendation:
+          type: string
+          description: "修复建议"
+          required: true
+        auto_fixed:
+          type: boolean
+          description: "是否已自动修复"
+          default: false
+        confidence:
+          type: string
+          enum: [confirmed, likely, needs_review]
+          description: "发现项的置信度 — E2 幻觉守卫"
+          default: likely
+  summary:
+    type: object
+    properties:
+      total_findings:
+        type: integer
+        required: true
+      p0_count:
+        type: integer
+        required: true
+      p1_count:
+        type: integer
+        required: true
+      pass:
+        type: boolean
+        description: "是否通过审查（P0=0 且 P1 resolved）"
+        required: true
+      verified_at:
+        type: string
+        format: date-time
+        required: true

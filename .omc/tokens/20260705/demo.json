@@ -1,0 +1,29 @@
+{
+  "schema_version": "v1.0",
+  "session": {
+    "id": "demo",
+    "level": "L1_BASE",
+    "created_at": "2026-07-05T05:24:53.744287+00:00",
+    "updated_at": "2026-07-05T05:24:55.975522+00:00"
+  },
+  "status": "archived",
+  "stats": {
+    "done": 3,
+    "total": 3,
+    "tick": 0
+  },
+  "steps": [
+    {
+      "id": "S1",
+      "status": "completed"
+    },
+    {
+      "id": "S2",
+      "status": "completed"
+    },
+    {
+      "id": "S3",
+      "status": "completed"
+    }
+  ]
+}

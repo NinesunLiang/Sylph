@@ -1,0 +1,17 @@
+{"schema_version": "v1.0", "ts": "2026-07-06T09:16:46.595880+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:16:46.620803+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:16:46.673113+00:00", "event": "archive", "data": {"task_id": "bench-03", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:20:32.340374+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:20:32.365385+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:21:25.075994+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:21:25.101052+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:21:25.153333+00:00", "event": "archive", "data": {"task_id": "bench-03", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:26:10.530180+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:26:10.558080+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:26:10.610425+00:00", "event": "archive", "data": {"task_id": "bench-03", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:38:00.950051+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:38:00.985054+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:38:01.061393+00:00", "event": "archive", "data": {"task_id": "bench-03", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:54:15.753438+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:54:15.790187+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T09:54:15.858599+00:00", "event": "archive", "data": {"task_id": "bench-03", "result": "ARCHIVED"}}

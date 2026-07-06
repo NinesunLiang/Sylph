@@ -1,0 +1,5 @@
+{"schema_version": "v1.0", "ts": "2026-07-05T09:39:04.468118+00:00", "event": "init", "data": {"task_id": "TEST-VERIFIED", "level": "L1_BASE", "steps": ["S1", "S2", "S3"]}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:39:04.489826+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:39:04.510913+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:39:04.534773+00:00", "event": "verify", "data": {"step": "S3", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:39:04.581294+00:00", "event": "archive", "data": {"task_id": "TEST-VERIFIED", "result": "ARCHIVED"}}

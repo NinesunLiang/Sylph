@@ -1,0 +1,22 @@
+# Database Configuration
+database:
+  url: "postgresql://prod-primary.carroros.internal:5432/carroros"
+  pool:
+    min: 5
+    max: 20
+    timeout: 30
+  ssl:
+    enable: true
+    ca_cert: "/etc/certs/ca.pem"
+    cert: "/etc/certs/client.pem"
+    key: "/etc/certs/client.key"
+
+cache:
+  backend: "redis"
+  url: "redis://localhost:6379/0"
+  ttl: 3600
+
+logging:
+  level: "info"
+  format: "json"
+  output: "/var/log/carroros/app.log"

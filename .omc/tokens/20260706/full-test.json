@@ -1,0 +1,22 @@
+{
+  "schema_version": "v1.0",
+  "session": {
+    "id": "full-test",
+    "level": "L1_BASE",
+    "created_at": "2026-07-06T09:37:56.805689+00:00",
+    "updated_at": "2026-07-06T09:37:56.904148+00:00"
+  },
+  "task_dir": "/Users/lucas.liang/Desktop/CarrorOS/.omc/tasks/20260706/full-test",
+  "status": "archived",
+  "stats": {
+    "done": 1,
+    "total": 1,
+    "tick": 1
+  },
+  "steps": [
+    {
+      "id": "S1",
+      "status": "completed"
+    }
+  ]
+}

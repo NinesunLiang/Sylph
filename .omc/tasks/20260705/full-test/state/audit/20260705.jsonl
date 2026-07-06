@@ -1,0 +1,3 @@
+{"schema_version": "v1.0", "ts": "2026-07-05T05:39:26.616438+00:00", "event": "init", "data": {"task_id": "full-test", "level": "L1_BASE", "steps": ["S1"]}}
+{"schema_version": "v1.0", "ts": "2026-07-05T05:39:26.638483+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T05:39:26.660292+00:00", "event": "archive", "data": {"task_id": "full-test", "result": "ARCHIVED"}}

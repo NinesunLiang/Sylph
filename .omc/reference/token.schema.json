@@ -1,0 +1,74 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CarrorOS token schema",
+  "description": "运行时状态 token — CarrorOS 唯一运行状态源",
+  "type": "object",
+  "required": ["schema_version", "session", "status", "stats", "steps"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "模式版本号",
+      "enum": ["v1.0"]
+    },
+    "session": {
+      "type": "object",
+      "required": ["id", "level", "created_at", "updated_at"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "任务 ID，格式 sess_年月日_序号"
+        },
+        "level": {
+          "type": "string",
+          "enum": ["L1_BASE", "L2_ENHANCE"],
+          "description": "治理层级"
+        },
+        "created_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间（ISO 8601 UTC）"
+        },
+        "updated_at": {
+          "type": "string",
+          "format": "date-time",
+          "description": "最后更新时间（ISO 8601 UTC）"
+        }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "archived", "blocked"],
+      "description": "任务状态"
+    },
+    "stats": {
+      "type": "object",
+      "required": ["done", "total", "tick"],
+      "properties": {
+        "done": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 1 },
+        "tick": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "steps": {
+      "type": "array",
+      "description": "步骤列表",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": { "type": "string", "description": "步骤 ID，如 S1、S2" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed"],
+            "description": "步骤状态"
+          }
+        }
+      }
+    },
+    "archived_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "归档时间（仅 archived 状态时存在）"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{"schema_version": "v1.0", "ts": "2026-07-05T09:09:04.991531+00:00", "event": "init", "data": {"task_id": "CLEAN-TEST", "level": "L1_BASE", "steps": ["C1", "C2", "C3"]}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:09:09.338506+00:00", "event": "verify", "data": {"step": "C1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:09:09.360264+00:00", "event": "verify", "data": {"step": "C2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:09:09.380919+00:00", "event": "verify", "data": {"step": "C3", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-05T09:09:16.639804+00:00", "event": "archive", "data": {"task_id": "CLEAN-TEST", "result": "ARCHIVED"}}

@@ -1,0 +1,33 @@
+{
+  "steps": {
+    "S1": {
+      "status": "completed",
+      "started_at": "2026-07-06T09:54:15.717180+00:00",
+      "completed_at": "2026-07-06T09:54:15.753800+00:00",
+      "duration": 0.0,
+      "retries": 1,
+      "tick_before": {
+        "changed": false,
+        "files": [],
+        "count": 0,
+        "summary": ""
+      },
+      "tick_after": {
+        "changed": false,
+        "files": [],
+        "count": 0,
+        "summary": ""
+      }
+    },
+    "S2": {
+      "status": "completed",
+      "completed_at": "2026-07-06T09:54:15.790335+00:00",
+      "tick_after": {
+        "changed": false,
+        "files": [],
+        "count": 0,
+        "summary": ""
+      }
+    }
+  }
+}

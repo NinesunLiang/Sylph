@@ -1,0 +1,1 @@
+{"schema_version": "v1.0", "ts": "2026-07-05T10:09:53.991713+00:00", "event": "init", "data": {"task_id": "RPE-TASK", "level": "L1_BASE", "steps": ["Phase1", "Phase2", "Phase3"]}}
