@@ -1,8 +1,0 @@
-{"schema_version": "v1.0", "ts": "2026-07-06T13:11:36.022487+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:11:36.064602+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:11:36.106601+00:00", "event": "verify", "data": {"step": "S3", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:11:36.179572+00:00", "event": "archive", "data": {"task_id": "bench-05", "result": "ARCHIVED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:13:33.301598+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:13:33.343803+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:13:33.386430+00:00", "event": "verify", "data": {"step": "S3", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T13:13:33.459643+00:00", "event": "archive", "data": {"task_id": "bench-05", "result": "ARCHIVED"}}
