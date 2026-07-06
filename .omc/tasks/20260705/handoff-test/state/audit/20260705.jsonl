@@ -1,2 +1,0 @@
-{"schema_version": "v1.0", "ts": "2026-07-05T05:44:46.708501+00:00", "event": "init", "data": {"task_id": "handoff-test", "level": "L1_BASE", "steps": ["S1"]}}
-{"schema_version": "v1.0", "ts": "2026-07-05T09:07:15.435542+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}

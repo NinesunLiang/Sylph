@@ -1,11 +1,4 @@
-{"schema_version": "v1.0", "ts": "2026-07-06T09:16:46.293960+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:16:46.346166+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:20:32.136717+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:21:24.764028+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:21:24.817388+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:26:10.226895+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:26:10.279341+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:38:00.569116+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:38:00.636103+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:54:15.362336+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-06T09:54:15.433256+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T13:11:35.121954+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T13:11:35.195098+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T13:13:32.395676+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-06T13:13:32.472242+00:00", "event": "archive", "data": {"task_id": "bench-01", "result": "ARCHIVED"}}

@@ -1,0 +1,39 @@
+{
+  "carroros": {
+    "level": "L2_ENHANCE",
+    "token_root": ".omc/tokens",
+    "task_root": ".omc/tasks",
+    "audit_root": ".omc/audit",
+    "observer": {
+      "type": "sqlite",
+      "path_env": "OPENCODE_SQLITE_PATH",
+      "mode": "readonly",
+      "watermark_strategy": "approx_chars_div_4",
+      "fallback_on_unavailable": "context_watermark_unobservable"
+    },
+    "compact": {
+      "base": {
+        "soft_turn": 15,
+        "hard_turn": 20
+      },
+      "enhance": {
+        "soft_watermark": 70,
+        "hard_watermark": 85,
+        "fallback": "base"
+      }
+    },
+    "verify": {
+      "gate": ".claude/scripts/carros_base.py",
+      "required_before_done": true
+    },
+    "oracle": {
+      "engine": ".claude/scripts/oracle_engine.py",
+      "enhance_only": true,
+      "fallback_on_unavailable": "oracle_unavailable"
+    },
+    "fallback": {
+      "engine": ".claude/scripts/fallback_engine.py",
+      "audit_required": true
+    }
+  }
+}

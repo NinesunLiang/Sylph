@@ -1,5 +1,0 @@
-{"schema_version": "v1.0", "ts": "2026-07-05T09:41:21.123323+00:00", "event": "init", "data": {"task_id": "COMPACT-TEST", "level": "L1_BASE", "steps": ["S1", "S2", "S3"]}}
-{"schema_version": "v1.0", "ts": "2026-07-05T09:41:21.145809+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-05T09:41:21.166638+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-05T09:41:21.271745+00:00", "event": "verify", "data": {"step": "S3", "result": "VERIFIED"}}
-{"schema_version": "v1.0", "ts": "2026-07-05T09:41:21.295476+00:00", "event": "archive", "data": {"task_id": "COMPACT-TEST", "result": "ARCHIVED"}}

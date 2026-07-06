@@ -1471,6 +1471,8 @@ COMMANDS = {
     "poll": cmd_poll,
     "collect": cmd_collect,
     "cancel": cmd_cancel,
+    "oracle": cmd_oracle,
+    "fallback": cmd_fallback,
     "help": cmd_help,
 }
 
