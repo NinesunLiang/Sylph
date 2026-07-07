@@ -33,8 +33,17 @@ os.chdir(str(ROOT))
 MAX_PROMPTS = 20
 COMPACT_INTERVAL = 5   # 每 5 次用户输入触发 compact-write（手写 handoff）
 WATERMARK_INTERVAL = 20  # 每 20 次用户输入估算一次水位（提醒用户 compact）
-CONTEXT_LIMIT = 200_000
+CONTEXT_LIMIT = int(os.environ.get("CARROROS_CONTEXT_LIMIT", "200000"))
 PROMPT_RING_PATH = ROOT / ".claude" / ".prompt-ring.json"
+
+_HAS_TIKTOKEN = False
+_tiktoken_enc = None
+try:
+    import tiktoken as _tk
+    _tiktoken_enc = _tk.get_encoding("cl100k_base")
+    _HAS_TIKTOKEN = True
+except Exception:
+    pass
 
 
 def now_iso() -> str:
@@ -151,18 +160,73 @@ def main() -> int:
 
     water_mark_hint = ""
     if len(ring) > 0 and len(ring) % WATERMARK_INTERVAL == 0:
-        # 估算上下文水位：每轮约 7k（含累积历史），N轮 ≈ N × 7k
-        n = len(ring)
-        used_est = min(CONTEXT_LIMIT, n * 7000)
-        pct = round((used_est / CONTEXT_LIMIT) * 100)
+        # 真实 token 计数：从 Claude Code 的 session transcript 倒推活跃上下文
+        used_tokens = 0
+        if _HAS_TIKTOKEN:
+            try:
+                # 找到当前 session 的 transcript 文件
+                import json as _jj
+                _proj_dir = Path.home() / ".claude" / "projects" / f"-Users-lucas-liang-Desktop-CarrorOS"
+                _sn = payload.get("session_id", "")
+                if not _sn:
+                    # fallback: 从最近 session 取
+                    _hist = Path.home() / ".claude" / "history.jsonl"
+                    if _hist.exists():
+                        _last_line = ""
+                        with _hist.open("rb") as _fh:
+                            for _line in _fh:
+                                _last_line = _line.decode()
+                        if _last_line:
+                            _sn = _jj.loads(_last_line).get("sessionId", "")
+                if _sn:
+                    _tp = _proj_dir / f"{_sn}.jsonl"
+                    if _tp.exists():
+                        with _tp.open("r", encoding="utf-8") as _tf:
+                            _all_lines = _tf.readlines()
+                        # 从尾部往前数 user/assistant/attachment/system 的 token
+                        _total = 0
+                        for _tl in reversed(_all_lines):
+                            try:
+                                _td = _jj.loads(_tl.strip())
+                                _tt = _td.get("type", "")
+                                if _tt in ("user", "assistant", "attachment", "system"):
+                                    _c = ""
+                                    if _tt == "user":
+                                        _m = _td.get("message", {})
+                                        if isinstance(_m, dict): _c = str(_m.get("content", ""))
+                                        elif isinstance(_m, str): _c = _m
+                                    elif _tt == "assistant":
+                                        _m = _td.get("message", {})
+                                        if isinstance(_m, dict): _c = str(_m.get("content", ""))
+                                        elif isinstance(_m, str): _c = _m
+                                    elif _tt == "attachment":
+                                        _c = str(_td.get("content", ""))
+                                    elif _tt == "system":
+                                        _c = str(_td.get("message", ""))
+                                    if _c:
+                                        _total += len(_tiktoken_enc.encode(_c))
+                                        if _total > CONTEXT_LIMIT:
+                                            break
+                            except Exception:
+                                pass
+                        used_tokens = min(_total, CONTEXT_LIMIT)
+            except Exception:
+                pass
+
+        if used_tokens == 0:
+            # fallback: 老方法估算
+            n = len(ring)
+            used_tokens = min(CONTEXT_LIMIT, n * 7000)
+
+        pct = round((used_tokens / CONTEXT_LIMIT) * 100)
         if pct >= 70:
             water_mark_hint = (
-                f"🔴 Context watermark ~{pct}%. "
+                f"🔴 Context watermark {pct}% ({used_tokens:,}/{CONTEXT_LIMIT:,} tokens). "
                 "运行 /compact 可压缩上下文，保持模型智力。"
             )
         elif pct >= 50:
             water_mark_hint = (
-                f"🟡 Context watermark ~{pct}%. "
+                f"🟡 Context watermark {pct}% ({used_tokens:,}/{CONTEXT_LIMIT:,} tokens). "
                 "考虑运行 /compact 压缩上下文。"
             )
 

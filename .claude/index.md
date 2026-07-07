@@ -15,9 +15,9 @@
 | 场景 | 路径 | 入口 |
 |------|------|------|
 | 状态管理 | `@kernel.md` → 管理内核 | 冻结 / 飞轮 / 降级 |
-| 完整生命周期 | `.claude/workflows/` | Plan→Step→Verify→Archive |
-| L1 快速任务 | `.claude/workflows/l1-quick.md` | 单步 init→verify |
-| L2 复杂任务 | `.claude/workflows/l2-enhance.md` | 含水位+Oracle+飞轮 |
+| 完整生命周期 | `.claude/scripts/carros_base.py` | Plan→Step→Verify→Archive |
+| L1 快速任务 | `.claude/scripts/intake_gate.py` + `.claude/scripts/verify_gate.py` | init→verify→archive |
+| L2 复杂任务 | `.claude/scripts/carros_base.py` + `.claude/scripts/oracle_engine.py` | 含水位+Oracle+降级 |
 
 ## Hook 路由
 

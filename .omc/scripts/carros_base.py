@@ -5,7 +5,7 @@ carros_base.py — CarrorOS Base 核心状态系统
 L1 Workflow: Plan → Step → Verify → Archive
 
 Usage:
-    python3 .claude/scripts/carros_base.py init --task-id TASK_ID [--step S1 [S2 ...]] [--level L1_BASE|L2_ENHANCE]
+    python3 .claude/scripts/carros_base.py init --task-id TASK_ID [--step S1 [S2 ...]] [--level L1|L2]
     python3 .claude/scripts/carros_base.py status
     python3 .claude/scripts/carros_base.py tick
     python3 .claude/scripts/carros_base.py verify [--step S1]
@@ -109,7 +109,7 @@ def _bold(s): return f"\033[1m{s}\033[0m"
 # Token helpers
 # ═══════════════════════════════════════════
 
-def _default_token(task_id=None, level="L1_BASE", steps=None):
+def _default_token(task_id=None, level="L1", steps=None):
     now = datetime.now(timezone.utc)
     suffix = now.strftime("%Y%m%d")
     tid = task_id or f"sess_{suffix}_0000"
@@ -125,12 +125,16 @@ def _default_token(task_id=None, level="L1_BASE", steps=None):
         },
         "task_dir": str(TASK_DIR) if TASK_DIR else "",
         "status": "active",
+        "task": {
+            "current_step": steps[0] if steps else "S1",
+            "status": "active",
+            "blocked": None,
+        },
         "stats": {
             "done": 0,
             "total": len(steps),
             "tick": 0,
         },
-        "steps": [{"id": s, "status": "pending"} for s in steps],
     }
 
 
@@ -158,37 +162,25 @@ def now_iso():
 def _write_handoff(token, plan_summary=None):
     """写入 session-handoff.md — 委托 carros_utils"""
     if carros_utils:
-        # 兼容新版 token（task.current_step 替代 steps 数组）
-        if "steps" not in token and "task" in token:
-            tok_v2 = {
-                "session": token.get("session", {}),
-                "plan": {
-                    "total": token.get("stats", {}).get("total", 0),
-                    "done": token.get("stats", {}).get("done", 0),
-                    "current_step": token.get("task", {}).get("current_step"),
-                    "blocked": token.get("task", {}).get("blocked"),
-                    "status": token.get("task", {}).get("status", "unknown"),
-                },
-            }
-            carros_utils.write_handoff(tok_v2, PLAN_PATH, HANDOFF_PATH)
-        else:
-            carros_utils.write_handoff(token, PLAN_PATH, HANDOFF_PATH)
+        tok_v2 = {
+            "session": token.get("session", {}),
+            "plan": {
+                "total": token.get("stats", {}).get("total", 0),
+                "done": token.get("stats", {}).get("done", 0),
+                "current_step": token.get("task", {}).get("current_step"),
+                "blocked": token.get("task", {}).get("blocked"),
+                "status": token.get("task", {}).get("status", "unknown"),
+            },
+        }
+        carros_utils.write_handoff(tok_v2, PLAN_PATH, HANDOFF_PATH)
         return
     # fallback — inline
     HANDOFF_PATH.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
-    if "steps" in token:
-        done = token["stats"]["done"]
-        total = token["stats"]["total"]
-        steps_summary = "\n".join(
-            f"  {'✅' if s['status'] == 'completed' else '⬜'} {s['id']}: {s['status']}"
-            for s in token["steps"]
-        )
-    else:
-        done = token.get("stats", {}).get("done", 0)
-        total = token.get("stats", {}).get("total", 0)
-        current = token.get("task", {}).get("current_step", "?")
-        steps_summary = f"  current_step: {current} ({done}/{total})"
+    done = token.get("stats", {}).get("done", 0)
+    total = token.get("stats", {}).get("total", 0)
+    current = token.get("task", {}).get("current_step", "?")
+    steps_summary = f"  current_step: {current} ({done}/{total})"
     plan = ""
     if PLAN_PATH.exists():
         plan = PLAN_PATH.read_text()[:300]
@@ -371,7 +363,7 @@ def _run_plan_builder(intake_decision, user_request, task_id, feature=None):
         os.unlink(intake_path)
 
 
-def cmd_init(task_id, level="L1_BASE", steps=None, user_request=None, task_dir=None, feature=None):
+def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None):
     """初始化任务 — IntakeGate 分级 → PlanBuilder 生成冻结计划"""
     _init_task_paths(task_id=task_id, task_dir=task_dir)
 
@@ -384,7 +376,7 @@ def cmd_init(task_id, level="L1_BASE", steps=None, user_request=None, task_dir=N
             intake_script = _hook_dir / "intake_gate.py"
             if intake_script.exists():
                 cmd = [sys.executable, str(intake_script), user_request]
-                if level == "L2_ENHANCE":
+                if level in ("L2_ENHANCE", "L2"):
                     cmd.append("--enhance-available")
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode in (0, 1):
@@ -532,21 +524,14 @@ def cmd_status():
     print(f"{status_icon} Task: {token.get('session', {}).get('id', '?')} [{token.get('session', {}).get('level', '?')}]")
     print(f"   Status: {status_top}")
     print(f"   Progress: {s.get('done', 0)}/{s.get('total', 0)} steps completed")
-    # 兼容新旧 token 格式
-    if "steps" in token:
-        print(f"   Ticks: {s.get('tick', 0)}")
-        for step in token["steps"]:
-            icon = _green("✔") if step["status"] == "completed" else (_yellow("◷") if step["status"] == "running" else "○")
-            print(f"   {icon} {step['id']}: {step['status']}")
-    else:
-        current_step = token.get("task", {}).get("current_step")
-        task_status = token.get("task", {}).get("status")
-        blocked = token.get("task", {}).get("blocked")
-        current = current_step or "?"
-        print(f"   Current Step: {current}")
-        print(f"   Task Status: {task_status}")
-        if blocked:
-            print(f"   Blocked: {blocked}")
+    current_step = token.get("task", {}).get("current_step")
+    task_status = token.get("task", {}).get("status")
+    blocked = token.get("task", {}).get("blocked")
+    current = current_step or "?"
+    print(f"   Current Step: {current}")
+    print(f"   Task Status: {task_status}")
+    if blocked:
+        print(f"   Blocked: {blocked}")
     # task-state 追踪展示
     if tst:
         state_info = tst.format_status(token, TOKEN_PATH)
@@ -569,13 +554,15 @@ def cmd_tick():
         print(_red("❌ No active task"))
         return 2
 
-    # 找当前 pending 步骤 — 记录追踪起点
+    # 找当前 pending 步骤 — 从 plan.md 读取
     current_step = None
-    if "steps" in token:
-        for s in token["steps"]:
-            if s["status"] == "pending":
-                current_step = s["id"]
-                break
+    if PLAN_PATH and PLAN_PATH.exists():
+        plan_content = PLAN_PATH.read_text()
+        pending_steps = re.findall(r"^- \[ \] (\S+?):", plan_content, re.MULTILINE)
+        if pending_steps:
+            current_step = pending_steps[0]
+    else:
+        current_step = token.get("task", {}).get("current_step")
 
     if "tick" in token.get("stats", {}):
         token["stats"]["tick"] += 1
@@ -616,17 +603,10 @@ def cmd_verify(step_id=None):
     if step_id:
         targets = [step_id]
     else:
-        # 找第一个 pending 的 step — 兼容新旧格式
         targets = []
-        if "steps" in token:
-            for step in token["steps"]:
-                if step["status"] == "pending":
-                    targets.append(step["id"])
-                    break
-        else:
-            current = token.get("task", {}).get("current_step")
-            if current:
-                targets.append(current)
+        current = token.get("task", {}).get("current_step")
+        if current:
+            targets.append(current)
         if not targets:
             print(_yellow("⚠  All steps already completed"))
             return 0
@@ -638,22 +618,10 @@ def cmd_verify(step_id=None):
         new_plan, count = pattern.subn(replacement, plan)
         if count > 0:
             plan = new_plan
-            # 更新 token — 兼容新旧格式
-            if "steps" in token:
-                found = False
-                for step in token["steps"]:
-                    if step["id"].split(":")[0].strip() == target:
-                        step["status"] = "completed"
-                        found = True
-                        break
-                if not found:
-                    token["steps"].append({"id": target, "status": "completed"})
-                token["stats"]["done"] = sum(1 for s in token["steps"] if s["status"] == "completed")
-            else:
-                # 新 token 格式 — 递增 done 计数器
-                token["stats"]["done"] = token["stats"].get("done", 0) + 1
-                if token["stats"]["done"] >= token["stats"]["total"]:
-                    token["task"]["status"] = "completed"
+            # 更新 token — 统一新格式（递增 done 计数器）
+            token["stats"]["done"] = token["stats"].get("done", 0) + 1
+            if token["stats"]["done"] >= token["stats"]["total"]:
+                token["task"]["status"] = "completed"
             _write_audit("verify", {"step": target, "result": "VERIFIED"})
             print(_green(f"✅ {target}: VERIFIED"))
             # task-state: 标记完成
@@ -684,12 +652,14 @@ def cmd_archive(force=False):
             return 2
     print(_bold("Archiving task..."))
 
-    # Step 1: run lint
+    # Step 1: run lint — 仅 error (exit>=2) 阻断，warning (exit=1) 可归档
     if not force:
         lint_ok = cmd_lint()
-        if lint_ok != 0:
-            print(_red("❌ Lint failed. Use --force to archive anyway."))
+        if lint_ok >= 2:
+            print(_red("❌ Lint has errors. Use --force to archive anyway."))
             return 2
+        elif lint_ok == 1:
+            print(_yellow("⚠  Lint warnings only — proceeding with archive"))
     else:
         print(_yellow("⚠  --force: skipping lint"))
 
@@ -698,20 +668,13 @@ def cmd_archive(force=False):
         print(_red("❌ No active task"))
         return 2
 
-    # Step 2: check all steps completed — 兼容新旧格式
+    # Step 2: check all steps completed — 统一新格式
     if not force:
-        if "steps" in token:
-            pending = [s for s in token["steps"] if s["status"] != "completed"]
-        else:
-            pending = []
-            # 新 token 格式没有 steps 数组，基于 stats 判断
-            if token.get("stats", {}).get("done", 0) < token.get("stats", {}).get("total", 0):
-                pending = ["current_step not completed"]
+        pending = []
+        if token.get("stats", {}).get("done", 0) < token.get("stats", {}).get("total", 0):
+            pending = ["current_step not completed"]
         if pending:
-            if "steps" in token:
-                print(_red(f"❌ Steps not completed: {[s['id'] for s in pending]}"))
-            else:
-                print(_red(f"❌ Steps not completed: {pending}"))
+            print(_red(f"❌ Steps not completed: {pending}"))
             return 2
     else:
         print(_yellow("⚠  --force: skipping step completion check"))
@@ -779,21 +742,12 @@ def _generate_final_report(token):
     status = token.get("status", "?")
     stats = token.get("stats", {})
 
-    if "steps" in token:
-        done = token["stats"]["done"]
-        total = token["stats"]["total"]
-        tick = token.get("stats", {}).get("tick", 0)
-        step_lines = []
-        for step in token["steps"]:
-            icon = "✅" if step["status"] == "completed" else "⬜"
-            step_lines.append(f"{icon} {step['id']}: {step['status']}")
-    else:
-        done = stats.get("done", 0)
-        total = stats.get("total", 0)
-        tick = stats.get("turns", 0)
-        current = token.get("task", {}).get("current_step", "?")
-        task_status = token.get("task", {}).get("status", "?")
-        step_lines = [f"  current_step: {current} ({task_status})"]
+    done = stats.get("done", 0)
+    total = stats.get("total", 0)
+    tick = stats.get("turns", 0)
+    current = token.get("task", {}).get("current_step", "?")
+    task_status = token.get("task", {}).get("status", "?")
+    step_lines = [f"  current_step: {current} ({task_status})"]
 
     lines = [
         f"# Final Report: {sid}",
@@ -1448,6 +1402,45 @@ def cmd_cancel():
 
 
 
+def cmd_oracle():
+    """Oracle 高阶复核 — 调用 oracle_engine.py 运行 L2 pass-curve / L3 Multi-Judge"""
+    import subprocess
+    if len(sys.argv) >= 3:
+        pack_path = sys.argv[2]
+        engine = _hook_dir / "oracle_engine.py"
+        if not engine.exists():
+            print("oracle_engine.py not found")
+            return 1
+        cmd = [sys.executable, str(engine), pack_path]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        print(result.stdout.strip())
+        return result.returncode
+    print("usage: carros_base.py oracle <review_pack_path>")
+    return 2
+
+
+def cmd_fallback():
+    """Fallback Protocol — 调用 fallback_engine.py 处理能力失效降级"""
+    import subprocess
+    if len(sys.argv) >= 3:
+        failure_type = sys.argv[2]
+        risk = sys.argv[3] if len(sys.argv) >= 4 else None
+        token_path = sys.argv[4] if len(sys.argv) >= 5 else str(TOKEN_PATH or ".omc/state/token.json")
+        engine = _hook_dir / "fallback_engine.py"
+        if not engine.exists():
+            print("fallback_engine.py not found")
+            return 1
+        cmd = [sys.executable, str(engine), failure_type]
+        if risk:
+            cmd.append(risk)
+        cmd.append(token_path)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        print(result.stdout.strip())
+        return result.returncode
+    print("usage: carros_base.py fallback <failure_type> [risk] [token_path]")
+    return 2
+
+
 def cmd_help():
     """打印帮助信息"""
     print(__doc__.strip())
@@ -1494,7 +1487,7 @@ def main(argv=None):
 
     if command == "init":
         task_id = None
-        level = "L1_BASE"
+        level = "L1"
         steps = None
         task_dir = None
         user_request = None

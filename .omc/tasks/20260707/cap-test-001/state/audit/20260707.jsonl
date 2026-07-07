@@ -1,0 +1,2 @@
+{"schema_version": "v1.0", "ts": "2026-07-07T18:46:57.520811+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-07T18:46:57.587163+00:00", "event": "archive", "data": {"task_id": "cap-test-001", "result": "ARCHIVED"}}

@@ -1,0 +1,3 @@
+{"schema_version": "v1.0", "ts": "2026-07-07T18:32:59.397921+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-07T18:32:59.446696+00:00", "event": "verify", "data": {"step": "S2", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-07T18:32:59.531951+00:00", "event": "archive", "data": {"task_id": "bench-03", "result": "ARCHIVED"}}

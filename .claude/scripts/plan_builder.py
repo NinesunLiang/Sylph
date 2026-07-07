@@ -520,13 +520,16 @@ def main() -> int:
 
     write_text(Path(plan.doc_root) / "plan.md", plan_md)
 
-    # 写入 token: 优先环境变量指定路径，回退到 .omc/state/token.json
+    # 写入 token: 优先环境变量指定路径
+    # 新规范: .omc/tokens/{date}/{task_id}.json (第三轮 §2.1)
+    # 旧规范: .omc/state/token.json (backward compat)
     token_path_env = os.environ.get("CARROROS_TOKEN_PATH", "")
     if token_path_env:
         token_path = Path(token_path_env)
         token_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        token_path = Path(".omc/state/token.json")
+        d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        token_path = Path(f".omc/tokens/{d}/{safe_slug(plan.task_id)}.json")
     update_token(token_path, plan)
 
     write_plan_audit(plan, Path(".omc/audit"), decision)

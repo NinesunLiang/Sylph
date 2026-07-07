@@ -155,7 +155,41 @@ def task_dir_from_token(token: dict[str, Any], token_path: Path | None = None) -
             return candidates[0]
     return None
 
+# Audit retention: keep up to 7 days of .jsonl files
+_AUDIT_MAX_DAYS = 7
+_last_audit_cleanup_day = ""
+
+def _delete_empty_audit_files():
+    """Remove 0-byte .jsonl audit files left by creation-without-write races."""
+    for p in AUDIT.glob("*.jsonl"):
+        try:
+            if p.stat().st_size == 0:
+                p.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+def _cleanup_old_audits():
+    """Remove audit files older than _AUDIT_MAX_DAYS days."""
+    global _last_audit_cleanup_day
+    _day = today()
+    if _day == _last_audit_cleanup_day:
+        return
+    _last_audit_cleanup_day = _day
+    _delete_empty_audit_files()
+    if not AUDIT.exists():
+        return
+    cutoff = datetime.now(timezone.utc) - __import__("datetime", fromlist=["timedelta"]).timedelta(days=_AUDIT_MAX_DAYS)
+    for p in AUDIT.glob("*.jsonl"):
+        try:
+            mtime = datetime.fromtimestamp(p.stat().st_mtime, tz=timezone.utc)
+            if mtime < cutoff:
+                p.unlink()
+        except OSError:
+            pass
+
+
 def append_audit(event: dict[str, Any]) -> bool:
+    _cleanup_old_audits()
     try:
         AUDIT.mkdir(parents=True, exist_ok=True)
         path = AUDIT / f"{today()}.jsonl"
