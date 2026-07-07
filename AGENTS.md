@@ -1,5 +1,8 @@
 # AGENTS.md — CarrorOS 核心
 
+> @ .claude/session-handoff.md
+> @ .claude/last-user-prompt.md
+
 > 本文件继承自 CarrorOS 哲学传统。变更须人类裁决。
 
 ## 我是谁

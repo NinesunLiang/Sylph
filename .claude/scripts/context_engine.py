@@ -430,11 +430,105 @@ def state_injection(token_path: Path) -> str:
     )
 
 
+def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> int:
+    """写入 .claude/session-handoff.md 和 .claude/last-user-prompt.md
+    供 AGENTS.md @ 引用，下次会话自动注入上下文。
+    无 hook 参与，纯文件写入。
+    """
+    PROJECT_ROOT = Path(".claude").resolve().parent
+    handoff_path = PROJECT_ROOT / ".claude" / "session-handoff.md"
+    prompt_path = PROJECT_ROOT / ".claude" / "last-user-prompt.md"
+
+    token = read_json(token_path, {})
+    task = token_task(token)
+    session = token_session(token)
+    stats = token.get("stats", {}) or {}
+    plan_text = read_text(task_path / "plan.md")
+
+    done, total, pending = count_plan_steps(plan_text)
+    scope = task.get("scope", []) or []
+
+    # 写入 session-handoff.md
+    scope_bullets = "\n".join(f"  - {s}" for s in scope) if scope else "  - (none)"
+
+    level_str = level(token)
+    status = task.get("status", "active")
+    current = current_step(token) or "(none)"
+    compact_strategy = session.get("compact_strategy", "rounds")
+
+    handoff_content = f"""# Session Handoff
+
+> 由 context_engine compact-write 于 {now_iso()} 更新
+> AGENTS.md 已 @ 引用本文件，启动时自动加载
+
+## Task
+- id: {task_id(token, token_path.stem)}
+- level: {level_str}
+- status: {status}
+- current_step: {current}
+
+## Progress
+- verified: {done}/{total}
+- pending: {pending or "(none)"}
+- compact_strategy: {compact_strategy}
+
+## Scope
+{scope_bullets}
+
+## Resume Rules
+- 磁盘状态文件是最终真相源（token / plan / executor）
+- session-handoff 只是恢复摘要，不是完成证据
+- 不要标记任何 step 完成不经过 VerifyGate
+"""
+    handoff_path.parent.mkdir(parents=True, exist_ok=True)
+    handoff_path.write_text(handoff_content, encoding="utf-8")
+
+    # 写入 last-user-prompt.md
+    if user_prompt:
+        prompt_content = f"""> 由 context_engine compact-write 于 {now_iso()} 更新
+> 记录 compact 前的最后用户请求，帮助恢复上下文
+
+上次请求：
+---
+{user_prompt[:2000]}
+---
+"""
+        prompt_path.write_text(prompt_content, encoding="utf-8")
+
+    # audit
+    append_jsonl(
+        Path(".omc/audit") / f"{today()}.jsonl",
+        {
+            "event_type": "compact_write",
+            "timestamp": now_iso(),
+            "task_id": task_id(token, token_path.stem),
+            "level": level_str,
+            "phase": "context",
+            "actor": "context_engine",
+            "paths": [str(handoff_path), str(prompt_path)],
+        },
+    )
+
+    # 同时更新 task_dir 下的 state/session-handoff.md（已有逻辑兼容）
+    state_handoff = task_path / "state" / "session-handoff.md"
+    state_handoff.parent.mkdir(parents=True, exist_ok=True)
+    state_handoff.write_text(handoff_content, encoding="utf-8")
+
+    print(json.dumps({
+        "handoff_path": str(handoff_path),
+        "prompt_path": str(prompt_path),
+        "prompt_written": bool(user_prompt),
+        "status": "OK",
+    }, ensure_ascii=False, indent=2))
+    return 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("command", choices=["compact-check", "resume-check", "state-injection"])
+    parser.add_argument("command", choices=["compact-check", "resume-check", "state-injection", "compact-write"])
     parser.add_argument("--token", required=True)
     parser.add_argument("--task", required=False)
+    parser.add_argument("--prompt", required=False, default="")
     args = parser.parse_args()
 
     token_path = Path(args.token)
@@ -454,6 +548,9 @@ def main() -> int:
         if args.command == "state-injection":
             print(state_injection(token_path))
             return 0
+
+        if args.command == "compact-write":
+            return compact_write(token_path, task_path, args.prompt)
 
     except OSError as exc:
         result = ContextDecision(

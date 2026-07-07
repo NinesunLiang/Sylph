@@ -19,7 +19,18 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(os.environ.get("CARROROS_ROOT", ".")).resolve()
+# Find project root: walk up from CWD until .claude/ is found, or fall back to CARROROS_ROOT
+_cwd = Path(".").resolve()
+ROOT = _cwd
+for _ in range(10):  # max 10 levels up
+    if (_cwd / ".claude").is_dir() or (_cwd / ".git").is_dir():
+        ROOT = _cwd
+        break
+    parent = _cwd.parent
+    if parent == _cwd:
+        break
+    _cwd = parent
+ROOT = Path(os.environ.get("CARROROS_ROOT", str(ROOT))).resolve()
 OMC = ROOT / ".omc"
 TOKENS = OMC / "tokens"
 TASKS = OMC / "tasks"

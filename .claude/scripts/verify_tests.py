@@ -100,17 +100,21 @@ def test_hook_syntax() -> None:
 # ═══════════════════════════════════════════════════════════════
 
 def test_settings_json() -> None:
-    """settings.json must parse as valid JSON."""
+    """settings.json must parse as valid JSON with no SessionStart (replaced by @ include)."""
     try:
         data = json.loads((ROOT / ".claude" / "settings.json").read_text())
         hooks = data.get("hooks", {})
-        required_events = {"SessionStart", "UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}
+        required_events = {"UserPromptSubmit", "PreToolUse", "PostToolUse", "Stop"}
         found = set(hooks.keys())
         missing = required_events - found
-        if missing:
+
+        # SessionStart intentionally removed — replaced by AGENTS.md @ include
+        if "SessionStart" in found:
+            log_fail("settings.json should NOT have SessionStart (moved to @ include)")
+        elif missing:
             log_fail(f"settings.json missing hook events: {missing}")
         else:
-            log_pass(f"settings.json valid, events: {', '.join(sorted(found))}")
+            log_pass(f"settings.json valid, events: {', '.join(sorted(found))}, no SessionStart (correct)")
     except Exception as exc:
         log_fail(f"settings.json parse error: {exc}")
 
@@ -479,6 +483,32 @@ def test_pre_action_git_operation() -> None:
 
 
 # ═══════════════════════════════════════════════════════════════
+# 15. AGENTS.md @ include 验证
+# ═══════════════════════════════════════════════════════════════
+
+def test_agents_md_include() -> None:
+    """AGENTS.md @ references must point to existing files (compact/resume mechanism)."""
+    agents_text = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+    ref_lines = [l.strip() for l in agents_text.splitlines() if l.strip().startswith("> @")]
+    found = 0
+    for line in ref_lines:
+        path_part = line.replace("> @", "").strip()
+        target = ROOT / path_part
+        if target.exists():
+            log_pass(f"AGENTS.md @ include: {path_part} exists")
+            found += 1
+        else:
+            log_fail(f"AGENTS.md @ include: {path_part} MISSING")
+    if not ref_lines:
+        log_fail("AGENTS.md has no @ include references for compact/resume")
+    # Should reference at least session-handoff.md
+    handoff_ref = any(".claude/session-handoff.md" in l for l in ref_lines)
+    prompt_ref = any(".claude/last-user-prompt.md" in l for l in ref_lines)
+    if handoff_ref and prompt_ref:
+        log_pass("AGENTS.md: both session-handoff and last-user-prompt referenced")
+
+
+# ═══════════════════════════════════════════════════════════════
 # Runner
 # ═══════════════════════════════════════════════════════════════
 
@@ -503,6 +533,7 @@ ALL_TESTS = [
     ("ORACLE_GATE_HOOK", test_oracle_hook),
     ("PREACTION_SCRIPT", test_pre_action_script),
     ("PREACTION_GIT_OPERATION", test_pre_action_git_operation),
+    ("AGENTS_MD_INCLUDE", test_agents_md_include),
 ]
 
 
