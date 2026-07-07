@@ -434,10 +434,12 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
     """写入 .claude/session-handoff.md 和 .claude/last-user-prompt.md
     供 AGENTS.md @ 引用，下次会话自动注入上下文。
     无 hook 参与，纯文件写入。
+    同时读取 .claude/.prompt-ring.json 收集最近 20 轮用户 prompt。
     """
     PROJECT_ROOT = Path(".claude").resolve().parent
     handoff_path = PROJECT_ROOT / ".claude" / "session-handoff.md"
     prompt_path = PROJECT_ROOT / ".claude" / "last-user-prompt.md"
+    ring_path = PROJECT_ROOT / ".claude" / ".prompt-ring.json"
 
     token = read_json(token_path, {})
     task = token_task(token)
@@ -447,8 +449,10 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
 
     done, total, pending = count_plan_steps(plan_text)
     scope = task.get("scope", []) or []
+    failed_verifications = task.get("failed_verifications", 0)
+    oracle_last = session.get("oracle_last_verdict", "none")
 
-    # 写入 session-handoff.md
+    # 写入 session-handoff.md（完整任务状态）
     scope_bullets = "\n".join(f"  - {s}" for s in scope) if scope else "  - (none)"
 
     level_str = level(token)
@@ -471,9 +475,13 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
 - verified: {done}/{total}
 - pending: {pending or "(none)"}
 - compact_strategy: {compact_strategy}
+- failed_verifications: {failed_verifications}
 
 ## Scope
 {scope_bullets}
+
+## Oracle
+- last_verdict: {oracle_last}
 
 ## Resume Rules
 - 磁盘状态文件是最终真相源（token / plan / executor）
@@ -483,17 +491,45 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
     handoff_path.parent.mkdir(parents=True, exist_ok=True)
     handoff_path.write_text(handoff_content, encoding="utf-8")
 
-    # 写入 last-user-prompt.md
-    if user_prompt:
-        prompt_content = f"""> 由 context_engine compact-write 于 {now_iso()} 更新
-> 记录 compact 前的最后用户请求，帮助恢复上下文
+    # 读取 prompt ring 写入 last-user-prompt.md
+    ring = []
+    if ring_path.exists():
+        try:
+            ring = json.loads(ring_path.read_text(encoding="utf-8"))
+            if not isinstance(ring, list):
+                ring = []
+        except (json.JSONDecodeError, OSError):
+            ring = []
 
-上次请求：
----
-{user_prompt[:2000]}
+    # 用传入的 --prompt 补上最新一条
+    if user_prompt and (not ring or ring[-1].get("prompt", "") != user_prompt[:500]):
+        ring.append({
+            "ts": now_iso(),
+            "prompt": user_prompt[:500],
+        })
+    if len(ring) > 20:
+        ring = ring[-20:]
+
+    if ring:
+        prompt_lines = []
+        for i, entry in enumerate(ring):
+            ts = entry.get("ts", "?")
+            p = entry.get("prompt", "").replace("\n", " ")
+            prompt_lines.append(f"[{i+1}] ({ts}) {p[:200]}")
+        prompt_text = "\n".join(prompt_lines)
+    else:
+        prompt_text = "(无历史 prompt)"
+
+    prompt_content = f"""> 由 context_engine compact-write 于 {now_iso()} 更新
+> 记录 compact 前的最近 {len(ring)} 轮用户请求，帮助恢复上下文
+
+## 最近用户请求（共 {len(ring)} 条）
+
+{prompt_text}
+
 ---
 """
-        prompt_path.write_text(prompt_content, encoding="utf-8")
+    prompt_path.write_text(prompt_content, encoding="utf-8")
 
     # audit
     append_jsonl(
