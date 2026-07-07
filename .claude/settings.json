@@ -64,10 +64,6 @@
           },
           {
             "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh posttool-watermark-check.py"
-          },
-          {
-            "type": "command",
             "command": ".claude/hooks/hook-launcher.sh posttool-output-compress.py"
           },
           {

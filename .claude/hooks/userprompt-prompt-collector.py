@@ -1,29 +1,29 @@
 #!/usr/bin/env python3
 """
-CarrorOS Prompt Collector — UserPromptSubmit Hook
+CarrorOS Prompt Collector + Lightweight Compact Hook — UserPromptSubmit
 
 Purpose:
-  Maintain a rolling ring buffer of the last 20 user prompts
-  in .claude/.prompt-ring.json for compact-write to consume.
+  1. Maintain rolling ring buffer of last 20 user prompts (.prompt-ring.json)
+  2. Every 5 prompts: auto-run compact-write (update handoff + last-user-prompt)
 
-  When context_engine compact-write runs, it reads this buffer
-  and writes .claude/last-user-prompt.md with the recent history.
+  This is the "compact 前的 hook" — runs right before each UserPromptSubmit
+  boundary. No PostToolUse polling, no watermark calculation, no tool counter.
 
 Constraints:
   - Pure observation, never blocks
-  - No stamp, no startup cost
-  - Keeps at most 20 entries (minimal disk I/O)
+  - Only does I/O every 5th prompt (most calls return instantly)
+  - handoff 更新只发生在有活跃任务时
 """
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# 从自身位置定位项目根目录
 _script_path = Path(__file__).resolve()
 ROOT = _script_path.parents[2]
 if not (ROOT / ".claude").is_dir():
@@ -31,6 +31,7 @@ if not (ROOT / ".claude").is_dir():
 os.chdir(str(ROOT))
 
 MAX_PROMPTS = 20
+COMPACT_INTERVAL = 5  # 每 5 次用户输入触发一次 compact-write
 PROMPT_RING_PATH = ROOT / ".claude" / ".prompt-ring.json"
 
 
@@ -58,7 +59,6 @@ def write_ring(ring: list[dict]) -> None:
 
 
 def extract_prompt(payload: dict) -> str:
-    """Extract user prompt from hook stdin payload."""
     for key in ("prompt", "text", "message", "input"):
         val = payload.get(key)
         if isinstance(val, str) and val.strip():
@@ -72,31 +72,82 @@ def extract_prompt(payload: dict) -> str:
     return ""
 
 
+def find_active_token() -> Path | None:
+    """查找最新活跃 token（token 存在 = 任务未结束）"""
+    token_root = ROOT / ".omc" / "tokens"
+    if not token_root.exists():
+        return None
+    candidates = sorted(
+        [p for p in token_root.glob("*/*.json") if p.is_file()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    if not candidates:
+        return None
+    # 检查不是 tombstone/archive 状态
+    try:
+        token = json.loads(candidates[0].read_text(encoding="utf-8"))
+        status = token.get("task", {}).get("status") or token.get("status", "")
+        if status in ("archived", "blocked"):
+            return None
+        return candidates[0]
+    except (json.JSONDecodeError, OSError):
+        return None
+
+
+def find_task_dir(token_path: Path) -> Path | None:
+    if len(token_path.parts) >= 2:
+        date = token_path.parent.name
+        name = token_path.stem
+        task_dir = ROOT / ".omc" / "tasks" / date / name
+        if task_dir.exists():
+            return task_dir
+    return None
+
+
+def run_compact_write(token_path: Path) -> None:
+    """静默执行 compact-write，不阻塞，不抛出异常"""
+    task_path = find_task_dir(token_path)
+    if not task_path:
+        return
+    try:
+        subprocess.run(
+            [sys.executable, ".claude/scripts/context_engine.py",
+             "compact-write", "--token", str(token_path),
+             "--task", str(task_path)],
+            capture_output=True, timeout=15,
+        )
+    except (subprocess.TimeoutExpired, OSError):
+        pass  # 静默失败，不阻塞用户输入
+
+
 def main() -> int:
     payload = json.loads(sys.stdin.read()) if not sys.stdin.isatty() else {}
 
     prompt = extract_prompt(payload)
-    if not prompt:
-        # Still need to respond valid JSON even on empty
-        print(json.dumps({"continue": True, "message": "PromptCollector: no_prompt"}))
-        return 0
 
     # Read or initialize ring
     ring = read_ring()
 
-    # Add new prompt
-    ring.append({
-        "ts": now_iso(),
-        "prompt": prompt[:500],  # cap at 500 chars per prompt
-    })
-
-    # Trim to max 20
-    if len(ring) > MAX_PROMPTS:
-        ring = ring[-MAX_PROMPTS:]
+    if prompt:
+        # Add new prompt
+        ring.append({
+            "ts": now_iso(),
+            "prompt": prompt[:500],
+        })
+        # Trim to max 20
+        if len(ring) > MAX_PROMPTS:
+            ring = ring[-MAX_PROMPTS:]
 
     write_ring(ring)
 
-    print(json.dumps({"continue": True, "message": "PromptCollector: OK"}))
+    # 每 COMPACT_INTERVAL 次用户输入触发一次 compact-write
+    if len(ring) > 0 and len(ring) % COMPACT_INTERVAL == 0:
+        token_path = find_active_token()
+        if token_path:
+            run_compact_write(token_path)
+
+    print(json.dumps({"continue": True, "message": "OK"}))
     return 0
 
 
