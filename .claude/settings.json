@@ -1,18 +1,69 @@
 {
+  "statusLine": {
+    "type": "command",
+    "command": ".claude/hooks/statusline-command.sh"
+  },
   "hooks": {
-    "PretoolUseExecution": [
-      ".claude/hooks/pretool-fallback-check.py",
-      ".claude/hooks/pretool-action-gate.py",
-      ".claude/hooks/pretool-edit-scope.py",
-      ".claude/hooks/pretool-sensitive-edit.py"
+    "UserPromptSubmit": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/userprompt-level-hint.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/userprompt-session-resume.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/userprompt-compact-writer.py"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-sensitive-edit.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-action-gate.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-fallback-check.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-plan-gate.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/pretool-edit-scope.py"
+          }
+        ]
+      }
     ],
     "PostToolUse": [
-      ".claude/hooks/posttool-audit.py",
-      ".claude/hooks/completion-gate.py"
-    ],
-    "UserPromptSubmit": [
-      ".claude/hooks/pretool-session-resume.py",
-      ".claude/hooks/pretool-compact-writer.py"
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/posttool-audit.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/hooks/posttool-completion-gate.py"
+          }
+        ]
+      }
     ]
   }
 }

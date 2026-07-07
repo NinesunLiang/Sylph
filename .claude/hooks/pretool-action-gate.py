@@ -1,141 +1,86 @@
 #!/usr/bin/env python3
-"""
-pretool-action-gate.py — PreActionGate 4 级裁决
+from __future__ import annotations
 
-CC hook: PretoolUseExecution
-输出: JSON 行到 stdout
-
-4 级裁决: ALLOW / ASK_USER / BLOCK / ESCALATE
-
-- ALLOW: 放行
-- ASK_USER: 需要人工确认
-- BLOCK: 禁止执行
-- ESCALATE: 升级到人类
-
-敏感动作：
-  - rm / sudo / force push / 敏感路径写 → BLOCK（无 config）或 ASK_USER（有 config）
-  - 读敏感文件 → BLOCK
-  - 网络调用 / 安装依赖 → ASK_USER
-  - 其余 → ALLOW
-
-Hook 协议: 打印 {"continue": true/false, "message": "..."} 到 stdout。
-"""
-
-import json
-import os
 import re
-import sys
 
-# ─── 敏感路径表 ───
-SENSITIVE_PATTERNS = [
-    r"\.env",
-    r"\.ssh[/\\]",
-    r"secrets[/\\]",
-    r"\.aws[/\\]",
-    r"config[/\\]credentials",
-    r".*\.pem$",
-    r".*\.key$",
-    r"id_rsa",
-    r"id_ed25519",
-]
+from carroros_hooklib import (
+    append_audit,
+    extract_command,
+    hook_block,
+    hook_continue,
+    read_stdin_json,
+    sanitize_text,
+)
 
-# ─── 危险命令前缀 ───
 DANGEROUS_COMMANDS = [
-    "rm -rf", "rm -r", "rm -f",
-    "sudo", "chmod 777", "chown",
-    "git push --force", "git push -f",
-    "dd if=", "mkfs.", "fdisk",
-    ":(){ :|:& };:",  # fork bomb
+    r"^rm\s+-rf\s+(/|\.|~|\*)",
+    r"^rm\s+-r\s+(/|\.|~|\*)",
+    r"^sudo\b",
+    r"^chmod\s+777\b",
+    r"^chown\b",
+    r"^git\s+push\s+(-f|--force)",
+    r"^dd\s+if=",
+    r"^mkfs\.",
+    r"^fdisk\b",
+    r":\(\)\{\s*:\|:\s*&\s*\};:",
 ]
 
-DANGEROUS_INSTALL = [
-    "pip install", "npm install -g",
-    "brew install", "cargo install",
-    "curl.*|.*sh", "wget.*|.*sh",
+ASK_USER_COMMANDS = [
+    r"\bcurl\b.*\|\s*(sh|bash)",
+    r"\bwget\b.*\|\s*(sh|bash)",
+    r"\bnpm\s+install\b",
+    r"\bpip\s+install\b",
+    r"\bbrew\s+install\b",
+    r"\bcargo\s+install\b",
+    r"\bdocker\s+run\b",
+    r"\bkubectl\b",
 ]
 
-def _is_sensitive_path(filepath: str) -> bool:
-    for pat in SENSITIVE_PATTERNS:
-        if re.search(pat, filepath, re.IGNORECASE):
-            return True
-    return False
+def match_any(command: str, patterns: list[str]) -> str | None:
+    cmd = command.strip()
+    for pat in patterns:
+        if re.search(pat, cmd, re.IGNORECASE):
+            return pat
+    return None
 
+def main() -> int:
+    payload = read_stdin_json()
+    command = extract_command(payload)
+    if not command:
+        return hook_continue("PreActionGate: ALLOW no_command")
 
-def _is_dangerous_command(command: str) -> tuple:
-    cmd_lower = command.strip().lower()
-    for dc in DANGEROUS_COMMANDS:
-        if cmd_lower.startswith(dc.lower()):
-            return True, dc
-    for di in DANGEROUS_INSTALL:
-        if cmd_lower.startswith(di.lower()):
-            return True, di
-    return False, ""
+    hard = match_any(command, DANGEROUS_COMMANDS)
+    if hard:
+        append_audit({
+            "event_type": "preaction_decision",
+            "actor": "hook:pretool-action-gate",
+            "decision": "BLOCK",
+            "reason": "dangerous_command",
+            "pattern": hard,
+            "command_preview": sanitize_text(command, 160),
+        })
+        return hook_block(f"PreActionGate: BLOCK dangerous_command pattern={hard}")
 
+    ask = match_any(command, ASK_USER_COMMANDS)
+    if ask:
+        append_audit({
+            "event_type": "preaction_decision",
+            "actor": "hook:pretool-action-gate",
+            "decision": "ASK_USER",
+            "reason": "approval_required_command",
+            "pattern": ask,
+            "command_preview": sanitize_text(command, 160),
+        })
+        return hook_block(f"PreActionGate: ASK_USER required before command pattern={ask}")
 
-def _has_config() -> bool:
-    """检查是否有 settings.local.json 或 harness.yaml 中的用户配置"""
-    config_paths = [
-        Path.cwd() / ".claude" / "settings.local.json",
-        Path.cwd() / ".claude" / "harness.yaml",
-    ]
-    for p in config_paths:
-        if p.exists():
-            return True
-    return False
-
-
-try:
-    from pathlib import Path
-except ImportError:
-    Path = None
-
-def main():
-    """Main hook entry point"""
-    # ─── 读取 stdin ───
-    stdin_data = sys.stdin.read() if not sys.stdin.isatty() else ""
-    if not stdin_data:
-        print(json.dumps({"continue": True, "message": "PreActionGate: no input"}))
-        return 0
-
-    try:
-        payload = json.loads(stdin_data)
-    except json.JSONDecodeError:
-        print(json.dumps({"continue": True, "message": "PreActionGate: unparseable input"}))
-        return 0
-
-    # ─── 提取命令和文件路径 ───
-    command = payload.get("command", "")
-    file_path = payload.get("filePath", "") or payload.get("path", "")
-
-    # ─── 判断敏感路径 ───
-    if file_path and _is_sensitive_path(file_path):
-        msg = f"PreActionGate: BLOCKED — sensitive path: {file_path}"
-        print(json.dumps({"continue": False, "message": msg}))
-        sys.stderr.write(msg + "\n")
-        return 0
-
-    # ─── 判断危险命令 ───
-    if command:
-        is_danger, matched = _is_dangerous_command(command)
-        if is_danger:
-            if _has_config():
-                # ASK_USER
-                msg = f"PreActionGate: ASK_USER — dangerous command: {matched}"
-                print(json.dumps({"continue": True, "message": msg}))
-            else:
-                msg = f"PreActionGate: BLOCKED — dangerous command: {matched}"
-                print(json.dumps({"continue": False, "message": msg}))
-                sys.stderr.write(msg + "\n")
-            return 0
-
-        # ─── 普通命令 ALLOW ───
-        print(json.dumps({"continue": True, "message": "PreActionGate: ALLOW"}))
-        return 0
-
-    # ─── 默认 ALLOW ───
-    print(json.dumps({"continue": True, "message": "PreActionGate: ALLOW (no action)"}))
-    return 0
-
+    append_audit({
+        "event_type": "preaction_decision",
+        "actor": "hook:pretool-action-gate",
+        "decision": "ALLOW",
+        "reason": "command_allowed",
+        "command_preview": sanitize_text(command, 160),
+    })
+    return hook_continue("PreActionGate: ALLOW")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

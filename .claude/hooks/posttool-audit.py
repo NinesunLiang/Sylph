@@ -1,62 +1,55 @@
 #!/usr/bin/env python3
-"""
-posttool-audit.py — 审计事件写入
+from __future__ import annotations
 
-CC hook: PostToolUse
-在每次工具调用后，将审计事件写入 .omc/state/audit/YYYYMMDD.jsonl。
-"""
+from carroros_hooklib import (
+    active_token,
+    append_audit,
+    extract_command,
+    extract_path,
+    extract_tool_name,
+    hook_block,
+    hook_continue,
+    read_stdin_json,
+    sanitize_text,
+)
 
-import json
-import sys
-from datetime import datetime
-from pathlib import Path
+WRITE_AUDIT_TOOLS = {"edit", "write", "multiedit", "notebookedit", "bash", "terminal"}
 
+def main() -> int:
+    payload = read_stdin_json()
+    tool = extract_tool_name(payload)
 
-AUDIT_DIR = Path.cwd() / ".omc" / "state" / "audit"
+    # ─── 只对写工具有实质变更的步骤审计 ───
+    if tool.lower() not in WRITE_AUDIT_TOOLS:
+        return hook_continue("PostToolAudit: SKIP non_write_tool")
 
+    command = extract_command(payload)
+    path = extract_path(payload)
 
-def main():
-    stdin_data = sys.stdin.read() if not sys.stdin.isatty() else ""
-    if not stdin_data:
-        print(json.dumps({"continue": True}))
-        return 0
+    token, _ = active_token()
+    task = token.get("task", {}) if token else {}
 
-    try:
-        payload = json.loads(stdin_data)
-    except json.JSONDecodeError:
-        print(json.dumps({"continue": True}))
-        return 0
+    result = payload.get("result") or payload.get("tool_result") or ""
+    result_text = sanitize_text(result, 200)
 
-    # ─── 提取工具调用信息 ───
-    tool_name = payload.get("tool", "") or payload.get("name", "") or ""
-    tool_result = payload.get("result", "") or ""
-    tool_args = payload.get("arguments", {}) or payload.get("args", {})
+    ok = append_audit({
+        "event_type": "tool_executed",
+        "actor": "hook:posttool-audit",
+        "task_id": task.get("id"),
+        "level": (token.get("session", {}) or {}).get("level") if token else None,
+        "current_step": task.get("current_step"),
+        "tool": tool,
+        "path": path or None,
+        "command_preview": sanitize_text(command, 160) if command else None,
+        "result_length": len(str(result)),
+        "result_preview": result_text,
+        "note": "tool_executed_is_not_verify_evidence",
+    })
 
-    record = {
-        "schema_version": "v1.0",
-        "ts": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.000Z"),
-        "event": "tool_executed",
-        "data": {
-            "tool": tool_name,
-            "args": tool_args,
-            "result_length": len(str(tool_result)),
-            "result_ok": "error" not in str(tool_result).lower()[:200],
-        }
-    }
+    if not ok:
+        return hook_block("PostToolAudit: BLOCK audit_write_failed")
 
-    # ─── 写入 audit ───
-    AUDIT_DIR.mkdir(parents=True, exist_ok=True)
-    date_str = datetime.utcnow().strftime("%Y%m%d")
-    audit_file = AUDIT_DIR / f"{date_str}.jsonl"
-    try:
-        with open(audit_file, "a") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except OSError:
-        pass  # 静默失败 — audit 写入失败不阻断执行
-
-    print(json.dumps({"continue": True}))
-    return 0
-
+    return hook_continue("PostToolAudit: OK")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

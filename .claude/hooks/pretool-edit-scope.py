@@ -1,79 +1,84 @@
 #!/usr/bin/env python3
-"""
-pretool-edit-scope.py — 编辑范围冻结检查
+from __future__ import annotations
 
-CC hook: PretoolUseExecution
-检查当前编辑操作是否在 plan.md 声明的 scope 内。
-
-如果 plan.md 不存在或 scope 未声明，按照默认放行。
-"""
-
-import json
 import re
-import sys
 from pathlib import Path
 
+from carroros_hooklib import (
+    active_token,
+    append_audit,
+    extract_path,
+    extract_tool_name,
+    hook_block,
+    hook_continue,
+    read_stdin_json,
+    task_dir_from_token,
+)
 
-def _get_plan_scope() -> list:
-    """从 plan.md 读取 scope 声明"""
-    plan_path = Path.cwd() / ".omc" / "state" / "plan.md"
-    if not plan_path.exists():
-        return []
+WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 
-    content = plan_path.read_text()
-    # Scope 区域：## Scope 下的文件列表
+def parse_scope(plan_text: str) -> list[str]:
     in_scope = False
-    files = []
-    for line in content.split("\n"):
-        if line.strip().startswith("## Scope"):
+    files: list[str] = []
+    for line in plan_text.splitlines():
+        stripped = line.strip()
+        if stripped.lower().startswith("## scope") or stripped.lower().startswith("## scope freeze"):
             in_scope = True
             continue
+        if in_scope and stripped.startswith("## "):
+            break
         if in_scope:
-            if line.strip().startswith("## "):
-                break
-            # 匹配 "  - path/to/file" 或 "- path/to/file"
-            m = re.match(r"\s*[-*]\s+(\S+)", line)
+            m = re.match(r"[-*]\s+`?([^`\s]+)`?", stripped)
             if m:
-                files.append(m.group(1))
+                files.append(m.group(1).replace("\\", "/"))
     return files
 
+def in_scope(path: str, scope: list[str]) -> bool:
+    p = path.replace("\\", "/").lstrip("./")
+    for item in scope:
+        s = item.replace("\\", "/").lstrip("./")
+        if p == s or p.endswith("/" + s) or p.startswith(s.rstrip("/") + "/"):
+            return True
+    return False
 
-def main():
-    stdin_data = sys.stdin.read() if not sys.stdin.isatty() else ""
-    if not stdin_data:
-        print(json.dumps({"continue": True, "message": "EditScope: no input"}))
-        return 0
+def main() -> int:
+    payload = read_stdin_json()
+    tool = extract_tool_name(payload).lower()
+    if tool and tool not in WRITE_TOOLS:
+        return hook_continue("EditScope: ALLOW non_write_tool")
 
-    try:
-        payload = json.loads(stdin_data)
-    except json.JSONDecodeError:
-        print(json.dumps({"continue": True, "message": "EditScope: unparseable input"}))
-        return 0
-
-    edit_path = payload.get("filePath", "") or payload.get("path", "")
+    edit_path = extract_path(payload)
     if not edit_path:
-        print(json.dumps({"continue": True, "message": "EditScope: no file path"}))
-        return 0
+        return hook_continue("EditScope: ALLOW no_path")
 
-    scope_files = _get_plan_scope()
-    if not scope_files:
-        # 无 scope 声明，放行
-        print(json.dumps({"continue": True, "message": "EditScope: ALLOW (no scope)"}))
-        return 0
+    token, token_path = active_token()
+    if not token:
+        return hook_continue("EditScope: ALLOW no_active_token")
 
-    # 检查编辑文件是否在 scope 内
-    edit_rel = edit_path
-    for scoped in scope_files:
-        if edit_rel == scoped or edit_rel.endswith("/" + scoped) or edit_rel.endswith("\\" + scoped):
-            print(json.dumps({"continue": True, "message": f"EditScope: ALLOW ({edit_rel})"}))
-            return 0
+    task_dir = task_dir_from_token(token, token_path)
+    if not task_dir:
+        return hook_block("EditScope: BLOCK task_dir_missing; cannot verify scope")
 
-    # 不在 scope 内
-    msg = f"EditScope: BLOCKED — {edit_rel} not in plan scope: {scope_files}"
-    print(json.dumps({"continue": False, "message": msg}))
-    sys.stderr.write(msg + "\n")
-    return 0
+    plan_path = task_dir / "plan.md"
+    if not plan_path.exists():
+        return hook_block("EditScope: BLOCK plan_missing; cannot verify scope")
 
+    scope = parse_scope(plan_path.read_text(encoding="utf-8"))
+    if not scope:
+        return hook_block("EditScope: BLOCK scope_missing; plan must declare Scope")
+
+    if not in_scope(edit_path, scope):
+        append_audit({
+            "event_type": "preaction_decision",
+            "actor": "hook:pretool-edit-scope",
+            "decision": "BLOCK",
+            "reason": "scope_violation",
+            "path": edit_path,
+            "scope": scope[:50],
+        })
+        return hook_block(f"EditScope: BLOCK scope_violation path={edit_path}")
+
+    return hook_continue("EditScope: ALLOW")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

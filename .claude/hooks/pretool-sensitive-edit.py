@@ -1,65 +1,40 @@
 #!/usr/bin/env python3
-"""
-pretool-sensitive-edit.py — 敏感文件操作拦截
+from __future__ import annotations
 
-CC hook: PretoolUseExecution
-拦截对敏感文件的编辑/删除操作。
-"""
+from carroros_hooklib import (
+    append_audit,
+    extract_path,
+    extract_tool_name,
+    hook_block,
+    hook_continue,
+    is_sensitive_path,
+    read_stdin_json,
+)
 
-import json
-import re
-import sys
-from pathlib import Path
+WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
+READ_TOOLS = {"read"}
 
+def main() -> int:
+    payload = read_stdin_json()
+    tool = extract_tool_name(payload).lower()
+    path = extract_path(payload)
 
-SENSITIVE_PATTERNS = [
-    r"\.env",
-    r"\.ssh[/\\]",
-    r"secrets[/\\]",
-    r".*\.pem$",
-    r".*\.key$",
-    r"id_rsa",
-    r"id_ed25519",
-    r"credentials",
-    r"config\.json$",   # 可能含 key
-]
+    if not path:
+        return hook_continue("SensitiveEdit: ALLOW no_path")
 
+    if is_sensitive_path(path):
+        decision = "BLOCK"
+        append_audit({
+            "event_type": "preaction_decision",
+            "actor": "hook:pretool-sensitive-edit",
+            "decision": decision,
+            "reason": "sensitive_path",
+            "tool": tool,
+            "path": path,
+        })
+        return hook_block(f"SensitiveEdit: BLOCK sensitive_path path={path}")
 
-def _is_sensitive(filepath: str) -> bool:
-    for pat in SENSITIVE_PATTERNS:
-        if re.search(pat, filepath, re.IGNORECASE):
-            return True
-    return False
-
-
-def main():
-    stdin_data = sys.stdin.read() if not sys.stdin.isatty() else ""
-    if not stdin_data:
-        print(json.dumps({"continue": True, "message": "SensitiveEdit: no input"}))
-        return 0
-
-    try:
-        payload = json.loads(stdin_data)
-    except json.JSONDecodeError:
-        print(json.dumps({"continue": True, "message": "SensitiveEdit: unparseable input"}))
-        return 0
-
-    edit_path = payload.get("filePath", "") or payload.get("path", "")
-    action = payload.get("action", "write")
-
-    if not edit_path:
-        print(json.dumps({"continue": True, "message": "SensitiveEdit: no path"}))
-        return 0
-
-    if _is_sensitive(edit_path):
-        msg = f"SensitiveEdit: BLOCKED — sensitive file: {edit_path}"
-        print(json.dumps({"continue": False, "message": msg}))
-        sys.stderr.write(msg + "\n")
-        return 0
-
-    print(json.dumps({"continue": True, "message": f"SensitiveEdit: ALLOW ({edit_path})"}))
-    return 0
-
+    return hook_continue("SensitiveEdit: ALLOW")
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

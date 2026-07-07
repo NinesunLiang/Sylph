@@ -142,26 +142,20 @@ hook_gates:
     protects: [lx-goal, lx-ghost, lx-rpe]
     description: 危险命令拦截 + CAPTCHA 文件保护，自主执行安全网
   - gate: pretool_oracle_gate
-    protects: [lx-oracle, lx-ghost]
+    protects: [lx-ghost]
     description: Oracle 审核前置门禁
   - gate: pre_ask_guard
     protects: [lx-goal, lx-ghost]
     description: 决策链过滤，减少自主模式下的不必要打断
   - gate: pretool_git_gate
-    protects: [lx-pre-commit, lx-pre-push]
+    protects: [lx-git-check]
     description: Git 提交前检查门禁
-  - gate: pretool_purify_gate
-    protects: [lx-purify]
-    description: 隐私脱敏运行时 hook
   - gate: pretool_skill_version_guard
     protects: [lx-validate-skill, lx-skillify]
     description: SKILL.md 版本格式门禁
   - gate: pretool_skill_body_enforce
     protects: [lx-skillify]
     description: Skill body 强制执行合约注入
-  - gate: pre_completion_gate
-    protects: [lx-oracle]
-    description: 完成前证据质量验证
 
 # ─── 校验规则 ───
 validation:

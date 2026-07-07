@@ -44,3 +44,11 @@
 1. 断言都带证据标记？
 2. 改过范围外文件？
 3. 有软完成语？
+
+## Oracle 评审系统
+| 等级 | 协议 | 倾向 | 用途 | 命令 |
+|------|------|------|------|------|
+| Oracle agent | Oracle-D | 偏紧 · 广度优先 | 静态分析：scope/危险路径/file:line | `lx-oracle-agent` → `static_oracle_agent.py` |
+| Meta-Oracle | Oracle-V | 偏松 · 深度优先 | 运行时验证：token/失败/软完成/G1-G4 | `lx-oracle-meta` → `runtime_oracle_agent.py` / `meta_oracle.py` |
+| 双审 | Oracle-D+V | 互补 | 完整审核：静态+运行时+G1-G4 聚合 | `lx-oracle-review` → `oracle_spawn.py` |
+裁决目录: static-oracle-verdicts/ / runtime-oracle-verdicts/ / meta-oracle-verdicts/ | Bypass: oracle-bypass/

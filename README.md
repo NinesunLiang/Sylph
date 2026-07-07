@@ -85,7 +85,12 @@ CarrorOS/
 │   └── index.md                 # 渐进披露注册表
 ├── .omc/
 │   ├── tasks/{date}/{task_name}/{research|plan|executor|stats/|sub_tasks/}                       # 任务文档系统
-│   └── tasks/{date}/{task_name}.json                       # 任务令牌系统，含有终端id信息
+│   ├── tasks/{date}/{task_name}.json                       # 任务令牌系统，含有终端id信息
+│   └── state/
+│       ├── static-oracle-verdicts/{task_id}/
+│       ├── runtime-oracle-verdicts/{task_id}/
+│       ├── meta-oracle-verdicts/{task_id}/
+│       └── oracle-bypass/{task_id}/
 └── opencode/                    # OpenCode plugin
 ```
 
