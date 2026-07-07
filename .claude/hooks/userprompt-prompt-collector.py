@@ -31,7 +31,9 @@ if not (ROOT / ".claude").is_dir():
 os.chdir(str(ROOT))
 
 MAX_PROMPTS = 20
-COMPACT_INTERVAL = 5  # 每 5 次用户输入触发一次 compact-write
+COMPACT_INTERVAL = 5   # 每 5 次用户输入触发 compact-write（手写 handoff）
+WATERMARK_INTERVAL = 20  # 每 20 次用户输入估算一次水位（提醒用户 compact）
+CONTEXT_LIMIT = 200_000
 PROMPT_RING_PATH = ROOT / ".claude" / ".prompt-ring.json"
 
 
@@ -146,6 +148,31 @@ def main() -> int:
         token_path = find_active_token()
         if token_path:
             run_compact_write(token_path)
+
+    water_mark_hint = ""
+    if len(ring) > 0 and len(ring) % WATERMARK_INTERVAL == 0:
+        # 估算上下文水位：每轮约 7k（含累积历史），N轮 ≈ N × 7k
+        n = len(ring)
+        used_est = min(CONTEXT_LIMIT, n * 7000)
+        pct = round((used_est / CONTEXT_LIMIT) * 100)
+        if pct >= 70:
+            water_mark_hint = (
+                f"🔴 Context watermark ~{pct}%. "
+                "运行 /compact 可压缩上下文，保持模型智力。"
+            )
+        elif pct >= 50:
+            water_mark_hint = (
+                f"🟡 Context watermark ~{pct}%. "
+                "考虑运行 /compact 压缩上下文。"
+            )
+
+    if water_mark_hint:
+        print(json.dumps({
+            "continue": True,
+            "message": "OK",
+            "output_additional_context": [water_mark_hint],
+        }))
+        return 0
 
     print(json.dumps({"continue": True, "message": "OK"}))
     return 0
