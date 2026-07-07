@@ -21,12 +21,20 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+# 从自身位置定位项目根目录
+_script_path = Path(__file__).resolve()
+ROOT = _script_path.parents[2]  # .claude/scripts/ → .claude/ → 项目根
+if not (ROOT / ".claude").is_dir():
+    ROOT = Path(".").resolve()
+os.chdir(str(ROOT))
 
 
 @dataclass
@@ -245,7 +253,7 @@ def audit_event(token: dict[str, Any], decision: str, reason: str, strategy: str
 
 
 def latest_audit_events(task_id_value: str, limit: int = 50) -> list[dict[str, Any]]:
-    audit_root = Path(".omc/audit")
+    audit_root = ROOT / ".omc" / "audit"
     events: list[dict[str, Any]] = []
     if not audit_root.exists():
         return events
@@ -320,7 +328,7 @@ def resume_check(token_path: Path, task_path: Path) -> ContextDecision:
         )
 
     append_jsonl(
-        Path(".omc/audit") / f"{today()}.jsonl",
+        ROOT / ".omc" / "audit" / f"{today()}.jsonl",
         {
             "event_type": "context_resume",
             "timestamp": now_iso(),
@@ -374,7 +382,7 @@ def compact_check(token_path: Path, task_path: Path) -> ContextDecision:
 
     handoff_path = task_path / "state" / "session-handoff.md"
     context_state_path = task_path / "state" / "context-state.json"
-    audit_path = Path(".omc/audit") / f"{today()}.jsonl"
+    audit_path = ROOT / ".omc" / "audit" / f"{today()}.jsonl"
 
     if decision in {"COMPACT_SOON", "COMPACT_NOW"}:
         write_text(handoff_path, build_handoff(token, plan_text, decision, reason))
@@ -436,10 +444,9 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
     无 hook 参与，纯文件写入。
     同时读取 .claude/.prompt-ring.json 收集最近 20 轮用户 prompt。
     """
-    PROJECT_ROOT = Path(".claude").resolve().parent
-    handoff_path = PROJECT_ROOT / ".claude" / "session-handoff.md"
-    prompt_path = PROJECT_ROOT / ".claude" / "last-user-prompt.md"
-    ring_path = PROJECT_ROOT / ".claude" / ".prompt-ring.json"
+    handoff_path = ROOT / ".claude" / "session-handoff.md"
+    prompt_path = ROOT / ".claude" / "last-user-prompt.md"
+    ring_path = ROOT / ".claude" / ".prompt-ring.json"
 
     token = read_json(token_path, {})
     task = token_task(token)
@@ -533,7 +540,7 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
 
     # audit
     append_jsonl(
-        Path(".omc/audit") / f"{today()}.jsonl",
+        ROOT / ".omc" / "audit" / f"{today()}.jsonl",
         {
             "event_type": "compact_write",
             "timestamp": now_iso(),

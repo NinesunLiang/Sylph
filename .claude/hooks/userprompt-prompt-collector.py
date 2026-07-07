@@ -18,12 +18,20 @@ Constraints:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# 从自身位置定位项目根目录
+_script_path = Path(__file__).resolve()
+ROOT = _script_path.parents[2]
+if not (ROOT / ".claude").is_dir():
+    ROOT = Path(".").resolve()
+os.chdir(str(ROOT))
+
 MAX_PROMPTS = 20
-PROMPT_RING_PATH = Path(".claude") / ".prompt-ring.json"
+PROMPT_RING_PATH = ROOT / ".claude" / ".prompt-ring.json"
 
 
 def now_iso() -> str:

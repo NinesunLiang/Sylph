@@ -19,18 +19,30 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Find project root: walk up from CWD until .claude/ is found, or fall back to CARROROS_ROOT
-_cwd = Path(".").resolve()
-ROOT = _cwd
-for _ in range(10):  # max 10 levels up
-    if (_cwd / ".claude").is_dir() or (_cwd / ".git").is_dir():
-        ROOT = _cwd
-        break
-    parent = _cwd.parent
-    if parent == _cwd:
-        break
-    _cwd = parent
+# 从 hook/script 自身位置定位项目根目录
+# .claude/hooks/x.py  → parents[2] = 项目根
+# .claude/scripts/x.py → parents[2] = 项目根
+# .omc/scripts/x.py    → parents[2] = 项目根
+_script_path = Path(__file__).resolve()
+_possible_root = _script_path.parents[2]  # 向上两层
+if (_possible_root / ".claude").is_dir() or (_possible_root / ".git").is_dir():
+    ROOT = _possible_root
+else:
+    # 降级：从 CWD 找
+    _cwd = Path(".").resolve()
+    ROOT = _cwd
+    for _ in range(10):
+        if (_cwd / ".claude").is_dir() or (_cwd / ".git").is_dir():
+            ROOT = _cwd
+            break
+        parent = _cwd.parent
+        if parent == _cwd:
+            break
+        _cwd = parent
+
 ROOT = Path(os.environ.get("CARROROS_ROOT", str(ROOT))).resolve()
+# 切到项目根目录，让所有 subprocess 调用也落在正确路径
+os.chdir(ROOT)
 OMC = ROOT / ".omc"
 TOKENS = OMC / "tokens"
 TASKS = OMC / "tasks"

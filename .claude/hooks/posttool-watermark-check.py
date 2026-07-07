@@ -19,15 +19,23 @@ Constraints:
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+# 从自身位置定位项目根目录
+_script_path = Path(__file__).resolve()
+ROOT = _script_path.parents[2]  # .claude/hooks/ → .claude/ → 项目根
+if not (ROOT / ".claude").is_dir():
+    ROOT = Path(".").resolve()
+os.chdir(str(ROOT))
 
 # Estimate ~800 tokens per average tool call
 TOKENS_PER_CALL = 800
 DEFAULT_LIMIT = 200_000
 CHECK_INTERVAL = 10  # every 10th tool call, check watermark
-COUNTER_PATH = Path(".claude") / ".tool-call-count.json"
+COUNTER_PATH = ROOT / ".claude" / ".tool-call-count.json"
 
 
 def read_counter() -> int:
@@ -111,7 +119,7 @@ def main() -> int:
 
 def _find_active_token() -> Path | None:
     """Find the most recent token JSON."""
-    token_root = Path(".omc") / "tokens"
+    token_root = ROOT / ".omc" / "tokens"
     if not token_root.exists():
         return None
     candidates = sorted(
@@ -127,7 +135,7 @@ def _find_task_dir(token_path: Path) -> Path | None:
     if len(token_path.parts) >= 2:
         date = token_path.parent.name
         name = token_path.stem
-        task_dir = Path(".omc") / "tasks" / date / name
+        task_dir = ROOT / ".omc" / "tasks" / date / name
         if task_dir.exists():
             return task_dir
     return None
