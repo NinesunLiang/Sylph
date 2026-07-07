@@ -34,7 +34,8 @@ os.chdir(str(ROOT))
 # Estimate ~800 tokens per average tool call
 TOKENS_PER_CALL = 800
 DEFAULT_LIMIT = 200_000
-CHECK_INTERVAL = 10  # every 10th tool call, check watermark
+CHECK_INTERVAL = 5  # 每 5 次工具调用检测一次水位
+WRITE_INTERVAL = 15  # 每 15 次工具调用执行一次 compact-write（保持 handoff 最新）
 COUNTER_PATH = ROOT / ".claude" / ".tool-call-count.json"
 
 
@@ -68,12 +69,38 @@ def run_watermark(used: int, limit: int) -> dict:
         return {"level": "SAFE", "pct": 0, "action": "none"}
 
 
+def run_compact_write():
+    """查找活跃 token 并执行 compact-write（静默更新，不阻塞）"""
+    token_path = _find_active_token()
+    if not token_path:
+        return None
+    task_path = _find_task_dir(token_path)
+    if not task_path:
+        return None
+    r = subprocess.run(
+        [sys.executable, ".claude/scripts/context_engine.py",
+         "compact-write", "--token", str(token_path),
+         "--task", str(task_path)],
+        capture_output=True, timeout=15,
+    )
+    return r.returncode
+
+
 def main() -> int:
     # Read and increment tool call counter
     count = read_counter() + 1
     write_counter(count)
 
-    # Only check watermark periodically
+    # 每 WRITE_INTERVAL 次自动更新 handoff（即使水位低）
+    if count % WRITE_INTERVAL == 0:
+        run_compact_write()
+        print(json.dumps({
+            "continue": True,
+            "message": f"WatermarkCheck: auto handoff refresh count={count}",
+        }))
+        return 0
+
+    # 每 CHECK_INTERVAL 次检测水位
     if count % CHECK_INTERVAL != 0:
         print(json.dumps({"continue": True, "message": f"WatermarkCheck: SKIP count={count}"}))
         return 0
@@ -83,33 +110,30 @@ def main() -> int:
     result = run_watermark(used_est, DEFAULT_LIMIT)
 
     pct = result.get("pct", 0)
-    level = result.get("level", "SAFE")
-    action = result.get("action", "none")
-
     hints = []
+
     if pct >= 70:
-        # CRITICAL: find active token and auto compact-write
-        token_path = _find_active_token()
-        if token_path:
-            task_path = _find_task_dir(token_path)
-            if task_path:
-                subprocess.run(
-                    [sys.executable, ".claude/scripts/context_engine.py",
-                     "compact-write", "--token", str(token_path),
-                     "--task", str(task_path)],
-                    capture_output=True, timeout=15,
-                )
+        # 🔴 CRITICAL: 必须 compact
+        run_compact_write()
         hints.append(
             f"🔴 Context watermark {pct}% — CRITICAL. "
-            "请立即运行 /compact 压缩上下文。我已写好了 session-handoff 和 last-user-prompt。"
+            "请立即运行 /compact 压缩上下文。已写入 handoff 和 last-user-prompt。"
         )
-    elif pct >= 50:
+    elif pct >= 60:
+        # 🟠 HIGH: 自动 compact-write 准备恢复信息
+        run_compact_write()
+        hints.append(
+            f"🟠 Context watermark {pct}% — HIGH. "
+            "建议准备 /compact，已更新恢复信息。"
+        )
+    elif pct >= 45:
+        # 🟡 WARNING: 提示但还不自动 compact-write（等 WRITE_INTERVAL 触发）
         hints.append(
             f"🟡 Context watermark {pct}% — WARNING. "
-            "建议准备 compact：运行 /compact 前我会自动写入恢复信息。"
+            "运行 /compact 时会自动写入恢复信息。"
         )
 
-    output = {"continue": True, "message": f"WatermarkCheck: {level} {pct}%"}
+    output = {"continue": True, "message": f"WatermarkCheck: {pct}%"}
     if hints:
         output["output_additional_context"] = hints
 
