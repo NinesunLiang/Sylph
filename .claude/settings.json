@@ -1,7 +1,7 @@
 {
   "statusLine": {
     "type": "command",
-    "command": ".claude/hooks/statusline-command.sh"
+    "command": ".claude/hooks/hook-launcher.sh statusline-command.sh"
   },
   "hooks": {
     "UserPromptSubmit": [
@@ -10,11 +10,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/userprompt-level-hint.py"
+            "command": ".claude/hooks/hook-launcher.sh userprompt-level-hint.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/userprompt-prompt-collector.py"
+            "command": ".claude/hooks/hook-launcher.sh userprompt-prompt-collector.py"
           }
         ]
       }
@@ -25,31 +25,31 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-sensitive-edit.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-sensitive-edit.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-verify-gate.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-verify-gate.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-action-gate.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-action-gate.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-fallback-check.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-fallback-check.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-plan-gate.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-plan-gate.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-edit-scope.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-edit-scope.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-oracle-gate.py"
+            "command": ".claude/hooks/hook-launcher.sh pretool-oracle-gate.py"
           }
         ]
       }
@@ -60,19 +60,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-audit.py"
+            "command": ".claude/hooks/hook-launcher.sh posttool-audit.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-watermark-check.py"
+            "command": ".claude/hooks/hook-launcher.sh posttool-watermark-check.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-output-compress.py"
+            "command": ".claude/hooks/hook-launcher.sh posttool-output-compress.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-archive-check.py"
+            "command": ".claude/hooks/hook-launcher.sh posttool-archive-check.py"
           }
         ]
       }
@@ -83,7 +83,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-completion-gate.py"
+            "command": ".claude/hooks/hook-launcher.sh posttool-completion-gate.py"
           }
         ]
       }
