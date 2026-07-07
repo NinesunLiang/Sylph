@@ -1,24 +1,27 @@
 {
   "statusLine": {
     "type": "command",
-    "command": ".claude/hooks/statusline-command.sh"
+    "command": "/Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/statusline-command.sh"
   },
   "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/userprompt-session-start.py"
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "matcher": "*",
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/userprompt-level-hint.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/userprompt-session-resume.py"
-          },
-          {
-            "type": "command",
-            "command": "python3 .claude/hooks/userprompt-compact-writer.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/userprompt-level-hint.py"
           }
         ]
       }
@@ -29,23 +32,31 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-sensitive-edit.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-sensitive-edit.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-action-gate.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-verify-gate.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-fallback-check.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-action-gate.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-plan-gate.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-fallback-check.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-edit-scope.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-plan-gate.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-edit-scope.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/pretool-oracle-gate.py"
           }
         ]
       }
@@ -56,11 +67,26 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-audit.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/posttool-audit.py"
           },
           {
             "type": "command",
-            "command": "python3 .claude/hooks/posttool-completion-gate.py"
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/posttool-output-compress.py"
+          },
+          {
+            "type": "command",
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/posttool-archive-check.py"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 /Users/lucas.liang/Desktop/CarrorOS/.claude/hooks/posttool-completion-gate.py"
           }
         ]
       }

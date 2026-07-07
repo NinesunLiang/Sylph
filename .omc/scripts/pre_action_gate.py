@@ -388,7 +388,7 @@ def classify_action(
             sanitized_paths=sanitize_paths(spec.paths, policy),
             evidence_summary="dependency changes affect supply chain",
         )
-    if spec.requires_network:
+    if spec.action_type == "network_call" or spec.requires_network:
         return GateDecision(
             decision="ASK_USER",
             reason="network_access_requires_approval",
@@ -396,6 +396,48 @@ def classify_action(
             required_confirmations=["network_approval"],
             sanitized_paths=sanitize_paths(spec.paths, policy),
             evidence_summary="network call requested",
+        )
+
+    if spec.action_type == "git_operation":
+        cmd = spec.command or ""
+        cmd_lower = cmd.lower()
+        # Safe git operations
+        if any(op in cmd_lower for op in ["status", "diff", "log", "branch"]):
+            return GateDecision(
+                decision="ALLOW",
+                reason="safe_git_operation",
+                risk="low",
+                required_confirmations=[],
+                sanitized_paths=sanitize_paths(spec.paths, policy),
+                evidence_summary="safe git read operation",
+            )
+        # Destructive git operations
+        if any(op in cmd_lower for op in ["reset --hard", "clean -fd", "push --force", "push -f"]):
+            return GateDecision(
+                decision="BLOCK",
+                reason="destructive_git_operation",
+                risk="critical",
+                required_confirmations=["explicit_git_approval"],
+                sanitized_paths=sanitize_paths(spec.paths, policy),
+                evidence_summary="destructive git operation blocked",
+            )
+        # Other git writes
+        if any(op in cmd_lower for op in ["add", "commit", "push", "checkout", "merge", "rebase"]):
+            return GateDecision(
+                decision="ASK_USER",
+                reason="git_write_operation",
+                risk="medium",
+                required_confirmations=["git_operation_approval"],
+                sanitized_paths=sanitize_paths(spec.paths, policy),
+                evidence_summary="git write operation requires approval",
+            )
+        return GateDecision(
+            decision="ASK_USER",
+            reason="unknown_git_operation",
+            risk="medium",
+            required_confirmations=["git_operation_review"],
+            sanitized_paths=sanitize_paths(spec.paths, policy),
+            evidence_summary="unknown git operation requires review",
         )
 
     if spec.action_type == "delete_file":

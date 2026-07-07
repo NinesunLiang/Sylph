@@ -1,17 +1,20 @@
 #!/usr/bin/env python3
+"""
+Pretool Fallback Check — CarrorOS PreActionGate Fallback 检测
+
+Purpose:
+  Before each tool use, check if the active task is in fallback/blocked state.
+  Removed stamp — every PreToolUse gets checked.
+  Calls fallback_engine for detection, does not duplicate decision logic.
+"""
+
 from __future__ import annotations
 
-from carroros_hooklib import OMC, active_token, hook_block, hook_continue
-
-STAMP_FILE = OMC / "state" / ".fallback-check-done"
+from carroros_hooklib import active_token, hook_block, hook_continue
 
 def main() -> int:
-    # ─── stamp 检查：第一步后永久跳过 ───
-    if STAMP_FILE.exists():
-        return hook_continue("FallbackCheck: SKIP already_done")
-
     token, token_path = active_token()
-    if not token:
+    if not token or not token_path:
         return hook_continue("FallbackCheck: NO_TASK")
 
     task = token.get("task", {}) or {}
@@ -30,9 +33,12 @@ def main() -> int:
     if fallback.get("unresolved"):
         return hook_block(f"FallbackCheck: BLOCK unresolved_fallback reason={fallback.get('reason', 'unknown')}")
 
-    # ─── 写 stamp ───
-    STAMP_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STAMP_FILE.write_text("1")
+    # Check session-level fallback
+    session = token.get("session", {}) or {}
+    if session.get("fallback"):
+        fb = session["fallback"]
+        reason = fb.get("reason", "unknown")
+        return hook_continue(f"FallbackCheck: session_fallback reason={reason}")
 
     return hook_continue("FallbackCheck: ALLOW")
 
