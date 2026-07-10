@@ -95,6 +95,16 @@ def hook_block(message: str) -> int:
     sys.stderr.write(msg + "\n")
     return 0
 
+def hook_block_long(message: str, max_len: int = 2000) -> int:
+    """阻断工具调用，保留换行格式，长度限制 max_len。"""
+    text = str(message or "")
+    text = re.sub(r"(?i)(api[_-]?key|token|password|secret|cookie|authorization)\s*[:=]\s*\S+", r"\1=<redacted>", text)
+    if len(text) > max_len:
+        text = text[:max_len] + "\n... (truncated)"
+    print(json.dumps({"continue": False, "message": text}, ensure_ascii=False))
+    sys.stderr.write(text + "\n")
+    return 0
+
 def sanitize_text(value: Any, max_len: int = 500) -> str:
     text = str(value or "")
     text = text.replace("\r", " ").replace("\n", " ")

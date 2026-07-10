@@ -220,6 +220,20 @@ def _check_verified(step_id: str | None) -> bool:
 
 # ── Gate Checks (ordered, each returns None=pass or str=block_reason) ──
 
+def _auto_init(target_path: str | None = None) -> None:
+    """自动 init：无 token 写操作时后台初始化 task 文档系统"""
+    import subprocess
+    try:
+        script = ROOT / ".claude/scripts/carros_base.py"
+        if not script.exists():
+            return
+        cmd = [sys.executable, str(script), "init", "--auto"]
+        if target_path:
+            cmd += ["--target", target_path]
+        subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=10)
+    except Exception:
+        pass
+
 def _check_sensitive_edit(payload: dict) -> str | None:
     """Gate 1: block sensitive path writes only (reads are safe)."""
     tool = _extract_tool(payload).lower()
@@ -283,13 +297,16 @@ def _check_action_gate(payload: dict) -> str | None:
     return None
 
 def _check_plan_gate(payload: dict) -> str | None:
-    """Gate 4: block writes only when a formal task is active but files are missing."""
+    """Gate 4: 自适应自治 — 无 token 自动 init，不阻断"""
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
     token = _active_token()
     if not token:
-        return None  # no active task → allow
+        # 无 token → auto-init（不会阻阻断）
+        path = _extract_path(payload)
+        _auto_init(path)
+        return None  # 放行
     task = token.get("task", {})
     if not isinstance(task, dict):
         return None
@@ -297,9 +314,8 @@ def _check_plan_gate(payload: dict) -> str | None:
         return f"BLOCK task_status_{task.get('status')}"
     task_dir = _task_dir(token)
     if not task_dir:
-        return None  # no task_dir → not a formal task, allow writes
+        return None
     plan = task_dir / "plan.md"
-    # Only block if task_dir exists but plan is missing (formal task started but incomplete)
     if not plan.exists():
         return f"BLOCK plan_missing task_dir={task_dir}"
     if not task.get("current_step"):
@@ -307,7 +323,7 @@ def _check_plan_gate(payload: dict) -> str | None:
     return None
 
 def _check_edit_scope(payload: dict) -> str | None:
-    """Gate 5: block writes outside declared scope (only for formal tasks)."""
+    """Gate 5: 越界不阻断，记录 audit（方案二：柔性约束）"""
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
@@ -316,26 +332,43 @@ def _check_edit_scope(payload: dict) -> str | None:
         return None
     token = _active_token()
     if not token:
-        return None  # no active task → allow writes
+        return None
+    # 检查 token scope（比 plan scope 优先）
+    token_scope = token.get("scope") or []
+    if token_scope:
+        in_scope = _in_scope(path, token_scope)
+        if in_scope:
+            return None
+        # 越界 → audit 不阻断
+        _append_audit({
+            "event_type": "scope_violation",
+            "actor": "hook:pretool-gate",
+            "decision": "WARN",
+            "reason": "token_scope_violation",
+            "path": path,
+            "scope": token_scope[:10],
+        })
+        return None  # 放行
+    # 回退到 plan scope 检查
     task_dir = _task_dir(token)
     if not task_dir:
-        return None  # no task_dir → not a formal task, allow writes
+        return None
     plan_path = task_dir / "plan.md"
     if not plan_path.exists():
-        return None  # no plan → not a formal task with scope, allow writes
+        return None
     scope = _parse_scope(plan_path.read_text(encoding="utf-8"))
     if not scope:
-        return None  # no scope declared → allow writes (plan may not need scope)
+        return None
     if not _in_scope(path, scope):
         _append_audit({
-            "event_type": "preaction_decision",
+            "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "BLOCK",
-            "reason": "scope_violation",
+            "decision": "WARN",
+            "reason": "plan_scope_violation",
             "path": path,
             "scope": scope[:10],
         })
-        return f"BLOCK scope_violation path={path}"
+        return None  # 放行
     return None
 
 def _check_verify_gate(payload: dict) -> str | None:

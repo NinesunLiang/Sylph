@@ -1,8 +1,8 @@
 # .gitignore
-.omc/state/
-.omc/archive/
+.omc/
 __pycache__/
 *.pyc
 node_modules/
 .DS_Store
 *.bak
+.claude/.prompt-ring.json

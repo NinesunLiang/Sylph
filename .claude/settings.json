@@ -1,88 +1,13 @@
 {
-  "statusLine": {
-    "type": "command",
-    "command": ".claude/hooks/hook-launcher.sh statusline-command.sh"
+  "env": {
+    "CARROROS_CONTEXT_LIMIT": "1000000"
   },
-  "hooks": {
-    "UserPromptSubmit": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh userprompt-level-hint.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh userprompt-prompt-collector.py"
-          }
-        ]
-      }
-    ],
-    "PreToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-sensitive-edit.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-verify-gate.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-action-gate.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-fallback-check.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-plan-gate.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-edit-scope.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh pretool-oracle-gate.py"
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh posttool-audit.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh posttool-output-compress.py"
-          },
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh posttool-archive-check.py"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "matcher": "*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/hook-launcher.sh posttool-completion-gate.py"
-          }
-        ]
-      }
-    ]
-  }
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
+  },
+  "effortLevel": "xhigh",
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "model": "deepseek-chat",
+  "apiUrl": "http://127.0.0.1:9998"
 }

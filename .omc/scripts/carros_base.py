@@ -384,6 +384,45 @@ def _run_plan_builder(intake_decision, user_request, task_id, feature=None):
         os.unlink(intake_path)
 
 
+def cmd_auto_init(steps=None, target=None):
+    """自动初始化模式 — 不要求 task_id，根据当前上下文自动推导。
+
+    用于 PretoolUse hook 自动 init 场景：检测到无 token 写操作时，
+    自动生成 token + task 文档，不阻断 agent 工作流。
+
+    task_id 格式：auto_{ts}_{target_file_hash_short}
+    scope 自动推导：从写操作的目标文件路径
+    """
+    import hashlib
+    now = datetime.now(timezone.utc)
+    ts = now.strftime("%H%M%S")
+    if target:
+        h = hashlib.md5(target.encode()).hexdigest()[:6]
+        tid = f"auto_{h}_{ts}"
+    else:
+        tid = f"auto_{ts}"
+    if steps is None:
+        steps = ["S1"]
+    _init_task_paths(task_id=tid)
+    token = _default_token(task_id=tid, level="L1", steps=steps)
+    # 如果提供了 target，写入 scope
+    if target:
+        token["scope"] = [target]
+    _save_token(token)
+    _write_default_plan(steps=steps)
+    _write_default_executor()
+    _write_default_research()
+    _init_task_dirs()
+    _write_handoff(_load_token() or token)
+    print(f"Auto-init complete: {tid}")
+    _write_audit("auto_init", {
+        "task_id": tid,
+        "target": target,
+        "reason": "no_active_token",
+    }, fallback=True)
+    return 0
+
+
 def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None):
     """初始化任务 — IntakeGate 分级 → PlanBuilder 生成冻结计划"""
     _init_task_paths(task_id=task_id, task_dir=task_dir)
@@ -1956,6 +1995,7 @@ def main(argv=None):
         task_dir = None
         user_request = None
         feature = None
+        auto_mode = False
         i = 0
         while i < len(args):
             if args[i] == "--task-id" and i + 1 < len(args):
@@ -1980,8 +2020,16 @@ def main(argv=None):
             elif args[i] == "--feature" and i + 1 < len(args):
                 feature = args[i + 1]
                 i += 2
+            elif args[i] == "--auto":
+                auto_mode = True
+                i += 1
+            elif args[i] == "--target" and i + 1 < len(args):
+                target = args[i + 1]
+                i += 2
             else:
                 i += 1
+        if auto_mode:
+            return cmd_auto_init(steps=steps, target=target)
         return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature)
 
     elif command == "verify":

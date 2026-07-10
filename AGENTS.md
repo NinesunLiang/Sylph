@@ -26,6 +26,7 @@
 4. 隐私防线 — 禁止读 .env / 密钥 / .ssh
 5. 不假完成 — 没跑 VerifyGate = 没完成
 6. 不自改治理 — 不改 AGENTS.md / kernel.md / index.md
+7. **先 init 后动手** — 任何任务必须先 `carros_base.py init` 创建任务文档（`.omc/tasks/`）和令牌（`.omc/tokens/`），再改代码。跳过 init 直接改是违规。完整链路：init → Step → tick+verify → archive。
 
 
 
