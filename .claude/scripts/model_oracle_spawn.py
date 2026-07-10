@@ -153,9 +153,9 @@ def _parse_meta_output(stdout: str) -> OracleReview | None:
     for i in range(len(lines) - 1, -1, -1):
         line = lines[i].strip()
         if line.startswith("{") or line.startswith("  {"):
-            # 尝试从这行向前拼 JSON
-            for j in range(i, max(i - 50, -1), -1):
-                candidate = "\n".join(lines[j:i+1]).strip()
+            # 尝试从这行向后拼 JSON（到下一个 } 结束）
+            for j in range(i, min(i + 50, len(lines))):
+                candidate = "\n".join(lines[i:j+1]).strip()
                 if candidate.startswith("{") and candidate.endswith("}"):
                     try:
                         data = json.loads(candidate)
@@ -218,12 +218,10 @@ def orchestrate_review(
             run_static_oracle_inproc, task_id, plan_path, executor_path, diff_path
         )
 
-        # runtime（仅在有证据时跑）
-        has_runtime_evidence = bool(token_path or logs_path or executor_path)
-        if has_runtime_evidence:
-            futures["runtime"] = executor.submit(
-                run_runtime_oracle_inproc, task_id, executor_path, token_path, logs_path
-            )
+        # runtime（无参数时用默认值跑，spawn 是编排器，应始终调度所有 oracle）
+        futures["runtime"] = executor.submit(
+            run_runtime_oracle_inproc, task_id, executor_path, token_path, logs_path
+        )
 
         # 等 static
         try:

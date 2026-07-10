@@ -3,8 +3,8 @@
 CarrorOS Prompt Collector + Lightweight Compact Hook — UserPromptSubmit
 
 Purpose:
-  1. Maintain rolling ring buffer of last 20 user prompts (.prompt-ring.json)
-  2. Every 5 prompts: auto-run compact-write (update handoff + last-user-prompt)
+  1. Maintain rolling ring buffer of last 20 user prompts (last-user-prompt.md)
+  2. Every 5 prompts: auto-run compact-write (update handoff)
 
   This is the "compact 前的 hook" — runs right before each UserPromptSubmit
   boundary. No PostToolUse polling, no watermark calculation, no tool counter.
