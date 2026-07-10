@@ -1,0 +1,12 @@
+{
+  "goal": "把本地的 Claude Code 终端请求打包给 xsimplechat GPT-5.5 回答；正确解析返回数据包（含 SSE）；完成 chat 转 coding 模式的代理",
+  "activated_at": "2026-07-07T18:50:00",
+  "expires_at": "2026-07-08T18:50:00",
+  "status": "archived",
+  "scope": {
+    "location": "/Users/lucas.liang/Desktop/lock/",
+    "server_port": 8765,
+    "adapter_file": "adapter_server.py",
+    "auth_file": "session_config.json"
+  }
+}

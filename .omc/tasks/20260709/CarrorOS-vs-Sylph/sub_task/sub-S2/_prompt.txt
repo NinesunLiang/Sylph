@@ -1,0 +1,3017 @@
+你是一个 CarrorOS SubAgent。执行以下子任务并汇报。
+
+## 子任务: S2
+目标: 分析 Sylph（~/Desktop/Sylph/Carror_OS/）的架构优劣势，包含治理哲学、hook系统、三门户设计等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。
+
+## 涉及的 AC（验收条件）
+- AC-SYLP
+
+## 涉及的文件
+- 无特定文件要求
+
+## 任务上下文
+=== 验收条件 ===
+
+  AC-SYLP: 输出 Sylph 的优劣势分析（至少5个维度，基于实际源文件）
+
+=== 项目源文件内容 ===
+
+### ~/Desktop/Sylph/Carror_OS/AGENTS.md
+```
+@.claude/kernel.md
+@.claude/index.md
+
+# Carror OS — 行为治理路由
+
+| 域 | 说明 | 引用 |
+|:---|:---|:---|
+| 哲学铁律 | 7条哲学+8条铁律+冲突裁决, 机制→哲学双向追溯见 .claude/reference/philosophy-mechanism-matrix.md | AGENTS.md §哲学铁律 |
+哲学优先级:#4(验证)>#6(0信任)>#3(守护)>#7(文档)>#5(人)>#2(增益)>#1(less)
+
+铁律:
+1.禁止编造:断言必有file:line/命令输出→BLOCKED,回滚+重做
+2.用户裁定:验收/选型/冲突由Boss决定→AI不可自判,等待指令
+3.证据门禁:无VERIFIED证据禁止说"已完成/已验证"→重新验证
+4.Git门禁[auto]:编译→功能→报告→Boss批准→提交,跳步=回滚
+5.范围冻结[auto]:一次一Step,非核心→TODO,越界→撤销
+6.隐私防线:禁读.env/私钥,禁Bash敲明文Token→强阻断
+7.断言真实[auto]:百分比/评分须有来源URL/file:line,无→标注[内部自检]
+8.哲学先行:问人前先过哲学7条,能裁决→[哲学先行:#N→action]直接执行;仅偏好/不可逆/授权/合规可例外
+9.读操作不阻断[auto]:Read/Grep/非写Bash 永不阻断，仅在敏感路径( .env/密钥 )保留隐私拦截。所有 hook 不得因读操作 exit(2)，违者 P0
+
+#8细则:过程性→直接执行；抉择性→按决策树裁决
+决策树：
+  操作是否不可逆/删除/发布/涉及安全？
+  ├─ YES → #2 用户裁定 → 问 Boss
+  └─ NO  → 技术或过程性决策？
+       ├─ 过程性(已验证路径) → 直接执行
+       └─ 技术选择 → #2 最小改动原则选方案，标注理由
+哲学冲突裁决:#4>#6>#3>#7>#5>#2>#1
+权威链:Boss指令>项目宪法>PRD>Skill>设计文档>代码
+
+──────────────────────
+编码内核
+──────────────────────
+软完成语→VERIFIED:应该没问题/基本完成/理论上/看起来正常/差不多了/之前验证过/should be fine/basically done
+hook铁则:禁set -e,必须exit 0/echo continue|hc_enabled门禁|永不阻断
+修复上限:同一问题3轮→BLOCKED升级,关键脚本先备份+bash -n
+命名:hook=snake_case,skill=lx-前缀,版本=VERSION.json
+测试:改hook→smoke-test全绿|改版本→audit-hooks三方对齐|安全正则≥4路径
+禁止:set -e,eval,for无引号,json.load→replace→dump,||echo 0双输出bug,sed空行号
+操作约束:编辑→Read-before-Edit+scope越界BLOCKED|Bash→commit/push/rm-rf/sudo拦截|完成→≥60chars+≤300s freshness|隐私→.env/Token/密钥拦截
+置信度:[已验证:file:line]确认|[已测试:命令+输出]实测|[推断,待确认]推理
+
+──────────────────────
+难度分级
+──────────────────────
+    L1单步→直接（简单）|L2多步→Step清单（中等）|L3+→需审核（复杂）
+    审核门:L2+非琐碎→审核,通过→继续,修改→重审,拒绝→报Boss
+    7-step:三级渐进(认知→编码→验证),绕不开的黄金弧,每个Step有具体产出物
+    triple_gate:Oracle审(每阶段)→Meta-Oracle审(G1-G4触发)→Human终审(Release),三重保底
+
+──────────────────────
+路由索引（Read on demand，无@展开；但 skill body.md 是强制执行合约，hook 自动注入）
+──────────────────────
+name            | 场景                    | where
+─────────────────────────────────────────────────────────────
+铁律压缩         | /compact后知识恢复       | .omc/state/context-cache.md
+接入表           | 查hook触发链             | .claude/index.md
+Skills(26个)     | 选型/编排               | .claude/skills/ + docs/guides/cn/skills-catalog.md
+Skill依赖图      | 查skill链式调用          | .claude/reference/skill-graph.md
+Nodes            | 20个原子工作流组件        | .claude/nodes/README.md
+Feature Registry | hook功能注册+哲学归属     | .claude/feature-registry.yaml
+Schemas          | 数据结构校验              | .claude/schemas/registry.yaml
+Profiles         | 5语言治理配置             | .claude/profiles/
+发布流水线       | 发版/打包                | scripts/package-release.sh
+Source Mirror    | 打包前检查                | .claude/reference/source-mirror-discipline.md
+狗粮Triage       | 问题诊断                  | .claude/skills/lx-dogfood/SKILL.md
+Red Team         | 防御升级                  | .claude/reference/red-team.md
+三源一致性       | 一致性验证                | .claude/reference/three-source-consistency.md
+审核门           | 架构/PRD/高分/发版时      | .claude/reference/meta-oracle.md
+五阶工作流 v4.0  | L2+任务前                | .claude/workflow-standard/README.md
+UI还原工作流     | UI还原                   | .claude/docs/ui-restoration-workflow.md
+执行模式         | 模式选择（Race/Stepwise 状态机）      | .claude/reference/execution-modes.md
+执行模式矩阵     | RPE/Ghost/Goal/监督模式选 race/stepwise | docs/technical/cn/execution-mode-matrix.md
+自主决策链       | 无人值守决策              | .claude/reference/autonomous-decision-chain.md
+Task系统         | RPE任务模板               | .claude/task_sys/
+Race检测         | 并行冲突检测              | .claude/race/state-machine.md
+RaceSwarm并行(v1) | 旧race_swarm.py兼容   | .claude/scripts/race_swarm.py
+RaceSwarm并行(v2) | 文档驱动并行(新)        | packages/carroros-gov/src/scripts/race-tool.py + .claude/reference/race-subagent-protocol.md
+编码规范         | 写hook/Bash前             | .claude/rules/
+反模式           | 17种AI失败模式+对策       | .claude/anti-patterns.md
+学习笔记         | 历史踩坑记录               | .claude/claude-next.md
+机制矩阵         | 规则实现追溯 / 哲学一致性回顾  | .claude/reference/philosophy-mechanism-matrix.md
+Hook配置         | 排查hook不触发             | .claude/settings.json
+治理开关         | 调整参数                   | .claude/harness.yaml
+会话交接         | compact后/跨会话恢复        | .omc/state/session-handoff.md
+subagent状态     | 子agent调用记录+状态同步    | .omc/state/subagent-state.md + subagent-usage.jsonl
+用户文档         | 入门/进阶/LSP              | .claude/reference/docs-index.md
+架构铁律         | 执行前快速复核              | .claude/kernel.md
+跨平台路由       | 跨平台切换                | .claude/scripts/ + packages/carroros-gov/
+Agent 路由       | 选择agent                 | .claude/scripts/context.py
+Thinking Gate    | thinking过滤               | .claude/reference/thinking-content-gate.md
+─────────────────────────────────────────────────────────────
+
+```
+
+### ~/Desktop/Sylph/Carror_OS/.claude/kernel.md
+```
+# 数字资产管理内核（压缩版）
+
+> 知识进化引擎 — 运行时事件→铁律生长管道
+> 资产路径: .omc/state/ + ~/.claude/ — kernel.md 是管理员
+
+## 架构铁律
+
+> 完整铁律见 AGENTS.md §哲学铁律 — kernel.md 只维护增量。
+
+- 知识管道：事件 → 计数 → 升华 → kernel.md
+- 资产状态：运行时数据不可假造，不可写入 kernel.md
+- 守护原则：Asset 守卫优先于功能
+- **读不阻断：Read/Grep/非写Bash 永不阻断，仅敏感路径拦截**
+
+## 资产地图
+
+| 资产 | 用途 | 守卫 | 运行时路径 |
+|:---|:---|:---|:---|
+| flywheel.log | 全hook事件流 (CSV格式) | flywheel_report SessionStart | `~/.claude/flywheel.log` (HOME) |
+| 蛇形命名(snake-case) | hook/script命名规范 | 一致性检查 | — |
+
+## 架构铁律
+
+执行前快速复核——8条核心铁律（完整版见 AGENTS.md）：
+1. 禁止编造、2. 用户裁定、3. 证据门禁、4. Git门禁
+5. 范围锁定、6. 隐私防线、7. 断言真实、8. 哲学先行
+
+| error-dna.jsonl | E2验证码伪造 | 归档轮转 >1MB |
+| governance-audit.jsonl | E1治理绕过 | 无自动清理 |
+| error-signals.jsonl | 普通Bash错误 | 7天/512KB清空 |
+| retry-budget.json | signature重试计数 | 3轮上限 |
+| escape-patches.json | E1/E2自动修复建议 | 30d过期 |
+| claude-next.md | 用户纠正→DG教训(58条) | >40条告警 |
+
+## 管道: 事件→教训→规则→铁律
+
+**Phase1 采集**: 每个hook → flywheel_event → flywheel.log | error-dna.sh拦截PostToolUse:Bash+Failure → 隐私脱敏/签名/分类/E1E2逃逸检测
+
+**Phase2 感知**: flywheel-report.sh(SessionStart) P0≥5次+未ack→报告+通知 | error-dna高频扫描 signature≥5→session告警 | 逃逸E1/E2→即时写入additionalContext
+
+**Phase3 记录**: pretool-user-correction(UserPromptSubmit)检测纠正信号→DG-[N]骨架到claude-next.md | Agent补充根因后hits+1
+
+**Phase4 升华**: knowledge-condenser.sh(Stop)扫描hits≥2→阈值(hits5+age10d→kernel, hits3+age7d→kernel, hits3+age5d→建议) | >40条→清理告警
+
+**Phase5 生长**: 极稳定kernel规则→候选铁律→Boss仲裁
+
+## Compact 记忆恢复
+
+- **Before**: stop-drain.sh→extract-compact-memory.py→todo-queue.md(最近20询问+任务摘要)
+- **After**: context-compressor.sh→context-cache.md(铁律/反模式/架构压缩) | inject-project-knowledge.sh→todo-queue.md+session-handoff.md(Feature/进度/决策)+session-dump.json摘要
+
+## E1/E2 逃逸
+
+- **E1**: Bash含治理文件路径(harness.yaml, settings.json, kernel.md, anti-patterns.md, index.md, claude-next.md, AGENTS.md等)→governance-audit.jsonl→自动补丁
+- **E2**: Bash含CAPTCHA标记(sensitive-approved/permission-required等)→error-dna.jsonl→自动补丁
+
+## 置信度管道
+
+输出必须带置信度标记：
+| 标记 | 含义 | 使用条件 |
+|:---|:---|:---|
+| [已验证:file:line] | 断言有源码/输出证据 | 引用具体文件+行号 |
+| [已测试:命令+输出] | 实际运行验证过 | 附命令和结果摘要 |
+| [推断,待确认] | 推理，未经证实 | 所有非验证断言 |
+
+## 运行模式
+
+- **无人**: goal/ghost/rpe → L4权限/风险→记录跳过 | **有人**: ToDo/Task-spec/标准 → L4穿透到人
+- **模式选择**: L2+ 任务先过 `docs/technical/cn/execution-mode-matrix.md` 选 race / stepwise / direct
+  - race（并行）: MECE 分解 ≥3 同构子任务 → `race-tool.py` 文档驱动
+  - stepwise（串行）: 有依赖/根因不明/跨模块 → 每步验证
+  - direct: 单文件小改 → 直接执行+证据门禁
+- Skill body.md强制执行: PreToolUse:Skill自动注入, PostToolUse:Skill审计合规
+
+```
+
+### ~/Desktop/Sylph/Carror_OS/.claude/index.md
+```
+# Hook路由注册表
+
+> 接入表: Event:Matcher→Hooks — 与 AGENTS.md 路由索引格式一致,权责不重复
+> 注: 所有 hook 注册在 `settings.hooks.*` 下，settings.json 顶层无独立 hook 注册段。
+
+──────────────────────
+SessionStart
+──────────────────────
+*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|sessionstart-gate-check|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate|cross-platform-smoke-test|session-inject
+
+──────────────────────
+PreToolUse（操作前阻断）
+──────────────────────
+Edit|Write→pretool-oracle-gate(py+sh)|edit-guard|pre-edit-lsp-check|pretool-purify-gate|pretool-skill-version-guard|context-guard(W50/D80)|pretool-write-lock|pretool-sensitive-file-guard|pretool-b1-detect|pretool-edit-scope|pretool-scope-gate|pretool-workflow-gate|pretool-git-gate
+Edit|Write|Bash→pretool-sensitive-edit|pretool-plan-gate
+Bash→permission-gate|pretool-retry-check|pretool-blast-radius|pretool-terminal-safety(max:2000)
+Bash|Read|Grep→privacy-gate(.env/Token拦截)
+Grep→lsp-suggest
+Task→subagent-guard
+TaskUpdate→pre-completion-gate
+AskUserQuestion→pre-ask-guard
+Agent→pretool-node-reference
+Skill→pretool-skill-body-enforce
+.*→fuzzy-block
+
+──────────────────────
+PostToolUse（操作后审计）
+──────────────────────
+Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
+AGENTS.md→pretool-agents-merge
+TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
+TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check|phase-state-tracker
+Read→read-tracker|posttool-read-cite
+Bash→posttool-bash-audit|posttool-output-compressor|error-dna|build-validator
+Skill→skill-usage-tracker|posttool-skill-compliance
+Task|Agent→posttool-subagent-audit
+.*→token_writer|meta-oracle-trigger(py+sh)|agentic-ui|permission-frequency-tracker
+
+──────────────────────
+PostToolUseFailure
+──────────────────────
+Bash→error-dna|posttool-bash-audit|build-validator
+
+──────────────────────
+UserPromptSubmit
+──────────────────────
+*→pretool-user-correction|turn-counter|pretool-rules-inject
+.*→pretool-approve-detect|thinking-gate
+
+──────────────────────
+Stop
+──────────────────────
+*→auto-snapshot|skill-flywheel|stop-drain|posttool-checkpoint
+
+```
+
+### ~/Desktop/Sylph/Carror_OS/.claude/harness.yaml
+```
+harness_version: 7.0.0
+mode: relaxed
+
+workflow:
+  doc_root: rpe
+  executor_doc: executor.md
+  plan_doc: plan.md
+  research_doc: research.md
+
+task_decomposition:
+  require_step_file: true
+  step_file_path: .claude/{YYYY-M-D}/{task}_step.md
+  substep_format: '[ ] {描述} → 验收标准'
+  timeout_minutes: 10
+  max_different_approaches: 3
+  on_exceed_attempts: record_in_step_file_and_continue
+  sync_rule: complete_one_mark_one
+  circuit_breaker_states: Closed → Open → Half-Open
+  half_open_retry: true
+  rollback_declaration: required_for_strict_mode
+
+knowledge:
+  inject_files: false
+  snapshot_expiry_sec: 86400
+
+ghost_mode:
+  exit_report_gate: true
+  default_poll_interval: 600
+  default_expiry_hours: 3
+  default_min_iterations: 0
+
+turn_counter:
+  todo_refresh_interval: 10
+  todo_max_items: 15
+
+fuzzy_detection:
+  fuzzy_verbs: 继续 优化 修复 改进 完善 处理一下 看一下 搞一下
+
+lsp_suggest:
+  enabled: true
+
+completion_gate:
+  min_evidence_chars: 60
+  required_keyword: VERIFIED
+  quality_threshold: 60
+  evidence_freshness_sec: 300
+  soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
+    done|mostly complete|seems to work|probably works|theoretically|should work|looks
+    good
+
+bash_audit:
+  dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
+  fail_streak_threshold: 3
+  hard_block_threshold: 10
+
+permission_gate:
+  git_commit_regex: git\s+(commit|add\s+--?all|\badd\b.*-A)
+  git_push_force_regex: git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force
+  git_push_regex: git\s+push\b
+  destructive_regex: \brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b
+  sudo_regex: ^\s*sudo\b|sudo\s
+  gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
+  bypass_regex: base64\s+(-d|--decode).*\|\s*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|\s*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
+  scope_write_regex: current-scope\.txt|sensitive-approved|permission-approved
+  approved_ops_ttl: 1800
+  c1_whitelist: ""
+
+hooks_enabled:
+  # 核心安全（不可协商）
+  permission_gate: true
+  privacy_gate: true
+  fuzzy_block: true
+  pretool_retry_check: true
+  completion_gate: true
+
+  # 提效（用户感知变好）
+  context_compressor: true
+  session_resume: true
+  posttool_handoff_writer: true
+  knowledge_condenser: true
+  inject_project_knowledge: true
+  pretool_edit_scope: true
+  lsp_suggest: true
+  context_guard: true
+
+  # 工作流（用户感知变稳）
+  posttool_checkpoint: true
+  meta_oracle_trigger: true
+  pretool_plan_gate: true
+  subagent_guard: true
+
+  # 全关
+  auto_snapshot: false
+  build_validator: false
+  cross_platform_smoke_test: false
+  distinct_concept_richner: false
+  ecosystem_probe: false
+  edit_guard: false
+  error_dna: false
+  error_dna_aggregator: false
+  error_dna_auto_fix: false
+  error_dna_shard: false
+  flywheel_report: false
+  intent_tracker: false
+  oracle_gate: false
+  permission_frequency_tracker: false
+  phase_state_tracker: false
+  plan_gate: false
+  posttool_anti_pattern_detect: false
+  posttool_bash_audit: false
+  posttool_claim_audit: false
+  posttool_completion_audit: false
+  posttool_edit_quality: false
+  posttool_error_dna_shard: false
+  posttool_format_gate: false
+  posttool_output_compressor: false
+  posttool_read_cite: false
+  posttool_skill_compliance: false
+  posttool_subagent_audit: false
+  posttool_template_check: false
+  posttool_write_cite: false
+  posttool_write_lock: false
+  pre_ask_guard: false
+  pre_completion_gate: false
+  pre_edit_lsp_check: false
+  pretool_agents_merge: false
+  pretool_approve_detect: false
+  pretool_b1_detect: false
+  pretool_blast_radius: false
+  pretool_compact_writer: false
+  pretool_cruise_check: false
+  pretool_git_gate: false
+  pretool_node_reference: false
+  pretool_oracle_gate: false
+  pretool_purify_gate: false
+  pretool_rules_inject: false
+  pretool_scope_gate: false
+  pretool_sensitive_edit: false
+  pretool_sensitive_file_guard: false
+  pretool_skill_body_enforce: false
+  pretool_skill_version_guard: false
+  pretool_terminal_safety: false
+  pretool_user_correction: false
+  pretool_write_lock: false
+  read_tracker: false
+  score_archiver: false
+  sessionstart_gate_check: false
+  skill_flywheel: false
+  skill_usage_tracker: false
+  stop_drain: false
+  thinking_gate: false
+  token_writer: false
+  turn_counter: false
+  user_correction_detector: false
+
+terminal_safety:
+  max_command_length: 2000
+
+fail_closure:
+  security_gates: close
+  quality_gates: close
+
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/agentic-ui.py
+```
+#!/usr/bin/env python3
+"""
+agentic-ui.py — 共享库（非 Hook） — Agentic UI 标准化输出函数
+
+Role: 提供统一的菜单/确认/CAPTCHA/状态输出，替代各 hook 中分散的纯文本 stderr
+
+This is a utility module; functions are primarily accessed via harness_lib.py.
+Exports additional UI functions beyond what harness_lib.py provides.
+"""
+
+import json
+import sys
+from typing import Optional
+
+
+# ── UI Constants ──
+
+SEPARATOR = "═══════════════════════════════════════════════════════════════"
+INDENT = "  "
+
+ICONS = {
+    "block": "⛔",
+    "warn": "⚠️",
+    "info": "ℹ️",
+    "success": "✅",
+    "lock": "🔐",
+    "captcha": "🔑",
+    "menu": "📋",
+    "danger": "🚫",
+}
+
+
+def banner(level: str, title: str, message: str):
+    """Print a formatted banner to stderr."""
+    icon = ICONS.get(level, "ℹ️")
+    print(f"\n{icon} [{title}] {message}\n", file=sys.stderr)
+
+
+def separator():
+    """Print separator line to stderr."""
+    print(SEPARATOR, file=sys.stderr)
+
+
+def status(level: str, title: str, message: str, detail: str = ""):
+    """Print a formatted status block to stderr."""
+    icon = ICONS.get(level, "ℹ️")
+    print(f"\n{icon} [{title}]\n{SEPARATOR}\n{message}", file=sys.stderr)
+    if detail:
+        print(f"{INDENT}{detail}", file=sys.stderr)
+    print("", file=sys.stderr)
+
+
+def breakdown(title: str, *items: str):
+    """Print a breakdown list to stderr."""
+    print(f"\n{ICONS['info']} [{title}]\n{SEPARATOR}", file=sys.stderr)
+    for item in items:
+        print(f"{INDENT}{item}", file=sys.stderr)
+    print("", file=sys.stderr)
+
+
+def table(title: str, headers: list, rows: list):
+    """Print a simple table to stderr."""
+    # Calculate column widths
+    widths = [len(h) for h in headers]
+    for row in rows:
+        for i, cell in enumerate(row):
+            widths[i] = max(widths[i], len(str(cell)))
+
+    sep = "+" + "+".join("-" * w for w in widths) + "+"
+
+    print(f"\n{ICONS['info']} {title}", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print("|" + "|".join(f" {h:{w}} " for h, w in zip(headers, widths)) + "|", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    for row in rows:
+        padded = [str(c) if i < len(row) else "" for i, c in enumerate(row)]
+        print("|" + "|".join(f" {p:{w}} " for p, w in zip(padded, widths)) + "|", file=sys.stderr)
+    print(sep, file=sys.stderr)
+    print("", file=sys.stderr)
+
+
+def progress(step: int, total: int, description: str):
+    """Print a progress line to stderr."""
+    print(f"{ICONS['info']} [{step}/{total}] {description}...", file=sys.stderr)
+
+
+def context(message: str) -> dict:
+    """Build an additionalContext dict for hook output.
+
+    Returns dict for use with hc_emit_hook_json.
+    """
+    return {"continue": True, "hookSpecificOutput": {"additionalContext": f"[AGENTIC] {message}"}}
+
+
+def context_block(message: str):
+    """Build a blocking additionalContext and exit.
+
+    Equivalent to agentic_context_block() in agentic-ui.sh.
+    """
+    result = {
+        "continue": False,
+        "hookSpecificOutput": {
+            "additionalContext": f"[AGENTIC:BLOCK] {message}",
+        },
+    }
+    print(json.dumps(result, ensure_ascii=True))
+    sys.exit(2)
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.py
+```
+#!/usr/bin/env python3
+"""auto-snapshot.py — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）
+Role: 会话结束时自动保存状态快照（分支/轮次/未提交文件）
+
+等效移植自 auto-snapshot.sh (532行):
+- 保存 session-snapshot.json (含 timestamp/turns/branch/modified_files/staged_files)
+- SHA256 防篡改摘要
+- 文档同步检查 (源文件修改时提醒更新 executor.md)
+- 生成 session-handoff.md 交接备忘录
+- 生成 session-dump.json 结构化转储
+- 配置变更自动回归检测
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+# ─── 导入共享库 ───
+
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, output_continue
+
+# ─── 路径常量 ───
+
+PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
+STATE_DIR = PROJECT_ROOT / ".omc" / "state"
+SCRIPT_DIR = _HOOKS_DIR
+
+# ─── 跨平台获取文件 mtime ───
+
+def _get_mtime(filepath):
+    """获取文件的 mtime（秒级时间戳），跨平台兼容。"""
+    try:
+        return int(os.path.getmtime(str(filepath)))
+    except (OSError, ValueError):
+        return 0
+
+
+# ─── 读取轮次计数 ───
+
+def _read_turns():
+    """从 session-turns.json 读取轮次计数。"""
+    turns_file = STATE_DIR / "session-turns.json"
+    if not turns_file.exists():
+        return 0
+    try:
+        with open(turns_file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return int(data.get("count", 0))
+    except (json.JSONDecodeError, ValueError, OSError):
+        pass
+    # fallback: grep-style parsing
+    try:
+        content = turns_file.read_text(encoding="utf-8", errors="replace")
+        m = re.search(r'"count"\s*:\s*(\d+)', content)
+        if m:
+            return int(m.group(1))
+    except OSError:
+        pass
+    return 0
+
+
+# ─── 获取当前分支 ───
+
+def _get_branch():
+    """获取当前 git 分支名。"""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+            timeout=10
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except (subprocess.SubprocessError, OSError):
+        pass
+    return "unknown"
+
+
+# ─── git diff 文件列表 → JSON ───
+
+def _git_diff_names(cached=False):
+    """获取 git diff 文件列表，返回 list[str]。"""
+    cmd = ["git", "diff", "--name-only"]
+    if cached:
+        cmd.append("--cached")
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, cwd=str(PROJECT_ROOT),
+            timeout=10
+        )
+        if result.returncode == 0:
+            return [l.rstrip() for l in result.stdout.splitlines() if l.rstrip()]
+    except (subprocess.SubprocessError, OSError):
+        pass
+    return []
+
+
+# ─── 去除代理对（surrogate） ───
+
+def _strip_surr(obj):
+    """递归去除所有字符串中的 lone surrogate codepoints。"""
+    if isinstance(obj, str):
+        return "".join(c for c in obj if not (0xD800 <= ord(c) <= 0xDFFF))
+    if isinstance(obj, list):
+        return [_strip_surr(i) for i in obj]
+    if isinstance(obj, dict):
+        return {k: _strip_surr(v) for k, v in obj.items()}
+    return obj
+
+
+# ─── 写 JSON 文件（原子写入） ───
+
+def _write_json_atomic(filepath, data):
+    """原子写入 JSON 文件。"""
+    tmp = str(filepath) + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    os.rename(tmp, str(filepath))
+
+
+# ─── SHA256 防篡改摘要 ───
+
+def _write_sha256(filepath):
+    """写入 SHA256 摘要文件。"""
+    sha256_file = Path(str(filepath) + ".sha256")
+    try:
+        import hashlib
+        h = hashlib.sha256()
+        with open(filepath, "rb") as f:
+            h.update(f.read())
+        sha256_file.write_text(h.hexdigest() + "\n", encoding="utf-8")
+    except OSError:
+        pass
+
+
+# ─── 文档同步检查 ───
+
+def _doc_sync_check(modified_files, staged_files):
+    """检查本次修改的源文件是否有对应的 executor.md 更新。"""
+    source_ext = hc_get("project.source_extensions", "*.go")
+    ext_suffix = source_ext.lstrip("*")
+
+    def _filter_ext(files):
+        return [f for f in files if f.endswith(ext_suffix)]
+
+    mod_go = _filter_ext(modified_files)
+    staged_go = _filter_ext(staged_files)
+    all_go_files = sorted(set(mod_go + staged_go))
+
+    if not all_go_files:
+        return
+
+    exec_doc = hc_get("workflow.executor_doc", "executor.md")
+    doc_root = hc_get("workflow.doc_root", "rpe")
+    plan_doc = hc_get("workflow.plan_doc", "plan.md")
+
+    # 检查 executor.md 是否在本次修改范围内
+    all_modified = set(modified_files + staged_files)
+    has_executor_update = exec_doc in all_modified
+
+    if not has_executor_update:
+        print(f"\n⚠️ 文档同步提醒: 本次修改了 {len(all_go_files)} 个 {ext_suffix} 文件但未更新 {exec_doc}。", file=sys.stderr, flush=True)
+        print(f"若涉及状态/接口/行为变更，请同步更新 {doc_root}/{{feature}}/{exec_doc} 和 {plan_doc}。", file=sys.stderr, flush=True)
+        print(f"涉及文件: {', '.join(all_go_files)}", file=sys.stderr, flush=True)
+
+
+# ─── 生成 session-handoff.md ───
+
+def _generate_handoff(branch, turns):
+    """生成会话交接备忘录。"""
+    handoff_file = STATE_DIR / "session-handoff.md"
+    doc_root = hc_get("workflow.doc_root", "rpe")
+    exec_doc = hc_get("workflow.executor_doc", "executor.md")
+    handoff_enabled = hc_get("session_handoff.enabled", "true")
+    max_adr = int(hc_get("session_handoff.max_adr_lines", "10"))
+    max_todo = int(hc_get("session_handoff.max_todo_lines", "10"))
+    max_lessons = int(hc_get("session_handoff.max_lessons", "3"))
+
+    if handoff_enabled.lower() != "true":
+        return
+
+    sections = []
+    now = datetime.now().strftime("%Y-%m-%d %H:%M")
+    sections.append(f"# 会话交接备忘录\n> 生成时间: {now} | 分支: {branch} | 轮次: {turns}\n")
+
+    # 查找活跃的 executor.md
+    executor_files = []
+    rpe_dir = PROJECT_ROOT / doc_root
+    if rpe_dir.is_dir():
+        try:
+            for feature in sorted(os.listdir(str(rpe_dir))):
+                epath = rpe_dir / feature / exec_doc
+                if epath.is_file():
+                    executor_files.append((feature, epath))
+        except OSError:
+            pass
+
+    for feature, epath in executor_files:
+        try:
+            content = epath.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        # 正在做什么：检测 🔄 / ✅ / ⛔ 行
+        active_steps = re.findall(r".*🔄.*", content)
+        completed_steps = re.findall(r".*✅.*", content)
+        blocked_steps = re.findall(r".*⛔.*", content)
+
+        if active_steps or completed_steps or blocked_steps:
+            sections.append(f"## Feature: {feature}\n")
+
+        if active_steps:
+            sections.append("### 🔄 进行中")
+            for s in active_steps[:5]:
+                sections.append(f"- {s.strip()}")
+        if completed_steps or blocked_steps:
+            sections.append(f"\n### 进度: ✅ {len(completed_steps)} 完成, 🔄 {len(active_steps)} 进行中, ⛔ {len(blocked_steps)} 阻塞")
+
+        # 关键决策: ADR
+        adr_lines = [l.strip() for l in content.split("\n") if "ADR-" in l]
+        if adr_lines:
+            sections.append("\n### 关键决策")
+            for l in adr_lines[:max_adr]:
+                sections.append(f"- {l}")
+
+        # 未完成项: TODO
+        todo_lines = [l.strip() for l in content.split("\n") if re.match(r"\s*-\s*\[", l)]
+        if todo_lines:
+            sections.append("\n### 未完成项")
+            for l in todo_lines[:max_todo]:
+                sections.append(f"- {l}")
+
+        # 关键决策: 从 executor.md 和 plan.md 扫描决策关键词
+        decision_pattern = re.compile(r"决定|选择|确认|方案[A-Ca-c]|采用|用户.*同意|放弃.*改用", re.IGNORECASE)
+        decision_lines = [l.strip() for l in content.split("\n") if decision_pattern.search(l) and l.strip()]
+
+        # 同时扫描 plan.md
+        plan_path = os.path.join(os.path.dirname(str(epath)), "plan.md")
+        if os.path.isfile(plan_path):
+            try:
+                with open(plan_path, "r", encoding="utf-8") as pf:
+                    plan_content = pf.read()
+                decision_lines += [l.strip() for l in plan_content.split("\n") if decision_pattern.search(l) and l.strip()]
+            except OSError:
+                pass
+
+        # 去重并截断
+        seen = set()
+        unique_decisions = []
+        for l in decision_lines:
+            if l not in seen:
+                seen.add(l)
+                unique_decisions.append(l)
+
+        if unique_decisions:
+            sections.append("\n### 关键决策 (本轮)")
+            for l in unique_decisions[:5]:
+                sections.append(f"- {l}")
+
+        # 踩坑记录
+        pitfall_pattern = re.compile(r"踩坑|注意|坑:|问题:|bug|⚠️|BLOCKED|失败.*因为|原因.*是", re.IGNORECASE)
+        pitfall_lines = [l.strip() for l in content.split("\n") if pitfall_pattern.search(l) and l.strip()]
+        if pitfall_lines:
+            sections.append("\n### 踩坑记录")
+            seen_p = set()
+            for l in pitfall_lines:
+                if l not in seen_p:
+                    seen_p.add(l)
+                    sections.append(f"- {l}")
+                if len(seen_p) >= 5:
+                    break
+
+    # 未解决的错误: 从 error-dna.json 读取
+    error_dna_path = STATE_DIR / "error-dna.json"
+    if error_dna_path.exists():
+        try:
+            with open(error_dna_path, "r", encoding="utf-8") as ef:
+                raw = json.load(ef)
+            # 实际文件结构: {"error_signatures": {...}}, 也可能是列表
+            if isinstance(raw, dict):
+                sigs = raw.get("error_signatures", {})
+                error_data = [{"signature": k, **v} for k, v in sigs.items()]
+            elif isinstance(raw, list):
+                error_data = raw
+            else:
+                error_data = []
+            unfixed = [e for e in error_data if e.get("status") != "fixed"]
+            if unfixed:
+                sections.append("\n## 未解决的错误")
+                for e in unfixed[:3]:
+                    sig = e.get("signature", "(unknown)")
+                    count = e.get("count", 1)
+                    last_seen = e.get("last_seen", "")
+                    sections.append(f"- {sig} (出现{count}次, 最后: {last_seen})")
+        except (json.JSONDecodeError, OSError):
+            pass
+
+    # 当前 Todo 队列
+    todo_path = STATE_DIR / "todo-queue.md"
+    if todo_path.exists():
+        try:
+            todo_content = todo_path.read_text(encoding="utf-8", errors="replace").strip()
+            if todo_content:
+                active = [l for l in todo_content.split("\n") if "[·]" in l]
+                pending = [l for l in todo_content.split("\n") if re.match(r"\s*-\s*\[", l)]
+                if active or pending:
+                    sections.append("\n## 当前 Todo")
+                    for l in active[:5]:
+                        sections.append(f" {l.strip()}")
+                    for l in pending[:5]:
+                        sections.append(f" {l.strip()}")
+        except OSError:
+            pass
+
+    # 本次涉及文件
+    edit_log_path = STATE_DIR / "session-edit-log.txt"
+    if edit_log_path.exists():
+        try:
+            raw_files = [l.strip() for l in edit_log_path.read_text(encoding="utf-8", errors="replace").splitlines() if l.strip()]
+            unique_files = sorted(set(raw_files))
+            if unique_files:
+                sections.append(f"\n## 本次涉及文件 ({len(unique_files)}个)")
+                for f in unique_files[:10]:
+                    sections.append(f"- {f}")
+        except OSError:
+            pass
+
+    # 修改的文件（从 git）
+    try:
+        modified = subprocess.run(
+            ["git", "diff", "--name-only"], capture_output=True, text=True,
+            cwd=str(PROJECT_ROOT), timeout=10
+        ).stdout.strip()
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True,
+            cwd=str(PROJECT_ROOT), timeout=10
+        ).stdout.strip()
+        all_files = set(filter(None, (modified + "\n" + staged).split("\n")))
+        if all_files:
+            sections.append("\n## 修改的文件")
+            for f in sorted(all_files)[:15]:
+                sections.append(f"- {f}")
+    except (subprocess.SubprocessError, OSError):
+        pass
+
+    # non-rpe fallback: 无 executor.md 时注入 git log 摘要
+    if not executor_files:
+        try:
+            log_result = subprocess.run(
+                ["git", "log", "--oneline", "--no-merges", "-10"],
+                capture_output=True, text=True, cwd=str(PROJECT_ROOT), timeout=10
+            )
+            if log_result.returncode == 0 and log_result.stdout.strip():
+                sections.append("\n## 最近提交（rpe 工作流未启用时的替代摘要）")
+                for line in log_result.stdout.strip().split("\n")[:10]:
+                    sections.append(f"- `{line.strip()}`")
+                sections.append("\n> 💡 启用 rpe 工作流后（`mkdir rpe && mkdir rpe/{feature}`），交接内容将更丰富")
+        except (subprocess.SubprocessError, OSError):
+            pass
+
+    # 踩过的坑: claude-next.md 最近条目
+    claude_next = _HOOKS_DIR.parent / "claude-next.md"
+    if claude_next.exists():
+        try:
+            cn_content = claude_next.read_text(encoding="utf-8", errors="replace")
+            lesson_titles = re.findall(r"^## \[.+?\] (.+)", cn_content, re.MULTILINE)
+            if lesson_titles:
+                sections.append("\n## 近期教训")
+                for t in lesson_titles[-max_lessons:]:
+                    sections.append(f"- {t}")
+        except OSError:
+            pass
+
+    # 写入
+    handoff_file.parent.mkdir(parents=True, exist_ok=True)
+    handoff_file.write_text("\n".join(sections) + "\n", encoding="utf-8")
+    print(f"Session handoff saved: {len(sections)} sections", file=sys.stderr, flush=True)
+
+
+# ─── 生成 session-dump.json ───
+
+def _generate_dump(branch, turns):
+    """生成结构化 session dump。"""
+    dump_file = STATE_DIR / "session-dump.json"
+
+    dump = {}
+
+    # 1. git_state
+    try:
+        modified = subprocess.run(
+            ["git", "diff", "--name-only"], capture_output=True, text=True,
+            cwd=str(PROJECT_ROOT), timeout=10
+        ).stdout.strip().split("\n")
+        staged = subprocess.run(
+            ["git", "diff", "--cached", "--name-only"], capture_output=True, text=True,
+            cwd=str(PROJECT_ROOT), timeout=10
+        ).stdout.strip().split("\n")
+        diff_stat = subprocess.run(
+            ["git", "diff", "--stat"], capture_output=True, text=True,
+            cwd=str(PROJECT_ROOT), timeout=10
+        ).stdout.strip()
+        modified = [f for f in modified if f]
+        staged = [f for f in staged if f]
+        dump["git_state"] = {
+            "branch": branch,
+            "turns": int(turns) if isinstance(turns, int) else 0,
+            "modified_files": modified,
+            "staged_files": staged,
+            "diff_stat": diff_stat[:500],
+        }
+    except Exception as e:
+        dump["git_state"] = {"branch": branch, "error": str(e)}
+
+    # 2. error_summary
+    error_path = STATE_DIR / "error-dna.json"
+    if error_path.exists():
+        try:
+            with open(error_path, "r", encoding="utf-8") as f:
+                error_data = json.load(f)
+            signatures = error_data.get("error_signatures", {})
+            unfixed = []
+            for sig, info in signatures.items():
+                if info.get("status") != "fixed":
+                    unfixed.append({
+                        "sign
+... [truncated]
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/build-validator.py
+```
+#!/usr/bin/env python3
+"""build-validator.py — PostToolUse:Bash / PostToolUseFailure:Bash — 构建失败自动记录错误日志并给出针对性修复建议
+Role: 构建失败自动记录错误日志并给出针对性修复建议
+
+等效移植自 build-validator.sh (343行)
+"""
+
+import json
+import os
+import re
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# ─── 导入共享库 ───
+
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, output_continue
+
+
+def _classify_and_suggest_fallback(output, cmd, exit_code_val='1'):
+    """Fallback error classifier (no shared error_classifier.py available)."""
+    categories = []
+
+    # --- Go errors ---
+    if re.search(r'\.go:\d+:\d+:', output):
+        go_errors = re.findall(r'(\S+\.go:\d+:\d+):\s*(.+)', output)
+        if go_errors:
+            file_path, error_msg = go_errors[0]
+            categories.append({
+                "type": "go_compile",
+                "file": file_path.split(':')[0],
+                "line": file_path.split(':')[1],
+                "message": error_msg.strip()[:200],
+                "suggestions": [
+                    f"检查 {file_path.split(':')[0]}:{file_path.split(':')[1]} 的语法",
+                    "运行 `go vet ./...` 检查潜在问题",
+                    "确认导入包路径正确 (`go mod tidy`)"
+                ]
+            })
+    if 'undefined:' in output.lower() or 'undeclared name' in output.lower():
+        categories.append({
+            "type": "go_undefined",
+            "message": "未定义的标识符",
+            "suggestions": [
+                "检查变量/函数名拼写是否正确",
+                "确认是否在正确的包作用域内",
+                "运行 `go mod tidy` 确保依赖完整"
+            ]
+        })
+    if 'imported and not used' in output:
+        categories.append({
+            "type": "go_unused_import",
+            "message": "导入了未使用的包",
+            "suggestions": [
+                "删除未使用的 import",
+                "如果需要使用 side effect，改为 `_ \"package\"`"
+            ]
+        })
+    # --- TypeScript/JavaScript errors ---
+    ts_match = re.search(r'([^\s]+\.(ts|tsx|js|jsx)):(\d+):\d+\s+-\s+error\s+(TS\d+):\s*(.+)', output)
+    if ts_match:
+        categories.append({
+            "type": "typescript",
+            "file": ts_match.group(1),
+            "line": ts_match.group(3),
+            "code": ts_match.group(4),
+            "message": f"[{ts_match.group(4)}] {ts_match.group(5).strip()[:160]}",
+            "suggestions": [
+                f"检查 {ts_match.group(1)}:{ts_match.group(3)} 的类型错误",
+                "运行 `npx tsc --noEmit` 查看完整类型错误列表",
+                "检查 tsconfig.json 的 strict 设置"
+            ]
+        })
+    else:
+        ts_match = re.search(r'error\s+(TS\d+):\s*(.+)', output)
+        if ts_match:
+            categories.append({
+                "type": "typescript",
+                "code": ts_match.group(1),
+                "message": ts_match.group(2).strip()[:200],
+                "suggestions": [
+                    "查阅 TypeScript 文档: https://www.typescriptlang.org/docs/handbook/release-notes/",
+                    "运行 `npx tsc --noEmit` 查看完整类型错误列表",
+                    "检查 tsconfig.json 的 strict 设置"
+                ]
+            })
+    if "cannot find module" in output.lower() or "module not found" in output.lower():
+        categories.append({
+            "type": "missing_module",
+            "message": "找不到模块",
+            "suggestions": [
+                "运行 `npm install` 或 `pnpm install` 安装依赖",
+                "检查 import 路径是否正确",
+                "确认 node_modules 是否存在 (`ls node_modules/`)"
+            ]
+        })
+    # --- Python errors ---
+    py_match = re.search(r'((?:Type|Value|Import|Attribute|Name|Key|Index|Runtime|Syntax)Error):\s*(.+)', output)
+    if py_match:
+        categories.append({
+            "type": "python_error",
+            "error_type": py_match.group(1),
+            "message": py_match.group(2).strip()[:200],
+            "suggestions": [
+                f"检查 {py_match.group(1)} 的具体原因",
+                "运行 `python -m py_compile <file>` 检查语法",
+                "确认虚拟环境已激活且依赖已安装 (`pip list`)"
+            ]
+        })
+    if "no module named" in output.lower():
+        categories.append({
+            "type": "python_missing_module",
+            "message": "找不到 Python 模块",
+            "suggestions": [
+                "运行 `pip install <module_name>` 安装缺失的包",
+                "确认使用了正确的 Python 解释器 (`which python`)",
+                "检查 PYTHONPATH 环境变量"
+            ]
+        })
+    # --- Rust errors ---
+    if re.search(r'error\[E\d+\]:', output):
+        rust_match = re.search(r'error\[(E\d+)\]:\s*(.+)', output)
+        if rust_match:
+            categories.append({
+                "type": "rust_compile",
+                "code": rust_match.group(1),
+                "message": rust_match.group(2).strip()[:200],
+                "suggestions": [
+                    f"运行 `rustc --explain {rust_match.group(1)}` 获取详细解释",
+                    "运行 `cargo check` 快速验证",
+                    "检查 borrow checker 相关的所有权和生命周期"
+                ]
+            })
+    # --- Make errors ---
+    if "make:" in output or "Makefile" in output:
+        categories.append({
+            "type": "make_error",
+            "message": "Make 构建失败",
+            "suggestions": [
+                "检查 Makefile 中的目标和依赖",
+                "运行 `make -n` 查看实际执行的命令",
+                "确认所有依赖工具已安装"
+            ]
+        })
+    # --- Common error patterns ---
+    if "permission denied" in output.lower():
+        categories.append({
+            "type": "permission",
+            "message": "权限被拒绝",
+            "suggestions": [
+                "检查文件/目录权限 (`ls -la`)",
+                "确认有足够的执行权限",
+                "不要使用 sudo，检查项目目录所有权"
+            ]
+        })
+    if "out of memory" in output.lower() or "oom" in output.lower():
+        categories.append({
+            "type": "oom",
+            "message": "内存不足",
+            "suggestions": [
+                "减少并行度 (如 `GOMAXPROCS=1` 或 `--max-old-space-size`)",
+                "关闭其他占用内存的程序",
+                "增加 swap 空间"
+            ]
+        })
+    # --- Unknown ---
+    if not categories:
+        categories.append({
+            "type": "unknown",
+            "message": f"构建命令退出码 {exit_code_val}",
+            "suggestions": [
+                "仔细阅读第一条错误信息（通常后续错误是级联的）",
+                "运行 `git diff` 确认最近的改动",
+                "尝试最小化复现：只编译修改的文件",
+                "检查 CI/CD 是否有相同的失败"
+            ]
+        })
+    return categories
+
+
+def main():
+    # ─── hc_enabled 门禁 ───
+    if not hc_enabled('build_validator'):
+        output_continue()
+        return
+
+    flywheel_event('build_validator', 'active', 'P2')
+
+    # 读取 stdin
+    INPUT = sys.stdin.read()
+
+    # ─── 解析 JSON ───
+    try:
+        data = json.loads(INPUT)
+    except (json.JSONDecodeError, ValueError):
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    COMMAND = ''
+    STDOUT_RESULT = ''
+    STDERR_RESULT = ''
+    EXIT_CODE = '0'
+    EVENT = ''
+    TOP_ERROR = ''
+
+    COMMAND = data.get('tool_input', {}).get('command', '') or ''
+    if not COMMAND:
+        COMMAND = data.get('args', {}).get('command', '') or ''
+    STDOUT_RESULT = data.get('tool_response', {}).get('stdout', '') or ''
+    STDERR_RESULT = data.get('tool_response', {}).get('stderr', '') or ''
+    EXIT_CODE = str(data.get('tool_response', {}).get('exit_code', '0') or '0')
+    EVENT = data.get('hook_event_name', '') or ''
+    TOP_ERROR = data.get('error', '') or ''
+
+    if EVENT == 'PostToolUseFailure':
+        if EXIT_CODE == '0':
+            EXIT_CODE = '1'
+        if not STDERR_RESULT:
+            STDERR_RESULT = TOP_ERROR
+
+    if not COMMAND:
+        print(json.dumps({'continue': True}))
+        sys.exit(0)
+
+    # ─── Build command check ───
+    BUILD_CMDS = hc_get('build_validator.build_commands', 'go build go test npm run build npm test pytest python -m pytest cargo build make mvn gradle webpack vite tsc')
+    cmd_parts = COMMAND.split()
+    CMD_PREFIX = cmd_parts[0] if cmd_parts else ''
+    CMD_PREFIX2 = ' '.join(cmd_parts[:2]) if len(cmd_parts) >= 2 else ''
+
+    IS_BUILD = False
+    build_list = BUILD_CMDS.split()
+    if CMD_PREFIX2 in build_list:
+        IS_BUILD = True
+    elif CMD_PREFIX in build_list:
+        IS_BUILD = True
+
+    if not IS_BUILD:
+        print(json.dumps({'continue': True}))
+        sys.exit(0)
+
+    if EXIT_CODE in ('0', ''):
+        print(json.dumps({'continue': True}))
+        sys.exit(0)
+
+    # ─── 路径 ───
+    SCRIPT_DIR = _HOOKS_DIR
+    PROJECT_ROOT = (SCRIPT_DIR / '../..').resolve()
+    STATE_DIR = PROJECT_ROOT / '.omc' / 'state'
+    LOG_FILE = STATE_DIR / 'build-errors.log'
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+
+    full_output = STDOUT_RESULT + STDERR_RESULT
+
+    # ─── Classifier ───
+    SCRIPT_DIR_STR = str(SCRIPT_DIR)
+    exit_code_str = EXIT_CODE
+
+    # Try shared error_classifier.py first
+    _ec_path = os.path.abspath(os.path.join(SCRIPT_DIR_STR, '..', 'scripts', 'error_classifier.py'))
+    _ec_available = False
+    classify_and_suggest = None
+
+    if os.path.exists(_ec_path):
+        try:
+            sys.path.insert(0, os.path.dirname(_ec_path))
+            from error_classifier import classify_error as _ec_classify  # type: ignore
+            def classify_and_suggest(output, cmd):
+                return _ec_classify(cmd, exit_code_str, output)
+            _ec_available = True
+        except Exception:
+            pass
+
+    if not _ec_available:
+        classify_and_suggest = lambda output, cmd: _classify_and_suggest_fallback(output, cmd, exit_code_str)
+
+    timestamp = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    errors = classify_and_suggest(full_output, COMMAND)
+
+    # ─── Write log ───
+    with open(LOG_FILE, 'a', encoding='utf-8') as f:
+        f.write(f"=== {timestamp} ===\n")
+        f.write(f"Command: {COMMAND}\n")
+        f.write(f"Exit Code: {EXIT_CODE}\n")
+        for err in errors:
+            f.write(f"\n[{err['type'].upper()}] {err.get('message', '')}\n")
+            for i, sug in enumerate(err.get('suggestions', []), 1):
+                f.write(f"  {i}. {sug}\n")
+        f.write("\n--- Output Excerpt ---\n")
+        lines = full_output.split('\n')[:50]
+        f.write('\n'.join(lines))
+        f.write("\n\n")
+
+    # ─── Rotation: keep last max_log_entries ───
+    max_entries = int(hc_get('build_validator.max_log_entries', '50'))
+    with open(LOG_FILE, 'r', encoding='utf-8') as rf:
+        raw = rf.read()
+    entries = [e for e in raw.split('=== ')[1:] if e.strip()]
+    if len(entries) > max_entries:
+        keep = entries[-max_entries:]
+        with open(LOG_FILE, 'w', encoding='utf-8') as wf:
+            for entry in keep:
+                wf.write('=== ' + entry + ('\n' if not entry.endswith('\n') else ''))
+
+    # ─── Build output message ───
+    msg_parts = [f"[构建失败] 命令: {COMMAND[:100]}"]
+    msg_parts.append(f"退出码: {EXIT_CODE}")
+    for err in errors:
+        msg_parts.append(f"\n错误类型: {err['type']}")
+        if err.get('file'):
+            msg_parts.append(f"文件: {err['file']}:{err.get('line', '?')}")
+        if err.get('message'):
+            msg_parts.append(f"信息: {err['message'][:150]}")
+        msg_parts.append("修复建议:")
+        for i, sug in enumerate(err.get('suggestions', []), 1):
+            msg_parts.append(f"  {i}. {sug}")
+    msg_parts.append(f"\n详细日志: {LOG_FILE}")
+    msg = '\n'.join(msg_parts)
+    msg_escaped = msg.replace('\\', '\\\\').replace('"', '\\"').replace('\n', '\\n').replace('\t', '\\t')
+
+    result_json = json.dumps({
+        'continue': True,
+        'hookSpecificOutput': {
+            'hookEventName': 'PostToolUse',
+            'additionalContext': msg
+        }
+    })
+    print(result_json)
+    sys.exit(0)
+
+
+if __name__ == '__main__':
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/compact-writer.py
+```
+#!/usr/bin/env python3
+"""
+compact-writer.py — PostToolUse hook (triggered by .* matcher)
+
+On every tool call, if this is a compact turn detected via environment
+(CLAUDE_CODE_COMPACT=1) or known patterns, write the current active token
+info into session-handoff.md so the next session can resume.
+
+Target path: .omc/tokens/{YYYYMMDD}/{task_id}.json
+Handoff path: .omc/state/session-handoff.md
+
+Compatible with Python 3.9+ (no str | None syntax, no match/case).
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+PROJECT = Path.cwd()
+OMC_STATE = PROJECT / ".omc" / "state"
+OMC_TOKENS = PROJECT / ".omc" / "tokens"
+HANDOFF_PATH = OMC_STATE / "session-handoff.md"
+
+
+def _all_date_dirs():
+    """List date subdirs under .omc/tokens/, newest first."""
+    if not OMC_TOKENS.exists():
+        return []
+    dirs = sorted(
+        (d for d in OMC_TOKENS.iterdir() if d.is_dir() and not d.name.startswith(".")),
+        key=lambda p: p.name,
+        reverse=True,
+    )
+    return dirs
+
+
+def _iter_tokens():
+    """Iterate all token files across date dirs."""
+    for d in _all_date_dirs():
+        date_str = d.name
+        for f in sorted(d.glob("*.json")):
+            if f.name == "token-writer.log":
+                continue
+            yield (f.stem, date_str, f)
+
+
+def _find_active_tokens():
+    """Return list of (task_id, date_str, path, token_dict) for non-completed tasks."""
+    active = []
+    for tid, date_str, fpath in _iter_tokens():
+        try:
+            tok = json.loads(fpath.read_text())
+            status = tok.get("task", {}).get("status", "")
+            if status not in ("completed", "archived"):
+                active.append((tid, date_str, fpath, tok))
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+    return active
+
+
+def _is_compact_turn():
+    """Detect if this is a context compaction / handoff turn."""
+    # Environment variable set by CLI during compact
+    if os.environ.get("CLAUDE_CODE_COMPACT") == "1":
+        return True
+    # If CLAUDE_CODE_COMPACT_FILE exists with a recent timestamp
+    compact_file = os.environ.get("CLAUDE_CODE_COMPACT_FILE", "")
+    if compact_file:
+        try:
+            mtime = os.path.getmtime(compact_file)
+            age = datetime.now(timezone.utc).timestamp() - mtime
+            if age < 30:  # created within last 30 seconds
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def _get_compact_info():
+    """Gather compact info from env vars."""
+    info = {}
+    info["compact_elapsed"] = os.environ.get("CLAUDE_CODE_ELAPSED", "?")
+    info["compact_tokens"] = os.environ.get("CLAUDE_CODE_TOKENS", "?")
+    # Parse turn count
+    turns_str = os.environ.get("CLAUDE_CODE_TURNS", "")
+    if turns_str:
+        info["compact_turns"] = turns_str
+    return info
+
+
+def _build_handoff(active, compact_info):
+    """Build session-handoff.md content."""
+    lines = []
+    lines.append("# Session Handoff")
+    lines.append("")
+    lines.append("Generated: {}".format(datetime.now(timezone.utc).isoformat()))
+    lines.append("")
+
+    if compact_info.get("compact_elapsed"):
+        lines.append("Compact stats: elapsed={} tokens={} turns={}".format(
+            compact_info.get("compact_elapsed", "?"),
+            compact_info.get("compact_tokens", "?"),
+            compact_info.get("compact_turns", "?"),
+        ))
+        lines.append("")
+
+    if not active:
+        lines.append("## Active Tokens")
+        lines.append("")
+        lines.append("No active tokens.")
+        lines.append("")
+        lines.append("## Resume")
+        lines.append("")
+        lines.append("Start a new task: `carros_base.py init --task-id <NAME>`")
+        lines.append("")
+        HANDOFF_PATH.write_text("\n".join(lines))
+        return
+
+    lines.append("## Active Tokens")
+    lines.append("")
+    for tid, date_str, fpath, tok in active:
+        task = tok.get("task", {})
+        phase = task.get("phase", "?")
+        step = task.get("current_step", "?")
+        status = task.get("status", "?")
+        stats = tok.get("stats", {})
+        done = stats.get("done", 0)
+        total = stats.get("total", "?")
+
+        lines.append("### {}".format(tid))
+        lines.append("- Date: {}".format(date_str))
+        lines.append("- Phase: {} / Step: {} / Status: {}".format(phase, step, status))
+        lines.append("- Done: {}/{}".format(done, total))
+        lines.append("- Token: {}".format(fpath))
+        lines.append("- Resume: `tick --task-id {}` → `status --task-id {}`".format(tid, tid))
+        lines.append("")
+
+    lines.append("## Resume Instructions")
+    lines.append("")
+    if len(active) == 1:
+        lines.append("1. `python3 .omc/scripts/carros_base.py status --task-id {}` — check current status".format(active[0][0]))
+        lines.append("2. `python3 .omc/scripts/carros_base.py tick --task-id {}` — continue".format(active[0][0]))
+    else:
+        lines.append("Multiple active tasks found. Pick one:")
+        for tid, date_str, fpath, tok in active:
+            lines.append("- `{}` — date={}, phase={}".format(tid, date_str, tok.get("task", {}).get("phase", "?")))
+
+    HANDOFF_PATH.write_text("\n".join(lines))
+    print("  [compact-writer] handoff written: {} active token(s)".format(len(active)))
+
+
+def main():
+    # Only act on compact turns
+    if not _is_compact_turn():
+        return
+
+    if not OMC_TOKENS.exists():
+        print("  [compact-writer] no .omc/tokens/ dir")
+        return
+
+    compact_info = _get_compact_info()
+    active = _find_active_tokens()
+
+    OMC_STATE.mkdir(parents=True, exist_ok=True)
+    _build_handoff(active, compact_info)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/completion-gate.py
+```
+#!/usr/bin/env python3
+"""completion-gate.py — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件
+Role: 强制 TaskUpdate 前提供结构化证据文件
+
+等效移植自 completion-gate.sh (438行):
+- 提取 status 字段，非 completed → 放行
+- 自主/无人值守模式降级（检查 + warn，不阻断）
+- 证据文件存在性/新鲜度检查
+- 原子消费（mv 防并发）
+- 证据内容验证：长度 ≥ min_evidence_chars
+- 要求证据含 VERIFIED 关键字
+- R27 结构化验证标记（file:line / test markers）
+- E3 软完成语检测
+- E2 双源证据要求（≥2/3 验证类别）
+- 证据质量评分（4维度，阈值可配）
+- RCA/根因分析: 强制根因分析要求，防止症状混搭
+- E5 根因分析门禁
+- B5 模板化 RCA 检测
+- C3 L3 复杂度检测 + Oracle 终审记录检查
+- Pipeline step 自动推进
+- A→B→A 交叉验证触发
+"""
+
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+
+# ─── 导入共享库 ───
+
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, output_continue
+
+# ─── 路径常量 ───
+
+PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
+STATE_DIR = PROJECT_ROOT / ".omc" / "state"
+
+# ─── Fallback level 机制 ───
+# Level 1（默认）：完整路径，不变
+# Level 2（降级）：finish-length-detected 标记存在时，走简化 3 步链
+# Level 3（紧急）：连续 2 次 Level 2 降级后，退化为 warning-only 模式
+
+def _get_fallback_level():
+    """从 harness.yaml 读取 completion_gate.fallback_level，不存在返回 1。"""
+    raw = hc_get("completion_gate.fallback_level", "1")
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return 1
+
+def _check_finish_length_detected():
+    """检查 finish-length-detected 标记文件是否存在。"""
+    return (STATE_DIR / "finish-length-detected").exists()
+
+def _manage_finish_length_streak():
+    """管理连续降级计数。返回当前 streak 值。"""
+    streak_file = STATE_DIR / "finish-length-streak"
+    streak = 0
+    try:
+        if streak_file.exists():
+            raw = streak_file.read_text(encoding="utf-8", errors="replace").strip()
+            if raw:
+                streak = int(raw)
+    except (OSError, ValueError):
+        streak = 0
+    streak += 1
+    if streak >= 2:
+        # streak ≥ 2 自动清理（触发 Level 3 后用一次即清理）
+        try:
+            streak_file.unlink()
+        except OSError:
+            pass
+        # 同时清理标记文件
+        try:
+            (STATE_DIR / "finish-length-detected").unlink()
+        except OSError:
+            pass
+        return streak
+    try:
+        streak_file.parent.mkdir(parents=True, exist_ok=True)
+        streak_file.write_text(str(streak), encoding="utf-8")
+    except OSError:
+        pass
+    return streak
+
+
+# ─── 自主模式检测 ───
+
+def _is_autonomous():
+    """检测是否处于自主/无人值守模式。"""
+    tokens_dir = STATE_DIR / "tokens"
+    checks = [
+        tokens_dir / "autonomous.active",
+        STATE_DIR / "ghost-mode.active",
+        tokens_dir / "lx-ghost.json",
+        tokens_dir / "lx-goal.json",
+    ]
+    for f in checks:
+        if f.exists():
+            return True
+    return False
+
+
+# ─── 软阻断（自主模式降级） ───
+
+def _auto_soft_block(message, autonomous):
+    """软阻断：自主模式写日志 + continue，否则 exit 2。"""
+    # issue-triage 集成
+    triage_script = _HOOKS_DIR.parent / "scripts" / "issue-triage.sh"
+    triage_msg = ""
+    if triage_script.exists():
+        try:
+            result = subprocess.run(
+                ["bash", str(triage_script), "triage_for_hook", "completion-gate", message, "", "{}"],
+                capture_output=True, text=True, timeout=10
+            )
+            triage_msg = result.stdout.strip()
+        except (subprocess.SubprocessError, OSError):
+            pass
+
+    if autonomous:
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        log_line = f"[{ts}] [自主模式] {message}"
+        log_path = STATE_DIR / "completion-gate-autonomous.log"
+        try:
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            with open(str(log_path), "a", encoding="utf-8") as f:
+                f.write(log_line + "\n")
+                if triage_msg:
+                    f.write(f"[{ts}] {triage_msg}\n")
+        except OSError:
+            pass
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+    else:
+        if triage_msg:
+            print(triage_msg, file=sys.stderr, flush=True)
+        flywheel_event("completion_gate", "blocked", "P2")
+        sys.exit(2)
+
+
+# ─── 证据质量评分 ───
+
+def _evidence_quality_score(content):
+    """评估证据质量评分（4维度），返回 (score, details_list)。"""
+    fl_count = len(re.findall(r"[\w./-]+\.[a-z]+:\d+", content))
+    fl_score = min(fl_count / 3.0, 1.0) * 40
+
+    cmd_patterns = ["exit.code", r"\bPASS\b", r"\bFAIL\b", "✅", "❌", "test", "build", r"\d+ passed", r"\d+ failed", "VERIFIED"]
+    cmd_hits = sum(1 for p in cmd_patterns if re.search(p, content, re.IGNORECASE))
+    cmd_score = min(cmd_hits / 4.0, 1.0) * 30
+
+    multi_patterns = [r"\d+%", r"\d+ms", r"\d+ req", "coverage", "all tests", "zero errors", "edge.case", "regression"]
+    multi_hits = sum(1 for p in multi_patterns if re.search(p, content, re.IGNORECASE))
+    multi_score = min(multi_hits / 3.0, 1.0) * 20
+
+    quant_patterns = [r"\d+/\d+", r"\d+\.\d+", r"PASS.*FAIL", r"N/A"]
+    quant_hits = sum(1 for p in quant_patterns if re.search(p, content))
+    quant_score = min(quant_hits / 2.0, 1.0) * 10
+
+    total = fl_score + cmd_score + multi_score + quant_score
+    details = [
+        f"file:line refs ({fl_count}处): {fl_score:.0f}/40",
+        f"test/cmd markers ({cmd_hits}处): {cmd_score:.0f}/30",
+        f"multi-aspect ({multi_hits}处): {multi_score:.0f}/20",
+        f"quantification ({quant_hits}处): {quant_score:.0f}/10",
+    ]
+    return int(round(total)), details
+
+
+# ─── 双源证据检测 ───
+
+def _dual_source_count(content):
+    """返回证据来源类别数（0-3）。"""
+    sources = 0
+    # A: file:line
+    if re.search(r"[\w./-]+\.[a-zA-Z]+:\d+", content):
+        sources += 1
+    # B: test/compile markers
+    if re.search(r"(exit\.code|PASS|FAIL|✅|❌|build|test|\d+ passed|\d+ failed)", content, re.IGNORECASE):
+        sources += 1
+    # C: quantification
+    if re.search(r"(\d+/\d+|\d+\.\d+%|edge\.case|coverage|regression|\d+ms)", content, re.IGNORECASE):
+        sources += 1
+    return sources
+
+
+# ─── 主函数 ───
+
+def main():
+    if not hc_enabled("completion_gate"):
+        output_continue()
+        return
+
+    # 从 stdin 读取输入
+    input_str = sys.stdin.read()
+
+    # 提取 status 字段
+    status = ""
+    try:
+        data = json.loads(input_str)
+        status = data.get("tool_input", {}).get("status", "")
+    except (json.JSONDecodeError, Exception):
+        pass
+
+    # 非 completed 状态 → 放行
+    if status != "completed":
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # 自主/无人值守模式检测
+    autonomous = _is_autonomous()
+
+    # ── Fallback Level 检测 ──
+    fallback_level = _get_fallback_level()
+    finish_length_detected = _check_finish_length_detected()
+
+    # 如果标记文件存在，动态切换到降级路径
+    if finish_length_detected and fallback_level < 2:
+        fallback_level = 2
+
+    # 获取配置
+    evidence_dir_str = hc_get("completion_gate.evidence_dir", ".omc/state")
+    evidence_dir = PROJECT_ROOT / evidence_dir_str
+    freshness_sec = int(hc_get("completion_gate.evidence_freshness_sec", "300"))
+    min_chars = int(hc_get("completion_gate.min_evidence_chars", "20"))
+    req_keyword = hc_get("completion_gate.required_keyword", "VERIFIED")
+    quality_threshold = int(hc_get("completion_gate.quality_threshold", "65"))
+    soft_words_raw = hc_get("completion_gate.soft_completion_words",
+                            "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically done|mostly complete|seems to work|probably works|theoretically|should work|looks good")
+
+    # ── Fallback Level 2: 简化 3 步链 ──
+    if fallback_level >= 2:
+        level_label = {2: "降级模式", 3: "紧急模式"}.get(fallback_level, "降级模式")
+
+        # Level 3（紧急）：warning-only 模式，记录但不阻断
+        if fallback_level >= 3:
+            print(f"[Completion Gate] 紧急模式（fallback_level=3）: finish-length 连续降级，跳过阻断。",
+                  file=sys.stderr, flush=True)
+            flywheel_event("completion_gate", "fallback_level_3_skip", "P2")
+            print(json.dumps({"continue": True}))
+            sys.exit(0)
+
+        # Level 2（降级）：简化 3 步链
+        flywheel_event("completion_gate", "fallback_level_2", "P2")
+
+        # 管理连续降级计数
+        streak = _manage_finish_length_streak()
+        if streak >= 2:
+            print(f"[Completion Gate] 连续 {streak} 次降级，升级至 Level 3（紧急模式: warning-only）",
+                  file=sys.stderr, flush=True)
+            print(json.dumps({"continue": True}))
+            sys.exit(0)
+
+        print(f"[Completion Gate] {level_label}: 执行简化验证链", file=sys.stderr, flush=True)
+
+        # 证据文件路径（当前分钟）
+        evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
+
+        # 简化步骤 1: 证据存在性检查
+        if not evidence_file.exists():
+            print(f"[Completion Gate] 证据文件缺失 (simplified check)", file=sys.stderr, flush=True)
+            _auto_soft_block("无证据文件（降级模式）", autonomous)
+
+        # 简化步骤 2: 原子消费 + 读取 + 基础长度校验
+        consumed = evidence_file.parent / f"{evidence_file.name}.consumed.{os.getpid()}"
+        try:
+            os.rename(str(evidence_file), str(consumed))
+        except OSError:
+            print("⛔ COMPLETION BLOCKED: 证据已被其他进程消费", file=sys.stderr, flush=True)
+            _auto_soft_block("证据已被其他进程消费（降级模式）", autonomous)
+
+        try:
+            content = consumed.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            content = ""
+        content_len = len(content)
+
+        # 基础长度校验
+        if content_len < min_chars:
+            print(f"⛔ COMPLETION BLOCKED: 证据内容过短（{content_len} 字符 < {min_chars} 字符最低要求）。", file=sys.stderr, flush=True)
+            try:
+                consumed.unlink()
+            except OSError:
+                pass
+            _auto_soft_block(f"证据内容过短（{content_len}字符，降级模式）", autonomous)
+
+        # 简化步骤 3: VERIFIED 关键词检查
+        if req_keyword not in content:
+            print(f"⛔ COMPLETION BLOCKED: 证据文件中未找到 '{req_keyword}' 关键字。", file=sys.stderr, flush=True)
+            try:
+                consumed.unlink()
+            except OSError:
+                pass
+            _auto_soft_block("证据文件缺少关键字（降级模式）", autonomous)
+
+        # 降级模式验证通过
+        print(f"[Completion Gate] {level_label} 验证通过", file=sys.stderr, flush=True)
+        try:
+            consumed.unlink()
+        except OSError:
+            pass
+        # 清理 finish-length 标记
+        try:
+            (STATE_DIR / "finish-length-detected").unlink()
+        except OSError:
+            pass
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Fallback Level 1（默认）：完整路径不变 ──
+    # 证据文件路径（当前分钟）
+    evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
+
+    if not evidence_file.exists():
+        # 从 feature-registry.yaml 读取预期证据级别
+        evidence_level_label = "L3"
+        registry_path = _HOOKS_DIR.parent / "feature-registry.yaml"
+        if registry_path.exists():
+            try:
+                content = registry_path.read_text(encoding="utf-8", errors="replace")
+                # 查找 completion-gate 的 evidence_level
+                in_completion_gate = False
+                for line in content.splitlines():
+                    if "name: completion-gate" in line:
+                        in_completion_gate = True
+                    elif in_completion_gate and "evidence_level:" in line:
+                        m = re.search(r"evidence_level:\s*(.+)", line)
+                        if m:
+                            evidence_level_label = m.group(1).strip()
+                            break
+                    elif in_completion_gate and line.strip().startswith("- ") and "name:" not in line:
+                        # End of this entry's properties
+                        pass
+                    elif in_completion_gate and "name:" in line and "completion-gate" not in line:
+                        break
+            except OSError:
+                pass
+
+        print(f"[Completion Gate] evidence missing: expected {evidence_level_label} at {evidence_file}", file=sys.stderr, flush=True)
+        _auto_soft_block("无证据文件", autonomous)
+
+    # 证据文件存在，检查新鲜度
+    try:
+        age = time.time() - evidence_file.stat().st_mtime
+        fresh = age < freshness_sec
+    except OSError:
+        fresh = False
+
+    if not fresh:
+        print(f"[Completion Gate] evidence expired: age={age:.0f}s > {freshness_sec}s", file=sys.stderr, flush=True)
+        _auto_soft_block("证据文件已过期", autonomous)
+
+    # 原子消费：mv 到 consumed 文件
+    consumed = evidence_file.parent / f"{evidence_file.name}.consumed.{os.getpid()}"
+    try:
+        os.rename(str(evidence_file), str(consumed))
+    except OSError:
+        print("⛔ COMPLETION BLOCKED: 证据已被其他进程消费", file=sys.stderr, flush=True)
+        _auto_soft_block("证据已被其他进程消费", autonomous)
+
+    # 读取证据内容
+    try:
+        content = consumed.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        content = ""
+    content_len = len(content)
+
+    # 证据内容长度检查
+    if content_len < min_chars:
+        print(f"⛔ COMPLETION BLOCKED: 证据内容过短（{content_len} 字符 < {min_chars} 字符最低要求）。", file=sys.stderr, flush=True)
+        print(f"证据必须包含至少 {min_chars} 字符的实际验证描述，不能只有 '{req_keyword}' 等占位符。", file=sys.stderr, flush=True)
+        try:
+            consumed.unlink()
+        except OSError:
+            pass
+        _auto_soft_block(f"证据内容过短（{content_len}字符）", autonomous)
+
+    # VERIFIED 关键字检查
+    if req_keyword not in content:
+        print(f"⛔ COMPLETION BLOCKED: 证据文件中未找到 '{req_keyword}' 关键字。", file=sys.stderr, flush=True)
+        try:
+            consumed.unlink()
+        except OSError:
+            pass
+        _auto_soft_block("证据文件缺少关键字", autonomous)
+
+    # R27: 结构化验证标记
+    if not re.search(r"(\[已验证:|\[已测试:|✅|exit 0|PASS|is_danger.*false|status.*completed)", content):
+        print("⛔ COMPLETION BLOCKED: 证据格式过于模糊，缺少结构化验证标记。", file=sys.stderr, flush=True)
+        print("证据必须包含以下结构化格式之一：", file=sys.stderr, flush=True)
+        print("  - [已验证: file:line] 格式的代码引用", file=sys.stderr, flush=True)
+        print("  - [已测试: 命令+输出] 格式的运行验证", file=sys.stderr, flush=True)
+        print("  - 明确的通过标记（exit 0, PASS, ✅ 等）", file=sys.stderr, flush=True)
+        try:
+            consumed.unlink()
+        except OSError:
+            pass
+        _auto_soft_block("证据格式模糊", autonomous)
+
+    # E3: 软完成语检测
+    try:
+        if re.search(soft_words_raw, content, re.IGNORECASE):
+            print("⛔ COMPLETION BLOCKED: 证据含软完成语（违禁词），请用具体验证结果替换。", file=sys.stderr, flush=True)
+            print("违禁词: 应该没问题了、基本完成、大部分完成、差不多了、理论上可行、看起来正常", file=sys.stderr, flush=True)
+            print("正确格式示例: 'VERIFIED: go build ./... → exit 0, all tests PASS'", file=sys.stderr, flush=True)
+            try:
+                consumed.unlink()
+            except OSError:
+                pass
+            _auto_soft_block("证据含软完成语", autonomous)
+    except re.error:
+        pass
+
+    # E2: 双源证据要求
+    dual_count = _dual_source_count(content)
+    if dual_count < 2:
+        print(f"⛔ COMPLETION BLOCKED: 证据仅来自 {dual_count}/3 个验证类别，需要 ≥2 类独立证据。", file=sys.stderr, flush=True)
+        print("证据类别:", file=sys.stderr, flush=True)
+        print("  (A) file:line 代码引用", file=sys.stderr, flush=True)
+        print
+... [truncated]
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/context-compressor.py
+```
+#!/usr/bin/env python3
+"""
+context-compressor.py — SessionStart — 渐进式披露：源文件精简版注入缓存
+检测源文件 mtime → 拼接精简内容 → 缓存到 .omc/state/context-cache.md
+"""
+
+import os
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+from harness_lib import hc_enabled, flywheel_event
+
+
+def safe_stat_mtime(path):
+    """Get file modification time (epoch), returns 0 on error."""
+    try:
+        return os.path.getmtime(path)
+    except Exception:
+        return 0
+
+
+def main():
+    if not hc_enabled("context_compressor"):
+        sys.exit(0)
+
+    project_root = (_HOOKS_DIR / "../..").resolve()
+    claude_dir = project_root / ".claude"
+    state_dir = project_root / ".omc" / "state"
+    cache_file = state_dir / "context-cache.md"
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+
+    force_regen = False
+
+    if not cache_file.exists():
+        bootstrap = (
+            "<!-- CONTEXT-COMPRESSOR: bootstrap 自动生成 -->\n"
+            "铁律:\n"
+            "1.禁止编造:断言必有file:line/命令输出,找不到→BLOCKED\n"
+            "2.用户裁定:验收/选型/冲突由Boss决定,AI不可自判\n"
+            "3.证据门禁:无VERIFIED证据禁止说\"已完成/已验证\"\n"
+            "4.Git门禁:编译→功能→报告→Boss批准→提交,跳步=回滚\n"
+            "5.范围冻结:一次一个Step,非核心只写TODO,越界撤销\n"
+            "6.隐私防线:禁读.env/私钥,禁Bash敲明文Token\n"
+            "7.断言真实:百分比/评分须有来源URL/file:line,无来源标注[内部自检]\n"
+            "8.哲学先行:问人前先过哲学7条,哲学能裁决→[哲学先行:#N→action]直接执行\n"
+            "#8细则:过程性问题直接执行/抉择性问题哲学裁决\n"
+            "禁止问:\"跑X?\"→[#4→执行] \"A还是B?\"→[#2→选A]\n"
+            "哲学优先级:#4(验证)>#6(0信任)>#3(守护)>#7(文档)>#5(人)>#2(增益)>#1(less)\n"
+            "软完成语禁令→必须VERIFIED:\n"
+            "应该没问题/基本完成/理论上/看起来正常/差不多了/之前验证过\n"
+            "should be fine/basically done/mostly complete/seems to work\n"
+            "操作约束:\n"
+            "-编辑:Read-before-Edit|current-scope越界→BLOCKED\n"
+            "-Bash:git commit/push|rm -rf|sudo→BLOCKED\n"
+            "-完成:VERIFIED|evidence≥60|fresh≤300s\n"
+            "-隐私:.env|Token|密钥→BLOCKED\n"
+            "权威:Boss指令>项目宪法>PRD>Skill>设计文档>代码\n"
+            "---\n"
+        )
+        try:
+            cache_file.write_text(bootstrap, encoding="utf-8")
+        except Exception:
+            pass
+        print("[context-compressor] bootstrap: 最小脱水上下文已生成", file=sys.stderr)
+        force_regen = True
+
+    src_files = [
+        project_root / "AGENTS.md",
+        claude_dir / "anti-patterns.md",
+        claude_dir / "claude-next.md",
+        claude_dir / "kernel.md",
+    ]
+
+    need_regen = False
+    if not cache_file.exists():
+        need_regen = True
+    else:
+        cache_mtime = safe_stat_mtime(str(cache_file))
+        for src_file in src_files:
+            if not src_file.exists():
+                continue
+            src_mtime = safe_stat_mtime(str(src_file))
+            if src_mtime > cache_mtime:
+                need_regen = True
+                break
+
+    if not need_regen and not force_regen:
+        flywheel_event("context_compressor", "cache_hit", "L0")
+        sys.exit(0)
+
+    flywheel_event("context_compressor", "regenerating", "L1")
+
+    # Generate new cache content — AI-optimized compression (same format as bootstrap)
+    now_str = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+    lines = [
+        f"<!-- CONTEXT-COMPRESSOR: {now_str} 自动生成 -- 渐进式披露：仅注入精简路由 + 哲学铁律 -->",
+        "<!-- 源文件已变: AGENTS.md + anti-patterns.md + claude-next.md + kernel.md -->",
+        "<!-- 渐进式披露: 精简版在此，完整版请 Read 对应源文件 -->",
+        "",
+    ]
+
+    # === 1. 读取 AGENTS.md 精华（前 40 行=哲学+铁律+难度分级完整）===
+    agents_file = project_root / "AGENTS.md"
+    agents_summary = ""
+    if agents_file.exists():
+        try:
+            al = agents_file.read_text(encoding="utf-8").splitlines()
+            # Strip leading @.claude lines, find content start
+            start_i = 0
+            for i, l in enumerate(al):
+                if l.strip() and not l.strip().startswith("@"):
+                    start_i = i
+                    break
+            agents_summary = "\n".join(al[start_i:start_i + 40]).strip()
+        except Exception:
+            agents_summary = "(AGENTS.md read error)"
+    if not agents_summary:
+        agents_summary = "(AGENTS.md empty or not found)"
+    lines.append("--- AGENTS.md 精华 ---")
+    lines.append(agents_summary)
+
+    # === 2. 读取 kernel.md — 摘取核心编码规则和难度分级 ===
+    kernel_file = project_root / ".claude" / "kernel.md"
+    if kernel_file.exists():
+        try:
+            kc = kernel_file.read_text(encoding="utf-8")
+            # Grab first 15 non-empty lines
+            klines = [l for l in kc.splitlines() if l.strip()][:15]
+            lines.append("--- kernel.md 精华 ---")
+            lines.extend(klines[:15])
+        except Exception:
+            lines.append("--- kernel.md: (read error) ---")
+    else:
+        lines.append("--- kernel.md: (missing) ---")
+
+    # === 3. 读取 claude-next.md — 最近 3 条 lessons ===
+    cn_file = project_root / ".claude" / "claude-next.md"
+    if cn_file.exists():
+        try:
+            import re
+            cn_text = cn_file.read_text(encoding="utf-8")
+            cn_hits = re.findall(r'^###\s+(.+)$', cn_text, re.MULTILINE)[:3]
+            lines.append("--- claude-next.md lessons ---")
+            for h in cn_hits:
+                lines.append(f"  - {h.strip()[:100]}")
+        except Exception:
+            lines.append("--- claude-next.md: (parse error) ---")
+
+    # === 4. 读取 anti-patterns.md — 3 个最新反模式标题 ===
+    ap_file = project_root / ".claude" / "anti-patterns.md"
+    if ap_file.exists():
+        try:
+            import re
+            ap_text = ap_file.read_text(encoding="utf-8")
+            ap_hits = re.findall(r'^##\s+(.+)$', ap_text, re.MULTILINE)[:3]
+            if ap_hits:
+                lines.append("--- anti-patterns.md ---")
+                for h in ap_hits:
+                    lines.append(f"  - {h.strip()[:100]}")
+        except Exception:
+            pass
+
+    lines.append("")
+    lines.append("<!-- 完整源文件路径: AGENTS.md / .claude/anti-patterns.md / .claude/claude-next.md / .claude/kernel.md -->")
+
+    try:
+        cache_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        cache_size = cache_file.stat().st_size
+        print(f"[context-compressor] ✅ 缓存已压缩更新: {cache_file} ({cache_size} bytes)", file=sys.stderr)
+    except Exception as e:
+        print(f"[context-compressor] ❌ 写入失败: {e}", file=sys.stderr)
+
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/context-guard.py
+```
+#!/usr/bin/env python3
+"""context-guard.py — PreToolUse:Edit|Write — 基于真实 token 百分比阻断写操作，防止上下文溢出
+Role: 基于真实 token 百分比阻断写操作，防止上下文溢出
+
+等效移植自 context-guard.sh:
+- 读取 token_writer 状态文件，检查使用率
+- 三个阈值: warn(50%), danger(80%), critical(90%)
+- 只封锁 Edit/Write，保留 Read/Grep/Bash 诊断通道
+- 有 context-force-override 逃生门
+- Ghost/Goal 模式不阻断写操作，仅记录 flywheel
+- 原则: "读是诊断, 写是破坏"
+
+集成关系 (pre-exec + completion-gate):
+- hermes-pre-exec → 前置执行门禁，context-guard 与 pre-exec 共同构成写操作的双重防护
+- completion-gate → 任务完成门禁，context-guard 阻断防止溢出导致 completion-gate 误判
+- context-guard 的阻断决策可被 pre-exec 逻辑覆盖（force-override 逃生门）
+"""
+
+import json
+import os
+import sys
+from datetime import datetime, timezone
+from pathlib import Path
+
+# ─── 导入共享库 ───
+
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, is_mode_active
+
+# ─── 路径解析 ───
+
+_PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
+_STATE_DIR = _PROJECT_ROOT / ".omc" / "state"
+_OVERRIDE_FILE = _STATE_DIR / "context-force-override"
+
+# ─── 阈值 (可配置) ───
+
+WARN_PCT = int(hc_get("context_guard.warn_threshold", "50"))
+DANGER_PCT = int(hc_get("context_guard.danger_threshold", "80"))
+CRITICAL_PCT = int(hc_get("context_guard.critical_threshold", "90"))
+
+
+# ─── agentic_status block 等效 ───
+
+def _agentic_status_block(title: str, message: str, detail: str = ""):
+    """输出阻断 UI 到 stderr（等效 sh 的 agentic_status block）。"""
+    sep = "═" * 55
+    lines = [
+        "",
+        f"⛔ [{title}]",
+        sep,
+        message,
+        f"     {detail}" if detail else "",
+        "",
+    ]
+    print("\n".join(lines), file=sys.stderr, flush=True)
+
+
+# ─── 上下文监控读取 ───
+
+def _read_context_monitor() -> dict:
+    """尝试执行 context_monitor.py（如果存在且可执行），返回其 JSON 输出。
+
+    等效 sh 中:
+        RESULT=$(CONTEXT_*_THRESHOLD=... context_monitor.py 2>/dev/null)
+
+    Returns:
+        dict with keys: percentage, source, is_danger, is_critical, sweet_spot_warning
+        如果无法执行则返回空 dict。
+    """
+    scripts_dir = (_HOOKS_DIR / ".." / "scripts").resolve()
+    monitor_script = scripts_dir / "context_monitor.py"
+
+    if not monitor_script.exists() or not os.access(str(monitor_script), os.X_OK):
+        return {}
+
+    import subprocess
+
+    env = os.environ.copy()
+    env["CONTEXT_WARN_THRESHOLD"] = str(WARN_PCT)
+    env["CONTEXT_DANGER_THRESHOLD"] = str(DANGER_PCT)
+    env["CONTEXT_CRITICAL_THRESHOLD"] = str(CRITICAL_PCT)
+
+    try:
+        result = subprocess.run(
+            [sys.executable, str(monitor_script)],
+            capture_output=True, text=True, timeout=10, env=env,
+        )
+        output = result.stdout.strip()
+        if not output:
+            return {}
+        return json.loads(output)
+    except (json.JSONDecodeError, subprocess.TimeoutExpired, FileNotFoundError):
+        return {}
+    except Exception:
+        return {}
+
+
+# ─── 主逻辑 ───
+
+def main():
+    # ── 门禁检查 ──
+    if not hc_enabled("context_guard"):
+        print('{"continue": true}')
+        sys.exit(0)
+
+    # ── 读取 stdin ──
+    stdin_data = sys.stdin.read()
+    try:
+        payload = json.loads(stdin_data)
+    except json.JSONDecodeError:
+        print('{"continue": true}')
+        sys.exit(0)
+
+    # ── 逃生舱盖: 标记文件存在时跳过阻断 ──
+    if _OVERRIDE_FILE.exists():
+        _OVERRIDE_FILE.unlink(missing_ok=True)
+        print('{"continue": true}')
+        sys.exit(0)
+
+    # ── 统一模式检测 ──
+    mode = is_mode_active(str(_STATE_DIR))
+    mode_label = f"[{mode} mode]" if mode != "normal" else ""
+
+    # ── 提取 tool_name ──
+    tool_name = (payload.get("tool_name") or payload.get("tool") or "")
+
+    block_writes = tool_name in ("Edit", "Write")
+
+    # ── 运行上下文监控 ──
+    monitor_data = _read_context_monitor()
+    if not monitor_data:
+        # No monitor available, just pass through
+        print('{"continue": true}')
+        sys.exit(0)
+
+    source = monitor_data.get("source", "")
+    pct = monitor_data.get("percentage", 0)
+    is_danger = monitor_data.get("is_danger", False)
+    is_critical = monitor_data.get("is_critical", False)
+    sweet_spot_warning = monitor_data.get("sweet_spot_warning", "")
+
+    # ── CRITICAL threshold (90%): hard-block in normal mode, log+pass in autonomous ──
+    if is_critical and source == "transcript (real)":
+        if mode != "normal":
+            # 自主模式: 仅记录，不阻断
+            _log_skipped(mode, pct, "critical context but autonomous mode")
+            msg = f"⚠️ [{mode} mode] 上下文占比 {pct}%。超出紧急阈值但自主模式不阻断。请考虑 /compact。"
+            print(hc_emit_hook_json(msg, event="PreToolUse", continue_val=True))
+            sys.exit(0)
+
+        flywheel_event("context_guard", "critical", "P0")
+        _agentic_status_block(
+            "Context Guard 紧急阻断 — 90% 临界",
+            f"会话上下文占比已达 {pct}%（紧急阈值: {CRITICAL_PCT}%）。"
+            f"AI 记忆已不可靠，继续操作将导致数据损毁。务必立即运行 /compact 压缩会话。"
+            f"所有写操作已被物理阻断。{mode_label}",
+        )
+        sys.exit(2)
+
+    # ── DANGER threshold (80%): block writes in normal mode ──
+    if is_danger and source == "transcript (real)":
+        flywheel_event("context_guard", "triggered", "P2")
+
+        if block_writes:
+            if mode != "normal":
+                # 自主模式: 不阻断
+                _log_skipped(mode, pct, "context exceeds danger but autonomous mode")
+                msg = f"⚠️ [{mode} mode] 上下文占比 {pct}%。超出危险阈值但自主模式不阻断。请考虑 /compact。"
+                print(hc_emit_hook_json(msg, event="PreToolUse", continue_val=True))
+                sys.exit(0)
+
+            _agentic_status_block(
+                "Context Guard 硬阻断",
+                f"当前会话上下文占比已达 {pct}%（危险阈值: {DANGER_PCT}%，警告阈值: {WARN_PCT}%）！",
+                "为防止灾难性幻觉、指令遗忘或代码损毁，已强制拦截写入操作。"
+                "诊断工具 (Read/Grep/Bash) 可正常使用。请运行 '/compact' 压缩会话或手动重置 token 追踪。"
+                f"{mode_label}",
+            )
+            sys.exit(2)
+        else:
+            # 非写工具: 告警到 stderr + 不阻断
+            print(f"⚠️ [Context Guard] 上下文占比 {pct}%{mode_label} — heuristic 源不触发硬阻断，已告警记录",
+                  file=sys.stderr, flush=True)
+            msg = f"⚠️ 上下文占比 {pct}%。超出危险阈值。请考虑 /compact。诊断操作未阻断。"
+            print(hc_emit_hook_json(msg, event="PreToolUse", continue_val=True))
+            sys.exit(0)
+
+    # ── Heuristic danger warning: transcript unavailable but context estimated high ──
+    if is_danger and source != "transcript (real)":
+        print(f"⚠️ [Context Guard] 上下文占比 {pct}% ({source}) — heuristic 源告警不阻断",
+              file=sys.stderr, flush=True)
+        ml = f" [{mode} mode]" if mode != "normal" else ""
+        msg = f"⚠️ 上下文估算占比 {pct}%。来源: {source}。无法读取 transcript，阻断已跳过。请检查 transcript 目录或手动 /compact。{ml}"
+        print(hc_emit_hook_json(msg, event="PreToolUse", continue_val=True))
+        sys.exit(0)
+
+    # ── Sweet-spot / Hand-off Alert: inject into AI context via additionalContext ──
+    if sweet_spot_warning:
+        sweet_json = json.dumps(json.dumps(sweet_spot_warning))
+        result = json.dumps({
+            "continue": True,
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": sweet_spot_warning,
+            }
+        })
+        print(result)
+        sys.exit(0)
+
+    # ── 放行 ──
+    print('{"continue": true}')
+    sys.exit(0)
+
+
+# ─── 辅助函数 ───
+
+def _log_skipped(mode: str, pct, reason: str):
+    """将自主模式跳过的阻断记录到 skipped-errors.md。"""
+    log_path = _STATE_DIR / "skipped-errors.md"
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    line = f"{timestamp} | {mode} | context_guard | {pct}% | {reason}\n"
+    try:
+        _STATE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(str(log_path), "a", encoding="utf-8") as f:
+            f.write(line)
+    except Exception:
+        pass
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/cross-platform-smoke-test.py
+```
+#!/usr/bin/env python3
+"""cross-platform-smoke-test.py — SessionStart — 检测 stat 和 sed 的跨平台兼容性
+Role: 检测 stat 和 sed 的跨平台兼容性，永不阻断
+"""
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+
+# Import shared library
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from harness_lib import hc_enabled, flywheel_event
+
+
+def _run(args, timeout=5):
+    """Run a shell command, return (stdout, stderr, rc)."""
+    try:
+        r = subprocess.run(args, capture_output=True, text=True, timeout=timeout)
+        return r.stdout, r.stderr, r.returncode
+    except Exception:
+        return "", "error", -1
+
+
+def main():
+    # ── Guard ──
+    if not hc_enabled("cross_platform_smoke_test"):
+        print('{"continue": true}')
+        sys.exit(0)
+
+    has_problem = False
+    this_file = os.path.abspath(__file__)
+
+    # ─── Check stat command ───
+    if shutil.which("stat"):
+        stdout, stderr, rc = _run(["stat", "--version"])
+        combined = (stdout + stderr).lower()
+
+        if any(x in combined for x in ("usage", "illegal option", "invalid option", "unrecognized")):
+            # macOS stat (BSD variant)
+            r = subprocess.run(["stat", "-f", "%m", this_file], capture_output=True, timeout=5)
+            if r.returncode != 0:
+                flywheel_event("cross_platform_smoke_test", "stat_macos_broken", "P3", "carror-os")
+                has_problem = True
+        else:
+            # Linux stat (GNU variant)
+            r = subprocess.run(["stat", "-c", "%Y", this_file], capture_output=True, timeout=5)
+            if r.returncode != 0:
+                flywheel_event("cross_platform_smoke_test", "stat_linux_broken", "P3", "carror-os")
+                has_problem = True
+    else:
+        flywheel_event("cross_platform_smoke_test", "stat_missing", "P3", "carror-os")
+        has_problem = True
+
+    # ─── Check sed command ───
+    if shutil.which("sed"):
+        stdout, stderr, rc = _run(["sed", "--version"])
+        if "gnu" in (stdout + stderr).lower():
+            # GNU sed — fine
+            pass
+        else:
+            # BSD sed — check -i.bak
+            try:
+                r = subprocess.run(
+                    ["sed", "-i.bak", "s/test/ok/", "/dev/null"],
+                    capture_output=True, timeout=5,
+                    input="test\n", text=True
+                )
+            except Exception:
+                r = subprocess.run(
+                    ["sed", "-i.bak", "s/test/ok/", "/dev/null"],
+                    capture_output=True, timeout=5
+                )
+            if r.returncode != 0:
+                flywheel_event("cross_platform_smoke_test", "sed_bsd_issue", "P3", "carror-os")
+                has_problem = True
+    else:
+        flywheel_event("cross_platform_smoke_test", "sed_missing", "P3", "carror-os")
+        has_problem = True
+
+    # ─── Summary ───
+    if has_problem:
+        sys.stderr.write("[cross-platform-smoke-test] WARN: 检测到跨平台兼容性问题，已记录 flywheel\n")
+
+    print('{"continue": true}')
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/distinct-concept-richner.py
+```
+#!/usr/bin/env python3
+"""
+distinct-concept-richner.py — Richner hook: distinct概念丰富化
+
+在AI生成内容中检测概念混淆/重叠, 自动注入区分策略。
+哲学归属: #7(文档) → 确保概念边界清晰, 引用准确。
+
+工作流:
+  1. 检测输出中概念混用 (同义反复/范畴错误/层级混淆)
+  2. 如发现混淆 → 注入区分说明 + 引用AGENTS.md路由表
+  3. 记录distinct信号到 .claude/signals/ 供后续审计
+
+Matcher: PostToolUse | Edit | Write
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+
+# ── 路径探活 ──
+CARROROS = Path(os.environ.get("CARROROS_DIR", str(Path.home() / "Desktop" / "Sylph" / "Carror_OS")))
+SIGNALS_DIR = CARROROS / ".claude" / "signals"
+SIGNALS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def detect_concept_overlap(text: str) -> list:
+    """检测概念混淆 —— 启发式模式匹配"""
+    patterns = {
+        "philosophy_vs_iron_law": ["哲学优先级", "铁律", "哲学铁律"],
+        "compact_vs_full": ["compact", "压缩", "AGENTS.compact", "AGENTS.md"],
+        "hook_vs_skill": ["hook", "skill", "lx-"],
+    }
+    hits = []
+    for name, keywords in patterns.items():
+        found = [kw for kw in keywords if kw in text]
+        if len(found) >= 2:
+            hits.append((name, found))
+    return hits
+
+
+def inject_distinction(hits: list, content: str) -> str:
+    """注入概念区分说明"""
+    injects = []
+    for name, found in hits:
+        if name == "philosophy_vs_iron_law":
+            injects.append(
+                "\n> **概念区分**: 哲学优先级(#4>#6>...)是冲突裁决链; "
+                "铁律(1-8条)是行为约束。哲学决定_怎么选_, 铁律规定_不能做什么_。"
+            )
+        elif name == "compact_vs_full":
+            injects.append(
+                "\n> **概念区分**: AGENTS.compact.md 是运行时注入的压缩路由表; "
+                "AGENTS.md 是完整源。compact 展开后恢复全部上下文。"
+            )
+        elif name == "hook_vs_skill":
+            injects.append(
+                "\n> **概念区分**: hook (snake_case) 是事件→动作的gate/guard; "
+                "skill (lx-前缀) 是能力模块。hook 阻断/审计, skill 执行/编排。"
+            )
+    return content + "".join(injects)
+
+
+def write_signal(name: str, detail: str):
+    """写入信号文件"""
+    ts = __import__("datetime").datetime.now().strftime("%Y%m%d-%H%M%S")
+    sig = SIGNALS_DIR / f"distinct-{name}-{ts}.signal"
+    sig.write_text(f"# distinct-concept-richner signal\nname: {name}\nts: {ts}\ndetail: {detail}\n")
+
+
+def main():
+    # 从 stdin 或环境变量读取内容
+    content = os.environ.get("ORIGINAL_CONTENT", "")
+    if not content and not sys.stdin.isatty():
+        content = sys.stdin.read()
+
+    if not content:
+        # 无内容可检查, 静默退出 (hook 永不阻断)
+        sys.exit(0)
+
+    hits = detect_concept_overlap(content)
+    if hits:
+        for name, found in hits:
+            write_signal(name, f"concepts overlapped: {found}")
+        enriched = inject_distinction(hits, content)
+        # 输出丰富化后的内容
+        print(enriched)
+        sys.exit(0)
+
+    # 无混淆, 原样输出
+    if not sys.stdin.isatty():
+        print(content)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/ecosystem-probe.py
+```
+#!/usr/bin/env python3
+"""
+ecosystem-probe.py — SessionStart — 生态探针
+
+Role: 检测运行平台（Claude Code / OpenCode）与 OMO 安装状态，输出软建议
+永不阻断，exit 0。SessionStart 时注入平台能力信息，AI 据此调整行为策略。
+有 OMO 时：hook 完整运行，gate/skill/context 全功能可用
+无 OMO 时：无 hook 环境，AI 需要更保守、更自检
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+_HOOKS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(_HOOKS_DIR))
+from harness_lib import (
+    hc_enabled, flywheel_event, read_input, output_continue,
+    PROJECT_ROOT, STATE_DIR, HOME_DIR,
+)
+
+
+def detect_omo_family() -> dict:
+    """Detect OMO family installations."""
+    result = {"omc": False, "omo": False, "codex": False, "gemini": False, "hook_layer": "none"}
+
+    # oh-my-claudecode (omc)
+    if shutil.which("omc") is not None:
+        result["omc"] = True
+        result["omo"] = True
+        result["hook_layer"] = "full"
+    else:
+        try:
+            r = subprocess.run(["npm", "list", "-g", "oh-my-claudecode"], capture_output=True, text=True, timeout=10)
+            if "oh-my-claudecode" in r.stdout:
+                result["omc"] = True
+                result["omo"] = True
+                result["hook_layer"] = "full"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    # oh-my-opencode (omo)
+    if shutil.which("omo") is not None:
+        result["omo"] = True
+        result["hook_layer"] = "full"
+    else:
+        try:
+            r = subprocess.run(["npm", "list", "-g", "oh-my-opencode"], capture_output=True, text=True, timeout=10)
+            if "oh-my-opencode" in r.stdout:
+                result["omo"] = True
+                result["hook_layer"] = "full"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    # Codex CLI
+    if shutil.which("codex") is not None:
+        result["codex"] = True
+    else:
+        try:
+            r = subprocess.run(["npm", "list", "-g", "@openai/codex"], capture_output=True, text=True, timeout=10)
+            if "@openai/codex" in r.stdout:
+                result["codex"] = True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    if (HOME_DIR / ".codex" / "config.json").exists():
+        result["codex"] = True
+
+    # Gemini CLI
+    if shutil.which("gemini") is not None:
+        result["gemini"] = True
+    else:
+        try:
+            r = subprocess.run(["npm", "list", "-g", "@google/gemini-cli"], capture_output=True, text=True, timeout=10)
+            if "@google/gemini-cli" in r.stdout:
+                result["gemini"] = True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    return result
+
+
+def main():
+    if not hc_enabled("ecosystem_probe"):
+        output_continue()
+        return
+
+    platform = "unknown"
+    opencode = False
+    omo_family = detect_omo_family()
+
+    # ── Layer 1: Detect from stdin hook_source ──
+    input_str = read_input()
+    hook_source = ""
+    if input_str:
+        try:
+            data = json.loads(input_str)
+            hook_source = (data.get("hook_source") or "").strip()
+        except (json.JSONDecodeError, Exception):
+            pass
+
+    if hook_source == "opencode-plugin":
+        platform = "opencode"
+        opencode = True
+        if not omo_family["omo"] and not omo_family["omc"]:
+            omo_family["hook_layer"] = "partial"
+    elif hook_source in ("claude-code-hook", "claude_code_hook"):
+        platform = "claude-code"
+        omo_family["hook_layer"] = "full"
+        if shutil.which("opencode") is not None:
+            opencode = True
+    else:
+        # Layer 2: Environment detection
+        if shutil.which("opencode") is not None:
+            opencode = True
+            platform = "opencode"
+            if not omo_family["omo"] and not omo_family["omc"]:
+                omo_family["hook_layer"] = "partial"
+        if (HOME_DIR / ".claude" / "projects").exists():
+            platform = "claude-code"
+            omo_family["hook_layer"] = "full"
+
+    # ── Runtime dependency detection ──
+    python3_ok = shutil.which("python3") is not None
+    python3_has_secrets = False
+    missing_deps = ""
+
+    if python3_ok:
+        try:
+            subprocess.run(
+                [sys.executable, "-c", "import secrets"],
+                capture_output=True, timeout=5,
+            )
+            python3_has_secrets = True
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+    else:
+        missing_deps += "python3 "
+
+    # ── LSP server detection ──
+    lsp = {
+        "pyright": False, "tsserver": False, "go": False,
+        "rust": False, "serena": False, "total": 0,
+    }
+    if shutil.which("pyright") is not None or shutil.which("pyright-langserver") is not None:
+        lsp["pyright"] = True
+        lsp["total"] += 1
+    else:
+        try:
+            r = subprocess.run(["pip", "show", "pyright"], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0:
+                lsp["pyright"] = True
+                lsp["total"] += 1
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    if shutil.which("typescript-language-server") is not None:
+        lsp["tsserver"] = True
+        lsp["total"] += 1
+
+    if shutil.which("gopls") is not None:
+        lsp["go"] = True
+        lsp["total"] += 1
+
+    if shutil.which("rust-analyzer") is not None:
+        lsp["rust"] = True
+        lsp["total"] += 1
+
+    # Serena check with cache
+    serena_cache = STATE_DIR / ".serena-checked"
+    if shutil.which("serena") is not None:
+        lsp["serena"] = True
+        lsp["total"] += 1
+    else:
+        try:
+            r = subprocess.run(["pip", "show", "serena-agent"], capture_output=True, text=True, timeout=5)
+            if r.returncode == 0:
+                lsp["serena"] = True
+                lsp["total"] += 1
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+
+    if not lsp["serena"] and shutil.which("uvx") is not None:
+        if serena_cache.exists():
+            try:
+                mtime = os.path.getmtime(str(serena_cache))
+                if time.time() - mtime < 86400:
+                    lsp["serena"] = serena_cache.read_text().strip() == "True"
+                    if lsp["serena"]:
+                        lsp["total"] += 1
+            except OSError:
+                pass
+        else:
+            try:
+                r = subprocess.run(
+                    ["timeout", "5", "uvx", "--from", "serena-agent", "serena", "--help"],
+                    capture_output=True, timeout=10,
+                )
+                if r.returncode == 0:
+                    lsp["serena"] = True
+                    lsp["total"] += 1
+            except (OSError, subprocess.TimeoutExpired):
+                pass
+            try:
+                serena_cache.parent.mkdir(parents=True, exist_ok=True)
+                serena_cache.write_text(str(lsp["serena"]), encoding="utf-8")
+            except OSError:
+                pass
+
+    # LSP level
+    lsp_level = "none"
+    if platform == "opencode" and opencode:
+        lsp_level = "full"
+    elif platform == "claude-code":
+        lsp_level = "partial" if lsp["total"] >= 1 else "none"
+    elif omo_family["codex"]:
+        lsp_level = "bridge" if lsp["serena"] else "none"
+
+    # Context limit
+    ctx_limit_file = STATE_DIR / "model-context-limit"
+    ctx_limit = "unset"
+    if ctx_limit_file.exists():
+        ctx_limit = ctx_limit_file.read_text().strip() or "unset"
+
+    # ── Output probe info ──
+    print()
+    print("<ecosystem-probe>")
+    print(f"platform:   {platform}")
+    print(f"opencode:   {opencode}")
+    print(f"omo:        {omo_family['omo']}")
+    print(f"omc:        {omo_family['omc']}")
+    print(f"codex:      {omo_family['codex']}")
+    print(f"gemini:     {omo_family['gemini']}")
+    print(f"hook_layer: {omo_family['hook_layer']}")
+    print(f"python3:    {python3_ok}")
+    print(f"py_secrets: {python3_has_secrets}")
+    print(f"context_limit: {ctx_limit}")
+    print(f"missing:    {missing_deps or 'none'}")
+    print(f"lsp_level:  {lsp_level}")
+    print(f"lsp_pyright: {lsp['pyright']}")
+    print(f"lsp_typescript: {lsp['tsserver']}")
+    print(f"lsp_go:     {lsp['go']}")
+    print(f"lsp_rust:   {lsp['rust']}")
+    print(f"lsp_serena: {lsp['serena']}")
+    print(f"lsp_servers: {lsp['total']}")
+    print("</ecosystem-probe>")
+
+    # ── Soft suggestions ──
+    if platform == "opencode" and not omo_family["omo"] and not omo_family["omc"]:
+        print("[soft-suggest] OpenCode 已安装但未安装 OMO (oh-my-openagent)。")
+        print("[soft-suggest] Carror OS 的 hook 门禁/技能/skill 依赖 OMO 兼容层。无 OMO 时仅基础功能可用。")
+        print("[soft-suggest] 安装: npx oh-my-opencode install --no-tui --claude no --openai no --gemini no --skip-auth")
+
+    if platform == "claude-code" and not omo_family["omc"]:
+        print("[soft-suggest] Claude Code 平台建议安装 OMC (oh-my-claudecode) 获得完整 hook 门禁。")
+        print("[soft-suggest] 安装: npx oh-my-claudecode install")
+
+    if not python3_ok:
+        print(f"[soft-suggest] ⚠️ python3 未安装 — 38 个 hook（127 处调用）依赖它。")
+        print("[soft-suggest] macOS: brew install python3")
+        print("[soft-suggest] Linux: apt install python3")
+    elif not python3_has_secrets:
+        print("[soft-suggest] ⚠️ python3 缺 secrets 模块（Python < 3.6），权限门禁降级。")
+        print("[soft-suggest] 升级: brew upgrade python3 或 apt upgrade python3")
+
+    # LSP suggestions
+    if lsp_level == "none" and platform != "unknown":
+        print()
+        print("[lsp-suggest] 🔍 LSP 语义引擎未配置 — AI 将只能用 grep 理解代码（低效且容易出错）")
+        print("[lsp-suggest] LSP 可让 AI 获得 IDE 级别的代码理解：跳转定义、查找引用、实时诊断")
+        print("[lsp-suggest] 安装指南: Read docs/guides/cn/lsp-setup.md")
+
+    if platform == "claude-code" and lsp_level == "none":
+        print("[lsp-suggest] Claude Code: /plugin install pyright-lsp@claude-plugins-official")
+        print("[lsp-suggest] 前置依赖: pip install pyright")
+    elif platform == "claude-code" and lsp_level == "partial":
+        print(f"[lsp-suggest] LSP 部分就绪 ({lsp['total']} 服务器)，建议安装更多语言服务器以覆盖本项目")
+
+    if omo_family["codex"] and not lsp["serena"]:
+        print("[lsp-suggest] Codex CLI 无原生 LSP，建议通过 Serena MCP 桥接")
+        print("[lsp-suggest] 安装: pip install serena-agent && serena start --context codex")
+        print("[lsp-suggest] 然后在 ~/.codex/config.toml 中配置 MCP 服务器")
+
+    if platform == "opencode":
+        print("[lsp-suggest] OpenCode LSP 已内置 (40+ 服务器)，设置 lsp:true 即可启用")
+        opencode_json = PROJECT_ROOT / ".opencode.json"
+        home_opencode_json = HOME_DIR / ".opencode.json"
+        lsp_enabled = False
+        for f in [opencode_json, home_opencode_json]:
+            if f.exists():
+                try:
+                    content = f.read_text(encoding="utf-8")
+                    if '"lsp".*true' in content:
+                        lsp_enabled = True
+                except OSError:
+                    pass
+        if not lsp_enabled:
+            print('[lsp-suggest] ⚠️ 当前项目未启用 LSP — 在 .opencode.json 中设置 "lsp": true')
+
+    output_continue()
+    flywheel_event("ecosystem_probe", "probe_complete", "P2", platform)
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/edit-guard.py
+```
+#!/usr/bin/env python3
+"""
+edit-guard.py — PreToolUse:Edit — 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
+Role: 编辑源文件前强制先 Read，实施 Read-before-Edit 门禁
+对应 edit-guard.sh 的 Python 移植，保持完全相同的逻辑
+"""
+
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+# Import shared library
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from harness_lib import (
+    hc_enabled,
+    is_mode_active,
+    hc_get,
+    flywheel_event,
+    hc_emit_hook_json,
+    agentic_menu,
+)
+
+# ─── Path setup ───
+SCRIPT_DIR = Path(__file__).resolve().parent
+PROJECT_ROOT = (SCRIPT_DIR / "../..").resolve()
+STATE_DIR = PROJECT_ROOT / ".omc" / "state"
+READ_LOG = STATE_DIR / "read-tracker.txt"
+
+
+def main():
+    # ── Guard: check if edit_guard is enabled ──
+    if not hc_enabled("edit_guard"):
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Read stdin JSON ──
+    input_str = sys.stdin.read()
+    try:
+        input_data = json.loads(input_str)
+    except json.JSONDecodeError:
+        # Invalid JSON → fail-open
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Mode detection: ghost/goal → skip Read-before-Edit gate ──
+    mode = is_mode_active(str(STATE_DIR))
+    if mode != "normal":
+        msg = f"⚠️ {mode}模式: 跳过 Read-before-Edit 检查"
+        print(hc_emit_hook_json(msg, "PreToolUse", True))
+        sys.exit(0)
+
+    # ── Extract file_path (two possible locations) ──
+    tool_input = input_data.get("tool_input", {}) or {}
+    args = input_data.get("args", {}) or {}
+    file_path = tool_input.get("file_path", "") or args.get("filePath", "") or ""
+
+    if not file_path:
+        # No path → fail-open
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Check source extension match ──
+    source_ext_str = hc_get("project.source_extensions", "*.go")
+    source_ext_list = source_ext_str.split() if source_ext_str else ["*.go"]
+
+    basename = os.path.basename(file_path)
+    matched = False
+    for ext in source_ext_list:
+        ext = ext.strip()
+        if not ext:
+            continue
+        # Convert shell glob pattern (*.go, *.py, etc.) to regex
+        pattern = re.escape(ext).replace(r"\*", ".*")
+        pattern = "^" + pattern + "$"
+        if re.match(pattern, basename, re.IGNORECASE):
+            matched = True
+            break
+
+    if not matched:
+        # Not a source file → pass through
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Normalize path ──
+    try:
+        real_path = str(Path(file_path).resolve())
+    except Exception:
+        real_path = file_path
+
+    # ── Fail-open: read-tracker doesn't exist ──
+    if not READ_LOG.exists():
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    # ── Check if file was already read (exact line match) ──
+    try:
+        read_lines = READ_LOG.read_text(encoding="utf-8", errors="replace").splitlines()
+        for line in read_lines:
+            if line.strip() == real_path:
+                print(json.dumps({"continue": True}))
+                sys.exit(0)
+    except Exception:
+        pass
+
+    # ── Block: file not read yet ──
+    # Double check mode again (mirrors shell script logic)
+    mode2 = is_mode_active(str(STATE_DIR))
+    if mode2 != "normal":
+        print("[edit-guard] 自主模式: 跳过 Read-before-Edit 检查", file=sys.stderr)
+        print(json.dumps({"continue": True}))
+        sys.exit(0)
+
+    flywheel_event("edit_guard", "blocked", "P2")
+    agentic_menu(
+        "Read-before-Edit",
+        f"文件: {file_path} — 宪法第六条: 修改代码前必须先阅读当前内容",
+        "先 Read 再编辑", f"Read {file_path} 后再进行编辑操作",
+        "强制编辑", "跳过 Read 检查，直接编辑",
+    )
+
+
+if __name__ == "__main__":
+    main()
+
+```
+
+## 输出要求
+执行完毕后，写入以下文件：
+
+1. **executor.md** — 记录每个操作的证据块:
+```
+### 操作 1
+- action: read/write/edit
+- file: path/to/file
+- command: 执行过的命令
+- output: 结果摘要
+- status: PASS/FAIL
+```
+
+2. **result.json** (在 /Users/lucas.liang/Desktop/CarrorOS/.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2):
+```json
+{"status": "completed", "summary": "做了什么事", "evidence": ["操作摘要"], "files_changed": ["file1", "file2"], "failure": null}
+```
+或失败时:
+```json
+{"status": "failed", "summary": "", "failure": "失败原因", "retry_count": 0}
+```
+
+## 注意
+- 以上文件内容已由 executor 读取并注入到本次 prompt 中，你不需要执行任何文件读取操作
+- 基于以上真实源文件内容输出你的分析报告
+- 分析必须基于实际读到的事实，不能编造
+- 直接输出最终分析报告（纯文本/markdown，不要包含任何 tool_call 或 bash 命令）
+- **不要用 tool_call、不要跑 bash 命令**，你已经拿到了所有需要的文件内容
+- 完成后主 agent 会检查你的 result.json

@@ -1,0 +1,73 @@
+{
+  "plan_id": "plan-202607091735",
+  "level": "L2",
+  "goal": "对比分析 CarrorOS（桌面版）和 Sylph 两套 AI 治理框架的各自优劣势，以及各自对不同模型的适配情况",
+  "title": "CarrorOS vs Sylph 优劣势分析及适配评估",
+  "created_at": "2026-07-09T17:35:00+00:00",
+  "max_concurrency": 3,
+  "max_retries": 3,
+  "steps": [
+    {
+      "id": "S1",
+      "goal": "分析 CarrorOS 桌面版（~/Desktop/CarrorOS/）的架构优劣势，包含治理体系、hooks机制、状态机、subagent系统等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。",
+      "ac_refs": [
+        "AC-CARRO"
+      ],
+      "deps": [],
+      "files": [],
+      "type": "research"
+    },
+    {
+      "id": "S2",
+      "goal": "分析 Sylph（~/Desktop/Sylph/Carror_OS/）的架构优劣势，包含治理哲学、hook系统、三门户设计等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。",
+      "ac_refs": [
+        "AC-SYLP"
+      ],
+      "deps": [],
+      "files": [],
+      "type": "research"
+    },
+    {
+      "id": "S3",
+      "goal": "评估 CarrorOS 对 deepseek-v4-flash 的适配情况，以及 Sylph 对 opus 和 gpt_5.5 的适配情况，给出适配建议和迁移路径。结合 S1+S2 的实际分析结果。",
+      "ac_refs": [
+        "AC-ADAPT-DS",
+        "AC-ADAPT-OPUS",
+        "AC-ADAPT-GPT",
+        "AC-SUMMARY"
+      ],
+      "deps": [
+        "S1",
+        "S2"
+      ],
+      "files": [],
+      "type": "research"
+    }
+  ],
+  "ac_registry": [
+    {
+      "id": "AC-CARRO",
+      "desc": "输出 CarrorOS 桌面版的优劣势分析（至少5个维度，基于实际源文件）"
+    },
+    {
+      "id": "AC-SYLP",
+      "desc": "输出 Sylph 的优劣势分析（至少5个维度，基于实际源文件）"
+    },
+    {
+      "id": "AC-ADAPT-DS",
+      "desc": "桌面版对 deepseek-v4-flash 的适配情况分析"
+    },
+    {
+      "id": "AC-ADAPT-OPUS",
+      "desc": "Sylph 对 opus 的适配情况分析"
+    },
+    {
+      "id": "AC-ADAPT-GPT",
+      "desc": "Sylph 对 gpt_5.5 的适配情况分析"
+    },
+    {
+      "id": "AC-SUMMARY",
+      "desc": "给出适配建议和迁移路径"
+    }
+  ]
+}

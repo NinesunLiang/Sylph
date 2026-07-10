@@ -1,0 +1,21 @@
+{
+  "schema_version": "v1.0",
+  "session": {
+    "id": "verify-test",
+    "level": "L1",
+    "created_at": "2026-07-09T10:05:06.782406+00:00",
+    "updated_at": "2026-07-09T10:05:06.827279+00:00"
+  },
+  "task_dir": "/Users/lucas.liang/Desktop/CarrorOS/.omc/tasks/2026-07-09/verify-test",
+  "status": "archived",
+  "task": {
+    "current_step": "S1",
+    "status": "active",
+    "blocked": null
+  },
+  "stats": {
+    "done": 1,
+    "total": 2,
+    "tick": 0
+  }
+}

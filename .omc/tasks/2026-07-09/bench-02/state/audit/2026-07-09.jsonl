@@ -1,0 +1,4 @@
+{"schema_version": "v1.0", "ts": "2026-07-09T09:51:59.094899+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-09T09:51:59.166295+00:00", "event": "archive", "data": {"task_id": "bench-02", "result": "ARCHIVED"}}
+{"schema_version": "v1.0", "ts": "2026-07-09T10:04:47.532815+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-09T10:04:47.606166+00:00", "event": "archive", "data": {"task_id": "bench-02", "result": "ARCHIVED"}}

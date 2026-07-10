@@ -1,0 +1,2 @@
+{"schema_version": "v1.0", "ts": "2026-07-09T10:05:06.916181+00:00", "event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+{"schema_version": "v1.0", "ts": "2026-07-09T10:05:06.956377+00:00", "event": "archive", "data": {"task_id": "smoke-test-01", "result": "ARCHIVED"}}

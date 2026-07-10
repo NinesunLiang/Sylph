@@ -1,0 +1,21 @@
+{
+  "schema_version": "v1.0",
+  "session": {
+    "id": "test-oracle-smoke",
+    "level": "L1",
+    "created_at": "2026-07-09T21:06:46.483844+00:00",
+    "updated_at": "2026-07-09T21:06:46.483865+00:00"
+  },
+  "task_dir": "/Users/lucas.liang/Desktop/CarrorOS/.omc/tasks/20260709/test-oracle-smoke",
+  "status": "archived",
+  "task": {
+    "current_step": "S1",
+    "status": "active",
+    "blocked": null
+  },
+  "stats": {
+    "done": 0,
+    "total": 1,
+    "tick": 0
+  }
+}
