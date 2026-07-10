@@ -377,6 +377,7 @@ def archive_task(token_path: Path, task_path: Path) -> ArchiveResult:
     handoff_path = task_path / "state" / "session-handoff.md"
     oracle_verdicts_path = task_path / "oracle-verdicts.md"
     error_dna_path = task_path / "state" / "error-dna.json"
+    spec_path = task_path / "spec.md"
 
     plan_text = read_text(plan_path)
     executor_text = read_text(executor_path)
@@ -397,6 +398,7 @@ def archive_task(token_path: Path, task_path: Path) -> ArchiveResult:
     file_map = [
         ("plan", plan_path, archive_path / "plan.md"),
         ("executor", executor_path, archive_path / "executor.md"),
+        ("spec", spec_path, archive_path / "spec.md"),
         ("session_handoff", handoff_path, archive_path / "session-handoff.md"),
         ("oracle_verdicts", oracle_verdicts_path, archive_path / "oracle-verdicts.md"),
         ("error_dna", error_dna_path, archive_path / "error-dna.json"),
@@ -414,6 +416,18 @@ def archive_task(token_path: Path, task_path: Path) -> ArchiveResult:
     audit_slice_path = archive_path / "audit-slice.jsonl"
     write_audit_slice(audit_slice_path, events)
     copied.append({"kind": "audit_slice", "source": ".omc/audit/*.jsonl", "archive": str(audit_slice_path), "sha256": sha256_file(audit_slice_path)})
+
+    # sub_task 目录 — 打包到 archive/sub_task/（如有）
+    sub_task_src = task_path / "sub_task"
+    sub_task_dst = archive_path / "sub_task"
+    if sub_task_src.exists():
+        if sub_task_dst.exists():
+            shutil.rmtree(sub_task_dst)
+        shutil.copytree(sub_task_src, sub_task_dst)
+        copied.append({
+            "kind": "sub_task", "source": str(sub_task_src),
+            "archive": str(sub_task_dst), "sha256": "directory",
+        })
 
     # sovereign-verdict.json — §6
     risks = residual_risk(events)

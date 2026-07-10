@@ -221,7 +221,39 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
     return False, f"unrecognized verify rule: {rule}", warnings
 
 
-def verify_step(step: str, plan_path: Path, executor_path: Path, token_path: Path | None = None) -> VerifyDecision:
+def parse_spec_acs(spec_path: Path, step: str | None = None) -> list[str]:
+    """Parse Acceptance Criteria from spec.md — returns list of AC rules
+
+    spec.md 格式:
+        - AC1 [command:] <desc>
+        - AC2 [file:] <desc>
+        - AC3 [assertion:] <desc>
+    """
+    spec_text = read_text(spec_path)
+    if not spec_text:
+        return []
+
+    rules = []
+    for line in spec_text.splitlines():
+        stripped = line.strip()
+        # Match: - AC1 [command:] description
+        m = re.match(r"^\s*-\s*(AC\d+)\s*\[(command:|file:|assertion:)\]\s*(.+)", stripped)
+        if m:
+            prefix = m.group(2)  # e.g. "command:"
+            desc = m.group(3).strip()
+            rules.append(f"{prefix}{desc}")
+            continue
+        # Match: - AC1: description (no type prefix, default assertion:)
+        m2 = re.match(r"^\s*-\s*(AC\d+):\s*(.+)", stripped)
+        if m2:
+            desc = m2.group(2).strip()
+            rules.append(f"assertion:{desc}")
+
+    return rules
+
+
+def verify_step(step: str, plan_path: Path, executor_path: Path, token_path: Path | None = None,
+                spec_path: Path | None = None) -> VerifyDecision:
     plan_text = read_text(plan_path)
     executor_text = read_text(executor_path)
 
@@ -235,9 +267,17 @@ def verify_step(step: str, plan_path: Path, executor_path: Path, token_path: Pat
 
     # Parse verify rules for this step
     verify_rules = parse_verify_rules(plan_text, step)
-    if not verify_rules:
+
+    # Also merge AC rules from spec.md (if available)
+    spec_acs = []
+    if spec_path and spec_path.exists():
+        spec_acs = parse_spec_acs(spec_path, step)
+    all_rules = verify_rules + [r for r in spec_acs if r not in verify_rules]
+
+    if not all_rules:
         return VerifyDecision("REJECTED", "no_verify_rules", step, [], [], [],
-                              "Plan step must have verify rules. Update plan.md via PlanBuilder.")
+                              "Plan step must have verify rules or spec.md must have ACs.")
+    verify_rules = all_rules
 
     # Check for invalid rule syntax
     valid_prefixes = ("command:", "file:", "assertion:", "user:")
@@ -344,10 +384,14 @@ def main() -> int:
     parser.add_argument("--plan", required=True)
     parser.add_argument("--executor", required=True)
     parser.add_argument("--token", required=False)
+    parser.add_argument("--spec", required=False,
+                       help="spec.md 路径 — 可选，提供 AC 规则以增强验证")
     args = parser.parse_args()
 
     token = read_json(Path(args.token)) if args.token else None
-    result = verify_step(args.step, Path(args.plan), Path(args.executor), Path(args.token) if args.token else None)
+    spec_path = Path(args.spec) if args.spec else None
+    result = verify_step(args.step, Path(args.plan), Path(args.executor),
+                         Path(args.token) if args.token else None, spec_path)
 
     write_audit(result, token)
 

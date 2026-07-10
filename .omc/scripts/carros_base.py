@@ -8,6 +8,9 @@ Usage:
     python3 .claude/scripts/carros_base.py init --task-id TASK_ID [--step S1 [S2 ...]] [--level L1|L2]
     python3 .claude/scripts/carros_base.py status
     python3 .claude/scripts/carros_base.py tick
+    python3 .claude/scripts/carros_base.py report              # 生成 final-report.md
+    python3 .claude/scripts/carros_base.py verify [--step S1]
+    python3 .claude/scripts/carros_base.py clarify --title "任务名"
     python3 .claude/scripts/carros_base.py verify [--step S1]
     python3 .claude/scripts/carros_base.py archive [--force]
     python3 .claude/scripts/carros_base.py bench [scene]
@@ -44,6 +47,24 @@ try:
     import task_state_tracker as tst
 except ImportError:
     tst = None
+
+try:
+    import goal_state_machine as gsm
+    from goal_state_machine import GoalMachine, GoalError
+except ImportError:
+    gsm = None
+    GoalMachine = None
+    GoalError = Exception
+
+try:
+    import task_planner
+except ImportError:
+    task_planner = None
+
+try:
+    import sub_agent_manager as sam
+except ImportError:
+    sam = None
 
 # ─── Paths (cross-platform: pathlib) ───
 # .claude/        → 可复用资产（hooks, scripts, reference）
@@ -638,6 +659,73 @@ def cmd_verify(step_id=None):
         PLAN_PATH.write_text(plan)
         _save_token(token)
         _write_handoff(token)
+
+        # Goal 状态自动推进: done >= total → VERIFYING
+        done = token.get("stats", {}).get("done", 0)
+        total = token.get("stats", {}).get("total", 0)
+        if done >= total and GoalMachine:
+            try:
+                gm = GoalMachine(TOKEN_PATH)
+                gm.auto_progress(token)
+            except GoalError:
+                pass
+    return 0
+
+
+def cmd_report(use_stdout=True, archive_mode=False):
+    """
+    生成 final-report.md — 共享节点，所有流程的终止点都应调用。
+
+    从 executor.md + plan.md + audit JSONL 提取事实，不会编造。
+
+    Args:
+        use_stdout: 输出到 stdout（默认 True）
+        archive_mode: 归档模式（写入 task_dir + 额外标记）
+
+    Returns:
+        0 = 成功, 1 = 无活跃任务, 2 = 错误
+    """
+    if not TOKEN_PATH or not TOKEN_PATH.exists():
+        token, tp = _find_latest_token()
+        if token:
+            _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+        else:
+            print(_red("❌ No active task"))
+            return 2
+
+    token = _load_token()
+    if not token:
+        print(_red("❌ No active task"))
+        return 2
+
+    report_text = ""
+
+    if carros_utils and hasattr(carros_utils, "generate_final_report"):
+        report_text = carros_utils.generate_final_report(token, TASK_DIR)
+    else:
+        # fallback brief
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        stats = token.get("stats", {})
+        sid = token.get("session", {}).get("id", "unknown")
+        report_text = (
+            f"# Final Report: {sid}\n\n"
+            f"**生成时间:** {now}\n"
+            f"**状态:** {token.get('status', '?')}\n"
+            f"**完成度:** {stats.get('done', 0)}/{stats.get('total', 0)}\n\n"
+        )
+
+    # 输出到 stdout（用户直接看到）
+    if use_stdout:
+        print(_bold("=" * 50))
+        print(report_text)
+        print(_bold("=" * 50))
+
+    # 输出到 task_dir/final-report.md
+    if TASK_DIR:
+        report_path = TASK_DIR / "final-report.md"
+        report_path.write_text(report_text)
+        print(_green(f"✅ Report saved: {report_path}"))
+
     return 0
 
 
@@ -679,16 +767,25 @@ def cmd_archive(force=False):
     else:
         print(_yellow("⚠  --force: skipping step completion check"))
 
-    # Step 3: generate final report
+    # Step 3: generate final report (shared node)
     task_sid = token.get("session", {}).get("id", "unknown")
     archive_dir = OMC_ROOT / "archive" / task_sid
     archive_dir.mkdir(parents=True, exist_ok=True)
-    final_report = _generate_final_report(token)
-    report_path = archive_dir / "final-report.md"
-    report_path.write_text(final_report)
-    print(_green(f"✅ Final report: {report_path}"))
+    cmd_report(use_stdout=False)
+    print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
 
-    # Step 4: tombstone — 复制 token 到 archive 目录作为墓碑
+    # Step 4: 复制 report 到 archive 目录
+    if GoalMachine:
+        try:
+            gm = GoalMachine(TOKEN_PATH)
+            gm.transition(gsm.ARCHIVED, reason="archive completed")
+            print(_green(f"   Goal State: {gsm.get_state_header(gm.current_state)}"))
+            # 重新加载 token — GoalMachine 已写入 goal.archived
+            token = _load_token() or token
+        except GoalError:
+            pass
+
+    # Step 5: tombstone — 复制 token 到 archive 目录作为墓碑
     token["status"] = "archived"
     token["archived_at"] = datetime.now(timezone.utc).isoformat()
     _save_token(token)
@@ -720,14 +817,15 @@ def cmd_archive(force=False):
     _write_audit("archive", {"task_id": token["session"]["id"], "result": "ARCHIVED"})
     _write_handoff(token)
 
-    # Step 5: 删除 active token — 方案 10.md L1012: token_path.unlink(missing_ok=True)
+    # Step 6: 删除 active token
     token_path_str = str(TOKEN_PATH)
     TOKEN_PATH.unlink(missing_ok=True)
     print(_green(f"✅ Token 已删除: {token_path_str}"))
 
-    # Step 6: 输出 {"continue": false} — 给 main agent 正式结束通知
+    # Step 7: 输出 {"continue": false}
     print(json.dumps({"continue": False}))
     print(_green("✅ Task archived"))
+
     return 0
 
 
@@ -1403,19 +1501,108 @@ def cmd_cancel():
 
 
 def cmd_oracle():
-    """Oracle 高阶复核 — 调用 oracle_engine.py 运行 L2 pass-curve / L3 Multi-Judge"""
+    """Oracle 复核 — LLM 驱动双审
+
+    用法:
+        carros_base.py oracle review --task-id <ID> [--plan <path>] [--executor <path>] [--token <path>] [--logs <path>] [--diff <path>] [--policy security_strict|runtime_strict|fast_path|balanced]
+        carros_base.py oracle health
+        carros_base.py oracle status --task-id <ID>
+
+    Legacy (旧版 oracle_engine.py):
+        carros_base.py oracle <review_pack_path>
+    """
     import subprocess
-    if len(sys.argv) >= 3:
-        pack_path = sys.argv[2]
-        engine = _hook_dir / "oracle_engine.py"
-        if not engine.exists():
-            print("oracle_engine.py not found")
+    argv = sys.argv[sys.argv.index("oracle") + 1:]
+
+    # 探测新/旧模式
+    if not argv:
+        print(__doc__)
+        return 2
+
+    if argv[0] == "review":
+        # 新模型 Oracle — 调 model_oracle_spawn.py
+        spawn = _hook_dir / "model_oracle_spawn.py"
+        if not spawn.exists():
+            print("model_oracle_spawn.py not found")
             return 1
+
+        # 组装子命令
+        cmd = [sys.executable, str(spawn), "review", "--task-id"]
+        # 找 task-id
+        i = 1
+        task_id = None
+        extra_args = []
+        while i < len(argv):
+            a = argv[i]
+            if a == "--task-id" and i + 1 < len(argv):
+                task_id = argv[i + 1]
+                i += 2
+            elif a in ("--plan", "--executor", "--token", "--logs", "--diff", "--policy"):
+                if i + 1 < len(argv):
+                    extra_args.extend([a, argv[i + 1]])
+                    i += 2
+                else:
+                    i += 1
+            else:
+                i += 1
+
+        if not task_id:
+            # 尝试从 token 推断
+            tok, tp = _find_latest_token()
+            if tok:
+                task_id = tok.get("session", {}).get("id", "unknown")
+            else:
+                print(_red("❌ No task-id provided and no active token found"))
+                return 2
+
+        cmd.extend([task_id] + extra_args)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        print(result.stdout.strip())
+        if result.stderr:
+            print(_yellow(result.stderr[:500]))
+        return result.returncode
+
+    elif argv[0] == "health":
+        spawn = _hook_dir / "model_oracle_spawn.py"
+        if not spawn.exists():
+            print("model_oracle_spawn.py not found")
+            return 1
+        result = subprocess.run([sys.executable, str(spawn), "health"],
+                                capture_output=True, text=True, timeout=10)
+        print(result.stdout.strip())
+        return result.returncode
+
+    elif argv[0] == "reset":
+        spawn = _hook_dir / "model_oracle_spawn.py"
+        if not spawn.exists():
+            print("model_oracle_spawn.py not found")
+            return 1
+        result = subprocess.run([sys.executable, str(spawn), "reset"],
+                                capture_output=True, text=True, timeout=5)
+        print(result.stdout.strip())
+        return result.returncode
+
+    elif argv[0] == "status" and "--task-id" in argv:
+        spawn = _hook_dir / "model_oracle_spawn.py"
+        if not spawn.exists():
+            print("model_oracle_spawn.py not found")
+            return 1
+        idx = argv.index("--task-id") + 1
+        tid = argv[idx] if idx < len(argv) else ""
+        result = subprocess.run([sys.executable, str(spawn), "status", "--task-id", tid],
+                                capture_output=True, text=True, timeout=5)
+        print(result.stdout.strip())
+        return result.returncode
+
+    # Fallback: 旧模式 (direct review_pack_path)
+    pack_path = argv[0]
+    engine = _hook_dir / "oracle_engine.py"
+    if engine.exists():
         cmd = [sys.executable, str(engine), pack_path]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         print(result.stdout.strip())
         return result.returncode
-    print("usage: carros_base.py oracle <review_pack_path>")
+    print(_red("Unknown oracle subcommand or oracle_engine.py not found"))
     return 2
 
 
@@ -1447,6 +1634,279 @@ def cmd_help():
     return 0
 
 
+def cmd_clarify():
+    """Goal 前置澄清 — 交互式探查目标/AC/边界/依赖，输出 spec.md
+
+    用法:
+        python3 .claude/scripts/carros_base.py clarify --title "任务名"
+        python3 .claude/scripts/carros_base.py clarify --title "任务名" --batch < spec.json
+
+    Goal 状态机: 自动推进到 CLARIFY 状态
+    """
+    import subprocess as sb
+    _omc_scripts_parent = Path(__file__).resolve().parent  # .omc/scripts/ or .claude/scripts/
+    argv = sys.argv[sys.argv.index("clarify") + 1:]
+
+    title = "unnamed"
+    batch = False
+    output_path = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--title" and i + 1 < len(argv):
+            title = argv[i + 1]; i += 2
+        elif argv[i] == "--batch":
+            batch = True; i += 1
+        elif argv[i] == "--output" and i + 1 < len(argv):
+            output_path = argv[i + 1]; i += 2
+        else:
+            i += 1
+
+    # 确保有 active token
+    if not TOKEN_PATH or not TOKEN_PATH.exists():
+        tok, tp = _find_latest_token()
+        if tok:
+            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+        else:
+            # 自动 init
+            cmd_init(title, level="L1", steps=["S1"])
+            print(_yellow("  ⚠ 已自动 init 新任务"))
+
+    # 调用 clarify_engine.py — 先找 .omc/scripts/，再找 .claude/scripts/
+    script_candidates = [
+        _omc_scripts_parent / "clarify_engine.py",  # .omc/scripts/
+        _hook_dir / "clarify_engine.py",             # .claude/scripts/
+    ]
+    script = None
+    for cand in script_candidates:
+        if cand.exists():
+            script = cand
+            break
+    if not script:
+        print(_red("❌ clarify_engine.py not found (.omc/scripts/ or .claude/scripts/)"))
+        return 2
+
+    spec_path = output_path or (TASK_DIR / "spec.md") if TASK_DIR else ".omc/spec.md"
+    cmd = [sys.executable, str(script), "--title", title]
+    if batch:
+        cmd.append("--batch")
+    cmd.extend(["--output", str(spec_path)])
+
+    if batch:
+        result = sb.run(cmd, capture_output=True, text=True, timeout=15)
+        print(result.stdout)
+        if result.returncode != 0:
+            print(_red(f"❌ clarify failed: {result.stderr[:200]}"))
+            return 2
+    else:
+        result = sb.run(cmd, timeout=300)
+        if result.returncode != 0:
+            print(_red("❌ clarify cancelled"))
+            return 2
+
+    # 更新 Goal 状态机
+    if GoalMachine:
+        try:
+            gm = GoalMachine(TOKEN_PATH)
+            gm.transition(gsm.CLARIFY, reason=f"clarify: {title}")
+            print(_green(f"   Goal State: {gsm.get_state_header(gm.current_state)}"))
+        except GoalError as e:
+            print(_yellow(f"  ⚠ Goal state: {e}"))
+
+    print(_green(f"✅ Clarified: {title}"))
+    print(f"   Spec: {spec_path}")
+    return 0
+
+
+def cmd_plan():
+    """分解 spec.md → 原子任务 → plan.json
+
+    用法:
+        python3 .claude/scripts/carros_base.py plan [--spec spec.md] [--level L2] [--output plan.json]
+
+    流程:
+        1. 读 spec.md
+        2. 调用 task_planner.py 分解为 plan.json
+        3. 更新 Goal 状态机 → PLANNING
+    """
+    argv = sys.argv[sys.argv.index("plan") + 1:]
+    spec_path = None
+    level = "L1"
+    output_path = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--spec" and i + 1 < len(argv):
+            spec_path = argv[i + 1]; i += 2
+        elif argv[i] == "--level" and i + 1 < len(argv):
+            level = argv[i + 1]; i += 2
+        elif argv[i] == "--output" and i + 1 < len(argv):
+            output_path = argv[i + 1]; i += 2
+        else:
+            i += 1
+
+    # 确保有 active token
+    if not TOKEN_PATH or not TOKEN_PATH.exists():
+        tok, tp = _find_latest_token()
+        if tok:
+            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+        else:
+            print(_red("❌ No active task. Run 'clarify' or 'init' first."))
+            return 2
+
+    # 找 spec.md
+    spec_file = Path(spec_path) if spec_path else (TASK_DIR / "spec.md")
+    if not spec_file.exists():
+        spec_file = OMC_TASKS / "spec.md"
+    if not spec_file.exists():
+        print(_red(f"❌ spec.md not found. Run 'clarify' first."))
+        return 2
+
+    if task_planner is None:
+        # 直接调用 subprocess
+        planner_script = _hook_dir / "task_planner.py"
+        if not planner_script.exists():
+            print(_red("❌ task_planner.py not available"))
+            return 2
+
+        plan_out = output_path or str(TASK_DIR / "plan.json") if TASK_DIR else ".omc/plan.json"
+        cmd = [sys.executable, str(planner_script), str(spec_file),
+               "--output", plan_out, "--level", level]
+        result = sb.run(cmd, capture_output=True, text=True, timeout=15)
+        print(result.stdout)
+        if result.returncode != 0:
+            return 2
+        plan_path = Path(plan_out)
+    else:
+        parsed = task_planner.parse_spec(spec_file)
+        plan = task_planner.decompose(parsed, level=level)
+        plan_path = Path(output_path) if output_path else (TASK_DIR / "plan.json")
+        task_planner.save_plan(plan, plan_path)
+        print(f"📋 Plan: {len(plan['steps'])} steps, level={level}")
+        for s in plan["steps"]:
+            print(f"   [{s['type']}] {s['id']}: {s['goal'][:50]}")
+
+    # Goal 状态机 → PLANNING
+    if GoalMachine:
+        try:
+            gm = GoalMachine(TOKEN_PATH)
+            gm.transition(gsm.PLANNING, reason=f"plan: {spec_file.name}")
+            print(_green(f"   Goal State: {gsm.get_state_header(gm.current_state)}"))
+        except GoalError as e:
+            print(_yellow(f"  ⚠ Goal state: {e}"))
+
+    print(_green(f"✅ Plan generated: {plan_path}"))
+    return 0
+
+
+def cmd_auto():
+    """全自动管道: clarify → plan → distribute → wait → collect → verify → archive
+
+    用法:
+        python3 .claude/scripts/carros_base.py auto [--plan plan.json] [--timeout 300]
+                                                  [--max-concurrency 3] [--no-archive]
+
+    流程:
+        1. 有 plan.json 则跳过 clarify+plan
+        2. 调用 sub_agent_manager auto_run
+        3. 回收后 verify + archive
+    """
+    argv = sys.argv[sys.argv.index("auto") + 1:]
+    plan_path = None
+    timeout = 300
+    max_concurrency = 3
+    no_archive = False
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--plan" and i + 1 < len(argv):
+            plan_path = argv[i + 1]; i += 2
+        elif argv[i] == "--timeout" and i + 1 < len(argv):
+            timeout = int(argv[i + 1]); i += 2
+        elif argv[i] == "--max-concurrency" and i + 1 < len(argv):
+            max_concurrency = int(argv[i + 1]); i += 2
+        elif argv[i] == "--no-archive":
+            no_archive = True; i += 1
+        else:
+            i += 1
+
+    # 确保有 active token
+    if not TOKEN_PATH or not TOKEN_PATH.exists():
+        tok, tp = _find_latest_token()
+        if tok:
+            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+        else:
+            print(_red("❌ No active task. Run 'init' first."))
+            return 2
+
+    if not TASK_DIR or not TASK_DIR.exists():
+        print(_red("❌ Task directory not found"))
+        return 2
+
+    # 确保 sub_agent_manager 可用
+    if sam is None:
+        print(_yellow("⚠  sub_agent_manager.py not importable, using subprocess fallback"))
+
+    print(_bold(f"🚀 Auto pipeline: {TASK_DIR.name} (timeout={timeout}s, cc={max_concurrency})"))
+
+    # 创建 manager
+    mgr = sam.SubAgentManager(TASK_DIR, PROJECT_ROOT) if sam else None
+
+    if mgr:
+        mgr.set_config(timeout=timeout, max_concurrency=max_concurrency)
+
+    # Step 1: 读取或准备 plan
+    plan = None
+    if plan_path:
+        plan_file = Path(plan_path)
+        if plan_file.exists():
+            plan = json.loads(plan_file.read_text())
+            print(f"📋 Loaded plan: {plan.get('title', '?')} ({len(plan['steps'])} steps)")
+    else:
+        existing = TASK_DIR / "plan.json"
+        if existing.exists():
+            plan = json.loads(existing.read_text())
+            print(f"📋 Using existing plan: {plan.get('title', '?')} ({len(plan['steps'])} steps)")
+
+    if not plan:
+        print(_red("❌ No plan.json found. Run 'plan' first or specify --plan"))
+        return 2
+
+    # Step 2: 分发 → 等待 → 回收
+    if mgr:
+        result = mgr.auto_run(plan=plan, wait=True)
+    else:
+        # fallback: 直接 carros_base.py dispatch + poll + collect
+        print(_yellow("⚠  Using carros_base.py dispatch/poll/collect fallback"))
+        from subprocess import run as sbrun
+        for step in plan["steps"]:
+            sid = step["id"]
+            r = sbrun([sys.executable, __file__, "dispatch", "--step", sid],
+                      capture_output=True, text=True, timeout=10)
+            print(f"   dispatch {sid}: {'ok' if r.returncode == 0 else r.stderr[:80]}")
+        print("   Tasks dispatched. Run 'poll' to check status.")
+        return 0
+
+    # Step 3: verify 每个完成的 step
+    verified_count = 0
+    if result.get("collect_result"):
+        for sid in result["collect_result"].get("collected", []):
+            r = cmd_verify(step_id=sid)
+            if r == 0:
+                verified_count += 1
+
+    # Step 4: 自动 archive（除非 --no-archive）
+    if not no_archive and verified_count > 0:
+        print(_bold("\n📦 Archiving..."))
+        cmd_archive(force=False)
+
+    # 总结
+    print(_bold(f"\n{'=' * 50}"))
+    print(_bold(f"🏁 Auto pipeline complete"))
+    print(f"   Plan: {plan.get('title', '?')} ({len(plan['steps'])} steps)")
+    print(f"   Result: {result.get('summary', '?')}")
+    print(f"   Verified: {verified_count}/{len(plan['steps'])}")
+    print(f"{'=' * 50}")
+    return 0 if result.get("failed", 1) == 0 else 1
+
+
 # ═══════════════════════════════════════════
 # CLI entrypoint
 # ═══════════════════════════════════════════
@@ -1457,12 +1917,16 @@ COMMANDS = {
     "tick": cmd_tick,
     "verify": cmd_verify,
     "archive": cmd_archive,
+    "clarify": cmd_clarify,
+    "plan": cmd_plan,
+    "auto": cmd_auto,
     "lint": cmd_lint,
     "bench": cmd_bench,
     "gate": cmd_gate,
     "dispatch": cmd_dispatch,
     "poll": cmd_poll,
     "collect": cmd_collect,
+    "report": cmd_report,
     "cancel": cmd_cancel,
     "oracle": cmd_oracle,
     "fallback": cmd_fallback,
