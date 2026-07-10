@@ -1,0 +1,19 @@
+{
+  "version": 5,
+  "agent": "model_runtime",
+  "task_id": "test_debug",
+  "model": "deepseek-chat",
+  "model_version": "deepseek-chat",
+  "prompt_version": "model_runtime_v1",
+  "timestamp": "20260710T015045Z",
+  "decision": "allow",
+  "verdict": "ACCEPT",
+  "risk": "LOW",
+  "score": 9.5,
+  "findings": [],
+  "degraded": false,
+  "degraded_reason": "",
+  "missing_oracles": [],
+  "fallback_oracles": [],
+  "duration_ms": 0
+}
