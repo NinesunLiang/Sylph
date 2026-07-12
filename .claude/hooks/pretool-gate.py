@@ -480,7 +480,7 @@ def _clean_stale_state_token() -> None:
 
 # Dialogue residue patterns — content that indicates AI chat output left in spec docs
 HARD_BLOCK_DOC_PATTERNS = [
-    r"(^|/)重构指导文档/",
+    r"(^|/)\.claude/references/design-docs/",
     r"(^|/)AGENTS\.md$",
     r"(^|/)kernel\.md$",
     r"(^|/)README\.md$",

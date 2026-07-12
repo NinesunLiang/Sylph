@@ -11,9 +11,17 @@ L2 : Base + Context Watermark + Low-frequency Oracle + Learning Flywheel
 ```
 
 使用场景：
+```text
+L1 / Base: 默认治理级别，适用于中低风险、边界清楚、可直接验证的任务；
+L2 / Enhance: 跨模块、架构、不可逆、安全权限、release、长期无人或用户要求高可靠时启用。
 ```
-base: 轻度治理，简单工作流，无复杂环结构，deepseek-v4-flash/qwen3.7-plus 等中低阶模型驱动；
-enhence: 全量治理，可以复杂工作流，可以有复杂loop, opus4.6+/gpt5.5+ 等高阶模型驱动；
+
+模型与代理一致性：
+```text
+L1 / L2 由任务风险决定，不按模型档位区分。
+SubAgent 与 MainAgent 默认使用同一模型、同一治理规则和同一证据标准。
+不得因模型名称或供应商改变任务等级、验证门、scope、权限或完成标准。
+需要不同模型时必须作为显式实验或人工裁决，不得静默路由。
 ```
 
 ### 10 模块降级为内部实现

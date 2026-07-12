@@ -614,7 +614,60 @@ L2 / Enhance Workflow
 
 ---
 
-## 12. 最终更新裁决
+## 12. 模型与代理一致性（2026-07-10 更新）
+
+治理等级、代理角色和模型路由必须解耦：
+
+```text
+1. L1 / L2 只由任务风险、范围和可逆性决定，不按模型档位决定。
+2. MainAgent 与全部 SubAgent 默认使用同一模型配置。
+3. SubAgent 必须继承 MainAgent 的 model、base_url、认证来源和兼容参数策略。
+4. MainAgent 与 SubAgent 共用相同的 scope、权限、证据、VerifyGate 和完成标准。
+5. 禁止按 agent type、模型供应商或成本静默切换模型。
+6. 异构模型只允许作为显式实验或人工批准的例外，必须写入 audit。
+```
+
+模型继承优先级：
+
+```text
+显式人工批准的任务覆盖
+→ MainAgent 当前会话模型
+→ 项目统一模型配置
+→ 无可用配置则 BLOCKED
+```
+
+禁止为 SubAgent 设置独立的隐藏默认模型。尤其禁止在 MainAgent 使用模型 A 时，SubAgent 因脚本默认值、agent registry 或代理服务 fallback 静默改用模型 B。
+
+适配层还必须遵守：
+
+```text
+- 请求失败时显示 requested_model、resolved_model、endpoint 和参数映射结果。
+- 403 model access denied：不得换模型重试，返回 BLOCKED。
+- 400 unsupported parameter：视为协议映射错误，不得解释为 context 上限。
+- context/output 超限：必须返回明确 token limit 错误，并由 Context Engine 处理。
+- 不得在 Messages、Responses、Chat Completions 协议之间猜测字段。
+```
+
+已观察到的真实差距：
+
+```text
+- sub_agent_executor.py 仍有 deepseek-chat 默认值，未做到无条件继承 MainAgent。
+- SubAgent 曾解析到 deepseek-v4-flash 并返回 403，而 MainAgent 会话模型并非该模型。
+- 代理服务曾返回 Unsupported parameter: max_output_tokens；这是参数协议不兼容，不是 180K context 上限。
+```
+
+验收标准：
+
+```text
+1. MainAgent 和 SubAgent 的运行日志显示相同 requested_model / resolved_model。
+2. 未显式批准时，任何 SubAgent 不得出现不同模型。
+3. 同一 smoke task 在 MainAgent/SubAgent 均使用同一请求参数映射并成功返回。
+4. 403/400 场景不得静默 fallback，必须保留 request_id 并给出可诊断错误。
+```
+
+---
+
+## 13. 最终更新裁决
 
 第三轮不是要推翻，而是要瘦身。
 
