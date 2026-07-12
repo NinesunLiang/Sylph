@@ -1,7 +1,9 @@
 # 🏛️ CarrorOS 桌面版（Base）全览图
 
-> 生成日期：2026-07-12
+> 生成日期：2026-07-12（v7.1.0 — 结构重构）
 > 版本：Base (DeepSeek V4 Flash / 中低阶模型治理套件)
+>
+> 本次重构变更：资产边界清理 → 运行时文件移入 .omc/ → 重构文档归档 → kernel/index 更新 → Nodes 热冷分离 → 技能合并（OMA 4→1, Oracle 3→1）
 
 ---
 
@@ -175,10 +177,10 @@ settings.json
 | | lx-dogfood | 自测（狗粮） |
 | | lx-git-check | Git 提交检查 |
 | | lx-validate-skill | 技能验证 |
-| **治理** | lx-oma-gov | OMA 治理 |
-| | lx-oma-hier | OMA 层级 |
-| | lx-oma-orch | OMA 编排 |
-| | lx-oma-split | OMA 拆分 |
+| **治理** | lx-oma (hier) | OMA L1 分层拆解 |
+| | lx-oma (split) | OMA L2 特性拆解 |
+| | lx-oma (gov) | OMA 治理 |
+| | lx-oma (orch) | OMA 编排 |
 | **辅助** | lx-learner | 模式学习 |
 | | lx-skillify | 技能生成 |
 | | lx-varlock | 变量锁 |
@@ -284,4 +286,23 @@ oracle_engine.py (487行) —— 评审编排器
 
 ---
 
-> 本全览图为 2026-07-12 基于实际目录扫描和文件读取生成
+## 更新记录（2026-07-12 实际执行）
+
+### 已修复的问题
+
+| 原问题 | 状态 | 改动 |
+|--------|------|------|
+| 资产边界违规 — 运行时文件在 .claude/ | ✅ 已修复 | session-handoff → .omc/, last-user-prompt → .omc/state/ |
+| 嵌套 .omc/.omc/ | ✅ 已修复 | 已删除 |
+| 重构文档在根目录 | ✅ 已修复 | 移至 .claude/references/design-docs/ |
+| root 级报告文件 | ✅ 已修复 | 移至 .omc/archive/design-docs/ |
+| kernel.md L2 Enhance 未标记骨架 | ✅ 已修复 | 标注 ⚪ 骨架 + 运行时说明 |
+| index.md Hook 路由指向不存在的单文件 | ✅ 已修复 | 合并为 pretool-gate.py 统一入口 |
+| index.md 无脚本索引 | ✅ 已修复 | 添加 18 条快速索引表 |
+| index.md 无 Nodes 路由 | ✅ 已修复 | 添加热/冷节点分离路由 |
+| 无版本号/CHANGELOG | ✅ 已修复 | VERSION v7.1.0 + CHANGELOG.md |
+| OMA 四件套（4 个技能） | 🔄 执行中 | 合并为 1 个 lx-oma |
+| Oracle 三件套（3 个技能） | 🔄 执行中 | 合并为 1 个 lx-oracle |
+| lx-ghost 评估 | 🔄 执行中 | 保留+精简，委托 lx-oracle |
+
+> 本文件将在结构重构全部完成后统一刷新。

@@ -28,16 +28,19 @@
 
 ## Skill 路由
 
-| 场景 | 路径 |
-|------|------|
-| 目标驱动执行 | `.claude/skills/lx-goal/SKILL.md` |
-| Oracle 门禁 | `.claude/skills/lx-oracle/SKILL.md` |
-| 多 agent 并行 | `.claude/skills/lx-race/SKILL.md` |
-| 步骤式推进 | `.claude/skills/lx-stepwise/SKILL.md` |
-| 任务队列管理 | `.claude/skills/lx-todo/SKILL.md` |
-| 治理验证 | `.claude/skills/lx-validate-skill/SKILL.md` |
-| 变量锁 | `.claude/skills/lx-varlock/SKILL.md` |
-| CarrorOS 更新 | `.claude/skills/update-carror-os/SKILL.md` |
+| 场景 | 路径 | 子命令 |
+|------|------|--------|
+| 目标驱动执行 | `.claude/skills/lx-goal/SKILL.md` | — |
+| Oracle 门禁 | `.claude/skills/lx-oracle/SKILL.md` | `static` / `runtime` / `duo` |
+| 多 agent 并行 | `.claude/skills/lx-race/SKILL.md` | — |
+| 步骤式推进 | `.claude/skills/lx-stepwise/SKILL.md` | — |
+| 任务队列管理 | `.claude/skills/lx-todo/SKILL.md` | — |
+| 治理验证 | `.claude/skills/lx-validate-skill/SKILL.md` | — |
+| 变量锁 | `.claude/skills/lx-varlock/SKILL.md` | — |
+| CarrorOS 更新 | `.claude/skills/update-carror-os/SKILL.md` | — |
+| OMA 治理 | `.claude/skills/lx-oma/SKILL.md` | `hier` / `split` / `gov` / `orch` |
+| 方向驱动探索 | `.claude/skills/lx-ghost/SKILL.md` | — |
+| （更多技能见 SKILLS.md） | `.claude/skills/SKILLS.md` | |
 
 ## Schema 路由
 

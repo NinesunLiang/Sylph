@@ -10,8 +10,8 @@ Governance (治理)           Workflow (工作流)
                               lx-root-cause-analysis  lx-stepwise
 
 Autonomous (自主)           OMA Pipeline (管线)
-  lx-goal                    lx-oma-hier → lx-oma-split → lx-oma-gov → lx-rpe
-  lx-ghost                   lx-oma-orch (编排)
+  lx-goal                    lx-oma (hier → split → gov → orch) → lx-rpe
+  lx-ghost
 
 Foundation (基础)
   lx-task-spec  lx-learner  lx-skillify  lx-varlock
@@ -22,23 +22,21 @@ Foundation (基础)
 ```
 lx-goal ──→ lx-stepwise (子任务路由)
 lx-ghost ──→ lx-oracle (自主计划审核)
-lx-oma-orch ──→ lx-oma-hier / lx-oma-split / lx-oma-gov (管线编排)
-lx-oma-split ──→ lx-oma-hier (依赖 hier 完成)
-lx-oma-gov ──→ lx-oma-split (依赖 split 完成)
-lx-task-spec ──→ lx-oma-orch (Enhanced 模式)
+lx-oma ──→ lx-rpe (管线编排)
+lx-task-spec ──→ lx-oma (Enhanced 模式)
 ```
 
 ## 共享基础设施
 
 | 文件 | 被引用者 |
 |------|---------|
-| `references/oma/degradation-strategies.md` | hier, split, orch, gov |
-| `references/oma/observability.md` | hier, split, orch, gov |
-| `references/oma/pipeline-contract.md` | hier, split, orch, gov |
-| `references/oma/direction-guide.md` | hier, split, rpe |
-| `schemas/atomic/error_codes.yaml` | hier(HIER), split(SPLIT), orch(ORCH), gov(GOV) |
-| `nodes/oracle_terminal.md` | orch, goal, ghost |
-| `nodes/mode_selector.md` | orch, goal, ghost |
+| `references/oma/degradation-strategies.md` | lx-oma (hier, split, orch, gov) |
+| `references/oma/observability.md` | lx-oma (hier, split, orch, gov) |
+| `references/oma/pipeline-contract.md` | lx-oma (hier, split, orch, gov) |
+| `references/oma/direction-guide.md` | lx-oma (hier, split), lx-rpe |
+| `schemas/atomic/error_codes.yaml` | lx-oma (HIER, SPLIT, ORCH, GOV) |
+| `nodes/oracle_terminal.md` | lx-oma, lx-goal, lx-ghost |
+| `nodes/mode_selector.md` | lx-oma, lx-goal, lx-ghost |
 
 ## 归档
 

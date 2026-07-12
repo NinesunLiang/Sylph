@@ -1,4 +1,4 @@
-# lx-oracle-meta — Meta-Oracle 运行时验证审核
+# lx-oracle — 运行时验证模式（原 lx-oracle-meta）
 
 > 基于 **Oracle-V（Verification Protocol）** 协议的运行时验证引擎。
 > 方法论：**运行时验证**（实弹测试、bash 执行、交叉验证）。
@@ -7,13 +7,6 @@
 > 依赖 Oracle Agent 的静态输出做二次判断。
 
 ---
-
-## 审核原则
-
-1. **预测 vs 事实** — A 的预测与 B 的事实是否匹配
-2. **0 信任** — 不假设 executor 记录是真的，独立验证每条证据
-3. **证据门禁** — 没有 VERIFIED / PASS / exit code 0 的记录 = 未完成
-4. **软完成检测** — "差不多""基本完成""looks good" 是软完成语，必须降分
 
 ## 裁决范围
 

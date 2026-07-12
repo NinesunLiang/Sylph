@@ -105,11 +105,12 @@ for skill in lx-ghost lx-oracle-agent lx-oracle-meta lx-oracle-review lx-learner
   check "skill:$skill" ".claude/skills/$skill/SKILL.md" any
 done
 
-# ── 8. OMA Skills ──
+# ── 8. OMA Skills (merged) ──
 echo "── 8. OMA Skills ──"
-for skill in lx-oma-gov lx-oma-hier lx-oma-orch lx-oma-split; do
-  check "oma:$skill" ".claude/skills/$skill/SKILL.md" any
-done
+check "oma:lx-oma" ".claude/skills/lx-oma/SKILL.md" any
+# Subcommand refs
+check "oma:gov/gov"            ".claude/skills/lx-oma/gov/governance-spec.md" any
+check "oma:gov/HITL"           ".claude/skills/lx-oma/gov/HUMAN-IN-THE-LOOP-GATE.md" any
 
 # ── 9. Rules ──
 echo "── 9. Governance Rules ──"
