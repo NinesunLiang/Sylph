@@ -50,6 +50,22 @@
 | 输出 | `.claude/schemas/output/`（acceptance_report / gov_report / review_report / task_spec） |
 | 注册表 | `.claude/schemas/registry.yaml` |
 
+## Nodes 路由（热节点优先）
+
+热节点（≤8 个，核心工作流）：
+| 节点 | 路径 |
+|------|------|
+| 编排器 | `.claude/nodes/orchestrator.md` |
+| 验证器 | `.claude/nodes/verifier.md` |
+| 探索器 | `.claude/nodes/explore.md` |
+| 门禁检查 | `.claude/nodes/gate_checker.md` |
+| 模式选择 | `.claude/nodes/mode_selector.md` |
+| 执行节点 | `.claude/nodes/execute_node.md` |
+| 上下文收集 | `.claude/nodes/context_collector.md` |
+| 扫描器 | `.claude/nodes/scanner.md` |
+
+冷节点（按需加载，位于 `.claude/nodes/` 下）：auto_fixer, behavior_rules, interactive_prompt, oracle_terminal, report_generator, target_resolver, generator, a_terminal, b_terminal, decisions/*, judgments/*
+
 ## 脚本快速索引
 
 | 脚本 | 用途 |
