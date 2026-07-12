@@ -21,15 +21,10 @@
 
 ## Hook 路由
 
-| 触发点 | 位置 |
-|--------|------|
-|| 工具执行前 | `.claude/hooks/pretool-fallback-check.py` |
-|| 工具执行前 | `.claude/hooks/pretool-action-gate.py` |
-| 编辑范围 | `.claude/hooks/pretool-edit-scope.py` |
-| 敏感操作 | `.claude/hooks/pretool-sensitive-edit.py` |
-| Compact 记录 | `.claude/hooks/pretool-compact-writer.py` |
-| 工具执行后 | `.claude/hooks/posttool-audit.py` |
-| 完成门禁 | `.claude/hooks/completion-gate.py` |
+| 触发点 | 位置 | 说明 |
+|--------|------|------|
+| 统一门禁（7 合一） | `.claude/hooks/pretool-gate.py` | sensitive-edit / fallback-check / action-gate / plan-gate / edit-scope / privacy-gate / completion-gate |
+| 状态横幅 | `.claude/hooks/statusline-command.sh` | 状态回调 |
 
 ## Skill 路由
 
@@ -54,6 +49,29 @@
 | 输入 | `.claude/schemas/input/task_input.yaml` |
 | 输出 | `.claude/schemas/output/`（acceptance_report / gov_report / review_report / task_spec） |
 | 注册表 | `.claude/schemas/registry.yaml` |
+
+## 脚本快速索引
+
+| 脚本 | 用途 |
+|------|------|
+| `carros_base.py` | 主入口（init/status/tick/verify/archive/lint） |
+| `omc_lint.py` | 7 项代码规范检查 |
+| `verify_gate.py` | 完成验证门禁 |
+| `plan_builder.py` | 计划生成 |
+| `context_engine.py` | 上下文引擎 + compact_write |
+| `output_compress.py` | 输出压缩 |
+| `pre_action_gate.py` | 动作前门禁 |
+| `task_state_tracker.py` | 任务状态追踪 |
+| `executor_ledger.py` | 执行台账 |
+| `intake_gate.py` | 入口门禁 |
+| `honesty_audit.py` | 诚实审计 |
+| `oracle_*.py`（6 文件） | Oracle 评审引擎 |
+| `fallback_matrix.py` / `fallback_engine.py` | 降级矩阵 |
+| `context_watermark.py` | 水位检测（骨架） |
+| `statusline.py` | 状态栏生成 |
+| `archive_engine.py` | 归档引擎 |
+| `carros_utils.py` | 工具函数 |
+| `carros_oracle_base.py` | Base 版 Oracle 适配 |
 
 ## Reference 路由
 

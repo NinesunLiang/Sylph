@@ -5,20 +5,22 @@
 ## 冻结规则
 AI 不可自改 AGENTS.md / kernel.md / index.md。变更须人类裁决。
 
-## 学习飞轮（L2 Enhance）
+## 学习飞轮（L2 Enhance — ⚪ 骨架）
 Base + 2 学习资产：
 - `references/claude-next.md` — 经验层，用户纠正 + 模式失误
 - `references/error-dna.json` — 失败模式层，可复用系统性错误
 
 飞轮触发：失败 > 修复 > 记录 > 复用。不阻塞主流程。
+> ⚠️ 当前为骨架定义，运行时未接入。飞轮框架已就绪，待 L2 Enhance 阶段激活。
 
-## 三段式水位（L2 Enhance）
+## 三段式水位（L2 Enhance — ⚪ 骨架）
 | 水位 | 范围 | 行为 |
 |------|------|------|
 | 🟢 安全 | 0-40% | 正常执行 |
 | 🟡 警戒 | 40-70% | 停止加载新 reference；工具输出截断 |
 | 🔴 临界 | 70%+ | 当前 step 完成后停；写 handoff；询问是否进行compact，三十秒内容无回应ai尝试自行 compact |
 
+> ⚠️ 当前为骨架定义，运行时水位检测未接入。检测脚本已存在，待 L2 Enhance 阶段激活。
 检测脚本：`.claude/scripts/context_watermark.py`
 
 ## Oracle 门
