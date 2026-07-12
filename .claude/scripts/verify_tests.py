@@ -502,8 +502,8 @@ def test_agents_md_include() -> None:
     if not ref_lines:
         log_fail("AGENTS.md has no @ include references for compact/resume")
     # Should reference at least session-handoff.md
-    handoff_ref = any(".claude/session-handoff.md" in l for l in ref_lines)
-    prompt_ref = any(".claude/last-user-prompt.md" in l for l in ref_lines)
+    handoff_ref = any(".omc/session-handoff.md" in l for l in ref_lines)
+    prompt_ref = any(".omc/state/last-user-prompt.md" in l for l in ref_lines)
     if handoff_ref and prompt_ref:
         log_pass("AGENTS.md: both session-handoff and last-user-prompt referenced")
 

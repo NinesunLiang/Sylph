@@ -59,7 +59,7 @@ check "AGENTS.md"            "AGENTS.md"
 check "CLAUDE.md"            "CLAUDE.md"
 check "kernel.md"            ".claude/kernel.md"
 check "index.md"             ".claude/index.md"
-check "session-handoff.md"   ".claude/session-handoff.md"
+check "session-handoff.md"   ".omc/session-handoff.md"
 
 # ── 2. Hook System ──
 echo "── 2. Hook System ──"

@@ -75,7 +75,7 @@ L4 (Real):    1 session   ✅ Hook merge, crash fix, summary
 - 结果: 3/3 BLOCK 全部解除
 
 ### P2-S4: L4 实战验证 ✅
-- AGENTS.md @ 引用: 2/2 有效 (.claude/session-handoff.md, .claude/last-user-prompt.md)
+- AGENTS.md @ 引用: 2/2 有效 (.omc/session-handoff.md, .omc/state/last-user-prompt.md)
 - Hook 链: 7/7 脚本全部通过 py_compile
 - Skill 前置元数据: 19/19 全部有 name + description
 - 结果: 28/28 PASS

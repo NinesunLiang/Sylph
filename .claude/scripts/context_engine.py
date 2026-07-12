@@ -439,13 +439,13 @@ def state_injection(token_path: Path) -> str:
 
 
 def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> int:
-    """写入 .claude/session-handoff.md 和 .claude/last-user-prompt.md
-    供 AGENTS.md @ 引用，下次会话自动注入上下文。
+    """写入 .omc/session-handoff.md 和 .omc/state/last-user-prompt.md
+    供 @ 引用，下次会话自动注入上下文。
     无 hook 参与，纯文件写入。
     同时读取 .claude/.prompt-ring.json 收集最近 20 轮用户 prompt。
     """
-    handoff_path = ROOT / ".claude" / "session-handoff.md"
-    prompt_path = ROOT / ".claude" / "last-user-prompt.md"
+    handoff_path = ROOT / ".omc" / "session-handoff.md"
+    prompt_path = ROOT / ".omc" / "state" / "last-user-prompt.md"
     ring_path = ROOT / ".claude" / ".prompt-ring.json"
 
     token = read_json(token_path, {})

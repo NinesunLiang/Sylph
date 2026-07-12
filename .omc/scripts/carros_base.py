@@ -117,7 +117,7 @@ def _init_task_paths(task_id=None, task_dir=None):
     RESEARCH_PATH = TASK_DIR / "research.md"
     SUB_TASK_DIR = TASK_DIR / "sub_task"
     STATE_DIR = TASK_DIR / "state"
-    HANDOFF_PATH = Path(".claude/session-handoff.md")
+    HANDOFF_PATH = Path(".omc/session-handoff.md")
     AUDIT_DIR = STATE_DIR / "audit"
 
 # ─── ANSI helpers ───
@@ -849,7 +849,7 @@ def cmd_archive(force=False):
         src = TASK_DIR / optional if TASK_DIR else None
         if src and src.exists():
             shutil.copy2(src, archive_dir / optional)
-    handoff_src = HANDOFF_PATH if HANDOFF_PATH else Path(".claude/session-handoff.md")
+    handoff_src = HANDOFF_PATH if HANDOFF_PATH else Path(".omc/session-handoff.md")
     if handoff_src.exists():
         shutil.copy2(handoff_src, archive_dir / "session-handoff.md")
 

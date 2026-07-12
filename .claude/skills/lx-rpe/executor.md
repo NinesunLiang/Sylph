@@ -31,11 +31,11 @@ status: completed
 ```
 prompt 收集环: prompt-collector (UserPromptSubmit)
   ✅ 每1次: 写入 .prompt-ring.json（20条滚动）
-  ✅ 每5次: compact-write → 写 .claude/session-handoff.md + last-user-prompt.md
+  ✅ 每5次: compact-write → 写 .omc/session-handoff.md + .omc/state/last-user-prompt.md
   ✅ 每20次: 水位估算 → 70%+ 提醒 /compact
 
 AGENTS.md  @ include:
-  ✅ @ .claude/session-handoff.md
+  ✅ @ .omc/session-handoff.md
   ✅ @ .claude/last-user-prompt.md
   ✅ 裸 @ 语法（非 > @ 错误）
 
