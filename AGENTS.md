@@ -1,7 +1,7 @@
 # AGENTS.md — CarrorOS 核心
 
-@ .omc/session-handoff.md
-@ .omc/state/last-user-prompt.md
+@.claude/kernel.md
+@.claude/index.md
 
 > 本文件继承自 CarrorOS 哲学传统。变更须人类裁决。
 
@@ -26,33 +26,46 @@
 4. 隐私防线 — 禁止读 .env / 密钥 / .ssh
 5. 不假完成 — 没跑 VerifyGate = 没完成
 6. 不自改治理 — 不改 AGENTS.md / kernel.md / index.md
-7. **先 init 后动手** — 任何任务必须先 `carros_base.py init` 创建任务文档（`.omc/tasks/`）和令牌（`.omc/tokens/`），再改代码。跳过 init 直接改是违规。完整链路：init → Step → tick+verify → archive。
-
-
+7. **先 init 后动手** — 任何任务必须先 `carros_base.py init` 创建任务文档（`.omc/tasks/`）和令牌（`.omc/tokens/`），再改代码。跳过 init 直接改是违规。
 
 ## L1 工作流
 1. Plan → `python3 .claude/scripts/carros_base.py init --task-id <ID> [--step S1 ...]`
-2. Step → 按 plan.md TODO 执行，贴 executor.md 证据
+2. Execute → 按 plan.md 执行，贴 executor.md 证据
 3. Verify → `python3 .claude/scripts/carros_base.py verify [--step S1]`
 4. Archive → `python3 .claude/scripts/carros_base.py archive`
 
+## 运行时集成
+
+**Hook 注册** — 所有治理 hook 通过 `.claude/settings.json` 注册为 CC PreToolUse hook：
+```json
+"hooks": {
+  "PreToolUse": {
+    "scope": "local",
+    "command": "bash .claude/hooks/hook-launcher.sh pretool-gate.py"
+  }
+}
+```
+pretool-gate 合并 G1-G6 上下文门禁（敏感路径/回退/危险命令/计划缺失/编辑范围/验证绕过），每 tick 自动执行。
+
+## 抗 Compact 设计
+
+治理状态 **全部在磁盘**，非对话 transcript。CC /compact 压缩的是记忆，不碰以下文件：
+
+| 状态 | 文件 | 作用 |
+|:-----|:-----|:-----|
+| 任务状态 | `token.json` | 唯一状态源，CAS revision 递增 |
+| 恢复导航 | `handoff.md` | NOT_SOURCE_OF_TRUTH，导航用 |
+| 冻结计划 | `plan.md` | 不可改步骤和验证条件 |
+| 执行证据 | `executor.md` | 每步命令输出 |
+| 错误 DNA | `error-dna.jsonl` | 失败模式自动记录 |
+| 工具落盘 | `artifacts/` | 完整输出，模型仅见预览 |
+
+**恢复路径**：新会话读 token.json(CAS) → handoff.md(导航) → Resume Preflight 验证 → 继续工作。
+
 ## L2 工作流
-跨模块 / 架构 / 不可逆 / 安全权限 / release / 长期无人 / 用户要求高可靠 → L2。
+跨模块 / 架构 / 不可逆 / 安全权限 / release / 长期无人 → L2。
 
 ## 完成标准
 - [ ] plan.md 声明文件全部改完
 - [ ] VerifyGate 输出 VERIFIED
 - [ ] lint 通过（0 errors）
-
-## 轮次自检（每 25 轮）
-1. 断言都带证据标记？
-2. 改过范围外文件？
-3. 有软完成语？
-
-## Oracle 评审系统
-| 模式 | 协议 | 倾向 | 用途 | 命令 |
-|------|------|------|------|------|
-| `static` | Oracle-D | 偏紧 · 广度优先 | 静态分析：scope/危险路径/file:line | `lx-oracle static` → `static_oracle_agent.py` |
-| `runtime` | Oracle-V | 偏松 · 深度优先 | 运行时验证：token/失败/软完成/G1-G4 | `lx-oracle runtime` → `runtime_oracle_agent.py` / `meta_oracle.py` |
-| `duo` | Oracle-D+V | 互补 | 完整审核：静态+运行时+G1-G4 聚合 | `lx-oracle duo` → `oracle_spawn.py` |
-裁决写入: `.omc/tasks/{date}/{task_name}/oracle-verdicts.md`

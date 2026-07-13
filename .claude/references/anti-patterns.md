@@ -1,68 +1,42 @@
----
-name: anti-patterns
-version: v1.0
-level: core
-last_reviewed: 2026-07-05
-evidence_gate: true
----
-# AI 治理反模式手册
+# Anti-Patterns — 经验沉淀
 
-> 审阅: 2026-05-26 — A~H 8 类 18 种反模式
-> 更新: AI 审核+CarrorOS hooks自动阻断
+_Updated: 2026-07-13T14:22:13.616427+00:00_
 
-## A. 虚假完成（Hallucinated Completion）
+## 已识别模式
 
-### A1 软完成语
-用"理论上可以了"代替硬证据。
-→ against: 禁止软完成语，必须有 VERIFIED 证据。
+- **unknown** (step=S1, retry=0)
+  - `Test error`
 
-### A2 跳过步骤
-自认为"做完"但没编译/验收。
-→ against: 5 步完成清单，每步确认。
+- **unknown** (step=S1, retry=1)
+  - `err2`
 
-### A3 镜像骗分
-把推测输出当事实。
-→ against: 断言必须 file:line 或命令输出。
+- **unknown_recurring** (step=S1, retry=2)
+  - `err3`
 
-## B. 范围偏移（Scope Creep）
+- **unknown_recurring** (step=S1, retry=3)
+  - `err4`
 
-### B1 一步做多件事
-一次改动多个无关区域。
-→ against: 范围冻结，一次一 Step。
+- **timeout** (step=S1, retry=0)
+  - `TimeoutError: test timed out after 30s`
 
-### B2 越界修改
-在修复任务中改不相关代码。
-→ against: 核对范围声明后再改动。
+- **timeout** (step=S1, retry=1)
+  - `TimeoutError: test timed out again`
 
-### B3 修改后不回溯
-改完 A 忘记检查 B 是否受影响。
-→ against: 写 blast-radius 注释，改后全量回归。
+- **assertion_recurring** (step=S2, retry=2)
+  - `AssertionError: expected 1 call, got 3`
 
-## C. 上下文滥用（Context Abuse）
+- **import** (step=S3, retry=0)
+  - `ImportError: cannot find module 'requests'`
 
-### C1 过度加载
-一次注入数万 token 的无关上下文。
-→ against: AGENTS.compact.md + 渐进披露。
+- **unknown** (step=T2, retry=0)
+  - `err0`
 
-### C2 记忆滥用
-把任务进度存在 memory 中。
-→ against: session-handoff.md + session_search。
+- **unknown** (step=T2, retry=1)
+  - `err1`
 
-### C3 不验证断言
-口头说"应该没问题"却无证据。
-→ against: 断言必须文件路径 + 输出验证。
 
-## D. 设计缺失（Design Deficit）
+## 历史记录
 
-### D1 无方案直接开干
-跳过架构设计直接写代码。
-→ against: L3+ 任务必须有 PRD/Oracle 审核。
-
-### D2 不验收就交
-"做完了"但实际没测。
-→ against: 证据门禁 + 验收清单。
-
-### D3 不迭代直接终版
 方案只做一次就提交。
 → against: 至少 5 轮迭代再定稿。
 

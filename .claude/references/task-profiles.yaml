@@ -1,0 +1,28 @@
+# task-profiles.yaml — 按等级实例化任务文档
+
+schema_version: carros.task_profiles.v1
+
+# L1 小任务（日常开发、单文件修复）
+L1:
+  required:
+    - token.json        # 运行状态（唯一写者）
+    - artifacts/        # 工具结果落盘
+  derived:
+    - hot_card          # 从 token.json 派生，不可独立编辑
+  optional:
+    - plan.md           # 由 init 自动生成
+    - handoff.md        # 触达 soft budget 时写入
+
+# L2 复杂任务（跨模块、架构、安全、发布）
+L2:
+  required:
+    - token.json        # 运行状态（CAS）
+    - plan.md           # 完整计划
+    - evidence.jsonl    # 验证证据索引
+    - artifacts/        # 工具结果落盘
+  conditional:
+    - handoff.md        # 超 budget 或中断时写入
+    - working-set.yaml  # 上下文白名单（L2 必备，但可由 pretool_gate 硬编码顶替）
+
+# 默认（未指定 level 时使用）
+default: L1

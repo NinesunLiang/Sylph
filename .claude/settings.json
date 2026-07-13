@@ -12,7 +12,19 @@
   "skipWorkflowUsageWarning": true,
   "model": "gpt-5.5",
   "apiUrl": "https://cli.999554.xyz",
-  "authToken": "sk-gcRkv78GQFOQjvoQikFWkVniIyjWawmTS5juCuj4PRIUv760"
+  "authToken": "sk-gcR...v760",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \".claude/hooks/hook-launcher.sh\" \"pretool-gate.py\""
+          }
+        ]
+      }
+    ]
+  }
 }
 
 

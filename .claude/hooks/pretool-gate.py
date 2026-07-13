@@ -39,6 +39,7 @@ OMC = ROOT / ".omc"
 TOKENS = OMC / "tokens"
 TASKS = OMC / "tasks"
 AUDIT = OMC / "audit"
+CRITICAL_STATE = OMC / "state" / "context-critical.json"
 
 SENSITIVE_PATTERNS = [
     r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
@@ -67,8 +68,9 @@ ORACLE_FORCE_KW = ["aut", "payment", "migration", "permission"]
 
 STALE_LOCK_THRESHOLD = 1800  # 30 min: auto-clear blocked state older than this
 
-PLAN_FILE_PATTERNS = ["plan.md", "plan"]
+READ_TOOLS = {"read", "grep", "search_files", "list", "ls", "find", "cat"}
 WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
+PLAN_FILE_PATTERNS = ["plan.md", "plan"]
 
 
 # ── Helpers ──
@@ -533,7 +535,127 @@ def _check_document_quality(payload: dict) -> str | None:
     return None
 
 
+# ── Context-control gates (G1-G6) ──
+
+_READ_COUNTER = {"files_read": 0, "last_tick": None}
+
+
+def _check_g1_file_count(payload: dict) -> str | None:
+    """G1: single tick read >2 files → NARROW"""
+    tool = _extract_tool(payload).lower()
+    if tool not in READ_TOOLS:
+        return None
+    path = _extract_path(payload)
+    if not path:
+        return None
+    token = _active_token()
+    tick = token.get("stats", {}).get("tick", 0) if token else 0
+    if _READ_COUNTER.get("last_tick") != tick:
+        _READ_COUNTER["files_read"] = 0
+        _READ_COUNTER["last_tick"] = tick
+    _READ_COUNTER["files_read"] += 1
+    if _READ_COUNTER["files_read"] > 2:
+        return f"NARROW read_count_exceeds_2 limit=2 current={_READ_COUNTER['files_read']} path={path}"
+    return None
+
+
+def _check_g2_large_file(payload: dict) -> str | None:
+    """G2: read without offset/limit and >200 lines → NARROW"""
+    tool = _extract_tool(payload).lower()
+    if tool not in READ_TOOLS:
+        return None
+    ti = _extract_input(payload)
+    if ti.get("offset") or ti.get("limit"):
+        return None
+    path = _extract_path(payload)
+    if not path:
+        return None
+    p = ROOT / path.lstrip("./") if not path.startswith("/") else Path(path)
+    if not p.exists():
+        return None
+    try:
+        lines = p.read_text(encoding="utf-8").splitlines()
+        if len(lines) > 200:
+            return f"NARROW large_file_no_offset path={path} lines={len(lines)} hint='use offset=1 limit=200'"
+    except (OSError, UnicodeDecodeError):
+        pass
+    return None
+
+
+def _check_g3_reviews(payload: dict) -> str | None:
+    """G3: docs/carros/reviews/** → BLOCK"""
+    tool = _extract_tool(payload).lower()
+    if tool not in READ_TOOLS:
+        return None
+    path = _extract_path(payload)
+    if not path:
+        return None
+    normalized = path.replace("\\", "/")
+    if "docs/carros/reviews/" in normalized:
+        return f"BLOCK reviews path={path}"
+    return None
+
+
+def _check_g5_wide_glob(payload: dict) -> str | None:
+    """G5: glob '**/*' without type narrowing → NARROW"""
+    tool = _extract_tool(payload).lower()
+    if tool not in READ_TOOLS:
+        return None
+    ti = _extract_input(payload)
+    glob_val = ti.get("glob") or ti.get("pattern") or _extract_path(payload)
+    if isinstance(glob_val, str) and ("**/*" in glob_val or glob_val.strip() in ("*", ".", "./*")):
+        return f"NARROW wide_glob pattern={glob_val} hint='add file_glob=*.py or type filter'"
+    return None
+
+
+def _check_g6_budget(payload: dict) -> str | None:
+    """G6: budget soft reached → CHECKPOINT_FIRST"""
+    tool = _extract_tool(payload).lower()
+    if tool not in READ_TOOLS and tool not in WRITE_TOOLS:
+        return None
+    token = _active_token()
+    if not token:
+        return None
+    budget = token.get("budget", {})
+    if not budget:
+        return None
+    stats = token.get("stats", {})
+    turns = stats.get("tick", 0) + stats.get("turns", 0)
+    soft = budget.get("max_turns_soft", 0) or 0
+    hard = budget.get("max_turns_hard", 0) or 0
+    if soft > 0 and turns >= soft:
+        return f"CHECKPOINT_FIRST budget_soft_reached turns={turns} soft={soft} hard={hard}"
+    return None
+
+
+def _check_context_critical_pause(payload: dict) -> str | None:
+    """GA water hard gate: while PAUSED_CONTEXT_CRITICAL, allow only recovery-class actions."""
+    if not CRITICAL_STATE.exists():
+        return None
+    try:
+        state = json.loads(CRITICAL_STATE.read_text(encoding="utf-8"))
+    except Exception:
+        state = {}
+    if state.get("status") != "PAUSED_CONTEXT_CRITICAL":
+        return None
+
+    tool = _extract_tool(payload).lower()
+    command = _extract_command(payload).lower()
+    path = _extract_path(payload).lower()
+    allowed_terms = (
+        "status", "checkpoint", "compact", "resume", "archive",
+        "context_engine.py", "carros_base.py status", "formal_seal.py",
+    )
+    text = " ".join([tool, command, path])
+    if any(term in text for term in allowed_terms):
+        return None
+    return "BLOCK CONTEXT_CRITICAL_PAUSED allowed=status/checkpoint/compact/resume/archive"
+
+
+# ── Gate registry ──
+
 GATES = [
+    ("context-critical", _check_context_critical_pause),
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
     ("action", _check_action_gate),
@@ -542,6 +664,12 @@ GATES = [
     ("verify", _check_verify_gate),
     ("oracle", _check_oracle_gate),
     ("document-quality", _check_document_quality),
+    # Context-control gates (G1-G6)
+    ("g1-file-count", _check_g1_file_count),
+    ("g2-large-file", _check_g2_large_file),
+    ("g3-reviews", _check_g3_reviews),
+    ("g5-wide-glob", _check_g5_wide_glob),
+    ("g6-budget", _check_g6_budget),
 ]
 
 
@@ -562,7 +690,9 @@ def main() -> int:
                 return _block(f"BLOCK [{gate_name}] {result}")
             elif result.startswith("ASK_USER"):
                 return _block(f"ASK_USER [{gate_name}] {result}")
-            # Non-blocking hints are logged but don't stop execution
+            elif result.startswith("NARROW") or result.startswith("CHECKPOINT_FIRST"):
+                # NARROW/CHECKPOINT = allow but with guidance
+                pass
 
     return _ok(f"ALLOW tool={tool_name}")
 

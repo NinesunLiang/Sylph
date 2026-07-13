@@ -1,0 +1,68 @@
+# docs/INDEX.yaml — 文档索引
+# Agent 默认先看此索引，不看正文。
+schema_version: carros.docs.v1
+
+documents:
+  - id: AGENTS
+    path: AGENTS.md
+    authority: normative
+    status: active
+    summary: CarrorOS 核心铁律与工作流
+    estimated_tokens:
+      full: 420
+
+  - id: KERNEL
+    path: .claude/kernel.md
+    authority: normative
+    status: active
+    summary: 管理内核（冻结/飞轮/降级规则）
+    estimated_tokens:
+      full: 120
+
+  - id: INDEX
+    path: .claude/index.md
+    authority: normative
+    status: active
+    summary: 渐进式披露路由表
+    estimated_tokens:
+      full: 340
+
+  - id: COMPOSITION
+    path: docs/carros/runbooks/composition.md
+    authority: normative
+    status: active
+    summary: Context 饲喂模板（S6）
+    estimated_tokens:
+      full: 340
+
+  - id: TASK-PROFILES
+    path: .claude/references/task-profiles.yaml
+    authority: normative
+    status: active
+    summary: 任务等级实例化配置（W2）
+    estimated_tokens:
+      full: 240
+
+  - id: HANDOFF-CAPSULE
+    path: .claude/references/templates/handoff-capsule.md
+    authority: normative
+    status: active
+    summary: Resume Capsule 模板（W1）
+    estimated_tokens:
+      full: 170
+
+  - id: INVARIANTS
+    path: .claude/references/invariants.md
+    authority: normative
+    status: active
+    summary: 12 条系统不变量（W4）
+
+  - id: ARCH-CONTEXT
+    path: docs/carros/runbooks/composition.md
+    summary: Context 编译、披露与恢复协议
+    headings:
+      - id: composition-order
+        lines: [3, 15]
+    estimated_tokens:
+      full: 340
+      summary: 60

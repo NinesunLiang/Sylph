@@ -1,0 +1,43 @@
+# working-set.yaml — L2 上下文白名单
+
+schema_version: carros.working_set.v1
+level: L2
+
+# 本轮任务允许上下文预算
+budget:
+  max_turns_soft: 15
+  max_turns_hard: 25
+  controllable_tokens_soft: 8000
+  controllable_tokens_hard: 12000
+
+# 允许操作的文件/目录白名单
+allowed_paths:
+  - src/
+  - tests/
+  - docs/
+  - .claude/references/
+  - AGENTS.md
+
+# 禁止操作
+denied_paths:
+  - .env
+  - secrets/
+  - .ssh/
+  - .aws/
+  - docs/carros/reviews/
+
+# 上下文管控
+context:
+  hot_card: true
+  max_file_reads_per_tick: 2
+  max_preview_items: 2
+  require_plan_review: true
+  require_evidence_for_verify: true
+  retry_gate: true
+  max_retries: 3
+
+# 验证要求
+verify:
+  require_evidence: true
+  require_plan_match: true
+  allow_oracle: conditional  # only for high residual risk

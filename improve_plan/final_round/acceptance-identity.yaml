@@ -1,0 +1,149 @@
+acceptance_identity:
+  product: CarrorOS Base 1.0 RC2 — Claude Code
+  verdict: APPROVE_RC2_ENGINEERING_RELEASE
+  formal_evidence_status: SEALED
+  generated_at: '2026-07-13T15:29:01+00:00'
+  git_commit_full: 6afbdff40826fb036f152aff1d86c19816f130d6
+  git_dirty_current_worktree: true
+  certification_scope:
+    platform: Claude Code only
+    writers: 1
+    sessions_per_task: 1
+    unattended: false
+    modes:
+    - L1 short tasks
+    - L1 medium tasks with human checkpoint
+    - L2 supervised tasks with explicit human gate
+suite:
+  total_executions: 184
+  latest_execution_counted: 42
+  total_unique_tests: 42
+  passed: 42
+  failed: 0
+  skipped: 0
+  unique_test_ids:
+  - F1-COMMIT-HASH
+  - F2-NEGATIVE-8
+  - F3-PHASE3-MATRIX
+  - F4-COMPACT-RENAME
+  - F5-REGRESSION
+  - G1-CONCURRENT-WRITER-CONFLICT
+  - G2-ARTIFACT-MISSING
+  - G3-L5-RECOVERY
+  - G4-WATER-CRITICAL-HARD-PAUSE
+  - G5-WATER-PRETOOL-WHITELIST
+  - G6-GA-OBSERVABILITY-INSTRUMENTED
+  - META
+  - R1-WATER-BOUNDS
+  - R1-WATER-CHAIN
+  - R2-PHASE3-MATRIX
+  - R2-PHASE3-PID
+  - R3-NEGATIVE-TESTS
+  - R4-CAS-STALE-STRUCTURED-EVIDENCE
+  - R5-FULL
+  - '[P0-S2] AGENTS.md ≤100行'
+  - '[P0-S2] AGENTS.md 无 Oracle'
+  - '[P0-S3] status 输出 Hot Card'
+  - '[P0-S4] 工具落盘 250KB→1.3K preview'
+  - '[P0-S5] reviews 读取被阻断'
+  - '[P0-S5] 正常读取放行'
+  - '[P0-S6] executor_micro.txt ≤15行'
+  - '[P0-S7] 成本报表 PASS'
+  - '[P0.5-W1] Handoff NOT_SOURCE_OF_TRUTH'
+  - '[P0.5-W2] task-profiles.yaml 含 L1/L2'
+  - '[P0.5-W2] token.json 含 revision'
+  - '[P0.5-W3] INDEX.yaml 含 INVARIANTS'
+  - '[P0.5-W4] 12 条不变量'
+  - '[P1-DNA] Error DNA 可记录'
+  - '[P1-DNA] Retry Gate 3次阻断'
+  - '[P1-L2] working-set 含 retry/verify'
+  - '[P1-ORACLE] Oracle L1=不触发'
+  - '[P1-ORACLE] Oracle L2+high=触发'
+  - '[P2-AUTO] Autonomy Contract 加载'
+  - '[P2-AUTO] Loop 检测'
+  - '[P2-AUTO] 超 budget 暂停'
+  - '[P2-FLY] claude-next.md 存在'
+  - '[P2-FLY] 飞轮可运行'
+observed_artifacts:
+  evidence:
+    path: .omc/metrics/runtime-verify/evidence.jsonl
+    records: 184
+    sha256: 02dbd96520f3e39efbf7ff3fed232fc3d6dd70a75fc67348f78d028d89831049
+  h_cas_stale_evidence:
+    path: .omc/metrics/runtime-verify/h-cas-stale-evidence.json
+    sha256: 4fdd9efc25335266a48e60493c939de15c07e4e5d176fb7ac10be2ab86f5104f
+  manifest:
+    path: .omc/metrics/runtime-verify/manifest.json
+    sha256: 96aba31bd61cc13241afe82839eb64b37639e2e927a56e4c6210d61f375b6947
+    status: PRESENT
+  sha256sums:
+    path: .omc/metrics/runtime-verify/sha256sums.txt
+formal_seal:
+  status: SEALED
+  blockers: []
+ga_gates:
+  GA-CAS-01:
+    label: cross-process serialized writer lock
+    status: PASS
+    evidence: .omc/metrics/runtime-verify/h-concurrent-writer-conflict.json
+    sha256: e5ee5594d73c366e05f7de33dd3c53b6264a42e7e58ebaab0723172c8c36eba2
+  GA-CAS-02:
+    label: concurrent writer conflict proof
+    status: PASS
+    evidence: .omc/metrics/runtime-verify/h-concurrent-writer-conflict.json
+    sha256: e5ee5594d73c366e05f7de33dd3c53b6264a42e7e58ebaab0723172c8c36eba2
+  GA-L5-01:
+    label: L5 recovery does not use summary as SOOT
+    status: PASS
+    evidence: .omc/metrics/runtime-verify/h-l5-recovery.json
+    sha256: b354a55d48ad9c7856437678aa688bb2db733df297786fd817f0f84355fe3039
+  GA-L5-02:
+    label: missing artifact returns MISSING_ARTIFACT
+    status: PASS
+    evidence: .omc/metrics/runtime-verify/h-artifact-missing.json
+    sha256: be99cb8c85d5780e533954dfdebffd43adedba76f93ebf876626f263b45323d2
+    result: MISSING_ARTIFACT
+  GA-WATER-01:
+    label: persistent PAUSED_CONTEXT_CRITICAL
+    status: PASS
+    evidence: .omc/metrics/runtime-verify/h-water-critical-hard-pause.json
+    sha256: 928a7d04e7fac214c86f819d35a6bc7dc9aca1fce54c75bbc9a9a8d8bdda9540
+    pause_state_persisted: true
+  GA-WATER-02:
+    label: PreToolUse hard whitelist while paused
+    status: PASS
+    evidence: .omc/metrics/runtime-verify/h-water-pretool-whitelist.json
+    sha256: 4b63ac0ae0ffd73e77c42880589acc9508c17ccbb8392468d0f44d4cdeedd5bc
+  GA-OBS-01:
+    label: 30+ turn session distribution
+    status: INSTRUMENTED_PENDING_SAMPLE
+    evidence: .omc/metrics/ga/observability.json
+    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+  GA-OBS-02:
+    label: L5 ratio
+    status: INSTRUMENTED_PENDING_SAMPLE
+    evidence: .omc/metrics/ga/observability.json
+    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+  GA-OBS-03:
+    label: cost per session/task
+    status: INSTRUMENTED_PENDING_SAMPLE
+    evidence: .omc/metrics/ga/observability.json
+    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+  GA-OBS-04:
+    label: cache or stable-prefix metric
+    status: INSTRUMENTED_PENDING_SAMPLE
+    evidence: .omc/metrics/ga/observability.json
+    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+  GA-OC-01:
+    label: OpenCode independent certification
+    status: PENDING
+    reason: requires separate OpenCode proof package
+ga_ready: false
+not_certified:
+- CarrorOS GA
+- OpenCode path
+- dual-stack base
+- multi-session concurrent writing
+- unattended production operation
+- L5 recovery verified
+- Qwen3.6-27B production certification

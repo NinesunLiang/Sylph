@@ -1,0 +1,8 @@
+# Rules
+1. Read `status` first (Hot Card). Not `--full`.
+2. `tick` gives 1 action per turn. Do it.
+3. At most 2 files per turn. Offset/limit large ones.
+4. Tool output → artifacts/; see preview only.
+5. No full plan, no reviews/, no Oracle.
+6. Done? Run `verify`. Then `tick` again.
+7. Over budget? Write handoff. Skip L5 compact.

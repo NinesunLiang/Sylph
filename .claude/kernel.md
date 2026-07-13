@@ -1,33 +1,22 @@
 # kernel.md — 管理内核
 
-> 冻结 / 飞轮 / 降级。不可自改。
+> 不可自改。变更须人类裁决。
 
 ## 冻结规则
-AI 不可自改 AGENTS.md / kernel.md / index.md。变更须人类裁决。
+AI 不可自改 AGENTS.md / kernel.md / index.md。
 
-## 学习飞轮（L2 Enhance — ⚪ 骨架）
-Base + 2 学习资产：
-- `references/claude-next.md` — 经验层，用户纠正 + 模式失误
-- `references/error-dna.json` — 失败模式层，可复用系统性错误
+## 学习飞轮（Phase 2）
+飞轮数据落 `.omc/knowledge/`，不进默认 Context。
 
-飞轮触发：失败 > 修复 > 记录 > 复用。不阻塞主流程。
-> ⚠️ 当前为骨架定义，运行时未接入。飞轮框架已就绪，待 L2 Enhance 阶段激活。
+## 三段式水位（已接入）
 
-## 三段式水位（L2 Enhance — ⚪ 骨架）
-| 水位 | 范围 | 行为 |
-|------|------|------|
-| 🟢 安全 | 0-40% | 正常执行 |
-| 🟡 警戒 | 40-70% | 停止加载新 reference；工具输出截断 |
-| 🔴 临界 | 70%+ | 当前 step 完成后停；写 handoff；询问是否进行compact，三十秒内容无回应ai尝试自行 compact |
+| 区间 | 动作 | 条件 |
+|:----:|:-----|:-----|
+| 🟢 安全 0-40% | 正常执行 | 无额外动作 |
+| 🟡 警戒 40-50% | CHECKPOINT 提示 | 超过 50% 且任务 stop → 自动 compact |
+| 🔴 临界 50-70%+ | 超过 70% 暂停+写 handoff | 超 70% 且任务未停止 → 暂停执行，写 handoff，compact 后恢复 |
 
-> ⚠️ 当前为骨架定义，运行时水位检测未接入。检测脚本已存在，待 L2 Enhance 阶段激活。
-检测脚本：`.claude/scripts/context_watermark.py`
-
-## Oracle 门
-5 点触发：跨系统 / 不可逆 / 安全权限 / 发布 / 长时间无人
-检测脚本：`.claude/scripts/oracle_gate.py`
+水位检测脚本: `.claude/scripts/lib/water_level.py` — 通过 `get_water_detail()` 实时读取可控注入 token 数并与阈值比较。
 
 ## 降级规则
-能力缺失可降级（Oracle 不可用、Watermark 不可观测）。
-证据缺失、安全缺失、状态冲突不可降级。
-降级矩阵：`.claude/scripts/fallback_matrix.py`
+能力缺失可降级。证据缺失、安全缺失、状态冲突不可降级。

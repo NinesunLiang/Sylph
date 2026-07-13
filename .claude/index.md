@@ -14,60 +14,17 @@
 
 | 场景 | 路径 | 入口 |
 |------|------|------|
-| 状态管理 | `@kernel.md` → 管理内核 | 冻结 / 飞轮 / 降级 |
-| 完整生命周期 | `.claude/scripts/carros_base.py` | Plan→Step→Verify→Archive |
-| L1 快速任务 | `.claude/scripts/intake_gate.py` + `.claude/scripts/verify_gate.py` | init→verify→archive |
-| L2 复杂任务 | `.claude/scripts/carros_base.py` + `.claude/scripts/oracle_engine.py` | 含水位+Oracle+降级 |
+| 状态管理 | `kernel.md` → 管理内核 | 冻结 / 飞轮 / 降级 |
+| 完整生命周期 | `.claude/scripts/carros_base.py` | init→tick→verify→archive |
+| L1 快速任务 | `carros_base.py` | init→verify→archive |
+| L2 复杂任务 | `carros_base.py` + 条件 Oracle | 含水位+Oracle+降级 |
 
 ## Hook 路由
 
-| 触发点 | 位置 | 说明 |
-|--------|------|------|
-| 统一门禁（7 合一） | `.claude/hooks/pretool-gate.py` | sensitive-edit / fallback-check / action-gate / plan-gate / edit-scope / privacy-gate / completion-gate |
-| 状态横幅 | `.claude/hooks/statusline-command.sh` | 状态回调 |
-
-## Skill 路由
-
-| 场景 | 路径 | 子命令 |
-|------|------|--------|
-| 目标驱动执行 | `.claude/skills/lx-goal/SKILL.md` | — |
-| Oracle 门禁 | `.claude/skills/lx-oracle/SKILL.md` | `static` / `runtime` / `duo` |
-| 多 agent 并行 | `.claude/skills/lx-race/SKILL.md` | — |
-| 步骤式推进 | `.claude/skills/lx-stepwise/SKILL.md` | — |
-| 任务队列管理 | `.claude/skills/lx-todo/SKILL.md` | — |
-| 治理验证 | `.claude/skills/lx-validate-skill/SKILL.md` | — |
-| 变量锁 | `.claude/skills/lx-varlock/SKILL.md` | — |
-| CarrorOS 更新 | `.claude/skills/update-carror-os/SKILL.md` | — |
-| OMA 治理 | `.claude/skills/lx-oma/SKILL.md` | `hier` / `split` / `gov` / `orch` |
-| 方向驱动探索 | `.claude/skills/lx-ghost/SKILL.md` | — |
-| （更多技能见 SKILLS.md） | `.claude/skills/SKILLS.md` | |
-
-## Schema 路由
-
-| Schema | 路径 |
-|--------|------|
-| Token 结构 | `.claude/schemas/token.schema.json` |
-| 原子结构 | `.claude/schemas/atomic/`（context_summary / error_codes / finding / fix_record / gate_result / scan_report / scan_target / severity / verdict） |
-| 合约 | `.claude/schemas/contract/state_transitions.yaml` |
-| 输入 | `.claude/schemas/input/task_input.yaml` |
-| 输出 | `.claude/schemas/output/`（acceptance_report / gov_report / review_report / task_spec） |
-| 注册表 | `.claude/schemas/registry.yaml` |
-
-## Nodes 路由（热节点优先）
-
-热节点（≤8 个，核心工作流）：
-| 节点 | 路径 |
-|------|------|
-| 编排器 | `.claude/nodes/orchestrator.md` |
-| 验证器 | `.claude/nodes/verifier.md` |
-| 探索器 | `.claude/nodes/explore.md` |
-| 门禁检查 | `.claude/nodes/gate_checker.md` |
-| 模式选择 | `.claude/nodes/mode_selector.md` |
-| 执行节点 | `.claude/nodes/execute_node.md` |
-| 上下文收集 | `.claude/nodes/context_collector.md` |
-| 扫描器 | `.claude/nodes/scanner.md` |
-
-冷节点（按需加载，位于 `.claude/nodes/` 下）：auto_fixer, behavior_rules, interactive_prompt, oracle_terminal, report_generator, target_resolver, generator, a_terminal, b_terminal, decisions/*, judgments/*
+| 触发点 | 注册位置 | 说明 |
+|--------|----------|------|
+| 统一门禁 | `.claude/settings.json` → `hooks.PreToolUse` | pretool-gate.py（G1-G6），每工具调用前自动执行 |
+| Hook 调度 | `.claude/hooks/hook-launcher.sh` | 从 settings.json 按名启动具体 hook |
 
 ## 脚本快速索引
 
@@ -76,29 +33,10 @@
 | `carros_base.py` | 主入口（init/status/tick/verify/archive/lint） |
 | `omc_lint.py` | 7 项代码规范检查 |
 | `verify_gate.py` | 完成验证门禁 |
-| `plan_builder.py` | 计划生成 |
-| `context_engine.py` | 上下文引擎 + compact_write |
-| `output_compress.py` | 输出压缩 |
-| `pre_action_gate.py` | 动作前门禁 |
-| `task_state_tracker.py` | 任务状态追踪 |
-| `executor_ledger.py` | 执行台账 |
-| `intake_gate.py` | 入口门禁 |
-| `honesty_audit.py` | 诚实审计 |
-| `oracle_*.py`（6 文件） | Oracle 评审引擎 |
-| `fallback_matrix.py` / `fallback_engine.py` | 降级矩阵 |
-| `context_watermark.py` | 水位检测（骨架） |
-| `statusline.py` | 状态栏生成 |
-| `archive_engine.py` | 归档引擎 |
-| `carros_utils.py` | 工具函数 |
-| `carros_oracle_base.py` | Base 版 Oracle 适配 |
+| `tool_store.py` | 工具结果落盘（Phase 0 S4） |
+| `error_dna.py` | Error DNA 自动生成与 Retry Gate（Phase 1） |
+| `oracle_gate_light.py` | Oracle 条件接入（Phase 1，同级模型） |
+| `water_level.py` | 三段式水位运行时（Phase 1，已接入） |
+| `phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
 
-## Reference 路由
-
-| 资产 | 路径 |
-|------|------|
-| SubAgent 派发 | `.claude/references/SUBAGENT.md` |
-| 路径规范 | `.claude/references/omc-path-conventions.md` |
-| Oracle 门禁规格 | `.claude/references/oracle-spec.md` |
-| 水位检测 | `.claude/references/context-watermark.md` |
-| 降级矩阵 | `.claude/references/fallback-matrix.md` |
-| 违反范式处理 | `.claude/references/anti-patterns.md` |
+> 完整脚本列表见 `.claude/scripts/` 目录。docs/carros/reviews/ 为审核参考材料，默认禁止入模。

@@ -20,6 +20,7 @@ Usage:
 Exit codes: 0 = ok, 1 = warnings, 2 = errors
 """
 
+import fcntl
 import json
 import os
 import re
@@ -138,6 +139,7 @@ def _default_token(task_id=None, level="L1", steps=None):
         steps = ["S1"]
     return {
         "schema_version": _SCHEMA_VERSION,
+        "revision": 0,
         "session": {
             "id": tid,
             "level": level,
@@ -169,11 +171,49 @@ def _load_token(path=None):
     return None
 
 
-def _save_token(token, path=None):
+class CASConflict(RuntimeError):
+    """Raised when strict token CAS detects a stale expected revision."""
+
+    def __init__(self, expected_revision, current_revision):
+        self.expected_revision = expected_revision
+        self.current_revision = current_revision
+        super().__init__(
+            f"CAS_CONFLICT expected_revision={expected_revision} current_revision={current_revision}"
+        )
+
+
+def _save_token(token, path=None, expected_revision=None):
     p = Path(path) if path else TOKEN_PATH
+    if p is None:
+        raise ValueError("TOKEN_PATH is not initialized")
     p.parent.mkdir(parents=True, exist_ok=True)
-    token["session"]["updated_at"] = datetime.now(timezone.utc).isoformat()
-    p.write_text(json.dumps(token, indent=2, ensure_ascii=False) + "\n")
+    lock_path = p.with_suffix(p.suffix + ".lock")
+    tmp_path = p.with_suffix(p.suffix + f".{os.getpid()}.tmp")
+
+    with lock_path.open("a+") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            token.setdefault("session", {})["updated_at"] = datetime.now(timezone.utc).isoformat()
+
+            if expected_revision is not None:
+                current = _load_token(p) if p.exists() else None
+                current_revision = current.get("revision", 0) if isinstance(current, dict) else 0
+                if current_revision != expected_revision:
+                    raise CASConflict(expected_revision, current_revision)
+                token["revision"] = current_revision + 1
+            else:
+                token["revision"] = token.get("revision", 0) + 1  # legacy monotonic increment
+
+            data = json.dumps(token, indent=2, ensure_ascii=False) + "\n"
+            with tmp_path.open("w", encoding="utf-8") as f:
+                f.write(data)
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, p)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def now_iso():
@@ -181,21 +221,13 @@ def now_iso():
 
 
 def _write_handoff(token, plan_summary=None):
-    """写入 session-handoff.md — 委托 carros_utils"""
-    if carros_utils:
-        tok_v2 = {
-            "session": token.get("session", {}),
-            "plan": {
-                "total": token.get("stats", {}).get("total", 0),
-                "done": token.get("stats", {}).get("done", 0),
-                "current_step": token.get("task", {}).get("current_step"),
-                "blocked": token.get("task", {}).get("blocked"),
-                "status": token.get("task", {}).get("status", "unknown"),
-            },
-        }
-        carros_utils.write_handoff(tok_v2, PLAN_PATH, HANDOFF_PATH)
-        return
-    # fallback — inline
+    """写入 Resume Capsule（NOT_SOURCE_OF_TRUTH）— 委托 handoff_writer"""
+    try:
+        import lib.handoff_writer as hw
+        tid = token.get("session", {}).get("id", "unknown")
+        hw.write_handoff(TASK_DIR, tid, token, PLAN_PATH)
+    except (ImportError, Exception) as e:
+        pass  # fallback → 旧版 inline
     HANDOFF_PATH.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     done = token.get("stats", {}).get("done", 0)
@@ -286,9 +318,25 @@ def _write_default_research():
 
 
 def _init_task_dirs():
-    """初始化任务子目录：sub_task/ + state/ + state/audit"""
+    """初始化任务子目录：sub_task/ + state/ + state/audit + artifacts/"""
     for d in [SUB_TASK_DIR, STATE_DIR, AUDIT_DIR]:
         d.mkdir(parents=True, exist_ok=True)
+    # artifacts/ for tool store
+    artifacts_dir = TASK_DIR / "artifacts" if TASK_DIR else None
+    if artifacts_dir:
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+    # evidence.jsonl for L2+
+    if TASK_DIR:
+        evidence_path = TASK_DIR / "evidence.jsonl"
+        if not evidence_path.exists():
+            evidence_path.touch()
+    # working-set.yaml for L2+
+    if TASK_DIR:
+        ws_path = TASK_DIR / "working-set.yaml"
+        if not ws_path.exists():
+            ws_template = PROJECT_ROOT / ".claude/references/working-set-template.yaml"
+            if ws_template.exists():
+                ws_path.write_text(ws_template.read_text(encoding="utf-8"))
 
 
 def _inject_plan_step(step_id):
@@ -565,8 +613,8 @@ def _find_latest_token(require_active=True):
     return None, None
 
 
-def cmd_status():
-    """展示当前任务状态"""
+def cmd_status(hot_mode=True):
+    """展示当前任务状态。默认 Hot Card 模式。--full 出完整状态。"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -578,6 +626,22 @@ def cmd_status():
     if not token:
         print(_yellow("⚠  No active task (token.json not found)"))
         return 0
+
+    if hot_mode:
+        # Hot Card — 极简状态（默认）
+        try:
+            import lib.hot_card as hc
+            card = hc.cmd_status_hot(token, TOKEN_PATH, PLAN_PATH, EXECUTOR_PATH)
+            print(card)
+            hc_len = len(card)
+            if hc_len > 4500:
+                print(_yellow(f"\n⚠  Hot Card exceeds 4.5K chars: {hc_len}"))
+            return 0
+        except ImportError:
+            # fallback: lib/ not available
+            pass
+
+    # Full status（--full 模式或 fallback）
     s = token.get("stats", {})
     status_top = token.get("status", "?")
     status_icon = _green("●") if status_top == "active" else _red("●")
@@ -601,7 +665,7 @@ def cmd_status():
 
 
 def cmd_tick():
-    """递增 tick 计数器 + 自动追踪当前步骤状态"""
+    """递增 tick 计数器 + 水位检查 + 自动追踪当前步骤状态"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, _ = _find_latest_token()
         if token:
@@ -613,6 +677,21 @@ def cmd_tick():
     if not token:
         print(_red("❌ No active task"))
         return 2
+
+    # 水位检查
+    try:
+        from lib.water_level import run_water_gate
+        gate = run_water_gate(action="tick")
+        if not gate["continue"]:
+            print(_yellow(f"⚠  {gate['message']}"))
+            # Pause: write handoff, request compact
+            from lib.handoff_writer import write_handoff
+            write_handoff(TASK_DIR, token.get("session",{}).get("id",""), token, PLAN_PATH, executor_path=EXECUTOR_PATH)
+            return 0  # soft pause, not error
+        elif gate["water"]["level"] == "warn":
+            print(_yellow(f"⚠  {gate['message']}"))
+    except ImportError:
+        pass  # water_level.py not available — continue without
 
     # 找当前 pending 步骤 — 从 plan.md 读取
     current_step = None

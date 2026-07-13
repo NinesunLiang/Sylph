@@ -1,0 +1,27 @@
+{
+  "test_id": "H-CAS-STALE",
+  "purpose": "Prove that a stale writer is rejected and does not advance revision.",
+  "required_for": "unconditional RC2 formal evidence seal",
+  "rc2_engineering_blocker": false,
+  "ga_multi_writer_blocker": true,
+  "expected_shape": {
+    "initial_revision": 1,
+    "writer_a": {
+      "expected_revision": 1,
+      "result": "COMMITTED",
+      "new_revision": 2
+    },
+    "writer_b": {
+      "expected_revision": 1,
+      "result": "CAS_CONFLICT"
+    },
+    "final_revision": 2,
+    "stale_write_applied": false,
+    "status": "PASS"
+  },
+  "forbidden_interpretation": "stale writer commits successfully and increments revision",
+  "notes": [
+    "This template clarifies report wording only; it is not itself execution evidence.",
+    "Cross-process atomic compare-and-write still requires a separate GA test."
+  ]
+}
