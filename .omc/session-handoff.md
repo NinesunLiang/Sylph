@@ -1,34 +1,35 @@
-# Session Handoff: ga-observability-standalone-modules
+# Session Handoff: ga-behavioral-validation
 
-**Updated:** 2026-07-14 08:48 UTC
+**Updated:** 2026-07-14 17:46 UTC
 **Level:** L1
-**Progress:** 3/3 steps
+**Progress:** 4/4 steps
 
 ## Steps
-  current_step: COMPLETE (3/3)
+  current_step: COMPLETE (4/4)
 
 ## Plan (condensed)
 # Plan
 ## Goal
-Refactor GA observability collection into standalone modules while preserving non-GA-certifying semantics.
+Add deterministic GA behavioral validation for final-review scenarios while preserving honest non-GA certification semantics.
 
 ## Scope
-- .claude/scripts/ga_observability.py
-- .claude/scripts/lib/ga_observability_metrics.py
-- .claude/scripts/lib/ga_observability_io.py
-- .claude/scripts/lib/ga_observability_report.py
-- .omc/tasks/20260713/ga-observability-standalone-modules/plan.md
-- .omc/tasks/20260713/ga-observability-standalone-modules/executor.md
+- .claude/scripts/ga_behavioral_validation.py
+- .claude/scripts/formal_seal.py
+- improve_plan/final_round/remaining-ga-gates.md
+- .omc/tasks/20260714/ga-behavioral-validation/plan.md
+- .omc/tasks/20260714/ga-behavioral-validation/executor.md
 
 ## Steps
-- [x] S1: Extract pure GA observability metric helpers.
-- [x] S2: Rewire ga_observability.py as a thin CLI wrapper.
-- [x] S3: Verify syntax, observability output, and formal seal consumer.
+- [x] S1: Add five-scenario GA behavioral validation harness.
+- [x] S2: Surface behavioral validation in formal seal.
+- [x] S3: Update final GA gate docs and task evidence ledger.
+- [x] S4: Run syntax, negative, observability, behavioral, formal seal, and diff hygiene checks.
 
 ## Verify
-- S1: py_compile exited 0 for all GA observability modules.
-- S2: ga_observability.py emitted .omc/metrics/ga/observability.json with ga_ready=false.
+- S1: py_compile exited 0 for ga_behavioral_validation.py and formal_seal.py.
+- S2: ga_behavioral_validation.py returned PASS, passed=5/5, ga_ready=false.
 - S3: formal_seal.py returned SEALED, ga_ready=false, blockers=[].
+- S4: git diff --check exited 0.
 
 ---
 > 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。

@@ -1,59 +1,39 @@
 {
-  "schema": "carroros.rc2.formal_seal_manifest.v1",
+  "schema": "carroros.rc2.runtime_acceptance_manifest.v1",
+  "seal_type": "RC2_FORMAL_EVIDENCE",
+  "formal_evidence_seal": "SEALED",
+  "ga_ready": false,
+  "ga_readiness": "BLOCKED",
   "generated_at": "2026-07-14T09:49:54+00:00",
   "product": "CarrorOS Base 1.0 RC2 — Claude Code",
-  "aligned_verdict": {
-    "engineering_release": "APPROVED",
-    "formal_evidence_seal": "SEALED",
-    "ga_ready": false,
-    "round_4_architecture_required": false
+  "git": {
+    "commit_full": "3d3888ed323d090a25b8be98805ec5607f20a147",
+    "dirty_current_worktree": true
   },
-  "certified_scope": {
-    "platform": "Claude Code only",
-    "writers": 1,
-    "sessions_per_task": 1,
-    "unattended": false,
-    "modes": [
-      "L1 short tasks",
-      "L1 medium tasks with human checkpoint",
-      "L2 supervised tasks with explicit human gate"
-    ]
-  },
-  "review_inputs": [
-    {
-      "path": "improve_plan/final_round/opus-4.8.md",
-      "verdict": "APPROVE_RC2",
-      "score": "8.4/10"
-    },
-    {
-      "path": "improve_plan/final_round/gpt-5.6Sol.md",
-      "verdict": "CONDITIONAL_APPROVE_RC2",
-      "score": "8.1/10"
-    },
-    {
-      "path": "improve_plan/final_round/grok-4.5.md",
-      "verdict": "APPROVE_RC2",
-      "score": "8.35/10"
-    }
-  ],
-  "aligned_outputs": [
-    "improve_plan/final_round/README.md",
-    "improve_plan/final_round/00-final-alignment.md",
-    "improve_plan/final_round/acceptance-identity.yaml",
-    "improve_plan/final_round/remaining-ga-gates.md",
-    "improve_plan/final_round/h-cas-stale-evidence-template.json",
-    "improve_plan/final_round/rc2-formal-seal-manifest.json"
-  ],
-  "observed_evidence": {
+  "environment": {
+    "generated_at": "2026-07-14T09:49:54+00:00",
     "git_commit_full": "3d3888ed323d090a25b8be98805ec5607f20a147",
     "git_dirty_current_worktree": true,
-    "evidence_path": ".omc/metrics/runtime-verify/evidence.jsonl",
-    "evidence_records": 205,
-    "evidence_sha256": "0e26d8a455dd776e4849c9f54b438e13586fd304210e0dd5ff5834cf695c9f22",
-    "runtime_verify_manifest_path": ".omc/metrics/runtime-verify/manifest.json",
-    "runtime_verify_manifest_sha256": "a238e09f078a7f041fc2ce6ab41188221947366876286c12d17a7a24630adc6b",
-    "h_cas_stale_evidence_path": ".omc/metrics/runtime-verify/h-cas-stale-evidence.json",
-    "h_cas_stale_evidence_sha256": "4fdd9efc25335266a48e60493c939de15c07e4e5d176fb7ac10be2ab86f5104f"
+    "platform": "macOS-26.4-arm64-arm-64bit-Mach-O",
+    "python_version": "3.14.4",
+    "claude_version": "not_checked_api_key_mode",
+    "env": {
+      "ANTHROPIC_API_KEY": "<redacted>",
+      "ANTHROPIC_AUTH_TOKEN": "<redacted>",
+      "ANTHROPIC_BASE_URL": "https://cli.999554.xyz",
+      "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-flash",
+      "ANTHROPIC_DEFAULT_OPUS_MODEL": "deepseek-v4-pro",
+      "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-flash",
+      "ANTHROPIC_MODEL": "gpt-5.5",
+      "CARROROS_CONTEXT_LIMIT": "1000000",
+      "CLAUDE_CODE_CHILD_SESSION": "1",
+      "CLAUDE_CODE_ENTRYPOINT": "cli",
+      "CLAUDE_CODE_EXECPATH": "/opt/homebrew/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "CLAUDE_CODE_SESSION_ID": "ca8a44f2-ea60-4f1d-a7d4-f96180c8663f",
+      "CLAUDE_CODE_SSE_PORT": "10059",
+      "CLAUDE_CODE_SUBAGENT_MODEL": "deepseek-v4-flash",
+      "CLAUDE_EFFORT": "xhigh"
+    }
   },
   "suite": {
     "total_executions": 205,
@@ -112,6 +92,12 @@
       "[P2-FLY] claude-next.md 存在",
       "[P2-FLY] 飞轮可运行"
     ]
+  },
+  "artifacts": {
+    "evidence_path": ".omc/metrics/runtime-verify/evidence.jsonl",
+    "evidence_sha256": "0e26d8a455dd776e4849c9f54b438e13586fd304210e0dd5ff5834cf695c9f22",
+    "h_cas_stale_evidence_path": ".omc/metrics/runtime-verify/h-cas-stale-evidence.json",
+    "h_cas_stale_evidence_sha256": "4fdd9efc25335266a48e60493c939de15c07e4e5d176fb7ac10be2ab86f5104f"
   },
   "ga_gates": {
     "GA-CAS-01": {
@@ -194,7 +180,15 @@
       "GA-OC OpenCode independent certification requires a separate proof package"
     ]
   },
-  "formal_seal_blockers": [],
+  "runner_commands": [
+    "python3 .claude/scripts/negative_tests.py",
+    "python3 .claude/scripts/runtime_verify.py",
+    "python3 .claude/scripts/capture_evidence.py",
+    "python3 .claude/scripts/ga_observability.py",
+    "python3 .claude/scripts/ga_behavioral_validation.py",
+    "python3 .claude/scripts/formal_seal.py"
+  ],
+  "seal_blockers": [],
   "not_certified": [
     "CarrorOS GA",
     "OpenCode path",

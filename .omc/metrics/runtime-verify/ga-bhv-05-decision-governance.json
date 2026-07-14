@@ -1,0 +1,77 @@
+{
+  "schema": "carroros.ga.behavioral_scenario.v1",
+  "test_id": "GA-BHV-05-DECISION-GOVERNANCE",
+  "label": "Risk/ROI decision governance routing",
+  "status": "PASS",
+  "detail": "decision governance routes low/high/retry/disagreement cases deterministically",
+  "ga_ready": false,
+  "generated_at": "2026-07-14T09:49:31+00:00",
+  "evidence": {
+    "cases": [
+      {
+        "input": {
+          "level": "L1",
+          "risk_level": "low",
+          "retry_count": 0,
+          "reversible": true,
+          "disagreement": false
+        },
+        "route": "auto_or_deferred",
+        "requires_oracle": false,
+        "requires_human": false,
+        "reason": "L1 tasks: no oracle"
+      },
+      {
+        "input": {
+          "level": "L2",
+          "risk_level": "high",
+          "retry_count": 0,
+          "reversible": true,
+          "disagreement": false
+        },
+        "route": "oracle_review",
+        "requires_oracle": true,
+        "requires_human": false,
+        "reason": "L2 + high residual risk"
+      },
+      {
+        "input": {
+          "level": "L2",
+          "risk_level": "medium",
+          "retry_count": 2,
+          "reversible": true,
+          "disagreement": false
+        },
+        "route": "oracle_review",
+        "requires_oracle": true,
+        "requires_human": false,
+        "reason": "retry_count=2 >= 2"
+      },
+      {
+        "input": {
+          "level": "L2",
+          "risk_level": "high",
+          "retry_count": 0,
+          "reversible": false,
+          "disagreement": true
+        },
+        "route": "human_gate",
+        "requires_oracle": true,
+        "requires_human": true,
+        "reason": "irreversible or unresolved disagreement"
+      }
+    ],
+    "expected_routes": [
+      "auto_or_deferred",
+      "oracle_review",
+      "oracle_review",
+      "human_gate"
+    ],
+    "actual_routes": [
+      "auto_or_deferred",
+      "oracle_review",
+      "oracle_review",
+      "human_gate"
+    ]
+  }
+}

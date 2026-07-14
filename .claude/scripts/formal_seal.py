@@ -36,6 +36,7 @@ GA_EVIDENCE = {
     "GA-WATER-02": VERIFY_DIR / "h-water-pretool-whitelist.json",
 }
 GA_OBSERVABILITY = PROJECT / ".omc" / "metrics" / "ga" / "observability.json"
+GA_BEHAVIORAL = VERIFY_DIR / "ga-behavioral-validation.json"
 MANIFEST = VERIFY_DIR / "manifest.json"
 SHA256SUMS = VERIFY_DIR / "sha256sums.txt"
 ACCEPTANCE_IDENTITY = FINAL_DIR / "acceptance-identity.yaml"
@@ -215,6 +216,32 @@ def build_ga_gates() -> dict[str, dict[str, Any]]:
     return gates
 
 
+def build_ga_behavioral_validations() -> dict[str, Any]:
+    if not GA_BEHAVIORAL.exists():
+        return {
+            "status": "PENDING",
+            "evidence": None,
+            "reason": "run python3 .claude/scripts/ga_behavioral_validation.py",
+        }
+    try:
+        data = json.loads(GA_BEHAVIORAL.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {
+            "status": "FAIL",
+            "evidence": str(GA_BEHAVIORAL.relative_to(PROJECT)),
+            "reason": "invalid JSON",
+        }
+    return {
+        "status": data.get("status", "UNKNOWN"),
+        "evidence": str(GA_BEHAVIORAL.relative_to(PROJECT)),
+        "sha256": sha256_file(GA_BEHAVIORAL),
+        "scenario_count": data.get("scenario_count"),
+        "passed": data.get("passed"),
+        "failed": data.get("failed", []),
+        "remaining_blockers": data.get("remaining_blockers", []),
+    }
+
+
 def build_manifest() -> dict[str, Any]:
     records = read_jsonl(EVIDENCE)
     latest_by_test: dict[str, dict[str, Any]] = {}
@@ -229,6 +256,7 @@ def build_manifest() -> dict[str, Any]:
     unique_tests = sorted(set(tests))
     env = collect_environment()
     ga_gates = build_ga_gates()
+    ga_behavioral_validations = build_ga_behavioral_validations()
     evidence_sha = sha256_file(EVIDENCE) if EVIDENCE.exists() else None
     cas_sha = sha256_file(CAS_EVIDENCE) if CAS_EVIDENCE.exists() else None
     seal_blockers: list[str] = []
@@ -268,10 +296,13 @@ def build_manifest() -> dict[str, Any]:
             "h_cas_stale_evidence_sha256": cas_sha,
         },
         "ga_gates": ga_gates,
+        "ga_behavioral_validations": ga_behavioral_validations,
         "runner_commands": [
             "python3 .claude/scripts/negative_tests.py",
             "python3 .claude/scripts/runtime_verify.py",
             "python3 .claude/scripts/capture_evidence.py",
+            "python3 .claude/scripts/ga_observability.py",
+            "python3 .claude/scripts/ga_behavioral_validation.py",
             "python3 .claude/scripts/formal_seal.py",
         ],
         "seal_blockers": seal_blockers,
@@ -335,6 +366,7 @@ def update_final_round(manifest: dict[str, Any]) -> None:
             "blockers": manifest["seal_blockers"],
         },
         "ga_gates": manifest.get("ga_gates", {}),
+        "ga_behavioral_validations": manifest.get("ga_behavioral_validations", {}),
         "ga_ready": False,
         "not_certified": manifest["not_certified"],
     }
@@ -377,6 +409,7 @@ def update_final_round(manifest: dict[str, Any]) -> None:
         },
         "suite": manifest["suite"],
         "ga_gates": manifest.get("ga_gates", {}),
+        "ga_behavioral_validations": manifest.get("ga_behavioral_validations", {}),
         "formal_seal_blockers": manifest["seal_blockers"],
         "not_certified": manifest["not_certified"],
     }
@@ -430,7 +463,7 @@ def main() -> int:
     VERIFY_DIR.mkdir(parents=True, exist_ok=True)
     manifest = build_manifest()
     write_json(MANIFEST, manifest)
-    seal_paths = [EVIDENCE, CAS_EVIDENCE, MANIFEST] + list(GA_EVIDENCE.values()) + [GA_OBSERVABILITY]
+    seal_paths = [EVIDENCE, CAS_EVIDENCE, MANIFEST] + list(GA_EVIDENCE.values()) + [GA_OBSERVABILITY, GA_BEHAVIORAL]
     write_sha256sums(seal_paths)
     # Recompute manifest after sha file exists is unnecessary for seal status; update docs with manifest hash.
     update_final_round(manifest)

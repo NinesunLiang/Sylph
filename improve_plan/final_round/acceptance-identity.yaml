@@ -2,8 +2,8 @@ acceptance_identity:
   product: CarrorOS Base 1.0 RC2 — Claude Code
   verdict: APPROVE_RC2_ENGINEERING_RELEASE
   formal_evidence_status: SEALED
-  generated_at: '2026-07-14T09:10:53+00:00'
-  git_commit_full: 1dd91a64da0d4151d854c76cee8e795fbe99a50b
+  generated_at: '2026-07-14T09:49:54+00:00'
+  git_commit_full: 3d3888ed323d090a25b8be98805ec5607f20a147
   git_dirty_current_worktree: true
   certification_scope:
     platform: Claude Code only
@@ -15,10 +15,10 @@ acceptance_identity:
     - L1 medium tasks with human checkpoint
     - L2 supervised tasks with explicit human gate
 suite:
-  total_executions: 192
-  latest_execution_counted: 42
-  total_unique_tests: 42
-  passed: 42
+  total_executions: 205
+  latest_execution_counted: 48
+  total_unique_tests: 48
+  passed: 48
   failed: 0
   skipped: 0
   unique_test_ids:
@@ -33,6 +33,12 @@ suite:
   - G4-WATER-CRITICAL-HARD-PAUSE
   - G5-WATER-PRETOOL-WHITELIST
   - G6-GA-OBSERVABILITY-INSTRUMENTED
+  - GA-BHV-01-LONG-SESSION-OBSERVABILITY
+  - GA-BHV-02-COMPACT-L5-RECOVERY
+  - GA-BHV-03-UNATTENDED-GOAL-FAILURE-INJECTION
+  - GA-BHV-04-FLYWHEEL-REPLAY-PROMOTION-ROLLBACK
+  - GA-BHV-05-DECISION-GOVERNANCE
+  - GA-BHV-AGGREGATE
   - META
   - R1-WATER-BOUNDS
   - R1-WATER-CHAIN
@@ -67,14 +73,14 @@ suite:
 observed_artifacts:
   evidence:
     path: .omc/metrics/runtime-verify/evidence.jsonl
-    records: 192
-    sha256: 9f4814ac7b01b8db2a6bb3b23c0ca7c81420d8569a0d4ab9f416a6207da55973
+    records: 205
+    sha256: 0e26d8a455dd776e4849c9f54b438e13586fd304210e0dd5ff5834cf695c9f22
   h_cas_stale_evidence:
     path: .omc/metrics/runtime-verify/h-cas-stale-evidence.json
     sha256: 4fdd9efc25335266a48e60493c939de15c07e4e5d176fb7ac10be2ab86f5104f
   manifest:
     path: .omc/metrics/runtime-verify/manifest.json
-    sha256: 9a7954a51a32900ef4d8a1d7ed0b3caea3bd195c7f462aebb927eb954bd19e62
+    sha256: a238e09f078a7f041fc2ce6ab41188221947366876286c12d17a7a24630adc6b
     status: PRESENT
   sha256sums:
     path: .omc/metrics/runtime-verify/sha256sums.txt
@@ -86,12 +92,12 @@ ga_gates:
     label: cross-process serialized writer lock
     status: PASS
     evidence: .omc/metrics/runtime-verify/h-concurrent-writer-conflict.json
-    sha256: e5ee5594d73c366e05f7de33dd3c53b6264a42e7e58ebaab0723172c8c36eba2
+    sha256: 7a4329d15945b93f63fac4f8e73864b257ec96afc5ebfd5d021641a8d56d7aec
   GA-CAS-02:
     label: concurrent writer conflict proof
     status: PASS
     evidence: .omc/metrics/runtime-verify/h-concurrent-writer-conflict.json
-    sha256: e5ee5594d73c366e05f7de33dd3c53b6264a42e7e58ebaab0723172c8c36eba2
+    sha256: 7a4329d15945b93f63fac4f8e73864b257ec96afc5ebfd5d021641a8d56d7aec
   GA-L5-01:
     label: L5 recovery does not use summary as SOOT
     status: PASS
@@ -101,7 +107,7 @@ ga_gates:
     label: missing artifact returns MISSING_ARTIFACT
     status: PASS
     evidence: .omc/metrics/runtime-verify/h-artifact-missing.json
-    sha256: be99cb8c85d5780e533954dfdebffd43adedba76f93ebf876626f263b45323d2
+    sha256: c2d8ac1ea68d7af4f67ba90ef7176075c75bd01a428e2b0841c81e04eb9dfbfd
     result: MISSING_ARTIFACT
   GA-WATER-01:
     label: persistent PAUSED_CONTEXT_CRITICAL
@@ -118,26 +124,36 @@ ga_gates:
     label: 30+ turn session distribution
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
+    sha256: 524f1ecf3159b8de79448cc32ddca580e833b4cd4c6b0c6a4713b26b0dba35c9
   GA-OBS-02:
     label: L5 ratio
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
+    sha256: 524f1ecf3159b8de79448cc32ddca580e833b4cd4c6b0c6a4713b26b0dba35c9
   GA-OBS-03:
     label: cost per session/task
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
+    sha256: 524f1ecf3159b8de79448cc32ddca580e833b4cd4c6b0c6a4713b26b0dba35c9
   GA-OBS-04:
     label: cache or stable-prefix metric
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
+    sha256: 524f1ecf3159b8de79448cc32ddca580e833b4cd4c6b0c6a4713b26b0dba35c9
   GA-OC-01:
     label: OpenCode independent certification
     status: PENDING
     reason: requires separate OpenCode proof package
+ga_behavioral_validations:
+  status: PASS
+  evidence: .omc/metrics/runtime-verify/ga-behavioral-validation.json
+  sha256: 7f0dca5273370b8cec3f9ca1f0c688abb656dc29d4279945fa7479eedc94ccf1
+  scenario_count: 5
+  passed: 5
+  failed: []
+  remaining_blockers:
+  - GA-OBS longitudinal sample remains governed by GA-OBS-01..04 status
+  - GA-OC OpenCode independent certification requires a separate proof package
 ga_ready: false
 not_certified:
 - CarrorOS GA

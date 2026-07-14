@@ -1,0 +1,37 @@
+{
+  "schema": "carroros.ga.behavioral_scenario.v1",
+  "test_id": "GA-BHV-01-LONG-SESSION-OBSERVABILITY",
+  "label": "Long-session observability instrumentation",
+  "status": "PASS",
+  "detail": "observability instrumentation complete; longitudinal sample still pending",
+  "ga_ready": false,
+  "generated_at": "2026-07-14T09:49:31+00:00",
+  "evidence": {
+    "present_fields": [
+      "sample.session_count",
+      "controllable_tokens.p50",
+      "controllable_tokens.p95",
+      "l5.l5_ratio",
+      "cost_estimate.estimated_usd_total",
+      "cache_stability_proxy.hash"
+    ],
+    "missing_fields": [],
+    "sample": {
+      "session_count": 14,
+      "long_session_count_30_plus_turns": 0,
+      "status_counts": {
+        "unknown": 2,
+        "archived": 11,
+        "active": 1
+      }
+    },
+    "gate_status": {
+      "GA-OBS-01": "INSTRUMENTED_PENDING_SAMPLE",
+      "GA-OBS-02": "INSTRUMENTED_PENDING_SAMPLE",
+      "GA-OBS-03": "INSTRUMENTED_PENDING_SAMPLE",
+      "GA-OBS-04": "INSTRUMENTED_PENDING_SAMPLE"
+    },
+    "longitudinal_ready": false,
+    "observability_path": ".omc/metrics/ga/observability.json"
+  }
+}

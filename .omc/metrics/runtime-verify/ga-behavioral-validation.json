@@ -1,0 +1,45 @@
+{
+  "schema": "carroros.ga.behavioral_validation.v1",
+  "generated_at": "2026-07-14T09:49:31+00:00",
+  "ga_ready": false,
+  "status": "PASS",
+  "scenario_count": 5,
+  "passed": 5,
+  "failed": [],
+  "scenarios": {
+    "GA-BHV-01-LONG-SESSION-OBSERVABILITY": {
+      "status": "PASS",
+      "detail": "observability instrumentation complete; longitudinal sample still pending",
+      "path": ".omc/metrics/runtime-verify/ga-bhv-01-long-session-observability.json",
+      "sha256": "223c4ac9f2e8636ee3e8e2912c73b36dbdad8ee0950136a1592c5634c5b23398"
+    },
+    "GA-BHV-02-COMPACT-L5-RECOVERY": {
+      "status": "PASS",
+      "detail": "L5 recovery rejects summary-as-SOOT and missing artifact blocks execution",
+      "path": ".omc/metrics/runtime-verify/ga-bhv-02-compact-l5-recovery.json",
+      "sha256": "6f08b410401fee30cfb714b220fe69951f7428d2ca3338315037f3d9247930bb"
+    },
+    "GA-BHV-03-UNATTENDED-GOAL-FAILURE-INJECTION": {
+      "status": "PASS",
+      "detail": "autonomy guards pause on loop, budget, and stall injections",
+      "path": ".omc/metrics/runtime-verify/ga-bhv-03-unattended-goal-failure-injection.json",
+      "sha256": "30661b5d495f8c60297ffac40fd7e1758d2dae6a564f7d11ce1e917c284808d8"
+    },
+    "GA-BHV-04-FLYWHEEL-REPLAY-PROMOTION-ROLLBACK": {
+      "status": "PASS",
+      "detail": "fixture replay proves recurring pattern extraction with gated promotion and rollback metadata",
+      "path": ".omc/metrics/runtime-verify/ga-bhv-04-flywheel-replay-promotion-rollback.json",
+      "sha256": "4decfebfa314bfdbb4c2725a07e8eb9d10762a6b7aaebb48efd74e0b69386304"
+    },
+    "GA-BHV-05-DECISION-GOVERNANCE": {
+      "status": "PASS",
+      "detail": "decision governance routes low/high/retry/disagreement cases deterministically",
+      "path": ".omc/metrics/runtime-verify/ga-bhv-05-decision-governance.json",
+      "sha256": "a014083a8f036e97717d7a6789f52644207bfb6bcc2bd08a2ef77356bfe8a463"
+    }
+  },
+  "remaining_blockers": [
+    "GA-OBS longitudinal sample remains governed by GA-OBS-01..04 status",
+    "GA-OC OpenCode independent certification requires a separate proof package"
+  ]
+}

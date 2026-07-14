@@ -63,7 +63,23 @@ Several deterministic GA gates have now advanced to evidence-backed PASS. GA as 
 
 ---
 
-## 3. Forbidden Until Closed
+## 3. GA Behavioral Validation Suite
+
+The final review scenarios now have a deterministic validation harness. This validates behavior and evidence shape; it still does not certify full GA while longitudinal observability and OpenCode remain pending.
+
+| ID | Scenario | Status | Evidence / boundary |
+|---|---|---|---|
+| GA-BHV-01 | Long-session observability instrumentation | PASS after harness run | `.omc/metrics/runtime-verify/ga-bhv-01-long-session-observability.json`; validates p50/p95/L5/cost/cache fields, not longitudinal sufficiency |
+| GA-BHV-02 | Compact/L5 recovery behavior | PASS after harness run | references `h-l5-recovery.json` and `h-artifact-missing.json` |
+| GA-BHV-03 | Unattended goal failure injection | PASS after harness run | validates loop/stall/budget pause guardrails, not production unattended completion |
+| GA-BHV-04 | Flywheel replay/promotion/rollback controls | PASS after harness run | fixture-based, non-destructive recurring-pattern and rollback metadata evidence |
+| GA-BHV-05 | Decision governance routing | PASS after harness run | deterministic L1/L2 risk/retry/disagreement routes |
+
+Aggregate evidence: `.omc/metrics/runtime-verify/ga-behavioral-validation.json`.
+
+---
+
+## 4. Forbidden Until Closed
 
 Do not claim:
 
@@ -77,7 +93,7 @@ forbidden_claims:
 
 ---
 
-## 4. Allowed Now
+## 5. Allowed Now
 
 Allowed release statement:
 
