@@ -2,8 +2,8 @@ acceptance_identity:
   product: CarrorOS Base 1.0 RC2 — Claude Code
   verdict: APPROVE_RC2_ENGINEERING_RELEASE
   formal_evidence_status: SEALED
-  generated_at: '2026-07-13T15:29:01+00:00'
-  git_commit_full: 6afbdff40826fb036f152aff1d86c19816f130d6
+  generated_at: '2026-07-14T09:10:53+00:00'
+  git_commit_full: 1dd91a64da0d4151d854c76cee8e795fbe99a50b
   git_dirty_current_worktree: true
   certification_scope:
     platform: Claude Code only
@@ -15,7 +15,7 @@ acceptance_identity:
     - L1 medium tasks with human checkpoint
     - L2 supervised tasks with explicit human gate
 suite:
-  total_executions: 184
+  total_executions: 192
   latest_execution_counted: 42
   total_unique_tests: 42
   passed: 42
@@ -67,14 +67,14 @@ suite:
 observed_artifacts:
   evidence:
     path: .omc/metrics/runtime-verify/evidence.jsonl
-    records: 184
-    sha256: 02dbd96520f3e39efbf7ff3fed232fc3d6dd70a75fc67348f78d028d89831049
+    records: 192
+    sha256: 9f4814ac7b01b8db2a6bb3b23c0ca7c81420d8569a0d4ab9f416a6207da55973
   h_cas_stale_evidence:
     path: .omc/metrics/runtime-verify/h-cas-stale-evidence.json
     sha256: 4fdd9efc25335266a48e60493c939de15c07e4e5d176fb7ac10be2ab86f5104f
   manifest:
     path: .omc/metrics/runtime-verify/manifest.json
-    sha256: 96aba31bd61cc13241afe82839eb64b37639e2e927a56e4c6210d61f375b6947
+    sha256: 9a7954a51a32900ef4d8a1d7ed0b3caea3bd195c7f462aebb927eb954bd19e62
     status: PRESENT
   sha256sums:
     path: .omc/metrics/runtime-verify/sha256sums.txt
@@ -118,22 +118,22 @@ ga_gates:
     label: 30+ turn session distribution
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
   GA-OBS-02:
     label: L5 ratio
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
   GA-OBS-03:
     label: cost per session/task
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
   GA-OBS-04:
     label: cache or stable-prefix metric
     status: INSTRUMENTED_PENDING_SAMPLE
     evidence: .omc/metrics/ga/observability.json
-    sha256: bc9f7dec5bf6b236df8fe4d8a364230733a19cf3df93de47c8e10f5497a69e2e
+    sha256: 7f02ec760392bd14de63880f8d4a3d737e6ba001258a42bc2944eb8877e8d44d
   GA-OC-01:
     label: OpenCode independent certification
     status: PENDING
