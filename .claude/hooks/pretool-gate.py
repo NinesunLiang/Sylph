@@ -22,7 +22,10 @@ from __future__ import annotations
 
 import json
 import re
+import secrets
+import shutil
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +43,8 @@ TOKENS = OMC / "tokens"
 TASKS = OMC / "tasks"
 AUDIT = OMC / "audit"
 CRITICAL_STATE = OMC / "state" / "context-critical.json"
+FALLBACK_REQUIRED = OMC / "state" / "fallback-blocked-required"
+FALLBACK_APPROVED = OMC / "state" / "fallback-blocked-approved"
 
 SENSITIVE_PATTERNS = [
     r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
@@ -105,10 +110,23 @@ def _ok(msg: str = "OK") -> int:
     return 0
 
 def _block(msg: str) -> int:
+    """Block a tool call with friendly message.
+
+    Sylph/inspired pattern:
+    - Output continues to allow the user to see the message
+    - Exit code 2 signals CC to stop this tool call
+    - Message goes to additionalContext so CC shows it in UI
+    """
     safe = msg[:500]
-    print(json.dumps({"continue": False, "message": f"PreToolGate: {safe}"}, ensure_ascii=False))
+    print(json.dumps({
+        "continue": True,
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": safe,
+        }
+    }, ensure_ascii=False))
     sys.stderr.write(safe + "\n")
-    return 0
+    return 2
 
 def _match_any(text: str, patterns: list[str]) -> str | None:
     for pat in patterns:
@@ -246,28 +264,141 @@ def _check_sensitive_edit(payload: dict) -> str | None:
         return f"BLOCK sensitive_path path={path}"
     return None
 
+def _safe_unlink(path: Path) -> None:
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError:
+        pass
+
+
+def _auto_archive_token(token_path: Path, token_data: dict, reason: str) -> None:
+    """Move a stale/broken token out of the way so it stops blocking the project.
+
+    Token is copied to archive/tokens/{date}/ with a note, then deleted from tokens/.
+    Never raises — silence any I/O errors.
+    """
+    try:
+        archive_dir = OMC / "archive" / "tokens" / token_path.parent.name
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_dir / token_path.name
+        # Mark as archived in the token data
+        token_data["status"] = "archived"
+        token_data.setdefault("session", {})
+        token_data["session"]["archived_at"] = datetime.now(timezone.utc).isoformat()
+        token_data.setdefault("task", {})
+        if isinstance(token_data.get("task"), dict):
+            token_data["task"]["archive_reason"] = reason
+        archive_path.write_text(json.dumps(token_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        token_path.unlink()
+        _append_audit({
+            "event_type": "token_auto_archived",
+            "actor": "hook:pretool-gate",
+            "reason": reason,
+            "token": token_path.name,
+            "archived_to": str(archive_path),
+        })
+    except OSError:
+        pass
+
+
 def _check_fallback(_payload: dict) -> str | None:
-    """Gate 2: block if task is blocked/waiting."""
-    token = _active_token()
-    if not token:
-        return None  # no active task = no block
+    """Gate 2: block if task is blocked/waiting.
+
+    Stale lock protection: if a token has been blocked longer than
+    STALE_LOCK_THRESHOLD, auto-archive it instead of blocking.
+    Historical bad state must not freeze the project (Boss ruling 2026-07-15).
+    """
+    token_path = _latest_token()
+    if not token_path:
+        return None
+    token_data = _read_json(token_path)
+    if not token_data:
+        return None
+    token = token_data
     task = token.get("task", {})
     if not isinstance(task, dict):
         return None
     status = task.get("status") or token.get("status") or "active"
-    if status == "blocked":
-        reason = task.get("blocked") or task.get("reason") or "blocked"
-        return f"BLOCK task_blocked reason={reason}"
-    if status == "waiting_user":
-        reason = task.get("reason") or "requires_user"
-        return f"ASK_USER reason={reason}"
-    fallback = task.get("fallback", {}) or {}
-    if fallback.get("unresolved"):
-        return f"BLOCK unresolved_fallback reason={fallback.get('reason', 'unknown')}"
-    session = token.get("session", {}) or {}
-    if session.get("fallback"):
-        return None  # session fallback is a warning, not a block
-    return None
+    if status != "blocked":
+        # Normal path: check waiting_user or unresolved fallback
+        if status == "waiting_user":
+            reason = task.get("reason") or "requires_user"
+            return f"ASK_USER reason={reason}"
+        fallback = task.get("fallback", {}) or {}
+        if fallback.get("unresolved"):
+            return f"BLOCK unresolved_fallback reason={fallback.get('reason', 'unknown')}"
+        session = token.get("session", {}) or {}
+        if session.get("fallback"):
+            return None
+        return None
+    # --- Blocked token detected ---
+    reason = task.get("blocked") or task.get("reason") or "blocked"
+    # Check staleness: use fallback timestamp or token created_at
+    ts_str = (
+        (task.get("fallback") or {}).get("timestamp")
+        or (token.get("session") or {}).get("created_at")
+        or ""
+    )
+    age = 0.0
+    if ts_str:
+        try:
+            from datetime import datetime, timezone
+            ts = datetime.fromisoformat(ts_str)
+            age = (datetime.now(timezone.utc) - ts).total_seconds()
+        except Exception:
+            pass
+    if age >= STALE_LOCK_THRESHOLD:
+        # Stale blocked token — auto-archive so it stops freezing the project
+        _auto_archive_token(token_path, token_data, f"stale_blocked age={int(age)}s reason={reason}")
+        return None  # pass through, project is unblocked
+
+    # ─── Not stale enough for auto-archive → CAPTCHA approval pattern ───
+    # Check if user already approved via /approve <token>
+    if FALLBACK_APPROVED.exists():
+        _auto_archive_token(token_path, token_data, f"user_approved reason={reason}")
+        _safe_unlink(FALLBACK_REQUIRED)
+        _safe_unlink(FALLBACK_APPROVED)
+        return None  # pass through
+
+    # Generate CAPTCHA for user to approve
+    captcha = secrets.token_hex(3)  # 6-char hex
+    try:
+        FALLBACK_REQUIRED.parent.mkdir(parents=True, exist_ok=True)
+        FALLBACK_REQUIRED.write_text(captcha)
+    except OSError:
+        pass
+
+    # Build helpful message
+    task = token.get("task", {})
+    session = token.get("session", {})
+    task_name = session.get("id") or task.get("name") or token_path.stem
+    blocked_since = (task.get("fallback") or {}).get("timestamp") or \
+                    session.get("created_at", "")[:19] or "?"
+    current_step = task.get("current_step", "?")
+    age_str = f"（阻塞 {int(age)} 秒）" if age > 0 else ""
+
+    msg = (
+        f"\n"
+        f"╔══ CarrorOS 任务阻塞 ══════════════════════════════\n"
+        f"║  任务: {task_name}\n"
+        f"║  状态: blocked  {age_str}\n"
+        f"║  原因: {reason}\n"
+        f"║  当前步骤: {current_step}\n"
+        f"║  阻塞自: {blocked_since[:19]}\n"
+        f"║\n"
+        f"║  📌 如需解除阻塞并归档此任务，请输入:\n"
+        f"║     /approve {captcha}\n"
+        f"║\n"
+        f"║  📌 如需保持阻塞状态:\n"
+        f"║     /deny\n"
+        f"║\n"
+        f"║  ⏱ 或等待 {max(1, int(STALE_LOCK_THRESHOLD/60 - age/60))} 分钟后自动解除\n"
+        f"╚══════════════════════════════════════════════════\n"
+    )
+    print(msg, file=sys.stderr, flush=True)
+
+    return f"BLOCK task_blocked reason={reason}"
 
 def _check_action_gate(payload: dict) -> str | None:
     """Gate 3: block dangerous commands; ask_user for risky ones."""
