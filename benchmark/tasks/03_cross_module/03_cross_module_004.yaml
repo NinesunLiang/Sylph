@@ -1,0 +1,37 @@
+# CarrorOS Benchmark Task: 03_cross_module_004
+# Category: 03_cross_module (跨模块 Bug)
+# Difficulty: medium
+# Auto-generated template — replace with real task
+
+task_id: "03_cross_module_004"
+category: "03_cross_module"
+difficulty: "medium"
+title: "TODO: Task title for 03_cross_module_004"
+description: |
+  TODO: Task description (must not leak solution)
+  
+  Context:
+  - What the repo does
+  - What needs to change
+  - Constraints and requirements
+  
+  Deliverable:
+  - What success looks like
+
+repo_url: "https://github.com/NinesunLiang/Sylph.git"
+repo_commit: "0000000000000000000000000000000000000000"  # TODO: set fixed commit
+verify_script: ".benchmark/verify/03_cross_module_004/verify.sh"   # TODO: create verification
+
+allowed_files:
+  - "**/*.py"    # TODO: restrict to relevant files
+forbidden_files:
+  - ".env"
+  - "**/secret*"
+
+build_command: "python3 -m py_compile src/main.py"      # TODO: set build command
+lint_command: "python3 -m flake8 src/ --max-line-length=100"  # TODO: set lint
+test_command: "python3 -m pytest tests/ -x -q"          # TODO: set test
+
+max_tool_calls: 30
+max_wall_time_seconds: 600
+seeds: [20260701, 20260702, 20260703]
