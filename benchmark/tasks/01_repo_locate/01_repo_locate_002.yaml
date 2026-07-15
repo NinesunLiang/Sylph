@@ -1,37 +1,33 @@
-# CarrorOS Benchmark Task: 01_repo_locate_002
-# Category: 01_repo_locate (仓库定位与小修复)
-# Difficulty: medium
-# Auto-generated template — replace with real task
-
+# 01_repo_locate_002 — Fix factorial negative
 task_id: "01_repo_locate_002"
 category: "01_repo_locate"
-difficulty: "medium"
-title: "TODO: Task title for 01_repo_locate_002"
+difficulty: "easy"
+title: "Fix factorial negative"
 description: |
-  TODO: Task description (must not leak solution)
-  
-  Context:
-  - What the repo does
-  - What needs to change
-  - Constraints and requirements
-  
-  Deliverable:
-  - What success looks like
+Fix/implement the following in the benchmark test repo:
+Fix factorial negative
 
-repo_url: "https://github.com/NinesunLiang/Sylph.git"
-repo_commit: "0000000000000000000000000000000000000000"  # TODO: set fixed commit
-verify_script: ".benchmark/verify/01_repo_locate_002/verify.sh"   # TODO: create verification
+Context: This is a Python project with src/ and tests/ directories.
+Make the necessary changes, verify with pytest, and provide evidence.
+DO NOT modify files outside the allowed scope.
+DO NOT skip verification steps.
+
+repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
+repo_commit: "8e6474efb03d61ef3352b170d764447bd5d09147"
+
+# Verify scripts stored in benchmark/verify/
+# Task runner copies them to .benchmark/verify/ in the test env
+verify_script: ".benchmark/verify/01_repo_locate_002.sh"
 
 allowed_files:
-  - "**/*.py"    # TODO: restrict to relevant files
+  - "src/**/*.py"
+  - "tests/**/*.py"
+
 forbidden_files:
-  - ".env"
   - "**/secret*"
+  - "**/*.env"
+  - "**/__pycache__"
 
-build_command: "python3 -m py_compile src/main.py"      # TODO: set build command
-lint_command: "python3 -m flake8 src/ --max-line-length=100"  # TODO: set lint
-test_command: "python3 -m pytest tests/ -x -q"          # TODO: set test
-
-max_tool_calls: 30
-max_wall_time_seconds: 600
-seeds: [20260701, 20260702, 20260703]
+max_tool_calls: 20
+max_wall_time_seconds: 300
+seeds: [20260715, 20260716, 20260717]

@@ -1,37 +1,33 @@
-# CarrorOS Benchmark Task: 06_test_fix_005
-# Category: 06_test_fix (测试修复)
-# Difficulty: medium
-# Auto-generated template — replace with real task
-
+# 06_test_fix_005 — Test isolation fix
 task_id: "06_test_fix_005"
 category: "06_test_fix"
-difficulty: "medium"
-title: "TODO: Task title for 06_test_fix_005"
+difficulty: "hard"
+title: "Test isolation fix"
 description: |
-  TODO: Task description (must not leak solution)
-  
-  Context:
-  - What the repo does
-  - What needs to change
-  - Constraints and requirements
-  
-  Deliverable:
-  - What success looks like
+Fix/implement the following in the benchmark test repo:
+Test isolation fix
 
-repo_url: "https://github.com/NinesunLiang/Sylph.git"
-repo_commit: "0000000000000000000000000000000000000000"  # TODO: set fixed commit
-verify_script: ".benchmark/verify/06_test_fix_005/verify.sh"   # TODO: create verification
+Context: This is a Python project with src/ and tests/ directories.
+Make the necessary changes, verify with pytest, and provide evidence.
+DO NOT modify files outside the allowed scope.
+DO NOT skip verification steps.
+
+repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
+repo_commit: "cd2b402d2d184bd2c9ba48ac47ad40d54c064147"
+
+# Verify scripts stored in benchmark/verify/
+# Task runner copies them to .benchmark/verify/ in the test env
+verify_script: ".benchmark/verify/06_test_fix_005.sh"
 
 allowed_files:
-  - "**/*.py"    # TODO: restrict to relevant files
-forbidden_files:
-  - ".env"
-  - "**/secret*"
+  - "src/**/*.py"
+  - "tests/**/*.py"
 
-build_command: "python3 -m py_compile src/main.py"      # TODO: set build command
-lint_command: "python3 -m flake8 src/ --max-line-length=100"  # TODO: set lint
-test_command: "python3 -m pytest tests/ -x -q"          # TODO: set test
+forbidden_files:
+  - "**/secret*"
+  - "**/*.env"
+  - "**/__pycache__"
 
 max_tool_calls: 30
 max_wall_time_seconds: 600
-seeds: [20260701, 20260702, 20260703]
+seeds: [20260715, 20260716, 20260717]

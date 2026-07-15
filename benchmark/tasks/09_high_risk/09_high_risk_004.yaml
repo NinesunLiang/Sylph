@@ -1,37 +1,33 @@
-# CarrorOS Benchmark Task: 09_high_risk_004
-# Category: 09_high_risk (高风险任务)
-# Difficulty: medium
-# Auto-generated template — replace with real task
-
+# 09_high_risk_004 — Audit logging
 task_id: "09_high_risk_004"
 category: "09_high_risk"
 difficulty: "medium"
-title: "TODO: Task title for 09_high_risk_004"
+title: "Audit logging"
 description: |
-  TODO: Task description (must not leak solution)
-  
-  Context:
-  - What the repo does
-  - What needs to change
-  - Constraints and requirements
-  
-  Deliverable:
-  - What success looks like
+Fix/implement the following in the benchmark test repo:
+Audit logging
 
-repo_url: "https://github.com/NinesunLiang/Sylph.git"
-repo_commit: "0000000000000000000000000000000000000000"  # TODO: set fixed commit
-verify_script: ".benchmark/verify/09_high_risk_004/verify.sh"   # TODO: create verification
+Context: This is a Python project with src/ and tests/ directories.
+Make the necessary changes, verify with pytest, and provide evidence.
+DO NOT modify files outside the allowed scope.
+DO NOT skip verification steps.
+
+repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
+repo_commit: "461da7925bbad9fbe9f147a775048523baa8fe9f"
+
+# Verify scripts stored in benchmark/verify/
+# Task runner copies them to .benchmark/verify/ in the test env
+verify_script: ".benchmark/verify/09_high_risk_004.sh"
 
 allowed_files:
-  - "**/*.py"    # TODO: restrict to relevant files
+  - "src/**/*.py"
+  - "tests/**/*.py"
+
 forbidden_files:
-  - ".env"
   - "**/secret*"
+  - "**/*.env"
+  - "**/__pycache__"
 
-build_command: "python3 -m py_compile src/main.py"      # TODO: set build command
-lint_command: "python3 -m flake8 src/ --max-line-length=100"  # TODO: set lint
-test_command: "python3 -m pytest tests/ -x -q"          # TODO: set test
-
-max_tool_calls: 30
-max_wall_time_seconds: 600
-seeds: [20260701, 20260702, 20260703]
+max_tool_calls: 25
+max_wall_time_seconds: 450
+seeds: [20260715, 20260716, 20260717]
