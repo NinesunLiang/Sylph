@@ -1,0 +1,33 @@
+# 05_fuzzy_req_005 — Auto-retry decorator
+task_id: "05_fuzzy_req_005"
+category: "05_fuzzy_req"
+difficulty: "hard"
+title: "Auto-retry decorator"
+description: |
+Fix/implement the following in the benchmark test repo:
+Auto-retry decorator
+
+Context: This is a Python project with src/ and tests/ directories.
+Make the necessary changes, verify with pytest, and provide evidence.
+DO NOT modify files outside the allowed scope.
+DO NOT skip verification steps.
+
+repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
+repo_commit: "cd2b402d2d184bd2c9ba48ac47ad40d54c064147"
+
+# Verify scripts stored in benchmark/verify/
+# Task runner copies them to .benchmark/verify/ in the test env
+verify_script: ".benchmark/verify/05_fuzzy_req_005.sh"
+
+allowed_files:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+
+forbidden_files:
+  - "**/secret*"
+  - "**/*.env"
+  - "**/__pycache__"
+
+max_tool_calls: 30
+max_wall_time_seconds: 600
+seeds: [20260715, 20260716, 20260717]

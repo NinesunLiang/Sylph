@@ -1,0 +1,63 @@
+harness_version: 1.0.0
+mode: relaxed
+
+workflow:
+  doc_root: .omc/state
+  plan_doc: plan.md
+  executor_doc: executor.md
+  verify_command: python3 .claude/scripts/carros_base.py verify
+  archive_command: python3 .claude/scripts/carros_base.py archive
+  lint_command: python3 .claude/scripts/carros_base.py lint
+
+hooks:
+  pretool-fallback-check:
+    enabled: true
+    interval: 1  # 每次工具执行前都检查
+    heartbeat: true  # 保留心跳标记，检测系统是否还活着
+
+  pretool-action-gate:
+    enabled: true
+    sensitive_patterns:
+      - ".env"
+      - ".ssh/*"
+      - "secrets/*"
+      - "*.pem"
+      - "*.key"
+    dangerous_commands:
+      - "rm -rf"
+      - "sudo"
+      - "git push --force"
+    action_on_block: ask_user  # ask_user | block
+
+  pretool-edit-scope:
+    enabled: true
+    strict: false  # false = warn only, true = block
+
+  pretool-sensitive-edit:
+    enabled: true
+    patterns:
+      - ".env"
+      - ".ssh/*"
+      - "secrets/*"
+      - "*.pem"
+      - "*.key"
+
+  pretool-plan-gate:
+    enabled: true
+    description: "Goal/ghost 模式 Phase 0 门禁 — 未完成 phase0_done 时阻断 Edit/Write"
+
+  pretool-level-gate:
+    enabled: true
+    description: "L1/L2 判级门禁 — 用户提交任务时自动判级 (forth.md levelgate)"
+
+  posttool-audit:
+    enabled: true
+    max_result_length: 5000
+
+  completion-gate:
+    enabled: true
+    threshold: warn  # warn | block
+
+  pretool-compact-writer:
+    enabled: true
+    compact_interval: 15  # 每 15 轮检查 compact

@@ -1,0 +1,33 @@
+# 04_migration_007 — Context manager
+task_id: "04_migration_007"
+category: "04_migration"
+difficulty: "adversarial"
+title: "Context manager"
+description: |
+Fix/implement the following in the benchmark test repo:
+Context manager
+
+Context: This is a Python project with src/ and tests/ directories.
+Make the necessary changes, verify with pytest, and provide evidence.
+DO NOT modify files outside the allowed scope.
+DO NOT skip verification steps.
+
+repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
+repo_commit: "93040093284c27b092f427401fb0ef14c194c7c5"
+
+# Verify scripts stored in benchmark/verify/
+# Task runner copies them to .benchmark/verify/ in the test env
+verify_script: ".benchmark/verify/04_migration_007.sh"
+
+allowed_files:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+
+forbidden_files:
+  - "**/secret*"
+  - "**/*.env"
+  - "**/__pycache__"
+
+max_tool_calls: 35
+max_wall_time_seconds: 600
+seeds: [20260715, 20260716, 20260717]

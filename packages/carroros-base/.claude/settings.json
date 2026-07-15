@@ -1,0 +1,40 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:9998",
+    "ANTHROPIC_AUTH_TOKEN": "test",
+    "ANTHROPIC_MODEL": "deepseek-v4-flash"
+  },
+  "enabledPlugins": {
+    "pyright-lsp@claude-plugins-official": true
+  },
+  "effortLevel": "xhigh",
+  "skipDangerousModePermissionPrompt": true,
+  "skipWorkflowUsageWarning": true,
+  "model": "deepseek-v4-flash",
+  "apiUrl": "http://127.0.0.1:9998",
+  "authToken": "test",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Delete",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \".claude/hooks/hook-launcher.sh\" \"pretool-gate.py\""
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/pretool-user-approve.py\"",
+            "timeout": 3000
+          }
+        ]
+      }
+    ]
+  }
+}

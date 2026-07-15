@@ -1,0 +1,634 @@
+╔══════════════════════════════════════════════════╗
+║ CarrorOS Benchmark CI — Phase 1              ║
+║ Wed Jul 15 14:25:20 CST 2026                                    ║
+╚══════════════════════════════════════════════════╝
+
+🔍 Step 1: Validate tasks...
+📋 任务总数: 86
+   难度分布: {'easy': 21, 'medium': 21, 'hard': 21, 'adversarial': 23}
+   类别分布:
+     01_repo_locate: 10 (仓库定位与小修复)
+     02_multi_file: 10 (多文件重构)
+     03_cross_module: 10 (跨模块 Bug)
+     04_migration: 8 (依赖升级/迁移)
+     05_fuzzy_req: 8 (模糊需求实现)
+     06_test_fix: 8 (测试修复)
+     07_perf_concur: 8 (性能或并发问题)
+     08_long_recovery: 8 (长期恢复任务)
+     09_high_risk: 8 (高风险任务)
+     10_adversarial: 8 (对抗性任务)
+
+  ❌ 01_repo_locate_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_009: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 01_repo_locate_010: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_009: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 02_multi_file_010: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_009: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 03_cross_module_010: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 04_migration_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 05_fuzzy_req_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 06_test_fix_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 07_perf_concur_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 08_long_recovery_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 09_high_risk_008: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_001: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_002: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_003: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_004: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_005: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_006: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_007: Missing description (prompt); Description too short (0 chars, min 50)
+  ❌ 10_adversarial_008: Missing description (prompt); Description too short (0 chars, min 50)
+
+📋 Step 2: Run plan...
+
+📋 Phase 1 运行计划
+   任务: 20
+   消融组: 4 (A_bare, B_entry_prompt, C_routing_kernel, E_full)
+   预估运行: 240 runs
+
+   1. [easy      ] 06_test_fix_001 — Fix wrong assertion
+   2. [easy      ] 05_fuzzy_req_001 — Add version info
+   3. [easy      ] 04_migration_002 — f-string migration
+   4. [easy      ] 08_long_recovery_001 — Add checkpoints
+   5. [easy      ] 01_repo_locate_002 — Fix factorial negative
+   6. [easy      ] 02_multi_file_002 — Move factorial to file
+   7. [medium    ] 03_cross_module_010 — TODO: Task title for 03_cross_module_010
+   8. [medium    ] 03_cross_module_003 — Shared exceptions
+   9. [medium    ] 06_test_fix_004 — Edge case tests
+  10. [medium    ] 01_repo_locate_004 — Add input validation
+  11. [medium    ] 03_cross_module_004 — Dependency injection
+  12. [medium    ] 08_long_recovery_003 — Save/resume batch
+  13. [medium    ] 10_adversarial_004 — Resilience test
+  14. [medium    ] 02_multi_file_003 — Refactor to generator
+  15. [hard      ] 05_fuzzy_req_006 — Rate limiter
+  16. [hard      ] 01_repo_locate_005 — Fix stats empty
+  17. [hard      ] 02_multi_file_006 — Extract routes
+  18. [hard      ] 06_test_fix_006 — Integration test
+  19. [adversarial] 01_repo_locate_008 — Add thread safety docstring
+  20. [adversarial] 02_multi_file_008 — Create logging module
+
+🏃 Step 3: Dry run (infra check)...
+
+╔══════════════════════════════════════════════╗
+║        CarrorOS Benchmark Framework          ║
+║  组件消融 A/B · 配对多 seed · 隐藏验收        ║
+╚══════════════════════════════════════════════╝
+
+📋 Phase 1: 240 runs (20 tasks × 4 groups × 3 seeds)
+
+    [DRY RUN] Would run: 02_multi_file_006 / A_bare / s20260715
+  Progress: 1/240
+    [DRY RUN] Would run: 06_test_fix_004 / E_full / s20260715
+  Progress: 2/240
+    [DRY RUN] Would run: 02_multi_file_002 / E_full / s20260715
+  Progress: 3/240
+    [DRY RUN] Would run: 03_cross_module_010 / E_full / s20260702
+  Progress: 4/240
+    [DRY RUN] Would run: 04_migration_002 / E_full / s20260715
+  Progress: 5/240
+    [DRY RUN] Would run: 02_multi_file_003 / E_full / s20260715
+  Progress: 6/240
+    [DRY RUN] Would run: 06_test_fix_004 / C_routing_kernel / s20260717
+  Progress: 7/240
+    [DRY RUN] Would run: 03_cross_module_004 / E_full / s20260717
+  Progress: 8/240
+    [DRY RUN] Would run: 06_test_fix_004 / B_entry_prompt / s20260715
+  Progress: 9/240
+    [DRY RUN] Would run: 10_adversarial_004 / B_entry_prompt / s20260716
+  Progress: 10/240
+    [DRY RUN] Would run: 08_long_recovery_001 / C_routing_kernel / s20260716
+  Progress: 11/240
+    [DRY RUN] Would run: 01_repo_locate_004 / E_full / s20260716
+  Progress: 12/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / A_bare / s20260715
+  Progress: 13/240
+    [DRY RUN] Would run: 01_repo_locate_004 / A_bare / s20260715
+  Progress: 14/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / E_full / s20260715
+  Progress: 15/240
+    [DRY RUN] Would run: 03_cross_module_004 / C_routing_kernel / s20260715
+  Progress: 16/240
+    [DRY RUN] Would run: 06_test_fix_006 / A_bare / s20260717
+  Progress: 17/240
+    [DRY RUN] Would run: 04_migration_002 / B_entry_prompt / s20260716
+  Progress: 18/240
+    [DRY RUN] Would run: 02_multi_file_006 / B_entry_prompt / s20260717
+  Progress: 19/240
+    [DRY RUN] Would run: 08_long_recovery_003 / A_bare / s20260715
+  Progress: 20/240
+    [DRY RUN] Would run: 06_test_fix_004 / C_routing_kernel / s20260715
+  Progress: 21/240
+    [DRY RUN] Would run: 08_long_recovery_001 / C_routing_kernel / s20260715
+  Progress: 22/240
+    [DRY RUN] Would run: 03_cross_module_004 / A_bare / s20260717
+  Progress: 23/240
+    [DRY RUN] Would run: 10_adversarial_004 / B_entry_prompt / s20260715
+  Progress: 24/240
+    [DRY RUN] Would run: 03_cross_module_003 / B_entry_prompt / s20260716
+  Progress: 25/240
+    [DRY RUN] Would run: 02_multi_file_008 / B_entry_prompt / s20260715
+  Progress: 26/240
+    [DRY RUN] Would run: 04_migration_002 / E_full / s20260716
+  Progress: 27/240
+    [DRY RUN] Would run: 01_repo_locate_008 / E_full / s20260717
+  Progress: 28/240
+    [DRY RUN] Would run: 08_long_recovery_003 / A_bare / s20260717
+  Progress: 29/240
+    [DRY RUN] Would run: 01_repo_locate_005 / A_bare / s20260717
+  Progress: 30/240
+    [DRY RUN] Would run: 03_cross_module_010 / C_routing_kernel / s20260703
+  Progress: 31/240
+    [DRY RUN] Would run: 08_long_recovery_003 / C_routing_kernel / s20260717
+  Progress: 32/240
+    [DRY RUN] Would run: 01_repo_locate_002 / B_entry_prompt / s20260716
+  Progress: 33/240
+    [DRY RUN] Would run: 02_multi_file_002 / E_full / s20260716
+  Progress: 34/240
+    [DRY RUN] Would run: 01_repo_locate_004 / E_full / s20260717
+  Progress: 35/240
+    [DRY RUN] Would run: 08_long_recovery_001 / E_full / s20260716
+  Progress: 36/240
+    [DRY RUN] Would run: 03_cross_module_003 / C_routing_kernel / s20260717
+  Progress: 37/240
+    [DRY RUN] Would run: 06_test_fix_004 / E_full / s20260716
+  Progress: 38/240
+    [DRY RUN] Would run: 06_test_fix_004 / A_bare / s20260715
+  Progress: 39/240
+    [DRY RUN] Would run: 08_long_recovery_003 / B_entry_prompt / s20260716
+  Progress: 40/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / B_entry_prompt / s20260716
+  Progress: 41/240
+    [DRY RUN] Would run: 02_multi_file_003 / A_bare / s20260715
+  Progress: 42/240
+    [DRY RUN] Would run: 01_repo_locate_005 / E_full / s20260715
+  Progress: 43/240
+    [DRY RUN] Would run: 06_test_fix_004 / A_bare / s20260716
+  Progress: 44/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / B_entry_prompt / s20260717
+  Progress: 45/240
+    [DRY RUN] Would run: 02_multi_file_006 / E_full / s20260717
+  Progress: 46/240
+    [DRY RUN] Would run: 02_multi_file_008 / C_routing_kernel / s20260715
+  Progress: 47/240
+    [DRY RUN] Would run: 10_adversarial_004 / E_full / s20260716
+  Progress: 48/240
+    [DRY RUN] Would run: 01_repo_locate_004 / A_bare / s20260716
+  Progress: 49/240
+    [DRY RUN] Would run: 03_cross_module_004 / B_entry_prompt / s20260716
+  Progress: 50/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / B_entry_prompt / s20260715
+  Progress: 51/240
+    [DRY RUN] Would run: 06_test_fix_001 / B_entry_prompt / s20260715
+  Progress: 52/240
+    [DRY RUN] Would run: 03_cross_module_010 / A_bare / s20260702
+  Progress: 53/240
+    [DRY RUN] Would run: 02_multi_file_003 / B_entry_prompt / s20260716
+  Progress: 54/240
+    [DRY RUN] Would run: 03_cross_module_003 / C_routing_kernel / s20260715
+  Progress: 55/240
+    [DRY RUN] Would run: 01_repo_locate_005 / E_full / s20260717
+  Progress: 56/240
+    [DRY RUN] Would run: 01_repo_locate_004 / C_routing_kernel / s20260716
+  Progress: 57/240
+    [DRY RUN] Would run: 01_repo_locate_008 / C_routing_kernel / s20260715
+  Progress: 58/240
+    [DRY RUN] Would run: 06_test_fix_004 / A_bare / s20260717
+  Progress: 59/240
+    [DRY RUN] Would run: 06_test_fix_001 / C_routing_kernel / s20260717
+  Progress: 60/240
+    [DRY RUN] Would run: 04_migration_002 / B_entry_prompt / s20260715
+  Progress: 61/240
+    [DRY RUN] Would run: 08_long_recovery_001 / B_entry_prompt / s20260715
+  Progress: 62/240
+    [DRY RUN] Would run: 06_test_fix_006 / E_full / s20260716
+  Progress: 63/240
+    [DRY RUN] Would run: 06_test_fix_001 / C_routing_kernel / s20260716
+  Progress: 64/240
+    [DRY RUN] Would run: 03_cross_module_010 / B_entry_prompt / s20260702
+  Progress: 65/240
+    [DRY RUN] Would run: 02_multi_file_003 / B_entry_prompt / s20260717
+  Progress: 66/240
+    [DRY RUN] Would run: 03_cross_module_010 / C_routing_kernel / s20260702
+  Progress: 67/240
+    [DRY RUN] Would run: 01_repo_locate_008 / C_routing_kernel / s20260717
+  Progress: 68/240
+    [DRY RUN] Would run: 03_cross_module_003 / E_full / s20260715
+  Progress: 69/240
+    [DRY RUN] Would run: 02_multi_file_006 / E_full / s20260715
+  Progress: 70/240
+    [DRY RUN] Would run: 06_test_fix_001 / B_entry_prompt / s20260716
+  Progress: 71/240
+    [DRY RUN] Would run: 02_multi_file_008 / C_routing_kernel / s20260716
+  Progress: 72/240
+    [DRY RUN] Would run: 02_multi_file_006 / C_routing_kernel / s20260717
+  Progress: 73/240
+    [DRY RUN] Would run: 01_repo_locate_002 / B_entry_prompt / s20260715
+  Progress: 74/240
+    [DRY RUN] Would run: 03_cross_module_004 / E_full / s20260716
+  Progress: 75/240
+    [DRY RUN] Would run: 10_adversarial_004 / C_routing_kernel / s20260716
+  Progress: 76/240
+    [DRY RUN] Would run: 02_multi_file_002 / A_bare / s20260717
+  Progress: 77/240
+    [DRY RUN] Would run: 03_cross_module_004 / B_entry_prompt / s20260717
+  Progress: 78/240
+    [DRY RUN] Would run: 02_multi_file_006 / B_entry_prompt / s20260715
+  Progress: 79/240
+    [DRY RUN] Would run: 01_repo_locate_002 / A_bare / s20260716
+  Progress: 80/240
+    [DRY RUN] Would run: 02_multi_file_006 / B_entry_prompt / s20260716
+  Progress: 81/240
+    [DRY RUN] Would run: 04_migration_002 / E_full / s20260717
+  Progress: 82/240
+    [DRY RUN] Would run: 03_cross_module_010 / E_full / s20260701
+  Progress: 83/240
+    [DRY RUN] Would run: 04_migration_002 / A_bare / s20260715
+  Progress: 84/240
+    [DRY RUN] Would run: 02_multi_file_006 / A_bare / s20260716
+  Progress: 85/240
+    [DRY RUN] Would run: 01_repo_locate_002 / B_entry_prompt / s20260717
+  Progress: 86/240
+    [DRY RUN] Would run: 06_test_fix_001 / A_bare / s20260717
+  Progress: 87/240
+    [DRY RUN] Would run: 06_test_fix_001 / A_bare / s20260715
+  Progress: 88/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / E_full / s20260717
+  Progress: 89/240
+    [DRY RUN] Would run: 08_long_recovery_003 / B_entry_prompt / s20260715
+  Progress: 90/240
+    [DRY RUN] Would run: 08_long_recovery_001 / E_full / s20260715
+  Progress: 91/240
+    [DRY RUN] Would run: 02_multi_file_002 / A_bare / s20260716
+  Progress: 92/240
+    [DRY RUN] Would run: 01_repo_locate_008 / A_bare / s20260716
+  Progress: 93/240
+    [DRY RUN] Would run: 01_repo_locate_008 / A_bare / s20260715
+  Progress: 94/240
+    [DRY RUN] Would run: 06_test_fix_004 / B_entry_prompt / s20260717
+  Progress: 95/240
+    [DRY RUN] Would run: 08_long_recovery_001 / C_routing_kernel / s20260717
+  Progress: 96/240
+    [DRY RUN] Would run: 03_cross_module_003 / C_routing_kernel / s20260716
+  Progress: 97/240
+    [DRY RUN] Would run: 02_multi_file_002 / C_routing_kernel / s20260716
+  Progress: 98/240
+    [DRY RUN] Would run: 02_multi_file_003 / B_entry_prompt / s20260715
+  Progress: 99/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / C_routing_kernel / s20260715
+  Progress: 100/240
+    [DRY RUN] Would run: 06_test_fix_006 / C_routing_kernel / s20260715
+  Progress: 101/240
+    [DRY RUN] Would run: 01_repo_locate_008 / B_entry_prompt / s20260717
+  Progress: 102/240
+    [DRY RUN] Would run: 10_adversarial_004 / C_routing_kernel / s20260715
+  Progress: 103/240
+    [DRY RUN] Would run: 08_long_recovery_001 / A_bare / s20260716
+  Progress: 104/240
+    [DRY RUN] Would run: 02_multi_file_003 / A_bare / s20260716
+  Progress: 105/240
+    [DRY RUN] Would run: 02_multi_file_006 / C_routing_kernel / s20260716
+  Progress: 106/240
+    [DRY RUN] Would run: 08_long_recovery_001 / A_bare / s20260715
+  Progress: 107/240
+    [DRY RUN] Would run: 01_repo_locate_004 / B_entry_prompt / s20260716
+  Progress: 108/240
+    [DRY RUN] Would run: 08_long_recovery_003 / C_routing_kernel / s20260715
+  Progress: 109/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / C_routing_kernel / s20260715
+  Progress: 110/240
+    [DRY RUN] Would run: 01_repo_locate_004 / B_entry_prompt / s20260715
+  Progress: 111/240
+    [DRY RUN] Would run: 06_test_fix_001 / A_bare / s20260716
+  Progress: 112/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / B_entry_prompt / s20260715
+  Progress: 113/240
+    [DRY RUN] Would run: 02_multi_file_006 / E_full / s20260716
+  Progress: 114/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / E_full / s20260715
+  Progress: 115/240
+    [DRY RUN] Would run: 03_cross_module_003 / E_full / s20260717
+  Progress: 116/240
+    [DRY RUN] Would run: 02_multi_file_008 / A_bare / s20260715
+  Progress: 117/240
+    [DRY RUN] Would run: 08_long_recovery_001 / A_bare / s20260717
+  Progress: 118/240
+    [DRY RUN] Would run: 02_multi_file_003 / E_full / s20260717
+  Progress: 119/240
+    [DRY RUN] Would run: 02_multi_file_006 / C_routing_kernel / s20260715
+  Progress: 120/240
+    [DRY RUN] Would run: 02_multi_file_006 / A_bare / s20260717
+  Progress: 121/240
+    [DRY RUN] Would run: 01_repo_locate_008 / E_full / s20260715
+  Progress: 122/240
+    [DRY RUN] Would run: 06_test_fix_001 / E_full / s20260717
+  Progress: 123/240
+    [DRY RUN] Would run: 02_multi_file_002 / C_routing_kernel / s20260717
+  Progress: 124/240
+    [DRY RUN] Would run: 01_repo_locate_002 / E_full / s20260716
+  Progress: 125/240
+    [DRY RUN] Would run: 01_repo_locate_002 / A_bare / s20260717
+  Progress: 126/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / E_full / s20260716
+  Progress: 127/240
+    [DRY RUN] Would run: 01_repo_locate_005 / C_routing_kernel / s20260717
+  Progress: 128/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / C_routing_kernel / s20260716
+  Progress: 129/240
+    [DRY RUN] Would run: 08_long_recovery_003 / A_bare / s20260716
+  Progress: 130/240
+    [DRY RUN] Would run: 08_long_recovery_003 / E_full / s20260715
+  Progress: 131/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / E_full / s20260716
+  Progress: 132/240
+    [DRY RUN] Would run: 02_multi_file_003 / E_full / s20260716
+  Progress: 133/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / A_bare / s20260715
+  Progress: 134/240
+    [DRY RUN] Would run: 08_long_recovery_001 / E_full / s20260717
+  Progress: 135/240
+    [DRY RUN] Would run: 03_cross_module_003 / A_bare / s20260716
+  Progress: 136/240
+    [DRY RUN] Would run: 01_repo_locate_005 / E_full / s20260716
+  Progress: 137/240
+    [DRY RUN] Would run: 03_cross_module_004 / C_routing_kernel / s20260716
+  Progress: 138/240
+    [DRY RUN] Would run: 03_cross_module_010 / E_full / s20260703
+  Progress: 139/240
+    [DRY RUN] Would run: 01_repo_locate_002 / C_routing_kernel / s20260717
+  Progress: 140/240
+    [DRY RUN] Would run: 02_multi_file_008 / A_bare / s20260716
+  Progress: 141/240
+    [DRY RUN] Would run: 02_multi_file_002 / B_entry_prompt / s20260715
+  Progress: 142/240
+    [DRY RUN] Would run: 02_multi_file_003 / C_routing_kernel / s20260715
+  Progress: 143/240
+    [DRY RUN] Would run: 03_cross_module_003 / A_bare / s20260715
+  Progress: 144/240
+    [DRY RUN] Would run: 02_multi_file_008 / A_bare / s20260717
+  Progress: 145/240
+    [DRY RUN] Would run: 10_adversarial_004 / A_bare / s20260716
+  Progress: 146/240
+    [DRY RUN] Would run: 03_cross_module_010 / B_entry_prompt / s20260701
+  Progress: 147/240
+    [DRY RUN] Would run: 02_multi_file_003 / C_routing_kernel / s20260717
+  Progress: 148/240
+    [DRY RUN] Would run: 01_repo_locate_002 / E_full / s20260717
+  Progress: 149/240
+    [DRY RUN] Would run: 10_adversarial_004 / E_full / s20260715
+  Progress: 150/240
+    [DRY RUN] Would run: 06_test_fix_006 / E_full / s20260717
+  Progress: 151/240
+    [DRY RUN] Would run: 02_multi_file_003 / A_bare / s20260717
+  Progress: 152/240
+    [DRY RUN] Would run: 03_cross_module_004 / A_bare / s20260715
+  Progress: 153/240
+    [DRY RUN] Would run: 01_repo_locate_004 / B_entry_prompt / s20260717
+  Progress: 154/240
+    [DRY RUN] Would run: 03_cross_module_003 / E_full / s20260716
+  Progress: 155/240
+    [DRY RUN] Would run: 03_cross_module_004 / B_entry_prompt / s20260715
+  Progress: 156/240
+    [DRY RUN] Would run: 01_repo_locate_005 / C_routing_kernel / s20260716
+  Progress: 157/240
+    [DRY RUN] Would run: 01_repo_locate_002 / C_routing_kernel / s20260715
+  Progress: 158/240
+    [DRY RUN] Would run: 06_test_fix_006 / C_routing_kernel / s20260717
+  Progress: 159/240
+    [DRY RUN] Would run: 08_long_recovery_003 / E_full / s20260716
+  Progress: 160/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / E_full / s20260717
+  Progress: 161/240
+    [DRY RUN] Would run: 01_repo_locate_004 / C_routing_kernel / s20260715
+  Progress: 162/240
+    [DRY RUN] Would run: 01_repo_locate_005 / B_entry_prompt / s20260717
+  Progress: 163/240
+    [DRY RUN] Would run: 01_repo_locate_008 / B_entry_prompt / s20260716
+  Progress: 164/240
+    [DRY RUN] Would run: 02_multi_file_002 / C_routing_kernel / s20260715
+  Progress: 165/240
+    [DRY RUN] Would run: 06_test_fix_001 / B_entry_prompt / s20260717
+  Progress: 166/240
+    [DRY RUN] Would run: 08_long_recovery_003 / E_full / s20260717
+  Progress: 167/240
+    [DRY RUN] Would run: 06_test_fix_001 / E_full / s20260715
+  Progress: 168/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / B_entry_prompt / s20260717
+  Progress: 169/240
+    [DRY RUN] Would run: 03_cross_module_010 / A_bare / s20260701
+  Progress: 170/240
+    [DRY RUN] Would run: 04_migration_002 / B_entry_prompt / s20260717
+  Progress: 171/240
+    [DRY RUN] Would run: 02_multi_file_008 / B_entry_prompt / s20260716
+  Progress: 172/240
+    [DRY RUN] Would run: 03_cross_module_004 / C_routing_kernel / s20260717
+  Progress: 173/240
+    [DRY RUN] Would run: 02_multi_file_002 / B_entry_prompt / s20260716
+  Progress: 174/240
+    [DRY RUN] Would run: 02_multi_file_008 / B_entry_prompt / s20260717
+  Progress: 175/240
+    [DRY RUN] Would run: 06_test_fix_001 / E_full / s20260716
+  Progress: 176/240
+    [DRY RUN] Would run: 01_repo_locate_002 / C_routing_kernel / s20260716
+  Progress: 177/240
+    [DRY RUN] Would run: 02_multi_file_008 / C_routing_kernel / s20260717
+  Progress: 178/240
+    [DRY RUN] Would run: 06_test_fix_006 / A_bare / s20260715
+  Progress: 179/240
+    [DRY RUN] Would run: 01_repo_locate_005 / A_bare / s20260715
+  Progress: 180/240
+    [DRY RUN] Would run: 08_long_recovery_003 / B_entry_prompt / s20260717
+  Progress: 181/240
+    [DRY RUN] Would run: 03_cross_module_004 / A_bare / s20260716
+  Progress: 182/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / B_entry_prompt / s20260716
+  Progress: 183/240
+    [DRY RUN] Would run: 02_multi_file_002 / E_full / s20260717
+  Progress: 184/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / C_routing_kernel / s20260716
+  Progress: 185/240
+    [DRY RUN] Would run: 03_cross_module_003 / B_entry_prompt / s20260715
+  Progress: 186/240
+    [DRY RUN] Would run: 10_adversarial_004 / A_bare / s20260717
+  Progress: 187/240
+    [DRY RUN] Would run: 01_repo_locate_002 / E_full / s20260715
+  Progress: 188/240
+    [DRY RUN] Would run: 02_multi_file_002 / A_bare / s20260715
+  Progress: 189/240
+    [DRY RUN] Would run: 03_cross_module_010 / C_routing_kernel / s20260701
+  Progress: 190/240
+    [DRY RUN] Would run: 01_repo_locate_004 / E_full / s20260715
+  Progress: 191/240
+    [DRY RUN] Would run: 03_cross_module_010 / B_entry_prompt / s20260703
+  Progress: 192/240
+    [DRY RUN] Would run: 01_repo_locate_005 / B_entry_prompt / s20260715
+  Progress: 193/240
+    [DRY RUN] Would run: 10_adversarial_004 / B_entry_prompt / s20260717
+  Progress: 194/240
+    [DRY RUN] Would run: 08_long_recovery_001 / B_entry_prompt / s20260717
+  Progress: 195/240
+    [DRY RUN] Would run: 01_repo_locate_005 / A_bare / s20260716
+  Progress: 196/240
+    [DRY RUN] Would run: 06_test_fix_006 / B_entry_prompt / s20260716
+  Progress: 197/240
+    [DRY RUN] Would run: 06_test_fix_004 / C_routing_kernel / s20260716
+  Progress: 198/240
+    [DRY RUN] Would run: 10_adversarial_004 / A_bare / s20260715
+  Progress: 199/240
+    [DRY RUN] Would run: 04_migration_002 / A_bare / s20260716
+  Progress: 200/240
+    [DRY RUN] Would run: 06_test_fix_004 / E_full / s20260717
+  Progress: 201/240
+    [DRY RUN] Would run: 04_migration_002 / A_bare / s20260717
+  Progress: 202/240
+    [DRY RUN] Would run: 03_cross_module_003 / B_entry_prompt / s20260717
+  Progress: 203/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / A_bare / s20260717
+  Progress: 204/240
+    [DRY RUN] Would run: 10_adversarial_004 / C_routing_kernel / s20260717
+  Progress: 205/240
+    [DRY RUN] Would run: 06_test_fix_006 / A_bare / s20260716
+  Progress: 206/240
+    [DRY RUN] Would run: 01_repo_locate_004 / C_routing_kernel / s20260717
+  Progress: 207/240
+    [DRY RUN] Would run: 06_test_fix_006 / C_routing_kernel / s20260716
+  Progress: 208/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / C_routing_kernel / s20260717
+  Progress: 209/240
+    [DRY RUN] Would run: 02_multi_file_008 / E_full / s20260716
+  Progress: 210/240
+    [DRY RUN] Would run: 05_fuzzy_req_006 / A_bare / s20260716
+  Progress: 211/240
+    [DRY RUN] Would run: 02_multi_file_003 / C_routing_kernel / s20260716
+  Progress: 212/240
+    [DRY RUN] Would run: 01_repo_locate_008 / C_routing_kernel / s20260716
+  Progress: 213/240
+    [DRY RUN] Would run: 02_multi_file_002 / B_entry_prompt / s20260717
+  Progress: 214/240
+    [DRY RUN] Would run: 04_migration_002 / C_routing_kernel / s20260716
+  Progress: 215/240
+    [DRY RUN] Would run: 08_long_recovery_001 / B_entry_prompt / s20260716
+  Progress: 216/240
+    [DRY RUN] Would run: 01_repo_locate_004 / A_bare / s20260717
+  Progress: 217/240
+    [DRY RUN] Would run: 02_multi_file_008 / E_full / s20260715
+  Progress: 218/240
+    [DRY RUN] Would run: 06_test_fix_004 / B_entry_prompt / s20260716
+  Progress: 219/240
+    [DRY RUN] Would run: 03_cross_module_010 / A_bare / s20260703
+  Progress: 220/240
+    [DRY RUN] Would run: 06_test_fix_006 / B_entry_prompt / s20260717
+  Progress: 221/240
+    [DRY RUN] Would run: 02_multi_file_008 / E_full / s20260717
+  Progress: 222/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / C_routing_kernel / s20260717
+  Progress: 223/240
+    [DRY RUN] Would run: 10_adversarial_004 / E_full / s20260717
+  Progress: 224/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / A_bare / s20260716
+  Progress: 225/240
+    [DRY RUN] Would run: 05_fuzzy_req_001 / A_bare / s20260717
+  Progress: 226/240
+    [DRY RUN] Would run: 01_repo_locate_005 / B_entry_prompt / s20260716
+  Progress: 227/240
+    [DRY RUN] Would run: 04_migration_002 / C_routing_kernel / s20260717
+  Progress: 228/240
+    [DRY RUN] Would run: 06_test_fix_006 / B_entry_prompt / s20260715
+  Progress: 229/240
+    [DRY RUN] Would run: 06_test_fix_006 / E_full / s20260715
+  Progress: 230/240
+    [DRY RUN] Would run: 01_repo_locate_002 / A_bare / s20260715
+  Progress: 231/240
+    [DRY RUN] Would run: 01_repo_locate_005 / C_routing_kernel / s20260715
+  Progress: 232/240
+    [DRY RUN] Would run: 04_migration_002 / C_routing_kernel / s20260715
+  Progress: 233/240
+    [DRY RUN] Would run: 03_cross_module_003 / A_bare / s20260717
+  Progress: 234/240
+    [DRY RUN] Would run: 03_cross_module_004 / E_full / s20260715
+  Progress: 235/240
+    [DRY RUN] Would run: 08_long_recovery_003 / C_routing_kernel / s20260716
+  Progress: 236/240
+    [DRY RUN] Would run: 01_repo_locate_008 / E_full / s20260716
+  Progress: 237/240
+    [DRY RUN] Would run: 01_repo_locate_008 / B_entry_prompt / s20260715
+  Progress: 238/240
+    [DRY RUN] Would run: 01_repo_locate_008 / A_bare / s20260717
+  Progress: 239/240
+    [DRY RUN] Would run: 06_test_fix_001 / C_routing_kernel / s20260715
+  Progress: 240/240
+
+🔥 Step 4: Running benchmark (Phase 1)...
+    This runs CC -p for each task. May take hours.
+    Check ci.log for progress.
+  Group: A_bare
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Users/lucas.liang/Desktop/CarrorOS/benchmark/task_loader.py", line 14, in <module>
+    from schemas import TaskDefinition, Difficulty
+ModuleNotFoundError: No module named 'schemas'

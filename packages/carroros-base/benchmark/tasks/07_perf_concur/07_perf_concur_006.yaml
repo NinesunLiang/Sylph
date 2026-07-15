@@ -1,0 +1,33 @@
+# 07_perf_concur_006 — Connection pool
+task_id: "07_perf_concur_006"
+category: "07_perf_concur"
+difficulty: "hard"
+title: "Connection pool"
+description: |
+Fix/implement the following in the benchmark test repo:
+Connection pool
+
+Context: This is a Python project with src/ and tests/ directories.
+Make the necessary changes, verify with pytest, and provide evidence.
+DO NOT modify files outside the allowed scope.
+DO NOT skip verification steps.
+
+repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
+repo_commit: "cd2b402d2d184bd2c9ba48ac47ad40d54c064147"
+
+# Verify scripts stored in benchmark/verify/
+# Task runner copies them to .benchmark/verify/ in the test env
+verify_script: ".benchmark/verify/07_perf_concur_006.sh"
+
+allowed_files:
+  - "src/**/*.py"
+  - "tests/**/*.py"
+
+forbidden_files:
+  - "**/secret*"
+  - "**/*.env"
+  - "**/__pycache__"
+
+max_tool_calls: 30
+max_wall_time_seconds: 600
+seeds: [20260715, 20260716, 20260717]
