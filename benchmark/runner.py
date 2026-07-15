@@ -11,6 +11,8 @@ import random
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -140,8 +142,99 @@ def cmd_validate(args):
         print("✅ 所有任务验证通过")
 
 
+def xsimplechat_analyze(task_id: str | None = None, model: str = "gpt-5.5") -> str:
+    """Call xsimplechat high-end model for analysis of benchmark runs.
+
+    Args:
+        task_id: Optional filter to a specific task. None = all tasks.
+        model: Model name (gpt-5.5, opus-4.8, sonnet-5, deepseek-r1)
+
+    Returns: Analysis text from the model.
+    """
+    # Collect runs
+    runs = []
+    search_dir = RUNS_DIR / task_id if task_id else RUNS_DIR
+    for f in sorted(search_dir.glob("**/*.json")):
+        try:
+            runs.append(json.loads(f.read_text(encoding="utf-8")))
+        except (json.JSONDecodeError, OSError):
+            continue
+
+    if not runs:
+        return "No runs found to analyze."
+
+    # Build prompt
+    by_group: dict[str, list] = {}
+    for r in runs:
+        g = r.get("identity", {}).get("group", "unknown")
+        by_group.setdefault(g, []).append(r)
+
+    summary_lines = [
+        f"# CarrorOS Benchmark Analysis ({len(runs)} runs)",
+        f"Model: {model}",
+        "",
+        "## Group Summary",
+        "| Group | Count | Success | Rate | Avg Cost | Avg Turns |",
+        "|-------|-------|---------|------|----------|-----------|",
+    ]
+    for g in sorted(by_group):
+        grp = by_group[g]
+        succ = sum(1 for r in grp if r.get("result", {}).get("verified_success", False))
+        avg_cost = sum(r.get("budget", {}).get("cost_usd", 0) for r in grp) / len(grp)
+        avg_turns = sum(r.get("budget", {}).get("actual_tool_calls", 0) for r in grp) / len(grp)
+        summary_lines.append(f"| {g} | {len(grp)} | {succ} | {succ/len(grp):.0%} | ${avg_cost:.2f} | {avg_turns:.1f} |")
+
+    # Sample: show last 3 runs in detail
+    recent = runs[-3:]
+    summary_lines.extend([
+        "",
+        "## Recent Runs Detail",
+    ])
+    for r in recent:
+        ident = r.get("identity", {})
+        result = r.get("result", {})
+        summary_lines.append(f"- {ident.get('task_id','?')}/{ident.get('group','?')}/s{ident.get('seed','?')}: "
+                             f"success={result.get('verified_success')} "
+                             f"fail={result.get('failure_class')} "
+                             f"${r.get('budget',{}).get('cost_usd',0):.2f} "
+                             f"{r.get('budget',{}).get('actual_tool_calls',0)}turns")
+
+    prompt = (
+        "You are a senior AI agent benchmark analyst. Analyze these CarrorOS benchmark results.\n"
+        + "\n".join(summary_lines)
+        + "\n\nAnswer:\n"
+        + "1. Which group performs best on verified_success_rate?\n"
+        + "2. Is there a monotonic ablation gradient (A < B < C < D < E)?\n"
+        + "3. What's the cost efficiency story?\n"
+        + "4. What's the single most actionable insight from this data?\n"
+        + "5. What should the next experiment be?\n"
+    )
+
+    # Call xsimplechat
+    data = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.3,
+        "max_tokens": 4096,
+    }
+    try:
+        req = urllib.request.Request(
+            "http://127.0.0.1:8765/v1/chat/completions",
+            data=json.dumps(data).encode(),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        resp = urllib.request.urlopen(req, timeout=180)
+        result = json.loads(resp.read())
+        return result["choices"][0]["message"]["content"]
+    except urllib.error.HTTPError as e:
+        return f"xsimplechat returned {e.code}: {e.reason}. Run 'curl -X POST http://127.0.0.1:8765/refresh' to renew session."
+    except Exception as e:
+        return f"xsimplechat error: {e}"
+
+
 def cmd_report(args):
-    """Generate benchmark reports."""
+    """Generate benchmark reports + optional AI analysis."""
     reporter = Reporter(RUNS_DIR)
 
     cap_report = reporter.generate_capability_report(
@@ -154,6 +247,19 @@ def cmd_report(args):
     )
     print("\n" + "=" * 60)
     print(long_report)
+
+    # Optional AI analysis via xsimplechat
+    if args.analyze:
+        print("\n" + "=" * 60)
+        print("🔮 调用高阶模型分析...")
+        model = args.analyze if args.analyze != "true" else "gpt-5.5"
+        analysis = xsimplechat_analyze(model=model)
+        print(analysis)
+        (REPORTS_DIR / "ai-analysis.md").write_text(
+            f"# AI Analysis (model: {model})\n\n" + analysis + "\n",
+            encoding="utf-8",
+        )
+        print(f"\n✅ AI analysis saved to {REPORTS_DIR / 'ai-analysis.md'}")
 
 
 def cmd_plan(args):
@@ -338,7 +444,9 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("validate", help="Validate task definitions")
-    sub.add_parser("report", help="Generate reports from existing runs")
+    report_p = sub.add_parser("report", help="Generate reports from existing runs (optionally with AI analysis)")
+    report_p.add_argument("--analyze", nargs="?", const="gpt-5.5", default=None,
+                          help="Run AI analysis via xsimplechat (model: gpt-5.5, opus-4.8, sonnet-5)")
     sub.add_parser("plan", help="Show run plan").add_argument(
         "--phase", type=int, choices=[1, 2], default=1
     )
