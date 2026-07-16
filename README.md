@@ -43,25 +43,28 @@ SubAgent 与 MainAgent 默认使用同一模型、同一治理规则和同一证
 
 ```bash
 # 1. 初始化任务
-python3 .claude/scripts/carros_base.py init --task-id my-task-001
+python3 .omc/scripts/carros_base.py init --task-id my-task-001
 
 # 2. 查看状态
-python3 .claude/scripts/carros_base.py status
+python3 .omc/scripts/carros_base.py status
 
 # 3. 每 tick 递增
-python3 .claude/scripts/carros_base.py tick
+python3 .omc/scripts/carros_base.py tick
 
 # 4. 验证 step
-python3 .claude/scripts/carros_base.py verify --step S1
+python3 .omc/scripts/carros_base.py verify --step S1
 
 # 5. lint 检查
-python3 .claude/scripts/carros_base.py lint
+python3 .omc/scripts/carros_base.py lint
 
 # 6. 归档
-python3 .claude/scripts/carros_base.py archive
+python3 .omc/scripts/carros_base.py archive
 
 # 7. 跑 bench 测试
-python3 .claude/scripts/carros_base.py bench
+python3 .omc/scripts/carros_base.py bench
+
+# 8. 跑随机特征验证（默认从脚本位置推导项目根；可用 CARROROS_ROOT 覆盖）
+CARROROS_ROOT="$PWD" python3 .omc/scripts/feature_verify.py 1
 ```
 
 ## 平台支持
@@ -112,17 +115,12 @@ CarrorOS/
 
 ## 文档系统
 
-任务系统：.omc/tasks/{data}/{task_name}/[ research.md | plan.md | executor.md |  sub_tasks/ |state/ ] 
+任务系统：.omc/tasks/{data}/{task_name}/[ research.md | plan.md | executor.md |  sub_tasks/ |state/ ]
 
 token系统：.omc/tokens/{data}/{task_name}.json // 所有的和会话级别的token存这里，如：goal\无人模式\ai任务
 
-子任务系统：.omc/tasks/{data}/{task_name}/sub_tasks/{sub_task_name}/[ research.md | plan.md | executor.md] 
+子任务系统：.omc/tasks/{data}/{task_name}/sub_tasks/{sub_task_name}/[ research.md | plan.md | executor.md]
 
 子任务令牌系统：.omc/tasks/{data}/{task_name}/sub_tasks/tokens/{sub_task_name}.json
 
 rpe文档系统：rpe/{feature_name}/[ research.md | plan.md | executor.md ｜ state/ ] // rpe模式一般不走无人模式，不需要令牌;
-
-# test change
-# test
-# track test
-# test

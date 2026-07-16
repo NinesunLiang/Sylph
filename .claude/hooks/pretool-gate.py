@@ -45,6 +45,7 @@ AUDIT = OMC / "audit"
 CRITICAL_STATE = OMC / "state" / "context-critical.json"
 FALLBACK_REQUIRED = OMC / "state" / "fallback-blocked-required"
 FALLBACK_APPROVED = OMC / "state" / "fallback-blocked-approved"
+TEMP_BYPASS = OMC / "state" / "temp-bypass.json"
 
 SENSITIVE_PATTERNS = [
     r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
@@ -87,6 +88,32 @@ def _read_stdin() -> dict[str, Any]:
     except Exception:
         return {}
 
+def _check_temp_bypass() -> bool:
+    """Check if a user-authorized temp bypass is active.
+
+    Bypass file: .omc/state/temp-bypass.json
+    Format: {"reason": "...", "expires_at": "ISO8601"}
+    If expired, auto-delete the file.
+    """
+    if not TEMP_BYPASS.exists():
+        return False
+    try:
+        data = json.loads(TEMP_BYPASS.read_text(encoding="utf-8"))
+        expires = data.get("expires_at", "")
+        if expires:
+            try:
+                from datetime import datetime, timezone
+                exp = datetime.fromisoformat(expires)
+                if datetime.now(timezone.utc) >= exp:
+                    TEMP_BYPASS.unlink(missing_ok=True)
+                    return False
+            except Exception:
+                pass
+        return True
+    except Exception:
+        TEMP_BYPASS.unlink(missing_ok=True)
+        return False
+
 def _extract_tool(payload: dict) -> str:
     return str(payload.get("tool_name") or payload.get("tool") or payload.get("name") or "")
 
@@ -109,23 +136,32 @@ def _ok(msg: str = "OK") -> int:
     print(json.dumps({"continue": True, "message": f"PreToolGate: {msg}"}, ensure_ascii=False))
     return 0
 
-def _block(msg: str) -> int:
-    """Block a tool call with friendly message.
+def _block(reason: str, suggestion: str = "") -> int:
+    """Block a tool call with HUMAN-READABLE reason and next step.
 
-    Sylph/inspired pattern:
-    - Output continues to allow the user to see the message
-    - Exit code 2 signals CC to stop this tool call
-    - Message goes to additionalContext so CC shows it in UI
+    Sylph-inspired pattern: instead of a terse machine-only message,
+    give the user the context they need to decide what to do next.
+    Also supports a TEMP_KEY bypass mechanism for user-authorized overrides.
     """
-    safe = msg[:500]
+    safe_reason = reason[:300]
+    msg_parts = [f"⛔ 操作被阻断: {safe_reason}"]
+    if suggestion:
+        msg_parts.append(f"💡 建议: {suggestion}")
+    bypass_hint = (
+        "🔑 如需临时授权跳过此检查，请运行: "
+        "`! python3 .claude/scripts/temp-bypass.py --minutes 60 --reason \"你的理由\"`"
+    )
+    msg_parts.append(bypass_hint)
+    full_msg = "\n".join(msg_parts)
+
     print(json.dumps({
         "continue": True,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "additionalContext": safe,
+            "additionalContext": full_msg,
         }
     }, ensure_ascii=False))
-    sys.stderr.write(safe + "\n")
+    sys.stderr.write(f"PreToolGate: BLOCKED - {safe_reason}\n")
     return 2
 
 def _match_any(text: str, patterns: list[str]) -> str | None:
@@ -261,7 +297,7 @@ def _check_sensitive_edit(payload: dict) -> str | None:
         return None
     path = _extract_path(payload)
     if path and _is_sensitive(path):
-        return f"BLOCK sensitive_path path={path}"
+        return f"BLOCK 敏感路径 {path}，需要确认后才能修改|请确认是否确实要修改敏感文件。如果确认，请使用临时 bypass 授权"
     return None
 
 def _safe_unlink(path: Path) -> None:
@@ -324,10 +360,10 @@ def _check_fallback(_payload: dict) -> str | None:
         # Normal path: check waiting_user or unresolved fallback
         if status == "waiting_user":
             reason = task.get("reason") or "requires_user"
-            return f"ASK_USER reason={reason}"
+            return f"ASK_USER Bypass 临时授权状态：{reason}|如需继续，运行 temp-bypass 命令创建临时授权"
         fallback = task.get("fallback", {}) or {}
         if fallback.get("unresolved"):
-            return f"BLOCK unresolved_fallback reason={fallback.get('reason', 'unknown')}"
+            return f"BLOCK fallback 状态未解决：{fallback.get('reason', 'unknown')}|请先解决fallback问题后再操作，或使用临时bypass授权跳过"
         session = token.get("session", {}) or {}
         if session.get("fallback"):
             return None
@@ -808,22 +844,35 @@ def main() -> int:
     payload = _read_stdin()
     tool_name = _extract_tool(payload).lower() or "unknown"
 
-    _clean_stale_state_token()  # auto-clear stale locks before gate checks
+    # 如果用户已创建临时 bypass token，跳过所有 gate 检查
+    bypass_active = _check_temp_bypass()
+
+    _clean_stale_state_token()
 
     for gate_name, gate_fn in GATES:
         try:
             result = gate_fn(payload)
         except Exception:
-            # Gate crash = pass through (fail-open for safety)
             continue
         if result:
             if result.startswith("BLOCK"):
-                return _block(f"BLOCK [{gate_name}] {result}")
+                if bypass_active:
+                    _append_audit({
+                        "event_type": "gate_bypassed",
+                        "actor": "hook:pretool-gate",
+                        "gate": gate_name,
+                        "reason": result,
+                    })
+                    return _ok(f"BYPASS_ALLOW [{gate_name}] (用户已授权临时跳过)")
+                parts = result.split("|", 1)
+                reason = parts[0].replace("BLOCK ", "").strip()
+                suggestion = parts[1].strip() if len(parts) > 1 else ""
+                return _block(reason, suggestion)
             elif result.startswith("ASK_USER"):
-                return _block(f"ASK_USER [{gate_name}] {result}")
-            elif result.startswith("NARROW") or result.startswith("CHECKPOINT_FIRST"):
-                # NARROW/CHECKPOINT = allow but with guidance
-                pass
+                parts = result.split("|", 1)
+                reason = parts[0].replace("ASK_USER ", "").strip()
+                suggestion = parts[1].strip() if len(parts) > 1 else ""
+                return _block(reason, suggestion)
 
     return _ok(f"ALLOW tool={tool_name}")
 

@@ -106,7 +106,11 @@ def append_text(path: Path, text: str) -> None:
 
 
 def task_id_from_token(token: dict[str, Any]) -> str:
-    return token.get("task", {}).get("id", "unknown_task")
+    return (
+        token.get("task", {}).get("id")
+        or token.get("session", {}).get("id")
+        or "unknown_task"
+    )
 
 
 def current_step_from_token(token: dict[str, Any]) -> str | None:

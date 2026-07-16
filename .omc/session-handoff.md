@@ -1,35 +1,25 @@
-# Session Handoff: ga-behavioral-validation
+# Session Handoff: e2e-lifecycle-test
 
-**Updated:** 2026-07-14 17:46 UTC
+**Updated:** 2026-07-14 18:44 UTC
 **Level:** L1
-**Progress:** 4/4 steps
+**Progress:** 0/2 steps
 
 ## Steps
-  current_step: COMPLETE (4/4)
+  current_step: S1 (0/2)
 
 ## Plan (condensed)
 # Plan
 ## Goal
-Add deterministic GA behavioral validation for final-review scenarios while preserving honest non-GA certification semantics.
 
 ## Scope
-- .claude/scripts/ga_behavioral_validation.py
-- .claude/scripts/formal_seal.py
-- improve_plan/final_round/remaining-ga-gates.md
-- .omc/tasks/20260714/ga-behavioral-validation/plan.md
-- .omc/tasks/20260714/ga-behavioral-validation/executor.md
 
 ## Steps
-- [x] S1: Add five-scenario GA behavioral validation harness.
-- [x] S2: Surface behavioral validation in formal seal.
-- [x] S3: Update final GA gate docs and task evidence ledger.
-- [x] S4: Run syntax, negative, observability, behavioral, formal seal, and diff hygiene checks.
+- [ ] S1: 
+- [ ] S2: 
 
 ## Verify
-- S1: py_compile exited 0 for ga_behavioral_validation.py and formal_seal.py.
-- S2: ga_behavioral_validation.py returned PASS, passed=5/5, ga_ready=false.
-- S3: formal_seal.py returned SEALED, ga_ready=false, blockers=[].
-- S4: git diff --check exited 0.
+- S1: 
+- S2: 
 
 ---
 > 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。

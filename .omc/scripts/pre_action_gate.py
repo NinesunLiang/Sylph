@@ -49,6 +49,8 @@ DEFAULT_POLICY = {
         "production.*",
         "prod.*",
         "kubeconfig",
+        "~/.ssh/*",
+        ".ssh/*",
         ".aws/credentials",
         ".gcp/*",
         ".azure/*",

@@ -1,38 +1,11 @@
 # Anti-Patterns — 经验沉淀
 
-_Updated: 2026-07-13T14:22:13.616427+00:00_
+_Updated: 2026-07-14T16:20:56.799910+00:00_
 
 ## 已识别模式
 
-- **unknown** (step=S1, retry=0)
-  - `Test error`
-
-- **unknown** (step=S1, retry=1)
-  - `err2`
-
-- **unknown_recurring** (step=S1, retry=2)
-  - `err3`
-
-- **unknown_recurring** (step=S1, retry=3)
-  - `err4`
-
-- **timeout** (step=S1, retry=0)
-  - `TimeoutError: test timed out after 30s`
-
-- **timeout** (step=S1, retry=1)
-  - `TimeoutError: test timed out again`
-
-- **assertion_recurring** (step=S2, retry=2)
-  - `AssertionError: expected 1 call, got 3`
-
-- **import** (step=S3, retry=0)
-  - `ImportError: cannot find module 'requests'`
-
-- **unknown** (step=T2, retry=0)
-  - `err0`
-
-- **unknown** (step=T2, retry=1)
-  - `err1`
+- **assertion_recurring** (step=RPE-C-S1, retry=2)
+  - `RPE-C controlled recurring path expectation failure: expected .omc/scripts but observed stale .claude/scripts path; atte`
 
 
 ## 历史记录
