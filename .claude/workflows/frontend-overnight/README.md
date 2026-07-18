@@ -3,6 +3,7 @@
 > 你提供：设计稿原型（必需）、PRD（可选）、API 文档（可滞后）。
 > 系统交付：次日早晨的 Draft PR + 机器晨报 + 控制面记分卡。
 > 规格：`UI/FINAL.md` v3.1（冻结）；本文是操作规程。
+> **操作请直接走 `SOP.md`（可勾选的操作手册，几周后回来照做即可）**；本文讲"为什么"。
 
 ## 能力边界
 
@@ -77,4 +78,4 @@ scorecard 重点字段：`producer_mismatch_count` / `suspicious_gate_invocation
 
 ## 当前状态
 
-**Runtime: RC / NO-GO**——首夜前必须：§18 九项闭合（FINAL.md）+ §17a 三家审计无新 P0 + Phase 0 完成 + 你签署。之后每夜重复 ②③④⑤（②中非首次项可省）。
+**Runtime: RC / 待首夜**——§17a 三家审计已闭环（Grok/Opus/GPT，无遗留技术项；证据 `UI/round5/`）。首夜前置只剩：Phase 0 完成（SOP §1+§2.1）+ 你签署（SOP §2.2）。§18/P2 supervisor 等是 **GA** blocker，不阻塞首夜。之后每夜重复 SOP §2（②中非首次项可省）。
