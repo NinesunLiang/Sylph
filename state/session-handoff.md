@@ -1,11 +1,11 @@
 # Session Handoff
 
-> 由 context_engine compact-write 于 2026-07-18T13:57:01+00:00 更新
+> 由 context_engine compact-write 于 2026-07-18T20:56:13+00:00 更新
 > AGENTS.md 已 @ 引用本文件，启动时自动加载
 
 ## Task
-- id: rpe-e-dual-judge-verify
-- level: L1
+- id: skill-hook-adaptive-opt
+- level: L2_ENHANCE
 - status: active
 - current_step: S1
 
