@@ -6,3 +6,6 @@ node_modules/
 .DS_Store
 *.bak
 .claude/.prompt-ring.json
+.claude/settings.json
+.claude/settings_ds.json
+.claude/settings_k3.json

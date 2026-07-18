@@ -1,0 +1,100 @@
+# assertion-catalog.yaml v1.0 — O3 封闭词表（FINAL.md v3.1 §6 / GPT#2 / Opus 深水区）
+#
+# 规则：
+# - manifest required_states / overlay_contract 引用的 assert ID 必须存在于本文件；
+#   未知 ID → preflight FAIL；spec 出现词表外断言 → C4 FAIL。禁止自由文本断言。
+# - helper 由目标 repo 的 tests/e2e/helpers/assertions.ts 实现（Phase 0 落盘）；
+#   helper 缺失 → preflight FAIL（词表与实现必须一一对应）。
+# - 每条：helper（playwright 函数名）/ params（schema）/ pass_rule / evidence。
+version: "1.0"
+
+# ---------- 七态断言契约（required_states） ----------
+state_assertions:
+  skeleton_visible:
+    helper: "assertSkeletonVisible"
+    params: { root: "selector", timeout_ms: { type: int, default: 5000 } }
+    pass_rule: "loading 期间 root 内存在可见骨架节点（[data-skeleton]/.skeleton/aria-busy=true 容器），数据 resolve 后消失"
+    evidence: ["screenshot", "dom_snapshot"]
+  no_layout_shift_on_resolve:
+    helper: "assertNoLayoutShiftOnResolve"
+    params: { root: "selector", max_cls: { type: float, default: 0.1 } }
+    pass_rule: "loading→success 过渡期间累计布局偏移 CLS ≤ max_cls"
+    evidence: ["cls_trace"]
+  list_or_detail_refreshed:
+    helper: "assertContentRefreshed"
+    params: { root: "selector", expect_min_items: { type: int, default: 1 } }
+    pass_rule: "success 态下 root 内渲染出 ≥ expect_min_items 条数据节点，且与 mock 响应内容一致"
+    evidence: ["screenshot", "dom_snapshot"]
+  empty_state_visible:
+    helper: "assertEmptyStateVisible"
+    params: { root: "selector" }
+    pass_rule: "空数据响应下 root 内出现可见空态节点（[data-empty]/.empty/含空态文案），且无报错 UI"
+    evidence: ["screenshot"]
+  retry_affordance_present:
+    helper: "assertRetryAffordance"
+    params: { root: "selector" }
+    pass_rule: "错误态下存在可聚焦、可点击的重试入口（button/link，非 disabled），点击后触发新一次请求"
+    evidence: ["screenshot", "network_trace"]
+  no_white_screen:
+    helper: "assertNoWhiteScreen"
+    params: { root: "selector" }
+    pass_rule: "network_error 态下 body 可见文本节点数 > 0 且 root 非空（非未捕获异常导致的白屏）"
+    evidence: ["screenshot", "console_log"]
+  trigger_disabled_during_inflight:
+    helper: "assertTriggerDisabledDuringInflight"
+    params: { trigger: "selector" }
+    pass_rule: "提交请求 in-flight 期间 trigger 处于 disabled/aria-disabled，且第二次点击不产生第二个请求"
+    evidence: ["network_trace", "dom_snapshot"]
+  no_dirty_state_after_close:
+    helper: "assertNoDirtyStateAfterClose"
+    params: { overlay: "selector", trigger: "selector" }
+    pass_rule: "modal/drawer 关闭后：表单/临时状态复位，再次打开呈现初始态；主页面数据未被半提交污染"
+    evidence: ["screenshot", "dom_snapshot"]
+
+# ---------- 浮层关闭语义矩阵（§7.1 R3，overlay_contract.items 逐浮层引用） ----------
+overlay_assertions:
+  overlay_close_on_mask_click:
+    helper: "assertOverlayCloseOnMaskClick"
+    params: { overlay: "selector", mask: "selector" }
+    pass_rule: "点击遮罩后 overlay 从 DOM 移除或不可见（仅当 PRD 允许遮罩关闭时引用）"
+    evidence: ["screenshot"]
+  overlay_close_on_esc:
+    helper: "assertOverlayCloseOnEsc"
+    params: { overlay: "selector" }
+    pass_rule: "焦点在 overlay 内按 Escape → overlay 关闭"
+    evidence: ["screenshot"]
+  scroll_lock_while_open:
+    helper: "assertScrollLockWhileOpen"
+    params: { overlay: "selector" }
+    pass_rule: "modal/drawer 打开期间 body/documentElement 不可滚动（overflow hidden 或等效），关闭后恢复"
+    evidence: ["dom_snapshot"]
+  focus_return_to_trigger:
+    helper: "assertFocusReturnToTrigger"
+    params: { overlay: "selector", trigger: "selector" }
+    pass_rule: "overlay 关闭后 document.activeElement 回到触发元素"
+    evidence: ["dom_snapshot"]
+  focus_trap:
+    helper: "assertFocusTrap"
+    params: { overlay: "selector" }
+    pass_rule: "modal 打开期间 Tab/Shift+Tab 焦点循环不离开 overlay（首尾元素环绕）"
+    evidence: ["focus_trace"]
+  overlay_close_on_outside_click:
+    helper: "assertOverlayCloseOnOutsideClick"
+    params: { overlay: "selector", outside: "selector" }
+    pass_rule: "click 型 popover/menu：点击 overlay 与 trigger 之外区域 → 关闭"
+    evidence: ["screenshot"]
+  overlay_close_on_retoggle:
+    helper: "assertOverlayCloseOnRetoggle"
+    params: { overlay: "selector", trigger: "selector" }
+    pass_rule: "click 型 popover/menu：打开状态再点 trigger → 关闭"
+    evidence: ["screenshot"]
+  hover_delay_close:
+    helper: "assertHoverDelayClose"
+    params: { overlay: "selector", trigger: "selector", delay_ms: { type: int, default: 200 } }
+    pass_rule: "hover 型 menu：光标离开 trigger 后 overlay 至少存活 delay_ms；延迟窗口内光标进入 overlay 则取消关闭；点击菜单项后立即关闭"
+    evidence: ["timing_trace", "screenshot"]
+  tooltip_hover_show_leave_hide:
+    helper: "assertTooltipHoverSemantics"
+    params: { tooltip: "selector", trigger: "selector" }
+    pass_rule: "tooltip：hover 即显、离开即关、不截获焦点（focus 不移动到 tooltip）"
+    evidence: ["dom_snapshot"]

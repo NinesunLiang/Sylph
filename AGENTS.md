@@ -2,6 +2,7 @@
 
 @.claude/kernel.md
 @.claude/index.md
+<!-- 下面@方法引入项目相关的内容配置，如：@README.md -->
 
 > 本文件继承自 CarrorOS 哲学传统。变更须人类裁决。
 

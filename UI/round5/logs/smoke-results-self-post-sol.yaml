@@ -1,0 +1,297 @@
+all_green: true
+tamper_suite_passed: true
+runner: self
+control_plane_digest: ac573a1e574bb5e5437070b6e71cb87553a62ede012c8164b4605a104e8280cf
+cases:
+- name: '正向: PASS 写入后可 reduce'
+  expect: PASS
+  got: PASS
+  ok: true
+- name: '反向: FAIL 结果不被算成 PASS'
+  expect: FAIL
+  got: FAIL
+  ok: true
+- name: '崩溃恢复: 残留临时文件'
+  expect: FailClosed
+  got: FailClosed
+  ok: true
+- name: 'fail-open: 解析失败'
+  expect: FailClosed
+  got: FailClosed
+  ok: true
+- name: 'fail-open: 缺字段'
+  expect: FailClosed
+  got: FailClosed
+  ok: true
+- name: 'fail-open: 结果PASS但exit非0'
+  expect: FailClosed
+  got: FailClosed
+  ok: true
+- name: 'fail-open: 结果FAIL但exit为0'
+  expect: FailClosed
+  got: FailClosed
+  ok: true
+- name: 'fail-open: 非法producer'
+  expect: FailClosed
+  got: FailClosed
+  ok: true
+- name: 'fail-open: 0 文件不得称 PASS'
+  expect: empty-reduce
+  got: empty-reduce
+  ok: true
+- name: '篡改: 手写token称DONE缺C6'
+  expect: exit3+token原因
+  got: exit3
+  ok: true
+- name: '正向权威链: 全PASS→DONE'
+  expect: DONE
+  got: DONE
+  ok: true
+- name: '篡改: SUPERSEDED旧PASS被排除'
+  expect: FAIL
+  got: FAIL
+  ok: true
+- name: '篡改: control_plane_lock 哈希不符'
+  expect: exit3
+  got: 3
+  ok: true
+- name: '正向: 当前控制面与 lock 一致'
+  expect: exit0
+  got: 0
+  ok: true
+- name: '篡改: 假PASS信封producer错配'
+  expect: exit3+producer原因
+  got: exit3
+  ok: true
+- name: '篡改: 信封控制面digest不符'
+  expect: exit3+digest原因
+  got: exit3
+  ok: true
+- name: '篡改: SUPERSEDED滤空→BLOCKED'
+  expect: BLOCKED
+  got: BLOCKED
+  ok: true
+- name: 'hook攻击: python heredoc 写 gate-results'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: python3 -c 写 token.json'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: 直调 gate_result.py write CLI'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: run-gate 包装 true 骗 PASS'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: run-gate wrapped 含链式'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: gen-control-plane-lock 夜间禁跑'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: morning-report 夜间禁跑'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: preflight 夜间禁跑'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: cp 覆盖 token.json'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: ln 夜间全禁（symlink 绕过）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: echo 写 verification-summary'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: Edit 直写 gate-results'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook攻击: Edit 经 symlink 写控制面'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook: run-gate 包装 pnpm tsc 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: scope-check 合法调用放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: finalize 合法调用放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: token-write API 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: manifest-json 读放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: events 追加放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: 页基线记录放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: 读 gate-results 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: 普通开发命令默认拒（v3：工具链必须走 run-gate）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'hook: git status 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'hook: 白天无标记全放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: 动态拼接删 marker（R-SOL-A）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 动态拼接改 hook（R-SOL-B）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 动态拼接改 gate（R-SOL-C）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 环境变量拼接路径'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: glob 删 marker'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 裸 python3 -c（R-SOL-D）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: node -e 动态写 gate-results'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: find -exec 间接删'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: cd 后复合命令'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: xargs sh -c 间接解释器'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 双引号内命令替换仍拦'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 引号未闭合即拒'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 引号外括号（subshell）'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: rm 非 scoped 路径默认拒'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 坏payload 空stdin'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 坏payload 非法JSON'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 坏payload 缺tool_name'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 坏payload 缺command'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: 坏payload command类型错'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: cwd漂移 /tmp下攻击仍拦'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: cwd漂移 /tmp下合法仍放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: git add 原子提交放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: git commit 带括号消息放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: gh pr create 放行（C8b）'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: lx-goal 激活放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: 版本探针放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: mkdir 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: scoped rm artifacts 放行（步10）'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: 引号内管道字面量放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: run-gate wrapped 带引号 grep 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'prefix: 子目录内合规改动 PASS'
+  expect: exit0
+  got: 'exit0 '
+  ok: true
+- name: 'prefix: 子目录内越界改动 FAIL'
+  expect: exit1
+  got: "exit1 C1 FAIL: 越界文件:\n  src/other/B.tsx"
+  ok: true
