@@ -58,18 +58,39 @@ def _parse_yaml(text: str) -> dict:
     """Minimal YAML parser for task definition files."""
     result = {}
     current_section = None
+    current_block_key = None
+    current_block_lines = []
     current_list_key = None
     current_list = []
 
+    def _flush_block():
+        nonlocal current_block_key, current_block_lines
+        if current_block_key is not None:
+            result[current_block_key] = "\n".join(current_block_lines)
+            current_block_key = None
+            current_block_lines = []
+
     for line in text.splitlines():
         stripped = line.strip()
+        indent = len(line) - len(line.lstrip())
+
+        # ── Block scalar accumulation ──
+        # If we are inside a block scalar (description: |, …),
+        # accumulate indented/blank lines until a top-level line.
+        if current_block_key is not None:
+            # Blank line or indented line → part of the block
+            if not stripped or indent > 0:
+                current_block_lines.append(stripped)
+                continue
+            # Top-level line → flush block and fall through to parse it
+            _flush_block()
+            # Continue to process this line as a normal key-value
+
         if not stripped or stripped.startswith("#"):
             _flush_list(result, current_list_key, current_list)
             current_list_key = None
             current_list = []
             continue
-
-        indent = len(line) - len(line.lstrip())
 
         if stripped.startswith("- "):
             item = stripped[2:].strip()
@@ -99,9 +120,9 @@ def _parse_yaml(text: str) -> dict:
             if len(value) >= 2 and value[0] in ('"', "'") and value[-1] == value[0]:
                 value = value[1:-1]
 
-            # Multi-line string marker
+            # Multi-line string marker (literal | or folded >)
             if value == "|" or value == ">":
-                current_section = key
+                current_block_key = key
                 continue
 
             if value:
@@ -127,6 +148,7 @@ def _parse_yaml(text: str) -> dict:
             else:
                 current_section = key
 
+    _flush_block()
     _flush_list(result, current_list_key, current_list)
     return result
 

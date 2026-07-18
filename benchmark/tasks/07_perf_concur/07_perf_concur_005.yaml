@@ -4,13 +4,13 @@ category: "07_perf_concur"
 difficulty: "hard"
 title: "Thread-safe cache"
 description: |
-Fix/implement the following in the benchmark test repo:
-Thread-safe cache
+  Fix/implement the following in the benchmark test repo:
+  Thread-safe cache
 
-Context: This is a Python project with src/ and tests/ directories.
-Make the necessary changes, verify with pytest, and provide evidence.
-DO NOT modify files outside the allowed scope.
-DO NOT skip verification steps.
+  Context: This is a Python project with src/ and tests/ directories.
+  Make the necessary changes, verify with pytest, and provide evidence.
+  DO NOT modify files outside the allowed scope.
+  DO NOT skip verification steps.
 
 repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
 repo_commit: "cd2b402d2d184bd2c9ba48ac47ad40d54c064147"

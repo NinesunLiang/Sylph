@@ -9,9 +9,7 @@ import math
 import random
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
-
-from schemas import ExperimentRun, AggregateMetrics, AblationGroup, Difficulty
+from schemas import ExperimentRun, Budget, Routing, Context, Recovery, Verification, FailureClass, AggregateMetrics
 
 
 def _bootstrap_ci(values: list[float], n_iter: int = 10000, ci: float = 0.95) -> tuple[float, float]:
@@ -92,7 +90,7 @@ class Reporter:
             group=identity.get("group", "A_bare"),
             seed=identity.get("seed", 0),
             repository_commit=identity.get("repository_commit", ""),
-            budget=ExperimentRun.budget.__class__(
+            budget=Budget(
                 input_tokens=budget.get("input_tokens", 0),
                 output_tokens=budget.get("output_tokens", 0),
                 cached_tokens=budget.get("cached_tokens", 0),
@@ -101,7 +99,7 @@ class Reporter:
                 wall_time_seconds=budget.get("wall_time_seconds", 0),
                 cost_usd=budget.get("cost_usd", 0.0),
             ),
-            routing=ExperimentRun.routing.__class__(
+            routing=Routing(
                 expected_workflow=routing.get("expected_workflow", ""),
                 selected_workflow=routing.get("selected_workflow", ""),
                 first_path_correct=routing.get("first_path_correct", False),
@@ -110,7 +108,7 @@ class Reporter:
                 time_to_first_correct_hypothesis_s=routing.get("time_to_first_correct_hypothesis_s", 0.0),
                 tool_calls_before_first_evidence=routing.get("tool_calls_before_first_evidence", 0),
             ),
-            context=ExperimentRun.context.__class__(
+            context=Context(
                 context_peak_ratio=ctx.get("context_peak_ratio", 0.0),
                 checkpoints=ctx.get("checkpoints", 0),
                 lossless_compactions=ctx.get("lossless_compactions", 0),
@@ -121,7 +119,7 @@ class Reporter:
                 artifacts_missing=ctx.get("artifacts_missing", 0),
                 preview_stability=ctx.get("preview_stability", 1.0),
             ),
-            recovery=ExperimentRun.recovery.__class__(
+            recovery=Recovery(
                 forced_interruptions=recovery.get("forced_interruptions", 0),
                 successful_resumes=recovery.get("successful_resumes", 0),
                 duplicate_actions_after_resume=recovery.get("duplicate_actions_after_resume", 0),
@@ -129,7 +127,7 @@ class Reporter:
                 fault_injections=recovery.get("fault_injections", 0),
                 faults_recovered=recovery.get("faults_recovered", 0),
             ),
-            verification=ExperimentRun.verification.__class__(
+            verification=Verification(
                 agent_claimed_complete=verification.get("agent_claimed_complete", False),
                 visible_tests_pass=verification.get("visible_tests_pass", False),
                 hidden_tests_pass=verification.get("hidden_tests_pass", False),

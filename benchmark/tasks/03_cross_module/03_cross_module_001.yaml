@@ -4,13 +4,13 @@ category: "03_cross_module"
 difficulty: "easy"
 title: "Fix circular import"
 description: |
-Fix/implement the following in the benchmark test repo:
-Fix circular import
+  Fix/implement the following in the benchmark test repo:
+  Fix circular import
 
-Context: This is a Python project with src/ and tests/ directories.
-Make the necessary changes, verify with pytest, and provide evidence.
-DO NOT modify files outside the allowed scope.
-DO NOT skip verification steps.
+  Context: This is a Python project with src/ and tests/ directories.
+  Make the necessary changes, verify with pytest, and provide evidence.
+  DO NOT modify files outside the allowed scope.
+  DO NOT skip verification steps.
 
 repo_url: "/Users/lucas.liang/Desktop/CarrorOS/benchmark/repos/bench-test-app"
 repo_commit: "8e6474efb03d61ef3352b170d764447bd5d09147"
