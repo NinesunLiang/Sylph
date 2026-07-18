@@ -1,7 +1,7 @@
 all_green: true
 tamper_suite_passed: true
 runner: independent
-control_plane_digest: ac573a1e574bb5e5437070b6e71cb87553a62ede012c8164b4605a104e8280cf
+control_plane_digest: 1a35669208cf9bd4e3b3ff0b8cc33125d9044cd45a0edf570921b847bb2d72db
 cases:
 - name: '正向: PASS 写入后可 reduce'
   expect: PASS
@@ -211,6 +211,30 @@ cases:
   expect: exit2
   got: 2
   ok: true
+- name: 'Sol: 转义引号后命令替换仍拦'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: gh pr create 无 --draft'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: gh pr create --repo 目标漂移'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: git commit --amend 历史改写'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: git commit --no-verify 绕钩子'
+  expect: exit2
+  got: 2
+  ok: true
+- name: 'Sol: git add -f 强制添加'
+  expect: exit2
+  got: 2
+  ok: true
 - name: 'Sol: 引号未闭合即拒'
   expect: exit2
   got: 2
@@ -284,6 +308,10 @@ cases:
   got: 0
   ok: true
 - name: 'Sol: run-gate wrapped 带引号 grep 放行'
+  expect: exit0
+  got: 0
+  ok: true
+- name: 'Sol: 单引号内命令替换是字面量放行'
   expect: exit0
   got: 0
   ok: true

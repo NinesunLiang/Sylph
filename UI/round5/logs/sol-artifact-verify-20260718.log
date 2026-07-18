@@ -1,0 +1,33 @@
+== 1. hook 实物 = control_plane_lock 条目 ==
+  PASS lock 含 hook 条目 | .claude/hooks/carroros-night-deny.py
+  PASS hook sha256 与 lock 条目一致 | hook=c5b8fbd701a43170… lock=c5b8fbd701a43170…
+  PASS lock 含 launcher 条目
+  PASS launcher sha256 与 lock 条目一致
+
+== 2. digest 三向一致（真仓当前 = 独立袋 = self 袋）==
+  PASS 真仓 digest 计算成功 | 1a35669208cf9bd4…
+  PASS 独立袋 digest == 真仓当前 | bag=1a35669208cf9bd4… real=1a35669208cf9bd4…
+  PASS self 袋 digest == 真仓当前
+  PASS 独立袋 runner=independent
+  PASS 独立袋 all_green+tamper | cases=80
+
+== 3. 旧独立袋已过期（9b 拒收的物理基础）==
+  PASS 旧袋 digest ≠ 当前 | old=d1255cd2b2edc175… current=1a35669208cf9bd4…
+
+== 4. NIGHT_DENY_ROOT 生产不可操纵（双层实物）==
+  PASS launcher 显式 unset NIGHT_DENY_ROOT
+  PASS hook 锚定优先逻辑存在（锚定根夜间时 override 忽略）
+  PASS 拐根攻击实物：锚定根夜间 + env 空目录 → BLOCK | exit=2
+
+== 5. R-SOL-A 端到端：exit 2 且 marker 字节不变 ==
+  PASS R-SOL-A hook exit 2
+  PASS R-SOL-A marker 字节未变（命令未执行） | exists=True sha=1aaf0ddf74476db5…
+
+== 6. 实物钉版哈希（GPT 比对用）==
+  hook sha256      : c5b8fbd701a43170ca7924125b5761793027d8b00103cce8414fb472815cf145
+  launcher sha256  : 58f76d862abcbb0638966cc7cc6ece79f7315590362ecc716d0a67fe5058d2c8
+  独立袋 sha256     : 8239c4bbd2fd14c78411e2de8315bcfcaef03d948d3e44a7a9076d8793a2c912
+  源码包 sha256     : 6b5465981be2ec13292659a14e30efa374e976068ac8aa469d3a8b8fbaaa9ad1
+  control_plane_digest: 1a35669208cf9bd4e3b3ff0b8cc33125d9044cd45a0edf570921b847bb2d72db
+
+✓ 四向核验全 PASS（源码↔日志↔digest↔独立袋 + 拐根锁紧 + marker-intact 端到端）

@@ -1,22 +1,28 @@
-== 攻击集（夜间，期望全 BLOCK）==
-  R-SOL-A 动态拼接删 marker: BLOCK ✓
-  R-SOL-B 动态改 hook 自身: BLOCK ✓
-  R-SOL-C 动态改 gate 脚本: BLOCK ✓
-  环境变量拼接删 marker: BLOCK ✓
-  glob 删 marker: BLOCK ✓
-  R-SOL-D 裸 python -c: BLOCK ✓
-  node -e 动态写 gate-results: BLOCK ✓
-  find -exec 间接删: BLOCK ✓
-  cd && rm 复合: BLOCK ✓
-  xargs sh -c: BLOCK ✓
-  heredoc python: BLOCK ✓
-  普通 rm marker（字面）: BLOCK ✓
-  裸 pnpm test（不经 run-gate）: BLOCK ✓
-  ln 软链: BLOCK ✓
-  引号外括号（subshell）: BLOCK ✓
-  引号未闭合: BLOCK ✓
-  引号外未引号换行链: BLOCK ✓
-  gh body 带命令替换: BLOCK ✓
+== 攻击集（夜间，期望全 BLOCK + marker 完好=命令未执行）==
+  R-SOL-A 动态拼接删 marker: BLOCK ✓ marker_intact=True
+  R-SOL-B 动态改 hook 自身: BLOCK ✓ marker_intact=True
+  R-SOL-C 动态改 gate 脚本: BLOCK ✓ marker_intact=True
+  环境变量拼接删 marker: BLOCK ✓ marker_intact=True
+  glob 删 marker: BLOCK ✓ marker_intact=True
+  R-SOL-D 裸 python -c: BLOCK ✓ marker_intact=True
+  node -e 动态写 gate-results: BLOCK ✓ marker_intact=True
+  find -exec 间接删: BLOCK ✓ marker_intact=True
+  cd && rm 复合: BLOCK ✓ marker_intact=True
+  xargs sh -c: BLOCK ✓ marker_intact=True
+  heredoc python: BLOCK ✓ marker_intact=True
+  普通 rm marker（字面）: BLOCK ✓ marker_intact=True
+  裸 pnpm test（不经 run-gate）: BLOCK ✓ marker_intact=True
+  ln 软链: BLOCK ✓ marker_intact=True
+  引号外括号（subshell）: BLOCK ✓ marker_intact=True
+  引号未闭合: BLOCK ✓ marker_intact=True
+  引号外未引号换行链: BLOCK ✓ marker_intact=True
+  gh body 带命令替换: BLOCK ✓ marker_intact=True
+  gh 转义引号后命令替换: BLOCK ✓ marker_intact=True
+  gh pr create 无 --draft: BLOCK ✓ marker_intact=True
+  gh pr create --repo 目标漂移: BLOCK ✓ marker_intact=True
+  git commit --amend 历史改写: BLOCK ✓ marker_intact=True
+  git commit --no-verify 绕钩子: BLOCK ✓ marker_intact=True
+  git add -f 强制添加: BLOCK ✓ marker_intact=True
 
 == 合法面（夜间，期望全 ALLOW）==
   R-SOL-E 门禁脚本: ALLOW ✓
@@ -39,6 +45,7 @@
   commit 消息含全角括号+冒号: ALLOW ✓
   gh body 含引号内管道字面量: ALLOW ✓
   run-gate wrapped 带引号 grep: ALLOW ✓
+  单引号内 $( 是字面量: ALLOW ✓
 
 == 坏 payload（夜间 fail-closed，期望全 BLOCK）==
   空 stdin: BLOCK ✓
@@ -56,4 +63,8 @@
   裸 python: ALLOW ✓
   rm 任意: ALLOW ✓
 
-✓ 全绿：攻击 18 BLOCK + 合法 20 ALLOW + 坏payload 6 BLOCK + cwd漂移 2 + 白天 2 ALLOW
+== 拐根攻击（锚定根夜间 + env 指空目录，期望仍 BLOCK）==
+  锚定根夜间 + env 空目录: BLOCK ✓（锚定优先）
+  锚定根白天 + env marker（测试模式）: BLOCK ✓（覆写生效）
+
+✓ 全绿：攻击 24 BLOCK + 合法 21 ALLOW + 坏payload 6 BLOCK + cwd漂移 2 + 白天 2 ALLOW

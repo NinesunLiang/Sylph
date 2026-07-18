@@ -11,8 +11,9 @@ v3 核心改动（GPT §17a P0-SOL-1：动态路径旁路）：
   v3 夜间 Bash 改为【无条件默认拒绝】：凡命令必须 fullmatch 结构化白名单，
   与是否提及 token 无关；解释器（python/node/bash/sh）不得作为普通命令裸奔，
   测试/构建必须经 run-gate.sh 包装；禁换行/链式/重定向/命令替换/glob 执行写操作。
-  附带修复：P1-SOL-2 marker 改 __file__ 锚定绝对路径（cwd 漂移不再 fail-open，
-  NIGHT_DENY_ROOT 仅供 smoke 覆写）；P1-SOL-3 坏 payload / hook 内部异常
+  附带修复：P1-SOL-2 marker 改 __file__ 锚定绝对路径（cwd 漂移不再 fail-open；
+  NIGHT_DENY_ROOT 仅供测试——锚定根夜间时 override 忽略 + launcher 生产路径
+  显式 unset，双层防拐根）；P1-SOL-3 坏 payload / hook 内部异常
   夜间一律 exit 2 fail-closed。
 
 文件工具 deny（命中即 exit 2，含 realpath 解析）：
@@ -51,8 +52,16 @@ from pathlib import Path
 
 # P1-SOL-2：marker 锚定 hook 文件位置（cwd 漂移不 fail-open）；
 # NIGHT_DENY_ROOT 仅供 smoke 测试覆写仓库根。
+# Sol 复审锁紧：锚定根处于夜间时 env override 一律忽略——即便有人能把
+# NIGHT_DENY_ROOT 塞进 hook 进程环境，也无法把 marker 根拐到空目录关灯；
+# 生产路径另经 hook-launcher.sh 显式 unset 该变量（双层）。
 HOOK_FILE = Path(__file__).resolve()
-REPO_ROOT = Path(os.environ.get("NIGHT_DENY_ROOT") or HOOK_FILE.parents[2])
+_ANCHOR_ROOT = HOOK_FILE.parents[2]
+_ENV_ROOT = os.environ.get("NIGHT_DENY_ROOT")
+if _ENV_ROOT and not (_ANCHOR_ROOT / ".omc" / "state" / "night-session.active").exists():
+    REPO_ROOT = Path(_ENV_ROOT)
+else:
+    REPO_ROOT = _ANCHOR_ROOT
 MARKER = REPO_ROOT / ".omc" / "state" / "night-session.active"
 
 # ---------- 文件工具：受保护路径 ----------
@@ -253,6 +262,15 @@ def _bash_verdict(cmd: str) -> str | None:
     # 元字符全局禁（扫描引号外文本；此后白名单均不含壳元字符）
     if FORBIDDEN_METACHARS.search(masked):
         return "命令含链式/重定向/命令替换元字符（夜间唯一合法重定向：页基线 > 与 events >>）"
+    # git/gh 过宽分支收紧（Sol 复审：白名单形态内的语义误用）
+    if re.match(r"git\s+(-C\s+\S+\s+)?(add|commit)\s", cmd):
+        if re.search(r"--(amend|no-verify|force)\b", masked) or re.search(r"(^|\s)-f(\s|$)", masked):
+            return "git add/commit 夜间禁 --amend/--no-verify/--force/-f（历史改写与钩子绕过）"
+    if re.match(r"gh\s+pr\s+create\s", cmd):
+        if "--draft" not in cmd:
+            return "gh pr create 夜间必须 --draft（draft_pr_on: DONE_only）"
+        if re.search(r"--repo\b", masked):
+            return "gh pr create 夜间禁 --repo（防推送目标漂移/外泄）"
     # 其余白名单 fullmatch
     for pat, _ in ALLOW_CMD_PATTERNS:
         if pat.fullmatch(cmd):

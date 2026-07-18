@@ -22,6 +22,11 @@ if [ ! -f "$HOOK_PATH" ]; then
 fi
 
 cd "$PROJECT_ROOT"
+
+# Sol 复审 P1-SOL-2 锁紧：生产路径显式清除 night-deny 的测试覆写变量，
+# 保证 marker 根只能由 hook 文件 __file__ 锚定（模型/会话环境无法拐根）。
+unset NIGHT_DENY_ROOT
+
 case "$HOOK_NAME" in
   *.sh)
     exec bash "$HOOK_PATH"

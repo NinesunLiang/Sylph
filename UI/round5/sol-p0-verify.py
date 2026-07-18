@@ -36,6 +36,12 @@ ATTACKS = [  # (名称, 命令) — 全部期望 exit=2
     ("引号未闭合", 'git commit -m "feat(FE-1): x'),
     ("引号外未引号换行链", "git status\nrm .omc/state/night-session.active"),
     ("gh body 带命令替换", 'gh pr create --draft --body "$(cat .omc/state/night-session.active)"'),
+    ("gh 转义引号后命令替换", 'git commit -m "a\\"$(id)"'),
+    ("gh pr create 无 --draft", 'gh pr create --title "x" --body "y"'),
+    ("gh pr create --repo 目标漂移", 'gh pr create --draft --repo evil/fork --title "x"'),
+    ("git commit --amend 历史改写", 'git commit --amend -m "x"'),
+    ("git commit --no-verify 绕钩子", 'git commit --no-verify -m "x"'),
+    ("git add -f 强制添加", "git add -f .omc/state/x"),
 ]
 
 LEGIT = [  # (名称, 命令) — 全部期望 exit=0
@@ -59,6 +65,7 @@ LEGIT = [  # (名称, 命令) — 全部期望 exit=0
     ("commit 消息含全角括号+冒号", "git commit -m \"fix(FE-2)：修复登录态（超时重试）\""),
     ("gh body 含引号内管道字面量", "gh pr create --draft --body \"a | b 对照表\""),
     ("run-gate wrapped 带引号 grep", "bash scripts/carroros-gates/lib/run-gate.sh --gate C4 --page FE-1 -- pnpm exec playwright test --grep \"登录流程\""),
+    ("单引号内 $( 是字面量", "git commit -m '$(id) 不执行'"),
 ]
 
 BAD_PAYLOADS = [  # (名称, stdin 原文) — 夜间全部期望 exit=2（R-SOL-G / P1-SOL-3）
@@ -90,13 +97,16 @@ with tempfile.TemporaryDirectory() as td:
     marker = d / ".omc" / "state" / "night-session.active"
     marker.write_text("2026-07-18T00:00:00Z")
 
-    print("== 攻击集（夜间，期望全 BLOCK）==")
+    print("== 攻击集（夜间，期望全 BLOCK + marker 完好=命令未执行）==")
+    MARKER_CONTENT = "2026-07-18T00:00:00Z"
     for name, cmd in ATTACKS:
         rc = run_hook(bash_payload(cmd), str(d), str(d))
+        intact = marker.exists() and marker.read_text() == MARKER_CONTENT
         tag = "BLOCK ✓" if rc == 2 else f"exit={rc} ✗"
-        if rc != 2:
-            fails.append(f"攻击被放行: {name}")
-        print(f"  {name}: {tag}")
+        ok = rc == 2 and intact
+        if not ok:
+            fails.append(f"攻击未被拦死: {name} (exit={rc}, marker_intact={intact})")
+        print(f"  {name}: {tag} marker_intact={intact}")
 
     print("\n== 合法面（夜间，期望全 ALLOW）==")
     for name, cmd in LEGIT:
@@ -134,6 +144,37 @@ with tempfile.TemporaryDirectory() as td:
         if rc != 0:
             fails.append(f"白天被误拦: {name}")
         print(f"  {name}: {tag}")
+
+# == Sol 复审 P1-SOL-2 锁紧：锚定根夜间时 NIGHT_DENY_ROOT 拐根无效 ==
+# 把 hook 复制到独立临时树（锚定根=临时树），marker 在锚定根，
+# env 指向无 marker 的空目录——若 override 生效则白天放行（=洞），锚定优先则夜间 BLOCK。
+print("\n== 拐根攻击（锚定根夜间 + env 指空目录，期望仍 BLOCK）==")
+with tempfile.TemporaryDirectory() as td2, tempfile.TemporaryDirectory() as empty:
+    tree = Path(td2)
+    (tree / ".claude" / "hooks").mkdir(parents=True)
+    (tree / ".omc" / "state").mkdir(parents=True)
+    (tree / ".omc" / "state" / "night-session.active").write_text("2026-07-18T00:00:00Z")
+    hook_copy = tree / ".claude" / "hooks" / "carroros-night-deny.py"
+    hook_copy.write_text(Path(HOOK).read_text())
+    env = dict(os.environ, NIGHT_DENY_ROOT=empty)
+    r = subprocess.run(["python3", str(hook_copy)],
+                       input=bash_payload("python3 -c 'print(1)'").encode(),
+                       capture_output=True, cwd=str(tree), env=env)
+    ok = r.returncode == 2
+    if not ok:
+        fails.append(f"拐根攻击成功: NIGHT_DENY_ROOT 覆盖了夜间锚定根 (exit={r.returncode})")
+    print(f"  锚定根夜间 + env 空目录: {'BLOCK ✓（锚定优先）' if ok else f'exit={r.returncode} ✗ 拐根成功'}")
+    # 对照：锚定根白天 + env 有 marker → 测试覆写正常工作（smoke 依赖此行为）
+    (tree / ".omc" / "state" / "night-session.active").unlink()
+    (Path(empty) / ".omc" / "state").mkdir(parents=True)
+    (Path(empty) / ".omc" / "state" / "night-session.active").write_text("x")
+    r2 = subprocess.run(["python3", str(hook_copy)],
+                        input=bash_payload("python3 -c 'print(1)'").encode(),
+                        capture_output=True, cwd=str(tree), env=env)
+    ok2 = r2.returncode == 2
+    if not ok2:
+        fails.append(f"测试覆写失效: 白天锚定根 + env marker 应夜间 BLOCK (exit={r2.returncode})")
+    print(f"  锚定根白天 + env marker（测试模式）: {'BLOCK ✓（覆写生效）' if ok2 else f'exit={r2.returncode} ✗ 覆写失效'}")
 
 print()
 if fails:

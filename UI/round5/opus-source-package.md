@@ -46,8 +46,9 @@ v3 核心改动（GPT §17a P0-SOL-1：动态路径旁路）：
   v3 夜间 Bash 改为【无条件默认拒绝】：凡命令必须 fullmatch 结构化白名单，
   与是否提及 token 无关；解释器（python/node/bash/sh）不得作为普通命令裸奔，
   测试/构建必须经 run-gate.sh 包装；禁换行/链式/重定向/命令替换/glob 执行写操作。
-  附带修复：P1-SOL-2 marker 改 __file__ 锚定绝对路径（cwd 漂移不再 fail-open，
-  NIGHT_DENY_ROOT 仅供 smoke 覆写）；P1-SOL-3 坏 payload / hook 内部异常
+  附带修复：P1-SOL-2 marker 改 __file__ 锚定绝对路径（cwd 漂移不再 fail-open；
+  NIGHT_DENY_ROOT 仅供测试——锚定根夜间时 override 忽略 + launcher 生产路径
+  显式 unset，双层防拐根）；P1-SOL-3 坏 payload / hook 内部异常
   夜间一律 exit 2 fail-closed。
 
 文件工具 deny（命中即 exit 2，含 realpath 解析）：
@@ -86,8 +87,16 @@ from pathlib import Path
 
 # P1-SOL-2：marker 锚定 hook 文件位置（cwd 漂移不 fail-open）；
 # NIGHT_DENY_ROOT 仅供 smoke 测试覆写仓库根。
+# Sol 复审锁紧：锚定根处于夜间时 env override 一律忽略——即便有人能把
+# NIGHT_DENY_ROOT 塞进 hook 进程环境，也无法把 marker 根拐到空目录关灯；
+# 生产路径另经 hook-launcher.sh 显式 unset 该变量（双层）。
 HOOK_FILE = Path(__file__).resolve()
-REPO_ROOT = Path(os.environ.get("NIGHT_DENY_ROOT") or HOOK_FILE.parents[2])
+_ANCHOR_ROOT = HOOK_FILE.parents[2]
+_ENV_ROOT = os.environ.get("NIGHT_DENY_ROOT")
+if _ENV_ROOT and not (_ANCHOR_ROOT / ".omc" / "state" / "night-session.active").exists():
+    REPO_ROOT = Path(_ENV_ROOT)
+else:
+    REPO_ROOT = _ANCHOR_ROOT
 MARKER = REPO_ROOT / ".omc" / "state" / "night-session.active"
 
 # ---------- 文件工具：受保护路径 ----------
@@ -288,6 +297,15 @@ def _bash_verdict(cmd: str) -> str | None:
     # 元字符全局禁（扫描引号外文本；此后白名单均不含壳元字符）
     if FORBIDDEN_METACHARS.search(masked):
         return "命令含链式/重定向/命令替换元字符（夜间唯一合法重定向：页基线 > 与 events >>）"
+    # git/gh 过宽分支收紧（Sol 复审：白名单形态内的语义误用）
+    if re.match(r"git\s+(-C\s+\S+\s+)?(add|commit)\s", cmd):
+        if re.search(r"--(amend|no-verify|force)\b", masked) or re.search(r"(^|\s)-f(\s|$)", masked):
+            return "git add/commit 夜间禁 --amend/--no-verify/--force/-f（历史改写与钩子绕过）"
+    if re.match(r"gh\s+pr\s+create\s", cmd):
+        if "--draft" not in cmd:
+            return "gh pr create 夜间必须 --draft（draft_pr_on: DONE_only）"
+        if re.search(r"--repo\b", masked):
+            return "gh pr create 夜间禁 --repo（防推送目标漂移/外泄）"
     # 其余白名单 fullmatch
     for pat, _ in ALLOW_CMD_PATTERNS:
         if pat.fullmatch(cmd):
@@ -1918,6 +1936,18 @@ hook_case("Sol: xargs sh -c 间接解释器",
           lambda d: B("echo 'rm x' | xargs sh -c"), 2, tamper=True)
 hook_case("Sol: 双引号内命令替换仍拦",
           lambda d: B('gh pr create --draft --body "$(cat .omc/state/night-session.active)"'), 2, tamper=True)
+hook_case("Sol: 转义引号后命令替换仍拦",
+          lambda d: B('git commit -m "a\\"$(id)"'), 2, tamper=True)
+hook_case("Sol: gh pr create 无 --draft",
+          lambda d: B('gh pr create --title "x" --body "y"'), 2, tamper=True)
+hook_case("Sol: gh pr create --repo 目标漂移",
+          lambda d: B('gh pr create --draft --repo evil/fork --title "x"'), 2, tamper=True)
+hook_case("Sol: git commit --amend 历史改写",
+          lambda d: B('git commit --amend -m "x"'), 2, tamper=True)
+hook_case("Sol: git commit --no-verify 绕钩子",
+          lambda d: B('git commit --no-verify -m "x"'), 2, tamper=True)
+hook_case("Sol: git add -f 强制添加",
+          lambda d: B("git add -f .omc/state/x"), 2, tamper=True)
 hook_case("Sol: 引号未闭合即拒",
           lambda d: B('git commit -m "feat(FE-1): x'), 2, tamper=True)
 hook_case("Sol: 引号外括号（subshell）",
@@ -1952,6 +1982,8 @@ hook_case("Sol: 引号内管道字面量放行",
           lambda d: B('gh pr create --draft --body "a | b 对照表"'), 0)
 hook_case("Sol: run-gate wrapped 带引号 grep 放行",
           lambda d: B(f"bash scripts/carroros-gates/lib/run-gate.sh --gate-id C4 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm exec playwright test --grep \"登录流程\""), 0)
+hook_case("Sol: 单引号内命令替换是字面量放行",
+          lambda d: B("git commit -m 'fix: $(id) 只是文本'"), 0)
 
 # ============ 类 7：C1 子目录 prefix（Grok §17a P1-3） ============
 with tempfile.TemporaryDirectory() as td:
@@ -2554,6 +2586,12 @@ def cmd_gate_results_init():
   ✓ Sol: cd 后复合命令: expect=exit2 got=2
   ✓ Sol: xargs sh -c 间接解释器: expect=exit2 got=2
   ✓ Sol: 双引号内命令替换仍拦: expect=exit2 got=2
+  ✓ Sol: 转义引号后命令替换仍拦: expect=exit2 got=2
+  ✓ Sol: gh pr create 无 --draft: expect=exit2 got=2
+  ✓ Sol: gh pr create --repo 目标漂移: expect=exit2 got=2
+  ✓ Sol: git commit --amend 历史改写: expect=exit2 got=2
+  ✓ Sol: git commit --no-verify 绕钩子: expect=exit2 got=2
+  ✓ Sol: git add -f 强制添加: expect=exit2 got=2
   ✓ Sol: 引号未闭合即拒: expect=exit2 got=2
   ✓ Sol: 引号外括号（subshell）: expect=exit2 got=2
   ✓ Sol: rm 非 scoped 路径默认拒: expect=exit2 got=2
@@ -2573,11 +2611,12 @@ def cmd_gate_results_init():
   ✓ Sol: scoped rm artifacts 放行（步10）: expect=exit0 got=0
   ✓ Sol: 引号内管道字面量放行: expect=exit0 got=0
   ✓ Sol: run-gate wrapped 带引号 grep 放行: expect=exit0 got=0
+  ✓ Sol: 单引号内命令替换是字面量放行: expect=exit0 got=0
   ✓ prefix: 子目录内合规改动 PASS: expect=exit0 got=exit0 
   ✓ prefix: 子目录内越界改动 FAIL: expect=exit1 got=exit1 C1 FAIL: 越界文件:
   src/other/B.tsx
 
-smoke: 73/73 绿 -> /tmp/smoke-ind-nd-v3/smoke-results-independent.yaml
+smoke: 80/80 绿 -> /tmp/smoke-ind-nd-v3/smoke-results-independent.yaml
 ````
 
 ## B.2 preflight NO-GO 复跑日志（裸 repo 12 项全拦，fail-closed 证据）
@@ -2678,25 +2717,31 @@ preflight NO-GO（12 项）:
 `UI/round5/logs/sol-p0-verify-20260718.log`
 
 ````text
-== 攻击集（夜间，期望全 BLOCK）==
-  R-SOL-A 动态拼接删 marker: BLOCK ✓
-  R-SOL-B 动态改 hook 自身: BLOCK ✓
-  R-SOL-C 动态改 gate 脚本: BLOCK ✓
-  环境变量拼接删 marker: BLOCK ✓
-  glob 删 marker: BLOCK ✓
-  R-SOL-D 裸 python -c: BLOCK ✓
-  node -e 动态写 gate-results: BLOCK ✓
-  find -exec 间接删: BLOCK ✓
-  cd && rm 复合: BLOCK ✓
-  xargs sh -c: BLOCK ✓
-  heredoc python: BLOCK ✓
-  普通 rm marker（字面）: BLOCK ✓
-  裸 pnpm test（不经 run-gate）: BLOCK ✓
-  ln 软链: BLOCK ✓
-  引号外括号（subshell）: BLOCK ✓
-  引号未闭合: BLOCK ✓
-  引号外未引号换行链: BLOCK ✓
-  gh body 带命令替换: BLOCK ✓
+== 攻击集（夜间，期望全 BLOCK + marker 完好=命令未执行）==
+  R-SOL-A 动态拼接删 marker: BLOCK ✓ marker_intact=True
+  R-SOL-B 动态改 hook 自身: BLOCK ✓ marker_intact=True
+  R-SOL-C 动态改 gate 脚本: BLOCK ✓ marker_intact=True
+  环境变量拼接删 marker: BLOCK ✓ marker_intact=True
+  glob 删 marker: BLOCK ✓ marker_intact=True
+  R-SOL-D 裸 python -c: BLOCK ✓ marker_intact=True
+  node -e 动态写 gate-results: BLOCK ✓ marker_intact=True
+  find -exec 间接删: BLOCK ✓ marker_intact=True
+  cd && rm 复合: BLOCK ✓ marker_intact=True
+  xargs sh -c: BLOCK ✓ marker_intact=True
+  heredoc python: BLOCK ✓ marker_intact=True
+  普通 rm marker（字面）: BLOCK ✓ marker_intact=True
+  裸 pnpm test（不经 run-gate）: BLOCK ✓ marker_intact=True
+  ln 软链: BLOCK ✓ marker_intact=True
+  引号外括号（subshell）: BLOCK ✓ marker_intact=True
+  引号未闭合: BLOCK ✓ marker_intact=True
+  引号外未引号换行链: BLOCK ✓ marker_intact=True
+  gh body 带命令替换: BLOCK ✓ marker_intact=True
+  gh 转义引号后命令替换: BLOCK ✓ marker_intact=True
+  gh pr create 无 --draft: BLOCK ✓ marker_intact=True
+  gh pr create --repo 目标漂移: BLOCK ✓ marker_intact=True
+  git commit --amend 历史改写: BLOCK ✓ marker_intact=True
+  git commit --no-verify 绕钩子: BLOCK ✓ marker_intact=True
+  git add -f 强制添加: BLOCK ✓ marker_intact=True
 
 == 合法面（夜间，期望全 ALLOW）==
   R-SOL-E 门禁脚本: ALLOW ✓
@@ -2719,6 +2764,7 @@ preflight NO-GO（12 项）:
   commit 消息含全角括号+冒号: ALLOW ✓
   gh body 含引号内管道字面量: ALLOW ✓
   run-gate wrapped 带引号 grep: ALLOW ✓
+  单引号内 $( 是字面量: ALLOW ✓
 
 == 坏 payload（夜间 fail-closed，期望全 BLOCK）==
   空 stdin: BLOCK ✓
@@ -2736,5 +2782,9 @@ preflight NO-GO（12 项）:
   裸 python: ALLOW ✓
   rm 任意: ALLOW ✓
 
-✓ 全绿：攻击 18 BLOCK + 合法 20 ALLOW + 坏payload 6 BLOCK + cwd漂移 2 + 白天 2 ALLOW
+== 拐根攻击（锚定根夜间 + env 指空目录，期望仍 BLOCK）==
+  锚定根夜间 + env 空目录: BLOCK ✓（锚定优先）
+  锚定根白天 + env marker（测试模式）: BLOCK ✓（覆写生效）
+
+✓ 全绿：攻击 24 BLOCK + 合法 21 ALLOW + 坏payload 6 BLOCK + cwd漂移 2 + 白天 2 ALLOW
 ````

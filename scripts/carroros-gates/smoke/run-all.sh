@@ -343,6 +343,18 @@ hook_case("Sol: xargs sh -c 间接解释器",
           lambda d: B("echo 'rm x' | xargs sh -c"), 2, tamper=True)
 hook_case("Sol: 双引号内命令替换仍拦",
           lambda d: B('gh pr create --draft --body "$(cat .omc/state/night-session.active)"'), 2, tamper=True)
+hook_case("Sol: 转义引号后命令替换仍拦",
+          lambda d: B('git commit -m "a\\"$(id)"'), 2, tamper=True)
+hook_case("Sol: gh pr create 无 --draft",
+          lambda d: B('gh pr create --title "x" --body "y"'), 2, tamper=True)
+hook_case("Sol: gh pr create --repo 目标漂移",
+          lambda d: B('gh pr create --draft --repo evil/fork --title "x"'), 2, tamper=True)
+hook_case("Sol: git commit --amend 历史改写",
+          lambda d: B('git commit --amend -m "x"'), 2, tamper=True)
+hook_case("Sol: git commit --no-verify 绕钩子",
+          lambda d: B('git commit --no-verify -m "x"'), 2, tamper=True)
+hook_case("Sol: git add -f 强制添加",
+          lambda d: B("git add -f .omc/state/x"), 2, tamper=True)
 hook_case("Sol: 引号未闭合即拒",
           lambda d: B('git commit -m "feat(FE-1): x'), 2, tamper=True)
 hook_case("Sol: 引号外括号（subshell）",
@@ -377,6 +389,8 @@ hook_case("Sol: 引号内管道字面量放行",
           lambda d: B('gh pr create --draft --body "a | b 对照表"'), 0)
 hook_case("Sol: run-gate wrapped 带引号 grep 放行",
           lambda d: B(f"bash scripts/carroros-gates/lib/run-gate.sh --gate-id C4 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm exec playwright test --grep \"登录流程\""), 0)
+hook_case("Sol: 单引号内命令替换是字面量放行",
+          lambda d: B("git commit -m 'fix: $(id) 只是文本'"), 0)
 
 # ============ 类 7：C1 子目录 prefix（Grok §17a P1-3） ============
 with tempfile.TemporaryDirectory() as td:

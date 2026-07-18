@@ -161,3 +161,65 @@ hook v2 → v3 改写
 | `UI/round5/logs/opus-p1-payloads-20260718-post-sol.log` | 13/13 |
 | `.claude/workflows/frontend-overnight/night-loop.md` | 元规则 4 + Bash 白名单章节 |
 | `UI/round5/opus-source-package.md` | post-Sol 重建（132 KB / 2741 行） |
+
+---
+
+## 9. 复审补件（GPT 回执 `CLOSED_PENDING_EVIDENCE_INTEGRITY_CHECK` 的两项未决）
+
+> GPT 复审结论：设计口径全部认同，挂两项实物核验——①`NIGHT_DENY_ROOT` 生产不可操纵性
+> ②源码—日志—digest—independent bag 四向一致性。本节为补件；§2-§8 中 digest=`ac573a1e…`、
+> smoke 73/73、类 8 三十例等数字已被本节新版本取代（hook/launcher 再改 → digest 再变）。
+
+### 9.1 NIGHT_DENY_ROOT 锁紧（双层，代码级，非文档约定）
+
+GPT 要求四选一以上：launcher 显式清除 / 仅 test mode 有效 / override 路径可信校验 / 夜间异常值 fail-closed。落地两条（覆盖 ①+②）：
+
+1. **launcher 生产路径显式 `unset NIGHT_DENY_ROOT`**（hook-launcher.sh，settings.json 登记的唯一入口）——生产 hook 进程环境里该变量根本不存在；
+2. **hook 内锚定优先**：`if _ENV_ROOT and not (_ANCHOR_ROOT/".omc/state/night-session.active").exists(): REPO_ROOT=_ENV_ROOT else: REPO_ROOT=_ANCHOR_ROOT`——即便变量漏进生产环境，锚定根处于夜间时 override 一律忽略，无法把 marker 根拐到空目录关灯；仅锚定根白天（=测试场景）override 才生效。
+
+实物验证（拐根攻击）：hook 复制到独立临时树，锚定根放 marker、`NIGHT_DENY_ROOT` 指空目录 → 攻击仍 BLOCK（exit 2）；对照组锚定根白天 + env 有 marker → 测试覆写正常工作（smoke 依赖路径不断）。见 sol-p0-verify.py 末段与 artifact-verify §4。
+
+### 9.2 白名单过宽分支收紧（GPT §4 点名项）
+
+- `gh pr create`：夜间必须 `--draft`；禁 `--repo`（防推送目标漂移/外泄）；
+- `git add/commit`：禁 `--amend` / `--no-verify` / `--force` / `-f`（历史改写与钩子绕过）；
+- `_mask_quotes` 转义边界：`"a\"$(id)"`（转义引号后命令替换）→ BLOCK；`'$(id)'`（单引号字面量）→ ALLOW，均入攻击/合法集。
+
+### 9.3 四向一致性核验（`UI/round5/sol-artifact-verify.py`，日志 `logs/sol-artifact-verify-20260718.log`）
+
+| # | 核验项 | 结果 |
+|---|---|---|
+| 1 | hook/launcher 实物 sha256 == control_plane_lock 条目（锁覆盖信任边界自身） | ✅ hook=`c5b8fbd7…` 一致 |
+| 2 | 真仓当前 digest == 独立袋 == self 袋 | ✅ `1a356692…` 三向 MATCH |
+| 3 | 旧独立袋（post-Opus `d1255cd2…`）≠ 当前 → 9b 过期拒收的物理基础 | ✅ |
+| 4 | launcher unset + hook 锚定优先（grep 实物）+ 拐根攻击端到端 BLOCK | ✅ |
+| 5 | R-SOL-A 端到端：exit 2 **且 marker 字节不变**（证"命令未执行"，GPT 点名） | ✅ |
+| 6 | 钉版哈希输出（hook / launcher / 独立袋 / 源码包 / digest 全量 64 hex） | ✅ 见日志 §6 |
+
+GPT §4 其余点名项回执：`_mask_quotes` 转义状态 → 新增 2 例 payload 锁定；白名单过宽分支 → §9.2 收紧 + 6 例新 payload；run-gate 二次校验穿透 → our-args 段 `--key value` fullmatch + wrapped 独立元字符/token/工具三重扫描，类 6 两例（包 `true`、wrapped 链式）继续绿；independent runner 独立性 → rsync 到 /tmp 独立文件树执行（日志袋路径 `/tmp/smoke-ind-nd-v3/` 可见），runner 字段 + digest 由 9b 机判；日志未手工编辑 → 全部由驱动脚本直写（tee/重定向），钉版哈希可复跑复算。
+
+### 9.4 复审后全量回归（hook/launcher 变更 → digest 再滚动，R-SOL-I 重跑）
+
+| 项 | 结果 |
+|---|---|
+| smoke self | **80/80**（类 8 扩至 37 例：+gh/git/引号边界收紧 6 攻击 + 1 字面量合法） |
+| smoke independent（rsync /tmp） | **80/80**，runner=independent，新 digest `1a356692…` 入袋 |
+| Grok-A/B | 7/7 ✅ |
+| Opus P1 | 13/13 ✅（R4 stale-digest 拒收继续绿） |
+| Sol verify | 攻击 **24** BLOCK（含 marker-intact 逐例断言）/ 合法 **21** ALLOW / 坏 payload 6 / cwd 2 / 白天 2 / 拐根 2 |
+| 四向核验 | 全 PASS（§9.3） |
+
+### 9.5 当前状态对照 GPT 复审条件
+
+| GPT 条件 | 状态 |
+|---|---|
+| P0-SOL-1 修复方案成立 | ✅ 已认同 |
+| fresh payload 覆盖原攻击和新增变体 | ✅ 24 攻击 + 37 例类 8 |
+| P1-SOL-2/3 按声明关闭 | ✅ + env override 双层锁紧 |
+| 旧 digest 证据失效 | ✅ `d1255cd2` ≠ 当前 `1a356692` |
+| 实物四向一致性核验 | ✅ sol-artifact-verify 全 PASS（GPT 可对源码包抽验 + 复跑该脚本） |
+| NIGHT_DENY_ROOT 生产不可操纵 | ✅ launcher unset + 锚定优先，端到端拐根 BLOCK |
+| Owner S1/B7 签署 | ⬜ 等用户（首夜必要） |
+| Phase 0 五项输入 | ⬜ 等用户（首夜必要） |
+
+**S1 签署须承接的残余（按 GPT §5 清单，无增减）**：同 UID 无物理写隔离；hook 依赖宿主执行与 exit 2 阻断语义；hook timeout/kill/宿主旁路；regex/状态机 ≠ 完整 shell 语义；白名单合法形态内的语义误用；supervisor 尚未成为唯一可信 producer。
