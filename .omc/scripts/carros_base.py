@@ -121,6 +121,20 @@ def _init_task_paths(task_id=None, task_dir=None):
     HANDOFF_PATH = Path(".omc/session-handoff.md")
     AUDIT_DIR = STATE_DIR / "audit"
 
+
+def _init_paths_from_token(token, found_path):
+    """跨天恢复：用 _find_latest_token 找到的实际路径初始化。
+
+    修复跨天 bug：_init_task_paths 按今天日期推导路径，token 在昨天目录时
+    导致 "No active task"。found_path 是 token 的真实落盘路径。
+    """
+    _init_task_paths(
+        task_id=token.get("session", {}).get("id", "unknown"),
+        task_dir=token.get("task_dir") or None,
+    )
+    global TOKEN_PATH
+    TOKEN_PATH = Path(found_path)
+
 # ─── ANSI helpers ───
 def _green(s): return f"\033[32m{s}\033[0m"
 def _yellow(s): return f"\033[33m{s}\033[0m"
@@ -618,7 +632,7 @@ def cmd_status(hot_mode=True):
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
-            _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+            _init_paths_from_token(token, found_path)
         else:
             print(_yellow("⚠  No active task"))
             return 0
@@ -667,9 +681,9 @@ def cmd_status(hot_mode=True):
 def cmd_tick():
     """递增 tick 计数器 + 水位检查 + 自动追踪当前步骤状态"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
-        token, _ = _find_latest_token()
-        if token:
-            _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+        token, found_path = _find_latest_token()
+        if token and found_path:
+            _init_paths_from_token(token, found_path)
         else:
             print(_red("❌ No active task"))
             return 2
@@ -718,12 +732,65 @@ def cmd_tick():
     return 0
 
 
+def _run_dual_judge(token: dict) -> int:
+    """L2 任务 verify 自动双审判：static + runtime oracle → meta 聚合。
+
+    裁决落盘 .omc/state/meta-oracle-verdicts/{task_id}/latest.json。
+    Returns: 0=ACCEPT/ADVISORY（放行）, 2=REJECT（verify 不通过）, 3=ESCALATE（放行但提示人工）。
+    """
+    task_id = token.get("session", {}).get("id", "unknown")
+    static_agent = _hook_dir / "static_oracle_agent.py"
+    runtime_agent = _hook_dir / "runtime_oracle_agent.py"
+    meta = _hook_dir / "meta_oracle.py"
+    if not (static_agent.exists() and runtime_agent.exists() and meta.exists()):
+        print(_yellow("⚠  dual-judge 脚本缺失，跳过（降级为人工复核）"))
+        return 0
+
+    print("⚖️  L2 双审判官裁决（static → runtime → meta）...")
+    for name, agent in (("static", static_agent), ("runtime", runtime_agent)):
+        try:
+            r = subprocess.run(
+                [sys.executable, str(agent), "review", "--task-id", task_id],
+                capture_output=True, text=True, timeout=120,
+            )
+            if r.returncode not in (0, 1):
+                print(_yellow(f"⚠  {name} oracle exit={r.returncode}: {r.stderr[:200]}"))
+        except Exception as exc:
+            print(_yellow(f"⚠  {name} oracle 异常: {exc}"))
+
+    try:
+        r = subprocess.run(
+            [sys.executable, str(meta), "aggregate", "--task-id", task_id],
+            capture_output=True, text=True, timeout=30,
+        )
+        out = r.stdout.strip()
+        verdict = "UNAVAILABLE"
+        try:
+            json_start = out.find("{")
+            if json_start >= 0:
+                verdict = json.loads(out[json_start:]).get("verdict", "UNAVAILABLE")
+        except Exception:
+            pass
+        _write_audit("dual_judge", {"task_id": task_id, "verdict": verdict, "exit": r.returncode})
+        if verdict == "REJECT":
+            print(_red(f"⚖️  双审判 REJECT — verify 不通过，详见 .omc/state/meta-oracle-verdicts/{task_id}/latest.json"))
+            return 2
+        if verdict == "ESCALATE":
+            print(_yellow(f"⚖️  双审判 ESCALATE — 建议人工复核"))
+            return 3
+        print(_green(f"⚖️  双审判 {verdict}"))
+        return 0
+    except Exception as exc:
+        print(_yellow(f"⚠  meta 聚合异常: {exc}（降级放行，需人工复核）"))
+        return 0
+
+
 def cmd_verify(step_id=None):
     """验证 step 完成 — 标记 plan.md [x] + 写 audit"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
-        token, _ = _find_latest_token()
-        if token:
-            _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+        token, found_path = _find_latest_token()
+        if token and found_path:
+            _init_paths_from_token(token, found_path)
         else:
             print(_red("❌ No active task"))
             return 2
@@ -778,6 +845,13 @@ def cmd_verify(step_id=None):
         _save_token(token)
         _write_handoff(token)
 
+        # L2 双审判官：verify 自动裁决（REJECT → verify 不通过）
+        level = token.get("session", {}).get("level", "L1_BASE")
+        if level == "L2_ENHANCE":
+            judge_rc = _run_dual_judge(token)
+            if judge_rc == 2:
+                return 2
+
         # Goal 状态自动推进: done >= total → VERIFYING
         done = token.get("stats", {}).get("done", 0)
         total = token.get("stats", {}).get("total", 0)
@@ -805,8 +879,8 @@ def cmd_report(use_stdout=True, archive_mode=False):
     """
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, tp = _find_latest_token()
-        if token:
-            _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+        if token and tp:
+            _init_paths_from_token(token, tp)
         else:
             print(_red("❌ No active task"))
             return 2
@@ -850,9 +924,9 @@ def cmd_report(use_stdout=True, archive_mode=False):
 def cmd_archive(force=False):
     """归档任务 — archive = lint + verify-summary + final-report + tombstone"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
-        token, _ = _find_latest_token()
-        if token:
-            _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+        token, found_path = _find_latest_token()
+        if token and found_path:
+            _init_paths_from_token(token, found_path)
         else:
             print(_red("❌ No active task"))
             return 2
@@ -1271,7 +1345,7 @@ def cmd_dispatch():
         if not token:
             print(_red("❌ No active main task. Run 'init' first."))
             return 2
-        _init_task_paths(task_id=token.get("session", {}).get("id", "unknown"))
+        _init_paths_from_token(token, tp)
 
     # 解析参数
     argv = sys.argv[sys.argv.index("dispatch") + 1:]
@@ -1472,7 +1546,7 @@ def cmd_collect():
             td = tok.get("task_dir")
             if td:
                 SUB_TASK_DIR = Path(td) / "sub_task"
-                _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+                _init_paths_from_token(tok, tp)
     sub_dir = SUB_TASK_DIR / f"sub-{step_id}"
 
     if not sub_dir.exists():
@@ -1581,7 +1655,7 @@ def cmd_cancel():
         td = tok.get("task_dir")
         if td:
             SUB_TASK_DIR = Path(td) / "sub_task"
-            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+            _init_paths_from_token(tok, tp)
 
     sub_dir = SUB_TASK_DIR / f"sub-{step_id}" if SUB_TASK_DIR else None
     if not sub_dir or not sub_dir.exists():
@@ -1782,8 +1856,8 @@ def cmd_clarify():
     # 确保有 active token
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         tok, tp = _find_latest_token()
-        if tok:
-            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+        if tok and tp:
+            _init_paths_from_token(tok, tp)
         else:
             # 自动 init
             cmd_init(title, level="L1", steps=["S1"])
@@ -1864,8 +1938,8 @@ def cmd_plan():
     # 确保有 active token
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         tok, tp = _find_latest_token()
-        if tok:
-            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+        if tok and tp:
+            _init_paths_from_token(tok, tp)
         else:
             print(_red("❌ No active task. Run 'clarify' or 'init' first."))
             return 2
@@ -1948,8 +2022,8 @@ def cmd_auto():
     # 确保有 active token
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         tok, tp = _find_latest_token()
-        if tok:
-            _init_task_paths(task_id=tok.get("session", {}).get("id", "unknown"))
+        if tok and tp:
+            _init_paths_from_token(tok, tp)
         else:
             print(_red("❌ No active task. Run 'init' first."))
             return 2
@@ -2029,6 +2103,169 @@ def cmd_auto():
 # CLI entrypoint
 # ═══════════════════════════════════════════
 
+# ---------------------------------------------------------------------------
+# 夜跑控制面扩展（FINAL.md v3.1 §16 CarrorOS 侧）
+# ---------------------------------------------------------------------------
+
+def cmd_manifest_json():
+    """读取 night-manifest.yaml → 规范化 JSON（scope-check 等门禁消费，免 yq）。
+
+    用法:
+        carros_base.py manifest-json --manifest PATH [--get dotted.path] [--pages]
+        --get   输出单值（标量/JSON），缺失 → exit 2（fail-closed）
+        --pages 仅输出 pages[] 的 id 列表（每行一个）
+    """
+    argv = sys.argv[sys.argv.index("manifest-json") + 1:]
+    manifest_path = None
+    get_path = None
+    pages_only = False
+    page_id = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--manifest" and i + 1 < len(argv):
+            manifest_path = argv[i + 1]; i += 2
+        elif argv[i] == "--get" and i + 1 < len(argv):
+            get_path = argv[i + 1]; i += 2
+        elif argv[i] == "--page-id" and i + 1 < len(argv):
+            page_id = argv[i + 1]; i += 2
+        elif argv[i] == "--pages":
+            pages_only = True; i += 1
+        else:
+            i += 1
+    if not manifest_path:
+        print(_red("ERROR: manifest-json 需要 --manifest PATH"), file=sys.stderr)
+        return 2
+    p = Path(manifest_path)
+    if not p.exists():
+        print(_red(f"ERROR: manifest 不存在: {p}"), file=sys.stderr)
+        return 2
+    try:
+        import yaml
+        data = yaml.safe_load(p.read_text(encoding="utf-8"))
+    except Exception as e:
+        print(_red(f"ERROR: manifest 解析失败（fail-closed）: {e}"), file=sys.stderr)
+        return 2
+    if not isinstance(data, dict):
+        print(_red("ERROR: manifest 顶层不是 mapping"), file=sys.stderr)
+        return 2
+    if pages_only:
+        pages = data.get("pages") or []
+        for pg in pages:
+            print(pg.get("id", ""))
+        return 0
+    if page_id:
+        pages = data.get("pages") or []
+        match = [pg for pg in pages if isinstance(pg, dict) and pg.get("id") == page_id]
+        if not match:
+            print(_red(f"ERROR: page 不存在: {page_id}"), file=sys.stderr)
+            return 2
+        data = match[0]
+    if get_path:
+        cur = data
+        for part in get_path.split("."):
+            if isinstance(cur, dict) and part in cur:
+                cur = cur[part]
+            elif isinstance(cur, list) and part.isdigit() and int(part) < len(cur):
+                cur = cur[int(part)]
+            else:
+                print(_red(f"ERROR: 字段缺失: {get_path}"), file=sys.stderr)
+                return 2
+        if isinstance(cur, (dict, list)):
+            print(json.dumps(cur, ensure_ascii=False))
+        elif cur is None:
+            print("null")
+        elif isinstance(cur, bool):
+            print("true" if cur else "false")
+        else:
+            print(cur)
+        return 0
+    print(json.dumps(data, ensure_ascii=False, indent=2))
+    return 0
+
+
+def cmd_token_write():
+    """token.json 唯一合法写入入口（FINAL §4.4：模型对 token 的写入仅允许经此 API）。
+
+    用法:
+        carros_base.py token-write --token-path PATH --set dotted.path=value
+              [--set ...] --expected-revision N
+    CAS 冲突 → exit 3；缺参数 → exit 2。
+    """
+    argv = sys.argv[sys.argv.index("token-write") + 1:]
+    token_path = None
+    sets = []
+    expected = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--token-path" and i + 1 < len(argv):
+            token_path = argv[i + 1]; i += 2
+        elif argv[i] == "--set" and i + 1 < len(argv):
+            sets.append(argv[i + 1]); i += 2
+        elif argv[i] == "--expected-revision" and i + 1 < len(argv):
+            expected = int(argv[i + 1]); i += 2
+        else:
+            i += 1
+    if not token_path or not sets or expected is None:
+        print(_red("ERROR: token-write 需要 --token-path/--set/--expected-revision"), file=sys.stderr)
+        return 2
+    token = _load_token(Path(token_path))
+    if token is None:
+        print(_red(f"ERROR: token 不存在或损坏: {token_path}"), file=sys.stderr)
+        return 2
+    for kv in sets:
+        if "=" not in kv:
+            print(_red(f"ERROR: --set 格式应为 path=value: {kv}"), file=sys.stderr)
+            return 2
+        dotted, raw = kv.split("=", 1)
+        try:
+            value = json.loads(raw)
+        except json.JSONDecodeError:
+            value = raw
+        cur = token
+        parts = dotted.split(".")
+        for part in parts[:-1]:
+            nxt = cur.get(part)
+            if not isinstance(nxt, dict):
+                nxt = {}
+                cur[part] = nxt
+            cur = nxt
+        cur[parts[-1]] = value
+    try:
+        _save_token(token, Path(token_path), expected_revision=expected)
+    except CASConflict as e:
+        print(_red(f"CAS_CONFLICT: {e}"), file=sys.stderr)
+        return 3
+    print(_green(f"token 已写入 revision={token.get('revision')}"))
+    return 0
+
+
+def cmd_gate_results_init():
+    """创建页级 gate-results 目录（FINAL §4.4 权威链事实目录）。
+
+    用法:
+        carros_base.py gate-results-init --night-dir .omc/night/{date} --page-id FE-xxx
+    幂等；输出目录路径。
+    """
+    argv = sys.argv[sys.argv.index("gate-results-init") + 1:]
+    night_dir = None
+    page_id = None
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--night-dir" and i + 1 < len(argv):
+            night_dir = argv[i + 1]; i += 2
+        elif argv[i] == "--page-id" and i + 1 < len(argv):
+            page_id = argv[i + 1]; i += 2
+        else:
+            i += 1
+    if not night_dir or not page_id:
+        print(_red("ERROR: gate-results-init 需要 --night-dir/--page-id"), file=sys.stderr)
+        return 2
+    d = Path(night_dir) / "gate-results" / page_id
+    d.mkdir(parents=True, exist_ok=True)
+    print(d)
+    return 0
+
+
 COMMANDS = {
     "init": cmd_init,
     "status": cmd_status,
@@ -2048,6 +2285,9 @@ COMMANDS = {
     "cancel": cmd_cancel,
     "oracle": cmd_oracle,
     "fallback": cmd_fallback,
+    "manifest-json": cmd_manifest_json,
+    "token-write": cmd_token_write,
+    "gate-results-init": cmd_gate_results_init,
     "help": cmd_help,
 }
 
@@ -2124,6 +2364,15 @@ def main(argv=None):
     elif command == "lint":
         path = args[0] if args else None
         return cmd_lint(path=path)
+
+    elif command == "manifest-json":
+        return cmd_manifest_json()
+
+    elif command == "token-write":
+        return cmd_token_write()
+
+    elif command == "gate-results-init":
+        return cmd_gate_results_init()
 
     else:
         return COMMANDS[command]()

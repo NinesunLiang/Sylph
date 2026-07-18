@@ -61,10 +61,13 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 | 类型 | 处理 |
 |------|------|
 | 硬边界（rm/git写/密钥/API Key） | 立即跳过 → `lx-goal hard-boundary-hit` 记录 → 继续 |
+| **中高风险项（medium+）** | **只跳过不执行** → `lx-goal skip-risk "描述" <level> "理由" "影响"` → 自动进入退出报告「需人为决策汇总」反馈人工干预 |
 | 可跳过（有替代路径） | `lx-goal skip-risk` 记录，继续 |
 | 可绕行（换方案可达目标） | 自动降级备选方案 |
 | 危险操作（远程推送/破坏性） | 三级裁决链（AGENTS → Oracle → 记录 blocked_human） |
 | 真阻断/需人类 | 记录 blocked/blocked_human，继续其他 |
+
+> 中高风险安全阀：`skip-risk` 第二参数为 risk_level（low/medium/high/critical）。medium 及以上级别**禁止执行只许跳过**，退出报告强制聚合成表反馈人类；low 级记录后可继续。
 
 **progress 更新**：
 ```bash

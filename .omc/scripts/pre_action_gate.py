@@ -91,6 +91,46 @@ DEFAULT_POLICY = {
     ],
 }
 
+GATE_RULES_PATH = Path(__file__).resolve().parents[2] / ".claude" / "references" / "gate-rules.yaml"
+
+
+def _parse_flat_yaml_lists(text: str) -> dict[str, list[str]]:
+    """解析扁平 YAML（key: + '- item' 列表），stdlib-only。注释/空行跳过。"""
+    data: dict[str, list[str]] = {}
+    current_key: str | None = None
+    for raw in text.splitlines():
+        line = raw.rstrip()
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if not line.startswith((" ", "-")) and stripped.endswith(":"):
+            current_key = stripped[:-1].strip()
+            data.setdefault(current_key, [])
+        elif stripped.startswith("- ") and current_key:
+            item = stripped[2:].strip()
+            if " #" in item:
+                item = item.split(" #", 1)[0].strip()
+            if (item.startswith('"') and item.endswith('"')) or (item.startswith("'") and item.endswith("'")):
+                item = item[1:-1]
+            if item:
+                data[current_key].append(item)
+    return data
+
+
+def load_policy() -> dict:
+    """数据驱动：优先 gate-rules.yaml，解析失败/缺失回退内置默认（守护优先）。"""
+    try:
+        if GATE_RULES_PATH.exists():
+            parsed = _parse_flat_yaml_lists(GATE_RULES_PATH.read_text(encoding="utf-8"))
+            if all(k in parsed and parsed[k] for k in ("sensitive_paths", "dangerous_commands", "safe_commands")):
+                return parsed
+    except Exception:
+        pass
+    return DEFAULT_POLICY
+
+
+POLICY = load_policy()
+
 
 @dataclass
 class ActionSpec:
@@ -609,7 +649,8 @@ def main() -> int:
     )
 
     spec = load_action_spec(action_path)
-    policy = read_json(policy_path, DEFAULT_POLICY)
+    # 优先级：显式 policy.json > gate-rules.yaml（POLICY）> 内置 DEFAULT_POLICY
+    policy = read_json(policy_path, POLICY)
     token_path = Path(token_path_str)
     token = read_json(token_path, {})
 

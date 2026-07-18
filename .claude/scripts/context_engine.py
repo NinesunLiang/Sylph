@@ -92,11 +92,14 @@ def append_jsonl(path: Path, event: dict[str, Any]) -> None:
 
 
 def token_task(token: dict[str, Any]) -> dict[str, Any]:
-    return token.get("task", {}) or {}
+    task = token.get("task", {})
+    # 兼容非 carros token（如 lx-goal 物理锁：task 是字符串）
+    return task if isinstance(task, dict) else {}
 
 
 def token_session(token: dict[str, Any]) -> dict[str, Any]:
-    return token.get("session", {}) or {}
+    session = token.get("session", {})
+    return session if isinstance(session, dict) else {}
 
 
 def task_id(token: dict[str, Any], fallback: str = "unknown_task") -> str:

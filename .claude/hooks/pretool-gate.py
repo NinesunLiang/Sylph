@@ -597,7 +597,13 @@ def _check_oracle_gate(payload: dict) -> str | None:
         "current_step": task.get("current_step") if isinstance(task, dict) else None,
         "phase": phase,
     })
-    # Oracle never blocks — returns a hint string that gets logged but passes through
+    # Oracle never blocks — but emits a real hint so the L2 operator sees it
+    level = "FORCE" if force else "TRIGGER"
+    print(
+        f"🔮 [oracle-gate] L2 {level} 触发检测：建议完成后执行双审判 "
+        f"`python3 .claude/scripts/carros_base.py oracle review` 或 /lx-oracle review",
+        file=sys.stderr, flush=True,
+    )
     return None  # always passes
 
 
@@ -873,6 +879,18 @@ def main() -> int:
                 reason = parts[0].replace("ASK_USER ", "").strip()
                 suggestion = parts[1].strip() if len(parts) > 1 else ""
                 return _block(reason, suggestion)
+            elif result.startswith(("NARROW", "CHECKPOINT_FIRST")):
+                # 软门（G1/G2/G5/G6）：柔性约束——WARN 提示 + audit，不阻断
+                _append_audit({
+                    "event_type": "gate_soft_warn",
+                    "actor": "hook:pretool-gate",
+                    "gate": gate_name,
+                    "reason": result,
+                })
+                goal_mode = (OMC / "state" / "tokens" / "autonomous.active").exists()
+                if not goal_mode:
+                    print(f"⚠️ [{gate_name}] {result}", file=sys.stderr, flush=True)
+                continue
 
     return _ok(f"ALLOW tool={tool_name}")
 

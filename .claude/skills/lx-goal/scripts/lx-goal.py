@@ -89,6 +89,43 @@ def _write_mode_file(data: dict, path: str):
     os.rename(tmp, path)
 
 
+def is_mode_active() -> bool:
+    """goal 模式是否激活：mode file 存在 + active + 未过期 + autonomous 信号存在。
+
+    供 hook/脚本调用（此前仅文档声明，无实现）：
+      python3 lx-goal.py is-active  → exit 0=激活 1=未激活
+    """
+    if not AUTONOMOUS_SIGNAL.exists():
+        return False
+    path = MODE_FILE if MODE_FILE.exists() else STATE_DIR / "unattended-mode.json"
+    if not path.exists():
+        return False
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        return False
+    if not data.get("active"):
+        return False
+    expires = data.get("expires_at")
+    if expires:
+        try:
+            if datetime.now(timezone.utc) >= datetime.fromisoformat(expires):
+                return False
+        except Exception:
+            pass
+    return True
+
+
+def cmd_is_active():
+    """is-active 子命令：供 hook/脚本探测 goal 模式（exit 0=激活）。"""
+    if is_mode_active():
+        print("✅ goal 模式激活中")
+        return 0
+    print("⭕ goal 模式未激活")
+    return 1
+
+
 def _get_plan_dir(mode_data: dict):
     """从 mode file 中提取计划目录路径"""
     p = mode_data.get("rpe_plan_dir", "")
@@ -192,16 +229,22 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     print("   autonomous.active 信号已创建，所有 hook 降级为 warn-only")
     print('   任务逐项标记: lx-goal.py task-done "完成项描述"')
     print("   完成后输出报告: lx-goal.py report")
+    # 无人模式轮询指引（跨会话/compact 恢复硬化）
+    print("   ── 无人模式硬化 ──")
+    print("   状态探测: lx-goal.py is-active  (exit 0=激活)")
+    print("   轮询注册: CronCreate '*/10 * * * *' → lx-goal.py status && lx-goal.py poll")
+    print("   会话内:   ScheduleWakeup delaySeconds=1200（长任务心跳）")
+    print("   跨会话恢复: 新会话读 .omc/state/tokens/lx-goal.json → plan_dir 续跑")
 
     # Scope-from-Goal
     auto_scope = PROJECT_ROOT / ".claude" / "scripts" / "auto-scope.sh"
     if auto_scope.exists():
         os.system(f"bash {auto_scope} 2>/dev/null")
 
-    # 决策链注入
-    decision_chain = PROJECT_ROOT / ".claude" / "reference" / "autonomous-decision-chain.md"
+    # 决策链注入（skill 自带 references，原 .claude/reference/ 路径不存在为死代码）
+    decision_chain = SCRIPT_DIR.parent / "references" / "autonomous-execution.md"
     if decision_chain.exists():
-        print(f"\n[.claude/reference/autonomous-decision-chain.md]")
+        print(f"\n[{decision_chain.relative_to(PROJECT_ROOT)}]")
         print(decision_chain.read_text(encoding="utf-8"))
 
 
@@ -250,6 +293,9 @@ def cmd_off():
                 with open(sf, "w", encoding="utf-8") as f:
                     json.dump(sd, f, indent=2, ensure_ascii=False)
             print(f"RPE退出报告: {checklist}")
+
+        # 关闭前自动生成完整退出报告（确保需人类介入项必反馈，不被遗漏）
+        cmd_report()
 
         MODE_FILE.unlink(missing_ok=True)
 
@@ -377,10 +423,18 @@ def cmd_report():
     expires = mode_data.get("expires_at", "?")
 
     # build lists
-    skip_list = "\n".join(
-        f"- {r.get('description', r) if isinstance(r, dict) else r}"
-        for r in mode_data.get("skipped_risks", [])
-    ) or "无"
+    def _skip_line(r):
+        if isinstance(r, dict):
+            lvl = r.get("risk_level", "low")
+            line = f"- [{lvl}] {r.get('description', '?')}"
+            if r.get("reason"):
+                line += f" — 理由: {r['reason']}"
+            if r.get("impact"):
+                line += f" / 影响: {r['impact']}"
+            return line
+        return f"- {r}"
+
+    skip_list = "\n".join(_skip_line(r) for r in mode_data.get("skipped_risks", [])) or "无"
     hard_list = ""
     for h in mode_data.get("hard_boundary_hits", []):
         hard_list += f"- **操作**: {h.get('description', '?')}\n  **原因**: {h.get('reason', '?')}\n  **需人类执行**: {h.get('human_action', '?')}\n\n"
@@ -403,6 +457,17 @@ def cmd_report():
     for b in mode_data.get("blocked_human", []):
         idx += 1
         decision_rows.append(f"| {idx} | 推迟决策 | {b.get('description', '?')} | {b.get('ai_recommendation', '?')} | {b.get('rationale', '?')} |")
+    # 中高风险跳过项 — 只跳过不执行，必须反馈人类干预（goal 模式核心安全阀）
+    for r in mode_data.get("skipped_risks", []):
+        if isinstance(r, dict) and r.get("risk_level") in ("medium", "high", "critical"):
+            idx += 1
+            basis = r.get("reason") or "风险规避"
+            if r.get("impact"):
+                basis += f" / 影响: {r['impact']}"
+            decision_rows.append(
+                f"| {idx} | 中高风险跳过[{r['risk_level']}] | {r.get('description', '?')} "
+                f"| 建议人类评估后手动执行或明确放弃 | {basis} |"
+            )
     if not decision_rows:
         decision_rows.append("| - | - | 无需人类介入的项 | - | - |")
 
@@ -477,7 +542,9 @@ def cmd_poll():
     if expires_str:
         try:
             exp = datetime.fromisoformat(expires_str)
-            if datetime.now() > exp:
+            if exp.tzinfo is None:
+                exp = exp.replace(tzinfo=timezone.utc)
+            if datetime.now(timezone.utc) > exp:
                 print(f"⏰ 目标模式已过期（{expires_str}），自动关闭")
                 if MODE_FILE.exists():
                     print("   生成过期报告...")
@@ -519,11 +586,22 @@ def cmd_task_done(description: str = "未知任务"):
     print(f"✅ 已标记任务完成: {_sanitize(description)}")
 
 
-def cmd_skip_risk(description: str = "未知风险"):
-    """记录跳过的风险"""
+def cmd_skip_risk(description: str = "未知风险", risk_level: str = "low", reason: str = "", impact: str = ""):
+    """记录跳过的风险。
+
+    risk_level: low/medium/high/critical。
+    中高风险（medium+）只跳过不执行，会自动进入退出报告的「需人为决策汇总」表，
+    反馈给人类干预 — 这是 goal 模式的核心安全阀。
+    """
+    risk_level = (risk_level or "low").lower()
+    if risk_level not in ("low", "medium", "high", "critical"):
+        risk_level = "low"
     mode_data, path = _read_mode_file()
     mode_data.setdefault("skipped_risks", []).append({
         "description": description,
+        "risk_level": risk_level,
+        "reason": reason,
+        "impact": impact,
         "timestamp": get_now(),
     })
     _write_mode_file(mode_data, path)
@@ -533,10 +611,13 @@ def cmd_skip_risk(description: str = "未知风险"):
         plan_md = plan_dir / "plan.md"
         if plan_md.exists():
             with open(plan_md, "a", encoding="utf-8") as f:
-                f.write(f"\n- [skip-risk] {description}  ({get_now()})\n")
+                f.write(f"\n- [skip-risk/{risk_level}] {description} — {reason or '未填理由'}  ({get_now()})\n")
         _update_lock_counter(plan_dir, "skipped_risks")
 
-    print(f"📝 已记录跳过的风险: {_sanitize(description)}")
+    marker = "⚠️" if risk_level in ("medium", "high", "critical") else "📝"
+    print(f"{marker} 已记录跳过的风险[{risk_level}]: {_sanitize(description)}")
+    if risk_level in ("medium", "high", "critical"):
+        print("   中高风险项：仅跳过不执行，将出现在退出报告「需人为决策汇总」")
 
 
 def cmd_hard_boundary_hit(description: str = "未知硬边界", reason: str = "未知原因", human_action: str = "请人工审阅并决定是否执行"):
@@ -684,6 +765,7 @@ KNOWN_SUBCOMMANDS = {
     "phase0-done": cmd_phase0_done,
     "report": cmd_report,
     "poll": cmd_poll,
+    "is-active": cmd_is_active,
     "task-done": cmd_task_done,
     "skip-risk": cmd_skip_risk,
     "hard-boundary-hit": cmd_hard_boundary_hit,
@@ -730,17 +812,21 @@ def main():
                 k, v = arg.split("=", 1)
                 kwargs[k] = v
         cmd_update_lock(**kwargs)
-    elif cmd_name in ("task-done", "skip-risk", "hard-boundary-hit", "blocked-human"):
+    elif cmd_name == "skip-risk":
+        # skip-risk "描述" [risk_level] [reason] [impact]
+        cmd_skip_risk(*(args[:4]))
+    elif cmd_name in ("task-done", "hard-boundary-hit", "blocked-human"):
         handlers = {
             "task-done": cmd_task_done,
-            "skip-risk": cmd_skip_risk,
             "hard-boundary-hit": cmd_hard_boundary_hit,
             "blocked-human": cmd_blocked_human,
         }
         handlers[cmd_name](*(args[:3]))
     else:
         # off, status, phase0-done, report, poll, retry, done — 无参数
-        KNOWN_SUBCOMMANDS[cmd_name]()
+        rc = KNOWN_SUBCOMMANDS[cmd_name]()
+        if isinstance(rc, int):
+            sys.exit(rc)
 
 
 if __name__ == "__main__":

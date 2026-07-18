@@ -307,13 +307,39 @@ def render_gate(plan: Plan) -> list[str]:
     ]
 
 
+def compute_roi(plan: Plan) -> str:
+    """ROI 真实计算：effort（规模成本）× risk（失败成本）→ 分级。
+
+    effort = scope 文件数 + 步数×2（+6 if L2 流程成本）
+    risk_weight: low=0 medium=4 high=8 critical=12
+    roi_score = 20 - effort - risk_weight（基准 20）
+      >=10 → high（低成本低风险，AI 自决划算）
+      >=2  → medium
+      <2   → low（高成本/高风险，自动化 ROI 低，需人类价值裁决）
+    """
+    effort = len(plan.scope) + len(plan.steps) * 2 + (6 if plan.level == "L2" else 0)
+    risk_weight = {"low": 0, "medium": 4, "high": 8, "critical": 12}.get(plan.risk_level, 4)
+    score = 20 - effort - risk_weight
+    if score >= 10:
+        grade = "high"
+    elif score >= 2:
+        grade = "medium"
+    else:
+        grade = "low"
+    return (
+        f"{grade} (score={score}; effort={effort}[scope={len(plan.scope)}+steps={len(plan.steps)}*2"
+        f"{'+L2' if plan.level == 'L2' else ''}], risk={plan.risk_level}→{risk_weight})"
+    )
+
+
 def render_four_factors(plan: Plan) -> list[str]:
+    roi = compute_roi(plan)
     if plan.level == "L1":
         return [
             "## Four Factors",
             "- Philosophy: 验证优先 + 最小改动",
             "- Iron Rules: 范围冻结 + 不假完成",
-            "- ROI: low-to-medium; simple bounded task",
+            f"- ROI: {roi}",
             "- Current State: optional for L1",
             "",
         ]
@@ -322,7 +348,7 @@ def render_four_factors(plan: Plan) -> list[str]:
         "## Four Factors",
         "- Philosophy: 验证优先 + 零信任 + 守护优先",
         "- Iron Rules: 范围冻结；证据门禁；危险操作审批",
-        "- ROI: required for L2 before execution",
+        f"- ROI: {roi}",
         "- Current State: must be supported by research.md evidence",
         "",
     ]
