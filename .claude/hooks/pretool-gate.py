@@ -74,7 +74,7 @@ ORACLE_FORCE_KW = ["aut", "payment", "migration", "permission"]
 
 STALE_LOCK_THRESHOLD = 1800  # 30 min: auto-clear blocked state older than this
 
-READ_TOOLS = {"read", "grep", "search_files", "list", "ls", "find", "cat"}
+READ_TOOLS = {"read", "grep", "glob", "search_files", "list", "ls", "find", "cat"}
 WRITE_TOOLS = {"edit", "write", "multiedit", "notebookedit"}
 PLAN_FILE_PATTERNS = ["plan.md", "plan"]
 
@@ -708,28 +708,9 @@ def _check_document_quality(payload: dict) -> str | None:
     return None
 
 
-# ── Context-control gates (G1-G6) ──
-
-_READ_COUNTER = {"files_read": 0, "last_tick": None}
-
-
-def _check_g1_file_count(payload: dict) -> str | None:
-    """G1: single tick read >2 files → NARROW"""
-    tool = _extract_tool(payload).lower()
-    if tool not in READ_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path:
-        return None
-    token = _active_token()
-    tick = token.get("stats", {}).get("tick", 0) if token else 0
-    if _READ_COUNTER.get("last_tick") != tick:
-        _READ_COUNTER["files_read"] = 0
-        _READ_COUNTER["last_tick"] = tick
-    _READ_COUNTER["files_read"] += 1
-    if _READ_COUNTER["files_read"] > 2:
-        return f"NARROW read_count_exceeds_2 limit=2 current={_READ_COUNTER['files_read']} path={path}"
-    return None
+# ── Context-control gates (G2/G3/G5/G6) ──
+# H2 修复注记：G1（单 tick 读文件计数）已删除——计数器是进程内存，
+# hook 每次调用都是新进程，结构性不可能工作（死代码）。
 
 
 def _check_g2_large_file(payload: dict) -> str | None:
@@ -743,7 +724,7 @@ def _check_g2_large_file(payload: dict) -> str | None:
     path = _extract_path(payload)
     if not path:
         return None
-    p = ROOT / path.lstrip("./") if not path.startswith("/") else Path(path)
+    p = ROOT / path.removeprefix("./") if not path.startswith("/") else Path(path)
     if not p.exists():
         return None
     try:
@@ -837,8 +818,7 @@ GATES = [
     ("verify", _check_verify_gate),
     ("oracle", _check_oracle_gate),
     ("document-quality", _check_document_quality),
-    # Context-control gates (G1-G6)
-    ("g1-file-count", _check_g1_file_count),
+    # Context-control gates (G2/G3/G5/G6)
     ("g2-large-file", _check_g2_large_file),
     ("g3-reviews", _check_g3_reviews),
     ("g5-wide-glob", _check_g5_wide_glob),

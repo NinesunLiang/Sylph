@@ -16,7 +16,23 @@ if [ -z "$HOOK_NAME" ]; then
 fi
 
 HOOK_PATH="$LAUNCHER_DIR/$HOOK_NAME"
+
+# H3 fail-closed：关键 hook 缺失 = 治理链断裂，必须阻断而非静默放行。
+# 名单与 settings.json PreToolUse 注册项一一对应；新增关键 hook 时同步加入。
+CRITICAL_HOOKS="pretool-gate.py carroros-night-deny.py"
+_is_critical_hook() {
+  case " $CRITICAL_HOOKS " in
+    *" $1 "*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 if [ ! -f "$HOOK_PATH" ]; then
+  if _is_critical_hook "$HOOK_NAME"; then
+    echo "{\"continue\":true,\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"hook-launcher: CRITICAL hook missing: $HOOK_NAME — 治理链断裂，fail-closed 阻断本次工具调用。恢复该文件后重试。\"}}"
+    echo "hook-launcher: BLOCKED - critical hook missing: $HOOK_NAME" >&2
+    exit 2
+  fi
   echo "{\"continue\":true,\"message\":\"hook-launcher: hook not found: $HOOK_NAME\"}"
   exit 0
 fi
