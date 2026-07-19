@@ -379,7 +379,17 @@ def _inject_plan_step(step_id):
 # ═══════════════════════════════════════════
 
 def _write_audit(event_type, data, fallback=False):
-    """追加审计事件到当天 JSONL — 委托 carros_utils"""
+    """追加审计事件到当天 JSONL — 委托 carros_utils（自动绑定 task_id）"""
+    if isinstance(data, dict) and "task_id" not in data:
+        _tid = None
+        try:
+            _token = _load_token()
+            if _token:
+                _tid = (_token.get("session") or {}).get("id")
+        except Exception:
+            _tid = None
+        data = dict(data)
+        data["task_id"] = _tid or "unknown"
     if carros_utils:
         # 如果 AUDIT_DIR 是 None 但 fallback=True，直接写本地
         ad = AUDIT_DIR
@@ -785,8 +795,44 @@ def _run_dual_judge(token: dict) -> int:
         return 0
 
 
+def _run_verify_gate(step_id):
+    """Shell out 到 verify_gate.py 裁决 step — 返回 (decision, reason, payload)。
+
+    fail-closed: 脚本缺失/执行异常/输出不可解析 一律 BLOCKED。
+    decision 取自 stdout JSON(exit code 仅辅助: VERIFIED=0, 其余=1)。
+    """
+    import subprocess
+    # carros_base.py 是符号链接(.claude/scripts -> .omc/scripts),
+    # verify_gate.py 实体在 .claude/scripts — 三候选定位,fail-closed
+    _candidates = [
+        Path(__file__).parent / "verify_gate.py",
+        Path(__file__).resolve().parent / "verify_gate.py",
+        Path(__file__).resolve().parents[2] / ".claude/scripts" / "verify_gate.py",
+    ]
+    script = next((c for c in _candidates if c.exists()), None)
+    if script is None:
+        return "BLOCKED", "verify_gate_missing", {
+            "required_action": "恢复 .claude/scripts/verify_gate.py 后重跑"}
+    cmd = [sys.executable, str(script), "--step", step_id,
+           "--plan", str(PLAN_PATH), "--executor", str(EXECUTOR_PATH)]
+    if TOKEN_PATH:
+        cmd += ["--token", str(TOKEN_PATH)]
+    spec = (TASK_DIR / "spec.md") if TASK_DIR else None
+    if spec and spec.exists():
+        cmd += ["--spec", str(spec)]
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+    except Exception as exc:
+        return "BLOCKED", f"verify_gate_error:{type(exc).__name__}", {}
+    try:
+        payload = json.loads(r.stdout)
+    except (json.JSONDecodeError, ValueError):
+        return "BLOCKED", f"verify_gate_bad_output:{(r.stdout or r.stderr or '')[:160]}", {}
+    return payload.get("decision", "BLOCKED"), payload.get("reason", ""), payload
+
+
 def cmd_verify(step_id=None):
-    """验证 step 完成 — 标记 plan.md [x] + 写 audit"""
+    """验证 step 完成 — VerifyGate 裁决通过才标记 plan.md [x] + 写 task-bound audit"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -817,8 +863,24 @@ def cmd_verify(step_id=None):
             print(_yellow("⚠  All steps already completed"))
             return 0
 
+    level = token.get("session", {}).get("level", "L1_BASE")
     verified_any = False
     for target in targets:
+        # ── VerifyGate 接线（PKG-A）：无证据不 [x]，fail-closed ──
+        decision, reason, gate_payload = _run_verify_gate(target)
+        degraded = False
+        if decision in ("VERIFIED", "WARN"):
+            pass
+        elif level != "L2_ENHANCE" and reason in ("no_verify_rules", "executor_missing"):
+            # L1 轻量任务无验证契约：允许标记但必须留痕（不产生 VERIFIED，Gate6 不放行）
+            degraded = True
+        else:
+            _write_audit("verify", {"step": target, "result": decision, "reason": reason})
+            print(_red(f"❌ {target}: VerifyGate {decision} — {reason}"))
+            required = gate_payload.get("required_action")
+            if required:
+                print(_yellow(f"   需要: {required}"))
+            return 2
         pattern = re.compile(r"^- \[ \] " + re.escape(target) + r":", re.MULTILINE)
         replacement = f"- [x] {target}:"
         new_plan, count = pattern.subn(replacement, plan)
@@ -828,8 +890,15 @@ def cmd_verify(step_id=None):
             token["stats"]["done"] = token["stats"].get("done", 0) + 1
             if token["stats"]["done"] >= token["stats"]["total"]:
                 token["task"]["status"] = "completed"
-            _write_audit("verify", {"step": target, "result": "VERIFIED"})
-            print(_green(f"✅ {target}: VERIFIED"))
+            if degraded:
+                _write_audit("verify_degraded", {"step": target, "reason": reason})
+                print(_yellow(f"⚠  {target}: {reason} — 降级标记并留痕（非 VERIFIED）"))
+            else:
+                _write_audit("verify", {
+                    "step": target, "result": "VERIFIED", "gate": decision,
+                    "warnings": gate_payload.get("warnings", []),
+                })
+                print(_green(f"✅ {target}: VERIFIED"))
             # task-state: 标记完成
             if tst:
                 tst.mark_step_completed(TOKEN_PATH, target)

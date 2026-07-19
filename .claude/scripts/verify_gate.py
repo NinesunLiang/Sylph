@@ -373,7 +373,8 @@ def write_audit(decision: VerifyDecision, token: dict[str, Any] | None = None) -
         "required_action": decision.required_action,
     }
     if token:
-        event["task_id"] = token.get("task", {}).get("id", "unknown")
+        event["task_id"] = (token.get("session", {}) or {}).get("id") \
+            or token.get("task", {}).get("id", "unknown")
         event["level"] = token.get("session", {}).get("level", "unknown")
     append_jsonl(Path(".omc/audit") / f"{today()}.jsonl", event)
 

@@ -251,25 +251,43 @@ def _in_scope(path: str, scope: list[str]) -> bool:
             return True
     return False
 
-def _check_verified(step_id: str | None) -> bool:
-    if not AUDIT.exists():
+def _check_verified(step_id: str | None, task_id: str | None = None,
+                    task_dir: Path | None = None) -> bool:
+    """VerifyGate 审计回读 — step + task 双绑定，无通配，fail-closed。
+
+    仅当审计中存在 (step_id, task_id) 双匹配的 VERIFIED 事件才放行。
+    历史无 task_id 事件、跨任务事件、畸形事件一律不计（PKG-A）。
+    扫描: .omc/audit(verify_gate 写) + .omc/state/audit(carros_base fallback)
+          + 任务自身 state/audit(carros_base 主写点)。
+    """
+    if not step_id or not task_id:
         return False
-    for f in sorted(AUDIT.glob("*.jsonl")):
-        with f.open("r", encoding="utf-8") as fh:
-            for line in fh:
-                try:
-                    e = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                # carros_base.py writes: {"event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
-                if e.get("event") == "verify":
-                    data = e.get("data", {})
-                    if isinstance(data, dict) and data.get("result") == "VERIFIED":
-                        if step_id is None or data.get("step") == step_id:
+    dirs = [AUDIT, OMC / "state" / "audit"]
+    if task_dir:
+        dirs.append(Path(task_dir) / "state" / "audit")
+    for d in dirs:
+        if not d.exists():
+            continue
+        for f in sorted(d.glob("*.jsonl")):
+            with f.open("r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        e = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    # carros_base.py: {"event": "verify", "data": {"step", "result", "task_id"}}
+                    if e.get("event") == "verify":
+                        data = e.get("data", {})
+                        if (isinstance(data, dict)
+                                and data.get("result") == "VERIFIED"
+                                and data.get("step") == step_id
+                                and data.get("task_id") == task_id):
                             return True
-                # Legacy compat: {"event_type": "verify_decision", "decision": "VERIFIED", "step": "S1"}
-                if e.get("event_type") == "verify_decision" and e.get("decision") == "VERIFIED":
-                    if step_id is None or e.get("step") == step_id:
+                    # verify_gate.py: {"event_type": "verify_decision", "decision", "step", "task_id"}
+                    if (e.get("event_type") == "verify_decision"
+                            and e.get("decision") == "VERIFIED"
+                            and e.get("step") == step_id
+                            and e.get("task_id") == task_id):
                         return True
     return False
 
@@ -559,7 +577,9 @@ def _check_verify_gate(payload: dict) -> str | None:
     if not isinstance(task, dict):
         return None
     current_step = task.get("current_step")
-    if not _check_verified(current_step):
+    session = token.get("session", {})
+    task_id = session.get("id") if isinstance(session, dict) else None
+    if not _check_verified(current_step, task_id, _task_dir(token)):
         _append_audit({
             "event_type": "verifygate_preaction_block",
             "actor": "hook:pretool-gate",
