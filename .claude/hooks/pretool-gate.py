@@ -9,12 +9,12 @@ Execution order (short-circuit on first BLOCK):
   4. plan-gate        — block if task files missing
   5. edit-scope       — block writes outside declared scope
   6. verify-gate      — block unverified step completion marks in plan.md
-  7. oracle-gate      — hint (never blocks) for L2 trigger keywords
+  7. oracle-gate      — L2 三层: 结构化危险 BLOCK / 不可解析+高危 ESCALATE / 模糊 hint(R6-A)
 
 Design constraints (from data_todo.md / 总结.md):
   - Single Python process per tool call (was 7)
   - Audit once per block decision, not per hook
-  - Oracle is hint-only, never blocks
+  - Oracle: BLOCK 仅属结构化危险语义, 模糊关键词层维持 hint+audit(终审 R6-A)
   - First BLOCK short-circuits; later checks skip
 """
 
@@ -23,6 +23,7 @@ from __future__ import annotations
 import json
 import re
 import secrets
+import shlex
 import shutil
 import sys
 from datetime import datetime, timezone
@@ -71,6 +72,52 @@ ORACLE_TRIGGER_KW = [
     "merge", "release", "deploy", "production",
 ]
 ORACLE_FORCE_KW = ["auth", "payment", "migration", "permission"]
+
+# ── R6-A: oracle 精确分类(终审 0:3 否决 hint-only 整体终态后施工) ──
+# 三层: 结构化危险语义 → BLOCK;不可解析+高危信号 → ESCALATE(ASK_USER 人类独占);
+#       模糊关键词 → hint+audit(模糊层终态保留);其余 → PASS。
+# BLOCK 层扫原文(引号藏不住危险),但 env 赋值只在真实生效位锚定
+# (命令首/分隔符后/sh -c 引号内首)——grep 参数、commit message 不误伤。
+_ORACLE_QUOTED_RE = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
+_ORACLE_ENV_BYPASS_RE = re.compile(
+    r"(?:^|[&;|]\s*|\b(?:ba|z)?sh\s+-c\s+['\"]?)\s*(?:export\s+)?"
+    r"(?:SKIP|NO|DISABLE|BYPASS)[A-Z0-9_]*(?:VERIFY|GATE|HOOKS?|AUDIT)[A-Z0-9_]*\s*=",
+    re.IGNORECASE,
+)
+_ORACLE_APPROVAL_PATH_RE = re.compile(
+    r"\.omc/state/(?:fallback-blocked-approved|temp-bypass\.json)"
+)
+_ORACLE_WRITE_OP_RE = re.compile(
+    r"(?:>>?|\btouch\b|\btee\b|\bcp\b|\bmv\b|\bsed\s+-i\b|\bpython3?\b|\becho\b|\bprintf\b)"
+)
+_ORACLE_TEMP_BYPASS_SELF_RE = re.compile(
+    r"(?:\b(?:python3?|bash|sh)\s+[^\n;]*?\btemp-bypass\.py\b|\btemp-bypass\.py\s+--)"
+)
+_ORACLE_RISK_SIGNAL_RE = re.compile(
+    r"(?i)(?:skip_|bypass|temp-bypass|fallback-blocked|verify_gate|pretool-gate)"
+)
+
+
+def _oracle_classify(command: str) -> tuple[str, str]:
+    """R6-A 精确分类: 返回 (verdict, detail),verdict ∈ BLOCK/ESCALATE/FORCE/TRIGGER/PASS。"""
+    if _ORACLE_ENV_BYPASS_RE.search(command):
+        return "BLOCK", "env_bypass_attempt"
+    if _ORACLE_TEMP_BYPASS_SELF_RE.search(command):
+        return "BLOCK", "temp_bypass_user_only"
+    if _ORACLE_APPROVAL_PATH_RE.search(command) and _ORACLE_WRITE_OP_RE.search(command):
+        return "BLOCK", "approval_state_self_mint"
+    try:
+        shlex.split(command, posix=True)
+    except ValueError:
+        if _ORACLE_RISK_SIGNAL_RE.search(command):
+            return "ESCALATE", "unparsable_with_risk_signal"
+    # 模糊 hint 层: 词边界 + 引号掩码(git --author / 引号内文本 auth 不再误报)
+    masked = _ORACLE_QUOTED_RE.sub(lambda m: " " * len(m.group(0)), command)
+    if any(re.search(rf"\b{kw}\b", masked, re.IGNORECASE) for kw in ORACLE_FORCE_KW):
+        return "FORCE", "force_kw"
+    if any(re.search(rf"\b{kw}\b", masked, re.IGNORECASE) for kw in ORACLE_TRIGGER_KW):
+        return "TRIGGER", "trigger_kw"
+    return "PASS", ""
 
 STALE_LOCK_THRESHOLD = 1800  # 30 min: auto-clear blocked state older than this
 
@@ -600,7 +647,7 @@ def _check_verify_gate(payload: dict) -> str | None:
     return None
 
 def _check_oracle_gate(payload: dict) -> str | None:
-    """Gate 7: hint for L2 oracle triggers (never blocks)."""
+    """Gate 7: L2 oracle——精确危险 BLOCK / 不可解析 ESCALATE / 模糊 hint+audit / 安全 PASS。"""
     token = _active_token()
     if not token:
         return None
@@ -610,29 +657,48 @@ def _check_oracle_gate(payload: dict) -> str | None:
     command = _extract_command(payload)
     if not command:
         return None
-    cmd_lower = command.lower()
-    force = any(kw in cmd_lower for kw in ORACLE_FORCE_KW)
-    trigger = force or any(kw in cmd_lower for kw in ORACLE_TRIGGER_KW)
-    if not trigger:
-        return None
+    verdict, detail = _oracle_classify(command)
     task = token.get("task", {})
-    phase = task.get("phase", "execute") if isinstance(task, dict) else "execute"
-    _append_audit({
-        "event_type": "oracle_gate_trigger",
-        "actor": "hook:pretool-gate",
-        "decision": "REVIEW",
-        "reason": "potential_oracle_trigger_detected",
-        "current_step": task.get("current_step") if isinstance(task, dict) else None,
-        "phase": phase,
-    })
-    # Oracle never blocks — but emits a real hint so the L2 operator sees it
-    level = "FORCE" if force else "TRIGGER"
-    print(
-        f"🔮 [oracle-gate] L2 {level} 触发检测：建议完成后执行双审判 "
-        f"`python3 .claude/scripts/carros_base.py oracle review` 或 /lx-oracle review",
-        file=sys.stderr, flush=True,
-    )
-    return None  # always passes
+    step = task.get("current_step") if isinstance(task, dict) else None
+    if verdict == "BLOCK":
+        _append_audit({
+            "event_type": "oracle_gate_block",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": detail,
+            "current_step": step,
+            "cmd_head": command[:120],
+        })
+        return (f"BLOCK oracle_gate:{detail}|检测到高置信危险语义({detail})——模型不得自行绕过验证/审批机制。"
+                f"修复: 移除绕过语义后重试;确需绕过: 由用户人工裁决授权")
+    if verdict == "ESCALATE":
+        _append_audit({
+            "event_type": "oracle_gate_escalate",
+            "actor": "hook:pretool-gate",
+            "decision": "ESCALATE",
+            "reason": detail,
+            "current_step": step,
+            "cmd_head": command[:120],
+        })
+        return (f"ASK_USER oracle_gate:{detail}|命令无法可靠解析且含高危信号——已升级人类独占裁决,"
+                f"请用户确认安全后重试或授权")
+    if verdict in ("FORCE", "TRIGGER"):
+        phase = task.get("phase", "execute") if isinstance(task, dict) else "execute"
+        _append_audit({
+            "event_type": "oracle_gate_trigger",
+            "actor": "hook:pretool-gate",
+            "decision": "REVIEW",
+            "reason": "potential_oracle_trigger_detected",
+            "current_step": step,
+            "phase": phase,
+        })
+        # 模糊层维持 hint+audit(终审认可的终态)——不阻断
+        print(
+            f"🔮 [oracle-gate] L2 {verdict} 触发检测：建议完成后执行双审判 "
+            f"`python3 .claude/scripts/carros_base.py oracle review` 或 /lx-oracle review",
+            file=sys.stderr, flush=True,
+        )
+    return None  # PASS 与 hint 层均放行
 
 
 # ── Main dispatcher ──
