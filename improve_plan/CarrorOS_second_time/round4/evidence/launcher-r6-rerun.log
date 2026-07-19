@@ -1,0 +1,4 @@
+PASS: case1 非关键 hook 缺失 → exit 0 fail-open
+PASS: case2 关键 hook 缺失（pretool-gate.py）→ exit 2 fail-closed
+PASS: case3 关键 hook 存在 → 透传（exit=0，由 hook 自身决定）
+ALL PASS

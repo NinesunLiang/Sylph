@@ -1,0 +1,23 @@
+backup exists, skip
+protected.sha256 exists, skip
+SKIP E1 SKILL.md R6 (already applied)
+SKIP E2 report-templates R6 (already applied)
+SKIP E3 lx-oma mece fail-closed (already applied)
+SKIP E4 lx-oma verify-script fail-closed (already applied)
+SKIP E5 lx-oma pipeline ownership (already applied)
+SKIP E6 lx-rpe pipeline rejection (already applied)
+SKIP E7 skill-chaining pipeline ownership (already applied)
+SKIP E8 pipeline-contract single entry (already applied)
+SKIP E9 validate_skill import (already applied)
+SKIP E10 validate_skill R6 rewrite (already applied)
+== acceptance ==
+A-B2 OK
+A-B3 OK
+A-B6 OK
+A-B7 OK
+R6_OK files=21
+A-B9 OK
+A-B10 OK
+A-B11 OK
+PKG_B_BOUNDARY_OK
+== ALL PKG-B ACCEPTANCE PASSED ==
