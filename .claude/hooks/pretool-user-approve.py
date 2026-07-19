@@ -35,6 +35,7 @@ TOKENS_DIR = ROOT / ".omc" / "tokens"
 RING_PATH = ROOT / ".claude" / ".prompt-ring.json"
 RING_STATE = ROOT / ".claude" / ".prompt-ring-state.json"
 CONTEXT_ENGINE = ROOT / ".claude" / "scripts" / "context_engine.py"
+COMPACT_WRITE_LOG = STATE_DIR / "compact-write.log"
 
 MAX_RING = 20
 INJECT_INTERVAL = 5  # 每 5 轮：compact-write + 尾部状态注入（U 型注意力）
@@ -124,14 +125,22 @@ def _every_fifth_round(token_path: Path | None) -> str:
     """Returns injection text; kicks off detached compact-write."""
     if token_path:
         # Detached compact-write — refreshes handoff.md + last-user-prompt.md
+        # R5 留痕: stdout 丢弃、stderr 落 .omc/state/compact-write.log,
+        # spawn 异常也记档——detached 不再静默(仍不阻塞 prompt,exit 0)
         try:
+            STATE_DIR.mkdir(parents=True, exist_ok=True)
+            err_log = COMPACT_WRITE_LOG.open("ab")
             subprocess.Popen(
                 [sys.executable, str(CONTEXT_ENGINE), "compact-write", "--token", str(token_path)],
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=err_log,
                 cwd=str(ROOT), start_new_session=True,
             )
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                with COMPACT_WRITE_LOG.open("a", encoding="utf-8") as f:
+                    f.write(f"{_now_iso()} compact-write spawn FAILED: {exc!r}\n")
+            except Exception:
+                pass
         injection = _state_injection_text(token_path)
     else:
         injection = ""

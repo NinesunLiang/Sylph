@@ -303,6 +303,19 @@ echo "A-A4 OK"
 python3 - << 'PY'
 from pathlib import Path
 import hashlib, json, sys
+steady = Path(".omc/state/pkg-a-backup/steady-state.sha256")
+if steady.exists():
+    # R5 起稳态模式: 施工期断言(下方 legacy 分支)已于 R2 完成,不可重入;
+    # 此后改为纯漂移告警——8 个观察文件须与稳态快照逐一相同,
+    # 任何漂移须声明确认后重冻结 steady-state.sha256(见终审包偏差声明)
+    snap = json.loads(steady.read_text(encoding="utf-8"))
+    drift = [p for p, h in sorted(snap.items())
+             if hashlib.sha256(Path(p).read_bytes()).hexdigest() != h]
+    if drift:
+        print(f"STEADY-STATE DRIFT: {drift}", file=sys.stderr)
+        raise SystemExit(2)
+    print("NEIGHBOR_BOUNDARY_OK (steady-state)")
+    raise SystemExit(0)
 old = json.loads(Path(".omc/state/pkg-a-backup/pre-pkg-a.sha256").read_text(encoding="utf-8"))
 changed = [p for p, h in old.items() if hashlib.sha256(Path(p).read_bytes()).hexdigest() != h]
 # test-verify-gate.py 属本包交付物(重写+迭代于备份前后),允许变化;只强制 3 个源文件必须变

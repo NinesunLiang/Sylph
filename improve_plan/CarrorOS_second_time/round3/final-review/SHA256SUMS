@@ -1,0 +1,9 @@
+46e604b1b16380e3ee377c756aa8ceb9a6211e54c2465da83a03fc1c7e0dac02  ./evidence/commits-since-baseline.txt
+fff85322f1d7dd9628ac14fc28f5cffd36b1be3a4af64d5f0aa1ca45db8a392f  ./evidence/hash-drift-r5.json
+c895d087ade5305ebd4fb5cfd1152ff54107e98c85ab41ba116d73aef23c6b67  ./evidence/logs/launcher.log
+b6397cdd999bf83caa5442393f341a5cc1b2dc5817c39554acc702e7e16bb686  ./evidence/logs/pkg-a-20x20.log
+1d53bcfd2332d98f688fd50de2f1770069e53de0995ef4d2f70e7b33a4c1d75e  ./evidence/logs/pkg-a-acceptance.log
+138456c9a3e21c456a0cf469faf12535b22d3ed3db6bbe18ce40db76deb281f3  ./evidence/logs/pkg-b-acceptance.log
+cc9ae6cef0e2c7b7b9858b54e789cbbb6a0cf686522730b1aa4b752592a88a82  ./evidence/logs/pkg-c-acceptance.log
+a5a3fca9d6fe23e9e6538db7d26bb975b6a558de00a8620dfedd09d09d127ba2  ./evidence/logs/r4-acceptance.log
+3c43e1a292c4458d56aca4193509a2e39c5ce5ed85524a0896e414d8e447c55f  ./final-review.md

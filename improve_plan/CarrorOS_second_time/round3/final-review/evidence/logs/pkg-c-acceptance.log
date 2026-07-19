@@ -1,0 +1,24 @@
+== PKG-C V0 baseline ==
+WARN: HEAD != frozen baseline (integrator may have rebased); continue if intentional
+== PKG-C V1 files exist ==
+== PKG-C V2 settings events ==
+settings_ok
+== PKG-C V3 unit suite ==
+PASS test_settings_registered
+PASS test_reconcile_forces_written_eq_claimed
+PASS test_precompact_fail_closed_and_snapshot
+PASS test_precompact_fail_on_ro_snapshot_dir
+PASS test_goal_ghost_mutex
+PASS test_subagent_stop_and_session_end
+ALL_PKG_C_TESTS_PASSED
+== PKG-C V4 live hook triggers + jq ==
+seeded
+{"ok": true, "event": "PreCompact", "snapshot": "/Users/lucas.liang/Desktop/CarrorOS/.claude/state/snapshots/precompact-20260719T191735Z-e57fa9de.json", "sha256": "e57fa9de6962183c65ea17f12043ca964f7b57979b9bf936c6d8308f219a2f04", "handoff_written": 3, "handoff_claimed": 3, "reconciled": false}
+jq_counters_ok 3
+{"ok": true, "event": "SubagentStop", "handoff_written": 3, "handoff_claimed": 3}
+{"continue": true}
+{"ok": true, "event": "SessionEnd", "sealed": true, "mode": "idle", "handoff_written": 3, "handoff_claimed": 3}
+end_seal_ok
+== PKG-C V5 registry zombie auto-snapshot ==
+== PKG-C V6 no verify/oracle file touch (scope guard) ==
+ALL_PKG_C_ACCEPTANCE_PASSED
