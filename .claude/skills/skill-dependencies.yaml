@@ -86,6 +86,7 @@ skills:
 
   - id: lx-race
     version: v1.0.0
+    status: archived  # 已归档(S1): .claude/skills/archived/lx-race,并行请用原生 Task 并发
     type: coordination
     consumes: [task_queue]
     provides: [parallel_execution, conflict_report]

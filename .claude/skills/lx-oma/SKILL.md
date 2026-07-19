@@ -28,7 +28,7 @@ execution_mode: stepwise
 /lx-oma orch <subcommand> [args...]        → 管线编排（原 lx-oma-orch）
 ```
 
-> **注意：** `execution_mode: stepwise` 为根级声明。split 子命令内部使用 `race` 模式 — AI 自主拆解 + 脚手架构建后交还人工审核门禁。
+> **注意：** `execution_mode: stepwise` 为根级声明。split 子命令内部并行执行 — AI 自主拆解 + 脚手架构建后交还人工审核门禁（lx-race 已归档，此处仅为模式描述，非 skill 调用）。
 
 ## 共享 OMA 基础设施
 

@@ -22,7 +22,21 @@ def record_error(
     artifact_path: Optional[str] = None,
     retry_count: int = 0,
 ) -> dict:
-    """记录失败为 Error DNA。返回 DNA 记录。"""
+    """记录失败为 Error DNA。返回 DNA 记录。
+
+    K1 噪声过滤: error 文本 < 8 字符(如 "t"/"err" 测试噪声)不入库,
+    返回带 quarantined 标记的记录 — 防再染(存量隔离见 .omc/error-dna.quarantine.jsonl)。
+    """
+    if len((error_text or "").strip()) < 8:
+        return {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "step": step_id,
+            "error": (error_text or "")[:500],
+            "artifact": artifact_path or "",
+            "retry_count": retry_count,
+            "suggested_action": "quarantined: noise below MIN_ERROR_LEN(8)",
+            "quarantined": True,
+        }
     dna = {
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "step": step_id,

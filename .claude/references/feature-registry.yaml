@@ -1,4 +1,11 @@
-version: 1
+version: 2
+# runtime_reality（2026-07-20 K4 真相对齐）：settings.json 实际注册 6 个 hook 入口——
+#   PreToolUse: hook-launcher.sh → pretool-gate.py（统一 14 门） + carroros-night-deny.py
+#   UserPromptSubmit: pretool-user-approve.py
+#   PostToolUse: posttool-gate.py
+#   SessionStart: session-start.py
+#   Stop: stop-flywheel.py
+# 本文件 69 条目为能力目录（含已合并/规划中），非运行时注册表；运行时以 settings.json 为唯一真相源。
 hooks:
 - name: permission-gate
   philosophy: ["#6", "#3"]

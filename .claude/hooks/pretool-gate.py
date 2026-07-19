@@ -70,7 +70,7 @@ ORACLE_TRIGGER_KW = [
     "oracle", "acceptance", "final", "archive", "phase_end",
     "merge", "release", "deploy", "production",
 ]
-ORACLE_FORCE_KW = ["aut", "payment", "migration", "permission"]
+ORACLE_FORCE_KW = ["auth", "payment", "migration", "permission"]
 
 STALE_LOCK_THRESHOLD = 1800  # 30 min: auto-clear blocked state older than this
 
@@ -510,7 +510,7 @@ def _check_plan_gate(payload: dict) -> str | None:
     return None
 
 def _check_edit_scope(payload: dict) -> str | None:
-    """Gate 5: 越界不阻断，记录 audit（方案二：柔性约束）"""
+    """Gate 5: 越界阻断（E1 防线；CARROROS_EDIT_SCOPE=warn 恢复方案二柔性约束）"""
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
@@ -526,16 +526,20 @@ def _check_edit_scope(payload: dict) -> str | None:
         in_scope = _in_scope(path, token_scope)
         if in_scope:
             return None
-        # 越界 → audit 不阻断
+        # 越界 → BLOCK（E1 目标漂移防线；CARROROS_EDIT_SCOPE=warn 恢复柔性）
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "WARN",
+            "decision": "BLOCK",
             "reason": "token_scope_violation",
             "path": path,
             "scope": token_scope[:10],
         })
-        return None  # 放行
+        if os.environ.get("CARROROS_EDIT_SCOPE", "block").lower() == "warn":
+            return None
+        return (f"BLOCK edit_out_of_scope path={path}|"
+                f"该路径不在当前任务 token scope 内。修复: 加入 token scope 或 plan.md ## Scope 段；"
+                f"临时放行: CARROROS_EDIT_SCOPE=warn 或临时 bypass")
     # 回退到 plan scope 检查
     task_dir = _task_dir(token)
     if not task_dir:
@@ -550,12 +554,16 @@ def _check_edit_scope(payload: dict) -> str | None:
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "WARN",
+            "decision": "BLOCK",
             "reason": "plan_scope_violation",
             "path": path,
             "scope": scope[:10],
         })
-        return None  # 放行
+        if os.environ.get("CARROROS_EDIT_SCOPE", "block").lower() == "warn":
+            return None
+        return (f"BLOCK edit_out_of_scope path={path}|"
+                f"该路径不在 plan.md ## Scope 声明内。修复: 将其加入 Scope 段；"
+                f"临时放行: CARROROS_EDIT_SCOPE=warn 或临时 bypass")
     return None
 
 def _check_verify_gate(payload: dict) -> str | None:
@@ -826,6 +834,69 @@ def _check_context_critical_pause(payload: dict) -> str | None:
     return "BLOCK CONTEXT_CRITICAL_PAUSED allowed=status/checkpoint/compact/resume/archive"
 
 
+SECRET_RE = re.compile(r"sk-[A-Za-z0-9]{20,}")
+SECRET_SCAN_MAX_BYTES = 1_000_000
+
+def _git_secret_candidates(command: str) -> list[str]:
+    """从 git add/commit 命令提取待扫描文件(相对仓库根)。"""
+    import subprocess
+    parts = command.split()
+    if len(parts) < 2 or parts[0] != "git":
+        return []
+    sub = parts[1]
+    if sub == "commit":
+        try:
+            r = subprocess.run(["git", "diff", "--cached", "--name-only"],
+                               capture_output=True, text=True, timeout=10)
+            return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+        except Exception:
+            return []
+    if sub == "add":
+        flags = [a for a in parts[2:] if a.startswith("-")]
+        args = [a for a in parts[2:] if not a.startswith("-")]
+        if "." in args or "-A" in flags or "--all" in flags:
+            try:
+                r = subprocess.run(["git", "ls-files", "--modified", "--others", "--exclude-standard"],
+                                   capture_output=True, text=True, timeout=10)
+                return [ln.strip() for ln in r.stdout.splitlines() if ln.strip()]
+            except Exception:
+                return []
+        return args
+    return []
+
+def _check_secret_scan(payload: dict) -> str | None:
+    """Gate: 阻断把明文密钥(sk-...)引入暂存区 — H9 防再染(轮换仍需人工)。"""
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    command = _extract_command(payload) or ""
+    if not re.match(r"^\s*git\s+(add|commit)\b", command):
+        return None
+    hits = []
+    for rel in _git_secret_candidates(command):
+        p = ROOT / rel
+        try:
+            if not p.is_file() or p.stat().st_size > SECRET_SCAN_MAX_BYTES:
+                continue
+            text = p.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        if SECRET_RE.search(text):
+            hits.append(rel)
+    if hits:
+        _append_audit({
+            "event_type": "secret_scan_block",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": "plaintext_secret_in_staging",
+            "files": hits[:10],
+        })
+        return ("BLOCK plaintext_secret_in_staging files=" + ",".join(hits[:5]) + "|"
+                "检测到明文密钥(sk-...)。修复: 改为环境变量引用后再提交;"
+                "确认误报或确需提交: 申请临时 bypass")
+    return None
+
+
 # ── Gate registry ──
 
 GATES = [
@@ -833,6 +904,7 @@ GATES = [
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
     ("action", _check_action_gate),
+    ("secret-scan", _check_secret_scan),
     ("plan", _check_plan_gate),
     ("edit-scope", _check_edit_scope),
     ("verify", _check_verify_gate),

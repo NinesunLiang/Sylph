@@ -55,7 +55,8 @@ def now_iso() -> str:
 
 
 def today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    # H10: 与 carros_base/carros_utils 审计文件名格式统一(%Y%m%d)
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
 
 
 def read_text(path: Path) -> str:

@@ -15,8 +15,8 @@
 ## 主链：PRD 全生命周期
 
 ```
-lx-oma-hier ──→ lx-oma-split ──→ lx-rpe ──→ lx-code-review ──→ lx-test-gen
- (主PRD→Sub)    (Sub→Feature)    (开发)      (审查)            (测试)
+lx-oma-hier ──→ lx-oma-split ──→ lx-rpe ──→ lx-code-review
+ (主PRD→Sub)    (Sub→Feature)    (开发)      (审查)
       │               │              │            │                │
       └── 输出: Sub PRD ──┘             │            │                │
                └── 输出: Feature RPE ───┘            │                │
@@ -28,10 +28,10 @@ lx-oma-hier ──→ lx-oma-split ──→ lx-rpe ──→ lx-code-review ─
   2. /lx-oma-split sub-prds/domain-auth.md --pipeline <id>
   3. /lx-rpe prd/auth/feat-login
   4. /lx-code-review
-  5. /lx-test-gen
 ```
 
 > `--pipeline` 仅属于 `/lx-oma-split`（即 `/lx-oma split`）；`lx-rpe` 不消费 pipeline 文件。`BASE_DIR` 必须来自 OMA 对 pipeline 磁盘状态的解析结果。
+> lx-test-gen 未实现，已从主链移除（S1 幽灵路由清理）。
 
 ## 治理链：变更检测 & 传播
 
@@ -106,10 +106,12 @@ Oracle Agent ──→ Meta-Oracle ──→ 人类
 | 错误码 | `error-codes.md` |
 | 方向指引 | `direction-guide.md` |
 
-## 并发链：Race 模式
+## 并发链：并行执行模式
+
+> lx-race 已归档（.claude/skills/archived/lx-race）。并行通过原生 Task/Agent 并发调用实现。
 
 ```
-lx-race
+并行执行（原生 Task 并发）
   ├── Task A: lx-rpe feat-A        (并行)
   ├── Task B: lx-rpe feat-B        (并行)
   └── Task C: lx-rpe feat-C        (并行)
