@@ -36,13 +36,15 @@ Grok 票：E2=9"有条件通过，缺复跑日志则分作废";"若复跑任一�
 
 | 套件 | 结果 | 日志 |
 |---|---|---|
-| test-oracle-gate.py | 31/31 PASS rc=0 | round4/evidence/oracle-gate-r6-rerun.log |
-| test-verify-gate.py | 20/20 PASS rc=0 | round4/evidence/verify-gate-r6-rerun.log |
-| apply-pkg-a.sh (A-A1..5) | 全绿 rc=0 | round4/evidence/pkg-a-r6-rerun.log |
-| apply-pkg-b.sh (A-B2..12) | 全绿 rc=0 | round4/evidence/pkg-b-r6-rerun.log |
-| run_pkg_c_acceptance.sh (V0..V6) | ALL_PKG_C_ACCEPTANCE_PASSED rc=0 | round4/evidence/pkg-c-r6-rerun.log |
-| apply-pkg-r4.sh (A-1..8) | ALL R4 ACCEPTANCE PASSED rc=0 | round4/evidence/pkg-r4-r6-rerun.log |
-| test-hook-launcher.sh | 3/3 PASS rc=0 | round4/evidence/launcher-r6-rerun.log |
+| test-oracle-gate.py | 31/31 PASS rc=0 | ~~round4/evidence/oracle-gate-r6-rerun.log~~(2026-07-20 owner 指令清理，下表同） |
+| test-verify-gate.py | 20/20 PASS rc=0 | ~~round4/evidence/verify-gate-r6-rerun.log~~ |
+| apply-pkg-a.sh (A-A1..5) | 全绿 rc=0 | ~~round4/evidence/pkg-a-r6-rerun.log~~ |
+| apply-pkg-b.sh (A-B2..12) | 全绿 rc=0 | ~~round4/evidence/pkg-b-r6-rerun.log~~ |
+| run_pkg_c_acceptance.sh (V0..V6) | ALL_PKG_C_ACCEPTANCE_PASSED rc=0 | ~~round4/evidence/pkg-c-r6-rerun.log~~ |
+| apply-pkg-r4.sh (A-1..8) | ALL R4 ACCEPTANCE PASSED rc=0 | ~~round4/evidence/pkg-r4-r6-rerun.log~~ |
+| test-hook-launcher.sh | 3/3 PASS rc=0 | ~~round4/evidence/launcher-r6-rerun.log~~ |
+
+> 日志存废声明： 七份复跑日志于 2026-07-20 复跑当日存在并已核对（rc 全 0，结论如上表）,owner 当日指令清理过程日志后删除（commit 3ba3d95 的 git 历史可恢复）。Grok 条件（决策时须有复跑存证）在决策时点已满足。
 
 → 条件通过转为正式通过；Grok 撤回条件不触发。
 
