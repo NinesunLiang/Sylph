@@ -24,12 +24,14 @@ lx-oma-hier ──→ lx-oma-split ──→ lx-rpe ──→ lx-code-review ─
                                    └── 输出: 审查报告 ────────────────┘
 
 链式调用:
-  1. /lx-oma-hier docs/master-prd.md --pipeline
-  2. /lx-oma-split sub-prds/domain-auth.md --pipeline
-  3. /lx-rpe prd/auth/feat-login --pipeline
+  1. /lx-oma-hier docs/master-prd.md
+  2. /lx-oma-split sub-prds/domain-auth.md --pipeline <id>
+  3. /lx-rpe prd/auth/feat-login
   4. /lx-code-review
   5. /lx-test-gen
 ```
+
+> `--pipeline` 仅属于 `/lx-oma-split`（即 `/lx-oma split`）；`lx-rpe` 不消费 pipeline 文件。`BASE_DIR` 必须来自 OMA 对 pipeline 磁盘状态的解析结果。
 
 ## 治理链：变更检测 & 传播
 

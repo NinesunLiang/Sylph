@@ -122,7 +122,7 @@ G1 Meta-Oracle: ≥2子系统+不可逆变更时触发 → `@references/hier/ver
 
 | 场景 | 降级路径 |
 |------|---------|
-| verify_oma_mece.py 不可用 | 降级为手动 MECE 自检清单 |
+| verify_oma_mece.py 不可用 | BLOCKED：不得生成 MECE 通过结论；恢复脚本后重跑 |
 | Sub PRD 输出失败 | 保留中间产物，标注缺失项 |
 | MECE 校验 3 轮未通过 | 标记需人工介入 |
 
@@ -166,6 +166,13 @@ need_input → [reading → analyzing → scaffolding → verifying] → done
 ### Pipeline 集成
 
 入口 `--pipeline <id>` → 检查 `hier_done` → 出口 `features[].stage=oma_created`。
+
+### Pipeline 参数所有权
+
+- `--pipeline <id>` 只允许由 `/lx-oma split` 消费。
+- `<id>` 必须指向已存在的 pipeline 状态文件；路径缺失、文件缺失或解析失败均为 `BLOCKED`。
+- `lx-rpe` 不接收 `--pipeline`，不读取或写入 `pipeline.yaml`；OMA 只向 RPE 传递已解析的 `BASE_DIR`。
+- 未经 OMA 状态机落盘的自然语言“pipeline 已完成”不构成阶段证据。
 > 完整契约 → `@../references/oma/pipeline-contract.md`
 
 ### 人工审核门禁
@@ -182,7 +189,7 @@ need_input → [reading → analyzing → scaffolding → verifying] → done
 | 场景 | 主路径 | 降级 |
 |------|--------|------|
 | Sub PRD <200 字 | 按已有内容拆解 | 告知内容不足 |
-| 校验脚本不存在 | 自动化校验 | 降级手动校验 |
+| 校验脚本不存在 | 自动化校验 | BLOCKED：不得生成通过结论；恢复校验脚本后重跑 |
 | hier 不可用 | 委托调用 | 手动 `/lx-oma hier` |
 
 ---

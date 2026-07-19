@@ -63,7 +63,7 @@ schemas:
 | R3 | SKILL.md 内联完整（无 body_ref） | 无 body_ref: 行 |
 | R4 | 无私有 nodes/ 目录 | `ls skills/lx-*/nodes/` |
 | R5 | 无私有 schemas/ 目录 | `ls skills/lx-*/schemas/` |
-| R6 | scripts/ 仅 .py（无 .sh 超出模板文件） | glob 检查 |
+| R6 | scripts/ 仅允许 `.py` 与 `.sh`；`.py` 必须通过 `python3 -m py_compile`，`.sh` 必须通过 `bash -n`；其他扩展名一律失败 | 扩展名白名单 + 逐文件语法检查 |
 | R7 | frontmatter 有 description | yaml 校验 |
 | R8 | 至少引用 1 个 `../../nodes/` | grep SKILL.md |
 | R9 | 至少引用 1 个 `../../schemas/` | grep SKILL.md |
