@@ -1,0 +1,383 @@
+ferences/design-docs/7.md:728:  reason: verify_gate_inconsistency
+.claude/references/design-docs/7.md-729-  required_action: rerun VerifyGate or repair evidence
+.claude/references/design-docs/7.md-730-
+.claude/references/design-docs/7.md-731-但 Oracle 不直接修复（单一职责）
+.claude/references/design-docs/7.md-732-```
+.claude/references/design-docs/7.md-733-
+.claude/references/design-docs/7.md-734----
+.claude/references/design-docs/7.md-735-
+.claude/references/design-docs/7.md-736-## 14. Oracle 核心代码（完整优化版）
+.claude/references/design-docs/7.md-737-
+.claude/references/design-docs/7.md-738-代码已在原文提供，这里补充关键优化点：
+.claude/references/design-docs/7.md-739-
+.claude/references/design-docs/7.md-740-### 14.1 与 carros_base.py 的集成
+--
+.claude/references/oracle-dual-agent-refactor-v1.md-3-> 目标：将 `oracle_agent.py` + `meta_oracle.py` 从「孤岛脚本」重构为真正可被 pipeline 消费的双 Agent 评审系统。
+.claude/references/oracle-dual-agent-refactor-v1.md-4->
+.claude/references/oracle-dual-agent-refactor-v1.md-5-> 状态：方案文档，待高阶模型审核后执行。
+.claude/references/oracle-dual-agent-refactor-v1.md-6-
+.claude/references/oracle-dual-agent-refactor-v1.md-7----
+.claude/references/oracle-dual-agent-refactor-v1.md-8-
+.claude/references/oracle-dual-agent-refactor-v1.md-9-## 1. 现状分析
+.claude/references/oracle-dual-agent-refactor-v1.md-10-
+.claude/references/oracle-dual-agent-refactor-v1.md-11-### 1.1 现有文件体系关系
+.claude/references/oracle-dual-agent-refactor-v1.md-12-
+.claude/references/oracle-dual-agent-refactor-v1.md-13-| 文件 | 行数 | 角色 | 是否被调用 |
+.claude/references/oracle-dual-agent-refactor-v1.md-14-|------|------|------|-----------|
+.claude/references/oracle-dual-agent-refactor-v1.md:15:| `oracle_gate.py` | 138 | 规则匹配门禁（trigger→verdict），走 pre/post hook 链 | ✅ 是（hook 事件驱动） |
+.claude/references/oracle-dual-agent-refactor-v1.md-16-| `oracle_agent.py` | 212 | 独立第三方审核（新写） | ❌ 否 |
+.claude/references/oracle-dual-agent-refactor-v1.md-17-| `meta_oracle.py` | 433 | 二阶评审评分器（新写） | ❌ 否 |
+.claude/references/oracle-dual-agent-refactor-v1.md-18-| `carros_base.py` | 1549 | L1 核心状态机 | ✅ 是（主 CLI） |
+.claude/references/oracle-dual-agent-refactor-v1.md-19-
+.claude/references/oracle-dual-agent-refactor-v1.md-20-### 1.2 现有 Bug 清单
+.claude/references/oracle-dual-agent-refactor-v1.md-21-
+.claude/references/oracle-dual-agent-refactor-v1.md-22-**oracle_agent.py:**
+.claude/references/oracle-dual-agent-refactor-v1.md-23-
+.claude/references/oracle-dual-agent-refactor-v1.md-24-1. **Agent 连通性检测失效** (L50-56)：用 `claude -p echo ready` 做连通性检测，`-p` 不是 query 模式，会阻塞等到 timeout → 永远返回 `None` → 永远走 `local_review` 空转路径
+.claude/references/oracle-dual-agent-refactor-v1.md-25-2. **`local_review` 空转** (L74-87)：无 agent 时只打印 prompt 到 stdout，等主 agent 自己审自己。`_save_verdict` 写 `"status": "pending"`，但永远没人更新 → 裁决字段永远 pending
+.claude/references/oracle-dual-agent-refactor-v1.md-26-3. **无 task_id 追踪** (L110-162)：`cmd_review` 只有 `--target`(文件路径/描述)，没有 `--task-id` 参数 → 无法与 token pipeline 关联
+.claude/references/oracle-dual-agent-refactor-v1.md-27-4. **Bypass 机制不消费** (L176-184)：文件写入 BYPASS_DIR 后，没有任何 pipeline 步骤检查它 → 功能空壳
+--
+.claude/references/oracle-dual-agent-refactor-v1.md-88-    "cmd_output_evidence": {"pass": true, "count": 2},
+.claude/references/oracle-dual-agent-refactor-v1.md-89-    "dangerous_pattern": {"pass": true, "matched": []},
+.claude/references/oracle-dual-agent-refactor-v1.md-90-    "scope_violation": {"pass": true, "outside_files": []}
+.claude/references/oracle-dual-agent-refactor-v1.md-91-  },
+.claude/references/oracle-dual-agent-refactor-v1.md-92-  "timestamp": "2026-07-07T01:00:00Z"
+.claude/references/oracle-dual-agent-refactor-v1.md-93-}
+.claude/references/oracle-dual-agent-refactor-v1.md-94-```
+.claude/references/oracle-dual-agent-refactor-v1.md-95-
+.claude/references/oracle-dual-agent-refactor-v1.md-96-**核心功能拆解：**
+.claude/references/oracle-dual-agent-refactor-v1.md-97-
+.claude/references/oracle-dual-agent-refactor-v1.md-98-1. **静态分析**（替代废弃的 agent_spawn）
+.claude/references/oracle-dual-agent-refactor-v1.md-99-   - 读目标文件/目录
+.claude/references/oracle-dual-agent-refactor-v1.md:100:   - 匹配安全规则（复用 `oracle_gate.py` 的 TRIGGER_RULES 配置）
+.claude/references/oracle-dual-agent-refactor-v1.md-101-   - 检查文件行引用格式（`file:line`）
+.claude/references/oracle-dual-agent-refactor-v1.md-102-   - 检查命令输出标记（`exit code`, `PASS/FAIL`）
+.claude/references/oracle-dual-agent-refactor-v1.md-103-   - 模式匹配无需 LLM 调用
+.claude/references/oracle-dual-agent-refactor-v1.md-104-
+.claude/references/oracle-dual-agent-refactor-v1.md-105-2. **Bypass 机制全链路**
+.claude/references/oracle-dual-agent-refactor-v1.md-106-   - `create`：写 `{BYPASS_DIR}/{task_id}_approved.md` + 时间戳
+.claude/references/oracle-dual-agent-refactor-v1.md-107-   - `check`：读文件 + 对比 TTL，返回 bool
+.claude/references/oracle-dual-agent-refactor-v1.md-108-   - `cleanup`：批量删除过期文件
+.claude/references/oracle-dual-agent-refactor-v1.md-109-   - `list`：展示活跃 bypass 有效期
+.claude/references/oracle-dual-agent-refactor-v1.md-110-   - `carros_base.py verify` 在 run oracle 前自动 `bypass check`
+.claude/references/oracle-dual-agent-refactor-v1.md-111-
+.claude/references/oracle-dual-agent-refactor-v1.md-112-3. **task_id 追踪**
+--
+.claude/references/oracle-dual-agent-refactor-v1.md-158-
+.claude/references/oracle-dual-agent-refactor-v1.md-159-# 审计报告
+.claude/references/oracle-dual-agent-refactor-v1.md-160-python3 .claude/scripts/meta_oracle.py audit [--days 7] [--threshold 6.0]
+.claude/references/oracle-dual-agent-refactor-v1.md-161-
+.claude/references/oracle-dual-agent-refactor-v1.md-162-# 单步验证
+.claude/references/oracle-dual-agent-refactor-v1.md-163-python3 .claude/scripts/meta_oracle.py verify --step S1 [--token <path>]
+.claude/references/oracle-dual-agent-refactor-v1.md-164-```
+.claude/references/oracle-dual-agent-refactor-v1.md-165-
+.claude/references/oracle-dual-agent-refactor-v1.md-166-### 2.4 Pipeline 集成
+.claude/references/oracle-dual-agent-refactor-v1.md-167-
+.claude/references/oracle-dual-agent-refactor-v1.md-168-#### carros_base.py 改动
+.claude/references/oracle-dual-agent-refactor-v1.md-169-
+.claude/references/oracle-dual-agent-refactor-v1.md:170:在 `cmd_verify()` 中增加 oracle 检查步骤：
+.claude/references/oracle-dual-agent-refactor-v1.md-171-
+.claude/references/oracle-dual-agent-refactor-v1.md-172-```python
+.claude/references/oracle-dual-agent-refactor-v1.md:173:def cmd_verify(step_id=None, skip_oracle=False):
+.claude/references/oracle-dual-agent-refactor-v1.md-174-    # ... 现有逻辑 ...
+.claude/references/oracle-dual-agent-refactor-v1.md-175-    
+.claude/references/oracle-dual-agent-refactor-v1.md-176-    # 新增：Oracle 检查（除非跳过）
+.claude/references/oracle-dual-agent-refactor-v1.md-177-    if not skip_oracle:
+.claude/references/oracle-dual-agent-refactor-v1.md-178-        oracle_ok = _run_oracle_check(task_id)
+.claude/references/oracle-dual-agent-refactor-v1.md-179-        meta_ok = _run_meta_oracle_check(task_id)
+.claude/references/oracle-dual-agent-refactor-v1.md-180-        if not oracle_ok:
+.claude/references/oracle-dual-agent-refactor-v1.md-181-            print(_yellow("⚠  Oracle: ADVISORY/REJECT — 建议确认后继续"))
+.claude/references/oracle-dual-agent-refactor-v1.md-182-            # 不硬阻断，只 warn（L1 流程可以带警告继续）
+.claude/references/oracle-dual-agent-refactor-v1.md-183-    
+.claude/references/oracle-dual-agent-refactor-v1.md-184-    # ... 继续现有 verify 逻辑 ...
+.claude/references/oracle-dual-agent-refactor-v1.md-185-```
+--
+.claude/references/oracle-dual-agent-refactor-v1.md-236-
+.claude/references/oracle-dual-agent-refactor-v1.md-237-| 文件 | 变更类型 | 预计行数 |
+.claude/references/oracle-dual-agent-refactor-v1.md-238-|------|---------|---------|
+.claude/references/oracle-dual-agent-refactor-v1.md-239-| `.claude/scripts/oracle_agent.py` | 重写（140→180 行） | ~180 |
+.claude/references/oracle-dual-agent-refactor-v1.md-240-| `.claude/scripts/meta_oracle.py` | 修复+优化（433→300 行） | ~300 |
+.claude/references/oracle-dual-agent-refactor-v1.md-241-| `.claude/scripts/carros_base.py` | 追加+2 函数 + gate 命令 | +80 |
+.claude/references/oracle-dual-agent-refactor-v1.md-242-| `AGENTS.md` | 追加路由表 | +15 |
+.claude/references/oracle-dual-agent-refactor-v1.md-243-
+.claude/references/oracle-dual-agent-refactor-v1.md-244-### 不变文件 (4)
+.claude/references/oracle-dual-agent-refactor-v1.md-245-
+.claude/references/oracle-dual-agent-refactor-v1.md-246-| 文件 | 原因 |
+.claude/references/oracle-dual-agent-refactor-v1.md-247-|------|------|
+.claude/references/oracle-dual-agent-refactor-v1.md:248:| `.claude/scripts/oracle_gate.py` | 独立 hook，不参与双 agent 体系 |
+.claude/references/oracle-dual-agent-refactor-v1.md-249-| `.claude/scripts/carros_utils.py` | 辅助函数已稳定 |
+.claude/references/oracle-dual-agent-refactor-v1.md-250-| `.omc/state/oracle-verdicts/` | 目录结构不变，裁决写入目标 |
+.claude/references/oracle-dual-agent-refactor-v1.md-251-| `.omc/state/oracle_bypass/` | 目录结构不变 |
+.claude/references/oracle-dual-agent-refactor-v1.md-252-
+.claude/references/oracle-dual-agent-refactor-v1.md-253----
+.claude/references/oracle-dual-agent-refactor-v1.md-254-
+.claude/references/oracle-dual-agent-refactor-v1.md-255-## 4. 验收标准
+.claude/references/oracle-dual-agent-refactor-v1.md-256-
+.claude/references/oracle-dual-agent-refactor-v1.md-257-### 4.1 单元级验收
+.claude/references/oracle-dual-agent-refactor-v1.md-258-
+.claude/references/oracle-dual-agent-refactor-v1.md-259-```
+.claude/references/oracle-dual-agent-refactor-v1.md-260-$ python3 .claude/scripts/oracle_agent.py review --target .claude/scripts/carros_base.py --task-id test-001
+--
+.claude/references/oracle-spec.md-1-# Oracle 门禁规格
+.claude/references/oracle-spec.md-2-
+.claude/references/oracle-spec.md-3-> L2 Enhance 核心门禁。5 点触发 → 裁决(Accept/Warn/Reject/Escalate)
+.claude/references/oracle-spec.md:4:> 触发后调用 `.omc/scripts/oracle_gate.py`
+.claude/references/oracle-spec.md-5-> 人类可根据此文档配置 oracle 触发规则
+.claude/references/oracle-spec.md-6-
+.claude/references/oracle-spec.md-7-## 触发条件 (5 点)
+.claude/references/oracle-spec.md-8-
+.claude/references/oracle-spec.md-9-| # | 触发点 | 匹配规则 | 类型 |
+.claude/references/oracle-spec.md-10-|---|--------|---------|------|
+.claude/references/oracle-spec.md-11-| 1 | 跨系统操作 | file path matches `/etc/`, `/usr/local/`, `/Applications/`, `/System/` | 硬阻断 |
+.claude/references/oracle-spec.md-12-| 2 | 不可逆操作 | command contains `rm -rf`, `dd`, `diskutil`, `sudo`, `chmod 777` | 硬阻断 |
+.claude/references/oracle-spec.md-13-| 3 | 安全/权限变更 | file path matches `.ssh/`, `.env`, `credentials`, `secret`, `id_rsa` | 硬阻断 |
+.claude/references/oracle-spec.md-14-| 4 | 发布动作 | command contains `deploy`, `release`, `publish`, `push --force` | 软上门 |
+.claude/references/oracle-spec.md-15-| 5 | 长时间无人 | session thread_count > 0 且 last_user_message > 3600s | 软上门 |
+.claude/references/oracle-spec.md-16-
+--
+.claude/references/oracle-spec.md-23-ESCALATE → 人类审批（生成 CAPTCHA 文件对）
+.claude/references/oracle-spec.md-24-```
+.claude/references/oracle-spec.md-25-
+.claude/references/oracle-spec.md-26-## 绕过机制
+.claude/references/oracle-spec.md-27-
+.claude/references/oracle-spec.md-28-- `oracle_bypass/` 目录放 `<task_id>_approved.md` 文件 → 自动跳过 Oracle
+.claude/references/oracle-spec.md-29-- 有效期 24h（检查文件 mtime < 86400s）
+.claude/references/oracle-spec.md-30-- 过期间 Oracle 执行后自动删旧 bypass 文件
+.claude/references/oracle-spec.md-31-
+.claude/references/oracle-spec.md-32-## 调用方式
+.claude/references/oracle-spec.md-33-
+.claude/references/oracle-spec.md-34-```
+.claude/references/oracle-spec.md:35:python3 .omc/scripts/oracle_gate.py --check <触发点ID> [--path <路径>] [--command <命令>]
+.claude/references/oracle-spec.md-36-```
+.claude/references/oracle-spec.md-37-
+.claude/references/oracle-spec.md-38-返回 JSON: `{"verdict":"ACCEPT","reason":"..."}`
+--
+.claude/references/enhance/oracle-spec.md-1-# Oracle 门禁规格
+.claude/references/enhance/oracle-spec.md-2-
+.claude/references/enhance/oracle-spec.md-3-> L2 Enhance 核心门禁。5 点触发 → 裁决(Accept/Warn/Reject/Escalate)
+.claude/references/enhance/oracle-spec.md:4:> 触发后调用 `.omc/scripts/oracle_gate.py`
+.claude/references/enhance/oracle-spec.md-5-> 人类可根据此文档配置 oracle 触发规则
+.claude/references/enhance/oracle-spec.md-6-
+.claude/references/enhance/oracle-spec.md-7-## 触发条件 (5 点)
+.claude/references/enhance/oracle-spec.md-8-
+.claude/references/enhance/oracle-spec.md-9-| # | 触发点 | 匹配规则 | 类型 |
+.claude/references/enhance/oracle-spec.md-10-|---|--------|---------|------|
+.claude/references/enhance/oracle-spec.md-11-| 1 | 跨系统操作 | file path matches `/etc/`, `/usr/local/`, `/Applications/`, `/System/` | 硬阻断 |
+.claude/references/enhance/oracle-spec.md-12-| 2 | 不可逆操作 | command contains `rm -rf`, `dd`, `diskutil`, `sudo`, `chmod 777` | 硬阻断 |
+.claude/references/enhance/oracle-spec.md-13-| 3 | 安全/权限变更 | file path matches `.ssh/`, `.env`, `credentials`, `secret`, `id_rsa` | 硬阻断 |
+.claude/references/enhance/oracle-spec.md-14-| 4 | 发布动作 | command contains `deploy`, `release`, `publish`, `push --force` | 软上门 |
+.claude/references/enhance/oracle-spec.md-15-| 5 | 长时间无人 | session thread_count > 0 且 last_user_message > 3600s | 软上门 |
+.claude/references/enhance/oracle-spec.md-16-
+--
+.claude/references/enhance/oracle-spec.md-23-ESCALATE → 人类审批（生成 CAPTCHA 文件对）
+.claude/references/enhance/oracle-spec.md-24-```
+.claude/references/enhance/oracle-spec.md-25-
+.claude/references/enhance/oracle-spec.md-26-## 绕过机制
+.claude/references/enhance/oracle-spec.md-27-
+.claude/references/enhance/oracle-spec.md-28-- `oracle_bypass/` 目录放 `<task_id>_approved.md` 文件 → 自动跳过 Oracle
+.claude/references/enhance/oracle-spec.md-29-- 有效期 24h（检查文件 mtime < 86400s）
+.claude/references/enhance/oracle-spec.md-30-- 过期间 Oracle 执行后自动删旧 bypass 文件
+.claude/references/enhance/oracle-spec.md-31-
+.claude/references/enhance/oracle-spec.md-32-## 调用方式
+.claude/references/enhance/oracle-spec.md-33-
+.claude/references/enhance/oracle-spec.md-34-```
+.claude/references/enhance/oracle-spec.md:35:python3 .omc/scripts/oracle_gate.py --check <触发点ID> [--path <路径>] [--command <命令>]
+.claude/references/enhance/oracle-spec.md-36-```
+.claude/references/enhance/oracle-spec.md-37-
+.claude/references/enhance/oracle-spec.md-38-返回 JSON: `{"verdict":"ACCEPT","reason":"..."}`
+--
+.claude/settings.local.json-209-      "Bash(echo \"smoke-self exit=$?\")",
+.claude/settings.local.json-210-      "Bash(echo \"secrets-scan-exit=$?\")",
+.claude/settings.local.json-211-      "Bash(echo \"sol-verify exit=$?\")",
+.claude/settings.local.json-212-      "Bash(rm -rf /tmp/carroros-ind-v3)",
+.claude/settings.local.json-213-      "Bash(mkdir -p /tmp/carroros-ind-v3)",
+.claude/settings.local.json-214-      "Bash(rm -rf /tmp/smoke-ind-nd-v3)",
+.claude/settings.local.json-215-      "Bash(SMOKE_RUNNER=independent bash \"scripts/carroros-gates/smoke/run-all.sh\" --manifest \"scripts/carroros-gates/templates/night-manifest.template.yaml\" --night-dir \"/tmp/smoke-ind-nd-v3\" --target-repo \"/Users/lucas.liang/Desktop/CarrorOS\" --out \"/tmp/smoke-ind-nd-v3/smoke-results-independent.yaml\")",
+.claude/settings.local.json-216-      "Bash(tee UI/round5/logs/sol-artifact-verify-20260718.log)",
+.claude/settings.local.json-217-      "Bash(python3 -c \"import json; t=json.load\\(open\\('.omc/tokens/20260713/verify-round2.json'\\)\\); print\\(json.dumps\\({k: \\(list\\(v.keys\\(\\)\\) if isinstance\\(v,dict\\) else v\\) for k,v in t.items\\(\\)}, ensure_ascii=False, indent=1\\)\\)\")",
+.claude/settings.local.json-218-      "Bash(python3 -c ' *)",
+.claude/settings.local.json-219-      "Bash(python3 -c \"import json; t=json.load\\(open\\('.omc/state/token.json'\\)\\); print\\(json.dumps\\(t,ensure_ascii=False\\)[:400]\\)\")",
+.claude/settings.local.json-220-      "Bash(ln -sf \"../../.claude/scripts/carros_base.py\" \".omc/scripts/carros_base.py\")",
+.claude/settings.local.json:221:      "Bash(ln -sf \"../../.claude/scripts/oracle_gate.py\" \".omc/scripts/oracle_gate.py\")",
+.claude/settings.local.json-222-      "Bash(ln -sf \"../../.claude/scripts/fallback_engine.py\" \".omc/scripts/fallback_engine.py\")",
+.claude/settings.local.json-223-      "Bash(read c *)",
+.claude/settings.local.json-224-      "Bash(awk '$6==\"Jul\" && $7>=13 {print $5, $6, $7, $8, $9}')",
+.claude/settings.local.json-225-      "Bash(sort -k3 -n)",
+.claude/settings.local.json-226-      "Bash(echo \"status_exit=$?\")",
+.claude/settings.local.json-227-      "Bash(echo \"omc_path_exit=$?\")",
+.claude/settings.local.json-228-      "Bash(bash /Users/lucas.liang/Desktop/CarrorOS/scripts/test-hook-launcher.sh)",
+.claude/settings.local.json-229-      "Bash(echo \"grep_exit=$?\")",
+.claude/settings.local.json-230-      "Bash(echo \"grep_tool_exit=$?\")",
+.claude/settings.local.json-231-      "Bash(bash scripts/assemble-pkg-materials.sh)",
+.claude/settings.local.json-232-      "Bash(mkdir -p pkg-b-parts)",
+.claude/settings.local.json-233-      "Bash(split -b 90000 -d -a 2 pkg-b.md pkg-b-parts/pkg-b.part-)",
+--
+.claude/index.md-23-
+.claude/index.md-24-| 触发点 | 注册位置 | 说明 |
+.claude/index.md-25-|--------|----------|------|
+.claude/index.md-26-| 统一门禁 | `.claude/settings.json` → `hooks.PreToolUse` | pretool-gate.py（G1-G6），每工具调用前自动执行 |
+.claude/index.md-27-| Hook 调度 | `.claude/hooks/hook-launcher.sh` | 从 settings.json 按名启动具体 hook |
+.claude/index.md-28-
+.claude/index.md-29-## 脚本快速索引
+.claude/index.md-30-
+.claude/index.md-31-| 脚本 | 用途 |
+.claude/index.md-32-|------|------|
+.claude/index.md-33-| `carros_base.py` | 主入口（init/status/tick/verify/archive/lint） |
+.claude/index.md-34-| `omc_lint.py` | 7 项代码规范检查 |
+.claude/index.md:35:| `verify_gate.py` | 完成验证门禁 |
+.claude/index.md-36-| `tool_store.py` | 工具结果落盘（Phase 0 S4） |
+.claude/index.md-37-| `error_dna.py` | Error DNA 自动生成与 Retry Gate（Phase 1） |
+.claude/index.md:38:| `oracle_gate_light.py` | Oracle 条件接入（Phase 1，同级模型） |
+.claude/index.md-39-| `water_level.py` | 三段式水位运行时（Phase 1，已接入） |
+.claude/index.md-40-| `phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
+.claude/index.md-41-
+.claude/index.md-42-> 完整脚本列表见 `.claude/scripts/` 目录。docs/carros/reviews/ 为审核参考材料，默认禁止入模。
+--
+.claude/hooks/pretool-gate.py-242-            if m:
+.claude/hooks/pretool-gate.py-243-                files.append(m.group(1).replace("\\", "/"))
+.claude/hooks/pretool-gate.py-244-    return files
+.claude/hooks/pretool-gate.py-245-
+.claude/hooks/pretool-gate.py-246-def _in_scope(path: str, scope: list[str]) -> bool:
+.claude/hooks/pretool-gate.py-247-    p = path.replace("\\", "/").lstrip("./")
+.claude/hooks/pretool-gate.py-248-    for item in scope:
+.claude/hooks/pretool-gate.py-249-        s = item.replace("\\", "/").lstrip("./")
+.claude/hooks/pretool-gate.py-250-        if p == s or p.endswith("/" + s) or p.startswith(s.rstrip("/") + "/"):
+.claude/hooks/pretool-gate.py-251-            return True
+.claude/hooks/pretool-gate.py-252-    return False
+.claude/hooks/pretool-gate.py-253-
+.claude/hooks/pretool-gate.py:254:def _check_verified(step_id: str | None) -> bool:
+.claude/hooks/pretool-gate.py-255-    if not AUDIT.exists():
+.claude/hooks/pretool-gate.py-256-        return False
+.claude/hooks/pretool-gate.py-257-    for f in sorted(AUDIT.glob("*.jsonl")):
+.claude/hooks/pretool-gate.py-258-        with f.open("r", encoding="utf-8") as fh:
+.claude/hooks/pretool-gate.py-259-            for line in fh:
+.claude/hooks/pretool-gate.py-260-                try:
+.claude/hooks/pretool-gate.py-261-                    e = json.loads(line)
+.claude/hooks/pretool-gate.py-262-                except json.JSONDecodeError:
+.claude/hooks/pretool-gate.py-263-                    continue
+.claude/hooks/pretool-gate.py-264-                # carros_base.py writes: {"event": "verify", "data": {"step": "S1", "result": "VERIFIED"}}
+.claude/hooks/pretool-gate.py-265-                if e.get("event") == "verify":
+.claude/hooks/pretool-gate.py-266-                    data = e.get("data", {})
+--
+.claude/hooks/pretool-gate.py-531-    if not _in_scope(path, scope):
+.claude/hooks/pretool-gate.py-532-        _append_audit({
+.claude/hooks/pretool-gate.py-533-            "event_type": "scope_violation",
+.claude/hooks/pretool-gate.py-534-            "actor": "hook:pretool-gate",
+.claude/hooks/pretool-gate.py-535-            "decision": "WARN",
+.claude/hooks/pretool-gate.py-536-            "reason": "plan_scope_violation",
+.claude/hooks/pretool-gate.py-537-            "path": path,
+.claude/hooks/pretool-gate.py-538-            "scope": scope[:10],
+.claude/hooks/pretool-gate.py-539-        })
+.claude/hooks/pretool-gate.py-540-        return None  # 放行
+.claude/hooks/pretool-gate.py-541-    return None
+.claude/hooks/pretool-gate.py-542-
+.claude/hooks/pretool-gate.py:543:def _check_verify_gate(payload: dict) -> str | None:
+.claude/hooks/pretool-gate.py-544-    """Gate 6: block unverified step [x] marks in plan.md."""
+.claude/hooks/pretool-gate.py-545-    tool = _extract_tool(payload).lower()
+.claude/hooks/pretool-gate.py-546-    if tool not in WRITE_TOOLS:
+.claude/hooks/pretool-gate.py-547-        return None
+.claude/hooks/pretool-gate.py-548-    path = _extract_path(payload)
+.claude/hooks/pretool-gate.py-549-    if not path or not any(path.replace("\\", "/").endswith(p) for p in PLAN_FILE_PATTERNS):
+.claude/hooks/pretool-gate.py-550-        return None
+.claude/hooks/pretool-gate.py-551-    ti = _extract_input(payload)
+.claude/hooks/pretool-gate.py-552-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
+.claude/hooks/pretool-gate.py-553-    if not re.search(r"\[x\]", content, re.IGNORECASE):
+.claude/hooks/pretool-gate.py-554-        return None
+.claude/hooks/pretool-gate.py-555-    token = _active_token()
+.claude/hooks/pretool-gate.py-556-    if not token:
+.claude/hooks/pretool-gate.py-557-        return None
+.claude/hooks/pretool-gate.py-558-    task = token.get("task", {})
+.claude/hooks/pretool-gate.py-559-    if not isinstance(task, dict):
+.claude/hooks/pretool-gate.py-560-        return None
+.claude/hooks/pretool-gate.py-561-    current_step = task.get("current_step")
+.claude/hooks/pretool-gate.py:562:    if not _check_verified(current_step):
+.claude/hooks/pretool-gate.py-563-        _append_audit({
+.claude/hooks/pretool-gate.py-564-            "event_type": "verifygate_preaction_block",
+.claude/hooks/pretool-gate.py-565-            "actor": "hook:pretool-gate",
+.claude/hooks/pretool-gate.py-566-            "decision": "BLOCK",
+.claude/hooks/pretool-gate.py-567-            "reason": "step_not_verified",
+.claude/hooks/pretool-gate.py-568-            "path": path,
+.claude/hooks/pretool-gate.py-569-            "current_step": current_step,
+.claude/hooks/pretool-gate.py-570-        })
+.claude/hooks/pretool-gate.py-571-        return f"BLOCK step_{current_step}_not_VERIFIED"
+.claude/hooks/pretool-gate.py-572-    return None
+.claude/hooks/pretool-gate.py-573-
+.claude/hooks/pretool-gate.py:574:def _check_oracle_gate(payload: dict) -> str | None:
+.claude/hooks/pretool-gate.py-575-    """Gate 7: hint for L2 oracle triggers (never blocks)."""
+.claude/hooks/pretool-gate.py-576-    token = _active_token()
+.claude/hooks/pretool-gate.py-577-    if not token:
+.claude/hooks/pretool-gate.py-578-        return None
+.claude/hooks/pretool-gate.py-579-    session = token.get("session", {}) or {}
+.claude/hooks/pretool-gate.py-580-    if session.get("level", "L1_BASE") != "L2_ENHANCE":
+.claude/hooks/pretool-gate.py-581-        return None
+.claude/hooks/pretool-gate.py-582-    command = _extract_command(payload)
+.claude/hooks/pretool-gate.py-583-    if not command:
+.claude/hooks/pretool-gate.py-584-        return None
+.claude/hooks/pretool-gate.py-585-    cmd_lower = command.lower()
+.claude/hooks/pretool-gate.py-586-    force = any(kw in cmd_lower for kw in ORACLE_FORCE_KW)
+.claude/hooks/pretool-gate.py-587-    trigger = force or any(kw in cmd_lower for kw in ORACLE_TRIGGER_KW)
+.claude/hooks/pretool-gate.py-588-    if not trigger:
+.claude/hooks/pretool-gate.py-589-        return None
+.claude/hooks/pretool-gate.py-590-    task = token.get("task", {})
+.claude/hooks/pretool-gate.py-591-    phase = task.get("phase", "execute") if isinstance(task, dict) else "execute"
+.claude/hooks/pretool-gate.py-592-    _append_audit({
+.claude/hooks/pretool-gate.py:593:        "event_type": "oracle_gate_trigger",
+.claude/hooks/pretool-gate.py-594-        "actor": "hook:pretool-gate",
+.claude/hooks/pretool-gate.py-595-        "decision": "REVIEW",
+.claude/hooks/pretool-gate.py-596-        "reason": "potential_oracle_trigger_detected",
+.claude/hooks/pretool-gate.py-597-        "current_step": task.get("current_step") if isinstance(task, dict) else None,
+.claude/hooks/pretool-gate.py-598-        "phase": phase,
+.claude/hooks/pretool-gate.py-599-    })
+.claude/hooks/pretool-gate.py-600-    # Oracle never blocks — but emits a real hint so the L2 operator sees it
+.claude/hooks/pretool-gate.py-601-    level = "FORCE" if force else "TRIGGER"
+.claude/hooks/pretool-gate.py-602-    print(
+.claude/hooks/pretool-gate.py-603-        f"🔮 [oracle-gate] L2 {level} 触发检测：建议完成后执行双审判 "
+.claude/hooks/pretool-gate.py-604-        f"`python3 .claude/scripts/carros_base.py oracle review` 或 /lx-oracle review",
+.claude/hooks/pretool-gate.py-605-        file=sys.stderr, flush=True,
+--
+.claude/hooks/pretool-gate.py-806-    return "BLOCK CONTEXT_CRITICAL_PAUSED allowed=status/checkpoint/compact/resume/archive"
+.claude/hooks/pretool-gate.py-807-
+.claude/hooks/pretool-gate.py-808-
+.claude/hooks/pretool-gate.py-809-# ── Gate registry ──
+.claude/hooks/pretool-gate.py-810-
+.claude/hooks/pretool-gate.py-811-GATES = [
+.claude/hooks/pretool-gate.py-812-    ("context-critical", _check_context_critical_pause),
+.claude/hooks/pretool-gate.py-813-    ("sensitive-edit", _check_sensitive_edit),
+.claude/hooks/pretool-gate.py-814-    ("fallback", _check_fallback),
+.claude/hooks/pretool-gate.py-815-    ("action", _check_action_gate),
+.claude/hooks/pretool-gate.py-816-    ("plan", _check_plan_gate),
+.claude/hooks/pretool-gate.py-817-    ("edit-scope", _check_edit_scope),
+.claude/hooks/pretool-gate.py:818:    ("verify", _check_verify_gate),
+.claude/hooks/pretool-gate.py:819:    ("oracle", _check_oracle_gate),
+.claude/hooks/pretool-gate.py-820-    ("document-quality", _check_document_quality),
+.claude/hooks/pretool-gate.py-821-    # Context-control gates (G2/G3/G5/G6)
+.claude/hooks/pretool-gate.py-822-    ("g2-large-file", _check_g2_large_file),
+.claude/hooks/pretool-gate.py-823-    ("g3-reviews", _check_g3_reviews),
+.claude/hooks/pretool-gate.py-824-    ("g5-wide-glob", _check_g5_wide_glob),
+.claude/hooks/pretool-gate.py-825-    ("g6-budget", _check_g6_budget),
+.claude/hooks/pretool-gate.py-826-]
+.claude/hooks/pretool-gate.py-827-
+.claude/hooks/pretool-gate.py-828-
+.claude/hooks/pretool-gate.py-829-def main() -> int:
+.claude/hooks/pretool-gate.py-830-    payload = _read_stdin()
+.claude/hooks/pretool-gate.py-831-    tool_name = _extract_tool(payload).lower() or "unknown"
+--
+.claude/scripts/runtime_verify2.py-11-    try:
+.claude/scripts/runtime_verify2.py-12-        r = subprocess.run(cmd, cwd=str(PROJECT), capture_output=True, text=True, timeout=timeout, shell=True)
+.claude/scripts/runtime_verify2.py-13-        ok = check_fn(r.stdout, r.stderr) if r.returncode == 0 else False
+.claude/scripts/runtime_verify2.py-14-        status = 'PASS' if ok else 'FAIL'
+.claude/scripts/runtime_verify2.py-15-    except Exception as e:
+.claude/scripts/runtime_verify2.py-16-        status = 'FAIL'
+.claude/scripts/runtime_verify2.py-17-        r_stdout = ''
+.claude/scripts/runtime_verify2.py-18-    results.append({'test': name, 'status': status, 'stdout': r.stdout[:200] if hasattr(r,'stdout') else ''})
+.claude/scripts/runtime_verify2.py-19-    print(f'  [{status}] {name}')
+.claude/scripts/runtime_verify2.py-20-
+.claude/scripts/runtime_verify2.py-21-from lib.tool_store import store_tool_result
+.claude/scripts/runtime_verify2.py-22-from lib.error_dna import record_error, check_retry_gate
+.claude/scripts/runtime_verify2.py:23:from lib.oracle_gate_light import should_trigger_oracle
+.claude/scripts/runtime_verify2.py-24-from lib.flywheel import run_flywheel
+.claude/scripts/runtime_verify2.py-25-from lib.autonomy import load_contract, LoopDetector, check_autonomy_gate
+.claude/scripts/runtime_verify2.py-26-import yaml
+.claude/scripts/runtime_verify2.py-27-
+.claude/scripts/ru

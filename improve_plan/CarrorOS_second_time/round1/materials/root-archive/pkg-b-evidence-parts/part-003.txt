@@ -1,0 +1,358 @@
+ependencies.yaml-136-    protects: [lx-goal, lx-ghost]
+.claude/skills/skill-dependencies.yaml-137-    description: 决策链过滤，减少自主模式下的不必要打断
+.claude/skills/skill-dependencies.yaml-138-  - gate: pretool_git_gate
+.claude/skills/skill-dependencies.yaml-139-    protects: [lx-git-check]
+.claude/skills/skill-dependencies.yaml-140-    description: Git 提交前检查门禁
+.claude/skills/skill-dependencies.yaml-141-  - gate: pretool_skill_version_guard
+.claude/skills/skill-dependencies.yaml-142-    protects: [lx-validate-skill, lx-skillify]
+.claude/skills/skill-dependencies.yaml-143-    description: SKILL.md 版本格式门禁
+.claude/skills/skill-dependencies.yaml-144-  - gate: pretool_skill_body_enforce
+--
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-6-
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-7-每次命令执行后输出 `governance-report.yaml` 供 orch 消费：
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-8-
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-9-```yaml
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-10-# → .omc/state/gov-latest-report.yaml
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-11-command: init|reconcile|propagate|status|audit
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-12-result: success|failure|no_changes|conflict
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-13-sub_prd: "<target>"
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-14-changes:
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-15-  - type: L1|L2|L3
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-16-    description: "<变更>"
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-17-    file: "<path>"
+.claude/skills/lx-oma/references/gov/pipeline-integration.md:18:oracle_gate:
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-19-  action: create|update|skip
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-20-  verdict: approved|pending|rejected
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-21-features_updated:
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-22-  - id: "<feature-id>"
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-23-    status: "<new-status>"
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-24-```
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-25-
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-26-## 命令 → orch 动作映射
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-27-
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-28-| 命令 | orch 动作 |
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-29-|------|----------|
+.claude/skills/lx-oma/references/gov/pipeline-integration.md-30-| init → success | stages.gov = initialized, auto-register features |
+--
+.claude/skills/lx-oma/references/orch/oracle-gate.md-1-# Oracle 门禁 & Meta-Oracle
+.claude/skills/lx-oma/references/orch/oracle-gate.md-2-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-3-> 本 skill 不自行判断 Oracle 裁决结果。只做两件事：
+.claude/skills/lx-oma/references/orch/oracle-gate.md-4-> 1. **检查 pipeline.yaml 中的 gate status** — `approved` 或 `pending`
+.claude/skills/lx-oma/references/orch/oracle-gate.md-5-> 2. **通过 gate 命令让用户/外部裁决者更新 gate status**
+.claude/skills/lx-oma/references/orch/oracle-gate.md-6-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-7-## gate — Oracle 门禁裁决
+.claude/skills/lx-oma/references/orch/oracle-gate.md-8-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-9-`/lx-oma-orch gate <og-id> approve|reject [--reason "..."]`
+.claude/skills/lx-oma/references/orch/oracle-gate.md-10-
+.claude/skills/lx-oma/references/orch/oracle-gate.md:11:- `approve`：门禁通过，允许阶段推进。更新 `oracle_gates[].status = approved`
+.claude/skills/lx-oma/references/orch/oracle-gate.md:12:- `reject`：门禁拒绝。更新 `oracle_gates[].status = rejected`
+.claude/skills/lx-oma/references/orch/oracle-gate.md-13-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-14-裁决逻辑由外部 Oracle 节点（`oracle_terminal.md`）完成，orch 只负责编排和状态维护。
+.claude/skills/lx-oma/references/orch/oracle-gate.md-15-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-16-## Meta-Oracle 最后守门（G2 触发）
+.claude/skills/lx-oma/references/orch/oracle-gate.md-17-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-18-当整个管线到达最终阶段（所有 Oracle gate 已 approved，dev 阶段 completed），触发 G2：
+.claude/skills/lx-oma/references/orch/oracle-gate.md-19-
+.claude/skills/lx-oma/references/orch/oracle-gate.md:20:1. **触发时机**：`stages.dev = completed` + 所有 `oracle_gates[].status = approved`
+.claude/skills/lx-oma/references/orch/oracle-gate.md-21-2. **执行方式**：`bash .claude/scripts/meta-oracle-review.sh G2`
+.claude/skills/lx-oma/references/orch/oracle-gate.md-22-3. **门禁类型**：软门禁 — ACCEPT/ADVISORY/REJECT
+.claude/skills/lx-oma/references/orch/oracle-gate.md-23-4. **留痕**：`.omc/state/meta-oracle-verdicts.md`
+.claude/skills/lx-oma/references/orch/oracle-gate.md-24-
+.claude/skills/lx-oma/references/orch/oracle-gate.md-25-> Meta-Oracle 消耗巨大（opus + 独立上下文），仅在管线最终完成时触发一次。
+--
+.claude/skills/lx-oma/references/orch/interface-contract.md-18-  hier: 调 lx-oma-hier → hier 写 pipeline.yaml → orch 确认 → 等待 gate
+.claude/skills/lx-oma/references/orch/interface-contract.md-19-  oma:  调 lx-oma-split → split 写 pipeline.yaml → orch 确认 → 等待 gate
+.claude/skills/lx-oma/references/orch/interface-contract.md-20-  gov:  调 lx-oma-gov → gov 写 gov-latest-report.yaml → orch 读 report 更新 pipeline
+.claude/skills/lx-oma/references/orch/interface-contract.md-21-  rpe:  调 lx-rpe → rpe 写 progress.md → orch 汇总 → 等待 gate
+.claude/skills/lx-oma/references/orch/interface-contract.md-22-```
+.claude/skills/lx-oma/references/orch/interface-contract.md-23-
+.claude/skills/lx-oma/references/orch/interface-contract.md-24-## 接口版本锁定
+.claude/skills/lx-oma/references/orch/interface-contract.md-25-
+.claude/skills/lx-oma/references/orch/interface-contract.md-26-| 接口 | 版本 | 变更影响范围 |
+.claude/skills/lx-oma/references/orch/interface-contract.md-27-|------|------|-------------|
+.claude/skills/lx-oma/references/orch/interface-contract.md-28-| pipeline.yaml stages | v1 (keys: {hier,oma,gov,rpe,dev}) | 所有 4 个 skill 读，orch 写 |
+.claude/skills/lx-oma/references/orch/interface-contract.md-29-| pipeline.yaml sub_prds[] | v1 (keys: {id, path, status, oracle, features[]}) | hier/split 写，orch 读 |
+.claude/skills/lx-oma/references/orch/interface-contract.md:30:| pipeline.yaml oracle_gates[] | v1 (keys: {id, from_stage, to_stage, status}) | orch 写/读 |
+.claude/skills/lx-oma/references/orch/interface-contract.md-31-| pipeline.yaml features[] | v1 (keys: {id, path, stage, oracle}) | split 写，orch 读 |
+.claude/skills/lx-oma/references/orch/interface-contract.md-32-| gov-latest-report.yaml | v1 | gov 写，orch 读 |
+.claude/skills/lx-oma/references/orch/interface-contract.md-33-
+.claude/skills/lx-oma/references/orch/interface-contract.md-34-> v1 接口不兼容变更必须创建 v2 新 key，旧 key 保留至少 1 个迭代周期。
+--
+.claude/skills/lx-oma/SKILL.md-1----
+.claude/skills/lx-oma/SKILL.md-2-name: lx-oma
+.claude/skills/lx-oma/SKILL.md-3-description: OMA Pipeline — hierarchically decompose, split into features, govern, orchestrate
+.claude/skills/lx-oma/SKILL.md-4-version: v2.0.0
+.claude/skills/lx-oma/SKILL.md-5-harness_version: ">=6.3.0"
+.claude/skills/lx-oma/SKILL.md-6-status: stable
+.claude/skills/lx-oma/SKILL.md-7-argument-hint: >
+.claude/skills/lx-oma/SKILL.md:8:  hier <path> [output_dir] | split <path> [--pipeline <id>] |
+.claude/skills/lx-oma/SKILL.md-9-  gov init|reconcile|resolve|propagate|status|audit [path] |
+.claude/skills/lx-oma/SKILL.md-10-  orch status|advance|gate|run|dev
+.claude/skills/lx-oma/SKILL.md-11-when_to_use: PRD 全生命周期 — 拆解、拆分、治理、编排
+.claude/skills/lx-oma/SKILL.md-12-triggers: ["/lx-oma", "oma", "pipeline", "/lx-oma-hier", "/lx-oma-split", "/lx-oma-gov", "/lx-oma-orch", "分层拆解", "prd 拆分", "拆解需求", "一人成军拆解", "oma治理", "reconcile", "propagate", "漂移检测", "管线状态", "orchestrate"]
+.claude/skills/lx-oma/SKILL.md-13-role: "OMA — Pipeline lifecycle (hier → split → gov → rpe)"
+.claude/skills/lx-oma/SKILL.md-14-execution_mode: stepwise
+.claude/skills/lx-oma/SKILL.md-15----
+.claude/skills/lx-oma/SKILL.md-16-
+.claude/skills/lx-oma/SKILL.md-17-# lx-oma OMA Pipeline — Unified Skill
+.claude/skills/lx-oma/SKILL.md-18-
+.claude/skills/lx-oma/SKILL.md-19-> 合并自 lx-oma-hier v1.3.2 · lx-oma-split v1.2.1 · lx-oma-gov v1.2.1 · lx-oma-orch v1.2.2
+.claude/skills/lx-oma/SKILL.md-20-> 向后兼容：原 `/lx-oma-hier` `/lx-oma-split` `/lx-oma-gov` `/lx-oma-orch` 仍可触发
+.claude/skills/lx-oma/SKILL.md-21-
+.claude/skills/lx-oma/SKILL.md-22-## Subcommand 分发
+.claude/skills/lx-oma/SKILL.md-23-
+.claude/skills/lx-oma/SKILL.md-24-```
+.claude/skills/lx-oma/SKILL.md-25-/lx-oma hier <path> [output_dir]           → L1 分层拆解（原 lx-oma-hier）
+.claude/skills/lx-oma/SKILL.md:26:/lx-oma split <path> [--pipeline <id>]     → L2 特性拆解（原 lx-oma-split）
+.claude/skills/lx-oma/SKILL.md-27-/lx-oma gov <subcommand> [args...]         → 治理操作（原 lx-oma-gov）
+.claude/skills/lx-oma/SKILL.md-28-/lx-oma orch <subcommand> [args...]        → 管线编排（原 lx-oma-orch）
+.claude/skills/lx-oma/SKILL.md-29-```
+.claude/skills/lx-oma/SKILL.md-30-
+.claude/skills/lx-oma/SKILL.md-31-> **注意：** `execution_mode: stepwise` 为根级声明。split 子命令内部使用 `race` 模式 — AI 自主拆解 + 脚手架构建后交还人工审核门禁。
+.claude/skills/lx-oma/SKILL.md-32-
+.claude/skills/lx-oma/SKILL.md-33-## 共享 OMA 基础设施
+.claude/skills/lx-oma/SKILL.md-34-
+.claude/skills/lx-oma/SKILL.md-35-| 文件 | 路径 | 用途 |
+.claude/skills/lx-oma/SKILL.md-36-|------|------|------|
+.claude/skills/lx-oma/SKILL.md-37-| 降级升级策略 | `@../references/oma/degradation-escalation.md` | 降级路径 |
+.claude/skills/lx-oma/SKILL.md-38-| 裁决链 | `@../references/oma/decision-chain.md` | 决策记录 |
+--
+.claude/skills/lx-oma/SKILL.md-74-
+.claude/skills/lx-oma/SKILL.md-75-```
+.claude/skills/lx-oma/SKILL.md-76-need_input → [reading → analyzing → generating → verifying] → done
+.claude/skills/lx-oma/SKILL.md-77-```
+.claude/skills/lx-oma/SKILL.md-78-
+.claude/skills/lx-oma/SKILL.md-79-### 任务目标
+.claude/skills/lx-oma/SKILL.md-80-
+.claude/skills/lx-oma/SKILL.md-81-将超大型 PRD 按功能域 MECE 拆分为 N 个 Sub PRD，确保功能正交、黑盒边界、可独立闭环、可独立交付。
+.claude/skills/lx-oma/SKILL.md-82-> Sub PRD 模板 → `@references/hier/sub-prd-template.md` · 全生命周期管线 → `@../references/oma/pipeline-contract.md`
+.claude/skills/lx-oma/SKILL.md-83-
+.claude/skills/lx-oma/SKILL.md-84-### 参数处理
+.claude/skills/lx-oma/SKILL.md-85-
+.claude/skills/lx-oma/SKILL.md:86:入参 `<path>` + 可选 `[output_dir]`。模式：`--pipeline` 编排模式 / 无参数 手动模式。
+.claude/skills/lx-oma/SKILL.md-87-输出路径: kernel.md 约定 → 用户显式 → 默认 `sub-prds/`。
+.claude/skills/lx-oma/SKILL.md-88-文件直接读、目录读所有 `.md`、图片描述结构。
+.claude/skills/lx-oma/SKILL.md-89-
+.claude/skills/lx-oma/SKILL.md-90-### MECE 功能域拆解
+.claude/skills/lx-oma/SKILL.md-91-
+.claude/skills/lx-oma/SKILL.md-92-1. **识别核心业务实体** → 实体归属表（实体名/候选域/归属理由/原文引用）
+.claude/skills/lx-oma/SKILL.md-93-2. **按职责聚类** → 围绕实体聚合功能
+.claude/skills/lx-oma/SKILL.md-94-3. **正交性校验** → 域对检查职责重叠+数据交叉
+.claude/skills/lx-oma/SKILL.md-95-4. **边界确认** → 每个域"管什么/不管什么"
+.claude/skills/lx-oma/SKILL.md-96-
+.claude/skills/lx-oma/SKILL.md-97-#### MECE 校验摘要
+.claude/skills/lx-oma/SKILL.md-98-- 正交性矩阵: 域对×重叠点×裁决（引用原文）
+--
+.claude/skills/lx-oma/SKILL.md-156-
+.claude/skills/lx-oma/SKILL.md-157-#### 3. 脚手架构建 → `@references/split/scaffolding-template.md`
+.claude/skills/lx-oma/SKILL.md-158-每个 Feature 自动生成 `prd/{sub_prd_name}/feat-XXX/{state,contracts,mocks}/prd.md`。
+.claude/skills/lx-oma/SKILL.md-159-
+.claude/skills/lx-oma/SKILL.md-160-#### 4. 接口归属校验（阻断门禁） → `@references/split/interface-verification.md`
+.claude/skills/lx-oma/SKILL.md-161-`verify_oma_interface_coverage.py` — 未归属接口必须修复后才放行。
+.claude/skills/lx-oma/SKILL.md-162-
+.claude/skills/lx-oma/SKILL.md-163-#### 5. 战报交付 → `@references/split/delivery-report.md`
+.claude/skills/lx-oma/SKILL.md-164-输出 feature 清单 + 并发启动指令（`/lx-rpe prd/...`）。
+.claude/skills/lx-oma/SKILL.md-165-
+.claude/skills/lx-oma/SKILL.md-166-### Pipeline 集成
+.claude/skills/lx-oma/SKILL.md-167-
+.claude/skills/lx-oma/SKILL.md:168:入口 `--pipeline <id>` → 检查 `hier_done` → 出口 `features[].stage=oma_created`。
+.claude/skills/lx-oma/SKILL.md-169-> 完整契约 → `@../references/oma/pipeline-contract.md`
+.claude/skills/lx-oma/SKILL.md-170-
+.claude/skills/lx-oma/SKILL.md-171-### 人工审核门禁
+.claude/skills/lx-oma/SKILL.md-172-
+.claude/skills/lx-oma/SKILL.md-173-```
+.claude/skills/lx-oma/SKILL.md-174-[ ] feature prd.md 完整？  [ ] 接口归属 exit 0？
+.claude/skills/lx-oma/SKILL.md-175-[ ] 无 phantom 接口？      [ ] MECE 正交？
+.claude/skills/lx-oma/SKILL.md-176-[ ] 所有目录已创建？
+.claude/skills/lx-oma/SKILL.md-177-确认: /lx-oma orch gate og-NNN approve
+.claude/skills/lx-oma/SKILL.md-178-```
+.claude/skills/lx-oma/SKILL.md-179-
+.claude/skills/lx-oma/SKILL.md-180-### 降级策略
+--
+.claude/skills/lx-oma/SKILL.md-274-|------|---------|
+.claude/skills/lx-oma/SKILL.md-275-| `references/orch/status-panel.md` | status |
+.claude/skills/lx-oma/SKILL.md-276-| `references/orch/advance-flow.md` | advance |
+.claude/skills/lx-oma/SKILL.md-277-| `references/orch/oracle-gate.md` | gate |
+.claude/skills/lx-oma/SKILL.md-278-| `references/orch/dev-management.md` | dev |
+.claude/skills/lx-oma/SKILL.md-279-| `references/orch/interface-contract.md` | 接口契约 |
+.claude/skills/lx-oma/SKILL.md-280-| `references/orch/manual-review.md` | 人工审核 |
+.claude/skills/lx-oma/SKILL.md-281-
+.claude/skills/lx-oma/SKILL.md-282-### 状态机
+.claude/skills/lx-oma/SKILL.md-283-
+.claude/skills/lx-oma/SKILL.md-284-```
+.claude/skills/lx-oma/SKILL.md-285-idle → [status] → done
+.claude/skills/lx-oma/SKILL.md:286:     → [advance] → checking_oracle_gate
+.claude/skills/lx-oma/SKILL.md-287-         → [blocked] → awaiting_decision → [approve/reject] → advance/abort
+.claude/skills/lx-oma/SKILL.md-288-         → [passed] → calling_skill → update_pipeline → done
+.claude/skills/lx-oma/SKILL.md-289-     → [gate <id> approve|reject] → update_pipeline → done
+.claude/skills/lx-oma/SKILL.md-290-     → [run <target>] → route_to_skill → done
+.claude/skills/lx-oma/SKILL.md-291-     → [dev list|mark] → done
+.claude/skills/lx-oma/SKILL.md-292-```
+.claude/skills/lx-oma/SKILL.md-293-
+.claude/skills/lx-oma/SKILL.md-294-### 命令
+.claude/skills/lx-oma/SKILL.md-295-
+.claude/skills/lx-oma/SKILL.md-296-#### status — 管线全景 → `@references/orch/status-panel.md`
+.claude/skills/lx-oma/SKILL.md-297-#### advance — 推进阶段 → `@references/orch/advance-flow.md`
+.claude/skills/lx-oma/SKILL.md-298-检查→路由→执行→更新→人工确认。
+--
+.claude/skills/lx-validate-skill/references/report-templates.md-29-
+.claude/skills/lx-validate-skill/references/report-templates.md-30-### 结果：{N} 错误, {M} 警告
+.claude/skills/lx-validate-skill/references/report-templates.md-31-
+.claude/skills/lx-validate-skill/references/report-templates.md-32-#### 错误列表
+.claude/skills/lx-validate-skill/references/report-templates.md-33-| 规则 | 问题 | 修复建议 |
+.claude/skills/lx-validate-skill/references/report-templates.md-34-|------|------|---------|
+.claude/skills/lx-validate-skill/references/report-templates.md-35-| R3 | 缺少原子化声明 | 添加 ## 原子化声明 区块 |
+.claude/skills/lx-validate-skill/references/report-templates.md-36-| ... | ... | ... |
+.claude/skills/lx-validate-skill/references/report-templates.md-37-
+.claude/skills/lx-validate-skill/references/report-templates.md-38-#### 警告列表
+.claude/skills/lx-validate-skill/references/report-templates.md-39-| 规则 | 问题 | 建议 |
+.claude/skills/lx-validate-skill/references/report-templates.md-40-|------|------|------|
+.claude/skills/lx-validate-skill/references/report-templates.md:41:| R6 | 缺少状态机声明 | 添加 ### 状态机 声明 |
+.claude/skills/lx-validate-skill/references/report-templates.md-42-| ... | ... | ... |
+.claude/skills/lx-validate-skill/references/report-templates.md-43-```
+.claude/skills/lx-validate-skill/references/report-templates.md-44-
+.claude/skills/lx-validate-skill/references/report-templates.md-45-## 链路追踪
+.claude/skills/lx-validate-skill/references/report-templates.md-46-
+.claude/skills/lx-validate-skill/references/report-templates.md-47-```bash
+.claude/skills/lx-validate-skill/references/report-templates.md-48-# 完整执行路径 + 错误路径 + Token 节省画像
+.claude/skills/lx-validate-skill/references/report-templates.md-49-python3 .claude/skills/lx-validate-skill/scripts/skill_trace_report.py
+.claude/skills/lx-validate-skill/references/report-templates.md-50-
+.claude/skills/lx-validate-skill/references/report-templates.md-51-# 仅 Token 节省分析（JSON 输出）
+.claude/skills/lx-validate-skill/references/report-templates.md-52-python3 .claude/skills/lx-validate-skill/scripts/skill_trace_report.py --tokens-only
+.claude/skills/lx-validate-skill/references/report-templates.md-53-
+--
+.claude/skills/lx-validate-skill/SKILL.md-54-| `references/report-templates.md` | 生成合规报告时 |
+.claude/skills/lx-validate-skill/SKILL.md-55----
+.claude/skills/lx-validate-skill/SKILL.md-56-
+.claude/skills/lx-validate-skill/SKILL.md-57-表
+.claude/skills/lx-validate-skill/SKILL.md-58-
+.claude/skills/lx-validate-skill/SKILL.md-59-| 编号 | 规则 | 检查方式 |
+.claude/skills/lx-validate-skill/SKILL.md-60-|:----|:-----|:---------|
+.claude/skills/lx-validate-skill/SKILL.md-61-| R1 | frontmatter 包含必填字段 | yaml 解析 |
+.claude/skills/lx-validate-skill/SKILL.md-62-| R2 | SKILL.md 包含 nodes 声明 | `grep '^nodes:' SKILL.md` |
+.claude/skills/lx-validate-skill/SKILL.md-63-| R3 | SKILL.md 内联完整（无 body_ref） | 无 body_ref: 行 |
+.claude/skills/lx-validate-skill/SKILL.md-64-| R4 | 无私有 nodes/ 目录 | `ls skills/lx-*/nodes/` |
+.claude/skills/lx-validate-skill/SKILL.md-65-| R5 | 无私有 schemas/ 目录 | `ls skills/lx-*/schemas/` |
+.claude/skills/lx-validate-skill/SKILL.md:66:| R6 | scripts/ 仅 .py（无 .sh 超出模板文件） | glob 检查 |
+.claude/skills/lx-validate-skill/SKILL.md-67-| R7 | frontmatter 有 description | yaml 校验 |
+.claude/skills/lx-validate-skill/SKILL.md-68-| R8 | 至少引用 1 个 `../../nodes/` | grep SKILL.md |
+.claude/skills/lx-validate-skill/SKILL.md-69-| R9 | 至少引用 1 个 `../../schemas/` | grep SKILL.md |
+.claude/skills/lx-validate-skill/SKILL.md-70-| R10 | 无私有 nodes | 同 R4 |
+.claude/skills/lx-validate-skill/SKILL.md-71-| R11 | 无私有 schemas | 同 R5 |
+.claude/skills/lx-validate-skill/SKILL.md-72-
+.claude/skills/lx-validate-skill/SKILL.md-73-## 执行流程
+.claude/skills/lx-validate-skill/SKILL.md-74-
+.claude/skills/lx-validate-skill/SKILL.md-75-```
+.claude/skills/lx-validate-skill/SKILL.md-76-1. 确定检查目标（指定 skill 或 all）
+.claude/skills/lx-validate-skill/SKILL.md-77-2. 逐 skill 扫描 R1-R11（scanner 节点单规则执行）
+.claude/skills/lx-validate-skill/SKILL.md-78-3. 输出合规报告（含每条规则的 PASS/FAIL）
+--
+.claude/skills/lx-rpe/prd.md-10-4. Fallback 是 stamp-only 桩代码
+.claude/skills/lx-rpe/prd.md-11-5. 特征验证 63 条检查中 11 条 `lambda: True`，52 条 grep 关键字匹配，全是假阳性
+.claude/skills/lx-rpe/prd.md-12-6. `randomized_bench.py` 每次清理中间状态，不测试真正 hook 链
+.claude/skills/lx-rpe/prd.md-13-
+.claude/skills/lx-rpe/prd.md-14-## 阶段性目标
+.claude/skills/lx-rpe/prd.md-15-
+.claude/skills/lx-rpe/prd.md-16-### 🔴 Phase 0：修复致命断裂
+.claude/skills/lx-rpe/prd.md-17-1. 创建 `.claude/scripts/context_engine.py`（按 6.md §13 完整代码）
+.claude/skills/lx-rpe/prd.md-18-2. 修复 `userprompt-session-resume.py` 的调用路径
+.claude/skills/lx-rpe/prd.md-19-3. 注册 SessionStart hooks（按 1.md §6.1）
+.claude/skills/lx-rpe/prd.md-20-
+.claude/skills/lx-rpe/prd.md-21-### 🔴 Phase 1：VerifyGate 完成门
+.claude/skills/lx-rpe/prd.md:22:1. 创建 `.claude/scripts/verify_gate.py`（按 5.md spec）
+.claude/skills/lx-rpe/prd.md-23-2. VerifyGate 从 Stop 改为 PreToolUse 拦截
+.claude/skills/lx-rpe/prd.md-24-3. 创建 `pretool-verify-gate.py`
+.claude/skills/lx-rpe/prd.md-25-
+.claude/skills/lx-rpe/prd.md-26-### 🟡 Phase 2：Output Compression
+.claude/skills/lx-rpe/prd.md-27-1. 创建 `output_compress.py` + `posttool-output-compress.py`
+.claude/skills/lx-rpe/prd.md-28-2. Bash 输出 >2000 chars 裁剪中间段
+.claude/skills/lx-rpe/prd.md-29-
+.claude/skills/lx-rpe/prd.md-30-### 🟡 Phase 3：Fallback 熔断
+.claude/skills/lx-rpe/prd.md-31-1. 重写 `fallback_engine.py`（按 8.md §17 代码）
+.claude/skills/lx-rpe/prd.md-32-2. 重写 `pretool-fallback-check.py`（移除 stamp 一次性逻辑）
+.claude/skills/lx-rpe/prd.md-33-
+.claude/skills/lx-rpe/prd.md-34-### 🟡 Phase 4：Context Engine 完整
+--
+.claude/skills/lx-rpe/references/gate-checklist.md-1-# Gate 检查清单（lx-rpe Phase1/2/3 Gate 加载）
+.claude/skills/lx-rpe/references/gate-checklist.md-2-
+.claude/skills/lx-rpe/references/gate-checklist.md-3-## Gate-R（Research Gate，Phase 1 退出）
+.claude/skills/lx-rpe/references/gate-checklist.md-4-| # | 检查项 | 通过标准|
+.claude/skills/lx-rpe/references/gate-checklist.md-5-|---|--------|---------|
+.claude/skills/lx-rpe/references/gate-checklist.md-6-|R1 | 链路完整且可解释 | 调用链引用实际 file:line，非纯推断|
+.claude/skills/lx-rpe/references/gate-checklist.md-7-|R2 | 约束完整 | 技术/业务/合规三类均已评估|
+.claude/skills/lx-rpe/references/gate-checklist.md-8-|R3 | 风险可解释 | 每个风险有缓解方案 + 触发条件|
+.claude/skills/lx-rpe/references/gate-checklist.md-9-|R4 | 未决问题已处理 | 所有问题有答案或明确标注阻断|
+.claude/skills/lx-rpe/references/gate-checklist.md-10-|R5 | 假设含证伪规则 | 每个假设说明"如果错了怎么发现"|
+.claude/skills/lx-rpe/references/gate-checklist.md:11:|R6 | 进度快照已核实 | state/progress.md 与实际一致 |
+.claude/skills/lx-rpe/references/gate-checklist.md-12-
+.claude/skills/lx-rpe/references/gate-checklist.md-13-## Gate-P（Plan Gate，Phase 2 退出）
+.claude/skills/lx-rpe/references/gate-checklist.md-14-| # | 检查项 | 通过标准|
+.claude/skills/lx-rpe/references/gate-checklist.md-15-|---|--------|---------|
+.claude/skills/lx-rpe/references/gate-checklist.md-16-|P1 | 任务分解完整 | 每个 Task 可独立验收|
+.claude/skills/lx-rpe/references/gate-checklist.md-17-|P2 | AC 可验证 | 三段式：步骤/成功结果/失败结果|
+.claude/skills/lx-rpe/references/gate-checklist.md-18-|P3 | 测试可执行 | 工具和命令已指定|
+.claude/skills/lx-rpe/references/gate-checklist.md-19-|P4 | 回滚可执行 | 每个 Task 有明确回滚步骤|
+.claude/skills/lx-rpe/references/gate-checklist.md-20-|P5 | DOD 明确 | 完成定义可检查|
+.claude/skills/lx-rpe/references/gate-checklist.md-21-|P6 | 用户显式批准 | 用户回复"开始"或等价确认 |
+.claude/skills/lx-rpe/references/gate-checklist.md-22-
+.claude/skills/lx-rpe/references/gate-checklist.md-23-## Gate-X（执行前检查，每个 Task 前）
+--
+.claude/skills/lx-rpe/research.md-29-│   │   ├── pretool-fallback-check.py ← stamp-only 桩
+.claude/skills/lx-rpe/research.md-30-│   │   ├── pretool-plan-gate.py      ← 检查 plan.md 存在
+.claude/skills/lx-rpe/research.md-31-│   │   ├── pretool-edit-scope.py     ← 检查 scope 冻结
+.claude/skills/lx-rpe/research.md-32-│   │   ├── pretool-sensitive-edit.py ← 敏感路径检查
+.claude/skills/lx-rpe/research.md-33-│   │   ├── posttool-audit.py         ← 审计记录
+.claude/skills/lx-rpe/research.md-34-│   │   ├── posttool-completion-gate.py → Stop 事件上
+.claude/skills/lx-rpe/research.md-35-│   │   └── statusline-command.sh     ← statusline
+.claude/skills/lx-rpe/research.md-36-│   ├── scripts/                  ← 17 个脚本（6 个 symlink → .omc/scripts/）
+.claude/skills/lx-rpe/research.md-37-│   │   ├── carros_base.py → .omc/scripts/carros_base.py
+.claude/skills/lx-rpe/research.md-38-│   │   ├── intake_gate.py           ← 存在但 hooks 不调用
+.claude/skills/lx-rpe/research.md-39-│   │   ├── plan_builder.py          ← 存在但 hooks 不调用
+.claude/skills/lx-rpe/research.md-40-│   │   ├── context_watermark.py     ← 存在但 hooks 不调用
+.claude/skills/lx-rpe/research.md:41:│   │   ├── oracle_gate.py           ← stub
+.claude/skills/lx-rpe/research.md-42-│   │   ├── oracle_agent.py          ← stub
+.claude/skills/lx-rpe/research.md-43-│   │   ├── meta_oracle.py           ← stub
+.claude/skills/lx-rpe/research.md-44-│   │   ├── oracle_spawn.py          ← stub
+.claude/skills/lx-rpe/research.md-45-│   │   ├── static_oracle_agent.py   ← stub
+.claude/skills/lx-rpe/research.md-46-│   │   ├── runtime_oracle_agent.py  ← stub
+.claude/skills/lx-rpe/research.md-47-│   │   ├── fallback_engine.py → .omc/scripts/fallback_engine.py
+.claude/skills/lx-rpe/research.md-48-│   │   ├── fallback_matrix.py       ← 存在但 hooks 不调用
+.claude/skills/lx-rpe/research.md-49-│   │   ├── carros_utils.py          ← 工具函数
+.claude/skills/lx-rpe/research.md-50-│   │   ├── statusline.py            ← statusline 渲染
+.claude/skills/lx-rpe/research.md-51-│   │   └── omc_lint.py → .omc/scripts/omc_lint.py
+.claude/skills/lx-rpe/research.md-52-│   │
+.claude/skills/lx-rpe/research.md-53-│   ├── settings.json            ← hooks 注册
+--
+.claude/skills/lx-rpe/research.md-111-  → hook_block("Resume: BLOCK context_engine_missing")
+.claude/skills/lx-rpe/research.md-112-  → 每个新会话启动被阻塞
+.claude/skills/lx-rpe/research.md-113-```
+.claude/skills/lx-rpe/research.md-114-
+.claude/skills/lx-rpe/research.md-115-## 2. 设计文档代码状态对照
+.claude/skills/lx-rpe/research.md-116-
+.claude/skills/lx-rpe/research.md-117-| 文档 | 设计代码 | 磁盘状态 | 差距 |
+.claude/skills/lx-rpe/research.md-118-|------|---------|---------|------|
+.claude/skills/lx-rpe/research.md-119-| 1.md §11 | `intake_gate.py` 1400 行 | 在 `.claude/scripts/` 存在但 hooks 不调用 | ⚠️ 未接入 hook 链 |
+.claude/skills/lx-rpe/research.md-120-| 2.md §16 | `plan_builder.py` 1460 行 | 存在但 hooks 不调用 | ⚠️ 未接入 hook 链 |
+.claude/skills/lx-rpe/research.md-121-| 3.md §11 | `pre_action_gate.py` 1200 行 | 存在但 hooks 有简化版 | ⚠️ hooks 版本和设计文档不一致 |
+.claude/skills/lx-rpe/research.md-122-| 4.md §13 | `executor_ledger.py` 1180 行 | 不存在 | ❌ |
+.claude/skills/lx-rpe/research.md:123:| 5.md §12 | `verify_gate.py` ~500 行 | 不存在 | ❌ |
+.claude/skills/lx-rpe/research.md-124-| 6.md §13 | `context_engine.py` 1200 行 | **不存在** | ❌ 生产断裂 |
+.claude/skills/lx-rpe/research.md-125-| 7.md §14 | `oracle_engine.py` ~600 行 | 在 `.omc/scripts/` 有但 hooks 不调用 | ⚠️ |
+.claude/skills/lx-rpe/research.md-126-| 8.md §17 | `fallback_engine.py` 1100 行 | 存在但 hooks 版本是 stamp-only | ⚠️ |
+.claude/skills/lx-rpe/research.md-127-| 9.md §8 | `statusline.py` 650 行 | 存在且有效 | ✅ |
+.claude/skills/lx-rpe/research.md-128-| 10.md §11 | `archive_engine.py` 1150 行 | 存在但 hooks 不调用 | ⚠️ |
+.claude/skills/lx-rpe/research.md-129-
+.claude/skills/lx-rpe/research.md-130-## 3. 验证系统现状
+.claude/skills/lx-rpe/research.md-131-
+.claude/skills/lx-rpe/research.md-132-`feature_verify.py` 的 63 条检查分布：
+.claude/skills/lx-rpe/research.md-133-- 11 条 `lambda: True`（永远通过，不检查任何东西）
+.claude/skills/lx-rpe/research.md-134-- 52 条 grep 源码关键字（只在 .py 文件里搜字符串，不检查运行时行为）
+.claude/skills/lx-rpe/research.md-135-- 0 条真正运行 hook 测试运行时行为
+--
+.claude/skills/lx-rpe/plan.md-2-
+.claude/skills/lx-rpe/plan.md-3-## Task 列表
+.claude/skills/lx-rpe/plan.md-4-
+.claude/skills/lx-rpe/plan.md-5-### Task 1: Phase 0 — 修复致命断裂（生产阻塞）
+.claude/skills/lx-rpe/plan.md-6-- AC1.1: `context_engine.py` 创建，支持 compact-check/resume-check/state-injection
+.claude/skills/lx-rpe/plan.md-7-- AC1.2: `userprompt-session-start.py` 新建（从 session-resume 迁移，去掉 stamp）
+.claude/skills/lx-rpe/plan.md-8-- AC1.3: `settings.json` 注册 SessionStart hook，UserPromptSubmit 移除

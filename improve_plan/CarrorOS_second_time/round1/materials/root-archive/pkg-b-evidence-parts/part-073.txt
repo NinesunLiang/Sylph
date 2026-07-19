@@ -1,0 +1,649 @@
+ 
+   134	    if "auth_change" in hints_lower:
+   135	        score -= 30
+   136	    if "permission" in hints_lower:
+   137	        score -= 25
+   138	    if "production" in hints_lower:
+   139	        score -= 20
+   140	    if "cross_module" in hints_lower:
+   141	        score -= 10
+   142	    
+   143	    # 检查 diff 中是否有 .env / credential 类文件
+   144	    diff = pack.get("diff_summary", {})
+   145	    risk_files = diff.get("risk_files", [])
+   146	    for rf in risk_files:
+   147	        if any(k in rf.lower() for k in [".env", "credential", "secret", "key", "token"]):
+   148	            score -= 40
+   149	    
+   150	    return {"score": round(max(0, score), 1), "detail": f"risk_hints: {risk_hints}"}
+   151	
+   152	
+   153	def _calc_contract_preservation(pack: dict) -> dict:
+   154	    """契约保持 (0-100)"""
+   155	    constraints = pack.get("user_constraints", [])
+   156	    
+   157	    if not constraints:
+   158	        return {"score": 90, "detail": "no explicit constraints"}
+   159	    
+   160	    # 有约束时默认保守给分
+   161	    score = max(70, 100 - len(constraints) * 5)
+   162	    
+   163	    return {"score": round(score, 1), "detail": f"{len(constraints)} constraints"}
+   164	
+   165	
+   166	def _calc_failure_resolution(pack: dict) -> dict:
+   167	    """失败解决 (0-100)"""
+   168	    failures = pack.get("recent_failures", [])
+   169	    
+   170	    if not failures:
+   171	        return {"score": 100, "detail": "no recent failures"}
+   172	    
+   173	    resolved = sum(1 for f in failures if f.get("covered_by"))
+   174	    total = len(failures)
+   175	    
+   176	    if total == 0:
+   177	        return {"score": 100, "detail": "no failures"}
+   178	    
+   179	    ratio = resolved / total
+   180	    score = ratio * 100
+   181	    
+   182	    return {"score": round(score, 1), "detail": f"{resolved}/{total} failures resolved"}
+   183	
+   184	
+   185	def _calc_archive_readiness(pack: dict) -> dict:
+   186	    """归档就绪度 (0-100)"""
+   187	    trigger = pack.get("trigger", "")
+   188	    completed = pack.get("completed_steps", [])
+   189	    
+   190	    if trigger == "final_acceptance":
+   191	        # 最终归档需要步阶梯完成
+   192	        if not completed:
+   193	            return {"score": 20, "detail": "no completed steps for final_acceptance"}
+   194	        score = min(100, len(completed) * 20)
+   195	    else:
+   196	        score = 80
+   197	    
+   198	    return {"score": round(score, 1), "detail": f"trigger={trigger}, {len(completed)} steps"}
+   199	
+   200	
+   201	def run_l2_pass_curve(pack: dict) -> dict:
+   202	    """L2 Model-pass-curve — 7.md §6: 7 维度结构化评分"""
+   203	    calculators = {
+   204	        "evidence_coverage": _calc_evidence_coverage,
+   205	        "scope_integrity": _calc_scope_integrity,
+   206	        "regression_risk": _calc_regression_risk,
+   207	        "security_risk": _calc_security_risk,
+   208	        "contract_preservation": _calc_contract_preservation,
+   209	        "failure_resolution": _calc_failure_resolution,
+   210	        "archive_readiness": _calc_archive_readiness,
+   211	    }
+   212	    
+   213	    scores = {}
+   214	    total = 0.0
+   215	    critical_issues = []
+   216	    
+   217	    for dim, calc_fn in calculators.items():
+   218	        result = calc_fn(pack)
+   219	        scores[dim] = result["score"]
+   220	        total += result["score"]
+   221	        
+   222	        if result["score"] < CRITICAL_FLOOR:
+   223	            critical_issues.append({
+   224	                "dimension": dim,
+   225	                "score": result["score"],
+   226	                "detail": result["detail"],
+   227	            })
+   228	    
+   229	    average = round(total / len(calculators), 2)
+   230	    
+   231	    return {
+   232	        "scores": scores,
+   233	        "average": average,
+   234	        "critical_issues": critical_issues,
+   235	    }
+   236	
+   237	
+   238	# ── L3 Multi-Judge 投票 ──
+   239	# 7.md §7: Safety / Correctness / Architecture
+   240	
+   241	def run_l3_multi_judge(pack: dict, l2_result: dict) -> list:
+   242	    """L3 Multi-Judge — 基于 L2 评分推导 Judge 投票"""
+   243	    scores = l2_result["scores"]
+   244	    judges = []
+   245	    
+   246	    # Judge-A: Safety — 基于 security_risk + 检查高风险 hint
+   247	    security = scores.get("security_risk", 100)
+   248	    risk_hints = [h.lower() for h in pack.get("risk_hints", [])]
+   249	    
+   250	    if security < 60:
+   251	        vote = "REJECT"
+   252	        reason = "security_risk below critical floor"
+   253	    elif security < 75 or any(h in risk_hints for h in ["auth_change", "production", "permission"]):
+   254	        vote = "WARN"
+   255	        reason = "elevated security risk or sensitive risk hint"
+   256	    else:
+   257	        vote = "ACCEPT"
+   258	        reason = "no significant security concern"
+   259	    
+   260	    judges.append({
+   261	        "judge": "Safety",
+   262	        "vote": vote,
+   263	        "reason": reason,
+   264	        "required_action": "review security impact" if vote != "ACCEPT" else None,
+   265	    })
+   266	    
+   267	    # Judge-B: Correctness — 基于 evidence + regression
+   268	    evidence = scores.get("evidence_coverage", 0)
+   269	    regression = scores.get("regression_risk", 100)
+   270	    
+   271	    if evidence < 60 or regression < 60:
+   272	        vote = "REJECT"
+   273	        reason = "insufficient evidence or high regression risk"
+   274	    elif evidence < 75 or regression < 75:
+   275	        vote = "WARN"
+   276	        reason = "evidence or regression coverage below threshold"
+   277	    else:
+   278	        vote = "ACCEPT"
+   279	        reason = "evidence and regression acceptable"
+   280	    
+   281	    judges.append({
+   282	        "judge": "Correctness",
+   283	        "vote": vote,
+   284	        "reason": reason,
+   285	        "required_action": "strengthen test coverage" if vote != "ACCEPT" else None,
+   286	    })
+   287	    
+   288	    # Judge-C: Architecture — 基于 scope + contract
+   289	    scope = scores.get("scope_integrity", 100)
+   290	    contract = scores.get("contract_preservation", 100)
+   291	    
+   292	    if scope < 60 or contract < 60:
+   293	        vote = "REJECT"
+   294	        reason = "scope violation or contract break"
+   295	    elif scope < 75 or contract < 75:
+   296	        vote = "WARN"
+   297	        reason = "architectural concerns in scope or contract"
+   298	    else:
+   299	        vote = "ACCEPT"
+   300	        reason = "architecture consistent"
+   301	    
+   302	    judges.append({
+   303	        "judge": "Architecture",
+   304	        "vote": vote,
+   305	        "reason": reason,
+   306	        "required_action": "review scope boundaries" if vote != "ACCEPT" else None,
+   307	    })
+   308	    
+   309	    return judges
+   310	
+   311	
+   312	# ── Meta-Oracle 归一裁决 ──
+   313	# 7.md §8: 冲突归一规则
+   314	
+   315	META_RULES = {
+   316	    "accept_accept": "ACCEPT",
+   317	    "accept_warn": "WARN",
+   318	    "warn_accept": "WARN",
+   319	    "warn_warn": "WARN",
+   320	}
+   321	
+   322	
+   323	def run_meta_oracle(l2_result: dict, judges: list) -> dict:
+   324	    """Meta-Oracle 归一裁决 — 7.md §8"""
+   325	    l2_decision = _l2_decision(l2_result)
+   326	    l3_vote_map = {j["judge"]: j["vote"] for j in judges}
+   327	    
+   328	    # 任一安全类 REJECT → 不允许自动覆盖
+   329	    safety_vote = l3_vote_map.get("Safety", "")
+   330	    if safety_vote == "REJECT":
+   331	        return {
+   332	            "decision": "REJECT",
+   333	            "reason": "l3_reject:Safety",
+   334	            "required_action": "obtain human security approval",
+   335	            "l2_decision": l2_decision,
+   336	            "l3_votes": l3_vote_map,
+   337	        }
+   338	    
+   339	    # 其他 REJECT
+   340	    if any(v == "REJECT" for v in l3_vote_map.values()):
+   341	        reject_judges = [j for j in judges if j["vote"] == "REJECT"]
+   342	        return {
+   343	            "decision": "REJECT",
+   344	            "reason": f"l3_reject:{','.join(j['judge'] for j in reject_judges)}",
+   345	            "required_action": "rerun VerifyGate or repair evidence",
+   346	            "l2_decision": l2_decision,
+   347	            "l3_votes": l3_vote_map,
+   348	        }
+   349	    
+   350	    # L2 决定
+   351	    if l2_decision == "REJECT":
+   352	        return {
+   353	            "decision": "REJECT",
+   354	            "reason": "l2_reject",
+   355	            "required_action": "rerun VerifyGate or repair evidence",
+   356	            "l2_decision": l2_decision,
+   357	            "l3_votes": l3_vote_map,
+   358	        }
+   359	    
+   360	    if l2_decision == "ESCALATE":
+   361	        return {
+   362	            "decision": "ESCALATE",
+   363	            "reason": "l2_escalate",
+   364	            "required_action": "human decision required",
+   365	            "l2_decision": l2_decision,
+   366	            "l3_votes": l3_vote_map,
+   367	        }
+   368	    
+   369	    # 两个及以上 WARN
+   370	    warn_count = sum(1 for v in l3_vote_map.values() if v == "WARN")
+   371	    if warn_count >= 2:
+   372	        return {
+   373	            "decision": "WARN",
+   374	            "reason": "l3_multi_warn",
+   375	            "required_action": "address all warnings before next phase",
+   376	            "l2_decision": l2_decision,
+   377	            "l3_votes": l3_vote_map,
+   378	        }
+   379	    
+   380	    # 一个 WARN + 两个 ACCEPT → 由 Meta-Oracle 裁断
+   381	    if warn_count == 1:
+   382	        if l2_decision == "ACCEPT":
+   383	            decision = "ACCEPT"
+   384	            reason = "l2_accept_with_notes"
+   385	        else:
+   386	            decision = "WARN"
+   387	            reason = "l2_or_l3_warn"
+   388	        return {
+   389	            "decision": decision,
+   390	            "reason": reason,
+   391	            "required_action": None,
+   392	            "l2_decision": l2_decision,
+   393	            "l3_votes": l3_vote_map,
+   394	        }
+   395	    
+   396	    # 三个 ACCEPT
+   397	    if l2_decision == "ACCEPT":
+   398	        return {
+   399	            "decision": "ACCEPT",
+   400	            "reason": "l2_l3_accept",
+   401	            "required_action": None,
+   402	            "l2_decision": l2_decision,
+   403	            "l3_votes": l3_vote_map,
+   404	        }
+   405	    
+   406	    # L2 WARN + L3 全 ACCEPT → WARN
+   407	    return {
+   408	        "decision": "WARN",
+   409	        "reason": "l2_warn",
+   410	        "required_action": "address l2 warnings before proceeding",
+   411	        "l2_decision": l2_decision,
+   412	        "l3_votes": l3_vote_map,
+   413	    }
+   414	
+   415	
+   416	def _l2_decision(l2_result: dict) -> str:
+   417	    """从 L2 pass-curve 推导裁决"""
+   418	    average = l2_result["average"]
+   419	    critical = l2_result["critical_issues"]
+   420	    
+   421	    if critical:
+   422	        return "REJECT"
+   423	    
+   424	    if average >= ACCEPT_AVERAGE:
+   425	        return "ACCEPT"
+   426	    
+   427	    if average >= WARN_AVERAGE:
+   428	        return "WARN"
+   429	    
+   430	    return "REJECT"
+   431	
+   432	
+   433	# ── 主入口 ──
+   434	
+   435	def main():
+   436	    if len(sys.argv) < 2:
+   437	        print(json.dumps({"error": "Usage: oracle_engine.py <review_pack_path>"}))
+   438	        return 1
+   439	    
+   440	    pack_path = Path(sys.argv[1])
+   441	    if not pack_path.exists():
+   442	        print(json.dumps({"error": f"Review pack not found: {pack_path}"}))
+   443	        return 1
+   444	    
+   445	    pack = json.loads(pack_path.read_text())
+   446	    
+   447	    # L2 pass-curve
+   448	    l2 = run_l2_pass_curve(pack)
+   449	    
+   450	    # L3 Multi-Judge
+   451	    judges = run_l3_multi_judge(pack, l2)
+   452	    
+   453	    # Meta-Oracle 归一
+   454	    meta = run_meta_oracle(l2, judges)
+   455	    
+   456	    # 构建输出
+   457	    output = {
+   458	        "decision": meta["decision"],
+   459	        "reason": meta["reason"],
+   460	        "trigger": pack.get("trigger", "unknown"),
+   461	        "phase": pack.get("phase", "execute"),
+   462	        "l2_average": l2["average"],
+   463	        "l2_scores": l2["scores"],
+   464	        "l2_critical_issues": l2["critical_issues"],
+   465	        "l3_votes": meta["l3_votes"],
+   466	        "required_action": meta.get("required_action"),
+   467	        "residual_risk": [],
+   468	        "timestamp": datetime.now(timezone.utc).isoformat(),
+   469	    }
+   470	    
+   471	    # 构建 residual_risk
+   472	    for issue in l2["critical_issues"]:
+   473	        output["residual_risk"].append(
+   474	            f"{issue['dimension']} score={issue['score']}: {issue['detail']}"
+   475	        )
+   476	    for j in judges:
+   477	        if j["vote"] != "ACCEPT":
+   478	            output["residual_risk"].append(
+   479	                f"{j['judge']}: {j['reason']}"
+   480	            )
+   481	    
+   482	    print(json.dumps(output, indent=2, ensure_ascii=False))
+   483	    return 0
+   484	
+   485	
+   486	if __name__ == "__main__":
+   487	    sys.exit(main())
+=== PIPELINE REFERENCES ===
+
+=== FILE ./.claude/plans/carroros-skills-merge-plan.md ===
+     1	# CarrorOS 技能合并方案
+     2	
+     3	> 文档版本: v1.0
+     4	> 创建日期: 2026-07-12
+     5	> 覆盖范围: lx-oma-* 四合一 + lx-oracle-* 三合一 + lx-ghost 评估
+     6	
+     7	---
+     8	
+     9	## 目录
+    10	
+    11	1. [当前技能全景](#1-当前技能全景)
+    12	2. [A. OMA 四件套分析 (lv1)](#a-oma-四件套分析)
+    13	3. [B. Oracle 三件套分析 (lv1)](#b-oracle-三件套分析)
+    14	4. [C. lx-ghost 重叠分析](#c-lx-ghost-重叠分析)
+    15	5. [D. 合并方案详述 (lv2)](#d-合并方案详述)
+    16	6. [E. 风险与注意事项](#e-风险与注意事项)
+    17	
+    18	---
+    19	
+    20	## 1. 当前技能全景
+    21	
+    22	### 1.1 被分析技能清单
+    23	
+    24	| 技能 | 版本 | 类别 | 角色 | 文件数 |
+    25	|------|------|------|------|--------|
+    26	| lx-oma-gov | v1.2.1 | OMA 治理 | PRD 治理、漂移检测 | 8 |
+    27	| lx-oma-hier | v1.3.2 | OMA 拆解 L1 | 分层 PRD 拆解 | 6 |
+    28	| lx-oma-orch | v1.2.2 | OMA 编排 | Pipeline 编排器 | 10 |
+    29	| lx-oma-split | v1.2.1 | OMA 拆解 L2 | 特性级 RPE 拆解 | 5 |
+    30	| lx-oracle-review | 无版本号 | Oracle 编排 | 双 Agent 审核编排 | 2 |
+    31	| lx-oracle-agent | 无版本号 | Oracle 静态 | 静态分析 (Oracle-D) | 2 |
+    32	| lx-oracle-meta | 无版本号 | Oracle 运行时 | 运行时验证 (Oracle-V) | 2 |
+    33	| lx-ghost | v1.4.1 | 自主探索 | 方向驱动自主探索 | 5 |
+    34	
+    35	**7 个技能总计: 40 个文件**
+    36	
+    37	### 1.2 技能依赖图（来自 skill-dependencies.yaml）
+    38	
+    39	```
+    40	┌──────────────────────────────────────────────────────────────┐
+    41	│                     lx-oma-orch (编排器)                       │
+    42	│   orchestrates: hier, split, gov, rpe                         │
+    43	└────┬───────────┬───────────┬──────────────┬──────────────────┘
+    44	     │           │           │              │
+    45	     ▼           ▼           ▼              ▼
+    46	 lx-oma-hier  lx-oma-split lx-oma-gov   lx-rpe (不在范围)
+    47	 (L1 拆解)    (L2 拆解)    (治理)       (开发执行)
+    48	
+    49	 Pipeline: hier → split → gov → rpe → dev
+    50	```
+    51	
+    52	```
+    53	┌─────────────────────────────────────────────────────┐
+    54	│              lx-oracle-review (编排器)                │
+    55	│  oracle_spawn.py → 静态 + 运行时 → meta_oracle.py    │
+    56	└────┬────────────────────────────┬───────────────────┘
+    57	     │                            │
+    58	     ▼                            ▼
+    59	 lx-oracle-agent              lx-oracle-meta
+    60	 (static_oracle_agent.py)     (runtime_oracle_agent.py)
+    61	 (Oracle-D, 偏紧, 广度优先)   (Oracle-V, 偏松, 深度优先)
+    62	                              → meta_oracle.py (G1-G4 聚合)
+    63	```
+    64	
+    65	---
+    66	
+    67	## 2. A. OMA 四件套分析
+    68	
+    69	### 2.1 逐技能提取
+    70	
+    71	#### lx-oma-gov — OMA PRD 治理
+    72	| 项目 | 内容 |
+    73	|------|------|
+    74	| **用途** | reconcile/propagate 增量同步、冲突裁决、漂移检测、治理状态面板 |
+    75	| **状态机** | need_input → init/reconcile/status/audit → done |
+    76	| **关键流程** | 变更检测(L1/L2/L3分级) → verifier质量门禁 → resolve人工裁决 → propagate增量传播 |
+    77	| **Dependencies** | 自行管理 state/ + source-prds/ + snapshots/ |
+    78	| **文件** | SKILL.md + governance-spec.md + HUMAN-IN-THE-LOOP-GATE.md + 4 references + 1 state |
+    79	| **共享引用** | degradation-escalation · decision-chain · execution-workflow · skill-chaining · observability |
+    80	
+    81	#### lx-oma-hier — 分层 PRD 拆解大脑
+    82	| 项目 | 内容 |
+    83	|------|------|
+    84	| **用途** | 超大型 PRD 按功能域 MECE 拆分为多个 Sub PRD（黑盒/接口契约/Mock数据/内部闭环） |
+    85	| **状态机** | need_input → reading → analyzing → generating → verifying → done |
+    86	| **关键流程** | 识别业务实体 → 按职责聚类 → 正交性校验 → 边界确认 → 依赖分析 → 输出 Sub PRD |
+    87	| **Dependencies** | 委托 lx-oma-split 进一步拆解为特性级 RPE；引用 lx-oma-orch 编排 |
+    88	| **文件** | SKILL.md + 5 references |
+    89	| **共享引用** | degradation-escalation · decision-chain · execution-workflow · skill-chaining |
+    90	
+    91	#### lx-oma-orch — Pipeline Orchestrator
+    92	| 项目 | 内容 |
+    93	|------|------|
+    94	| **用途** | 4-skill 管线编排（状态查看/阶段推进/Oracle 门禁/并行开发管理） |
+    95	| **状态机** | idle → status/advance/gate/run/dev → done |
+    96	| **关键流程** | status(管线全景) → advance(推进阶段) → gate(Oracle门禁) → run(直接路由) → dev(并行开发) |
+    97	| **Dependencies** | 编排 lx-oma-hier, lx-oma-split, lx-oma-gov, lx-rpe |
+    98	| **文件** | SKILL.md + 9 references |
+    99	| **共享引用** | degradation-escalation · decision-chain · execution-workflow · skill-chaining |
+   100	
+   101	#### lx-oma-split — 一人成军拆解大脑
+   102	| 项目 | 内容 |
+   103	|------|------|
+   104	| **用途** | 将 Sub PRD 拆解为正交 feature 分支 (prd/{sub_prd}/{feature}) |
+   105	| **状态机** | need_input → reading → analyzing → scaffolding → verifying → done |
+   106	| **关键流程** | 参数读取 → MECE正交拆解(3-6 Feature) → 脚手架构建 → 接口归属校验 → 战报交付 |
+   107	| **Dependencies** | 委托 lx-oma-hier 提供 Sub PRD；引用 lx-oma-orch 编排 |
+   108	| **文件** | SKILL.md + 4 references |
+   109	| **共享引用** | degradation-escalation · decision-chain · execution-workflow · skill-chaining · pipeline-contract · observability |
+   110	
+   111	### 2.2 异同点矩阵
+   112	
+   113	| 维度 | lx-oma-hier | lx-oma-split | lx-oma-gov | lx-oma-orch |
+   114	|------|-------------|--------------|-------------|-------------|
+   115	| **管线阶段** | Stage 1 | Stage 2 | Stage 3 | 编排器（跨阶段） |
+   116	| **输入** | master-prd.md | sub-prd domain | master + feature PRDs | pipeline state |
+   117	| **输出** | sub-prds/domain-*.md | prd/{sub_prd}/feat-* | gov-report.yaml | pipeline_advancement |
+   118	| **Oracle 门禁** | 使用 (G1) | 使用 (接口校验) | 使用 (L3 冲突) | 创建门禁 |
+   119	| **MECE 原则** | 是（核心方法） | 是（核心方法） | 否 | 否 |
+   120	| **状态机风格** | 线性 5 步 | 线性 4 步 | 分支状态机 | 分支路由 |
+   121	| **人工介入** | 否 | 是（审核门禁） | 是（L3 冲突裁决） | 是（Oracle 门禁） |
+   122	| **并行能力** | 否 | 否（输出后并行 rpe） | 否 | 管理并行开发 |
+   123	| **共享引用路径** | 同 ../references/oma/ | 同 | 同 | 同 |
+   124	| **专属引用数** | 5 | 4 | 4 | 9 |
+   125	| **互相引用的重复 refs** | error-codes (hier+orch), observability (hier+orch), pipeline (hier/orch/split) |
+   126	
+   127	### 2.3 合并可行性
+   128	
+   129	**高度可行。** 四个技能构成清晰的管线链：hier→split→gov 为三个顺序阶段，orch 为编排器统筹三者。天然适合合为一个 lx-oma 技能，通过 subcommand 分发。
+   130	
+   131	**关键考量:**
+   132	- 四个技能共享同一套 OMA 公共引用（../references/oma/），天然共享基础
+   133	- 每个 skill 的 references 可合并为 references/ 下的子目录
+   134	- orch 的 9 个 ref、hier 的 5 个 ref、gov 的 4 个 ref、split 的 4 个 ref – 存在 3 个重复引用（error-codes, observability, pipeline）
+   135	- execution_mode 不同：hier/gov/orch 为 stepwise, split 为 race — 合并后需要统一声明或按 subcommand 动态选择
+   136	
+   137	---
+   138	
+   139	## 3. B. Oracle 三件套分析
+   140	
+   141	### 3.1 逐技能提取
+   142	
+   143	#### lx-oracle-review — 完整双 Agent Oracle 审核
+   144	| 项目 | 内容 |
+   145	|------|------|
+   146	| **用途** | 同时执行静态分析 + 运行时分析，再经 Meta-Oracle G1-G4 聚合评分 |
+   147	| **角色** | orchestrator — 编排 Static + Runtime 双 Oracle |
+   148	| **Dependencies** | lx-oracle-agent, lx-oracle-meta |
+   149	| **文件** | SKILL.md + references/body.md (81 行) |
+   150	| **脚本** | oracle_spawn.py（scripts/ 目录） |
+   151	
+   152	#### lx-oracle-agent — Oracle Agent 静态分析审核
+   153	| 项目 | 内容 |
+   154	|------|------|
+   155	| **用途** | 基于 Oracle-D 协议的偏紧静态检查：scope 越界、危险路径/命令、file:line 证据 |
+   156	| **角色** | critic — 静态分析，偏紧审查 |
+   157	| **Dependencies** | 无 |
+   158	| **文件** | SKILL.md + references/body.md (85 行) |
+   159	| **脚本** | static_oracle_agent.py（scripts/ 目录） |
+   160	
+   161	#### lx-oracle-meta — Meta-Oracle 运行时验证审核
+   162	| 项目 | 内容 |
+   163	|------|------|
+   164	| **用途** | 基于 Oracle-V 协议的偏松运行时验证：token 进度、executor 证据、audit 事件、G1-G4 门禁评分 |
+   165	| **角色** | critic — 运行时验证，偏松审查 |
+   166	| **Dependencies** | 依赖 Oracle Agent 的静态输出做二次判断 |
+   167	| **文件** | SKILL.md + references/body.md (103 行) |
+   168	| **脚本** | runtime_oracle_agent.py, meta_oracle.py（scripts/ 目录） |
+   169	
+   170	### 3.2 异同点矩阵
+   171	
+   172	| 维度 | lx-oracle-agent | lx-oracle-meta | lx-oracle-review |
+   173	|------|-----------------|----------------|------------------|
+   174	| **类型** | 执行引擎 | 执行引擎 | 编排器 |
+   175	| **协议** | Oracle-D (Decision) | Oracle-V (Verification) | Oracle-D+V 双检 |
+   176	| **倾向** | 偏紧（不确定=有问题） | 偏松（不确定=运行时确认） | 互补 |
+   177	| **扫描方法** | 广度优先 — 全文件扫描 | 深度优先 — 针对性证伪 | 双上下文独立执行 |
+   178	| **检查维度** | scope/危险路径/命令/证据完整性 | G1(进度)/G2(失败)/G3(通过)/G4(哲学) | 聚合静态+运行时 |
+   179	| **是否执行代码** | 否 | **是**（实弹测试/bash 执行） | 是（编排） |
+   180	| **输出** | file:line 级别的静态裁决 | token 进度 + G1-G4 评分 | 聚合裁决 (ACCEPT/ADVISORY/REJECT/ESCALATE) |
+   181	| **SKILL.md 体积** | 15 行 frontmatter | 15 行 frontmatter | 18 行 frontmatter |
+   182	| **body.md 体积** | 85 行 | 103 行 | 81 行 |
+   183	| **脚本依赖** | static_oracle_agent.py | runtime_oracle_agent.py, meta_oracle.py | oracle_spawn.py |
+   184	
+   185	### 3.3 合并可行性
+   186	
+   187	**高度可行。** 三个技能形成"编排器 + 2 个执行引擎"的经典架构，天然适合合并。
+   188	
+   189	**关键考量:**
+   190	- SKILL.md 都非常小（15-18 行），合并后约 50 行 frontmatter + 模式路由逻辑
+   191	- body.md 各自独立且充实（81-103 行），建议保留为 3 个独立 body 文件
+   192	- 脚本已经在 scripts/ 下统一存放，无需移动
+   193	- lx-oracle-review 的审核原则(body.md 行 9-18) 可提取为公共原则
+   194	- lx-oracle-meta 的 G1-G4 评分部分可以留在运行时 body 中
+   195	
+   196	---
+   197	
+   198	## 4. C. lx-ghost 重叠分析
+   199	
+   200	### 4.1 lx-ghost 定位
+   201	
+   202	| 项目 | 内容 |
+   203	|------|------|
+   204	| **用途** | 方向驱动的自主探索 — Phase 0 穷尽澄清 → Oracle 自主计划审核 → 全自动探索 → 退出报告 |
+   205	| **执行模式** | 增量 poll 迭代（每轮只做一步，方向漂移自检） |
+   206	| **触发** | ghost mode / 幽灵模式 / 自主探索 |
+   207	| **文件** | SKILL.md + 3 references + 1 script (lx-ghost.sh) |
+   208	| **关键阶段** | Phase 0: 前置澄清 → Phase 0.5: Oracle 审核(5维门禁) → 全自动轮询 → 退出报告 |
+   209	
+   210	### 4.2 lx-ghost Phase 0.5 Oracle 审核 vs lx-oracle-meta G1-G4
+   211	
+   212	| 维度 | lx-ghost Phase 0.5 | lx-oracle-meta |
+   213	|------|--------------------|----------------|
+   214	| **触发时机** | ghost 激活前（计划验证） | 执行后（结果验证） |
+   215	| **检查目的** | "计划是否可执行" | "执行是否完整" |
+   216	| **D1 方向适配** | 检查 ghost vs goal 选择 | 不涉及 |
+   217	| **D2 歧义穷尽** | Phase 0 是否有未覆盖歧义 | 不涉及 |
+   218	| **D3 硬边界完整** | 任务是否触碰未声明禁区 | 不涉及 |
+   219	| **D4 决策链覆盖** | 矩阵是否覆盖该场景 | 不涉及 |
+   220	| **D5 退出条件** | 成功/失败信号是否可验证 | 不涉及 |
+   221	| **G1 Token 进度** | 不涉及 | 检查 done/total 匹配 |
+   222	| **G2 失败模式** | 不涉及 | 检查 FAIL/ERROR/Traceback |
+   223	| **G3 通过证据** | 不涉及 | 检查 PASS/exit code 0 |
+   224	| **G4 哲学一致性** | 不涉及 | 检查软完成语 |
+   225	| **审计事件** | 不涉及 | 检查 verify 事件 |
+   226	
+   227	### 4.3 重叠结论
+   228	
+   229	**lx-ghost 与 lx-oracle-meta 功能上不重叠。**
+   230	
+   231	两者检查的维度、触发时机、目的完全不同：
+   232	- lx-ghost Phase 0.5: **事前计划质量门禁**（自主探索计划是否安全、完整、可退出）
+   233	- lx-oracle-meta: **事后执行验证引擎**（代码变更是否通过测试、证据完整）
+   234	
+   235	**建议的方案：**
+   236	1. **保留 lx-ghost**（其自主探索模式是独特功能，与 lx-goal 的"目标驱动"形成互补）
+   237	2. **精简 ghost 的 Oracle 审核逻辑** — 将 Phase 0.5 改为委托调用合并后的 lx-oracle duo 模式，删除 ghost-oracle-audit.md 中重复的 Oracle 逻辑
+   238	3. **不删除 lx-ghost** — 除非其功能可完全被 lx-goal 吸收（需要额外分析 lx-goal 的能力边界）
+   239	
+   240	---
+   241	
+   242	## 5. D. 合并方案详述
+   243	
+   244	### 5.1 方案总览
+   245	
+   246	| 合并组 | 原技能 | 目标技能 | 合并方式 |
+   247	|--------|--------|----------|----------|
+   248	| OMA | lx-oma-hier, lx-oma-split, lx-oma-gov, lx-oma-orch | **lx-oma** | subcommand 分发 |
+   249	| Oracle | lx-oracle-agent, lx-oracle-meta, lx-oracle-review | **lx-oracle** | mode 参数分发 |
+   250	| Ghost | lx-ghost | **保留但精简** | 移除内嵌 Oracle 逻辑 |
+   251	
+   252	---
+   253	
+   254	### 5.2 OMA 合并方案: lx-oma-gov + hier + orch + split → lx-oma
+   255	
+   256	#### 5.2.1 新 SKILL.md 结构
+   257	
+   258	```yaml
+   259	---
+   260	name: lx-oma
+   261	description: OMA Pipeline — hierarchically decompose, split into features, govern, orchestrate
+   262	version: v2.0.0
+   263	harness_version: ">=6.3.0"
+   264	status: stable
+   265	argument-hint: >
+   266	  hier <path> [output_dir] | split <path> [--pipeline <id>] |
+   267	  gov init|reconcile|resolve|propagate|status|audit [path] |
+   268	  orch status|advance|gate|run|dev
+   269	when_to_use: PRD 全生命周期 — 拆解、拆分、治理、编排
+   270	triggers: ["/lx-oma", "oma", "pipeline"]
+   271	role: "OMA — Pipeline lifecycle (hier → split → gov → rpe)"
+   272	execution_mode: stepwise
+   273	---
+   274	```
+   275	
+   276	#### 5.2.2 Subcommand 分发逻辑
+   277	
+   278	```
+   279	/lx-oma hier <path>          → L1 分层拆解（原 lx-oma-hier）
+   280	/lx-oma split <path>         → L2 特性拆解（原 lx-oma-split）
+   281	/lx-oma gov init|reconcile... → 治理操作（原 lx-oma-gov）
+   282	/lx-oma orch status|advance... → 管线编排（原 lx-oma-orch）
+   283	```
+   284	
+   285	#### 5.2.3 文件重组
+   286	
+   287	| 阶段 | 文件 | 去向 |
+   288	|------|------|------|
+   289	| **主文件** | SKILL.md × 4 | 合并为 1 个 SKILL.md |
+   290	| **Gov 专属** | governance-spec.md, HUMAN-IN-THE-LOOP-GATE.md, state/sync-state.md | `gov/` 子目录 |
+   291	| **Gov refs** | directory-structure.md, commands-reconcile.md, commands-audit.md, pipeline-integration.md | `refer

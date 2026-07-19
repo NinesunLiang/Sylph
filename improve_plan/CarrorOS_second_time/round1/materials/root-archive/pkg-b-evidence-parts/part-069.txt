@@ -1,0 +1,343 @@
+lbackProtocol** | `fallback_engine.py` / `fallback_matrix.py` | ~500+ | ✅ 已实现 |
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-273-| **9. CLIIntegration** | `statusline.py` / `statusline-command.sh` | ~300 | ✅ 已实现 |
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-274-| **10. ArchiveEngine** | `archive_engine.py` | ~500 | ✅ 已实现 |
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-275-
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-276-**核心引擎 `carros_base.py` (1551行) 提供的命令：**
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-277-- `init` — 初始化任务（含 Intake + Plan 创建）
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-278-- `status` — 查看状态（CLI 展示）
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-279-- `tick` — 轮次递增
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-280-- `verify` — 验证 step
+.omc/archive/design-docs/现状vs重构指导文档-对比请求.md-281-- `archive` — 归档
+--
+.omc/archive/design-docs/重构差距清单.md-1-# 重构实施差距清单（按 2026-07-10 磁盘现状更新）
+.omc/archive/design-docs/重构差距清单.md-2-
+.omc/archive/design-docs/重构差距清单.md-3-> 对比对象：`重构指导文档/1.md` ~ `10.md`、`总结.md`、`update.md`、`gap_analysis.md` 与当前仓库实现。
+.omc/archive/design-docs/重构差距清单.md-4-> 本清单只记录当前仍需关注的差距；已经实现的旧缺口单独列为“已补齐”。
+.omc/archive/design-docs/重构差距清单.md-5-
+.omc/archive/design-docs/重构差距清单.md-6-## 总体结论
+.omc/archive/design-docs/重构差距清单.md-7-
+.omc/archive/design-docs/重构差距清单.md:8:当前实现已经不再是早期“模块缺失”状态。第三轮核心链路已经落到代码里：`carros_base.py` 提供 `init/status/tick/verify/archive/lint/bench`，并额外出现 `report/clarify/plan/dispatch/poll/collect/oracle/fallback/auto` 等增强命令；`intake_gate.py`、`plan_builder.py`、`executor_ledger.py`、`verify_gate.py`、`context_watermark.py`、`fallback_matrix.py`、`oracle_engine.py` 均存在。
+.omc/archive/design-docs/重构差距清单.md-9-
+.omc/archive/design-docs/重构差距清单.md-10-现在主要差距不再是“缺文件”，而是：
+.omc/archive/design-docs/重构差距清单.md-11-
+.omc/archive/design-docs/重构差距清单.md-12-1. 文档主心智仍暴露 10 模块，和 `update.md` 要求的 L1 四动作不一致。
+.omc/archive/design-docs/重构差距清单.md-13-2. `.claude/` 与 `.omc/` 边界仍混杂，运行态 handoff 仍写入 `.claude/session-handoff.md`。
+.omc/archive/design-docs/重构差距清单.md-14-3. 日期目录格式混用 `YYYY-MM-DD` 与 `YYYYMMDD`。
+.omc/archive/design-docs/重构差距清单.md-15-4. Base 最小集目标被增强命令、skills、历史任务和重复脚本放大。
+.omc/archive/design-docs/重构差距清单.md-16-5. 部分 lint/证据/schema 已有，但还不是完全严格契约。
+.omc/archive/design-docs/重构差距清单.md-17-
+.omc/archive/design-docs/重构差距清单.md-18-## 已补齐的旧缺口
+.omc/archive/design-docs/重构差距清单.md-19-
+.omc/archive/design-docs/重构差距清单.md-20-| 旧判断 | 当前证据 | 当前状态 |
+.omc/archive/design-docs/重构差距清单.md-21-|--------|----------|----------|
+.omc/archive/design-docs/重构差距清单.md-22-| IntakeGate 文件不存在 | `.claude/scripts/intake_gate.py` 定义 L1/L2/BLOCKED/ASK_USER 输出结构 | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md-23-| PlanBuilder 缺 L1/L2 模板 | `.claude/scripts/plan_builder.py` 有 `build_l1_steps()` / `build_l2_steps()` | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md:24:| VerifyGate 只有 VERIFIED | `.claude/scripts/verify_gate.py` 明确输出 `VERIFIED / WARN / BLOCKED / REJECTED` | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md:25:| 软完成语黑名单缺失 | `.claude/scripts/verify_gate.py` 有 `SOFT_COMPLETION_PHRASES` | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md-26-| Executor evidence 未标准化 | `.claude/scripts/executor_ledger.py` 定义 E3/E2/E1/E0 与 evidence 字段 | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md-27-| omc_lint 不存在 | `.claude/scripts/omc_lint.py` 实现 7 项检查 | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md-28-| schema_version 完全缺失 | `carros_base.py` token 默认写入 `schema_version: v1.0`，executor 模板也含 schema_version | ✅ 部分补齐 |
+.omc/archive/design-docs/重构差距清单.md-29-| archive 缺 final-report/tombstone | `carros_base.py archive` 实现 lint、final-report、token.final、token.tombstone | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md-30-| bench 缺失 | `carros_base.py bench` 与 `.omc/tasks/*/bench-01~07` 已存在 | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md:31:| L2 stub 文档不可执行 | `oracle_gate.py`、`context_watermark.py`、`fallback_matrix.py` 存在可执行入口 | ✅ 已补齐 |
+.omc/archive/design-docs/重构差距清单.md-32-
+.omc/archive/design-docs/重构差距清单.md-33-## 当前仍存在的差距
+.omc/archive/design-docs/重构差距清单.md-34-
+.omc/archive/design-docs/重构差距清单.md-35-### 1. README 仍以 10 模块作为主架构入口
+.omc/archive/design-docs/重构差距清单.md-36-
+.omc/archive/design-docs/重构差距清单.md-37-| 文档要求 | 磁盘现状 | 状态 |
+.omc/archive/design-docs/重构差距清单.md-38-|----------|----------|------|
+.omc/archive/design-docs/重构差距清单.md-39-| 用户主心智只保留 L1: Plan → Step → Verify → Archive；L2: Base + Context Watermark + Low-frequency Oracle + Learning Flywheel | README 仍列出 10 模块表，并把 10 模块作为“核心架构”说明 | ⚠️ 文档入口需瘦身 |
+.omc/archive/design-docs/重构差距清单.md-40-| 10 模块降级为内部实现 | 代码上多模块已经存在，README 仍暴露为用户理解入口 | ⚠️ 文档未同步 |
+.omc/archive/design-docs/重构差距清单.md-41-
+.omc/archive/design-docs/重构差距清单.md-42-建议：README 改成“L1 四动作 + L2 增强能力”，10 模块移到“内部实现映射”。
+.omc/archive/design-docs/重构差距清单.md-43-
+--
+.omc/archive/rpe-f-ten-features-revival/executor.md-7-
+.omc/archive/rpe-f-ten-features-revival/executor.md-8-**证据块：**
+.omc/archive/rpe-f-ten-features-revival/executor.md-9-```
+.omc/archive/rpe-f-ten-features-revival/executor.md-10-- action:
+.omc/archive/rpe-f-ten-features-revival/executor.md-11-- file:
+.omc/archive/rpe-f-ten-features-revival/executor.md-12-- command:
+.omc/archive/rpe-f-ten-features-revival/executor.md-13-- output:
+.omc/archive/rpe-f-ten-features-revival/executor.md-14-- status: [PASS/FAIL]
+.omc/archive/rpe-f-ten-features-revival/executor.md-15-```
+.omc/archive/rpe-f-ten-features-revival/executor.md-16-
+.omc/archive/rpe-f-ten-features-revival/executor.md-17----
+.omc/archive/rpe-f-ten-features-revival/executor.md-18-
+.omc/archive/rpe-f-ten-features-revival/executor.md:19:## S1: pretool-gate 软门修复 + oracle_gate 真实提示 ✅
+.omc/archive/rpe-f-ten-features-revival/executor.md:20:- 改动：pretool-gate.py main() 增加 NARROW/CHECKPOINT_FIRST 分支（stderr WARN + audit gate_soft_warn + 放行；goal 模式下静默仅 audit）；_check_oracle_gate 增加 L2 FORCE/TRIGGER stderr 提示
+.omc/archive/rpe-f-ten-features-revival/executor.md-21-- Evidence:
+.omc/archive/rpe-f-ten-features-revival/executor.md-22-  - [已测试] 非 goal 模式 G2 场景 → stderr `⚠️ [g2-large-file] NARROW large_file_no_offset path=AGENTS.md lines=567`，exit=0 放行
+.omc/archive/rpe-f-ten-features-revival/executor.md-23-  - [已测试] goal 模式 G2 场景 → stderr 空，audit 有 gate_soft_warn 事件（.omc/audit/2026-07-18.jsonl 2 条）
+.omc/archive/rpe-f-ten-features-revival/executor.md-24-- Rollback 演练：git restore .claude/hooks/pretool-gate.py 可回退
+.omc/archive/rpe-f-ten-features-revival/executor.md-25-
+.omc/archive/rpe-f-ten-features-revival/executor.md-26-## S2: 统一 UserPromptSubmit 门 ✅
+.omc/archive/rpe-f-ten-features-revival/executor.md-27-- 改动：pretool-user-approve.py 扩展为多路复用（/approve保留 + prompt ring 20条 + 每5轮detached compact-write + 每5轮尾部状态注入 + goal状态注入）；context_engine.py token_task/token_session 兼容非dict（修 goal 锁 token 崩溃）；hook _latest_token 过滤非 carros token
+.omc/archive/rpe-f-ten-features-revival/executor.md-28-- Evidence:
+.omc/archive/rpe-f-ten-features-revival/executor.md-29-  - [已测试] 10 轮模拟：ring total=10，第5/10轮输出 hookSpecificOutput.additionalContext（含 CarrorOS State task_id/current_step/verified + Goal Mode goal/done）
+.omc/archive/rpe-f-ten-features-revival/executor.md-30-  - [已测试] compact-write detached 生效：.omc/state/last-user-prompt.md 由 7/10 停更刷新至 2026-07-18 13:56，session-handoff.md 同步刷新
+.omc/archive/rpe-f-ten-features-revival/executor.md-31-  - [已测试] 快速路径 22ms（<100ms 约束）
+.omc/archive/rpe-f-ten-features-revival/executor.md-32-- Rollback 演练：git restore 两文件
+--
+.omc/archive/rpe-f-ten-features-revival/plan.md-8-
+.omc/archive/rpe-f-ten-features-revival/plan.md-9-**改**：`.claude/hooks/`（修1+扩1+新3）、`.claude/scripts/`（carros_base/intake_gate/plan_builder/pre_action_gate/flywheel + 新 meta-oracle-review.py）、`.claude/skills/lx-goal/scripts/lx-goal.py`、`.claude/settings.json`
+.omc/archive/rpe-f-ten-features-revival/plan.md-10-**不改**：AGENTS.md/kernel.md/index.md 治理语义、L1/L2 分级标准、15 个旧 hook 文件不恢复、无新依赖（纯 stdlib）
+.omc/archive/rpe-f-ten-features-revival/plan.md-11-
+.omc/archive/rpe-f-ten-features-revival/plan.md-12-## 上下文锚点
+.omc/archive/rpe-f-ten-features-revival/plan.md-13-
+.omc/archive/rpe-f-ten-features-revival/plan.md-14-- 架构决策：README.md "10 模块降级为内部实现" + commit 1f7047d 轻量化哲学（统一门、柔性约束）
+.omc/archive/rpe-f-ten-features-revival/plan.md-15-- 类似模块：`pretool-gate.py:824-840` GATES registry 模式（新 hook 复用同模式）；旧 prompt-collector（git 1f7047d^）ring buffer + detached 子进程模式
+.omc/archive/rpe-f-ten-features-revival/plan.md-16-- 复用检查：`lib/handoff_writer.py` / `lib/flywheel.py` / `lib/error_dna.py` / `deepseek_inject.py` / `statusline.py` 均为现成可接线资产，零重写
+.omc/archive/rpe-f-ten-features-revival/plan.md-17-
+.omc/archive/rpe-f-ten-features-revival/plan.md-18-## Steps
+.omc/archive/rpe-f-ten-features-revival/plan.md-19-
+.omc/archive/rpe-f-ten-features-revival/plan.md:20:- [x] S1: **pretool-gate 软门修复 + oracle_gate 真实提示**（特性1/9）
+.omc/archive/rpe-f-ten-features-revival/plan.md-21-  - main() 增加 NARROW/CHECKPOINT_FIRST 分支：stderr WARN 提示 + audit 记录 + 放行（不阻断，符合柔性约束哲学）
+.omc/archive/rpe-f-ten-features-revival/plan.md:22:  - _check_oracle_gate：L2+force 触发时 stderr 输出"建议 /lx-oracle review"提示（仍放行）
+.omc/archive/rpe-f-ten-features-revival/plan.md-23-  - AC：构造 G2 场景（读 >200 行无 offset）→ stderr 有 NARROW 提示且工具放行；audit 有 narrow 事件
+.omc/archive/rpe-f-ten-features-revival/plan.md-24-  - Rollback: git restore pretool-gate.py
+.omc/archive/rpe-f-ten-features-revival/plan.md-25-
+.omc/archive/rpe-f-ten-features-revival/plan.md-26-- [x] S2: **统一 UserPromptSubmit 门**（特性2/6/7）
+.omc/archive/rpe-f-ten-features-revival/plan.md-27-  - 扩展 pretool-user-approve.py：保留 /approve /deny；新增 ①prompt ring 20 条滚动（.claude/.prompt-ring.json）②每5轮 detached 调 context_engine compact-write（刷新 handoff+last-user-prompt）③每5轮尾部注入任务状态（token 当前 step/进度/水位，stderr additionalContext）④goal 模式激活时（autonomous.active 存在）注入 goal 状态
+.omc/archive/rpe-f-ten-features-revival/plan.md-28-  - AC：连发 5 个 prompt → ring=5 条、last-user-prompt.md 刷新、第5轮 stderr 有状态注入；单轮耗时 <100ms（非5倍数轮）
+.omc/archive/rpe-f-ten-features-revival/plan.md-29-  - Rollback: git restore pretool-user-approve.py
+.omc/archive/rpe-f-ten-features-revival/plan.md-30-
+.omc/archive/rpe-f-ten-features-revival/plan.md-31-- [x] S3: **posttool-gate.py + session-start.py**（特性1/2/3/7）
+.omc/archive/rpe-f-ten-features-revival/plan.md-32-  - posttool-gate.py（PostToolUse）：①工具输出 >阈值（50KB）→ 落盘 .omc/artifacts/ + stderr 提示预览路径 ②工具失败（exit≠0/错误模式）→ error_dna.record_error ③audit 落盘
+.omc/archive/rpe-f-ten-features-revival/plan.md-33-  - session-start.py（SessionStart，含 compact 恢复）：读 .omc/session-handoff.md + .omc/state/last-user-prompt.md + 活跃 token → 注入上下文（stdout context）
+.omc/archive/rpe-f-ten-features-revival/plan.md-34-  - AC：模拟大输出工具 → artifacts 有文件；模拟失败命令 → error-dna.jsonl +1；SessionStart 触发 → 输出含 handoff 摘要
+.omc/archive/rpe-f-ten-features-revival/plan.md-35-  - Rollback: 删两文件 + settings.json 去注册
+.omc/archive/rpe-f-ten-features-revival/plan.md-36-
+.omc/archive/rpe-f-ten-features-revival/plan.md-37-- [x] S4: **stop-flywheel.py + 飞轮单源化 + 首次升华**（特性4）
+.omc/archive/rpe-f-ten-features-revival/plan.md-38-  - stop-flywheel.py（Stop hook）：detached 调 run_flywheel；升华检查（hits≥5 或 age≥10天 → 写 kernel 候选区/anti-patterns）
+.omc/archive/rpe-f-ten-features-revival/plan.md-39-  - claude-next 单源化：`.claude/claude-next.md` 改为指针（→.omc/knowledge/claude-next.md），消除双份分裂
+.omc/archive/rpe-f-ten-features-revival/plan.md-40-  - 执行首次真实升华：跑 run_flywheel，产物落盘
+.omc/archive/rpe-f-ten-features-revival/plan.md-41-  - AC：Stop 触发后 .omc/knowledge/claude-next.md 更新；anti-patterns.md 有本次条目；升华记录存在
+.omc/archive/rpe-f-ten-features-revival/plan.md-42-  - Rollback: 删 stop-flywheel.py + git restore claude-next.md anti-patterns.md
+.omc/archive/rpe-f-ten-features-revival/plan.md-43-
+.omc/archive/rpe-f-ten-features-revival/plan.md-44-- [x] S5: **Oracle 接线 + ROI + 规则配置化**（特性9/10）
+.omc/archive/rpe-f-ten-features-revival/plan.md:45:  - carros_base cmd_verify：L2 任务 verify 时自动调 static+runtime oracle → meta_oracle 聚合 → 裁决落 .omc/state/meta-oracle-verdicts/；REJECT 时 verify 不通过
+.omc/archive/rpe-f-ten-features-revival/plan.md-46-  - 新建 .claude/scripts/meta-oracle-review.py（AGENTS.md:492 引用的 CLI，G1|G3 参数）
+.omc/archive/rpe-f-ten-features-revival/plan.md-47-  - intake_gate/plan_builder：ROI 真实计算（risk_level × 文件数 × 步数 → ROI 分级 high/medium/low 写入 plan.md）
+.omc/archive/rpe-f-ten-features-revival/plan.md-48-  - pre_action_gate：硬编码列表抽为 .claude/references/gate-rules.yaml 数据驱动
+.omc/archive/rpe-f-ten-features-revival/plan.md-49-  - AC：L2 verify → meta-oracle-verdicts 有聚合裁决；meta-oracle-review.py G1 可跑；plan.md ROI 非静态文本；gate-rules.yaml 存在且被加载
+.omc/archive/rpe-f-ten-features-revival/plan.md-50-  - Rollback: git restore 各文件 + 删 meta-oracle-review.py gate-rules.yaml
+.omc/archive/rpe-f-ten-features-revival/plan.md-51-
+.omc/archive/rpe-f-ten-features-revival/plan.md-52-- [x] S6: **lx-goal 硬化**（特性7）
+.omc/archive/rpe-f-ten-features-revival/plan.md-53-  - lx-goal.py：实现 is_mode_active()（读 autonomous.active + token 有效性）；cmd_on 输出 CronCreate/ScheduleWakeup 轮询指引（代码生成命令）
+.omc/archive/rpe-f-ten-features-revival/plan.md-54-  - pretool-gate.py：读 autonomous.active → goal 模式时 G1-G6 软门降级为静默 audit（不打断无人流）
+.omc/archive/rpe-f-ten-features-revival/plan.md-55-  - AC：goal on → is_mode_active()=True；pretool-gate 在 goal 模式下软门只 audit 不 WARN；goal off 恢复
+.omc/archive/rpe-f-ten-features-revival/plan.md-56-  - Rollback: git restore lx-goal.py pretool-gate.py
+.omc/archive/rpe-f-ten-features-revival/plan.md-57-
+--
+.omc/archive/round2-fixes/session-handoff.md-10-## Plan (condensed)
+.omc/archive/round2-fixes/session-handoff.md-11-# Plan
+.omc/archive/round2-fixes/session-handoff.md-12-## Goal
+.omc/archive/round2-fixes/session-handoff.md-13-
+.omc/archive/round2-fixes/session-handoff.md-14-## Scope
+.omc/archive/round2-fixes/session-handoff.md-15-
+.omc/archive/round2-fixes/session-handoff.md-16-## Steps
+.omc/archive/round2-fixes/session-handoff.md-17-- [x] R1: 
+.omc/archive/round2-fixes/session-handoff.md-18-- [x] R2: 
+.omc/archive/round2-fixes/session-handoff.md-19-- [x] R3: 
+.omc/archive/round2-fixes/session-handoff.md-20-- [x] R4: 
+.omc/archive/round2-fixes/session-handoff.md-21-- [x] R5: 
+.omc/archive/round2-fixes/session-handoff.md:22:- [x] R6: 
+.omc/archive/round2-fixes/session-handoff.md-23-
+.omc/archive/round2-fixes/session-handoff.md-24-## Verify
+.omc/archive/round2-fixes/session-handoff.md-25-- R1: 
+.omc/archive/round2-fixes/session-handoff.md-26-- R2: 
+.omc/archive/round2-fixes/session-handoff.md-27-- R3: 
+.omc/archive/round2-fixes/session-handoff.md-28-- R4: 
+.omc/archive/round2-fixes/session-handoff.md-29-- R5: 
+.omc/archive/round2-fixes/session-handoff.md:30:- R6: 
+.omc/archive/round2-fixes/session-handoff.md-31-
+.omc/archive/round2-fixes/session-handoff.md-32----
+.omc/archive/round2-fixes/session-handoff.md-33-> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。
+.omc/archive/round2-fixes/session-handoff.md-34-
+.omc/archive/round2-fixes/session-handoff.md-35-
+.omc/archive/round2-fixes/session-handoff.md-36----
+.omc/archive/round2-fixes/session-handoff.md-37-_Auto-generated by carros_base.py_
+--
+.omc/archive/round2-fixes/plan.md-1-# Plan
+.omc/archive/round2-fixes/plan.md-2-## Goal
+.omc/archive/round2-fixes/plan.md-3-
+.omc/archive/round2-fixes/plan.md-4-## Scope
+.omc/archive/round2-fixes/plan.md-5-
+.omc/archive/round2-fixes/plan.md-6-## Steps
+.omc/archive/round2-fixes/plan.md-7-- [x] R1: 
+.omc/archive/round2-fixes/plan.md-8-- [x] R2: 
+.omc/archive/round2-fixes/plan.md-9-- [x] R3: 
+.omc/archive/round2-fixes/plan.md-10-- [x] R4: 
+.omc/archive/round2-fixes/plan.md-11-- [x] R5: 
+.omc/archive/round2-fixes/plan.md:12:- [x] R6: 
+.omc/archive/round2-fixes/plan.md-13-
+.omc/archive/round2-fixes/plan.md-14-## Verify
+.omc/archive/round2-fixes/plan.md-15-- R1: 
+.omc/archive/round2-fixes/plan.md-16-- R2: 
+.omc/archive/round2-fixes/plan.md-17-- R3: 
+.omc/archive/round2-fixes/plan.md-18-- R4: 
+.omc/archive/round2-fixes/plan.md-19-- R5: 
+.omc/archive/round2-fixes/plan.md:20:- R6: 
+.omc/archive/round2-fixes/plan.md-21-
+.omc/archive/round2-fixes/plan.md-22----
+.omc/archive/round2-fixes/plan.md-23-> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。
+--
+.omc/review/main-sub-review-context.md-2-
+.omc/review/main-sub-review-context.md-3-## 架构概览
+.omc/review/main-sub-review-context.md-4-
+.omc/review/main-sub-review-context.md-5-```
+.omc/review/main-sub-review-context.md-6-carros_base.py (Main Agent CLI, 1859行)
+.omc/review/main-sub-review-context.md-7- ├── cmd_clarify → clarify_engine.py → spec.md
+.omc/review/main-sub-review-context.md-8- ├── cmd_plan    → task_planner.py  → plan.json
+.omc/review/main-sub-review-context.md-9- ├── cmd_auto    → sub_agent_manager.py → auto_run
+.omc/review/main-sub-review-context.md-10- │                  ├── distribute() → sub_task/{step}/token.json + result.json
+.omc/review/main-sub-review-context.md-11- │                  ├── _wait_all() → poll() + spawn sub_agent_executor.py
+.omc/review/main-sub-review-context.md-12- │                  ├── collect() → main executor.md
+.omc/review/main-sub-review-context.md-13- │                  └── retry_failed() → 最多3次
+.omc/review/main-sub-review-context.md:14: └── cmd_verify/archive (沿用 Goal 状态机)
+.omc/review/main-sub-review-context.md-15-```
+.omc/review/main-sub-review-context.md-16-
+.omc/review/main-sub-review-context.md-17-### 5 个核心文件
+.omc/review/main-sub-review-context.md-18-
+.omc/review/main-sub-review-context.md-19-| 文件 | 行数 | 职责 |
+.omc/review/main-sub-review-context.md-20-|------|------|------|
+.omc/review/main-sub-review-context.md-21-| `task_planner.py` | 333 | spec.md → plan.json 原子任务分解 |
+.omc/review/main-sub-review-context.md-22-| `sub_agent_manager.py` | 930 | Main-Sub 编排器：分发/轮询/并发/重试/回收 |
+.omc/review/main-sub-review-context.md-23-| `sub_agent_executor.py` | 425 | SubAgent 运行器：spawn `claude -p --bare --print` |
+.omc/review/main-sub-review-context.md-24-| `sub_agent_recovery.py` | 342 | compact checkpoint → resume 恢复 |
+.omc/review/main-sub-review-context.md-25-| `carros_base.py` (增量) | +200 | cmd_plan / cmd_auto 集成 |
+.omc/review/main-sub-review-context.md-26-
+--
+.omc/review/main-sub-review-context.md-62-
+.omc/review/main-sub-review-context.md-63-### Q4: SubAgent prompt 设计
+.omc/review/main-sub-review-context.md-64-sub_agent_executor.py 构造的 prompt 包含:
+.omc/review/main-sub-review-context.md-65-- token.json 的 goal/ACs/files
+.omc/review/main-sub-review-context.md-66-- 父任务的 plan.md/spec.md 上下文
+.omc/review/main-sub-review-context.md-67-- 输出格式要求（写 executor.md + 更新 result.json）
+.omc/review/main-sub-review-context.md-68-
+.omc/review/main-sub-review-context.md-69-**需要确认：**
+.omc/review/main-sub-review-context.md-70-- subagent 是否真的能理解并遵守写文件的指令？
+.omc/review/main-sub-review-context.md-71-- `claude -p --bare` 下有没有 Read/Write/Edit/Bash 工具可用？
+.omc/review/main-sub-review-context.md-72-
+.omc/review/main-sub-review-context.md-73-### Q5: auto_run 的 verify + archive 阶段
+.omc/review/main-sub-review-context.md:74:cmd_auto 在 sub_agent_manager.auto_run 完成后调用 carros_base 的 cmd_verify 和 cmd_archive。
+.omc/review/main-sub-review-context.md-75-- 但 verify 只递增 main token 的 done 计数器
+.omc/review/main-sub-review-context.md-76-- archive 做 lint + token 归档 + Goal 状态机推进
+.omc/review/main-sub-review-context.md-77-
+.omc/review/main-sub-review-context.md-78-**需要确认：**
+.omc/review/main-sub-review-context.md-79-- 子任务的 executor.md 证据是否应该自动汇入主任务的 verify？
+.omc/review/main-sub-review-context.md-80-- 当前 collect() 做了追加到 main executor.md，但 verify 只看 plan.md 的 checkbox
+.omc/review/main-sub-review-context.md-81-
+.omc/review/main-sub-review-context.md-82----
+.omc/review/main-sub-review-context.md-83-
+.omc/review/main-sub-review-context.md-84-## 已验证通过的项目
+.omc/review/main-sub-review-context.md-85-
+.omc/review/main-sub-review-context.md-86-- ✅ Bench 7/7 PASS（原有功能未退化）
+--
+.omc/scripts/archive_engine.py-319-- status: archived
+.omc/scripts/archive_engine.py-320-- archived_at: {now_iso()}
+.omc/scripts/archive_engine.py-321-
+.omc/scripts/archive_engine.py-322-## Goal
+.omc/scripts/archive_engine.py-323-{goal or "N/A"}
+.omc/scripts/archive_engine.py-324-
+.omc/scripts/archive_engine.py-325-## Scope
+.omc/scripts/archive_engine.py-326-{bullet(scope)}
+.omc/scripts/archive_engine.py-327-
+.omc/scripts/archive_engine.py-328-## Completion
+.omc/scripts/archive_engine.py-329-- total_steps: {total}
+.omc/scripts/archive_engine.py-330-- verified_steps: {done}
+.omc/scripts/archive_engine.py:331:- verify_gate: passed
+.omc/scripts/archive_engine.py-332-- oracle_final: {oracle}
+.omc/scripts/archive_engine.py-333-
+.omc/scripts/archive_engine.py-334-## Evidence Summary
+.omc/scripts/archive_engine.py-335-{chr(10).join(evidence) if evidence else "- VERIFIED events recorded in audit"}
+.omc/scripts/archive_engine.py-336-
+.omc/scripts/archive_engine.py-337-## Changed Files
+.omc/scripts/archive_engine.py-338-{bullet(changed_files)}
+.omc/scripts/archive_engine.py-339-
+.omc/scripts/archive_engine.py-340-## Fallback History
+.omc/scripts/archive_engine.py-341-{fallback_history(events)}
+.omc/scripts/archive_engine.py-342-
+.omc/scripts/archive_engine.py-343-## Residual Risk
+--
+.omc/scripts/archive_engine.py-430-        })
+.omc/scripts/archive_engine.py-431-
+.omc/scripts/archive_engine.py-432-    # sovereign-verdict.json — §6
+.omc/scripts/archive_engine.py-433-    risks = residual_risk(events)
+.omc/scripts/archive_engine.py-434-    oracle = latest_oracle_decision(events) or "N/A"
+.omc/scripts/archive_engine.py-435-    verdict = {
+.omc/scripts/archive_engine.py-436-        "verdict": "ARCHIVED",
+.omc/scripts/archive_engine.py-437-        "timestamp": now_iso(),
+.omc/scripts/archive_engine.py-438-        "task_id": tid,
+.omc/scripts/archive_engine.py-439-        "task_name": name,
+.omc/scripts/archive_engine.py-440-        "level": level,
+.omc/scripts/archive_engine.py-441-        "basis": {
+.omc/scripts/archive_engine.py:442:            "verify_gate": "all_steps_verified",
+.omc/scripts/archive_engine.py-443-            "oracle": oracle,
+.omc/scripts/archive_engine.py-444-            "fallback": "no_unresolved_fallback",
+.omc/scripts/archive_engine.py-445-            "audit": "sealed",
+.omc/scripts/archive_engine.py-446-            "scope": "unchanged",
+.omc/scripts/archive_engine.py-447-        },
+.omc/scripts/archive_engine.py-448-        "residual_risk": risks,
+.omc/scripts/archive_engine.py-449-        "archive_path": str(archive_path),
+.omc/scripts/archive_engine.py-450-    }
+.omc/scripts/archive_engine.py-451-    verdict_path = archive_path / "sovereign-verdict.json"
+.omc/scripts/archive_engine.py-452-    write_json_atomic(verdict_path, verdict)
+.omc/scripts/archive_engine.py-453-    copied.append({"kind": "sovereign_verdict", "source": "generated", "archive": str(verdict_path), "sha256": sha256_file(verdict_path)})
+.omc/scripts/archive_engine.py-454-
+--
+.omc/scripts/clarify_engine.py-20-    - 冻结规则: ...
+.omc/scripts/clarify_engine.py-21-    ## 依赖
+.omc/scripts/clarify_engine.py-22-    - 前置条件: ...
+.omc/scripts/clarify_engine.py-23-    - 外部依赖: ...
+.omc/scripts/clarify_engine.py-24-
+.omc/scripts/clarify_engine.py-25-参数:
+.omc/scripts/clarify_engine.py-26-    - --title: 任务标题 (可选, 默认从描述推断)
+.omc/scripts/clarify_engine.py-27-    - --interactive: 交互式追问模式 (默认)
+.omc/scripts/clarify_engine.py-28-    - --batch: 批量模式 (从 stdin 读取预定义 Q&A)
+.omc/scripts/clarify_engine.py-29-    - --output: spec.md 输出路径
+.omc/scripts/clarify_engine.py-30-
+.omc/scripts/clarify_engine.py-31-用法:
+.omc/scripts/clarify_engine.py:32:    python3 clarify_engine.py --title "重构 verify_gate" --output spec.md --batch
+.omc/scripts/clarify_engine.py-33-    python3 clarify_engine.py --title "文档更新"  # 交互式
+.omc/scripts/clarify_engine.py-34-"""
+.omc/scripts/clarify_engine.py-35-
+.omc/scripts/clarify_engine.py-36-import json
+.omc/scripts/clarify_engine.py-37-import os
+.omc/scripts/clarify_engine.py-38-import re
+.omc/scripts/clarify_engine.py-39-import sys
+.omc/scripts/clarify_engine.py-40-from datetime import datetime, timezone
+.omc/scripts/clarify_engine.py-41-from pathlib import Path
+.omc/scripts/clarify_engine.py-42-
+.omc/scripts/clarify_engine.py-43-
+.omc/scripts/clarify_engine.py-44-# ─── 默认提示语池 ───
+.omc/scripts/clarify_engine.py-45-PROMPT_TEMPLATES = {
+.omc/scripts/clarify_engine.py-46-    "goal": {
+.omc/scripts/clarify_engine.py-47-        "question": "🎯 目标：这个任务要达成什么？一句话讲清楚。",
+.omc/scripts/clarify_engine.py:48:        "hint": "例：「给 verify_gate.py 加 AC 逐条验证」「重构 archive_engine 打包逻辑」",
+.omc/scripts/clarify_engine.py-49-    },
+.omc/scripts/clarify_engine.py-50-    "ac": {
+.omc/scripts/clarify_engine.py-51-        "question": "✅ 验收条件（每一条都是一个可验证的断言）：",
+.omc/scripts/clarify_engine.py:52:        "hint": "每条以 command:/file:/assertion: 开头\nexample:\n  - command: `python3 verify_gate.py --step S1` 应输出 VERIFIED\n  - file: spec.md 应包含所有 AC\n  - assertion: 状态机自动推进到 ARCHIVED",
+.omc/scripts/clarify_engine.py-53-    },
+.omc/scripts/clarify_engine.py-54-    "scope_in": {
+.omc/scripts/clarify_engine.py-55-        "question": "📦 范围 — IN：这个任务必须覆盖哪些文件/模块？",
+.omc/scripts/clarify_engine.py-56-        "hint": "例：.omc/scripts/carros_base.py, .omc/scripts/goal_state_machine.py",
+.omc/scripts/clarify_engine.py-57-    },
+.omc/scripts/clarify_engine.py-58-    "scope_out": {
+.omc/scripts/clarify_engine.py-59-        "question": "⛔ 范围 — OUT：明确不做什么？",
+.omc/scripts/clarify_engine.py-60-        "hint": "例：不改 CI/CD 配置，不改数据库 schema",
+.omc/scripts/clarify_engine.py-61-    },
+.omc/scripts/clarify_engine.py-62-    "deps": {
+.omc/scripts/clarify_engine.py-63-        "question": "🔗 依赖和前置条件：",
+.omc/scripts/clarify_engine.py-64-        "hint": "依赖哪些现有功能？需要什么前置条件？",
+--
+.omc/scripts/clarify_engine.py-66-    "done": {
+.omc/scripts/clarify_engine.py-67-        "question": "🎬 可以了。确认以上内容？(y/n) ",
+.omc/scripts/clarify_engine.py-68-        "hint": "y -> 输出 spec.md | n -> 重新编辑",
+.omc/scripts/clarify_engine.py-69-    },
+.omc/scripts/clarify_engine.py-70-}
+.omc/scripts/clarify_engine.py-71-
+.omc/sc

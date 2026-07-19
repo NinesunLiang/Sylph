@@ -1,0 +1,205 @@
+ session-resume
+.claude/skills/lx-rpe/plan.md-9-- AC1.4: 验证：新会话启动不阻塞，context_engine 返回有效 JSON
+.claude/skills/lx-rpe/plan.md-10-- 测试策略：`echo '{"prompt":"test"}' | python3 .claude/hooks/userprompt-session-start.py`
+.claude/skills/lx-rpe/plan.md-11-- 回滚方案：git revert + 旧 settings.json 恢复
+.claude/skills/lx-rpe/plan.md-12-
+.claude/skills/lx-rpe/plan.md-13-### Task 2: Phase 1 — VerifyGate 完成门
+.claude/skills/lx-rpe/plan.md:14:- AC2.1: `verify_gate.py` 创建（5.md spec：VERIFIED/WARN/BLOCKED/REJECTED）
+.claude/skills/lx-rpe/plan.md-15-- AC2.2: `pretool-verify-gate.py` 新建，注册到 PreToolUse
+.claude/skills/lx-rpe/plan.md-16-- AC2.3: `posttool-completion-gate.py` 保留在 Stop 做辅助检查
+.claude/skills/lx-rpe/plan.md-17-- AC2.4: 验证：写操作前检查当前 step 是否已验证
+.claude/skills/lx-rpe/plan.md:18:- 测试策略：mock 一个 executor.md 带 E3 evidence → verify_gate 返回 VERIFIED
+.claude/skills/lx-rpe/plan.md-19-- 回滚方案：settings.json 删除 pretool-verify-gate 注册
+.claude/skills/lx-rpe/plan.md-20-
+.claude/skills/lx-rpe/plan.md-21-### Task 3: Phase 2 — Output Compression
+.claude/skills/lx-rpe/plan.md-22-- AC3.1: `output_compress.py` 创建，>2000 chars 头尾裁剪
+.claude/skills/lx-rpe/plan.md-23-- AC3.2: `posttool-output-compress.py` 注册到 PostToolUse
+.claude/skills/lx-rpe/plan.md-24-- AC3.3: 验证：2000+ chars 命令输出被正确截断
+.claude/skills/lx-rpe/plan.md-25-- 回滚方案：settings.json 删除该 hook
+.claude/skills/lx-rpe/plan.md-26-
+.claude/skills/lx-rpe/plan.md-27-### Task 4: Phase 3 — Fallback 熔断
+.claude/skills/lx-rpe/plan.md-28-- AC4.1: `fallback_engine.py` 重写（8.md spec，15 failure types，4 裁决）
+.claude/skills/lx-rpe/plan.md-29-- AC4.2: `pretool-fallback-check.py` 重写（去掉 stamp，真检测）
+.claude/skills/lx-rpe/plan.md-30-- AC4.3: 验证：oracle_unavailable + medium risk → ASK_USER
+--
+.claude/skills/lx-rpe/plan.md-57-### Task 9: Phase 8 — 强证据验证
+.claude/skills/lx-rpe/plan.md-58-- AC9.1: `feature_verify.py` 重写（每条检查项实际运行目标代码）
+.claude/skills/lx-rpe/plan.md-59-- AC9.2: `randomized_bench.py` 重写（不清理中间状态，测试真正 hook 链）
+.claude/skills/lx-rpe/plan.md-60-- AC9.3: `verify_tests.py` 新建（每个模块独立测试函数）
+.claude/skills/lx-rpe/plan.md-61-- AC9.4: 验证：运行 feature_verify.py 5 次，无 lambda True
+.claude/skills/lx-rpe/plan.md-62-
+.claude/skills/lx-rpe/plan.md-63-## 影响范围
+.claude/skills/lx-rpe/plan.md-64-
+.claude/skills/lx-rpe/plan.md-65-### 新建文件
+.claude/skills/lx-rpe/plan.md-66-| 文件 | 所属 Task | 来源 |
+.claude/skills/lx-rpe/plan.md-67-|------|-----------|------|
+.claude/skills/lx-rpe/plan.md-68-| `.claude/scripts/context_engine.py` | Task 1 | 6.md §13 完整代码 |
+.claude/skills/lx-rpe/plan.md:69:| `.claude/scripts/verify_gate.py` | Task 2 | 5.md §12 完整代码 |
+.claude/skills/lx-rpe/plan.md-70-| `.claude/scripts/output_compress.py` | Task 3 | 新写 |
+.claude/skills/lx-rpe/plan.md-71-| `.claude/scripts/oracle_engine.py` | Task 5 | 7.md §14 完整代码 |
+.claude/skills/lx-rpe/plan.md-72-| `.claude/scripts/verify_tests.py` | Task 8 | 新写 |
+.claude/skills/lx-rpe/plan.md-73-| `.claude/hooks/userprompt-session-start.py` | Task 1 | 从 session-resume 迁移 |
+.claude/skills/lx-rpe/plan.md-74-| `.claude/hooks/pretool-verify-gate.py` | Task 2 | 新写 |
+.claude/skills/lx-rpe/plan.md-75-| `.claude/hooks/posttool-output-compress.py` | Task 3 | 新写 |
+.claude/skills/lx-rpe/plan.md-76-| `.claude/hooks/pretool-oracle-gate.py` | Task 5 | 新写 |
+.claude/skills/lx-rpe/plan.md-77-| `.claude/hooks/posttool-archive-check.py` | Task 6 | 新写 |
+.claude/skills/lx-rpe/plan.md-78-
+.claude/skills/lx-rpe/plan.md-79-### 修改文件
+.claude/skills/lx-rpe/plan.md-80-| 文件 | Task | 变更 |
+.claude/skills/lx-rpe/plan.md-81-|------|------|------|
+--
+.claude/profiles/go/harness.yaml-118-  pretool_rules_inject: true
+.claude/profiles/go/harness.yaml-119-  pretool_skill_version_guard: true
+.claude/profiles/go/harness.yaml-120-  pretool_sensitive_edit: true
+.claude/profiles/go/harness.yaml-121-  pretool_terminal_safety: true
+.claude/profiles/go/harness.yaml-122-  cross_platform_smoke_test: true
+.claude/profiles/go/harness.yaml-123-  phase_state_tracker: true
+.claude/profiles/go/harness.yaml-124-  pretool_b1_detect: true
+.claude/profiles/go/harness.yaml-125-  pretool_compact_writer: true
+.claude/profiles/go/harness.yaml-126-  pretool_git_gate: true
+.claude/profiles/go/harness.yaml-127-  pretool_scope_gate: true
+.claude/profiles/go/harness.yaml-128-  permission_frequency_tracker: true
+.claude/profiles/go/harness.yaml-129-  lsp_gate: true
+.claude/profiles/go/harness.yaml:130:  oracle_gate: true
+.claude/profiles/go/harness.yaml-131-  posttool_read_cite: true
+.claude/profiles/go/harness.yaml-132-terminal_safety:
+.claude/profiles/go/harness.yaml-133-  max_command_length: 2000
+.claude/profiles/go/harness.yaml-134-  pretool_write_lock: true
+.claude/profiles/go/harness.yaml-135-  privacy_gate: true
+.claude/profiles/go/harness.yaml-136-  read_tracker: true
+.claude/profiles/go/harness.yaml-137-  retry_budget_check: true
+.claude/profiles/go/harness.yaml-138-  skill_flywheel: true
+.claude/profiles/go/harness.yaml-139-  stop_drain: true
+.claude/profiles/go/harness.yaml-140-  subagent_guard: true
+.claude/profiles/go/harness.yaml-141-  token_writer: true
+.claude/profiles/go/harness.yaml-142-  skill_usage_tracker: true
+--
+.claude/profiles/python/harness.yaml-118-  pretool_rules_inject: true
+.claude/profiles/python/harness.yaml-119-  pretool_skill_version_guard: true
+.claude/profiles/python/harness.yaml-120-  pretool_sensitive_edit: true
+.claude/profiles/python/harness.yaml-121-  pretool_terminal_safety: true
+.claude/profiles/python/harness.yaml-122-  cross_platform_smoke_test: true
+.claude/profiles/python/harness.yaml-123-  phase_state_tracker: true
+.claude/profiles/python/harness.yaml-124-  pretool_b1_detect: true
+.claude/profiles/python/harness.yaml-125-  pretool_compact_writer: true
+.claude/profiles/python/harness.yaml-126-  pretool_git_gate: true
+.claude/profiles/python/harness.yaml-127-  pretool_scope_gate: true
+.claude/profiles/python/harness.yaml-128-  permission_frequency_tracker: true
+.claude/profiles/python/harness.yaml-129-  lsp_gate: true
+.claude/profiles/python/harness.yaml:130:  oracle_gate: true
+.claude/profiles/python/harness.yaml-131-  posttool_read_cite: true
+.claude/profiles/python/harness.yaml-132-terminal_safety:
+.claude/profiles/python/harness.yaml-133-  max_command_length: 2000
+.claude/profiles/python/harness.yaml-134-  pretool_write_lock: true
+.claude/profiles/python/harness.yaml-135-  privacy_gate: true
+.claude/profiles/python/harness.yaml-136-  read_tracker: true
+.claude/profiles/python/harness.yaml-137-  retry_budget_check: true
+.claude/profiles/python/harness.yaml-138-  skill_flywheel: true
+.claude/profiles/python/harness.yaml-139-  stop_drain: true
+.claude/profiles/python/harness.yaml-140-  subagent_guard: true
+.claude/profiles/python/harness.yaml-141-  token_writer: true
+.claude/profiles/python/harness.yaml-142-  skill_usage_tracker: true
+--
+.claude/profiles/rust/harness.yaml-118-  pretool_rules_inject: true
+.claude/profiles/rust/harness.yaml-119-  pretool_skill_version_guard: true
+.claude/profiles/rust/harness.yaml-120-  pretool_sensitive_edit: true
+.claude/profiles/rust/harness.yaml-121-  pretool_terminal_safety: true
+.claude/profiles/rust/harness.yaml-122-  cross_platform_smoke_test: true
+.claude/profiles/rust/harness.yaml-123-  phase_state_tracker: true
+.claude/profiles/rust/harness.yaml-124-  pretool_b1_detect: true
+.claude/profiles/rust/harness.yaml-125-  pretool_compact_writer: true
+.claude/profiles/rust/harness.yaml-126-  pretool_git_gate: true
+.claude/profiles/rust/harness.yaml-127-  pretool_scope_gate: true
+.claude/profiles/rust/harness.yaml-128-  permission_frequency_tracker: true
+.claude/profiles/rust/harness.yaml-129-  lsp_gate: true
+.claude/profiles/rust/harness.yaml:130:  oracle_gate: true
+.claude/profiles/rust/harness.yaml-131-  posttool_read_cite: true
+.claude/profiles/rust/harness.yaml-132-terminal_safety:
+.claude/profiles/rust/harness.yaml-133-  max_command_length: 2000
+.claude/profiles/rust/harness.yaml-134-  pretool_write_lock: true
+.claude/profiles/rust/harness.yaml-135-  privacy_gate: true
+.claude/profiles/rust/harness.yaml-136-  read_tracker: true
+.claude/profiles/rust/harness.yaml-137-  retry_budget_check: true
+.claude/profiles/rust/harness.yaml-138-  skill_flywheel: true
+.claude/profiles/rust/harness.yaml-139-  stop_drain: true
+.claude/profiles/rust/harness.yaml-140-  subagent_guard: true
+.claude/profiles/rust/harness.yaml-141-  token_writer: true
+.claude/profiles/rust/harness.yaml-142-  skill_usage_tracker: true
+--
+.claude/profiles/node/harness.yaml-118-  pretool_rules_inject: true
+.claude/profiles/node/harness.yaml-119-  pretool_skill_version_guard: true
+.claude/profiles/node/harness.yaml-120-  pretool_sensitive_edit: true
+.claude/profiles/node/harness.yaml-121-  pretool_terminal_safety: true
+.claude/profiles/node/harness.yaml-122-  cross_platform_smoke_test: true
+.claude/profiles/node/harness.yaml-123-  phase_state_tracker: true
+.claude/profiles/node/harness.yaml-124-  pretool_b1_detect: true
+.claude/profiles/node/harness.yaml-125-  pretool_compact_writer: true
+.claude/profiles/node/harness.yaml-126-  pretool_git_gate: true
+.claude/profiles/node/harness.yaml-127-  pretool_scope_gate: true
+.claude/profiles/node/harness.yaml-128-  permission_frequency_tracker: true
+.claude/profiles/node/harness.yaml-129-  lsp_gate: true
+.claude/profiles/node/harness.yaml:130:  oracle_gate: true
+.claude/profiles/node/harness.yaml-131-  posttool_read_cite: true
+.claude/profiles/node/harness.yaml-132-terminal_safety:
+.claude/profiles/node/harness.yaml-133-  max_command_length: 2000
+.claude/profiles/node/harness.yaml-134-  pretool_write_lock: true
+.claude/profiles/node/harness.yaml-135-  privacy_gate: true
+.claude/profiles/node/harness.yaml-136-  read_tracker: true
+.claude/profiles/node/harness.yaml-137-  retry_budget_check: true
+.claude/profiles/node/harness.yaml-138-  skill_flywheel: true
+.claude/profiles/node/harness.yaml-139-  stop_drain: true
+.claude/profiles/node/harness.yaml-140-  subagent_guard: true
+.claude/profiles/node/harness.yaml-141-  token_writer: true
+.claude/profiles/node/harness.yaml-142-  skill_usage_tracker: true
+--
+.claude/profiles/base/harness.yaml-119-  pretool_rules_inject: true
+.claude/profiles/base/harness.yaml-120-  pretool_skill_version_guard: true
+.claude/profiles/base/harness.yaml-121-  pretool_sensitive_edit: true
+.claude/profiles/base/harness.yaml-122-  pretool_terminal_safety: true
+.claude/profiles/base/harness.yaml-123-  cross_platform_smoke_test: true
+.claude/profiles/base/harness.yaml-124-  phase_state_tracker: true
+.claude/profiles/base/harness.yaml-125-  pretool_b1_detect: true
+.claude/profiles/base/harness.yaml-126-  pretool_compact_writer: true
+.claude/profiles/base/harness.yaml-127-  pretool_git_gate: true
+.claude/profiles/base/harness.yaml-128-  pretool_scope_gate: true
+.claude/profiles/base/harness.yaml-129-  permission_frequency_tracker: true
+.claude/profiles/base/harness.yaml-130-  lsp_gate: true
+.claude/profiles/base/harness.yaml:131:  oracle_gate: true
+.claude/profiles/base/harness.yaml-132-  posttool_read_cite: true
+.claude/profiles/base/harness.yaml-133-terminal_safety:
+.claude/profiles/base/harness.yaml-134-  max_command_length: 2000
+.claude/profiles/base/harness.yaml-135-  pretool_write_lock: true
+.claude/profiles/base/harness.yaml-136-  privacy_gate: true
+.claude/profiles/base/harness.yaml-137-  read_tracker: true
+.claude/profiles/base/harness.yaml-138-  retry_budget_check: true
+.claude/profiles/base/harness.yaml-139-  skill_flywheel: true
+.claude/profiles/base/harness.yaml-140-  stop_drain: true
+.claude/profiles/base/harness.yaml-141-  subagent_guard: true
+.claude/profiles/base/harness.yaml-142-  token_writer: true
+.claude/profiles/base/harness.yaml-143-  skill_usage_tracker: true
+--
+.claude/.prompt-ring.json-60-    "prompt": "现在你要全面了解当前项目CarrorOS。我准备对所有的skill（lx-开头的）和hook 进行适应性优化，使其更加契合CarrorOS的哲学和机制；你需要进入plan模式，对当前项目进行充分的熟悉（之前总是偷懒，没有了解到全貌，导致优化到处是问题，顾头不顾尾），进入ultrathink模式：\n[] 1.先告诉我CarrorOS是干嘛的，怎么做到的；\n[] 2.按照评分体系，对当前的CarrorOS进行评分：\n#指标：  ## 能力维度 (C1-C9) — AI 能力激发:\n|| C | 指标 | 权重 | 得分 | 评估依据 ||\n|---|------|------|------|----------||\n| C1 | 指令清晰度 | 15 |  |  \n| C2 | 上下文完整度 | 15 |  | \n| C3 | 流程结构化 | 15 |  | \n| C4 | 输出规范化 | 10 | |\n| C5 | 工具生命周期 | 10 | |\n| C6 | 知识密度 | 10|  |\n| C7 | 关联编排 | 10|  |\n| C8 | 可维护性 | 10|  |\n| C9 | 错"
+.claude/.prompt-ring.json-61-  },
+.claude/.prompt-ring.json-62-  {
+.claude/.prompt-ring.json-63-    "ts": "2026-07-18T19:24:28+00:00",
+.claude/.prompt-ring.json-64-    "prompt": "刚刚你进行过这个任务，所以能不能不重复工作？"
+.claude/.prompt-ring.json-65-  },
+.claude/.prompt-ring.json-66-  {
+.claude/.prompt-ring.json-67-    "ts": "2026-07-18T19:46:23+00:00",
+.claude/.prompt-ring.json-68-    "prompt": "improve_plan/CarrorOS_second_time/round1  看看三个大模型的评审，收集好相关的信息给我"
+.claude/.prompt-ring.json-69-  },
+.claude/.prompt-ring.json-70-  {
+.claude/.prompt-ring.json-71-    "ts": "2026-07-18T20:12:07+00:00",
+.claude/.prompt-ring.json:72:    "prompt": "当前附件原始大小约 338 KB，但本会话可读取内容在约 252 KB 处被截断。目前只能完整确认材料包开头及 .claude/scripts/carros_base.py 的前半部分，后续文件和部分关键函数缺失。此状态下不能可靠生成精确 diff，否则无法保证：\n\n每个断言都有 文件:行号 证据；\ndiff 上下文与基线逐字匹配；\ngit apply --check 全部 hunk 干净适用；\nPKG-B 与 PKG-A、PKG-C 文件集零交叉；\n“六处重复验证”、oracle_gate.py 和 R6 冲突都已完整取证。\n请将材料包机械拆分后重新上传。不要手工摘录或改写内容。在生成 pkg-b.md 的目录执行：\n\n\n\nmkdir -p pkg-b-parts\nsplit -b 90000 -d -a 2 pkg-b.md pkg-b-parts/pkg-b.part-\nsha256sum pkg-b.md pkg-b-parts/pkg-b.part-* > pkg-b-parts/SHA256SUMS\nwc -c pkg-b.md pkg-b-parts/pkg-b.part"
+.claude/.prompt-ring.json-73-  },
+.claude/.prompt-ring.json-74-  {
+.claude/.prompt-ring.json-75-    "ts": "2026-07-18T20:16:20+00:00",
+.claude/.prompt-ring.json-76-    "prompt": "[Image #1]"
+.claude/.prompt-ring.json-77-  },
+.claude/.prompt-ring.json-78-  {
+.claude/.prompt-ring.json-79-    "ts": "2026-07-18T20:22:28+00:00",
+.claude/.prompt-ring.json-80-    "prompt": "已收到四个分片，但当前读取接口没有按分片原样返回完整内容：返回结果被再次截断，并且 `part-01`、`part-02`、`part-03` 的起始位置分别落在不同文件的中间行，无法可靠重组为原始 `pkg-b.md`。因此目前仍不能产出符合验收协议的精确施工方案。\n\n现有可核验事实只有以下几项：\n\n- 基线为 `91954a0b01f9c53edf94965238308fcb080818eb`。\n- `.claude/scripts/carros_base.py` 注册了 `verify` 命令，材料显示在约第 2273 行。\n- 材料中的测试注册了 `VERIFY_GATE_CALLABLE`、`VERIFY_GATE_HOOK`、`ORACLE_ENGINE_CALLABLE` 和 `ORACLE_GATE_HOOK`，约在测试文件第 524-533 行。\n- 测试明确检查 `.claude/hooks/pretool-oracle-gate.py`，约第 441-455 行。\n- 材料还显示 `.claude/skills/lx-goal/scripts/lx-goal.sh"
+.claude/.prompt-ring.json-81-  }
+.claude/.prompt-ring.json-82-]
+--
+.omc/artifacts/20260718/Edit-072509.log:1:{"filePath": "/Users/lucas.liang/Desktop/CarrorOS/.omc/scripts/carros_base.py", "oldString": "    # 确保有 active token\n    if not TOKEN_PATH or not TOKEN_PATH.exists():\n        token, tp = _find_latest_token()\n        if not token:\n            print(_red(\"❌ No active main task. Run 'init' first.\"))\n            return 2\n        _init_task_paths(task_id=token.get(\"session\", {}).get(\"id\", \"unknown\"))", "newString": "    # 确保有 active token\n    if not TOKEN_PATH or not TOKEN_PATH.exists():\n        token, tp = _find_latest_token()\n        if not token:\n            print(_red(\"❌ No active main task. Run 'init' first.\"))\n            return 2\n        _init_paths_from_token(token, tp)", "originalFile": "#!/usr/bin/env python3\n\"\"\"\ncarros_base.py — CarrorOS Base 核心状态系统\n\nL1 Workflow: Plan → Step → Verify → Archive\n\nUsage:\n    python3 .claude/scripts/carros_base.py init --task-id TASK_ID [--step S1 [S2 ...]] [--level L1|L2]\n    python3 .claude/scripts/carros_base.py status\n    python3 .claude/scripts/carros_base.py tick\n    python3 .claude/scripts/carros_base.py report              # 生成 final-report.md\n    python3 .claude/scripts/carros_base.py verify [--step S1]\n    python3 .claude/scripts/carros_base.py clarify --title \"任务名\"\n    python3 .claude/scripts/carros_base.py verify [--step S1]\n    python3 .claude/scripts/carros_base.py archive [--force]\n    python3 .claude/scripts/carros_base.py bench [scene]\n    python3 .claude/scripts/carros_base.py lint [path]\n    python3 .claude/scripts/carros_base.py help\n\nExit codes: 0 = ok, 1 = warnings, 2 = errors\n\"\"\"\n\nimport fcntl\nimport json\nimport os\nimport re\nimport sys\nfrom datetime import datetime, timezone\nfrom pathlib import Path\n\n# ─── Dependencies: sibling modules ───\n_hook_dir = Path(__file__).parent\n_omc_scripts = str(_hook_dir)\nif _omc_scripts not in sys.path:\n    sys.path.insert(0, _omc_scripts)\n\ntry:\n    import omc_lint\nexcept ImportError:\n    omc_lint = None\n\ntry:\n    import carros_utils\nexcept ImportError:\n    carros_utils = None\n\ntry:\n    import task_state_tracker as tst\nexcept ImportError:\n    tst = None\n\ntry:\n    import goal_state_machine as gsm\n    from goal_state_machine import GoalMachine, GoalError\nexcept ImportError:\n    gsm = None\n    GoalMachine = None\n    GoalError = Exception\n\ntry:\n    import task_planner\nexcept ImportError:\n    task_planner = None\n\ntry:\n    import sub_agent_manager as sam\nexcept ImportError:\n    sam = None\n\n# ─── Paths (cross-platform: pathlib) ───\n# .claude/        → 可复用资产（hooks, scripts, reference）\n# .omc/tokens/    → 任务令牌（单 json 文件）\n# .omc/tasks/     → 任务文档系统（research/plan/executor + sub_task/ + state/）\n_SCRIPT_DIR = Path(__file__).resolve().parent\nif (_SCRIPT_DIR / \"..\" / \"..\" / \".omc\").resolve().exists():\n    # Script is in .claude/scripts/ -> PROJECT_ROOT is grandparent\n    PROJECT_ROOT = (_SCRIPT_DIR / \"..\" / \"..\").resolve()\nelif (_SCRIPT_DIR / \"..\" / \".omc\").resolve().exists():\n    # Script is in .omc/scripts/ -> PROJECT_ROOT is parent\n    PROJECT_ROOT = (_SCRIPT_DIR / \"..\").resolve()\nelse:\n    PROJECT_ROOT = Path.cwd()\nOMC_ROOT = PROJECT_ROOT / \".omc\"\nOMC_TOKENS = OMC_ROOT / \"tokens\"\nOMC_TASKS = OMC_ROOT / \"tasks\"\n\n# 这些在 init 时根据 task_id + date 动态计算\nTOKEN_PATH = None  # .omc/tokens/{date}/{task_id}.json\nTASK_DIR = None    # .omc/tasks/{date}/{task_id}/\nPLAN_PATH = None\nEXECUTOR_PATH = None\nRESEARCH_PATH = None\nSUB_TASK_DIR = None\nSTATE_DIR = None\nHANDOFF_PATH = None\nAUDIT_DIR = None\n\n_SCHEMA_VERSION = \"v1.0\"\n\n\ndef _get_date_str():\n    return datetime.now(timezone.utc).strftime(\"%Y%m%d\")\n\n\ndef _init_task_paths(task_id=None, task_dir=None):\n    \"\"\"根据 task_id、日期和可选的自定义 task_dir 初始化所有路径\"\"\"\n    date_str = _get_date_str()\n    tid = task_id or \"unnamed\"\n    global TOKEN_PATH, TASK_DIR, PLAN_PATH, EXECUTOR_PATH, RESEARCH_PATH\n    global SUB_TASK_DIR, STATE_DIR, HANDOFF_PATH, AUDIT_DIR\n    TOKEN_PATH = OMC_TOKENS / date_str / f\"{tid}.json\"\n    if task_dir:\n        TASK_DIR = Path(task_dir)\n    else:\n        TASK_DIR = OMC_TASKS / date_str / tid\n    PLAN_PATH = TASK_DIR / \"plan.md\"\n    EXECUTOR_PATH = TASK_DIR / \"executor.md\"\n    RESEARCH_PATH = TASK_DIR / \"research.md\"\n    SUB_TASK_DIR = TASK_DIR / \"sub_task\"\n    STATE_DIR = TASK_DIR / \"state\"\n    HANDOFF_PATH = Path(\".omc/session-handoff.md\")\n    AUDIT_DIR = STATE_DIR / \"audit\"\n\n\ndef _init_paths_from_token(token, found_path):\n    \"\"\"跨天恢复：用 _find_latest_token 找到的实际路径初始化。\n\n    修复跨天 bug：_init_task_paths 按今天日期推导路径，token 在昨天目录时\n    导致 \"No active task\"。found_path 是 token 的真实落盘路径。\n    \"\"\"\n    _init_task_paths(\n        task_id=token.get(\"session\", {}).get(\"id\", \"unknown\"),\n        task_dir=token.get(\"task_dir\") or None,\n    )\n    global TOKEN_PATH\n    TOKEN_PATH = Path(found_path)\n\n# ─── ANSI helpers ───\ndef _green(s): return f\"\\033[32m{s}\\033[0m\"\ndef _yellow(s): return f\"\\033[33m{s}\\033[0m\"\ndef _red(s): return f\"\\033[31m{s}\\033[0m\"\ndef _bold(s): return f\"\\033[1m{s}\\033[0m\"\n\n# ═══════════════════════════════════════════\n# Token helpers\n# ═══════════════════════════════════════════\n\ndef _default_token(task_id=None, level=\"L1\", steps=None):\n    now = datetime.now(timezone.utc)\n    suffix = now.strftime(\"%Y%m%d\")\n    tid = task_id or f\"sess_{suffix}_0000\"\n    if steps is None:\n        steps = [\"S1\"]\n    return {\n        \"schema_version\": _SCHEMA_VERSION,\n        \"revision\": 0,\n        \"session\": {\n            \"id\": tid,\n            \"level\": level,\n            \"created_at\": now.isoformat(),\n            \"updated_at\": now.isoformat(),\n        },\n        \"task_dir\": str(TASK_DIR) if TASK_DIR else \"\",\n        \"status\": \"active\",\n        \"task\": {\n            \"current_step\": steps[0] if steps else \"S1\",\n            \"status\": \"active\",\n            \"blocked\": None,\n        },\n        \"stats\": {\n            \"done\": 0,\n            \"total\": len(steps),\n            \"tick\": 0,\n        },\n    }\n\n\ndef _load_token(path=None):\n    p = Path(path) if path else TOKEN_PATH\n    if p and p.exists():\n        try:\n            return json.loads(p.read_text())\n        except (json.JSONDecodeError, OSError):\n            return None\n    return None\n\n\nclass CASConflict(RuntimeError):\n    \"\"\"Raised when strict token CAS detects a stale expected revision.\"\"\"\n\n    def __init__(self, expected_revision, current_revision):\n        self.expected_revision = expected_revision\n        self.current_revision = current_revision\n        super().__init__(\n            f\"CAS_CONFLICT expected_revision={expected_revision} current_revision={current_revision}\"\n        )\n\n\ndef _save_token(token, path=None, expected_revision=None):\n    p = Path(path) if path else TOKEN_PATH\n    if p is None:\n        raise ValueError(\"TOKEN_PATH is not initialized\")\n    p.parent.mkdir(parents=True, exist_ok=True)\n    lock_path = p.with_suffix(p.suffix + \".lock\")\n    tmp_path = p.with_suffix(p.suffix + f\".{os.getpid()}.tmp\")\n\n    with lock_path.open(\"a+\") as lock_file:\n        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)\n        try:\n            token.setdefault(\"session\", {})[\"updated_at\"] = datetime.now(timezone.utc).isoformat()\n\n            if expected_revision is not None:\n                current = _load_token(p) if p.exists() else None\n                current_revision = current.get(\"revision\", 0) if isinstance(current, dict) else 0\n                if current_revision != expected_revision:\n                    raise CASConflict(expected_revision, current_revision)\n                token[\"revision\"] = current_revision + 1\n            else:\n                token[\"revision\"] = token.get(\"revision\", 0) + 1  # legacy monotonic increment\n\n            data = json.dumps(token, indent=2, ensure_ascii=False) + \"\\n\"\n            with tmp_path.open(\"w\", encoding=\"utf-8\") as f:\n                f.write(data)\n                f.flush()\n                os.fsync(f.fileno())\n            os.replace(tmp_path, p)\n        finally:\n            if tmp_path.exists():\n                tmp_path.unlink(missing_ok=True)\n            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)\n\n\ndef now_iso():\n    return carros_utils.now_iso() if carros_utils else datetime.now(timezone.utc).replace(microsecond=0).isoformat()\n\n\ndef _write_handoff(token, plan_summary=None):\n    \"\"\"写入 Resume Capsule（NOT_SOURCE_OF_TRUTH）— 委托 handoff_writer\"\"\"\n    try:\n        import lib.handoff_writer as hw\n        tid = token.get(\"session\", {}).get(\"id\", \"unknown\")\n        hw.write_handoff(TASK_DIR, tid, token, PLAN_PATH)\n    except (ImportError, Exception) as e:\n        pass  # fallback → 旧版 inline\n    HANDOFF_PATH.parent.mkdir(parents=True, exist_ok=True)\n    now = datetime.now(timezone.utc).strftime(\"%Y-%m-%d %H:%M UTC\")\n    done = token.get(\"stats\", {}).get(\"done\", 0)\n    total = token.get(\"stats\", {}).get(\"total\", 0)\n    current = token.get(\"task\", {}).get(\"current_step\", \"?\")\n    steps_summary = f\"  current_step: {current} ({done}/{total})\"\n    plan = \"\"\n    if PLAN_PATH.exists():\n        plan = PLAN_PATH.read_text()[:300]\n    content = (\n        f\"# Session Handoff: {token.get('session', {}).get('id', 'unknown')}\\n\"\n        f\"\\n\"\n        f\"**Updated:** {now}\\n\"\n        f\"**Level:** {token.get('session', {}).get('level', '?')}\\n\"\n        f\"**Progress:** {done}/{total} steps\\n\"\n        f\"\\n\"\n        f\"## Steps\\n\"\n        f\"{steps_summary}\\n\"\n        f\"\\n\"\n        f\"## Plan (condensed)\\n\"\n        f\"{plan}\\n\"\n        f\"\\n\"\n        f\"---\\n\"\n        f\"_Auto-generated by carros_base.py_\\n\"\n    )\n    HANDOFF_PATH.write_text(content)\n\n\n# ═══════════════════════════════════════════\n# Plan / Executor helpers\n# ═══════════════════════════════════════════\n\ndef _write_default_plan(steps=None):\n    \"\"\"创建默认 plan.md 模板\"\"\"\n    if steps is None:\n        steps = [\"S1\"]\n    PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)\n    lines = [\"# Plan\\n\", \"\", \"## Goal\\n\\n\", \"## Scope\\n\\n\"]\n    lines.append(\"## Steps\\n\")\n    for s in steps:\n        lines.append(f\"- [ ] {s}: \\n\")\n    lines.append(\"\\n## Verify\\n\")\n    for s in steps:\n        lines.append(f\"- {s}: \\n\")\n    lines.append(\"\\n---\\n\")\n    lines.append(\"> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。\\n\")\n    PLAN_PATH.write_text(\"\".join(lines))\n\n\ndef _write_default_executor():\n    \"\"\"创建空 executor.md 证据账簿\"\"\"\n    EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)\n    content = \"\"\"# Executor Evidence Ledger\n\n> schema_version: v1.0\n> 每步必须包含标准 evidence block。\n\n## S1\n\n**证据块：**\n```\n- action:\n- file:\n- command:\n- output:\n- status: [PASS/FAIL]\n```\n\n---\n\"\"\"\n    EXECUTOR_PATH.write_text(content)\n\n\ndef _write_default_research():\n    \"\"\"创建 research.md — 子任务也可引用 src.md\"\"\"\n    RESEARCH_PATH.parent.mkdir(parents=True, exist_ok=True)\n    content = \"\"\"# Research\n\n> 事实层：技术决策、架构边界、参考来源\n\n## 背景\n\n## 约束\n\n## 已知信息\n\"\"\"\n    RESEARCH_PATH.write_text(content)\n\n\ndef _init_task_dirs():\n    \"\"\"初始化任务子目录：sub_task/ + state/ + state/audit + artifacts/\"\"\"\n    for d in [SUB_TASK_DIR, STATE_DIR, AUDIT_DIR]:\n        d.mkdir(parents=True, exist_ok=True)\n    # artifacts/ for tool store\n    artifacts_dir = TASK_DIR / \"artifacts\" if TASK_DIR else None\n    if artifacts_dir:\n        artifacts_dir.mkdir(parents=True, exist_ok=True)\n    # evidence.jsonl for L2+\n    if TASK_DIR:\n        evidence_path = TASK_DIR / \"evidence.jsonl\"\n        if not evidence_path.exists():\n            evidence_path.touch()\n    # working-set.yaml for L2+\n    if TASK_DIR:\n        ws_path = TASK_DIR / \"working-set.yaml\"\n        if not ws_path.exists():\n            ws_template = PROJECT_ROOT / \".claude/references/working-set-template.yaml\"\n            if ws_template.exists():\n                ws_path.write_text(ws_template.read_text(encoding=\"utf-8\"))\n\n\ndef _inject_plan_step(step_id):\n    \"\"\"为 plan.md 补充 step，当 step 不在已有列表时追加\"\"\"\n    if not PLAN_PATH.exists():\n        _write_default_plan([step_id])\n        return\n    plan = PLAN_PATH.read_text()\n    pattern = r\"- \\[ \\] \" + re.escape(step_id) + r\":\"\n    if re.search(pattern, plan):\n        return  # already exists\n    # append before the last line (freeze note)\n    lines = plan.rstrip().split(\"\\n\")\n    insert_idx = len(lines)\n    for i, line in enumerate(lines):\n        if line.startswith(\"## Verify\"):\n            insert_idx = i\n            break\n    lines.insert(insert_idx, f\"- [ ] {step_id}: \")\n    lines.insert(insert_idx + 1, \"\")\n    PLAN_PATH.write_text(\"\\n\".join(lines))\n\n\n# ═══════════════════════════════════════════\n# Audit helpers\n# ════════

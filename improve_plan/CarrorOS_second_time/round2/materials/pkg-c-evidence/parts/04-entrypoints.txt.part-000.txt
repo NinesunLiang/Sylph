@@ -1,0 +1,637 @@
+
+===== .claude/settings.json =====
+     1	{
+     2	  "env": {
+     3	    "ANTHROPIC_AUTH_TOKEN": "<REDACTED>",
+     4	    "ANTHROPIC_BASE_URL": "https://api.moonshot.cn/anthropic",
+     5	    "ANTHROPIC_MODEL": "kimi-k3",
+     6	    "ANTHROPIC_DEFAULT_OPUS_MODEL": "kimi-k3",
+     7	    "ANTHROPIC_DEFAULT_SONNET_MODEL": "kimi-k3",
+     8	    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "kimi-k3",
+     9	    "CLAUDE_CODE_SUBAGENT_MODEL": "kimi-k3",
+    10	    "ENABLE_TOOL_SEARCH": "false",
+    11	    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1048576"
+    12	  },
+    13	  "enabledPlugins": {
+    14	    "pyright-lsp@claude-plugins-official": true
+    15	  },
+    16	  "effortLevel": "xhigh",
+    17	  "skipDangerousModePermissionPrompt": true,
+    18	  "skipWorkflowUsageWarning": true,
+    19	  "model": "opus",
+    20	  "hooks": {
+    21	    "PreToolUse": [
+    22	      {
+    23	        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Grep|Glob",
+    24	        "hooks": [
+    25	          {
+    26	            "type": "command",
+    27	            "command": "bash \".claude/hooks/hook-launcher.sh\" \"pretool-gate.py\""
+    28	          }
+    29	        ]
+    30	      },
+    31	      {
+    32	        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Read|Grep|Glob",
+    33	        "hooks": [
+    34	          {
+    35	            "type": "command",
+    36	            "command": "bash \".claude/hooks/hook-launcher.sh\" \"carroros-night-deny.py\""
+    37	          }
+    38	        ]
+    39	      }
+    40	    ],
+    41	    "UserPromptSubmit": [
+    42	      {
+    43	        "hooks": [
+    44	          {
+    45	            "type": "command",
+    46	            "command": "python3 \".claude/hooks/pretool-user-approve.py\"",
+    47	            "timeout": 3000
+    48	          }
+    49	        ]
+    50	      }
+    51	    ],
+    52	    "PostToolUse": [
+    53	      {
+    54	        "matcher": "*",
+    55	        "hooks": [
+    56	          {
+    57	            "type": "command",
+    58	            "command": "python3 \".claude/hooks/posttool-gate.py\"",
+    59	            "timeout": 5000
+    60	          }
+    61	        ]
+    62	      }
+    63	    ],
+    64	    "SessionStart": [
+    65	      {
+    66	        "hooks": [
+    67	          {
+    68	            "type": "command",
+    69	            "command": "python3 \".claude/hooks/session-start.py\"",
+    70	            "timeout": 3000
+    71	          }
+    72	        ]
+    73	      }
+    74	    ],
+    75	    "Stop": [
+    76	      {
+    77	        "hooks": [
+    78	          {
+    79	            "type": "command",
+    80	            "command": "python3 \".claude/hooks/stop-flywheel.py\"",
+    81	            "timeout": 10000
+    82	          }
+    83	        ]
+    84	      }
+    85	    ]
+    86	  },
+    87	  "statusLine": {
+    88	    "type": "command",
+    89	    "command": "bash \".claude/hooks/statusline-command.sh\""
+    90	  }
+    91	}
+
+===== .claude/references/feature-registry.yaml =====
+     1	version: 1
+     2	hooks:
+     3	- name: permission-gate
+     4	  philosophy: ["#6", "#3"]
+     5	  type: gate
+     6	  category: security
+     7	  description: 危险命令拦截 (rm -rf, DROP TABLE, git push --force)
+     8	  enabled_by_default: true
+     9	  evidence_level: L3
+    10	- name: privacy-gate
+    11	  philosophy: ['#6', '#3']
+    12	  type: gate
+    13	  category: security
+    14	  description: 敏感文件/DLP 保护，防止 .env/私钥泄露
+    15	  enabled_by_default: true
+    16	  evidence_level: L3
+    17	- name: subagent-guard
+    18	  philosophy: ['#6', '#3']
+    19	  type: gate
+    20	  category: security
+    21	  description: 子代理类型安全门禁，限制 executor/designer/scientist
+    22	  enabled_by_default: true
+    23	  evidence_level: L3
+    24	- name: edit-guard
+    25	  philosophy: ['#4', '#6']
+    26	  type: guard
+    27	  category: quality
+    28	  description: 编辑内容质量门禁，拦截空/越界编辑
+    29	  enabled_by_default: true
+    30	  evidence_level: L3
+    31	- name: lsp-suggest
+    32	  philosophy: ['#5', '#7']
+    33	  type: monitor
+    34	  category: observability
+    35	  description: LSP 诊断建议注入
+    36	  enabled_by_default: true
+    37	  evidence_level: L3
+    38	- name: auto-snapshot
+    39	  philosophy: ['#7', '#3']
+    40	  type: monitor
+    41	  category: knowledge
+    42	  description: 自动会话快照（根据 turn 间隔）
+    43	  enabled_by_default: true
+    44	  evidence_level: L3
+    45	- name: inject-project-knowledge
+    46	  philosophy: ['#7', '#1']
+    47	  type: injector
+    48	  category: knowledge
+    49	  description: 会话启动时注入 kernel.md / claude-next.md / anti-patterns.md
+    50	  enabled_by_default: true
+    51	  evidence_level: L3
+    52	- name: turn-counter
+    53	  philosophy: ['#1', '#5']
+    54	  type: monitor
+    55	  category: observability
+    56	  description: 轮次计数器，控制 todo 刷新间隔
+    57	  enabled_by_default: true
+    58	  evidence_level: L3
+    59	- name: read-tracker
+    60	  philosophy: ['#6', '#1']
+    61	  type: monitor
+    62	  category: observability
+    63	  description: 读取跟踪，记录已读取文件
+    64	  enabled_by_default: true
+    65	  evidence_level: L3
+    66	- name: error-dna
+    67	  philosophy: ['#4', '#6']
+    68	  type: monitor
+    69	  category: observability
+    70	  description: 错误 DNA 分析，跟踪错误模式
+    71	  enabled_by_default: true
+    72	  evidence_level: L3
+    73	- name: skill-flywheel
+    74	  philosophy: ['#1', '#7']
+    75	  type: monitor
+    76	  category: runtime
+    77	  description: Skill 飞轮，技能使用统计和优化建议
+    78	  enabled_by_default: true
+    79	  evidence_level: L3
+    80	- name: pretool-user-correction
+    81	  philosophy: ['#4', '#5']
+    82	  type: monitor
+    83	  category: quality
+    84	  description: 用户纠正检测，触发纠正学习
+    85	  enabled_by_default: true
+    86	  evidence_level: L3
+    87	- name: completion-gate
+    88	  philosophy: ['#4', '#6']
+    89	  type: gate
+    90	  category: delivery
+    91	  description: 假完成拦截，要求 VERIFIED 证据
+    92	  enabled_by_default: true
+    93	  evidence_level: L3
+    94	- name: context-guard
+    95	  philosophy: ['#3']
+    96	  type: gate
+    97	  category: runtime
+    98	  description: 上下文守卫，50% 甜点区警告 + 80% 硬阻断写/执行操作
+    99	  enabled_by_default: true
+   100	  evidence_level: L3
+   101	- name: pretool-write-lock
+   102	  philosophy: ['#6', '#3']
+   103	  type: gate
+   104	  category: audit
+   105	  description: 写入前锁定检查，防止并发写入冲突
+   106	  enabled_by_default: true
+   107	  evidence_level: L3
+   108	- name: posttool-write-lock
+   109	  philosophy: ['#6', '#3']
+   110	  type: gate
+   111	  category: audit
+   112	  description: 写入后锁定释放，清理锁定状态
+   113	  enabled_by_default: true
+   114	  evidence_level: L3
+   115	- name: flywheel-report
+   116	  philosophy: ['#4', '#1']
+   117	  type: monitor
+   118	  category: runtime
+   119	  description: 飞轮报告生成，输出技能使用统计
+   120	  enabled_by_default: true
+   121	  evidence_level: L3
+   122	- name: feature-probe
+   123	  philosophy: ['#4', '#7']
+   124	  type: tool
+   125	  category: observability
+   126	  path: .claude/scripts/feature-probe.sh
+   127	  description: 特性探针，验证 feature 的 L1-L4 证据链
+   128	  enabled_by_default: true
+   129	  evidence_level: L3
+   130	- name: ecosystem-probe
+   131	  philosophy: ['#4', '#7']
+   132	  type: probe
+   133	  category: observability
+   134	  description: 生态探针，检测运行平台（CC/OC）与 OMO 安装状态，AI 据此调整策略
+   135	  enabled_by_default: true
+   136	  evidence_level: L2
+   137	- name: meta-oracle-trigger
+   138	  philosophy: ['#6', '#4']
+   139	  type: trigger
+   140	  category: quality
+   141	  description: Meta-Oracle 自动触发 — 检测 G1-G4 触发条件，提醒 AI 执行最高级独立验证
+   142	  enabled_by_default: true
+   143	  evidence_level: L3
+   144	- name: oracle-gate
+   145	  philosophy: ['#6', '#4']
+   146	  type: gate
+   147	  category: quality
+   148	  description: Oracle 审查前置门禁 — 编辑机制/治理文件前检查 24h 内 Oracle/Meta-Oracle ACCEPT 裁决，无则阻断
+   149	  enabled_by_default: true
+   150	  evidence_level: L3
+   151	- name: harness-config
+   152	  philosophy: ['#1', '#3']
+   153	  type: shared
+   154	  category: utility
+   155	  description: 共享配置读取器，所有 hook source 的工具库
+   156	  enabled_by_default: true
+   157	  evidence_level: L3
+   158	- name: token-writer
+   159	  philosophy: ['#1', '#4']
+   160	  type: monitor
+   161	  category: observability
+   162	  description: 写入 token 追踪索引，由 context-guard 调用
+   163	  script: .claude/hooks/token_writer.sh
+   164	  enabled_by_default: true
+   165	  evidence_level: L3
+   166	- name: oma-lock
+   167	  philosophy: ['#3', '#6']
+   168	  type: gate
+   169	  category: runtime
+   170	  description: OMA 并发写锁门禁，多 Agent 写同一文件时排队互斥
+   171	  enabled_by_default: true
+   172	  evidence_level: L3
+   173	- name: fuzzy-block
+   174	  philosophy: ['#4', '#5']
+   175	  type: gate
+   176	  category: quality
+   177	  description: 模糊指令硬阻断，C1 指令清晰度门禁
+   178	  enabled_by_default: true
+   179	  evidence_level: L3
+   180	- name: pretool-sensitive-edit
+   181	  philosophy: ['#6', '#3']
+   182	  type: gate
+   183	  category: security
+   184	  description: 治理文件编辑 CAPTCHA 验证码门禁，Edit/Write/Bash 全覆盖
+   185	  enabled_by_default: false
+   186	  evidence_level: L3
+   187	- name: pre-completion-gate
+   188	  philosophy: ['#4', '#6']
+   189	  type: gate
+   190	  category: delivery
+   191	  description: 前置完成门禁，阻止无证据 TaskUpdate(completed)，节省浪费轮次
+   192	  enabled_by_default: true
+   193	  evidence_level: L3
+   194	- name: posttool-anti-pattern-detect
+   195	  philosophy: ['#6', '#4']
+   196	  type: gate
+   197	  category: quality
+   198	  description: 反模式检测，A2/F1/G1/H1 四类阻断（虚假完成/假设驱动/伪诚信/语义作弊）
+   199	  enabled_by_default: true
+   200	  evidence_level: L3
+   201	- name: posttool-claim-audit
+   202	  philosophy: ['#6', '#4', '#1']
+   203	  type: audit
+   204	  category: audit
+   205	  description: 铁律 #1 编造检测 — 检查 Edit/Write 输出中的无证据断言，要求 file:line 引用
+   206	  enabled_by_default: true
+   207	  evidence_level: L3
+   208	- name: posttool-subagent-audit
+   209	  philosophy: ['#6', '#4']
+   210	  type: audit
+   211	  category: audit
+   212	  description: 子 agent 字节数审计，超阈值写入 flywheel P0
+   213	  enabled_by_default: true
+   214	  evidence_level: L3
+   215	- name: posttool-completion-audit
+   216	  philosophy: ['#4', '#6']
+   217	  type: audit
+   218	  category: audit
+   219	  description: 完成声明审计，交叉验证 TaskUpdate 与实际产物
+   220	  enabled_by_default: true
+   221	  evidence_level: L3
+   222	- name: posttool-handoff-writer
+   223	  philosophy: ['#7', '#5']
+   224	  type: monitor
+   225	  category: knowledge
+   226	  description: 完成时自动写交接备忘录，session-handoff 持久化
+   227	  enabled_by_default: true
+   228	  evidence_level: L3
+   229	- name: intent-tracker
+   230	  philosophy: ['#6', '#4']
+   231	  type: monitor
+   232	  category: quality
+   233	  description: 声明矛盾检测，编辑抖动/内容回退追踪
+   234	  enabled_by_default: true
+   235	  evidence_level: L3
+   236	
+   237	- name: thinking-gate
+   238	  philosophy: ['#1', '#6', '#4']
+   239	  type: gate
+   240	  category: quality
+   241	  description: Thinking/Reasoning 内容门禁 — 在消息进入 context 前剥离 reasoning_content，防止 token 膨胀
+   242	  enabled_by_default: true
+   243	  evidence_level: L2
+   244	
+   245	# ── 以下为 2026-05 补全（lx-sync 全量同步） ──
+   246	
+   247	# Security
+   248	- name: pretool-sensitive-file-guard
+   249	  philosophy: ['#6', '#3']
+   250	  type: gate
+   251	  category: security
+   252	  description: 拦截 AI 通过 Edit/Write 工具直接写 permission-approved / permission-required 标记文件
+   253	  enabled_by_default: true
+   254	  evidence_level: L3
+   255	- name: pretool-terminal-safety
+   256	  philosophy: ['#1', '#7']
+   257	  type: gate
+   258	  category: security
+   259	  description: 终端命令安全门禁，超长命令阻断要求写脚本文件
+   260	  enabled_by_default: true
+   261	  evidence_level: L3
+   262	- name: pretool-blast-radius
+   263	  philosophy: ['#6', '#3']
+   264	  type: gate
+   265	  category: security
+   266	  description: 检测 git checkout . / rm -rf 等全量操作，提醒改用选择性路径
+   267	  enabled_by_default: true
+   268	  evidence_level: L3
+   269	- name: pretool-retry-check
+   270	  philosophy: ['#6', '#4']
+   271	  type: gate
+   272	  category: security
+   273	  description: PreToolUse 检查 retry-budget，阻断超过上限的重复失败命令
+   274	  enabled_by_default: true
+   275	  evidence_level: L3
+   276	- name: build-validator
+   277	  philosophy: ['#4', '#6']
+   278	  type: gate
+   279	  category: quality
+   280	  description: 构建失败自动记录错误日志并给出针对性修复建议
+   281	  enabled_by_default: true
+   282	  evidence_level: L3
+   283	- name: pre-ask-guard
+   284	  philosophy: ['#5', '#4']
+   285	  type: gate
+   286	  category: quality
+   287	  description: 拦截 AskUserQuestion，检查决策链是否已有答案。能自主决策则阻断提问，降低人类心智负担
+   288	  enabled_by_default: true
+   289	  evidence_level: L3
+   290	
+   291	# Quality / Guard
+   292	- name: pre-edit-lsp-check
+   293	  philosophy: ['#4', '#3']
+   294	  type: guard
+   295	  category: quality
+   296	  description: 编辑代码文件前主动获取诊断结果，注入 AI 上下文
+   297	  enabled_by_default: true
+   298	  evidence_level: L3
+   299	- name: pretool-purify-gate
+   300	  philosophy: ['#4', '#6']
+   301	  type: guard
+   302	  category: quality
+   303	  description: 编辑治理文件时注入哲学纯度提醒到 AI 上下文（不阻断）
+   304	  enabled_by_default: true
+   305	  evidence_level: L3
+   306	- name: pretool-skill-version-guard
+   307	  philosophy: ['#4', '#7']
+   308	  type: guard
+   309	  category: quality
+   310	  description: 拦截硬编码版本号写入 SKILL.md，确保只用 >= 格式（指向 VERSION.json 单一真相源）
+   311	  enabled_by_default: true
+   312	  evidence_level: L3
+   313	- name: pretool-edit-scope
+   314	  philosophy: ['#4', '#6']
+   315	  type: guard
+   316	  category: quality
+   317	  description: 范围文件匹配 + 自动加入 + 核心文件警告 + 长对话规则锚定 + 无证据完成提醒
+   318	  enabled_by_default: true
+   319	  evidence_level: L3
+   320	- name: posttool-format-gate
+   321	  philosophy: ['#5', '#7']
+   322	  type: guard
+   323	  category: quality
+   324	  description: 检查任务输出是否符合"以人为本"原则：有方向感、结构化、认知负担低
+   325	  enabled_by_default: true
+   326	  evidence_level: L3
+   327	- name: posttool-template-check
+   328	  philosophy: ['#4', '#7']
+   329	  type: guard
+   330	  category: quality
+   331	  description: 检查编辑后的文件是否符合模板规范
+   332	  enabled_by_default: true
+   333	  evidence_level: L3
+   334	- name: pretool-approve-detect
+   335	  philosophy: ['#5', '#2']
+   336	  type: gate
+   337	  category: delivery
+   338	  description: 拦截用户聊天中的 /approve|/deny 指令，实现对话内批准流程
+   339	  enabled_by_default: true
+   340	  evidence_level: L3
+   341	
+   342	# Observability / Monitor
+   343	- name: context-compressor
+   344	  philosophy: ['#1', '#4']
+   345	  type: monitor
+   346	  category: runtime
+   347	  description: 检测源文件 mtime → 拼接精简内容 → 缓存到 .omc/state/context-cache.md
+   348	  enabled_by_default: true
+   349	  evidence_level: L3
+   350	- name: error-dna-auto-fix
+   351	  philosophy: ['#4', '#6']
+   352	  type: monitor
+   353	  category: observability
+   354	  description: 跨会话错误回顾：扫描 error-dna.json 输出未修复的顽固错误
+   355	  enabled_by_default: true
+   356	  evidence_level: L3
+   357	- name: knowledge-condenser
+   358	  philosophy: ['#4', '#1']
+   359	  type: monitor
+   360	  category: knowledge
+   361	  description: 扫描 claude-next.md 高频模式(hits≥2)，输出升华建议
+   362	  enabled_by_default: true
+   363	  evidence_level: L3
+   364	- name: lsp-gate
+   365	  philosophy: ['#5', '#7']
+   366	  type: gate
+   367	  category: observability
+   368	  description: LSP 门禁 — SessionStart 检测 LSP 可用性，输出配置建议
+   369	  enabled_by_default: true
+   370	  evidence_level: L2
+   371	- name: posttool-checkpoint
+   372	  philosophy: ['#7', '#5']
+   373	  type: monitor
+   374	  category: knowledge
+   375	  description: TaskUpdate(completed) / Stop 时自动生成过程摘要 + 决策记录 + 待处理 + 方向指引
+   376	  enabled_by_default: true
+   377	  evidence_level: L3
+   378	- name: posttool-bash-audit
+   379	  philosophy: ['#6', '#4']
+   380	  type: audit
+   381	  category: audit
+   382	  description: Bash 执行后审计权限上下文，只提醒不阻断
+   383	  enabled_by_default: true
+   384	  evidence_level: L3
+   385	- name: posttool-read-cite
+   386	  philosophy: ['#7', '#5']
+   387	  type: monitor
+   388	  category: audit
+   389	  description: 读取文件后提示引用规范，要求标注 file:line 来源
+   390	  enabled_by_default: true
+   391	  evidence_level: L3
+   392	- name: posttool-write-cite
+   393	  philosophy: ['#7', '#4']
+   394	  type: monitor
+   395	  category: audit
+   396	  description: 检测写入 claude-next.md 时验证教训格式
+   397	  enabled_by_default: true
+   398	  evidence_level: L3
+   399	- name: posttool-edit-quality
+   400	  philosophy: ['#4', '#5']
+   401	  type: guard
+   402	  category: quality
+   403	  description: 编辑后自查代码风格、文档同步、方案复用检测
+   404	  enabled_by_default: true
+   405	  evidence_level: L3
+   406	- name: skill-usage-tracker
+   407	  philosophy: ['#4', '#1']
+   408	  type: monitor
+   409	  category: observability
+   410	  description: "无侵入 skill 使用率追踪 — 双路径: UserPromptSubmit(扫描/命令文本) + PostToolUse:Skill(工具调用)"
+   411	  enabled_by_default: true
+   412	  evidence_level: L3
+   413	- name: session-resume
+   414	  philosophy: ['#5', '#7']
+   415	  type: monitor
+   416	  category: runtime
+   417	  description: 会话恢复 — 检测 session-handoff.md 并注入恢复上下文
+   418	  enabled_by_default: true
+   419	  evidence_level: L3
+   420	- name: pretool-cruise-check
+   421	  philosophy: ['#1', '#5']
+   422	  type: gate
+   423	  category: runtime
+   424	  description: 巡航模式检测 — SessionStart/PreToolUse 检查是否进入 goal/ghost 巡航模式
+   425	  enabled_by_default: true
+   426	  evidence_level: L2
+   427	- name: pretool-node-reference
+   428	  philosophy: ['#7', '#1']
+   429	  type: gate
+   430	  category: quality
+   431	  description: Agent 工具前置检查 — 注入 nodes 引用到 sub-agent 上下文
+   432	  enabled_by_default: true
+   433	  evidence_level: L2
+   434	- name: pretool-oracle-gate-py
+   435	  philosophy: ['#6', '#4']
+   436	  type: gate
+   437	  category: quality
+   438	  description: Oracle 审查前置门禁 (Python 版) — 编辑机制/治理文件前检查 Oracle/Meta-Oracle ACCEPT 裁决
+   439	  enabled_by_default: true
+   440	  evidence_level: L3
+   441	- name: pretool-oracle-gate
+   442	  philosophy: ['#6', '#4']
+   443	  type: gate
+   444	  category: quality
+   445	  description: Oracle 审查前置门禁 (Shell 版) — 编辑机制/治理文件前检查 Oracle/Meta-Oracle ACCEPT 裁决
+   446	  enabled_by_default: true
+   447	  evidence_level: L3
+   448	- name: pretool-plan-gate
+   449	  philosophy: ['#4', '#7']
+   450	  type: gate
+   451	  category: delivery
+   452	  description: 非琐碎任务强制 planning — Edit|Write|Bash 前检查是否有 plan 文件
+   453	  enabled_by_default: true
+   454	  evidence_level: L3
+   455	- name: pretool-rules-inject
+   456	  philosophy: ['#7', '#3']
+   457	  type: injector
+   458	  category: knowledge
+   459	  description: 用户提交 prompt 时注入规则提醒到 AI 上下文
+   460	  enabled_by_default: true
+   461	  evidence_level: L3
+   462	- name: stop-drain
+   463	  philosophy: ['#6', '#4']
+   464	  type: monitor
+   465	  category: observability
+   466	  description: Stop 时兜底扫描 transcript 补写错误记录（防御纵深第二层）
+   467	  enabled_by_default: true
+   468	  evidence_level: L3
+   469	- name: meta-oracle-trigger-py
+   470	  philosophy: ['#6', '#4']
+   471	  type: trigger
+   472	  category: quality
+   473	  description: Meta-Oracle 自动触发 (Python 版) — 检测 G1-G4 触发条件，提醒 AI 执行最高级独立验证
+   474	  enabled_by_default: true
+   475	  evidence_level: L3
+   476	- name: agentic-ui
+   477	  philosophy: ['#5', '#7']
+   478	  type: monitor
+   479	  category: runtime
+   480	  description: Agentic UI 状态管理 — 更新轮次/锚定信息到 AI 上下文
+   481	  enabled_by_default: true
+   482	  evidence_level: L2
+   483	
+   484	# ── Skill 执行合规 (2026-06-01) ──
+   485	- name: skill-body-enforce
+   486	  philosophy: ['#3', '#6']
+   487	  type: injector
+   488	  category: governance
+   489	  description: PreToolUse:Skill — 自动将 body.md 内容注入 AI 上下文，确保 AI 看到强制执行合约
+   490	  enabled_by_default: true
+   491	  evidence_level: L2
+   492	- name: skill-compliance-audit
+   493	  philosophy: ['#4', '#6']
+   494	  type: audit
+   495	  category: governance
+   496	  description: PostToolUse:Skill — 审计 AI 是否按 body.md 执行，发现偏差注入警告
+   497	  enabled_by_default: true
+   498	  evidence_level: L2
+
+===== .claude/hooks/hook-launcher.sh =====
+     1	#!/usr/bin/env bash
+     2	# CarrorOS Hook Launcher
+     3	# 用 $0 定位自身，切到项目根目录，再跑对应 hook
+     4	# settings.json 里写: .claude/hooks/hook-launcher.sh <hook_name>.py
+     5	
+     6	set -euo pipefail
+     7	
+     8	# 从 launcher 自身路径定位项目根
+     9	LAUNCHER_DIR="$(cd "$(dirname "$0")" && pwd)"
+    10	PROJECT_ROOT="$(cd "$LAUNCHER_DIR/../.." && pwd)"
+    11	
+    12	HOOK_NAME="${1:-}"
+    13	if [ -z "$HOOK_NAME" ]; then
+    14	  echo "{\"continue\":true,\"message\":\"hook-launcher: missing hook name\"}"
+    15	  exit 0
+    16	fi
+    17	
+    18	HOOK_PATH="$LAUNCHER_DIR/$HOOK_NAME"
+    19	
+    20	# H3 fail-closed：关键 hook 缺失 = 治理链断裂，必须阻断而非静默放行。
+    21	# 名单与 settings.json PreToolUse 注册项一一对应；新增关键 hook 时同步加入。
+    22	CRITICAL_HOOKS="pretool-gate.py carroros-night-deny.py"
+    23	_is_critical_hook() {
+    24	  case " $CRITICAL_HOOKS " in
+    25	    *" $1 "*) return 0 ;;
+    26	    *) return 1 ;;
+    27	  esac
+    28	}
+    29	
+    30	if [ ! -f "$HOOK_PATH" ]; then
+    31	  if _is_critical_hook "$HOOK_NAME"; then
+    32	    echo "{\"continue\":true,\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"hook-launcher: CRITICAL hook missing: $HOOK_NAME — 治理链断裂，fail-closed 阻断本次工具调用。恢复该文件后重试。\"}}"
+    33	    echo "hook-launcher: BLOCKED - critical hook missing: $HOOK_NAME" >&2
+    34	    exit 2
+    35	  fi
+    36	  echo "{\"continue\":true,\"message\":\"hook-launcher: hook not found: $HOOK_NAME\"}"
+    37	  exit 0
+    38	fi
+    39	
+    40	cd "$PROJECT_ROOT"
+    41	
+    42	# Sol 复审 P1-SOL-2 锁紧：生产路径显式清除 night-deny 的测试覆写

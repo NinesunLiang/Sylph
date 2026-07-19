@@ -1,0 +1,325 @@
+.omc/metrics/runtime-verify/evidence.jsonl:196:{"test": "GA-BHV-03-UNATTENDED-GOAL-FAILURE-INJECTION", "status": "PASS", "detail": "autonomy guards pause on loop, budget, and stall injections", "output": ".omc/metrics/runtime-verify/ga-bhv-03-unattended-goal-failure-injection.json", "timestamp": "2026-07-14T09:40:36+00:00"}
+.omc/metrics/runtime-verify/evidence.jsonl:202:{"test": "GA-BHV-03-UNATTENDED-GOAL-FAILURE-INJECTION", "status": "PASS", "detail": "autonomy guards pause on loop, budget, and stall injections", "output": ".omc/metrics/runtime-verify/ga-bhv-03-unattended-goal-failure-injection.json", "timestamp": "2026-07-14T09:49:31+00:00"}
+.omc/metrics/runtime-verify/evidence.jsonl:254:{"test": "[P0-S3] status 输出 Hot Card", "status": "PASS", "detail": "exit=0", "output_preview": "# CarrorOS Hot Card\ntask: rpe-f-ten-features-revival | level: L1 | step: S1\nticks: 0 | verified: 7/7\nstatus: active\nlast:\n  - - [已测试] off → 自动生成完整 goal-report.md（硬边界行进决策表）+ 关闭模式，测试后恢复激活态（is-active exit=0）\n  - - [已测试] is-active 回归 exit=0；python ast 语法 OK\n  - - Rollback 演练：git restore lx-goal.py SKILL.md\nrules: one_action | no_full_plan | verify_only_done\n", "timestamp": "2026-07-18T08:21:51.846416+00:00"}
+.omc/metrics/runtime-verify/ga-behavioral-validation.json:25:      "path": ".omc/metrics/runtime-verify/ga-bhv-03-unattended-goal-failure-injection.json",
+.omc/metrics/runtime-verify/ga-bhv-03-unattended-goal-failure-injection.json:4:  "label": "Unattended goal failure-injection guardrails",
+.omc/metrics/runtime-verify/ga-bhv-03-unattended-goal-failure-injection.json:11:    "loop_pause_reason": "loop_detected: write handoff, reconsider approach",
+.omc/plans/2026-07-07/lx-goal-xsimple-adapter/executor.md:1:# lx-goal 执行报告
+.omc/plans/2026-07-07/lx-goal-xsimple-adapter/progress.md:1:# lx-goal Progress
+.omc/plans/2026-07-08/-4-1LevelL1_BASEL1-2Token-schemasteps/research.md:3:> goal模式自动创建 @ 2026-07-07T18:51:25Z
+.omc/reference/SUBAGENT.md:40:  "goal": "调研 X 模块的 API 设计",
+.omc/reference/enhance/fallback-matrix.md:46:- **L1→非活跃**: session-handoff 写入后停止
+.omc/reference/omc-path-conventions.md:13:│   ├── session-handoff.md  # 唯一 compact/resume 摘要源
+.omc/reference/omc-path-conventions.md:43:| session-handoff.md | .omc/state/session-handoff.md | compact 前写 | 恢复摘要 |
+.omc/review/main-sub-review-context.md:65:- token.json 的 goal/ACs/files
+.omc/scripts/archive_engine.py:304:    goal = token.get("task", {}).get("goal", "")
+.omc/scripts/archive_engine.py:323:{goal or "N/A"}
+.omc/scripts/archive_engine.py:377:    handoff_path = task_path / "state" / "session-handoff.md"
+.omc/scripts/archive_engine.py:402:        ("session_handoff", handoff_path, archive_path / "session-handoff.md"),
+.omc/scripts/carros_base.py:53:    import goal_state_machine as gsm
+.omc/scripts/carros_base.py:54:    from goal_state_machine import GoalMachine, GoalError
+.omc/scripts/carros_base.py:121:    HANDOFF_PATH = Path(".omc/session-handoff.md")
+.omc/scripts/carros_base.py:237:def _write_handoff(token, plan_summary=None):
+.omc/scripts/carros_base.py:238:    """写入 Resume Capsule（NOT_SOURCE_OF_TRUTH）— 委托 handoff_writer"""
+.omc/scripts/carros_base.py:240:        import lib.handoff_writer as hw
+.omc/scripts/carros_base.py:242:        hw.write_handoff(TASK_DIR, tid, token, PLAN_PATH)
+.omc/scripts/carros_base.py:478:    _write_handoff(_load_token() or token)
+.omc/scripts/carros_base.py:560:            # 但还需要创建 task dirs 和 executor.md/research.md/handoff
+.omc/scripts/carros_base.py:572:    _write_handoff(_load_token() or _default_token(task_id=task_id, level=level, steps=steps))
+.omc/scripts/carros_base.py:701:            # Pause: write handoff, request compact
+.omc/scripts/carros_base.py:702:            from lib.handoff_writer import write_handoff
+.omc/scripts/carros_base.py:703:            write_handoff(TASK_DIR, token.get("session",{}).get("id",""), token, PLAN_PATH, executor_path=EXECUTOR_PATH)
+.omc/scripts/carros_base.py:846:        _write_handoff(token)
+.omc/scripts/carros_base.py:975:            # 重新加载 token — GoalMachine 已写入 goal.archived
+.omc/scripts/carros_base.py:1005:    handoff_src = HANDOFF_PATH if HANDOFF_PATH else Path(".omc/session-handoff.md")
+.omc/scripts/carros_base.py:1006:    if handoff_src.exists():
+.omc/scripts/carros_base.py:1007:        shutil.copy2(handoff_src, archive_dir / "session-handoff.md")
+.omc/scripts/carros_base.py:1010:    _write_handoff(token)
+.omc/scripts/carros_base.py:1977:            print(f"   [{s['type']}] {s['id']}: {s['goal'][:50]}")
+.omc/scripts/clarify_engine.py:46:    "goal": {
+.omc/scripts/clarify_engine.py:56:        "hint": "例：.omc/scripts/carros_base.py, .omc/scripts/goal_state_machine.py",
+.omc/scripts/clarify_engine.py:123:def build_spec(title, goal, acs, scope_in, scope_out, deps_section):
+.omc/scripts/clarify_engine.py:129:        f"**Schema:** goal-spec.v1",
+.omc/scripts/clarify_engine.py:136:    lines.append(f"{goal}")
+.omc/scripts/clarify_engine.py:182:    goal = _prompt_with_hint("goal")
+.omc/scripts/clarify_engine.py:183:    if not goal:
+.omc/scripts/clarify_engine.py:184:        goal = "未定义 (请编辑 spec.md 补充)"
+.omc/scripts/clarify_engine.py:213:    print(f"  目标: {goal}")
+.omc/scripts/clarify_engine.py:224:    return goal, acs, scope_in, scope_out, deps
+.omc/scripts/clarify_engine.py:261:        goal = data.get("goal", data.get("target", ""))
+.omc/scripts/clarify_engine.py:275:        return goal, acs, scope_in, scope_out, deps
+.omc/scripts/clarify_engine.py:298:        goal, acs, scope_in, scope_out, deps = _batch_clarify(title)
+.omc/scripts/clarify_engine.py:300:        goal, acs, scope_in, scope_out, deps = _interactive_clarify(title)
+.omc/scripts/clarify_engine.py:302:    spec_content = build_spec(title, goal, acs, scope_in, scope_out, deps)
+.omc/scripts/fallback_engine.py:295:def append_handoff(path: Path, decision: FallbackDecision) -> None:
+.omc/scripts/fallback_engine.py:365:    handoff = Path(".omc/tasks") / date / tid / "state" / "session-handoff.md"
+.omc/scripts/fallback_engine.py:369:        str(handoff),
+.omc/scripts/fallback_engine.py:372:    return handoff, executor, path_strings
+.omc/scripts/fallback_engine.py:388:        handoff_path, executor_path, audit_paths = task_paths(token)
+.omc/scripts/fallback_engine.py:390:        append_handoff(handoff_path, decision)
+.omc/scripts/fallback_matrix.py:47:    handoff = Path(".omc/state/session-handoff.md")
+.omc/scripts/fallback_matrix.py:48:    if not handoff.exists():
+.omc/scripts/fallback_matrix.py:50:    mtime = handoff.stat().st_mtime
+.omc/scripts/feature_verify.py:116:    "6.md-02": {"desc": "session-handoff.md 写入 (handoff 生成)",
+.omc/scripts/feature_verify.py:117:        "check": lambda: "handoff" in open(BASE/".omc/scripts/carros_base.py").read().lower()},
+.omc/scripts/goal_state_machine.py:3:goal_state_machine.py — Goal 自闭环状态机
+.omc/scripts/goal_state_machine.py:8:  - intent/goal 缺失时自动回退 CLARIFY
+.omc/scripts/goal_state_machine.py:13:    from goal_state_machine import GoalMachine, GoalStatus
+.omc/scripts/goal_state_machine.py:64:                self._state = token.get("goal", {}).get("state")
+.omc/scripts/goal_state_machine.py:107:            if "goal" not in token_data:
+.omc/scripts/goal_state_machine.py:108:                token_data["goal"] = {}
+.omc/scripts/goal_state_machine.py:109:            token_data["goal"]["state"] = target_state
+.omc/scripts/goal_state_machine.py:110:            token_data["goal"]["previous_state"] = old_state
+.omc/scripts/goal_state_machine.py:111:            token_data["goal"]["transitions"] = token_data["goal"].get("transitions", 0) + 1
+.omc/scripts/goal_state_machine.py:112:            token_data["goal"]["last_transition"] = datetime.now(timezone.utc).isoformat()
+.omc/scripts/goal_state_machine.py:114:                token_data["goal"]["last_reason"] = reason
+.omc/scripts/goal_state_machine.py:138:        goal_state = token_data.get("goal", {}).get("state")
+.omc/scripts/goal_state_machine.py:142:        if goal_state == EXECUTING and done >= total:
+.omc/scripts/goal_state_machine.py:147:        if goal_state == VERIFYING and done >= total:
+.omc/scripts/goal_state_machine.py:192:            "goal": {"state": None}
+.omc/scripts/sub_agent_executor.py:75:        """读 instruction.md，如果没有就 fallback 读 token.json 的 goal"""
+.omc/scripts/sub_agent_executor.py:79:        # fallback: 从 token.json 提取 goal
+.omc/scripts/sub_agent_executor.py:85:                goal = token.get("subtask", {}).get("goal", "")
+.omc/scripts/sub_agent_executor.py:86:                if goal:
+.omc/scripts/sub_agent_executor.py:87:                    return f"执行以下任务：\n{goal}"
+.omc/scripts/sub_agent_manager.py:133:                    f"## Goal: {step['goal']}\n\n"
+.omc/scripts/sub_agent_manager.py:141:            print(f"   ✅ {step_id}: {step['goal'][:50]}")
+.omc/scripts/sub_agent_manager.py:168:                "goal": step["goal"],
+.omc/scripts/sub_agent_manager.py:174:                    "goal": step["goal"],
+.omc/scripts/task_planner.py:8:输出: plan.json — {task_id, steps: [{id, goal, ac_refs, deps, files, type}]}
+.omc/scripts/task_planner.py:55:        "goal": _extract_goal(text),
+.omc/scripts/task_planner.py:69:def _extract_goal(text: str) -> str:
+.omc/scripts/task_planner.py:167:        {plan_id, level, steps: [{id, goal, ac_refs, deps, files, type}], concurrency}
+.omc/scripts/task_planner.py:184:            "goal": parsed["goal"],
+.omc/scripts/task_planner.py:188:            "type": _infer_step_type(parsed["goal"], files),
+.omc/scripts/task_planner.py:204:                "goal": parsed["goal"],
+.omc/scripts/task_planner.py:215:        "goal": parsed["goal"],
+.omc/scripts/task_planner.py:240:def _infer_step_type(goal: str, files: list) -> str:
+.omc/scripts/task_planner.py:242:    goal_lower = goal.lower()
+.omc/scripts/task_planner.py:243:    if any(w in goal_lower for w in ["文档", "研究", "调查", "research", "doc"]):
+.omc/scripts/task_planner.py:245:    if any(w in goal_lower for w in ["部署", "发布", "deploy", "release"]):
+.omc/scripts/task_planner.py:247:    if any(w in goal_lower for w in ["测试", "验证", "test", "verify"]):
+.omc/scripts/task_planner.py:249:    if any(w in goal_lower for w in ["配置", "config", "setting"]):
+.omc/scripts/task_planner.py:251:    if any(w in goal_lower for w in ["评审", "审核", "review", "audit"]):
+.omc/scripts/task_planner.py:269:        "goal": ac["desc"],
+.omc/scripts/task_planner.py:306:    print(f"   Goal: {parsed['goal'][:60]}")
+.omc/scripts/task_planner.py:327:        print(f"   {i+1}. [{step['type']}] {step['id']}: {step['goal'][:50]}{deps_str}")
+.omc/session-handoff.md:3:> 由 context_engine compact-write 于 2026-07-18T20:56:13+00:00 更新
+.omc/session-handoff.md:26:- session-handoff 只是恢复摘要，不是完成证据
+.omc/tasks/2026-07-09/bench-01/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-01/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-01/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-01/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-01/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-01/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-02/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-02/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-02/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-02/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-02/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-02/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:169:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:171:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-03/state/task-state.json:192:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:169:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:171:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-04/state/task-state.json:192:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:169:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:171:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:192:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:242:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:244:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-05/state/task-state.json:265:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-06/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-06/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-06/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-06/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-06/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-06/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:27:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:29:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:50:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:96:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:98:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:119:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:169:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:171:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:192:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:242:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:244:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:265:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:315:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:317:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:338:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:388:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:390:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/bench-07/state/task-state.json:411:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/smoke-test-01/state/task-state.json:24:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/smoke-test-01/state/task-state.json:26:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/smoke-test-01/state/task-state.json:47:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/2026-07-09/verify-test/state/task-state.json:24:          ".claude/session-handoff.md",
+.omc/tasks/2026-07-09/verify-test/state/task-state.json:26:          ".claude/skills/lx-ghost/scripts/lx-ghost.sh",
+.omc/tasks/2026-07-09/verify-test/state/task-state.json:47:          ".omc/tokens/2026-07-07/lx-goal.json",
+.omc/tasks/20260707/bench-01/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-01/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-01/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-01/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-02/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-02/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-02/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-02/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-03/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-03/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-03/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-03/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-03/state/task-state.json:67:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-03/state/task-state.json:80:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-04/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-04/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-04/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-04/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-04/state/task-state.json:67:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-04/state/task-state.json:80:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-05/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-05/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-05/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-05/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-05/state/task-state.json:67:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-05/state/task-state.json:80:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-05/state/task-state.json:94:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-05/state/task-state.json:107:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-06/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-06/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-06/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-06/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-07/state/task-state.json:17:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-07/state/task-state.json:30:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-07/state/task-state.json:40:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-07/state/task-state.json:53:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-07/state/task-state.json:67:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-07/state/task-state.json:80:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-07/state/task-state.json:94:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-07/state/task-state.json:107:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-07/state/task-state.json:121:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-07/state/task-state.json:134:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260707/bench-07/state/task-state.json:148:          ".claude/session-handoff.md",
+.omc/tasks/20260707/bench-07/state/task-state.json:161:        "summary": "M .claude/hooks/carroros_hooklib.py\nM .claude/hooks/userprompt-prompt-collector.py\nM .claude/index.md\nM .claude/scripts/intake_gate.py\nM .claude/scripts/plan_builder.py\nM .claude/session-handoff.md\nM .claude/skills/lx-rpe/executor.md\nM .omc/scripts/carros_base.py\nM AGENTS.md\nM README.md\n... and 6 more"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/plan.json:4:  "goal": "对比分析 CarrorOS（桌面版）和 Sylph 两套 AI 治理框架的各自优劣势，以及各自对不同模型的适配情况",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/plan.json:12:      "goal": "分析 CarrorOS 桌面版（~/Desktop/CarrorOS/）的架构优劣势，包含治理体系、hooks机制、状态机、subagent系统等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/plan.json:22:      "goal": "分析 Sylph（~/Desktop/Sylph/Carror_OS/）的架构优劣势，包含治理哲学、hook系统、三门户设计等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/plan.json:32:      "goal": "评估 CarrorOS 对 deepseek-v4-flash 的适配情况，以及 Sylph 对 opus 和 gpt_5.5 的适配情况，给出适配建议和迁移路径。结合 S1+S2 的实际分析结果。",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S1/executor.md:73:4. **Session 持久化**：`.claude/session-handoff.md` 和 `.claude/last-user-prompt.md` 支持中断恢复
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S1/token.json:18:    "goal": "分析 CarrorOS 桌面版（~/Desktop/CarrorOS/）的架构优劣势，包含治理体系、hooks机制、状态机、subagent系统等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S1/token.json:25:    "plan_text": "{\"goal\": \"分析 CarrorOS 桌面版（~/Desktop/CarrorOS/）的架构优劣势，包含治理体系、hooks机制、状态机、subagent系统等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。\", \"type\": \"research\", \"files\": [], \"deps\": []}"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:106:会话交接         | compact后/跨会话恢复        | .omc/state/session-handoff.md
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:168:- **After**: context-compressor.sh→context-cache.md(铁律/反模式/架构压缩) | inject-project-knowledge.sh→todo-queue.md+session-handoff.md(Feature/进度/决策)+session-dump.json摘要
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:186:- **无人**: goal/ghost/rpe → L4权限/风险→记录跳过 | **有人**: ToDo/Task-spec/标准 → L4穿透到人
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:225:Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:227:TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:243:*→pretool-user-correction|turn-counter|pretool-rules-inject
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:249:*→auto-snapshot|skill-flywheel|stop-drain|posttool-checkpoint
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:280:ghost_mode:
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:333:  posttool_handoff_writer: true
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:384:  pretool_compact_writer: false
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:536:### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.py
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:539:"""auto-snapshot.py — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:542:等效移植自 auto-snapshot.sh (532行):
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:546:- 生成 session-handoff.md 交接备忘录
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:712:# ─── 生成 session-handoff.md ───
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:714:def _generate_handoff(branch, turns):
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:716:    handoff_file = STATE_DIR / "session-handoff.md"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:719:    handoff_enabled = hc_get("session_handoff.enabled", "true")
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:720:    max_adr = int(hc_get("session_handoff.max_adr_lines", "10"))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:721:    max_todo = int(hc_get("session_handoff.max_todo_lines", "10"))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:722:    max_lessons = int(hc_get("session_handoff.max_lessons", "3"))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:724:    if handoff_enabled.lower() != "true":
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:920:    handoff_file.parent.mkdir(parents=True, exist_ok=True)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:921:    handoff_file.write_text("\n".join(sections) + "\n", encoding="utf-8")
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:922:    print(f"Session handoff saved: {len(sections)} sections", file=sys.stderr, flush=True)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1314:### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/compact-writer.py
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1318:compact-writer.py — PostToolUse hook (triggered by .* matcher)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1322:info into session-handoff.md so the next session can resume.
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1325:Handoff path: .omc/state/session-handoff.md
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1339:HANDOFF_PATH = OMC_STATE / "session-handoff.md"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1379:    """Detect if this is a context compaction / handoff turn."""
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1408:def _build_handoff(active, compact_info):
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1409:    """Build session-handoff.md content."""
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1466:    print("  [compact-writer] handoff written: {} active token(s)".format(len(active)))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1475:        print("  [compact-writer] no .omc/tokens/ dir")
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1482:    _build_handoff(active, compact_info)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1591:        STATE_DIR / "ghost-mode.active",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1592:        tokens_dir / "lx-ghost.json",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:1593:        tokens_dir / "lx-goal.json",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt:2907:    # ── Mode detection: ghost/goal → skip Read-before-Edit gate ──
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/token.json:18:    "goal": "分析 Sylph（~/Desktop/Sylph/Carror_OS/）的架构优劣势，包含治理哲学、hook系统、三门户设计等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/token.json:25:    "plan_text": "{\"goal\": \"分析 Sylph（~/Desktop/Sylph/Carror_OS/）的架构优劣势，包含治理哲学、hook系统、三门户设计等核心设计，至少5个维度。读取实际项目源文件做分析，不要编造。\", \"type\": \"research\", \"files\": [], \"deps\": []}"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:115:会话交接         | compact后/跨会话恢复        | .omc/state/session-handoff.md
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:177:- **After**: context-compressor.sh→context-cache.md(铁律/反模式/架构压缩) | inject-project-knowledge.sh→todo-queue.md+session-handoff.md(Feature/进度/决策)+session-dump.json摘要
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:195:- **无人**: goal/ghost/rpe → L4权限/风险→记录跳过 | **有人**: ToDo/Task-spec/标准 → L4穿透到人
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:234:Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:236:TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:252:*→pretool-user-correction|turn-counter|pretool-rules-inject
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:258:*→auto-snapshot|skill-flywheel|stop-drain|posttool-checkpoint
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:289:ghost_mode:
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:342:  posttool_handoff_writer: true
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:393:  pretool_compact_writer: false
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:545:### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/auto-snapshot.py
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:548:"""auto-snapshot.py — Stop / PostToolUse:Edit|Write — 会话结束时自动保存状态快照（分支/轮次/未提交文件）
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:551:等效移植自 auto-snapshot.sh (532行):
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:555:- 生成 session-handoff.md 交接备忘录
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:721:# ─── 生成 session-handoff.md ───
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:723:def _generate_handoff(branch, turns):
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:725:    handoff_file = STATE_DIR / "session-handoff.md"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:728:    handoff_enabled = hc_get("session_handoff.enabled", "true")
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:729:    max_adr = int(hc_get("session_handoff.max_adr_lines", "10"))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:730:    max_todo = int(hc_get("session_handoff.max_todo_lines", "10"))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:731:    max_lessons = int(hc_get("session_handoff.max_lessons", "3"))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:733:    if handoff_enabled.lower() != "true":
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:929:    handoff_file.parent.mkdir(parents=True, exist_ok=True)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:930:    handoff_file.write_text("\n".join(sections) + "\n", encoding="utf-8")
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:931:    print(f"Session handoff saved: {len(sections)} sections", file=sys.stderr, flush=True)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1323:### /Users/lucas.liang/Desktop/Sylph/Carror_OS/.claude/hooks/compact-writer.py
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1327:compact-writer.py — PostToolUse hook (triggered by .* matcher)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1331:info into session-handoff.md so the next session can resume.
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1334:Handoff path: .omc/state/session-handoff.md
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1348:HANDOFF_PATH = OMC_STATE / "session-handoff.md"
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1388:    """Detect if this is a context compaction / handoff turn."""
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1417:def _build_handoff(active, compact_info):
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1418:    """Build session-handoff.md content."""
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1475:    print("  [compact-writer] handoff written: {} active token(s)".format(len(active)))
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1484:        print("  [compact-writer] no .omc/tokens/ dir")
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1491:    _build_handoff(active, compact_info)
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1600:        STATE_DIR / "ghost-mode.active",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1601:        tokens_dir / "lx-ghost.json",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:1602:        tokens_dir / "lx-goal.json",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/_prompt.txt:2916:    # ── Mode detection: ghost/goal → skip Read-before-Edit gate ──
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/token.json:21:    "goal": "评估 CarrorOS 对 deepseek-v4-flash 的适配情况，以及 Sylph 对 opus 和 gpt_5.5 的适配情况，给出适配建议和迁移路径。结合 S1+S2 的实际分析结果。",
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S3/token.json:34:    "plan_text": "{\"goal\": \"评估 CarrorOS 对 deepseek-v4-flash 的适配情况，以及 Sylph 对 opus 和 gpt_5.5 的适配情况，给出适配建议和迁移路径。结合 S1+S2 的实际分析结果。\", \"type\": \"research\", \"files\": [], \"deps\": [\"S1\", \"S2\"]}"
+.omc/tasks/20260710/e2e_smoke_20260710/state/session-handoff.md:3:> 由 context_engine compact-write 于 2026-07-10T02:40:34+00:00 更新
+.omc/tasks/20260710/e2e_smoke_20260710/state/session-handoff.md:26:- session-handoff 只是恢复摘要，不是完成证据
+.omc/tasks/20260714/ga-behavioral-validation/plan.md:13:- `.omc/session-handoff.md`
+scripts/carroros-gates/preflight.sh:3:# lx-goal on 之前必须全绿。任何一项不过 → NO-GO（fail-closed）。
+scripts/carroros-gates/preflight.sh:201:echo "preflight GO — 夜会话标记已创建，可以 lx-goal on"
+scripts/carroros-gates/smoke/run-all.sh:380:hook_case("Sol: lx-goal 激活放行",
+scripts/carroros-gates/smoke/run-all.sh:381:          lambda d: B('python3 .claude/skills/lx-goal/scripts/lx-goal.py on "执行夜循环 manifest"'), 0)
+scripts/carroros-gates/templates/night-manifest.signoff.template.yaml:2:# 独立文件，避免 digest 自引用。preflight 在 lx-goal on 前重算 manifest 原始字节哈希比对。
+state/session-handoff.md:3:> 由 context_engine compact-write 于 2026-07-18T20:56:13+00:00 更新
+state/session-handoff.md:26:- session-handoff 只是恢复摘要，不是完成证据

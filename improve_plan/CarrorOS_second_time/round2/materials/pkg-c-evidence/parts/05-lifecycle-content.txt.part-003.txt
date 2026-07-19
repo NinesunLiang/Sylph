@@ -1,0 +1,220 @@
+tr = "未知硬边界", reason: str = "未知原因", human_action: str = "请人工审阅并决定是否执行"):
+   624	    """记录硬边界拦截项"""
+   625	    mode_data, path = _read_mode_file()
+   626	    mode_data.setdefault("hard_boundary_hits", []).append({
+   627	        "description": description,
+   628	        "reason": reason,
+   629	        "human_action": human_action,
+   630	        "timestamp": get_now(),
+   631	    })
+   632	    _write_mode_file(mode_data, path)
+   633	
+   634	    plan_dir = _get_plan_dir(mode_data)
+   635	    if plan_dir:
+   636	        plan_md = plan_dir / "plan.md"
+   637	        if plan_md.exists():
+   638	            with open(plan_md, "a", encoding="utf-8") as f:
+   639	                f.write(f"\n- [hard-boundary] {description} — {reason}  ({get_now()})\n")
+   640	        _update_lock_counter(plan_dir, "hard_boundary_hits")
+   641	
+   642	    print(f"🛑 硬边界拦截已记录: {_sanitize(description)} (原因: {_sanitize(reason)})")
+   643	
+   644	
+   645	def cmd_blocked_human(description: str = "未知决策", ai_recommendation: str = "AI 推荐方案未提供", rationale: str = "决策依据未提供"):
+   646	    """记录推迟到退出报告的人类决策项"""
+   647	    mode_data, path = _read_mode_file()
+   648	    mode_data.setdefault("blocked_human", []).append({
+   649	        "description": description,
+   650	        "ai_recommendation": ai_recommendation,
+   651	        "rationale": rationale,
+   652	        "timestamp": get_now(),
+   653	    })
+   654	    _write_mode_file(mode_data, path)
+   655	
+   656	    plan_dir = _get_plan_dir(mode_data)
+   657	    if plan_dir:
+   658	        plan_md = plan_dir / "plan.md"
+   659	        if plan_md.exists():
+   660	            with open(plan_md, "a", encoding="utf-8") as f:
+   661	                f.write(f"\n- [blocked-human] {description} → {ai_recommendation}  ({get_now()})\n")
+   662	        _update_lock_counter(plan_dir, "blocked_human")
+   663	
+   664	    print(f"🤔 推迟决策已记录: {_sanitize(description)} → 推荐: {_sanitize(ai_recommendation)}")
+   665	
+   666	
+   667	def cmd_retry():
+   668	    """重试计数 +1"""
+   669	    mode_data, path = _read_mode_file()
+   670	    mode_data["retry_count"] = mode_data.get("retry_count", 0) + 1
+   671	    _write_mode_file(mode_data, path)
+   672	    print("📝 重试计数 +1")
+   673	
+   674	
+   675	def cmd_subagent_log(action: str, agent_name: str = "", subtask: str = "", detail: str = ""):
+   676	    """记录 subagent 分配/回收/结果"""
+   677	    if not MODE_FILE.exists():
+   678	        print("❌ 目标模式未开启")
+   679	        sys.exit(1)
+   680	    mode_data, _ = _read_mode_file()
+   681	    plan_dir = _get_plan_dir(mode_data)
+   682	    if not plan_dir:
+   683	        print("❌ 计划目录不存在")
+   684	        sys.exit(1)
+   685	
+   686	    # subagent 日志写入 executor.md
+   687	    executor_md = plan_dir / "executor.md"
+   688	    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+   689	    with open(executor_md, "a", encoding="utf-8") as f:
+   690	        if action == "assign":
+   691	            f.write(f"\n### {ts} — 分配: {agent_name} → {subtask}\n")
+   692	        elif action == "complete":
+   693	            f.write(f"\n### {ts} — 完成: {agent_name} → {subtask}\n  - 结果: {detail}\n")
+   694	        elif action == "fail":
+   695	            f.write(f"\n### {ts} — 失败: {agent_name} → {subtask}\n  - 原因: {detail}\n")
+   696	        elif action == "summary":
+   697	            f.write(f"\n---\n### SubAgent 执行摘要 @ {ts}\n")
+   698	            # 简单的统计
+   699	            content = executor_md.read_text(encoding="utf-8")
+   700	            f.write(f"- 分配: {content.count('分配:')}\n")
+   701	            f.write(f"- 完成: {content.count('完成:')}\n")
+   702	            f.write(f"- 失败: {content.count('失败:')}\n")
+   703	        else:
+   704	            print("用法: lx-goal.py subagent-log assign|complete|fail|summary <agent> <subtask> [detail]")
+   705	            sys.exit(1)
+   706	
+   707	    print(f"📝 subagent 日志已更新: {executor_md}")
+   708	
+   709	
+   710	def cmd_done():
+   711	    """验收通过后删除物理锁"""
+   712	    if not MODE_FILE.exists():
+   713	        print("❌ 目标模式未开启")
+   714	        sys.exit(1)
+   715	    mode_data, _ = _read_mode_file()
+   716	    plan_dir = _get_plan_dir(mode_data)
+   717	    if not plan_dir:
+   718	        print("❌ 计划目录不存在，无法完成验收")
+   719	        sys.exit(1)
+   720	
+   721	    slug = plan_dir.name
+   722	    date_dir = plan_dir.parent.name
+   723	    lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+   724	
+   725	    if lock_file.exists():
+   726	        lock_file.unlink()
+   727	        print(f"🔓 物理锁已删除: {lock_file}")
+   728	        print("✅ 任务验收完成，锁已移除")
+   729	        # 更新 state.json
+   730	        sf = plan_dir / "state.json"
+   731	        if sf.exists():
+   732	            with open(sf, encoding="utf-8") as f:
+   733	                sd = json.load(f)
+   734	            sd["phase"] = "accepted"
+   735	            sd["accepted_at"] = get_now()
+   736	            with open(sf, "w", encoding="utf-8") as f:
+   737	                json.dump(sd, f, indent=2, ensure_ascii=False)
+   738	    else:
+   739	        print("⚠️ 锁文件不存在，可能已被删除")
+   740	
+   741	    # 更新 plan.md
+   742	    plan_md = plan_dir / "plan.md"
+   743	    with open(plan_md, "a", encoding="utf-8") as f:
+   744	        f.write(f"\n---\n✅ **任务验收完成** @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+   745	
+   746	
+   747	def cmd_update_lock(plan_dir_str: str = "", field: str = "", inc: int = 1):
+   748	    """更新物理锁计数器 — 内部子命令"""
+   749	    if not plan_dir_str:
+   750	        return
+   751	    plan_dir = Path(plan_dir_str)
+   752	    if not plan_dir.exists():
+   753	        return
+   754	    _update_lock_counter(plan_dir, field, inc)
+   755	
+   756	
+   757	# ============================================================
+   758	# 主入口
+   759	# ============================================================
+   760	KNOWN_SUBCOMMANDS = {
+   761	    "on": cmd_on,
+   762	    "off": cmd_off,
+   763	    "status": cmd_status,
+   764	    "set": cmd_set,
+   765	    "phase0-done": cmd_phase0_done,
+   766	    "report": cmd_report,
+   767	    "poll": cmd_poll,
+   768	    "is-active": cmd_is_active,
+   769	    "task-done": cmd_task_done,
+   770	    "skip-risk": cmd_skip_risk,
+   771	    "hard-boundary-hit": cmd_hard_boundary_hit,
+   772	    "blocked-human": cmd_blocked_human,
+   773	    "retry": cmd_retry,
+   774	    "subagent-log": cmd_subagent_log,
+   775	    "done": cmd_done,
+   776	    "_update-lock": cmd_update_lock,
+   777	}
+   778	
+   779	
+   780	def main():
+   781	    if len(sys.argv) < 2 or sys.argv[1] not in KNOWN_SUBCOMMANDS:
+   782	        # 无参数或参数不是已知子命令 → 当作目标描述自动激活
+   783	        goal = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else ""
+   784	        if goal:
+   785	            cmd_on(goal)
+   786	        else:
+   787	            cmd_status()
+   788	        return
+   789	
+   790	    cmd_name = sys.argv[1]
+   791	    args = sys.argv[2:]
+   792	
+   793	    if cmd_name == "on":
+   794	        goal = args[0] if args else "目标任务未指定"
+   795	        expiry = int(args[1]) if len(args) > 1 else 6
+   796	        cmd_on(goal, expiry)
+   797	    elif cmd_name == "set":
+   798	        if len(args) < 2:
+   799	            print("用法: lx-goal.py set <key> <value>")
+   800	            sys.exit(1)
+   801	        cmd_set(args[0], args[1])
+   802	    elif cmd_name == "subagent-log":
+   803	        if not args:
+   804	            print("用法: lx-goal.py subagent-log assign|complete|fail|summary <agent> <subtask> [detail]")
+   805	            sys.exit(1)
+   806	        cmd_subagent_log(*args[:4])
+   807	    elif cmd_name == "_update-lock":
+   808	        # kwargs parsing: key=value
+   809	        kwargs = {}
+   810	        for arg in args:
+   811	            if "=" in arg:
+   812	                k, v = arg.split("=", 1)
+   813	                kwargs[k] = v
+   814	        cmd_update_lock(**kwargs)
+   815	    elif cmd_name == "skip-risk":
+   816	        # skip-risk "描述" [risk_level] [reason] [impact]
+   817	        cmd_skip_risk(*(args[:4]))
+   818	    elif cmd_name in ("task-done", "hard-boundary-hit", "blocked-human"):
+   819	        handlers = {
+   820	            "task-done": cmd_task_done,
+   821	            "hard-boundary-hit": cmd_hard_boundary_hit,
+   822	            "blocked-human": cmd_blocked_human,
+   823	        }
+   824	        handlers[cmd_name](*(args[:3]))
+   825	    else:
+   826	        # off, status, phase0-done, report, poll, retry, done — 无参数
+   827	        rc = KNOWN_SUBCOMMANDS[cmd_name]()
+   828	        if isinstance(rc, int):
+   829	            sys.exit(rc)
+   830	
+   831	
+   832	if __name__ == "__main__":
+   833	    main()
+
+===== .claude/skills/lx-goal/scripts/lx-goal.sh =====
+     1	#!/usr/bin/env bash
+     2	# lx-goal.sh — 兼容 wrapper，实际逻辑委托给 lx-goal.py
+     3	# 用法: lx-goal on|off|status|set|report|poll|task-done|skip-risk|retry
+     4	
+     5	SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+     6	exec python3 "$SCRIPT_DIR/lx-goal.py" "$@"
+     7	

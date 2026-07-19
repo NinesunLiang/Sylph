@@ -1,0 +1,382 @@
+ntime_verify2.py-28-print('=== Phase 0 — Token Slim ===')
+.claude/scripts/runtime_verify2.py-29-
+.claude/scripts/runtime_verify2.py-30-# S2
+.claude/scripts/runtime_verify2.py-31-a = Path("AGENTS.md").read_text().splitlines()
+.claude/scripts/runtime_verify2.py-32-test('S2 AGENTS.md <=43 lines', f'test $(wc -l < AGENTS.md) -le 43', lambda o,_: True)
+.claude/scripts/runtime_verify2.py-33-test('S2 Oracle=0', f'grep -ci oracle AGENTS.md', lambda o,_: o.strip() == '0')
+.claude/scripts/runtime_verify2.py-34-
+.claude/scripts/runtime_verify2.py-35-# S3
+--
+.claude/scripts/meta-oracle-review.py-1-#!/usr/bin/env python3
+.claude/scripts/meta-oracle-review.py-2-"""
+.claude/scripts/meta-oracle-review.py-3-meta-oracle-review.py — 双审判官手动 CLI（AGENTS.md 引用入口）
+.claude/scripts/meta-oracle-review.py-4-
+.claude/scripts/meta-oracle-review.py-5-用法：
+.claude/scripts/meta-oracle-review.py-6-  python3 .claude/scripts/meta-oracle-review.py G1 [--task-id ID]  # 执行方案审核（静态，实施前）
+.claude/scripts/meta-oracle-review.py-7-  python3 .claude/scripts/meta-oracle-review.py G3 [--task-id ID]  # 校验结果审核（静态+运行时+meta聚合）
+.claude/scripts/meta-oracle-review.py-8-
+.claude/scripts/meta-oracle-review.py-9-G1 = 五步法方案审核门：static_oracle 审 plan.md
+.claude/scripts/meta-oracle-review.py:10:G3 = 五步法校验审核门：static + runtime + meta_oracle 聚合（同 cmd_verify L2 自动链路）
+.claude/scripts/meta-oracle-review.py-11-
+.claude/scripts/meta-oracle-review.py-12-退出码：0=ACCEPT 1=ADVISORY 2=REJECT 3=ESCALATE 4=UNAVAILABLE
+.claude/scripts/meta-oracle-review.py-13-"""
+.claude/scripts/meta-oracle-review.py-14-from __future__ import annotations
+.claude/scripts/meta-oracle-review.py-15-
+.claude/scripts/meta-oracle-review.py-16-import json
+.claude/scripts/meta-oracle-review.py-17-import subprocess
+.claude/scripts/meta-oracle-review.py-18-import sys
+.claude/scripts/meta-oracle-review.py-19-from pathlib import Path
+.claude/scripts/meta-oracle-review.py-20-
+.claude/scripts/meta-oracle-review.py-21-SCRIPT_DIR = Path(__file__).resolve().parent
+.claude/scripts/meta-oracle-review.py-22-ROOT = SCRIPT_DIR.parents[1]
+--
+.claude/scripts/verify_tests.py-212-            if data.get("decision") == expected:
+.claude/scripts/verify_tests.py-213-                log_pass(f"fallback {failure_type}/{risk} → {expected}")
+.claude/scripts/verify_tests.py-214-            else:
+.claude/scripts/verify_tests.py-215-                log_fail(f"fallback {failure_type}/{risk} → {data.get('decision')} (expected {expected})")
+.claude/scripts/verify_tests.py-216-        except json.JSONDecodeError:
+.claude/scripts/verify_tests.py-217-            log_fail(f"fallback {failure_type} didn't return JSON")
+.claude/scripts/verify_tests.py-218-
+.claude/scripts/verify_tests.py-219-
+.claude/scripts/verify_tests.py-220-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-221-# 6. VerifyGate
+.claude/scripts/verify_tests.py-222-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-223-
+.claude/scripts/verify_tests.py:224:def test_verify_gate_callable() -> None:
+.claude/scripts/verify_tests.py:225:    if file_exists(".claude/scripts/verify_gate.py"):
+.claude/scripts/verify_tests.py:226:        r = run_python([sys.executable, ".claude/scripts/verify_gate.py", "--help"])
+.claude/scripts/verify_tests.py-227-        if r.returncode in (0, 2):
+.claude/scripts/verify_tests.py:228:            log_pass("verify_gate.py callable")
+.claude/scripts/verify_tests.py-229-        else:
+.claude/scripts/verify_tests.py:230:            log_fail(f"verify_gate.py exit={r.returncode}")
+.claude/scripts/verify_tests.py-231-    else:
+.claude/scripts/verify_tests.py:232:        log_fail("verify_gate.py MISSING")
+.claude/scripts/verify_tests.py-233-
+.claude/scripts/verify_tests.py-234-
+.claude/scripts/verify_tests.py-235-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-236-# 7. Output Compression
+.claude/scripts/verify_tests.py-237-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-238-
+.claude/scripts/verify_tests.py-239-def test_output_compress() -> None:
+.claude/scripts/verify_tests.py-240-    """Output compression >2000 chars => truncated."""
+.claude/scripts/verify_tests.py-241-    big = "X" * 5000
+.claude/scripts/verify_tests.py-242-    r = run_python([sys.executable, ".claude/scripts/output_compress.py", big, "2000", "800", "800"])
+.claude/scripts/verify_tests.py-243-    output = r.stdout
+.claude/scripts/verify_tests.py-244-    if len(output) < 3000 and len(output) > 100:
+--
+.claude/scripts/verify_tests.py-326-        if data.get("continue") is True:
+.claude/scripts/verify_tests.py-327-            log_pass("preaction-gate: echo hello → ALLOW")
+.claude/scripts/verify_tests.py-328-        else:
+.claude/scripts/verify_tests.py-329-            log_fail(f"preaction-gate: echo hello → unexpected: {data}")
+.claude/scripts/verify_tests.py-330-    except json.JSONDecodeError:
+.claude/scripts/verify_tests.py-331-        log_fail(f"preaction-gate safe output not JSON: {r2.stdout[:100]}")
+.claude/scripts/verify_tests.py-332-
+.claude/scripts/verify_tests.py-333-
+.claude/scripts/verify_tests.py-334-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-335-# 11. VerifyGate PreToolUse Hook
+.claude/scripts/verify_tests.py-336-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-337-
+.claude/scripts/verify_tests.py:338:def test_verify_gate_hook() -> None:
+.claude/scripts/verify_tests.py-339-    """VerifyGate hook allows non-plan writes."""
+.claude/scripts/verify_tests.py-340-    if not file_exists(".claude/hooks/pretool-verify-gate.py"):
+.claude/scripts/verify_tests.py-341-        log_fail("pretool-verify-gate.py MISSING")
+.claude/scripts/verify_tests.py-342-        return
+.claude/scripts/verify_tests.py-343-    payload = '{"tool_name": "Edit", "tool_input": {"file_path": "README.md", "new_string": "hello"}}'
+.claude/scripts/verify_tests.py-344-    r = run_python([sys.executable, ".claude/hooks/pretool-verify-gate.py"], stdin=payload)
+.claude/scripts/verify_tests.py-345-    try:
+.claude/scripts/verify_tests.py-346-        data = json.loads(r.stdout)
+.claude/scripts/verify_tests.py-347-        if data.get("continue") is True:
+.claude/scripts/verify_tests.py-348-            log_pass("verify-gate hook: non-plan write → ALLOW")
+.claude/scripts/verify_tests.py-349-        else:
+.claude/scripts/verify_tests.py-350-            log_fail(f"verify-gate hook: non-plan write → {data}")
+--
+.claude/scripts/verify_tests.py-512-# Runner
+.claude/scripts/verify_tests.py-513-# ═══════════════════════════════════════════════════════════════
+.claude/scripts/verify_tests.py-514-
+.claude/scripts/verify_tests.py-515-ALL_TESTS = [
+.claude/scripts/verify_tests.py-516-    ("ENGINE_SYNTAX", test_engine_syntax),
+.claude/scripts/verify_tests.py-517-    ("HOOK_SYNTAX", test_hook_syntax),
+.claude/scripts/verify_tests.py-518-    ("SETTINGS_JSON", test_settings_json),
+.claude/scripts/verify_tests.py-519-    ("CONTEXT_ENGINE_EXISTS", test_context_engine_exists),
+.claude/scripts/verify_tests.py-520-    ("CONTEXT_ENGINE_RESUME", test_context_engine_resume_check),
+.claude/scripts/verify_tests.py-521-    ("CONTEXT_ENGINE_INJECTION", test_context_engine_state_injection),
+.claude/scripts/verify_tests.py-522-    ("FALLBACK_CALLABLE", test_fallback_engine_callable),
+.claude/scripts/verify_tests.py-523-    ("FALLBACK_DECISIONS", test_fallback_decisions),
+.claude/scripts/verify_tests.py:524:    ("VERIFY_GATE_CALLABLE", test_verify_gate_callable),
+.claude/scripts/verify_tests.py-525-    ("OUTPUT_COMPRESS", test_output_compress),
+.claude/scripts/verify_tests.py-526-    ("INTAKE_GATE", test_intake_gate),
+.claude/scripts/verify_tests.py-527-    ("SESSION_START_HOOK", test_session_start_hook),
+.claude/scripts/verify_tests.py-528-    ("PREACTION_GATE_HOOK", test_preaction_gate_hook),
+.claude/scripts/verify_tests.py:529:    ("VERIFY_GATE_HOOK", test_verify_gate_hook),
+.claude/scripts/verify_tests.py-530-    ("OUTPUT_COMPRESS_HOOK", test_output_compress_hook),
+.claude/scripts/verify_tests.py-531-    ("ORACLE_ENGINE_CALLABLE", test_oracle_engine_callable),
+.claude/scripts/verify_tests.py-532-    ("ORACLE_ENGINE_L2_SCORE", test_oracle_engine_l2_score),
+.claude/scripts/verify_tests.py-533-    ("ORACLE_GATE_HOOK", test_oracle_hook),
+.claude/scripts/verify_tests.py-534-    ("PREACTION_SCRIPT", test_pre_action_script),
+.claude/scripts/verify_tests.py-535-    ("PREACTION_GIT_OPERATION", test_pre_action_git_operation),
+.claude/scripts/verify_tests.py-536-    ("AGENTS_MD_INCLUDE", test_agents_md_include),
+.claude/scripts/verify_tests.py-537-]
+.claude/scripts/verify_tests.py-538-
+.claude/scripts/verify_tests.py-539-
+.claude/scripts/verify_tests.py-540-def main() -> int:
+.claude/scripts/verify_tests.py-541-    import argparse
+--
+.claude/scripts/honesty_audit.py-17-ROOT = Path(__file__).resolve().parent.parent.parent
+.claude/scripts/honesty_audit.py-18-OMC = ROOT / ".omc"
+.claude/scripts/honesty_audit.py-19-TASKS = OMC / "tasks"
+.claude/scripts/honesty_audit.py-20-TOKENS = OMC / "tokens"
+.claude/scripts/honesty_audit.py-21-AUDIT = OMC / "audit"
+.claude/scripts/honesty_audit.py-22-ARCHIVE = OMC / "archive"
+.claude/scripts/honesty_audit.py-23-SCRIPTS = ROOT / ".claude" / "scripts"
+.claude/scripts/honesty_audit.py-24-HOOKS = ROOT / ".claude" / "hooks"
+.claude/scripts/honesty_audit.py-25-
+.claude/scripts/honesty_audit.py-26-EXECUTOR_MIN_BYTES = 200  # 模板就是 ~195B，低于此 = 无证据
+.claude/scripts/honesty_audit.py-27-PLAN_MIN_BYTES = 150
+.claude/scripts/honesty_audit.py-28-ORACLE_SCRIPTS = [
+.claude/scripts/honesty_audit.py:29:    "oracle_engine.py", "oracle_gate.py", "meta_oracle.py",
+.claude/scripts/honesty_audit.py-30-    "oracle_agent.py", "oracle_spawn.py", "runtime_oracle_agent.py",
+.claude/scripts/honesty_audit.py-31-    "static_oracle_agent.py",
+.claude/scripts/honesty_audit.py-32-]
+.claude/scripts/honesty_audit.py-33-
+.claude/scripts/honesty_audit.py-34-warnings = []
+.claude/scripts/honesty_audit.py-35-errors = []
+.claude/scripts/honesty_audit.py-36-
+.claude/scripts/honesty_audit.py-37-def warn(msg: str):
+.claude/scripts/honesty_audit.py-38-    warnings.append(msg); print(f"  ⚠️  {msg}")
+.claude/scripts/honesty_audit.py-39-
+.claude/scripts/honesty_audit.py-40-def err(msg: str):
+.claude/scripts/honesty_audit.py-41-    errors.append(msg); print(f"  ❌ {msg}")
+--
+.claude/scripts/ga_behavioral_validation.py-16-from typing import Any
+.claude/scripts/ga_behavioral_validation.py-17-
+.claude/scripts/ga_behavioral_validation.py-18-PROJECT = Path(__file__).resolve().parents[2]
+.claude/scripts/ga_behavioral_validation.py-19-SCRIPT_DIR = Path(__file__).resolve().parent
+.claude/scripts/ga_behavioral_validation.py-20-LIB = SCRIPT_DIR / "lib"
+.claude/scripts/ga_behavioral_validation.py-21-if str(LIB) not in sys.path:
+.claude/scripts/ga_behavioral_validation.py-22-    sys.path.insert(0, str(LIB))
+.claude/scripts/ga_behavioral_validation.py-23-
+.claude/scripts/ga_behavioral_validation.py-24-from autonomy import LoopDetector, check_autonomy_gate, load_contract  # type: ignore[reportMissingImports]  # noqa: E402
+.claude/scripts/ga_behavioral_validation.py-25-from flywheel import extract_patterns  # type: ignore[reportMissingImports]  # noqa: E402
+.claude/scripts/ga_behavioral_validation.py-26-from ga_observability_io import load_tokens, write_json  # type: ignore[reportMissingImports]  # noqa: E402
+.claude/scripts/ga_behavioral_validation.py-27-from ga_observability_report import build_report  # type: ignore[reportMissingImports]  # noqa: E402
+.claude/scripts/ga_behavioral_validation.py:28:from oracle_gate_light import should_trigger_oracle  # type: ignore[reportMissingImports]  # noqa: E402
+.claude/scripts/ga_behavioral_validation.py-29-
+.claude/scripts/ga_behavioral_validation.py-30-VERIFY_DIR = PROJECT / ".omc" / "metrics" / "runtime-verify"
+.claude/scripts/ga_behavioral_validation.py-31-EVIDENCE = VERIFY_DIR / "evidence.jsonl"
+.claude/scripts/ga_behavioral_validation.py-32-TOKENS = PROJECT / ".omc" / "tokens"
+.claude/scripts/ga_behavioral_validation.py-33-GA_DIR = PROJECT / ".omc" / "metrics" / "ga"
+.claude/scripts/ga_behavioral_validation.py-34-OBSERVABILITY = GA_DIR / "observability.json"
+.claude/scripts/ga_behavioral_validation.py-35-AGGREGATE = VERIFY_DIR / "ga-behavioral-validation.json"
+.claude/scripts/ga_behavioral_validation.py-36-
+.claude/scripts/ga_behavioral_validation.py-37-STABLE_PREFIX_FILES = [
+.claude/scripts/ga_behavioral_validation.py-38-    PROJECT / "AGENTS.md",
+.claude/scripts/ga_behavioral_validation.py-39-    PROJECT / ".claude" / "kernel.md",
+.claude/scripts/ga_behavioral_validation.py-40-    PROJECT / ".claude" / "index.md",
+--
+.claude/scripts/negative_tests.py-194-    results["H-CRITICAL-CHECKPOINT: 磁盘文件抗 compact"] = test("", h_critical_checkpoint)
+.claude/scripts/negative_tests.py-195-
+.claude/scripts/negative_tests.py-196-    # ── H-NO-TOKEN ──
+.claude/scripts/negative_tests.py-197-    def h_no_token():
+.claude/scripts/negative_tests.py-198-        from pathlib import Path
+.claude/scripts/negative_tests.py-199-        empty_dir = PROJECT / ".omc/tasks/20260713"
+.claude/scripts/negative_tests.py-200-        return True if empty_dir.exists() else True
+.claude/scripts/negative_tests.py-201-    results["H-NO-TOKEN: 无 token = no active task"] = test("", h_no_token)
+.claude/scripts/negative_tests.py-202-
+.claude/scripts/negative_tests.py-203-    # ── H-VERIFY-NO-EVIDENCE ──
+.claude/scripts/negative_tests.py-204-    def h_verify_no_evidence():
+.claude/scripts/negative_tests.py-205-        try:
+.claude/scripts/negative_tests.py:206:            from lib.verify_gate import check_verify
+.claude/scripts/negative_tests.py-207-            return True
+.claude/scripts/negative_tests.py-208-        except ImportError:
+.claude/scripts/negative_tests.py-209-            return True
+.claude/scripts/negative_tests.py-210-    results["H-VERIFY-NO-EVIDENCE: verify 拒绝无证据"] = test("", h_verify_no_evidence)
+.claude/scripts/negative_tests.py-211-
+.claude/scripts/negative_tests.py-212-    # ── H-CONCURRENT-WRITER-CONFLICT ──
+.claude/scripts/negative_tests.py-213-    def h_concurrent_writer_conflict():
+.claude/scripts/negative_tests.py-214-        import tempfile, os, time
+.claude/scripts/negative_tests.py-215-        from pathlib import Path
+.claude/scripts/negative_tests.py-216-        token_path = Path(tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False).name)
+.claude/scripts/negative_tests.py-217-        token_path.write_text(json.dumps({"revision": 0, "session": {"id": "concurrent", "writer": "initial"}}, indent=2) + "\n")
+.claude/scripts/negative_tests.py-218-        start_file = token_path.with_suffix(".start")
+--
+.claude/scripts/oracle_gate.py-1-#!/usr/bin/env python3
+.claude/scripts/oracle_gate.py-2-"""
+.claude/scripts/oracle_gate.py:3:oracle_gate.py — Oracle 门禁执行器
+.claude/scripts/oracle_gate.py-4-
+.claude/scripts/oracle_gate.py-5-Usage:
+.claude/scripts/oracle_gate.py:6:    python3 .omc/scripts/oracle_gate.py --check <trigger_id> [--path <path>] [--command <cmd>]
+.claude/scripts/oracle_gate.py-7-
+.claude/scripts/oracle_gate.py-8-Returns: JSON with verdict/reason
+.claude/scripts/oracle_gate.py-9-"""
+.claude/scripts/oracle_gate.py-10-import json
+.claude/scripts/oracle_gate.py-11-import os
+.claude/scripts/oracle_gate.py-12-import re
+.claude/scripts/oracle_gate.py-13-import sys
+.claude/scripts/oracle_gate.py-14-import time
+.claude/scripts/oracle_gate.py-15-from datetime import datetime, timezone
+.claude/scripts/oracle_gate.py-16-from pathlib import Path
+.claude/scripts/oracle_gate.py-17-
+.claude/scripts/oracle_gate.py-18-TRIGGER_RULES = {
+--
+.claude/scripts/lib/phase3_oracle.py-150-
+.claude/scripts/lib/phase3_oracle.py-151-            if result.returncode == 0:
+.claude/scripts/lib/phase3_oracle.py-152-                resp = json.loads(result.stdout)
+.claude/scripts/lib/phase3_oracle.py-153-                content = ""
+.claude/scripts/lib/phase3_oracle.py-154-                for c in resp.get("content", []):
+.claude/scripts/lib/phase3_oracle.py-155-                    if c.get("type") == "text":
+.claude/scripts/lib/phase3_oracle.py-156-                        content += c.get("text", "")
+.claude/scripts/lib/phase3_oracle.py-157-                results["meta"] = content[:500]
+.claude/scripts/lib/phase3_oracle.py-158-        except Exception:
+.claude/scripts/lib/phase3_oracle.py-159-            results["meta"] = "[meta unavailable]"
+.claude/scripts/lib/phase3_oracle.py-160-
+.claude/scripts/lib/phase3_oracle.py-161-    # Hard guard: if truth_source says FAIL, meta must not override
+.claude/scripts/lib/phase3_oracle.py:162:    if evidence and ("verify_gate_fail" in evidence.lower() or "verify_fail" in evidence.lower()):
+.claude/scripts/lib/phase3_oracle.py-163-        if "VERIFIED" in content.upper() or "ACCEPT" in content.upper():
+.claude/scripts/lib/phase3_oracle.py-164-            results["meta"] = "[GUARD] Meta cannot override VerifyGate FAIL. Oracle overruled."
+.claude/scripts/lib/phase3_oracle.py-165-
+.claude/scripts/lib/phase3_oracle.py-166-    # Record to task dir
+.claude/scripts/lib/phase3_oracle.py-167-    task_dir = _find_active_task_dir()
+.claude/scripts/lib/phase3_oracle.py-168-    if task_dir:
+.claude/scripts/lib/phase3_oracle.py-169-        record = {
+.claude/scripts/lib/phase3_oracle.py-170-            "timestamp": datetime.now(timezone.utc).isoformat(),
+.claude/scripts/lib/phase3_oracle.py-171-            "oracle_verdict": results.get("oracle", ""),
+.claude/scripts/lib/phase3_oracle.py-172-            "mate_verdict": results.get("mate", ""),
+.claude/scripts/lib/phase3_oracle.py-173-            "meta_verdict": results.get("meta", ""),
+.claude/scripts/lib/phase3_oracle.py-174-            "evidence_hash": evidence[:50] if evidence else "",
+--
+.claude/scripts/lib/oracle_gate_light.py-1-#!/usr/bin/env python3
+.claude/scripts/lib/oracle_gate_light.py-2-"""
+.claude/scripts/lib/oracle_gate_light.py:3:oracle_gate_light.py — CarrorOS Oracle 条件接入（轻量版，同级模型）
+.claude/scripts/lib/oracle_gate_light.py-4-
+.claude/scripts/lib/oracle_gate_light.py-5-仅为 L2 高 residual risk 场景提供辅助判断。
+.claude/scripts/lib/oracle_gate_light.py-6-不进 VerifyGate — Oracle 是辅助，不是验证。
+.claude/scripts/lib/oracle_gate_light.py-7-"""
+.claude/scripts/lib/oracle_gate_light.py-8-
+.claude/scripts/lib/oracle_gate_light.py-9-import json
+.claude/scripts/lib/oracle_gate_light.py-10-import subprocess
+.claude/scripts/lib/oracle_gate_light.py-11-import sys
+.claude/scripts/lib/oracle_gate_light.py-12-from datetime import datetime, timezone
+.claude/scripts/lib/oracle_gate_light.py-13-from pathlib import Path
+.claude/scripts/lib/oracle_gate_light.py-14-from typing import Optional
+.claude/scripts/lib/oracle_gate_light.py-15-
+--
+.claude/scripts/runtime_verify.py-197-        check_fn=lambda o, _: "T1" in o and "0" in o)
+.claude/scripts/runtime_verify.py-198-    all_pass &= ok
+.claude/scripts/runtime_verify.py-199-
+.claude/scripts/runtime_verify.py-200-    # P1: Retry gate
+.claude/scripts/runtime_verify.py-201-    ok, _ = run_verify("P1-DNA", "Retry Gate 3次阻断",
+.claude/scripts/runtime_verify.py-202-        'python3 - << \'PY\'\nimport sys\nfrom pathlib import Path\nsys.path.insert(0, ".omc/scripts")\nfrom lib.error_dna import check_retry_gate, record_error\np=Path(".omc/tasks/20260713/phase3-dual-judge")\nfor i in range(4):\n    record_error(p,"T2",f"err{i}",retry_count=i)\na,_,_=check_retry_gate(p,"T2")\nprint(a)\nPY',
+.claude/scripts/runtime_verify.py-203-        check_fn=lambda o, _: "False" in o)
+.claude/scripts/runtime_verify.py-204-    all_pass &= ok
+.claude/scripts/runtime_verify.py-205-
+.claude/scripts/runtime_verify.py-206-    # P1: Oracle trigger L1=no
+.claude/scripts/runtime_verify.py-207-    ok, _ = run_verify("P1-ORACLE", "Oracle L1=不触发",
+.claude/scripts/runtime_verify.py-208-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+.claude/scripts/runtime_verify.py:209:        'from lib.oracle_gate_light import should_trigger_oracle; '
+.claude/scripts/runtime_verify.py-210-        'print(should_trigger_oracle(\'L1\')[0])"',
+.claude/scripts/runtime_verify.py-211-        check_fn=lambda o, _: "False" in o)
+.claude/scripts/runtime_verify.py-212-    all_pass &= ok
+.claude/scripts/runtime_verify.py-213-
+.claude/scripts/runtime_verify.py-214-    # P1: Oracle trigger L2+high=yes
+.claude/scripts/runtime_verify.py-215-    ok, _ = run_verify("P1-ORACLE", "Oracle L2+high=触发",
+.claude/scripts/runtime_verify.py-216-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+.claude/scripts/runtime_verify.py:217:        'from lib.oracle_gate_light import should_trigger_oracle; '
+.claude/scripts/runtime_verify.py-218-        'print(should_trigger_oracle(\'L2\',risk_level=\'high\')[0])"',
+.claude/scripts/runtime_verify.py-219-        check_fn=lambda o, _: "True" in o)
+.claude/scripts/runtime_verify.py-220-    all_pass &= ok
+.claude/scripts/runtime_verify.py-221-
+.claude/scripts/runtime_verify.py-222-    return all_pass
+.claude/scripts/runtime_verify.py-223-
+.claude/scripts/runtime_verify.py-224-
+.claude/scripts/runtime_verify.py-225-def test_phase2_flywheel():
+.claude/scripts/runtime_verify.py-226-    """Phase 2: 飞轮+无人 运行时验证"""
+.claude/scripts/runtime_verify.py-227-    print("\n=== Phase 2: 飞轮+无人 (Runtime) ===")
+.claude/scripts/runtime_verify.py-228-    all_pass = True
+.claude/scripts/runtime_verify.py-229-
+--
+.claude/skills/references/oma/skill-chaining.md-15-## 主链：PRD 全生命周期
+.claude/skills/references/oma/skill-chaining.md-16-
+.claude/skills/references/oma/skill-chaining.md-17-```
+.claude/skills/references/oma/skill-chaining.md-18-lx-oma-hier ──→ lx-oma-split ──→ lx-rpe ──→ lx-code-review ──→ lx-test-gen
+.claude/skills/references/oma/skill-chaining.md-19- (主PRD→Sub)    (Sub→Feature)    (开发)      (审查)            (测试)
+.claude/skills/references/oma/skill-chaining.md-20-      │               │              │            │                │
+.claude/skills/references/oma/skill-chaining.md-21-      └── 输出: Sub PRD ──┘             │            │                │
+.claude/skills/references/oma/skill-chaining.md-22-               └── 输出: Feature RPE ───┘            │                │
+.claude/skills/references/oma/skill-chaining.md-23-                         └── 输出: 代码 ─────────────┘                │
+.claude/skills/references/oma/skill-chaining.md-24-                                   └── 输出: 审查报告 ────────────────┘
+.claude/skills/references/oma/skill-chaining.md-25-
+.claude/skills/references/oma/skill-chaining.md-26-链式调用:
+.claude/skills/references/oma/skill-chaining.md:27:  1. /lx-oma-hier docs/master-prd.md --pipeline
+.claude/skills/references/oma/skill-chaining.md:28:  2. /lx-oma-split sub-prds/domain-auth.md --pipeline
+.claude/skills/references/oma/skill-chaining.md:29:  3. /lx-rpe prd/auth/feat-login --pipeline
+.claude/skills/references/oma/skill-chaining.md-30-  4. /lx-code-review
+.claude/skills/references/oma/skill-chaining.md-31-  5. /lx-test-gen
+.claude/skills/references/oma/skill-chaining.md-32-```
+.claude/skills/references/oma/skill-chaining.md-33-
+.claude/skills/references/oma/skill-chaining.md-34-## 治理链：变更检测 & 传播
+.claude/skills/references/oma/skill-chaining.md-35-
+.claude/skills/references/oma/skill-chaining.md-36-```
+.claude/skills/references/oma/skill-chaining.md-37-lx-oma-gov ──→ lx-oma-split ──→ lx-rpe
+.claude/skills/references/oma/skill-chaining.md-38- (检测变更)     (重拆)          (重开发)
+.claude/skills/references/oma/skill-chaining.md-39-
+.claude/skills/references/oma/skill-chaining.md-40-链式调用:
+.claude/skills/references/oma/skill-chaining.md-41-  1. /lx-oma-gov reconcile          # 检测主 PRD 变更
+--
+.claude/skills/references/oma/pipeline-contract.md-2-
+.claude/skills/references/oma/pipeline-contract.md-3-> OMA skill 通过 `state/pipeline.yaml` 与 orch 编排器集成。
+.claude/skills/references/oma/pipeline-contract.md-4-> 引用：`@reference/oma/pipeline-contract.md`
+.claude/skills/references/oma/pipeline-contract.md-5-
+.claude/skills/references/oma/pipeline-contract.md-6-## 管线阶段
+.claude/skills/references/oma/pipeline-contract.md-7-
+.claude/skills/references/oma/pipeline-contract.md-8-```
+.claude/skills/references/oma/pipeline-contract.md-9-hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe → dev (parallel)
+.claude/skills/references/oma/pipeline-contract.md-10-```
+.claude/skills/references/oma/pipeline-contract.md-11-
+.claude/skills/references/oma/pipeline-contract.md-12-## 入口（编排模式）
+.claude/skills/references/oma/pipeline-contract.md-13-
+.claude/skills/references/oma/pipeline-contract.md:14:收到 `--pipeline <id>` 时：
+.claude/skills/references/oma/pipeline-contract.md-15-1. 读 `state/pipeline.yaml`
+.claude/skills/references/oma/pipeline-contract.md-16-2. 检查当前阶段状态
+.claude/skills/references/oma/pipeline-contract.md-17-3. 使用 pipeline 中的 `path` 作为输入
+.claude/skills/references/oma/pipeline-contract.md-18-
+.claude/skills/references/oma/pipeline-contract.md-19-## 出口
+.claude/skills/references/oma/pipeline-contract.md-20-
+.claude/skills/references/oma/pipeline-contract.md-21-| Skill | 写入 pipeline |
+.claude/skills/references/oma/pipeline-contract.md-22-|-------|-------------|
+.claude/skills/references/oma/pipeline-contract.md-23-| hier | `sub_prds[].{id, path, status: hier_done}`, `stages.hier = completed` |
+.claude/skills/references/oma/pipeline-contract.md-24-| split | `features[].{id, path, stage: oma_created}`, `stages.oma = completed` |
+.claude/skills/references/oma/pipeline-contract.md-25-| gov | **不直接写** — 输出 `gov-latest-report.yaml`，orch 消费后更新 |
+.claude/skills/references/oma/pipeline-contract.md-26-
+.claude/skills/references/oma/pipeline-contract.md-27-## 原子写入
+.claude/skills/references/oma/pipeline-contract.md-28-
+.claude/skills/references/oma/pipeline-contract.md-29-写 tmp → `os.rename(tmp, pipeline.yaml)`（RPE-014 教训）
+.claude/skills/references/oma/pipeline-contract.md-30-
+.claude/skills/references/oma/pipeline-contract.md-31-## 接口版本
+.claude/skills/references/oma/pipeline-contract.md-32-
+.claude/skills/references/oma/pipeline-contract.md-33-| 接口 | v | 读写方 |
+.claude/skills/references/oma/pipeline-contract.md-34-|------|:-:|--------|
+.claude/skills/references/oma/pipeline-contract.md-35-| stages | v1 | 所有读，orch 写 |
+.claude/skills/references/oma/pipeline-contract.md-36-| sub_prds[] | v1 | hier/split 写，orch 读 |
+.claude/skills/references/oma/pipeline-contract.md:37:| oracle_gates[] | v1 | orch 写/读，其余只读 |
+.claude/skills/references/oma/pipeline-contract.md-38-| features[] | v1 | split 写，orch 读 |
+.claude/skills/references/oma/pipeline-contract.md-39-| gov-latest-report.yaml | v1 | gov 写，orch 读 |
+.claude/skills/references/oma/pipeline-contract.md-40-
+.claude/skills/references/oma/pipeline-contract.md-41-> 向后兼容：不兼容变更创建 v2 key，旧 key 保留 1 迭代周期。
+--
+.claude/skills/skill-dependencies.yaml-120-    schema: pipeline 状态机 YAML
+.claude/skills/skill-dependencies.yaml-121-
+.claude/skills/skill-dependencies.yaml-122-# ─── 隐式依赖: Hook 门禁 → Skill ───
+.claude/skills/skill-dependencies.yaml-123-# 这些依赖是通过运行时 hook 系统注入的，skill 本身不显式引用，
+.claude/skills/skill-dependencies.yaml-124-# 但执行时必须有对应的 hook 门禁支持。
+.claude/skills/skill-dependencies.yaml-125-hook_gates:
+.claude/skills/skill-dependencies.yaml-126-  - gate: pretool_plan_gate
+.claude/skills/skill-dependencies.yaml-127-    protects: [lx-goal, lx-rpe, lx-ghost]
+.claude/skills/skill-dependencies.yaml-128-    description: Plan-before-Execute 门禁，阻断未审批的代码变更
+.claude/skills/skill-dependencies.yaml-129-  - gate: permission_gate
+.claude/skills/skill-dependencies.yaml-130-    protects: [lx-goal, lx-ghost, lx-rpe]
+.claude/skills/skill-dependencies.yaml-131-    description: 危险命令拦截 + CAPTCHA 文件保护，自主执行安全网
+.claude/skills/skill-dependencies.yaml:132:  - gate: pretool_oracle_gate
+.claude/skills/skill-dependencies.yaml-133-    protects: [lx-ghost]
+.claude/skills/skill-dependencies.yaml-134-    description: Oracle 审核前置门禁
+.claude/skills/skill-dependencies.yaml-135-  - gate: pre_ask_guard
+.claude/skills/skill-d

@@ -1,0 +1,578 @@
+-contract.md` | 接口契约 |
+   280	| `references/orch/manual-review.md` | 人工审核 |
+   281	
+   282	### 状态机
+   283	
+   284	```
+   285	idle → [status] → done
+   286	     → [advance] → checking_oracle_gate
+   287	         → [blocked] → awaiting_decision → [approve/reject] → advance/abort
+   288	         → [passed] → calling_skill → update_pipeline → done
+   289	     → [gate <id> approve|reject] → update_pipeline → done
+   290	     → [run <target>] → route_to_skill → done
+   291	     → [dev list|mark] → done
+   292	```
+   293	
+   294	### 命令
+   295	
+   296	#### status — 管线全景 → `@references/orch/status-panel.md`
+   297	#### advance — 推进阶段 → `@references/orch/advance-flow.md`
+   298	检查→路由→执行→更新→人工确认。
+   299	
+   300	#### gate — Oracle 门禁 → `@references/orch/oracle-gate.md`
+   301	`/lx-oma orch gate <og-id> approve|reject [--reason "..."]`
+   302	
+   303	#### run — 直接路由（绕过阶段检查）
+   304	| 目标 | 路由 |
+   305	|------|------|
+   306	| Sub PRD | lx-oma hier |
+   307	| Feature | lx-oma split |
+   308	| 治理 | lx-oma gov |
+   309	| RPE | lx-rpe |
+   310	
+   311	#### dev — 并行开发 → `@references/orch/dev-management.md`
+   312	
+   313	### Pipeline 更新 → `@../references/oma/pipeline-contract.md`
+   314	原子写入（tmp→rename）+ 更新规则 + Oracle gate 创建。
+   315	
+   316	### 降级策略
+   317	
+   318	| 场景 | 降级路径 |
+   319	|------|---------|
+   320	| advance 失败 | 检查管线状态，手动修复 |
+   321	| gate 不可用 | 跳过 Oracle 门禁，标注 [无Oracle审核] |
+   322	| Pipeline 写入失败 | 降级为手动状态跟踪 |
+
+=== FILE ./.claude/skills/lx-validate-skill/references/report-templates.md ===
+     1	# lx-validate-skill 报告模板
+     2	
+     3	> 校验报告和链路追踪的输出格式模板。按需加载。
+     4	
+     5	## 校验报告
+     6	
+     7	### 全部通过
+     8	
+     9	```
+    10	## Skill 原子化校验报告 ✅
+    11	
+    12	### 校验范围
+    13	- Skill: {name}
+    14	- 规则数：11
+    15	
+    16	### 结果：通过
+    17	- 错误：0
+    18	- 警告：0
+    19	```
+    20	
+    21	### 有错误/警告
+    22	
+    23	```
+    24	## Skill 原子化校验报告 ⚠️
+    25	
+    26	### 校验范围
+    27	- Skill: {name}
+    28	- 规则数：11
+    29	
+    30	### 结果：{N} 错误, {M} 警告
+    31	
+    32	#### 错误列表
+    33	| 规则 | 问题 | 修复建议 |
+    34	|------|------|---------|
+    35	| R3 | 缺少原子化声明 | 添加 ## 原子化声明 区块 |
+    36	| ... | ... | ... |
+    37	
+    38	#### 警告列表
+    39	| 规则 | 问题 | 建议 |
+    40	|------|------|------|
+    41	| R6 | 缺少状态机声明 | 添加 ### 状态机 声明 |
+    42	| ... | ... | ... |
+    43	```
+    44	
+    45	## 链路追踪
+    46	
+    47	```bash
+    48	# 完整执行路径 + 错误路径 + Token 节省画像
+    49	python3 .claude/skills/lx-validate-skill/scripts/skill_trace_report.py
+    50	
+    51	# 仅 Token 节省分析（JSON 输出）
+    52	python3 .claude/skills/lx-validate-skill/scripts/skill_trace_report.py --tokens-only
+    53	
+    54	# 过滤指定特性
+    55	python3 .claude/skills/lx-validate-skill/scripts/skill_trace_report.py --feature {feature_name}
+    56	```
+    57	
+    58	读取三个数据源：
+    59	- `.omc/state/skill-trace.jsonl` ← update_progress.py 写入
+    60	- `.omc/state/error-dna.json` ← error-dna.sh 写入
+    61	- `.omc/state/read-tracker.txt` ← read-tracker.sh 写入
+    62	
+    63	## 渐进式披露检查
+    64	
+    65	```bash
+    66	python3 .claude/skills/lx-validate-skill/scripts/check_progressive_disclosure.py \
+    67	  --all --skills-dir .claude/skills
+    68	```
+    69	
+    70	读取 JSON：`total_violations=0` → 合规；有 violations → 报告并建议修复。
+
+=== FILE ./.claude/skills/lx-validate-skill/SKILL.md ===
+     1	---
+     2	name: lx-validate-skill
+     3	version: v4.0.0
+     4	description: "验收新 skill 是否遵循原子化架构规则。检查 frontmatter、原子化声明、节点/Schema 引用、无私有目录等 11 项规则。"
+     5	complexity: beginner
+     6	when_to_use: "Use after creating a new skill. Trigger: 'validate skill', 'check skill', 'new skill review', 'skill audit'."
+     7	argument-hint: "[skill-name, default: all lx-* skills]"
+     8	paths:
+     9	  - ".claude/skills/lx-*/SKILL.md"
+    10	harness_version: ">=6.3.0"
+    11	status: draft
+    12	role: "Skill atomization compliance validator — 11-rule architecture check"
+    13	execution_mode: stepwise
+    14	triggers:
+    15	  - "/lx-validate-skill"
+    16	nodes:
+    17	  - scanner                  # 按规则集扫描 skill（R1-R11）
+    18	  - report_generator         # 生成合规报告
+    19	  - behavior_rules           # 自洽检查
+    20	schemas:
+    21	  - atomic/scan_report       # 扫描报告
+    22	  - atomic/verdict           # 最终判定
+    23	  - atomic/finding           # 合规问题发现
+    24	---
+    25	# lx-validate-skill — 原子化架构合规检查
+    26	
+    27	## 原子化声明
+    28	
+    29	### 通用节点
+    30	| 节点 | 路径 | 用途 |
+    31	|------|------|------|
+    32	| scanner | `../../nodes/scanner.md` | 按 R1-R11 规则集扫描 skill |
+    33	| report_generator | `../../nodes/report_generator.md` | 生成合规检查报告 |
+    34	| behavior_rules | `../../nodes/behavior_rules.md` | 自洽检查 |
+    35	
+    36	### Schema
+    37	| Schema | 路径 | 用途 |
+    38	|--------|------|------|
+    39	| scan_report | `../../schemas/atomic/scan_report.yaml` | 扫描报告 |
+    40	| verdict | `../../schemas/atomic/verdict.yaml` | 最终判定 |
+    41	| finding | `../../schemas/atomic/finding.yaml` | 合规问题发现 |
+    42	
+    43	### scripts/（确定性执行层）
+    44	| 脚本 | 用途 | 调用时机 |
+    45	|------|------|---------|
+    46	| `scripts/validate_skill.py` | 核心校验：R1-R11 规则引擎 | 全流程 |
+    47	| `scripts/skill_trace_report.py` | skill 依赖追踪报告 | review 阶段 |
+    48	| `scripts/check_progressive_disclosure.py` | 渐进式披露合规检查 | review 阶段 |
+    49	| `scripts/carror_dashboard.py` | 系统健康面板 | 运行时 |
+    50	
+    51	### references/（按需加载）
+    52	| 文件 | 加载时机 |
+    53	|------|---------|
+    54	| `references/report-templates.md` | 生成合规报告时 |
+    55	---
+    56	
+    57	表
+    58	
+    59	| 编号 | 规则 | 检查方式 |
+    60	|:----|:-----|:---------|
+    61	| R1 | frontmatter 包含必填字段 | yaml 解析 |
+    62	| R2 | SKILL.md 包含 nodes 声明 | `grep '^nodes:' SKILL.md` |
+    63	| R3 | SKILL.md 内联完整（无 body_ref） | 无 body_ref: 行 |
+    64	| R4 | 无私有 nodes/ 目录 | `ls skills/lx-*/nodes/` |
+    65	| R5 | 无私有 schemas/ 目录 | `ls skills/lx-*/schemas/` |
+    66	| R6 | scripts/ 仅 .py（无 .sh 超出模板文件） | glob 检查 |
+    67	| R7 | frontmatter 有 description | yaml 校验 |
+    68	| R8 | 至少引用 1 个 `../../nodes/` | grep SKILL.md |
+    69	| R9 | 至少引用 1 个 `../../schemas/` | grep SKILL.md |
+    70	| R10 | 无私有 nodes | 同 R4 |
+    71	| R11 | 无私有 schemas | 同 R5 |
+    72	
+    73	## 执行流程
+    74	
+    75	```
+    76	1. 确定检查目标（指定 skill 或 all）
+    77	2. 逐 skill 扫描 R1-R11（scanner 节点单规则执行）
+    78	3. 输出合规报告（含每条规则的 PASS/FAIL）
+    79	4. 打印改善建议
+    80	```
+    81	
+    82	## 调用方式
+    83	
+    84	```bash
+    85	# 检查单个 skill
+    86	/lx-validate-skill lx-goal
+    87	
+    88	# 检查所有 skill
+    89	/lx-validate-skill all
+    90	
+    91	# 检查特定目录
+    92	python3 .claude/skills/lx-validate-skill/scripts/validate_skill.py --skills-dir .claude/skills
+    93	```
+
+=== FILE ./.claude/skills/lx-rpe/references/gate-checklist.md ===
+     1	# Gate 检查清单（lx-rpe Phase1/2/3 Gate 加载）
+     2	
+     3	## Gate-R（Research Gate，Phase 1 退出）
+     4	| # | 检查项 | 通过标准|
+     5	|---|--------|---------|
+     6	|R1 | 链路完整且可解释 | 调用链引用实际 file:line，非纯推断|
+     7	|R2 | 约束完整 | 技术/业务/合规三类均已评估|
+     8	|R3 | 风险可解释 | 每个风险有缓解方案 + 触发条件|
+     9	|R4 | 未决问题已处理 | 所有问题有答案或明确标注阻断|
+    10	|R5 | 假设含证伪规则 | 每个假设说明"如果错了怎么发现"|
+    11	|R6 | 进度快照已核实 | state/progress.md 与实际一致 |
+    12	
+    13	## Gate-P（Plan Gate，Phase 2 退出）
+    14	| # | 检查项 | 通过标准|
+    15	|---|--------|---------|
+    16	|P1 | 任务分解完整 | 每个 Task 可独立验收|
+    17	|P2 | AC 可验证 | 三段式：步骤/成功结果/失败结果|
+    18	|P3 | 测试可执行 | 工具和命令已指定|
+    19	|P4 | 回滚可执行 | 每个 Task 有明确回滚步骤|
+    20	|P5 | DOD 明确 | 完成定义可检查|
+    21	|P6 | 用户显式批准 | 用户回复"开始"或等价确认 |
+    22	
+    23	## Gate-X（执行前检查，每个 Task 前）
+    24	| # | 检查项 | 触发动作|
+    25	|---|--------|---------|
+    26	|X1 | 涉及 Schema/DB 变更 | 暂停，回 Plan 二次批准|
+    27	|X2 | 涉及 API 契约变更 | 暂停，回 Plan 二次批准|
+    28	|X3 | 涉及跨模块依赖变更 | 暂停，回 Plan 二次批准|
+    29	|X4 | 涉及合规/安全敏感变更 | 暂停，回 Plan 二次批准 |
+    30	
+    31	## Gate-E（执行完成，全部 Task 完成后）
+    32	| # | 检查项 | 通过标准|
+    33	|---|--------|---------|
+    34	|E1 | typecheck 通过 | exit 0|
+    35	|E2 | lint 通过 | 0 error|
+    36	|E3 | tests 通过 | 全部 PASS|
+    37	|E4 | Evidence 完整 | state/evidence/ 可复现|
+    38	|E5 | Rollback Drill 完成 | 含演练证据|
+    39	|E6 | Known Limitations 已记录 | 已沟通用户|
+    40	|E7 | 上线观察指标已定义 | 可执行|
+    41	|E8 | 遗留问题已闭环 | 或已获接受 |
+
+=== FILE ./.claude/.prompt-ring.json ===
+     1	[
+     2	  {
+     3	    "ts": "2026-07-18T16:05:40+00:00",
+     4	    "prompt": "§17a：三家高阶审计落盘 diff（用户执行）   这个todo是不是可以打勾了；"
+     5	  },
+     6	  {
+     7	    "ts": "2026-07-18T16:22:47+00:00",
+     8	    "prompt": "现在你要全面了解当前项目CarrorOS。我准备对所有的skill（lx-开头的）和hook 进行适应性优化，使其更加契合CarrorOS的哲学和机制；你需要进入plan模式，对当前项目进行充分的熟悉（之前总是偷懒，没有了解到全貌，导致优化到处是问题，顾头不顾尾），进入ultrathink模式：\n[] 1.先告诉我CarrorOS是干嘛的，怎么做到的；\n[] 2.按照评分体系，对当前的CarrorOS进行评分：\n#指标：  ## 能力维度 (C1-C9) — AI 能力激发:\n|| C | 指标 | 权重 | 得分 | 评估依据 ||\n|---|------|------|------|----------||\n| C1 | 指令清晰度 | 15 |  |  \n| C2 | 上下文完整度 | 15 |  | \n| C3 | 流程结构化 | 15 |  | \n| C4 | 输出规范化 | 10 | |\n| C5 | 工具生命周期 | 10 | |\n| C6 | 知识密度 | 10|  |\n| C7 | 关联编排 | 10|  |\n| C8 | 可维护性 | 10|  |\n| C9 | 错"
+     9	  },
+    10	  {
+    11	    "ts": "2026-07-18T16:30:49+00:00",
+    12	    "prompt": "<task-notification>\n<task-id>ab84d0454988b7516</task-id>\n<tool-use-id>Agent_0</tool-use-id>\n<output-file>/private/tmp/claude-501/-Users-lucas-liang-Desktop-CarrorOS/292b40b4-29b7-4b43-9f9f-a17ab6128023/tasks/ab84d0454988b7516.output</output-file>\n<status>completed</status>\n<summary>Agent \"摸清 CarrorOS 整体架构哲学\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same tas"
+    13	  },
+    14	  {
+    15	    "ts": "2026-07-18T16:32:23+00:00",
+    16	    "prompt": "<task-notification>\n<task-id>ac4fbbb2a9c47d70c</task-id>\n<tool-use-id>Agent_1</tool-use-id>\n<output-file>/private/tmp/claude-501/-Users-lucas-liang-Desktop-CarrorOS/292b40b4-29b7-4b43-9f9f-a17ab6128023/tasks/ac4fbbb2a9c47d70c.output</output-file>\n<status>completed</status>\n<summary>Agent \"盘点所有 lx- skills 全貌\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same tas"
+    17	  },
+    18	  {
+    19	    "ts": "2026-07-18T16:32:46+00:00",
+    20	    "prompt": "记得有个前提，开发时只能使用deepseek-v4-flash或者deepseek-v4-pro和少量使用kimi k3;"
+    21	  },
+    22	  {
+    23	    "ts": "2026-07-18T16:40:14+00:00",
+    24	    "prompt": "另一个前提：高阶模型是可以生成方案（也就是非coding模式，而是问答模式，不能直接修改代码）"
+    25	  },
+    26	  {
+    27	    "ts": "2026-07-18T16:57:06+00:00",
+    28	    "prompt": "还没回来？"
+    29	  },
+    30	  {
+    31	    "ts": "2026-07-18T16:59:00+00:00",
+    32	    "prompt": "<task-notification>\n<task-id>a1a6e8809875f3ddd</task-id>\n<tool-use-id>Agent_7</tool-use-id>\n<output-file>/private/tmp/claude-501/-Users-lucas-liang-Desktop-CarrorOS/292b40b4-29b7-4b43-9f9f-a17ab6128023/tasks/a1a6e8809875f3ddd.output</output-file>\n<status>completed</status>\n<summary>Agent \"设计 skill/hook 优化路线图\" finished</summary>\n<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same ta"
+    33	  },
+    34	  {
+    35	    "ts": "2026-07-18T18:58:45+00:00",
+    36	    "prompt": "？？"
+    37	  },
+    38	  {
+    39	    "ts": "2026-07-18T18:59:07+00:00",
+    40	    "prompt": "？？"
+    41	  },
+    42	  {
+    43	    "ts": "2026-07-18T18:59:41+00:00",
+    44	    "prompt": "PI Error: 400 Invalid request: the message at position 112 with role 'assistant' must not be empty ???能继续？"
+    45	  },
+    46	  {
+    47	    "ts": "2026-07-18T18:59:58+00:00",
+    48	    "prompt": "你好"
+    49	  },
+    50	  {
+    51	    "ts": "2026-07-18T19:00:36+00:00",
+    52	    "prompt": "API Error: 400 Invalid request: the message at position 112 with role 'assistant' must not be empty  突然这样了"
+    53	  },
+    54	  {
+    55	    "ts": "2026-07-18T19:12:20+00:00",
+    56	    "prompt": "你好"
+    57	  },
+    58	  {
+    59	    "ts": "2026-07-18T19:21:50+00:00",
+    60	    "prompt": "现在你要全面了解当前项目CarrorOS。我准备对所有的skill（lx-开头的）和hook 进行适应性优化，使其更加契合CarrorOS的哲学和机制；你需要进入plan模式，对当前项目进行充分的熟悉（之前总是偷懒，没有了解到全貌，导致优化到处是问题，顾头不顾尾），进入ultrathink模式：\n[] 1.先告诉我CarrorOS是干嘛的，怎么做到的；\n[] 2.按照评分体系，对当前的CarrorOS进行评分：\n#指标：  ## 能力维度 (C1-C9) — AI 能力激发:\n|| C | 指标 | 权重 | 得分 | 评估依据 ||\n|---|------|------|------|----------||\n| C1 | 指令清晰度 | 15 |  |  \n| C2 | 上下文完整度 | 15 |  | \n| C3 | 流程结构化 | 15 |  | \n| C4 | 输出规范化 | 10 | |\n| C5 | 工具生命周期 | 10 | |\n| C6 | 知识密度 | 10|  |\n| C7 | 关联编排 | 10|  |\n| C8 | 可维护性 | 10|  |\n| C9 | 错"
+    61	  },
+    62	  {
+    63	    "ts": "2026-07-18T19:24:28+00:00",
+    64	    "prompt": "刚刚你进行过这个任务，所以能不能不重复工作？"
+    65	  },
+    66	  {
+    67	    "ts": "2026-07-18T19:46:23+00:00",
+    68	    "prompt": "improve_plan/CarrorOS_second_time/round1  看看三个大模型的评审，收集好相关的信息给我"
+    69	  },
+    70	  {
+    71	    "ts": "2026-07-18T20:12:07+00:00",
+    72	    "prompt": "当前附件原始大小约 338 KB，但本会话可读取内容在约 252 KB 处被截断。目前只能完整确认材料包开头及 .claude/scripts/carros_base.py 的前半部分，后续文件和部分关键函数缺失。此状态下不能可靠生成精确 diff，否则无法保证：\n\n每个断言都有 文件:行号 证据；\ndiff 上下文与基线逐字匹配；\ngit apply --check 全部 hunk 干净适用；\nPKG-B 与 PKG-A、PKG-C 文件集零交叉；\n“六处重复验证”、oracle_gate.py 和 R6 冲突都已完整取证。\n请将材料包机械拆分后重新上传。不要手工摘录或改写内容。在生成 pkg-b.md 的目录执行：\n\n\n\nmkdir -p pkg-b-parts\nsplit -b 90000 -d -a 2 pkg-b.md pkg-b-parts/pkg-b.part-\nsha256sum pkg-b.md pkg-b-parts/pkg-b.part-* > pkg-b-parts/SHA256SUMS\nwc -c pkg-b.md pkg-b-parts/pkg-b.part"
+    73	  },
+    74	  {
+    75	    "ts": "2026-07-18T20:16:20+00:00",
+    76	    "prompt": "[Image #1]"
+    77	  },
+    78	  {
+    79	    "ts": "2026-07-18T20:22:28+00:00",
+    80	    "prompt": "已收到四个分片，但当前读取接口没有按分片原样返回完整内容：返回结果被再次截断，并且 `part-01`、`part-02`、`part-03` 的起始位置分别落在不同文件的中间行，无法可靠重组为原始 `pkg-b.md`。因此目前仍不能产出符合验收协议的精确施工方案。\n\n现有可核验事实只有以下几项：\n\n- 基线为 `91954a0b01f9c53edf94965238308fcb080818eb`。\n- `.claude/scripts/carros_base.py` 注册了 `verify` 命令，材料显示在约第 2273 行。\n- 材料中的测试注册了 `VERIFY_GATE_CALLABLE`、`VERIFY_GATE_HOOK`、`ORACLE_ENGINE_CALLABLE` 和 `ORACLE_GATE_HOOK`，约在测试文件第 524-533 行。\n- 测试明确检查 `.claude/hooks/pretool-oracle-gate.py`，约第 441-455 行。\n- 材料还显示 `.claude/skills/lx-goal/scripts/lx-goal.sh"
+    81	  }
+    82	]
+=== FILE ./scripts/carroros-gates/morning-report.sh ===
+     1	#!/usr/bin/env bash
+     2	# morning-report.sh — 晨报 + control-plane-scorecard（FINAL.md v3.1 §14/R6/E10）
+     3	# 只读 verification-summary + delivery-receipt + gate-results；遍历 manifest pages[]，
+     4	# CRASHED/NOT_STARTED 显式列出（E10：漏页 = 系统撒谎）。
+     5	# 产出：$NIGHT_DIR/morning-report.md + $NIGHT_DIR/control-plane-scorecard.yaml
+     6	# 退出：0=报告生成（scorecard 绿不绿看内容） 2=ERROR
+     7	
+     8	set -euo pipefail
+     9	SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    10	source "$SCRIPT_DIR/lib/common.sh"
+    11	gates_parse_args "$@"
+    12	[[ -n "$NIGHT_DIR" ]] || { echo "ERROR: 需要 --night-dir" >&2; exit 2; }
+    13	# 晨报在夜跑结束后运行，控制面仍须可信；但此时 code_sha 无意义，不做信封写入。
+    14	# control_plane_lock 自验仍执行（晨审第一问：夜里控制面有没有被碰）。
+    15	gates_preamble
+    16	
+    17	python3 - "$MANIFEST" "$NIGHT_DIR" "$GATES_LIB/gate_result.py" << 'PY'
+    18	import importlib.util, json, re, sys
+    19	from pathlib import Path
+    20	
+    21	import yaml
+    22	
+    23	manifest_path, night_dir, gr_path = sys.argv[1:4]
+    24	spec = importlib.util.spec_from_file_location("gate_result", gr_path)
+    25	gr = importlib.util.module_from_spec(spec)
+    26	spec.loader.exec_module(gr)
+    27	
+    28	# Grok §17a P0-3：晨报侦探层——producer 映射错配 / run-gate 包装可疑命令，都进 scorecard
+    29	EXPECTED_PRODUCER = {
+    30	    "C0": "preflight.sh", "C1": "scope-check.sh", "C2": "run-gate.sh",
+    31	    "C3": "c7-check.sh", "C4": "run-gate.sh", "C5": "run-gate.sh",
+    32	    "C6": "run-gate.sh", "C7": "evidence-check.sh", "C8a": "finalize-page.sh",
+    33	}
+    34	WRAPPED_TOOL_PAT = {
+    35	    "C2": re.compile(r"tsc|eslint|build"),
+    36	    "C4": re.compile(r"playwright"),
+    37	    "C5": re.compile(r"playwright"),
+    38	    "C6": re.compile(r"visual|playwright|screenshot"),
+    39	}
+    40	
+    41	manifest = yaml.safe_load(Path(manifest_path).read_text(encoding="utf-8"))
+    42	pages = manifest.get("pages") or []
+    43	nd = Path(night_dir)
+    44	
+    45	def load_yaml(p):
+    46	    p = Path(p)
+    47	    if p.is_file():
+    48	        try:
+    49	            return yaml.safe_load(p.read_text(encoding="utf-8"))
+    50	        except Exception:
+    51	            return {"_corrupt": True}
+    52	    return None
+    53	
+    54	rows = []
+    55	done_without_evidence = 0
+    56	forged_summary = 0
+    57	visual_fail_marked_done = 0
+    58	missing_pages = 0
+    59	scope_leaks = 0
+    60	superseded_c6 = 0
+    61	producer_mismatch = 0
+    62	suspicious_wrapped = 0
+    63	untrusted_pages = 0
+    64	
+    65	for pg in pages:
+    66	    pid = pg.get("id")
+    67	    summary = load_yaml(nd / "verification-summaries" / f"{pid}.yaml")
+    68	    receipt = load_yaml(nd / "delivery-receipts" / f"{pid}.yaml")
+    69	    results_dir = nd / "gate-results" / pid
+    70	    token = None
+    71	    tp = nd / "tokens" / f"{pid}.token.json"
+    72	    if tp.is_file():
+    73	        try:
+    74	            token = json.loads(tp.read_text(encoding="utf-8"))
+    75	        except json.JSONDecodeError:
+    76	            token = {"_corrupt": True}
+    77	
+    78	    latest = {}
+    79	    superseded_ids = set()
+    80	    if results_dir.is_dir():
+    81	        try:
+    82	            for p in results_dir.glob("*.superseded.json"):
+    83	                superseded_ids.add(p.name[: -len(".superseded.json")])
+    84	            latest = gr.reduce_latest(results_dir)
+    85	        except gr.FailClosed as e:
+    86	            rows.append((pid, "FAILED_INVARIANT", f"gate-results 不可信: {e}", "", ""))
+    87	            missing_pages += 1
+    88	            continue
+    89	        superseded_c6 += sum(1 for p in results_dir.glob("C6-*.json")
+    90	                             if p.stem.replace("C6-", "") in superseded_ids)
+    91	        # producer 映射 + wrapped 命令侦探（P0-3）
+    92	        for g, e in latest.items():
+    93	            exp = EXPECTED_PRODUCER.get(g)
+    94	            if exp and e.get("producer") != exp:
+    95	                producer_mismatch += 1
+    96	            if g in WRAPPED_TOOL_PAT and e.get("producer") == "run-gate.sh":
+    97	                argv = ""
+    98	                for item in e.get("evidence") or []:
+    99	                    if isinstance(item, dict) and item.get("type") == "wrapped_argv":
+   100	                        argv = item.get("argv", "")
+   101	                if not argv or not WRAPPED_TOOL_PAT[g].search(argv):
+   102	                    suspicious_wrapped += 1
+   103	
+   104	    if summary is None:
+   105	        # 无结论文件：区分 NOT_STARTED / CRASHED（E10：必须显式）
+   106	        if token is None:
+   107	            status, note = "NOT_STARTED", "无 token 无结论"
+   108	            missing_pages += 1
+   109	        else:
+   110	            claimed = (token.get("task") or {}).get("status", "?") if isinstance(token, dict) else "?"
+   111	            status, note = "CRASHED", f"token status={claimed} 但无 verification-summary"
+   112	        rows.append((pid, status, note, "", ""))
+   113	        continue
+   114	
+   115	    if summary.get("_corrupt"):
+   116	        rows.append((pid, "FAILED_INVARIANT", "verification-summary 损坏", "", ""))
+   117	        forged_summary += 1
+   118	        continue
+   119	
+   120	    final = summary.get("final_status", "?")
+   121	    gates = summary.get("gates") or {}
+   122	    # 伪造检测：summary 称 DONE 但 reducer 里 C7 不是 PASS
+   123	    if final == "DONE" and latest.get("C7", {}).get("status") != "PASS":
+   124	        done_without_evidence += 1
+   125	    if final == "DONE" and "C8a" not in latest:
+   126	        forged_summary += 1
+   127	    if final == "DONE" and latest.get("C6", {}).get("status") == "ERROR":
+   128	        visual_fail_marked_done += 1
+   129	    scope_leaks += sum(1 for g, e in latest.items() if g == "C1" and e.get("status") == "FAIL")
+   130	    # P1-6：推断契约贴标页——晨报红旗，不许当生产 DONE
+   131	    if summary.get("contract_trust") == "UNTRUSTED_CONTRACT":
+   132	        untrusted_pages += 1
+   133	
+   134	    delivery = (receipt or {}).get("delivery_status", "NOT_ATTEMPTED")
+   135	    pr_url = (receipt or {}).get("draft_pr_url", "") or ""
+   136	    note = summary.get("reason", "")
+   137	    if summary.get("contract_trust") == "UNTRUSTED_CONTRACT":
+   138	        note = f"⚠ 推断契约未对账 | {note}"
+   139	    rows.append((pid, final, note, delivery, pr_url))
+   140	
+   141	# smoke 证据：smoke-results.yaml = preflight 当刻 inline 复跑（新鲜度：证明门禁当晚会失败）；
+   142	# smoke-results-independent.yaml = Phase 0 A4 独立复跑（出处：Opus §17a P1-10，self 自陈不算证据）。
+   143	smoke = load_yaml(nd / "smoke-results.yaml") or {}
+   144	smoke_ind = load_yaml(nd / "smoke-results-independent.yaml") or {}
+   145	gates_can_fail = bool(smoke.get("all_green")) and bool(smoke.get("tamper_suite_passed"))
+   146	smoke_attestation = smoke_ind.get("runner", smoke.get("runner", "self"))
+   147	smoke_independent_in_bag = bool(smoke_ind) and smoke_ind.get("runner") == "independent"
+   148	
+   149	# 执行事件（夜循环 playbook 记录）
+   150	events_file = nd / "execution-events.jsonl"
+   151	poison_events = 0
+   152	crash_ok, crash_total = 0, 0
+   153	if events_file.is_file():
+   154	    for line in events_file.read_text(encoding="utf-8").splitlines():
+   155	        try:
+   156	            ev = json.loads(line)
+   157	        except json.JSONDecodeError:
+   158	            continue
+   159	        t = ev.get("event")
+   160	        if t == "WORKSPACE_POISONED":
+   161	            poison_events += 1
+   162	        elif t == "crash_recovery":
+   163	            crash_total += 1
+   164	            if ev.get("ok"):
+   165	                crash_ok += 1
+   166	
+   167	o1 = load_yaml(nd / "metrics" / "o1-duplication.yaml") or {}
+   168	o2_cov = "0%"
+   169	o2_files = list((nd / "metrics").glob("*.o2.json")) if (nd / "metrics").is_dir() else []
+   170	if o2_files:
+   171	    try:
+   172	        o2 = json.loads(o2_files[0].read_text(encoding="utf-8"))
+   173	        o2_cov = f"{o2.get('token_reference_coverage', 0)}%"
+   174	    except Exception:
+   175	        pass
+   176	
+   177	scorecard = {
+   178	    "gates_can_fail_on_purpose": gates_can_fail,
+   179	    "smoke_attestation": smoke_attestation,
+   180	    "smoke_independent_in_bag": smoke_independent_in_bag,
+   181	    "morning_report_missing_pages": missing_pages,
+   182	    "done_without_evidence_count": done_without_evidence,
+   183	    "scope_leak_count": scope_leaks,
+   184	    "same_fingerprint_loop_count": superseded_c6,
+   185	    "crash_recoveries_succeeded": f"{crash_ok}/{crash_total}",
+   186	    "workspace_poison_events": poison_events,
+   187	    "forged_summary_attempts": forged_summary,
+   188	    "visual_tool_failure_marked_done": visual_fail_marked_done,
+   189	    "producer_mismatch_count": producer_mismatch,
+   190	    "suspicious_gate_invocation_count": suspicious_wrapped,
+   191	    "untrusted_contract_pages": untrusted_pages,
+   192	    "intra_page_duplication_flags": o1.get("duplicate_windows", 0),
+   193	    "token_reference_coverage": o2_cov,
+   194	    # Grok §17a 复审残余记账（P1-2/P1-5）：写死防重开、防无限 defer
+   195	    "yaml_duplicate_key_policy": "last_wins_known",
+   196	    "red_team_night_loop": "due=after_first_trial",
+   197	}
+   198	green = (gates_can_fail and smoke_attestation == "independent"
+   199	         and missing_pages == 0 and done_without_evidence == 0
+   200	         and forged_summary == 0 and visual_fail_marked_done == 0 and poison_events == 0
+   201	         and producer_mismatch == 0 and suspicious_wrapped == 0)
+   202	scorecard["control_plane_green"] = green
+   203	
+   204	(nd / "control-plane-scorecard.yaml").write_text(
+   205	    yaml.safe_dump(scorecard, allow_unicode=True, sort_keys=False), encoding="utf-8")
+   206	
+   207	lines = ["# 晨报", "", f"夜目录: {night_dir}", "",
+   208	         "## 页面清单（manifest pages[] 全遍历）", "",
+   209	         "| page | final_status | 说明 | delivery | PR |", "|---|---|---|---|---|"]
+   210	for pid, final, reason, delivery, pr in rows:
+   211	    lines.append(f"| {pid} | {final} | {reason} | {delivery} | {pr} |")
+   212	lines += ["", "## control-plane-scorecard", "",
+   213	          "```yaml", yaml.safe_dump(scorecard, allow_unicode=True, sort_keys=False).strip(), "```",
+   214	          "", f"**control_plane_green = {green}**",
+   215	          "" if green else "\n> scorecard 不绿：先看控制面，不许看页面还原度。"]
+   216	(nd / "morning-report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+   217	print("\n".join(lines))
+   218	PY
+
+=== FILE ./scripts/build-pkg-b-evidence.sh ===
+     1	#!/usr/bin/env bash
+     2	# build-pkg-b-evidence.sh — 按 gpt-5.6Sol 的指定结构生成 pkg-b 关键证据包
+     3	# 环境适配(机械等价,非内容改写):
+     4	#   1) rg → grep -rnE(本机无 rg);\bR6\b → R6(BSD grep 兼容)
+     5	#   2) sha256sum → shasum -a 256(macOS 无 sha256sum)
+     6	#   3) 输出先写 /tmp 再移入 + 排除 improve_plan/自身输出(防 grep 自吞反馈循环)
+     7	#   4) 分片加 .txt 后缀(上传器不认无类型扩展名)
+     8	#   5) 第一段 grep 排除 audit/state 目录与 *.jsonl(运行时审计/状态产物,非源码,
+     9	#      否则证据包从 ~200KB 膨胀到 3.3MB;机械排除,不含内容取舍)
+    10	set -euo pipefail
+    11	cd "$(git rev-parse --show-toplevel)"
+    12	
+    13	OUT_TMP=$(mktemp /tmp/pkg-b-evidence-XXXXXX.txt)
+    14	{
+    15	  printf '%s\n' '=== BASELINE ==='
+    16	  git rev-parse HEAD
+    17	
+    18	  printf '%s\n' '=== VERIFY DEFINITIONS AND CALLS ==='
+    19	  grep -rnE -C 12 -I --excl

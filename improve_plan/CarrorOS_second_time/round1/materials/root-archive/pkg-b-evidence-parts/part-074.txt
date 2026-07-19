@@ -1,0 +1,712 @@
+ences/gov/` |
+   292	| **Hier refs** | error-codes.md, observability.md, pipeline.md, sub-prd-template.md, verification-gate.md | `references/hier/` |
+   293	| **Orch refs** | status-panel.md, advance-flow.md, oracle-gate.md, dev-management.md, pipeline-contract.md, interface-contract.md, manual-review.md | `references/orch/` |
+   294	| **(+ error-codes.md, observability.md)** | | `references/orch/` 去重 |
+   295	| **Split refs** | mece-checklist.md, scaffolding-template.md, interface-verification.md, delivery-report.md | `references/split/` |
+   296	| **共享引用** | degradation-escalation.md, decision-chain.md, execution-workflow.md, skill-chaining.md, observability.md, pipeline-contract.md | `skills/references/oma/`（不变） |
+   297	
+   298	#### 5.2.4 去重清单
+   299	
+   300	| 引用文件 | 出现于 | 处理方式 |
+   301	|----------|--------|----------|
+   302	| error-codes.md | hier + orch | 去重 → 只留 `references/orch/` 或 `shared/` |
+   303	| observability.md | hier + orch + 共享 | 保留共享(`skills/references/oma/`)，删除 hier 和 orch 中本地副本 |
+   304	| pipeline.md / pipeline-contract.md | hier + orch + split + 共享 | 保留共享(`skills/references/oma/`)，删除本地副本 |
+   305	
+   306	#### 5.2.5 预估文件数变化
+   307	
+   308	| 指标 | 合并前 | 合并后 | 变化 |
+   309	|------|--------|--------|------|
+   310	| SKILL.md | 4 | 1 | -3 |
+   311	| references | 22 | 19 | -3（去重） |
+   312	| state/nodes | 1 | 1 | 不变 |
+   313	| 总计 | 29 | 22 | **-7** |
+   314	
+   315	---
+   316	
+   317	### 5.3 Oracle 合并方案: lx-oracle-review + agent + meta → lx-oracle
+   318	
+   319	#### 5.3.1 新 SKILL.md 结构
+   320	
+   321	```yaml
+   322	---
+   323	name: lx-oracle
+   324	description: Oracle quality gate system — static analysis, runtime verification, dual-agent review
+   325	version: v2.0.0
+   326	harness_version: ">=6.3.0"
+   327	status: stable
+   328	argument-hint: >
+   329	  static <task-id> [--plan <path>] [--executor <path>] |
+   330	  runtime <task-id> [--token <path>] [--executor <path>] [--audit-dir <path>] |
+   331	  duo <task-id> [--plan <path>] [--executor <path>] [--token <path>] [--audit-dir <path>]
+   332	when_to_use: >
+   333	  static: verify/archive 前静态预检、架构终审、危险操作前置审核
+   334	  runtime: 执行后运行时验证、方案事前审核
+   335	  duo: 高风险场景双重验证、Release 门禁
+   336	triggers: ["/lx-oracle", "oracle", "oracle审核"]
+   337	role: "Oracle gate — static (Oracle-D) + runtime (Oracle-V) + dual review"
+   338	execution_mode: stepwise
+   339	---
+   340	```
+   341	
+   342	#### 5.3.2 Mode 分发逻辑
+   343	
+   344	```
+   345	/lx-oracle static <task-id>   → 静态分析（原 lx-oracle-agent）
+   346	/lx-oracle runtime <task-id>  → 运行时验证（原 lx-oracle-meta）
+   347	/lx-oracle duo <task-id>      → 双 Agent 审核（原 lx-oracle-review）
+   348	```
+   349	
+   350	#### 5.3.3 文件重组
+   351	
+   352	| 原文件 | 去向 |
+   353	|--------|------|
+   354	| lx-oracle-review/SKILL.md | 吸收进 lx-oracle/SKILL.md (duo 模式) |
+   355	| lx-oracle-agent/SKILL.md | 吸收进 lx-oracle/SKILL.md (static 模式) |
+   356	| lx-oracle-meta/SKILL.md | 吸收进 lx-oracle/SKILL.md (runtime 模式) |
+   357	| lx-oracle-review/references/body.md | `references/body-duo.md`（双审流程） |
+   358	| lx-oracle-agent/references/body.md | `references/body-static.md`（静态审核） |
+   359	| lx-oracle-meta/references/body.md | `references/body-runtime.md`（运行时审核） |
+   360	| 公共审核原则（body.md 行 9-18 等） | `references/principles.md`（提取公共部分） |
+   361	| scripts/oracle_spawn.py | 不变（keep in scripts/） |
+   362	| scripts/static_oracle_agent.py | 不变 |
+   363	| scripts/runtime_oracle_agent.py | 不变 |
+   364	| scripts/meta_oracle.py | 不变 |
+   365	
+   366	#### 5.3.4 公共审核原则提取
+   367	
+   368	当前三个 body.md 中存在重复的审核原则描述，合并后可提取为 `references/principles.md`：
+   369	
+   370	- Oracle-D / Oracle-V 协议统一声明
+   371	- 哲学层级的优先级 (#4>#6>#3>#7>#5>#2>#1)
+   372	- 0 信任原则定义
+   373	- 证据门禁规则
+   374	- 裁决等级体系 (ACCEPT/ADVISORY/REJECT/ESCALATE) — 现在定义在 body-duo.md 中，但三模式共享
+   375	
+   376	#### 5.3.5 预估文件数变化
+   377	
+   378	| 指标 | 合并前 | 合并后 | 变化 |
+   379	|------|--------|--------|------|
+   380	| SKILL.md | 3 | 1 | -2 |
+   381	| references | 3 | 4（含 principles.md） | +1 |
+   382	| 脚本 | 4 | 4 | 不变 |
+   383	| 总计 | 10 | 9 | **-1** |
+   384	
+   385	---
+   386	
+   387	### 5.4 lx-ghost 处理方案
+   388	
+   389	#### 5.4.1 建议：保留 + 精简（非删除）
+   390	
+   391	**理由：** lx-ghost 的功能域（方向驱动自主探索）与 lx-oracle-meta（通用运行时验证）不重叠。lx-ghost 提供了独特的"方向驱动、增量 poll 迭代、事前 Oracle 门禁"模式，与 lx-goal 的"目标驱动、逐项 task-done"形成互补。
+   392	
+   393	#### 5.4.2 精简措施
+   394	
+   395	| 当前 | 建议 |
+   396	|------|------|
+   397	| 内嵌 Phase 0.5 Oracle 审核逻辑（ghost-oracle-audit.md） | 改为委托调用 `lx-oracle duo` 模式 |
+   398	| ghost-oracle-audit.md | 删除（或简化为委托 lx-oracle 的说明） |
+   399	| ghost-phase0.md 中部分 Oracle 描述 | 精简为引用 lx-oracle |
+   400	| 与原 lx-oracle-meta 重复的审核基础设施 | 完全移除，复用 lx-oracle |
+   401	
+   402	#### 5.4.3 若强行删除
+   403	
+   404	如果用户坚持删除 lx-ghost，需要考虑：
+   405	1. **lx-goal 能力评估** — lx-goal 是否可覆盖方向驱动模式（当前 lx-goal 是目标驱动，不适合开放探索）
+   406	2. **lx-oracle 能否接管** — 可以接管 Phase 0.5 审核部分，但自主 poll 迭代需要新 skill 或 lx-goal 扩展
+   407	3. **功能损失** — 丢失"方向驱动自主探索"模式，变为仅在明确目标下工作
+   408	
+   409	---
+   410	
+   411	## 6. E. 风险与注意事项
+   412	
+   413	### 6.1 执行风险
+   414	
+   415	| 风险 | 级别 | 缓解措施 |
+   416	|------|------|----------|
+   417	| 修改 skill-dependencies.yaml 中的依赖声明 | 低 | 确保更新所有技能引用路径 |
+   418	| references/oma/ 公共引用被多个 skill 引用 | 低 | 保持 skills/references/oma/ 不变 |
+   419	| oracle_spawn.py 中硬编码的 skill 路径 | 中 | 脚本中无硬编码 skill 路径，全部通过参数传递 |
+   420	| execution_mode 不一致（stepwise vs race） | 低 | SKILL.md 根级声明 stepwise，在正文中注明 split 子命令的 race 模式 |
+   421	| 其他技能引用这些 skill 名称 | 中 | 搜索全库的 `/lx-oma-*` `/lx-oracle-*` 引用并更新 |
+   422	
+   423	### 6.2 向后兼容
+   424	
+   425	| 原命令 | 新命令 | 兼容方式 |
+   426	|--------|--------|----------|
+   427	| /lx-oma-hier | /lx-oma hier | 保留触发器别名 /lx-oma-hier → /lx-oma hier |
+   428	| /lx-oma-split | /lx-oma split | 同上 |
+   429	| /lx-oma-gov | /lx-oma gov | 同上 |
+   430	| /lx-oma-orch | /lx-oma orch | 同上 |
+   431	| /lx-oracle-agent | /lx-oracle static | 保留触发器别名 |
+   432	| /lx-oracle-meta | /lx-oracle runtime | 保留触发器别名 |
+   433	| /lx-oracle-review | /lx-oracle duo | 保留触发器别名 |
+   434	| /lx-ghost | 不变 | 保留 |
+   435	
+   436	### 6.3 后续行动建议
+   437	
+   438	1. **先执行 Oracle 合并**（3→1，改动最小，风险最低）
+   439	2. **再执行 OMA 合并**（4→1，改动最大，建议分步做）
+   440	3. **最后处理 lx-ghost**（确认策略后再改）
+   441	4. **更新 skill-dependencies.yaml** — 将 8 个技能声明缩减为 4 个
+   442	5. **更新 AGENTS.md** — 搜索所有 `/lx-oma-*` 和 `/lx-oracle-*` 引用并替换
+   443	6. **更新其他技能** — 搜索引用这些旧 skill 名称的技能文件
+   444	7. **回归验证** — 验证所有管线命令在新入口下正常工作
+   445	
+   446	---
+   447	
+   448	## 附录 A: 技能文件完整性清单
+   449	
+   450	### OMA 合并前 (29 文件)
+   451	
+   452	```
+   453	lx-oma-gov/ (8)
+   454	├── SKILL.md
+   455	├── governance-spec.md
+   456	├── HUMAN-IN-THE-LOOP-GATE.md
+   457	├── state/sync-state.md
+   458	└── references/
+   459	    ├── directory-structure.md
+   460	    ├── commands-reconcile.md
+   461	    ├── commands-audit.md
+   462	    └── pipeline-integration.md
+   463	
+   464	lx-oma-hier/ (6)
+   465	├── SKILL.md
+   466	└── references/
+   467	    ├── error-codes.md
+   468	    ├── observability.md
+   469	    ├── pipeline.md
+   470	    ├── sub-prd-template.md
+   471	    └── verification-gate.md
+   472	
+   473	lx-oma-orch/ (10)
+   474	├── SKILL.md
+   475	└── references/
+   476	    ├── status-panel.md
+   477	    ├── advance-flow.md
+   478	    ├── oracle-gate.md
+   479	    ├── dev-management.md
+   480	    ├── pipeline-contract.md
+   481	    ├── interface-contract.md
+   482	    ├── manual-review.md
+   483	    ├── error-codes.md
+   484	    └── observability.md
+   485	
+   486	lx-oma-split/ (5)
+   487	├── SKILL.md
+   488	└── references/
+   489	    ├── mece-checklist.md
+   490	    ├── scaffolding-template.md
+   491	    ├── interface-verification.md
+   492	    └── delivery-report.md
+   493	```
+   494	
+   495	### OMA 合并后 (22 文件)
+   496	
+   497	```
+   498	lx-oma/ (22)
+   499	├── SKILL.md
+   500	├── gov/
+   501	│   ├── governance-spec.md
+   502	│   ├── HUMAN-IN-THE-LOOP-GATE.md
+   503	│   └── state/sync-state.md
+   504	├── references/
+   505	│   ├── gov/
+   506	│   │   ├── directory-structure.md
+   507	│   │   ├── commands-reconcile.md
+   508	│   │   ├── commands-audit.md
+   509	│   │   └── pipeline-integration.md
+   510	│   ├── hier/
+   511	│   │   ├── sub-prd-template.md
+   512	│   │   └── verification-gate.md
+   513	│   ├── orch/
+   514	│   │   ├── status-panel.md
+   515	│   │   ├── advance-flow.md
+   516	│   │   ├── oracle-gate.md
+   517	│   │   ├── dev-management.md
+   518	│   │   ├── pipeline-contract.md
+   519	│   │   ├── interface-contract.md
+   520	│   │   └── manual-review.md
+   521	│   └── split/
+   522	│       ├── mece-checklist.md
+   523	│       ├── scaffolding-template.md
+   524	│       ├── interface-verification.md
+   525	│       └── delivery-report.md
+   526	```
+   527	
+   528	### Oracle 合并前 (6 文件)
+   529	
+   530	```
+   531	lx-oracle-agent/ (2)
+   532	├── SKILL.md
+   533	└── references/body.md
+   534	
+   535	lx-oracle-meta/ (2)
+   536	├── SKILL.md
+   537	└── references/body.md
+   538	
+   539	lx-oracle-review/ (2)
+   540	├── SKILL.md
+   541	└── references/body.md
+   542	```
+   543	
+   544	### Oracle 合并后 (5 文件)
+   545	
+   546	```
+   547	lx-oracle/ (5)
+   548	├── SKILL.md
+   549	└── references/
+   550	    ├── principles.md          (公共审核原则，新增)
+   551	    ├── body-static.md         (原 lx-oracle-agent body)
+   552	    ├── body-runtime.md        (原 lx-oracle-meta body)
+   553	    └── body-duo.md            (原 lx-oracle-review body)
+   554	```
+   555	
+   556	---
+   557	
+   558	> **本合并方案可作为实际合并执行的基准文档。** 建议合并时保持"先搬后拆"策略：先创建目标 lx-oma/ 和 lx-oracle/ 目录并同步文件，确认无误后再删除旧技能目录。
+
+=== FILE ./.claude/skills/references/oma/skill-chaining.md ===
+     1	# Skill 链式承接 (Skill Chaining)
+     2	
+     3	> 所有 OMA skill 的链式组合模式。引用：`@reference/oma/skill-chaining.md`
+     4	
+     5	## 链式组合哲学
+     6	
+     7	单个 skill = 原子操作。链式组合 = 原子 skill 按契约串联成完整流水线。
+     8	
+     9	```
+    10	原子 skill A ──契约──→ 原子 skill B ──契约──→ 原子 skill C
+    11	```
+    12	
+    13	每个 skill 只关心自己的输入/输出契约，不感知上下游实现。
+    14	
+    15	## 主链：PRD 全生命周期
+    16	
+    17	```
+    18	lx-oma-hier ──→ lx-oma-split ──→ lx-rpe ──→ lx-code-review ──→ lx-test-gen
+    19	 (主PRD→Sub)    (Sub→Feature)    (开发)      (审查)            (测试)
+    20	      │               │              │            │                │
+    21	      └── 输出: Sub PRD ──┘             │            │                │
+    22	               └── 输出: Feature RPE ───┘            │                │
+    23	                         └── 输出: 代码 ─────────────┘                │
+    24	                                   └── 输出: 审查报告 ────────────────┘
+    25	
+    26	链式调用:
+    27	  1. /lx-oma-hier docs/master-prd.md --pipeline
+    28	  2. /lx-oma-split sub-prds/domain-auth.md --pipeline
+    29	  3. /lx-rpe prd/auth/feat-login --pipeline
+    30	  4. /lx-code-review
+    31	  5. /lx-test-gen
+    32	```
+    33	
+    34	## 治理链：变更检测 & 传播
+    35	
+    36	```
+    37	lx-oma-gov ──→ lx-oma-split ──→ lx-rpe
+    38	 (检测变更)     (重拆)          (重开发)
+    39	
+    40	链式调用:
+    41	  1. /lx-oma-gov reconcile          # 检测主 PRD 变更
+    42	  2. /lx-oma-gov propagate --execute # 传播到 feature
+    43	  3. /lx-oma-split <changed>        # 重拆受影响的 feature
+    44	  4. /lx-rpe <feature>              # 重新开发
+    45	```
+    46	
+    47	## 编排链：自动推进
+    48	
+    49	```
+    50	lx-oma-orch auto
+    51	   ↓ 读 pipeline.yaml
+    52	   ├── hier_done? → 触发 split
+    53	   ├── oma_ready? → 触发 rpe
+    54	   ├── dev_done?  → 触发 code-review
+    55	   └── review_done? → 触发 test-gen
+    56	
+    57	每个阶段有 Oracle gate，orch 自动推进。
+    58	```
+    59	
+    60	## 审判链：双法官审核
+    61	
+    62	```
+    63	Oracle Agent ──→ Meta-Oracle ──→ 人类
+    64	 (静态分析)       (运行时+对抗)    (最终裁决)
+    65	
+    66	嵌入任意链式流程：
+    67	  hier → [Oracle → Meta-Oracle] → split → [Oracle] → rpe → [Oracle → Meta-Oracle] → 交付
+    68	```
+    69	
+    70	## 组合规则
+    71	
+    72	### 契约传递
+    73	
+    74	上游输出 → 下游输入必须是结构化契约：
+    75	
+    76	```
+    77	上游 SKILL.md:
+    78	  输出: `sub-prds/domain-{name}.md`
+    79	
+    80	下游 SKILL.md:
+    81	  输入: `<sub_prd_path>`（Sub PRD markdown 文件）
+    82	```
+    83	
+    84	### 独立可执行
+    85	
+    86	链中任意 skill 可以独立调用，不依赖链上历史：
+    87	
+    88	```
+    89	✅ /lx-oma-split sub-prds/domain-auth.md     # 独立执行
+    90	✅ /lx-rpe prd/auth/feat-login               # 独立执行
+    91	```
+    92	
+    93	### 去重
+    94	
+    95	如果两个 skill 的公共能力相同 → 提取到 `references/oma/`：
+    96	
+    97	| 公共能力 | 引用路径 |
+    98	|---------|---------|
+    99	| 裁决链 | `decision-chain.md` |
+   100	| 执行工作流 | `execution-workflow.md` |
+   101	| 降级升级 | `degradation-escalation.md` |
+   102	| Pipeline 契约 | `pipeline-contract.md` |
+   103	| 可观测性 | `observability.md` |
+   104	| 错误码 | `error-codes.md` |
+   105	| 方向指引 | `direction-guide.md` |
+   106	
+   107	## 并发链：Race 模式
+   108	
+   109	```
+   110	lx-race
+   111	  ├── Task A: lx-rpe feat-A        (并行)
+   112	  ├── Task B: lx-rpe feat-B        (并行)
+   113	  └── Task C: lx-rpe feat-C        (并行)
+   114	       ↓
+   115	  聚合报告 → lx-oma-orch 更新 pipeline
+   116	```
+   117	
+   118	独立子任务（互不依赖）→ Race 并发。有依赖 → Stepwise 串行。
+
+=== FILE ./.claude/skills/references/oma/pipeline-contract.md ===
+     1	# Pipeline 集成契约
+     2	
+     3	> OMA skill 通过 `state/pipeline.yaml` 与 orch 编排器集成。
+     4	> 引用：`@reference/oma/pipeline-contract.md`
+     5	
+     6	## 管线阶段
+     7	
+     8	```
+     9	hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe → dev (parallel)
+    10	```
+    11	
+    12	## 入口（编排模式）
+    13	
+    14	收到 `--pipeline <id>` 时：
+    15	1. 读 `state/pipeline.yaml`
+    16	2. 检查当前阶段状态
+    17	3. 使用 pipeline 中的 `path` 作为输入
+    18	
+    19	## 出口
+    20	
+    21	| Skill | 写入 pipeline |
+    22	|-------|-------------|
+    23	| hier | `sub_prds[].{id, path, status: hier_done}`, `stages.hier = completed` |
+    24	| split | `features[].{id, path, stage: oma_created}`, `stages.oma = completed` |
+    25	| gov | **不直接写** — 输出 `gov-latest-report.yaml`，orch 消费后更新 |
+    26	
+    27	## 原子写入
+    28	
+    29	写 tmp → `os.rename(tmp, pipeline.yaml)`（RPE-014 教训）
+    30	
+    31	## 接口版本
+    32	
+    33	| 接口 | v | 读写方 |
+    34	|------|:-:|--------|
+    35	| stages | v1 | 所有读，orch 写 |
+    36	| sub_prds[] | v1 | hier/split 写，orch 读 |
+    37	| oracle_gates[] | v1 | orch 写/读，其余只读 |
+    38	| features[] | v1 | split 写，orch 读 |
+    39	| gov-latest-report.yaml | v1 | gov 写，orch 读 |
+    40	
+    41	> 向后兼容：不兼容变更创建 v2 key，旧 key 保留 1 迭代周期。
+
+=== FILE ./.claude/skills/lx-oma/SKILL.md ===
+     1	---
+     2	name: lx-oma
+     3	description: OMA Pipeline — hierarchically decompose, split into features, govern, orchestrate
+     4	version: v2.0.0
+     5	harness_version: ">=6.3.0"
+     6	status: stable
+     7	argument-hint: >
+     8	  hier <path> [output_dir] | split <path> [--pipeline <id>] |
+     9	  gov init|reconcile|resolve|propagate|status|audit [path] |
+    10	  orch status|advance|gate|run|dev
+    11	when_to_use: PRD 全生命周期 — 拆解、拆分、治理、编排
+    12	triggers: ["/lx-oma", "oma", "pipeline", "/lx-oma-hier", "/lx-oma-split", "/lx-oma-gov", "/lx-oma-orch", "分层拆解", "prd 拆分", "拆解需求", "一人成军拆解", "oma治理", "reconcile", "propagate", "漂移检测", "管线状态", "orchestrate"]
+    13	role: "OMA — Pipeline lifecycle (hier → split → gov → rpe)"
+    14	execution_mode: stepwise
+    15	---
+    16	
+    17	# lx-oma OMA Pipeline — Unified Skill
+    18	
+    19	> 合并自 lx-oma-hier v1.3.2 · lx-oma-split v1.2.1 · lx-oma-gov v1.2.1 · lx-oma-orch v1.2.2
+    20	> 向后兼容：原 `/lx-oma-hier` `/lx-oma-split` `/lx-oma-gov` `/lx-oma-orch` 仍可触发
+    21	
+    22	## Subcommand 分发
+    23	
+    24	```
+    25	/lx-oma hier <path> [output_dir]           → L1 分层拆解（原 lx-oma-hier）
+    26	/lx-oma split <path> [--pipeline <id>]     → L2 特性拆解（原 lx-oma-split）
+    27	/lx-oma gov <subcommand> [args...]         → 治理操作（原 lx-oma-gov）
+    28	/lx-oma orch <subcommand> [args...]        → 管线编排（原 lx-oma-orch）
+    29	```
+    30	
+    31	> **注意：** `execution_mode: stepwise` 为根级声明。split 子命令内部使用 `race` 模式 — AI 自主拆解 + 脚手架构建后交还人工审核门禁。
+    32	
+    33	## 共享 OMA 基础设施
+    34	
+    35	| 文件 | 路径 | 用途 |
+    36	|------|------|------|
+    37	| 降级升级策略 | `@../references/oma/degradation-escalation.md` | 降级路径 |
+    38	| 裁决链 | `@../references/oma/decision-chain.md` | 决策记录 |
+    39	| 执行工作流 | `@../references/oma/execution-workflow.md` | 通用执行规范 |
+    40	| 链式承接 | `@../references/oma/skill-chaining.md` | 技能间委托 |
+    41	| 可观测性 | `@../references/oma/observability.md` | 遥测规范 |
+    42	| Pipeline 契约 | `@../references/oma/pipeline-contract.md` | 集成契约 |
+    43	| 错误码体系 | `@../references/oma/error-codes.md` | 共享错误码 |
+    44	| 方向指南 | `@../references/oma/direction-guide.md` | 方向指导 |
+    45	
+    46	### 原子化节点
+    47	
+    48	| 节点 | 路径 | 用途 |
+    49	|------|------|------|
+    50	| explore | `../../nodes/explore.md` | 文件/目录读取 |
+    51	| verifier | `../../nodes/verifier.md` | 质量验证 |
+    52	| oracle | `../../nodes/oracle_terminal.md` | 阶段转移门禁裁决 |
+    53	| mode_selector | `../../nodes/mode_selector.md` | 执行模式路由 |
+    54	
+    55	### Schema
+    56	
+    57	| Schema | 路径 | 用途 |
+    58	|--------|------|------|
+    59	| verdict | `../../schemas/atomic/verdict.yaml` | MECE 拆解质量判定 |
+    60	| error_codes | `../../schemas/atomic/error_codes.yaml` | 错误码共享体系 |
+    61	
+    62	---
+    63	
+    64	## hier — L1 分层 PRD 拆解（原 lx-oma-hier）
+    65	
+    66	### references/（按需加载）
+    67	
+    68	| 文件 | 加载时机 |
+    69	|------|---------|
+    70	| `references/hier/sub-prd-template.md` | sub prd 模板 |
+    71	| `references/hier/verification-gate.md` | verification gate |
+    72	
+    73	### 状态机
+    74	
+    75	```
+    76	need_input → [reading → analyzing → generating → verifying] → done
+    77	```
+    78	
+    79	### 任务目标
+    80	
+    81	将超大型 PRD 按功能域 MECE 拆分为 N 个 Sub PRD，确保功能正交、黑盒边界、可独立闭环、可独立交付。
+    82	> Sub PRD 模板 → `@references/hier/sub-prd-template.md` · 全生命周期管线 → `@../references/oma/pipeline-contract.md`
+    83	
+    84	### 参数处理
+    85	
+    86	入参 `<path>` + 可选 `[output_dir]`。模式：`--pipeline` 编排模式 / 无参数 手动模式。
+    87	输出路径: kernel.md 约定 → 用户显式 → 默认 `sub-prds/`。
+    88	文件直接读、目录读所有 `.md`、图片描述结构。
+    89	
+    90	### MECE 功能域拆解
+    91	
+    92	1. **识别核心业务实体** → 实体归属表（实体名/候选域/归属理由/原文引用）
+    93	2. **按职责聚类** → 围绕实体聚合功能
+    94	3. **正交性校验** → 域对检查职责重叠+数据交叉
+    95	4. **边界确认** → 每个域"管什么/不管什么"
+    96	
+    97	#### MECE 校验摘要
+    98	- 正交性矩阵: 域对×重叠点×裁决（引用原文）
+    99	- 实体唯一 Own、接口耦合度(>10 警告)、孤儿接口检查、NFR 来源校验(无来源标注 `[内部自检]`)
+   100	
+   101	#### 依赖分析
+   102	域间依赖图（A→B），区分服务依赖 vs 代码依赖，识别循环依赖，标注优先开发域。
+   103	
+   104	### 输出目录结构
+   105	
+   106	```
+   107	{output_dir}/
+   108	  INDEX.md              ← 层级关系树 + 依赖图 + 开发顺序
+   109	  domain-{name}.md      ← Sub PRD
+   110	```
+   111	
+   112	### 校验与门禁
+   113	
+   114	```bash
+   115	python3 .claude/scripts/verify_oma_mece.py {output_dir}/  # exit 0 → ✅
+   116	```
+   117	
+   118	质量报告: verify_oma_mece.py exit_code + 模板字段8项 + 非功能契约一致性 + 父需求全覆盖。
+   119	G1 Meta-Oracle: ≥2子系统+不可逆变更时触发 → `@references/hier/verification-gate.md#meta-oracle-g1`
+   120	
+   121	### 降级策略
+   122	
+   123	| 场景 | 降级路径 |
+   124	|------|---------|
+   125	| verify_oma_mece.py 不可用 | 降级为手动 MECE 自检清单 |
+   126	| Sub PRD 输出失败 | 保留中间产物，标注缺失项 |
+   127	| MECE 校验 3 轮未通过 | 标记需人工介入 |
+   128	
+   129	---
+   130	
+   131	## split — L2 特性拆解（原 lx-oma-split）
+   132	
+   133	### references/（按需加载）
+   134	
+   135	| 文件 | 加载时机 |
+   136	|------|---------|
+   137	| `references/split/mece-checklist.md` | MECE 拆解 |
+   138	| `references/split/scaffolding-template.md` | 脚手架构建 |
+   139	| `references/split/interface-verification.md` | 接口归属校验 |
+   140	| `references/split/delivery-report.md` | 战报交付 |
+   141	
+   142	### 状态机
+   143	
+   144	```
+   145	need_input → [reading → analyzing → scaffolding → verifying] → done
+   146	```
+   147	
+   148	### 执行流程
+   149	
+   150	#### 1. 参数处理
+   151	读取 `<path>`（文件→读内容，目录→读所有 .md）。未提供→询问用户。
+   152	从路径提取 `sub_prd_name`（如 `sub-prds/domain-auth.md` → `auth`）。
+   153	
+   154	#### 2. MECE 正交拆解 → `@references/split/mece-checklist.md`
+   155	3-6 个 Feature，相互独立、完全穷尽。执行自检清单（正交性/完整性/独立性）。
+   156	
+   157	#### 3. 脚手架构建 → `@references/split/scaffolding-template.md`
+   158	每个 Feature 自动生成 `prd/{sub_prd_name}/feat-XXX/{state,contracts,mocks}/prd.md`。
+   159	
+   160	#### 4. 接口归属校验（阻断门禁） → `@references/split/interface-verification.md`
+   161	`verify_oma_interface_coverage.py` — 未归属接口必须修复后才放行。
+   162	
+   163	#### 5. 战报交付 → `@references/split/delivery-report.md`
+   164	输出 feature 清单 + 并发启动指令（`/lx-rpe prd/...`）。
+   165	
+   166	### Pipeline 集成
+   167	
+   168	入口 `--pipeline <id>` → 检查 `hier_done` → 出口 `features[].stage=oma_created`。
+   169	> 完整契约 → `@../references/oma/pipeline-contract.md`
+   170	
+   171	### 人工审核门禁
+   172	
+   173	```
+   174	[ ] feature prd.md 完整？  [ ] 接口归属 exit 0？
+   175	[ ] 无 phantom 接口？      [ ] MECE 正交？
+   176	[ ] 所有目录已创建？
+   177	确认: /lx-oma orch gate og-NNN approve
+   178	```
+   179	
+   180	### 降级策略
+   181	
+   182	| 场景 | 主路径 | 降级 |
+   183	|------|--------|------|
+   184	| Sub PRD <200 字 | 按已有内容拆解 | 告知内容不足 |
+   185	| 校验脚本不存在 | 自动化校验 | 降级手动校验 |
+   186	| hier 不可用 | 委托调用 | 手动 `/lx-oma hier` |
+   187	
+   188	---
+   189	
+   190	## gov — PRD 治理（原 lx-oma-gov）
+   191	
+   192	### 专属文件
+   193	
+   194	| 文件 | 用途 |
+   195	|------|------|
+   196	| `gov/governance-spec.md` | 完整规范（对象 ID/状态机/漂移规则） |
+   197	| `gov/HUMAN-IN-THE-LOOP-GATE.md` | awaiting_human_decision 状态机 |
+   198	| `gov/state/sync-state.md` | 同步状态跟踪 |
+   199	
+   200	### references/（按需加载）
+   201	
+   202	| 文件 | 加载时机 |
+   203	|------|---------|
+   204	| `references/gov/directory-structure.md` | init |
+   205	| `references/gov/commands-reconcile.md` | reconcile/verifier/resolve/propagate |
+   206	| `references/gov/commands-audit.md` | audit |
+   207	| `references/gov/pipeline-integration.md` | pipeline |
+   208	
+   209	### 状态机
+   210	
+   211	```
+   212	need_input
+   213	  → [init] → initialized
+   214	  → [reconcile] → reconciling
+   215	      → [no changes] → done
+   216	      → [L3 conflict] → awaiting_human_decision → [resolve] → reconciling
+   217	      → [changes ready] → verifying → propagating_dry_run
+   218	          → [confirmed] → propagating → done
+   219	  → [status] → done
+   220	  → [audit] → done
+   221	  → [error] → [repair → undone | reset → initialized]
+   222	```
+   223	
+   224	### 命令
+   225	
+   226	#### init → `@references/gov/directory-structure.md`
+   227	`/lx-oma gov init [path]` — 创建 state/ + source-prds/ + snapshots/ + 日志
+   228	
+   229	#### reconcile / verifier / resolve / propagate → `@references/gov/commands-reconcile.md`
+   230	变更检测（L1/L2/L3 分级）→ verifier 质量门禁 → resolve 人工裁决 → propagate 增量传播
+   231	
+   232	#### status — 治理状态面板
+   233	#### audit → `@references/gov/commands-audit.md`
+   234	四类漂移检测（ID 孤儿/版本落后/冲突定义/孤立变更）
+   235	
+   236	### Pipeline 集成 → `@references/gov/pipeline-integration.md`
+   237	只读 pipeline.yaml。命令执行后输出 governance-report.yaml 供 orch 消费。
+   238	
+   239	### 治理质量自检
+   240	
+   241	1. CHG-ID 完整性：格式 `CHG-YYYYMMDD-NNN`
+   242	2. CHG 分类正确性：L3 必须涉及 REQ-/DEC-/TERM- 修改
+   243	3. CONFLICT-ID 闭合性：已裁决标记 resolved
+   244	4. 幂等安全：重复 propagate 不产生重复内容
+   245	5. 引用一致性：propagate 后所有引用在 master 中存在
+   246	6. 同步状态：活跃 feature 同步时间 ≥ 最后 reconcile
+   247	
+   248	### 降级策略
+   249	
+   250	| 场景 | 主路径 | 降级 |
+   251	|------|--------|------|
+   252	| 治理目录不存在 | 报错 | 先运行 init |
+   253	| reconcile 无变更 | 报告"无差异" | fast path done |
+   254	| L3 冲突无裁决 | 挂起 + 提示 | 继续 L1/L2 |
+   255	| propagate 目标缺失 | 跳过 | 列出缺失 feature |
+   256	| 锁超时 | 自动释放 | 记录清除日志 |
+   257	
+   258	---
+   259	
+   260	## orch — Pipeline 编排器（原 lx-oma-orch）
+   261	
+   262	### 子 skill 路由
+   263	
+   264	| 目标 | 路由 |
+   265	|------|------|
+   266	| Sub PRD | lx-oma hier (self) |
+   267	| Feature | lx-oma split (self) |
+   268	| 治理 | lx-oma gov (self) |
+   269	| RPE | lx-rpe |
+   270	
+   271	### references/（按需加载）
+   272	
+   273	| 文件 | 加载时机 |
+   274	|------|---------|
+   275	| `references/orch/status-panel.md` | status |
+   276	| `references/orch/advance-flow.md` | advance |
+   277	| `references/orch/oracle-gate.md` | gate |
+   278	| `references/orch/dev-management.md` | dev |
+   279	| `references/orch/interface

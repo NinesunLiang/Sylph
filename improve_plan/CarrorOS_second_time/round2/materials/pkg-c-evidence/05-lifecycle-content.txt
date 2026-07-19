@@ -1,0 +1,1856 @@
+
+===== .claude/hooks/session-start.py =====
+     1	#!/usr/bin/env python3
+     2	"""
+     3	session-start.py — CarrorOS SessionStart hook（compact 恢复 / 新会话导航）
+     4	
+     5	注入（stdout additionalContext）：
+     6	  1. .omc/session-handoff.md — 会话交接（compact 后恢复）
+     7	  2. .omc/state/last-user-prompt.md — 最近用户请求
+     8	  3. 活跃 token 状态（task/step/progress）
+     9	
+    10	设计：只读、快速（<200ms）、永不阻断。无活跃任务时静默退出。
+    11	"""
+    12	from __future__ import annotations
+    13	
+    14	import json
+    15	import os
+    16	import sys
+    17	from pathlib import Path
+    18	
+    19	HOOK_DIR = Path(__file__).resolve().parent
+    20	ROOT = HOOK_DIR.parents[1]
+    21	os.chdir(str(ROOT))
+    22	
+    23	OMC = ROOT / ".omc"
+    24	HANDOFF = OMC / "session-handoff.md"
+    25	LAST_PROMPTS = OMC / "state" / "last-user-prompt.md"
+    26	TOKENS_DIR = OMC / "tokens"
+    27	
+    28	MAX_HANDOFF = 2000
+    29	MAX_PROMPTS = 1000
+    30	
+    31	
+    32	def _read_json(path: Path, default):
+    33	    try:
+    34	        return json.loads(path.read_text(encoding="utf-8"))
+    35	    except Exception:
+    36	        return default
+    37	
+    38	
+    39	def _active_token_brief() -> str:
+    40	    if not TOKENS_DIR.exists():
+    41	        return ""
+    42	    candidates = sorted(
+    43	        [p for p in TOKENS_DIR.glob("*/*.json") if p.is_file()],
+    44	        key=lambda p: p.stat().st_mtime, reverse=True,
+    45	    )
+    46	    for path in candidates[:5]:
+    47	        data = _read_json(path, {})
+    48	        task = data.get("task")
+    49	        if not isinstance(task, dict):
+    50	            continue
+    51	        stats = data.get("stats", {}) or {}
+    52	        session = data.get("session", {}) or {}
+    53	        return (
+    54	            f"[Active Task] id={path.stem} level={session.get('level', '?')} "
+    55	            f"step={task.get('current_step', '?')} done={stats.get('done', 0)}/{stats.get('total', '?')} "
+    56	            f"status={task.get('status', data.get('status', '?'))}"
+    57	        )
+    58	    return ""
+    59	
+    60	
+    61	def main() -> None:
+    62	    try:
+    63	        payload = json.loads(sys.stdin.read() or "{}")
+    64	    except Exception:
+    65	        payload = {}
+    66	    source = str(payload.get("source") or "startup")
+    67	
+    68	    parts: list[str] = []
+    69	
+    70	    token_brief = _active_token_brief()
+    71	    if token_brief:
+    72	        parts.append(token_brief)
+    73	
+    74	    if HANDOFF.exists():
+    75	        try:
+    76	            text = HANDOFF.read_text(encoding="utf-8")[:MAX_HANDOFF]
+    77	            if text.strip():
+    78	                parts.append(f"[Session Handoff — {source} 恢复导航]\n{text}")
+    79	        except Exception:
+    80	            pass
+    81	
+    82	    if source in ("compact", "resume") and LAST_PROMPTS.exists():
+    83	        try:
+    84	            text = LAST_PROMPTS.read_text(encoding="utf-8")[:MAX_PROMPTS]
+    85	            if text.strip():
+    86	                parts.append(f"[Last User Prompts]\n{text}")
+    87	        except Exception:
+    88	            pass
+    89	
+    90	    if not parts:
+    91	        print(json.dumps({"continue": True}))
+    92	        sys.exit(0)
+    93	
+    94	    context = "\n\n".join(parts)
+    95	    print(json.dumps({
+    96	        "continue": True,
+    97	        "hookSpecificOutput": {
+    98	            "hookEventName": "SessionStart",
+    99	            "additionalContext": context,
+   100	        },
+   101	    }, ensure_ascii=False))
+   102	    sys.exit(0)
+   103	
+   104	
+   105	if __name__ == "__main__":
+   106	    main()
+
+===== .claude/references/SUBAGENT.md =====
+     1	# SubAgent 派发契约
+     2	
+     3	> 参考 round3 设计：SubAgent 是轻量任务派发机制，仅在需要时才使用。
+     4	
+     5	## 何时派发
+     6	- 局部调研（读代码/查文档）
+     7	- 单一改动（≤5 文件、≤5 分钟）
+     8	- 不熟悉的局部技术栈
+     9	
+    10	**不做**：把整个任务丢给 subagent。要自己做主流程，subagent 只做局部。
+    11	
+    12	## 派发四步
+    13	
+    14	1. **写输入**：`subagent/{id}_input.md`
+    15	   - Goal（目标）
+    16	   - Scope（允许读/改/禁止的范围）
+    17	   - 期望产出（什么格式、什么内容）
+    18	   - Stop 条件（什么情况下必须停止并返回）
+    19	
+    20	2. **spawn**：用 delegate_task 工具派发，传 id
+    21	
+    22	3. **轮询**：每 10s 读 `subagent/{id}.json` 的 status
+    23	   - `done` → 合并 deliverable
+    24	   - `blocked` → 补信息 / 拆小重派 / 自己接管
+    25	   - `15s 无 ACK` 或 `5min 未 done` → 收 partial → 自己接管
+    26	
+    27	4. **收官**：按状态处理
+    28	
+    29	## 铁律约束
+    30	SubAgent 同样受铁律约束：
+    31	- 越界修改 → 违规
+    32	- 无证据改动 → 违规
+    33	- 埋头不报 > 15s → 违规
+    34	
+    35	## 契约格式
+    36	
+    37	```json
+    38	{
+    39	  "subagent_id": "research-01",
+    40	  "goal": "调研 X 模块的 API 设计",
+    41	  "scope": {
+    42	    "allow_read": ["src/x/**"],
+    43	    "allow_write": [],
+    44	    "forbidden": ["secrets/**", ".env"]
+    45	  },
+    46	  "expected_output": "report.md 格式：背景、API 设计、风险点",
+    47	  "stop_on": ["timeout_300s", "error_3_consecutive"]
+    48	}
+    49	```
+    50	
+    51	## 参考
+    52	- poll-subagent.py — 轮询脚本
+    53	- subagent-schema.json — 输入/输出 JSON 模式
+
+===== .claude/references/session-handoff.md =====
+     1	# Session Handoff: test-blocked
+     2	
+     3	**Updated:** 2026-07-06 08:54 UTC
+     4	**Level:** L2_ENHANCE
+     5	**Progress:** 0/1 steps
+     6	
+     7	## Steps
+     8	  ⬜ S1: pending
+     9	
+    10	## Plan (condensed)
+    11	# Plan
+    12	## Goal
+    13	
+    14	## Scope
+    15	
+    16	## Steps
+    17	- [ ] S1: 
+    18	
+    19	## Verify
+    20	- S1: 
+    21	
+    22	---
+    23	> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。
+    24	
+    25	
+    26	---
+    27	_Auto-generated by carros_utils.py_
+
+===== .claude/references/templates/handoff-capsule.md =====
+     1	# Resume Capsule 模板
+     2	
+     3	> 此为 handoff.md 的推荐模板。每行字段不可随意更改，文件整体是 **导航** 非状态源。
+     4	
+     5	## ⚠️ NOT SOURCE OF TRUTH
+     6	Resume engine MUST load token.json (CAS) first.
+     7	This handoff is navigation only. Do not parse current state from this file.
+     8	
+     9	generated: {timestamp}
+    10	task_id: {task_id}
+    11	
+    12	## Goal
+    13	{任务目标原文，来自 plan.md 第一行}
+    14	
+    15	## Confirmed Decisions
+    16	- {决策1}
+    17	- {决策2}
+    18	
+    19	## Next Action
+    20	step: {当前step} | status: {任务状态}
+    21	
+    22	## Changed Files
+    23	- {文件1}
+    24	- {文件2}
+    25	
+    26	## Required Reads
+    27	- token.json (CAS)
+    28	- plan.md
+    29	
+    30	## Do Not Reload
+    31	- 全部旧 transcript
+    32	- docs/reviews/**
+    33	- 完整测试日志
+
+===== .claude/scripts/lib/handoff_writer.py =====
+     1	#!/usr/bin/env python3
+     2	"""
+     3	handoff_writer.py — Resume Capsule 生成器
+     4	
+     5	生成 handoff.md（导航-only，非真相源）。
+     6	Preflight 验证 token.json CAS + plan 版本一致性。
+     7	"""
+     8	
+     9	import json
+    10	from datetime import datetime, timezone
+    11	from pathlib import Path
+    12	from typing import Optional
+    13	
+    14	
+    15	def generate_capsule(
+    16	    task_id: str,
+    17	    token: dict,
+    18	    plan_path: Optional[Path] = None,
+    19	    executor_path: Optional[Path] = None,
+    20	    max_nav_chars: int = 8000,
+    21	    archived: bool = False,
+    22	) -> str:
+    23	    """
+    24	    生成 Resume Capsule（导航-only）。
+    25	    头部强制 NOT_SOURCE_OF_TRUTH。
+    26	    如果 archived=True，标记已归档，无 next_action。
+    27	    """
+    28	    lines = []
+    29	    lines.append("# Resume Capsule — Navigation Only")
+    30	    lines.append("")
+    31	    lines.append("## ⚠️ NOT SOURCE OF TRUTH")
+    32	    lines.append("Resume engine MUST load token.json (CAS) first.")
+    33	    lines.append("This handoff is navigation only. Do not parse current state from this file.")
+    34	    lines.append("")
+    35	    lines.append(f"generated: {datetime.now(timezone.utc).isoformat()}")
+    36	    lines.append(f"task_id: {task_id}")
+    37	    lines.append("")
+    38	
+    39	    # Goal from token or plan
+    40	    lines.append("## Goal")
+    41	    if plan_path and plan_path.exists():
+    42	        text = plan_path.read_text(encoding="utf-8")
+    43	        lines.append(text.splitlines()[0] if text.splitlines() else "?")
+    44	    else:
+    45	        lines.append(token.get("session", {}).get("id", "?"))
+    46	    lines.append("")
+    47	
+    48	    # Confirmed decisions (from executor if available)
+    49	    lines.append("## Confirmed Decisions")
+    50	    if executor_path and executor_path.exists():
+    51	        for line in executor_path.read_text(encoding="utf-8").splitlines()[-10:]:
+    52	            stripped = line.strip()
+    53	            if stripped.startswith("-") or stripped.startswith("*"):
+    54	                lines.append(f"  {stripped[:160]}")
+    55	    if len(lines) < 5:
+    56	        lines.append("  (pending)")
+    57	    lines.append("")
+    58	
+    59	    # Next action (or archived)
+    60	    if archived:
+    61	        lines.append("## ⏹  Status: ARCHIVED")
+    62	        lines.append("  This task is archived. Do not resume execution.")
+    63	        lines.append("  For reference only. Final report in final-report.md.")
+    64	    else:
+    65	        lines.append("## Next Action")
+    66	        cs = token.get("task", {}).get("current_step", "?")
+    67	        st = token.get("task", {}).get("status", "?")
+    68	        lines.append(f"  step: {cs} | status: {st}")
+    69	    lines.append("")
+    70	
+    71	    # Changed files from plan scope
+    72	    lines.append("## Changed Files")
+    73	    if plan_path and plan_path.exists():
+    74	        text = plan_path.read_text(encoding="utf-8")
+    75	        in_scope = False
+    76	        for line in text.splitlines():
+    77	            if line.lower().startswith("## scope"):
+    78	                in_scope = True
+    79	                continue
+    80	            if in_scope and line.startswith("## "):
+    81	                break
+    82	            if in_scope and line.strip().startswith("-"):
+    83	                fname = line.strip().lstrip("- ").strip("`")
+    84	                if fname:
+    85	                    lines.append(f"  - {fname}")
+    86	    lines.append("")
+    87	
+    88	    # Required reads (minimal)
+    89	    lines.append("## Required Reads")
+    90	    lines.append("  - token.json (CAS)")
+    91	    if plan_path:
+    92	        lines.append(f"  - {plan_path.relative_to(plan_path.parents[3])}")
+    93	    lines.append("")
+    94	
+    95	    # Do not reload
+    96	    lines.append("## Do Not Reload")
+    97	    lines.append("  - 全部旧 transcript")
+    98	    lines.append("  - docs/reviews/**")
+    99	    lines.append("  - 完整测试日志")
+   100	    lines.append("  - 旧 Oracle 裁决")
+   101	
+   102	    text = "\n".join(lines)
+   103	    if len(text) > max_nav_chars:
+   104	        text = text[: max_nav_chars - 20] + "\n...[TRUNCATED]"
+   105	    return text
+   106	
+   107	
+   108	def write_handoff(
+   109	    task_dir: Path,
+   110	    task_id: str,
+   111	    token: dict,
+   112	    plan_path: Optional[Path] = None,
+   113	    executor_path: Optional[Path] = None,
+   114	    archived: bool = False,
+   115	) -> Path:
+   116	    """Write handoff.md to task directory."""
+   117	    capsule = generate_capsule(task_id, token, plan_path, executor_path, archived=archived)
+   118	    handoff_path = task_dir / "handoff.md"
+   119	    handoff_path.write_text(capsule, encoding="utf-8")
+   120	    return handoff_path
+   121	
+   122	
+   123	def run_preflight(task_dir: Path, token: dict) -> list[str]:
+   124	    """
+   125	    Resume Preflight 检查：
+   126	    1) token.json CAS load
+   127	    2) plan 版本一致性
+   128	    3) external_effects 三界检查
+   129	    4) handoff 存在
+   130	
+   131	    Returns list of issues (empty = pass).
+   132	    """
+   133	    issues = []
+   134	
+   135	    # 1. token.json CAS check
+   136	    if not token.get("schema_version"):
+   137	        issues.append("⚠ token.json missing schema_version (CAS)")
+   138	    if not token.get("stats"):
+   139	        issues.append("⚠ token.json missing stats section")
+   140	
+   141	    # 2. plan consistency
+   142	    plan_path = task_dir / "plan.md"
+   143	    if not plan_path.exists():
+   144	        issues.append("⚠ plan.md not found")
+   145	    else:
+   146	        plan_text = plan_path.read_text(encoding="utf-8")
+   147	        if not plan_text.strip():
+   148	            issues.append("⚠ plan.md is empty")
+   149	
+   150	    # 3. external_effects — check state/sub_task dirs for IN_FLIGHT markers
+   151	    state_dir = task_dir / "state"
+   152	    if state_dir.exists():
+   153	        for f in state_dir.iterdir():
+   154	            if f.suffix == ".json":
+   155	                try:
+   156	                    data = json.loads(f.read_text(encoding="utf-8"))
+   157	                    effects = data.get("external_effects", []) if isinstance(data, dict) else []
+   158	                    for eff in effects:
+   159	                        status = eff.get("status", "")
+   160	                        if status in ("IN_FLIGHT", "UNKNOWN"):
+   161	                            issues.append(f"⚠ external_effect IN_FLIGHT/UNKNOWN: {eff.get('id', '?')}")
+   162	                except (json.JSONDecodeError, OSError):
+   163	                    pass
+   164	
+   165	    # 4. handoff exists
+   166	    handoff_path = task_dir / "handoff.md"
+   167	    if not handoff_path.exists():
+   168	        issues.append("ℹ handoff.md not yet written (acceptable for in-progress)")
+   169	    else:
+   170	        text = handoff_path.read_text(encoding="utf-8")
+   171	        if "NOT SOURCE OF TRUTH" not in text:
+   172	            issues.append("⚠ handoff.md missing NOT_SOURCE_OF_TRUTH header")
+   173	
+   174	    return issues
+
+===== .claude/skills/lx-code-review/scripts/subagent_reviewer.py =====
+     1	#!/usr/bin/env python3
+     2	
+     3	import argparse, sys, json, subprocess
+     4	
+     5	
+     6	def run_diff(files: list):
+     7	    """提取实际变更"""
+     8	    cmd = "git diff HEAD -- " + " ".join(f'"{f}"' for f in files)
+     9	    # nosec B602: skill 层 CLI 工具，输入为内部 git 命令拼接，非用户原始输入
+    10	    r = subprocess.run(cmd, shell=True, capture_output=True, text=True)  # nosec B602
+    11	    return r.stdout
+    12	
+    13	def main():
+    14	    p = argparse.ArgumentParser()
+    15	    p.add_argument("--files", nargs='+', required=True, help="需要审查的文件列表")
+    16	    p.add_argument("--rules", default="references/knowledge/review-rules.md", help="引用的审查规范")
+    17	    args = p.parse_args()
+    18	
+    19	    diff_text = run_diff(args.files)
+    20	    if not diff_text.strip():
+    21	        print(json.dumps({"status": "passed", "message": "No diff found."}, ensure_ascii=False))
+    22	        sys.exit(0)
+    23	
+    24	    system_prompt = f"""你是一个极度严苛、不通人情的顶级 Security & QA 专家（盲审官）。不要理会任何代码原作者留下的解释性注释！你的唯一目标是：通过传入的实际 Diff 和以下审查规范，找出所有的安全漏洞、性能瓶颈、逻辑缺陷和格式违规。审查规范路径：{args.rules}请以极其挑剔的眼光审查。如果有违规，请列出 violations 并返回 REJECTED；如果完美无瑕，返回 PASSED。代码变更 (Diff):```diff\n{diff_text}\n``` """
+    25	
+    26	    instruction = {
+    27	        "status": "requires_subagent_blind_review",
+    28	        "action": "请立即使用 `Task` 工具启动盲审",
+    29	        "subagent_type": "general",
+    30	        "prompt": system_prompt,
+    31	        "description": "Sub-agent A/B 对抗性盲审"
+    32	    }
+    33	    print(json.dumps(instruction, ensure_ascii=False, indent=2))
+    34	    sys.exit(0)
+    35	
+    36	if __name__ == "__main__":
+    37	    main()
+
+===== .claude/skills/lx-ghost/references/ghost-oracle-audit.md =====
+     1	# Phase 0.5: Oracle 自主计划审核
+     2	
+     3	> **哲学 #6（0信任）物化：AI 自判"不需要问人"不可信。独立 Oracle 对抗性审查自主计划。**
+     4	
+     5	## 触发条件
+     6	
+     7	所有 ghost 激活均强制执行。Oracle critic agent（opus），独立上下文，不共享主会话。
+     8	
+     9	## 五维门禁
+    10	
+    11	| # | 维度 | 检查内容 | 常见盲区 |
+    12	|---|------|---------|---------|
+    13	| D1 | **方向适配** | ghost vs goal 选择是否正确？有无 GL-01 方向漂移风险？ | 修复清单误用 ghost 模式 |
+    14	| D2 | **歧义穷尽** | Phase 0 是否有未覆盖的歧义？AI 自判"不需要问"是否合理？ | 技术决策误判为用户偏好 |
+    15	| D3 | **硬边界完整** | 任务触及面是否可能触碰未声明的禁区？ | 间接引用敏感文件 |
+    16	| D4 | **决策链覆盖** | autonomous-decision-chain 矩阵是否覆盖该任务场景？ | 新颖场景矩阵缺失 |
+    17	| D5 | **退出条件** | 成功/失败信号是否可验证？min_iterations 是否合理？ | 主观成功标准不可测 |
+    18	
+    19	## 裁决协议
+    20	
+    21	- `[Oracle: ACCEPT]` → 进入 Step 0.5 激活
+    22	- `[Oracle: REVISE]` → AI 按 Oracle 反馈调整计划 → 重新提交 Oracle（最多 2 轮）
+    23	- `[Oracle: REJECT]` → 阻断激活，向人类报告 Oracle 驳回理由 + AI 原计划差异
+    24	
+    25	## 留痕
+    26	
+    27	Oracle 裁决写入 `.omc/state/oracle-verdicts.md`
+
+===== .claude/skills/lx-ghost/references/ghost-phase0.md =====
+     1	# Ghost Phase 0: 前置澄清 + 激活
+     2	
+     3	> 唯一的人类交互窗口。激活后 AI 不再提问。
+     4	
+     5	## Step 0.1: 方向自检
+     6	
+     7	AI 检查方向适合性：
+     8	- "探索/扫描/修复/迭代" 等增量关键词 → ghost mode
+     9	- "分析/报告/评估/阅读" 等一次性关键词 → 建议 goal mode
+    10	- 区分不清 → 向人类说明理由，推荐模式
+    11	
+    12	## Step 0.2: 扫描不确定项
+    13	
+    14	**核心原则：一次问清，永不回头。**
+    15	
+    16	扫描维度（必须全部覆盖）：
+    17	
+    18	| 维度 | 必须澄清的内容 |
+    19	|------|-------------|
+    20	| 范围边界 | 探索范围？哪些明确不在范围内？ |
+    21	| 硬边界预检 | 是否涉及 rm/git写/敏感文件/API Key？ |
+    22	| 外部依赖 | 需要哪些外部服务/API/工具？ |
+    23	| 能力缺口 | AI 是否具备完成探索的能力？缺口如何降级？ |
+    24	| 风险点 | 最可能失败的环节？降级策略？ |
+    25	| 探索方向 | 具体探索目标和预期发现？ |
+    26	| 成功信号 | 如何判断方向已达成？ |
+    27	| 过期策略 | 预计耗时？超时后如何处理？ |
+    28	
+    29	## Step 0.3: 输出探索计划
+    30	
+    31	展示：探索方向、每轮操作粒度（一步一操作）、预计轮询间隔、已识别风险、Q 项。回复 "开始" 激活。
+    32	
+    33	## Step 0.4: 激活
+    34	
+    35	人类 + Oracle 双确认后激活。
+    36	
+    37	```bash
+    38	bash .claude/skills/lx-ghost/scripts/lx-ghost.sh on "方向" [间隔秒] [过期小时] [最小迭代数]
+    39	```
+    40	
+    41	此命令创建 `.omc/state/tokens/lx-ghost.json` + `.omc/state/tokens/autonomous.active`。
+    42	
+    43	**激活后验证**：
+    44	```bash
+    45	ls -la .omc/state/tokens/lx-ghost.json .omc/state/tokens/autonomous.active
+    46	```
+    47	
+    48	**为什么必须走脚本**：手动 touch 一个文件 = 半个系统仍在 normal mode（DG-46 教训）。
+    49	
+    50	## CronCreate 轮询
+    51	
+    52	```bash
+    53	# cron: */N * * * *（N = 间隔分钟，≥1）
+    54	# prompt: "根据 lx-ghost.json 方向做一步探索，更新状态。方向: {方向描述}"
+    55	# recurring: true
+    56	```
+    57	
+    58	告知用户 job ID + Oracle 裁决结果，可随时 CronDelete 停止。
+
+===== .claude/skills/lx-ghost/references/ghost-polling.md =====
+     1	# Ghost 全自动轮询
+     2	
+     3	> 间隔默认 600s，最小 30s，不可为 0。
+     4	
+     5	## 每轮 Poll 流程
+     6	
+     7	```
+     8	1. 读 lx-ghost.json 确认方向
+     9	2. iterations_completed++
+    10	3. 方向漂移自检 → 偏离则修正，完全漂移则停用
+    11	4. 每轮只做一步 — 不并行 agent，不做大规模分析
+    12	5. 危险 → 走裁决链；歧义 → 自主判断
+    13	6. 更新状态
+    14	```
+    15	
+    16	## 方向漂移自检
+    17	
+    18	每轮 poll 开始前检查当前工作是否偏离原始方向。轻微偏离 → 记录 + 修正方向。完全漂移（方向已无交集）→ 触发自动退出。
+    19	
+    20	## min_iterations 强制探索
+    21	
+    22	> 解决「一次性做完就停」的过早收敛。
+    23	
+    24	```
+    25	有工作 → 执行一步
+    26	无工作 + iterations < min_iterations:
+    27	  → 拓宽探索半径 — 扫描 side findings / 边缘问题 / Oracle minor 项 / 相邻文件调用方
+    28	  → 仍无 → skip-risk 记录"方向枯竭，强制拓宽"，继续
+    29	无工作 + iterations >= min_iterations:
+    30	  → 自检: 方向目标是否达成？
+    31	  → 是 → 自动退出 + 退出报告
+    32	  → 否 → 报告差距，可延长
+    33	```
+    34	
+    35	## 风险与退出
+    36	
+    37	- 方向漂移 → skip-risk 记录，修正方向
+    38	- 修复阻塞（3 次）→ skip-risk，换方向继续
+    39	- Context Guard 阻断 → override + Bash
+    40	- Permission Gate 拦截 → 走三级裁决链
+    41	- 发现范围外问题 → 记入附带发现
+    42	- 令牌过高 → 增加间隔或提前关闭
+    43	- 硬边界触发 → 立即跳过 → hard-boundary-hit → 继续其他
+
+===== .claude/skills/lx-ghost/scripts/lx-ghost.sh =====
+     1	#!/usr/bin/env bash
+     2	# lx-ghost.sh — 幽灵模式（方向驱动自主探索）
+     3	# 用法: lx-ghost on|off|status|set <key> <value>|poll
+     4	# 幽灵模式: 给 AI 一个"方向"，AI 自主探索并修复，不干扰人，默认 3h 过期
+     5	# 与 lx-goal 的区别: ghost = 方向驱动（开源探索），goal = 目标驱动（具体任务）
+     6	# 同时创建 autonomous.active 信号供所有 hook 降级
+     7	#
+     8	# 哲学映射:
+     9	#   #3 先守护: gate 降级为 warn-only 而非硬阻断
+    10	#   #4 没验证=没做: poll 报告 + completion 软评分
+    11	#   #6 0信任: 危险操作记录 skipped_risks 而不是跳过
+    12	
+    13	SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    14	PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+    15	STATE_DIR="$PROJECT_ROOT/.omc/state"
+    16	mkdir -p "$STATE_DIR" 2>/dev/null
+    17	
+    18	# source harness_config for hc_get defaults
+    19	source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
+    20	
+    21	mkdir -p "$STATE_DIR/tokens" 2>/dev/null
+    22	MODE_FILE="$STATE_DIR/tokens/lx-ghost.json"
+    23	
+    24	# 智能参数检测：第一个参数不是已知子命令 → 当作方向描述自动激活
+    25	_KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|hard-boundary-hit|blocked-human|retry"
+    26	if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
+    27	    exec bash "$0" on "$@"
+    28	fi
+    29	
+    30	case "${1:-status}" in
+    31	    on)
+    32	        DIRECTION="${2:-自主探索和修复系统问题}"
+    33	        INTERVAL="${3:-$(hc_get "ghost_mode.default_poll_interval" "600")}"
+    34	        EXPIRY_HOURS="${4:-$(hc_get "ghost_mode.default_expiry_hours" "3")}"
+    35	        # DG-007 安全修复: 用 json.dumps 序列化而非 heredoc 裸拼接
+    36	        # 避免 direction 中的换行/引号/特殊字符破坏 JSON 结构
+    37	        export _LX_DIRECTION="$DIRECTION"
+    38	        export _LX_INTERVAL="$INTERVAL"
+    39	        export _LX_EXPIRY_HOURS="$EXPIRY_HOURS"
+    40	        export _LX_MODE_FILE="$MODE_FILE"
+    41	        ${PYTHON_BIN:-python3} <<'PYEOF'
+    42	import json, os
+    43	from datetime import datetime, timedelta, timezone
+    44	
+    45	direction = os.environ['_LX_DIRECTION']
+    46	interval = int(os.environ['_LX_INTERVAL'])
+    47	expiry_hours = int(os.environ['_LX_EXPIRY_HOURS'])
+    48	mode_file = os.environ['_LX_MODE_FILE']
+    49	expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
+    50	
+    51	data = {
+    52	    "active": True,
+    53	    "mode": "ghost",
+    54	    "direction": direction,
+    55	    "cycle_interval_seconds": interval,
+    56	    "expires_at": expires,
+    57	    "activated_at": datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+    58	    "retry_count": 0,
+    59	    "skipped_risks": [],
+    60	    "hard_boundary_hits": [],
+    61	    "blocked_human": []
+    62	}
+    63	
+    64	tmp = mode_file + '.tmp.' + str(os.getpid())
+    65	with open(tmp, 'w', encoding='utf-8') as f:
+    66	    json.dump(data, f, indent=2, ensure_ascii=False)
+    67	os.rename(tmp, mode_file)
+    68	PYEOF
+    69	        # 创建 autonomous.active 信号供 completion-gate 等降级
+    70	        touch "$STATE_DIR/tokens/autonomous.active"
+    71	        # 清理旧格式文件
+    72	        rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
+    73	DATE=$(date +%Y-%m-%d)
+    74	SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+    75	[ -z "$SLUG" ] && SLUG="ghost-$(date +%H%M%S)"
+    76	CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
+    77	mkdir -p "$CHAT_DIR"
+    78		${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'exploring','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$CHAT_DIR/state.json','w'))"
+    79		echo "# $DIRECTION
+    80	
+    81	> ghost模式自动创建 @ $(date)" > "$CHAT_DIR/progress.md"
+    82		echo "RPE文档层: $CHAT_DIR" >&2
+    83		# Save chat_dir to lx-ghost.json for runtime subcommands
+    84		export _LX_CHAT_DIR="$CHAT_DIR"
+    85		export _LX_MODE_FILE="$MODE_FILE"
+    86		${PYTHON_BIN:-python3} <<'PYEOF'
+    87	import json, os
+    88	chat_dir = os.environ['_LX_CHAT_DIR']
+    89	mode_file = os.environ['_LX_MODE_FILE']
+    90	d = json.load(open(mode_file))
+    91	d['rpe_chat_dir'] = chat_dir
+    92	tmp = mode_file + '.tmp.' + str(os.getpid())
+    93	with open(tmp, 'w', encoding='utf-8') as f:
+    94	    json.dump(d, f, indent=2, ensure_ascii=False)
+    95	os.rename(tmp, mode_file)
+    96	PYEOF
+    97		# 计算 CronCreate 参数
+    98		CRON_MIN=$((INTERVAL / 60))
+    99		[ "$CRON_MIN" -lt 1 ] && CRON_MIN=1
+   100		echo "✅ 幽灵模式已开启 — 方向: $DIRECTION, 每 ${INTERVAL}s 轮询, ${EXPIRY_HOURS}h 过期"
+   101		echo "   autonomous.active 信号已创建，evidence/completion gate 降级为 warn-only"
+   102		echo ""
+   103		echo "🔧 [必须执行·Step 0.5.3] 注册 CronCreate 跨会话轮询:"
+   104		echo ""
+   105		echo "   CronCreate"
+   106		echo "     cron: \"*/${CRON_MIN} * * * *\""
+   107		echo "     prompt: \"lx-ghost poll → 读取: cat $CHAT_DIR/progress.md → 继续探索方向'$DIRECTION' → 记录发现 → 完成则 lx-ghost off\""
+   108		echo "     recurring: true"
+   109		echo "     durable: true"
+   110		echo ""
+   111		echo "   ⚠️ durable=true: 会话结束后继续轮询，跨会话恢复"
+   112		echo "   ⚠️ 跳过此步 = 幽灵模式仅在当前会话有效，会话结束即消失"
+   113	        # 将决策链注入 AI 上下文（Oracle M1: 确保模式激活时 AI 立即看到决策链）
+   114	        DECISION_CHAIN="$PROJECT_ROOT/.claude/reference/autonomous-decision-chain.md"
+   115	        if [ -f "$DECISION_CHAIN" ]; then
+   116	            echo "[.claude/reference/autonomous-decision-chain.md]"
+   117	            cat "$DECISION_CHAIN"
+   118	            echo ""
+   119	        fi
+   120	        ;;
+   121	
+   122	    off)
+   123			# Write summary to RPE chat dir before cleanup
+   124			if [ -f "$MODE_FILE" ]; then
+   125				CHAT_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+   126				if [ -n "$CHAT_DIR" ] && [ -d "$CHAT_DIR" ]; then
+   127					RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+   128					SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+   129					HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+   130					{
+   131						echo ""
+   132						echo "---"
+   133						echo "## 退出摘要"
+   134						echo "- 关闭时间: $(date)"
+   135						echo "- 重试次数: ${RETRY:-0}"
+   136						echo "- 跳过风险: ${SKIP:-0}"
+   137						echo "- 硬边界拦截: ${HARD:-0}"
+   138						echo ""
+   139						echo "> 幽灵模式自动关闭 @ $(date)"
+   140					} >> "$CHAT_DIR/progress.md"
+   141					${PYTHON_BIN:-python3} -c "
+   142	import json
+   143	sf = '$CHAT_DIR/state.json'
+   144	d = json.load(open(sf))
+   145	d['phase'] = 'completed'
+   146	d['completed_at'] = '$(date -u +%Y-%m-%dT%H:%M:%SZ)'
+   147	json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
+   148	" 2>/dev/null
+   149				fi
+   150				rm -f "$MODE_FILE"
+   151			fi
+   152			# 清理旧格式文件
+   153			rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/ghost-mode.active" 2>/dev/null
+   154			rm -f "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
+   155			echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
+   156			;;
+   157	    status)
+   158	        if [ -f "$MODE_FILE" ]; then
+   159	            DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('direction','?'))" 2>/dev/null)
+   160	            EXP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at','无'))" 2>/dev/null)
+   161	            INT=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('cycle_interval_seconds','?'))" 2>/dev/null)
+   162	            RETRY=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('retry_count',0))" 2>/dev/null)
+   163	            SKIP=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('skipped_risks',[])))" 2>/dev/null)
+   164	            HARD=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)
+   165	            echo "📋 幽灵模式 (lx-ghost): 🟢 开启中"
+   166	            echo "   方向: $DIR"
+   167	            echo "   间隔: ${INT}s"
+   168	            echo "   过期: $EXP"
+   169	            echo "   重试: $RETRY  跳过风险: $SKIP  硬边界: $HARD"
+   170	        elif [ -f "$STATE_DIR/ghost-mode.json" ]; then
+   171	            echo "📋 幽灵模式 (旧格式 ghost-mode.json): 🟡 兼容中"
+   172	            echo "   建议执行 lx-ghost off && lx-ghost on \"方向\" 迁移到新格式"
+   173	        else
+   174	            echo "📋 幽灵模式 (lx-ghost): ⚪ 已关闭"
+   175	        fi
+   176	        if [ -f "$STATE_DIR/tokens/autonomous.active" ]; then
+   177	            echo "   autonomous.active 信号: ✅ 存在"
+   178	        fi
+   179	        ;;
+   180	
+   181	    set)
+   182	        KEY="$2"
+   183	        VALUE="$3"
+   184	        if [ ! -f "$MODE_FILE" ]; then
+   185	            echo "❌ 幽灵模式未开启，无法修改"
+   186	            exit 1
+   187	        fi
+   188	        export _LX_KEY="$KEY"
+   189	        export _LX_VALUE="$VALUE"
+   190	        export _LX_SET_MODE_FILE="$MODE_FILE"
+   191	        ${PYTHON_BIN:-python3} <<'PYEOF'
+   192	import json, os
+   193	key = os.environ['_LX_KEY']
+   194	value_str = os.environ['_LX_VALUE']
+   195	mode_file = os.environ['_LX_SET_MODE_FILE']
+   196	
+   197	d = json.load(open(mode_file))
+   198	# 尝试解析 JSON 值（数字/布尔/对象），失败则当字符串
+   199	try:
+   200	    value = json.loads(value_str)
+   201	except (json.JSONDecodeError, ValueError):
+   202	    value = value_str
+   203	d[key] = value
+   204	
+   205	tmp = mode_file + '.tmp.' + str(os.getpid())
+   206	with open(tmp, 'w', encoding='utf-8') as f:
+   207	    json.dump(d, f, indent=2, ensure_ascii=False)
+   208	os.rename(tmp, mode_file)
+   209	print(f"✅ 幽灵模式 {key} 已更新为 {value}")
+   210	PYEOF
+   211	        ;;
+   212	
+   213	    poll)
+   214	        # 幽灵模式轮询入口 — 由 loop skill / ralph-loop 调用
+   215	        if [ ! -f "$MODE_FILE" ]; then
+   216	            # 回退检查旧格式
+   217	            if [ -f "$STATE_DIR/ghost-mode.json" ]; then
+   218	                DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$STATE_DIR/ghost-mode.json')); print(d.get('direction','?'))" 2>/dev/null)
+   219	                echo "⚠️ 旧格式 ghost-mode.json 存在，建议迁移: lx-ghost off && lx-ghost on \"$DIR\""
+   220	            else
+   221	                echo "❌ 幽灵模式未激活，停止轮询"
+   222	            fi
+   223	            exit 1
+   224	        fi
+   225	
+   226	        # 检查过期
+   227	        EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
+   228	        if [ -n "$EXPIRES" ]; then
+   229	            EXPIRED=$(${PYTHON_BIN:-python3} -c "
+   230	from datetime import datetime
+   231	try:
+   232	    exp = datetime.fromisoformat('$EXPIRES')
+   233	    print('yes' if datetime.now() > exp else 'no')
+   234	except: print('no')" 2>/dev/null)
+   235	            if [ "$EXPIRED" = "yes" ]; then
+   236	                echo "⏰ 幽灵模式已过期（$EXPIRES），自动关闭"
+   237	                rm -f "$MODE_FILE" "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
+   238	                exit 0
+   239	            fi
+   240	        fi
+   241	
+   242		echo "🔄 Ghost Poll #$((RETRY + 1)) | 方向: $DIR | 过期: $EXPIRES"
+   243		echo ""
+   244		CHAT_DIR=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('rpe_chat_dir',''))" 2>/dev/null)
+   245		echo "📋 执行指令:"
+   246		echo "   1. 读取上次探索上下文: cat $CHAT_DIR/progress.md"
+   247		echo "   2. 继续围绕方向: $DIR"
+   248		echo "   3. 记录发现: 追加到 $CHAT_DIR/progress.md"
+   249		echo "   4. 如有风险: lx-ghost skip-risk '风险描述'"
+   250		echo "   5. 如方向完成: lx-ghost off"
+   251		echo ""
+   252		echo "   📊 已重试: $RETRY | 已跳过风险: $SKIP | 硬边界: $(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(len(d.get('hard_boundary_hits',[])))" 2>/dev/null)"
+   253			;;
+   254	
+   255	    skip-risk)
+   256			# 记录跳过的风险（供 permission-gate 等调用）
+   257			DESCRIPTION="${2:-未知风险}"
+   258			if [ ! -f "$MODE_FILE" ]; then
+   259				echo "❌ 幽灵模式未开启"
+   260				exit 1
+   261			fi
+   262			export _LX_DESC="$DESCRIPTION"
+   263			export _LX_MODE_FILE="$MODE_FILE"
+   264			${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+   265	import json, os
+   266	from datetime import datetime, timezone
+   267	
+   268	desc = os.environ['_LX_DESC']
+   269	mode_file = os.environ['_LX_MODE_FILE']
+   270	
+   271	d = json.load(open(mode_file))
+   272	risks = d.get('skipped_risks', [])
+   273	risks.append({'description': desc, 'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')})
+   274	d['skipped_risks'] = risks
+   275	
+   276	# Append to RPE progress.md
+   277	chat_dir = d.get('rpe_chat_dir', '')
+   278	if chat_dir:
+   279	    progress_file = os.path.join(chat_dir, 'progress.md')
+   280	    if os.path.exists(progress_file):
+   281	        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+   282	        with open(progress_file, 'a') as pf:
+   283	            pf.write(f'\n- [skip-risk] {desc}  ({ts})\n')
+   284	
+   285	tmp = mode_file + '.tmp.' + str(os.getpid())
+   286	with open(tmp, 'w', encoding='utf-8') as f:
+   287	    json.dump(d, f, indent=2, ensure_ascii=False)
+   288	os.rename(tmp, mode_file)
+   289	PYEOF
+   290			echo "📝 已记录跳过的风险: $DESCRIPTION"
+   291			;;
+   292	
+   293	    hard-boundary-hit)
+   294			# 记录硬边界拦截项（rm / git写 / 敏感文件 / API Key）
+   295			DESCRIPTION="${2:-未知硬边界}"
+   296			REASON="${3:-未知原因}"
+   297			HUMAN_ACTION="${4:-请人工审阅并决定是否执行}"
+   298			if [ ! -f "$MODE_FILE" ]; then
+   299				echo "❌ 幽灵模式未开启"
+   300				exit 1
+   301			fi
+   302			export _LX_DESC="$DESCRIPTION"
+   303			export _LX_REASON="$REASON"
+   304			export _LX_HUMAN_ACTION="$HUMAN_ACTION"
+   305			export _LX_MODE_FILE="$MODE_FILE"
+   306			${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+   307	import json, os
+   308	from datetime import datetime, timezone
+   309	
+   310	desc = os.environ['_LX_DESC']
+   311	reason = os.environ['_LX_REASON']
+   312	human_action = os.environ['_LX_HUMAN_ACTION']
+   313	mode_file = os.environ['_LX_MODE_FILE']
+   314	
+   315	d = json.load(open(mode_file))
+   316	hits = d.get('hard_boundary_hits', [])
+   317	hits.append({
+   318	    'description': desc,
+   319	    'reason': reason,
+   320	    'human_action': human_action,
+   321	    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+   322	})
+   323	d['hard_boundary_hits'] = hits
+   324	
+   325	# Append to RPE progress.md
+   326	chat_dir = d.get('rpe_chat_dir', '')
+   327	if chat_dir:
+   328	    progress_file = os.path.join(chat_dir, 'progress.md')
+   329	    if os.path.exists(progress_file):
+   330	        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+   331	        with open(progress_file, 'a') as pf:
+   332	            pf.write(f'\n- [hard-boundary] {desc} — {reason}  ({ts})\n')
+   333	
+   334	tmp = mode_file + '.tmp.' + str(os.getpid())
+   335	with open(tmp, 'w', encoding='utf-8') as f:
+   336	    json.dump(d, f, indent=2, ensure_ascii=False)
+   337	os.rename(tmp, mode_file)
+   338	PYEOF
+   339			echo "🛑 硬边界拦截已记录: $DESCRIPTION (原因: $REASON)"
+   340			;;
+   341	
+   342	    blocked-human)
+   343			# 记录推迟到退出报告的人类决策项（裁决链 Level 3 blocked_human）
+   344			# 与 hard-boundary-hit 不同：这些不是物理禁区，而是 AI 无法确定需要人类裁决
+   345			DESCRIPTION="${2:-未知决策}"
+   346			AI_RECOMMENDATION="${3:-AI 推荐方案未提供}"
+   347			RATIONALE="${4:-决策依据未提供}"
+   348			if [ ! -f "$MODE_FILE" ]; then
+   349				echo "❌ 幽灵模式未开启"
+   350				exit 1
+   351			fi
+   352			export _LX_DESC="$DESCRIPTION"
+   353			export _LX_AI_RECOMMENDATION="$AI_RECOMMENDATION"
+   354			export _LX_RATIONALE="$RATIONALE"
+   355			export _LX_MODE_FILE="$MODE_FILE"
+   356			${PYTHON_BIN:-python3} <<'PYEOF' || { echo "❌ 写入失败" >&2; exit 1; }
+   357	import json, os
+   358	from datetime import datetime, timezone
+   359	
+   360	desc = os.environ['_LX_DESC']
+   361	ai_recommendation = os.environ['_LX_AI_RECOMMENDATION']
+   362	rationale = os.environ['_LX_RATIONALE']
+   363	mode_file = os.environ['_LX_MODE_FILE']
+   364	
+   365	d = json.load(open(mode_file))
+   366	blocked = d.get('blocked_human', [])
+   367	blocked.append({
+   368	    'description': desc,
+   369	    'ai_recommendation': ai_recommendation,
+   370	    'rationale': rationale,
+   371	    'timestamp': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+   372	})
+   373	d['blocked_human'] = blocked
+   374	
+   375	# Append to RPE progress.md
+   376	chat_dir = d.get('rpe_chat_dir', '')
+   377	if chat_dir:
+   378	    progress_file = os.path.join(chat_dir, 'progress.md')
+   379	    if os.path.exists(progress_file):
+   380	        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+   381	        with open(progress_file, 'a') as pf:
+   382	            pf.write(f'\n- [blocked-human] {desc} → {ai_recommendation}  ({ts})\n')
+   383	
+   384	tmp = mode_file + '.tmp.' + str(os.getpid())
+   385	with open(tmp, 'w', encoding='utf-8') as f:
+   386	    json.dump(d, f, indent=2, ensure_ascii=False)
+   387	os.rename(tmp, mode_file)
+   388	PYEOF
+   389			echo "🤔 推迟决策已记录: $DESCRIPTION → 推荐: $AI_RECOMMENDATION"
+   390			;;
+   391	
+   392	    retry)
+   393	        # 增加重试计数（供 retry-budget 对接）
+   394	        if [ ! -f "$MODE_FILE" ]; then
+   395	            echo "❌ 幽灵模式未开启"
+   396	            exit 1
+   397	        fi
+   398	        ${PYTHON_BIN:-python3} -c "
+   399	import json, os
+   400	file = '$MODE_FILE'
+   401	d = json.load(open(file))
+   402	d['retry_count'] = d.get('retry_count', 0) + 1
+   403	tmp = file + '.tmp.' + str(os.getpid())
+   404	with open(tmp, 'w') as f:
+   405	    json.dump(d, f, indent=2, ensure_ascii=False)
+   406	os.rename(tmp, file)
+   407	" 2>/dev/null && echo "📝 重试计数 +1（当前: $(${PYTHON_BIN:-python3} -c "import json; print(json.load(open('$MODE_FILE')).get('retry_count',0))" 2>/dev/null)）"
+   408	        ;;
+   409	
+   410	    *)
+   411	        echo "用法: lx-ghost on|off|status|set|poll|skip-risk|hard-boundary-hit|blocked-human|retry"
+   412	        echo ""
+   413	        echo "子命令:"
+   414	        echo "  lx-ghost on \"方向描述\" [间隔秒数=600] [过期小时=3]"
+   415	        echo "    示例: lx-ghost on \"将项目四维评分提升到 90+\""
+   416	        echo "    示例: lx-ghost on \"检查所有 shell 脚本安全隐患\" 300 2"
+   417	        echo "  lx-ghost off"
+   418	        echo "  lx-ghost status"
+   419	        echo "  lx-ghost set <json_key> <json_value>"
+   420	        echo "  lx-ghost poll                    (loop skill 轮询入口)"
+   421	        echo "  lx-ghost skip-risk \"描述\"       (记录跳过的风险)"
+   422	        echo "  lx-ghost blocked-human \"决策\" \"AI推荐\" \"依据\"     (记录推迟到报告的人类决策)"
+   423	        echo "  lx-ghost hard-boundary-hit \"操作\" \"原因\" \"需人类执行\"  (记录硬边界拦截)"
+   424	        echo "  lx-ghost retry                   (重试计数 +1)"
+   425	        echo ""
+   426	        echo "驱动方式:"
+   427	        echo "  /loop 600s lx-ghost poll         (定时轮询)"
+   428	        echo "  /ralph-loop:ralph-loop \"...\"     (自愈循环)"
+   429	        echo ""
+   430	        echo "与 lx-goal 的区别:"
+   431	        echo "  lx-ghost = 方向驱动（开源探索），lx-goal = 目标驱动（具体任务）"
+   432	        exit 1
+   433	        ;;
+   434	esac
+
+===== .claude/skills/lx-goal/scripts/lx-goal.py =====
+     1	#!/usr/bin/env python3
+     2	"""
+     3	lx-goal.py — 目标模式（目标驱动自主执行）
+     4	跨平台（macOS/Linux/Windows）
+     5	
+     6	用法: lx-goal.py on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry|phase0-done|subagent-log|done|_update-lock
+     7	
+     8	与 lx-ghost 的区别: goal = 目标驱动（具体任务），ghost = 方向驱动（开放探索）
+     9	"""
+    10	
+    11	import json
+    12	import os
+    13	import re
+    14	import sys
+    15	import time
+    16	from datetime import datetime, timedelta, timezone
+    17	from pathlib import Path
+    18	
+    19	# ============================================================
+    20	# 路径定位 — 跨平台 PROJECT_ROOT 计算
+    21	# ============================================================
+    22	# 脚本所在目录深度决定向上层数：
+    23	#   .claude/skills/lx-goal/scripts/lx-goal.py → ../../../../.. = 5 layers up
+    24	#   packages/carroros-gov/src/scripts/lx-goal.py → ../../.. = 3 layers up
+    25	#   template/skills/lx-goal/scripts/lx-goal.py → ../../../../.. = 5 layers up
+    26	# 通过检测目标目录文件名自适应
+    27	SCRIPT_DIR = Path(__file__).resolve().parent
+    28	
+    29	# 从脚本目录向上查找，找到包含 AGENTS.md 或 .claude/ 的目录
+    30	def _find_project_root(start: Path) -> Path:
+    31	    """向上查找 CarrorOS 项目根目录（含非空 AGENTS.md 或 .claude/ 的目录）"""
+    32	    d = start
+    33	    for _ in range(10):  # 最多向上 10 层
+    34	        agents_md = d / "AGENTS.md"
+    35	        has_valid_agents = agents_md.exists() and agents_md.stat().st_size > 0
+    36	        has_dot_claude = (d / ".claude").is_dir()
+    37	        if has_valid_agents or has_dot_claude:
+    38	            return d
+    39	        parent = d.parent
+    40	        if parent == d:
+    41	            break
+    42	        d = parent
+    43	    raise RuntimeError(f"Cannot find project root from {start}")
+    44	
+    45	PROJECT_ROOT = _find_project_root(SCRIPT_DIR)
+    46	STATE_DIR = PROJECT_ROOT / ".omc" / "state"
+    47	TOKENS_DIR = PROJECT_ROOT / ".omc" / "tokens"
+    48	PLANS_DIR = PROJECT_ROOT / ".omc" / "plans"
+    49	MODE_FILE = STATE_DIR / "tokens" / "lx-goal.json"
+    50	AUTONOMOUS_SIGNAL = STATE_DIR / "tokens" / "autonomous.active"
+    51	get_now = lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    52	
+    53	
+    54	# ============================================================
+    55	# 工具函数
+    56	# ============================================================
+    57	def _sanitize(text: str) -> str:
+    58	    """清除控制字符和代理对"""
+    59	    result = []
+    60	    for c in text:
+    61	        if 0xD800 <= ord(c) <= 0xDFFF:
+    62	            continue
+    63	        if ord(c) < 0x20 and c not in ("\n", "\t", "\r"):
+    64	            continue
+    65	        result.append(c)
+    66	    return "".join(result)
+    67	
+    68	
+    69	def _read_mode_file() -> dict:
+    70	    """读取 lx-goal.json，不存在时报错退出"""
+    71	    path = str(MODE_FILE)
+    72	    if not MODE_FILE.exists():
+    73	        # 尝试旧格式兼容
+    74	        old = STATE_DIR / "unattended-mode.json"
+    75	        if old.exists():
+    76	            path = str(old)
+    77	        else:
+    78	            print("❌ 目标模式未开启")
+    79	            sys.exit(1)
+    80	    with open(path, encoding="utf-8") as f:
+    81	        return json.load(f), path
+    82	
+    83	
+    84	def _write_mode_file(data: dict, path: str):
+    85	    """原子写入 mode file"""
+    86	    tmp = path + ".tmp." + str(os.getpid())
+    87	    with open(tmp, "w", encoding="utf-8") as f:
+    88	        json.dump(data, f, indent=2, ensure_ascii=False)
+    89	    os.rename(tmp, path)
+    90	
+    91	
+    92	def is_mode_active() -> bool:
+    93	    """goal 模式是否激活：mode file 存在 + active + 未过期 + autonomous 信号存在。
+    94	
+    95	    供 hook/脚本调用（此前仅文档声明，无实现）：
+    96	      python3 lx-goal.py is-active  → exit 0=激活 1=未激活
+    97	    """
+    98	    if not AUTONOMOUS_SIGNAL.exists():
+    99	        return False
+   100	    path = MODE_FILE if MODE_FILE.exists() else STATE_DIR / "unattended-mode.json"
+   101	    if not path.exists():
+   102	        return False
+   103	    try:
+   104	        with open(path, encoding="utf-8") as f:
+   105	            data = json.load(f)
+   106	    except Exception:
+   107	        return False
+   108	    if not data.get("active"):
+   109	        return False
+   110	    expires = data.get("expires_at")
+   111	    if expires:
+   112	        try:
+   113	            if datetime.now(timezone.utc) >= datetime.fromisoformat(expires):
+   114	                return False
+   115	        except Exception:
+   116	            pass
+   117	    return True
+   118	
+   119	
+   120	def cmd_is_active():
+   121	    """is-active 子命令：供 hook/脚本探测 goal 模式（exit 0=激活）。"""
+   122	    if is_mode_active():
+   123	        print("✅ goal 模式激活中")
+   124	        return 0
+   125	    print("⭕ goal 模式未激活")
+   126	    return 1
+   127	
+   128	
+   129	def _get_plan_dir(mode_data: dict):
+   130	    """从 mode file 中提取计划目录路径"""
+   131	    p = mode_data.get("rpe_plan_dir", "")
+   132	    return Path(p) if p and Path(p).exists() else None
+   133	
+   134	
+   135	def _update_lock_counter(plan_dir: Path, field: str, inc: int = 1):
+   136	    """更新物理锁内的计数器字段"""
+   137	    from_plan = str(plan_dir)
+   138	    slug = Path(from_plan).name
+   139	    date_dir = Path(from_plan).parent.name
+   140	    lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+   141	    if not lock_file.exists():
+   142	        return  # 锁不存在时静默跳过
+   143	    with open(lock_file, encoding="utf-8") as f:
+   144	        lock = json.load(f)
+   145	    lock[field] = lock.get(field, 0) + inc
+   146	    lock["updated_at"] = get_now()
+   147	    with open(lock_file, "w", encoding="utf-8") as f:
+   148	        json.dump(lock, f, indent=2, ensure_ascii=False)
+   149	
+   150	
+   151	# ============================================================
+   152	# 子命令
+   153	# ============================================================
+   154	
+   155	def cmd_on(goal: str, expiry_hours: int = 6):
+   156	    """激活目标模式 — 创建 mode file + 计划目录 + 物理锁"""
+   157	    goal = goal or "目标任务未指定"
+   158	    expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
+   159	    now = get_now()
+   160	
+   161	    # 写 mode file
+   162	    STATE_DIR.mkdir(parents=True, exist_ok=True)
+   163	    TOKENS_DIR.mkdir(parents=True, exist_ok=True)
+   164	    mode_data = {
+   165	        "active": True,
+   166	        "mode": "goal",
+   167	        "goal": goal,
+   168	        "expires_at": expires,
+   169	        "activated_at": now,
+   170	        "retry_count": 0,
+   171	        "skipped_risks": [],
+   172	        "completed_tasks": [],
+   173	        "hard_boundary_hits": [],
+   174	        "blocked_human": [],
+   175	    }
+   176	    _write_mode_file(mode_data, str(MODE_FILE))
+   177	
+   178	    # 清理旧格式
+   179	    for old in [STATE_DIR / "unattended-mode.json", STATE_DIR / ".unattended-mode"]:
+   180	        if old.exists():
+   181	            old.unlink()
+   182	
+   183	    # 创建 autonomous.active 信号
+   184	    AUTONOMOUS_SIGNAL.touch()
+   185	
+   186	    # 创建计划目录 + 物理锁
+   187	    date_str = datetime.now().strftime("%Y-%m-%d")
+   188	    slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50]) or f"goal-{datetime.now().strftime('%H%M%S')}"
+   189	    plan_dir = PLANS_DIR / date_str / slug
+   190	    plan_dir.mkdir(parents=True, exist_ok=True)
+   191	    (plan_dir / "state").mkdir(exist_ok=True)
+   192	
+   193	    # 创建扁平文档文件
+   194	    (plan_dir / "research.md").write_text(f"# {goal}\n\n> goal模式自动创建 @ {get_now()}\n", encoding="utf-8")
+   195	    (plan_dir / "plan.md").write_text("# Plan\n\n## Steps\n\n", encoding="utf-8")
+   196	    (plan_dir / "executor.md").write_text("# Executor Log\n\n", encoding="utf-8")
+   197	
+   198	    # 创建 state.json
+   199	    with open(plan_dir / "state.json", "w", encoding="utf-8") as f:
+   200	        json.dump({"phase": "draft", "created_at": now}, f, indent=2, ensure_ascii=False)
+   201	
+   202	    # 创建物理锁（内容增强：含 mode/phase/时间线/统计计数器）
+   203	    lock_file = TOKENS_DIR / date_str / f"{slug}_token.json"
+   204	    lock_file.parent.mkdir(parents=True, exist_ok=True)
+   205	    lock_data = {
+   206	        "task": slug,
+   207	        "slug": slug,
+   208	        "goal": goal[:200],
+   209	        "mode": "goal",
+   210	        "phase": "draft",
+   211	        "created_at": now,
+   212	        "updated_at": now,
+   213	        "expires_at": expires,
+   214	        "completed_tasks": 0,
+   215	        "skipped_risks": 0,
+   216	        "hard_boundary_hits": 0,
+   217	        "blocked_human": 0,
+   218	        "plan_dir": str(plan_dir),
+   219	    }
+   220	    with open(lock_file, "w", encoding="utf-8") as f:
+   221	        json.dump(lock_data, f, indent=2, ensure_ascii=False)
+   222	
+   223	    # 保存 plan_dir 到 mode file
+   224	    mode_data["rpe_plan_dir"] = str(plan_dir)
+   225	    _write_mode_file(mode_data, str(MODE_FILE))
+   226	
+   227	    print(f"🔒 物理锁: {lock_file}")
+   228	    print(f"✅ 目标模式已开启 — 目标: {goal}, {expiry_hours}h 过期")
+   229	    print("   autonomous.active 信号已创建，所有 hook 降级为 warn-only")
+   230	    print('   任务逐项标记: lx-goal.py task-done "完成项描述"')
+   231	    print("   完成后输出报告: lx-goal.py report")
+   232	    # 无人模式轮询指引（跨会话/compact 恢复硬化）
+   233	    print("   ── 无人模式硬化 ──")
+   234	    print("   状态探测: lx-goal.py is-active  (exit 0=激活)")
+   235	    print("   轮询注册: CronCreate '*/10 * * * *' → lx-goal.py status && lx-goal.py poll")
+   236	    print("   会话内:   ScheduleWakeup delaySeconds=1200（长任务心跳）")
+   237	    print("   跨会话恢复: 新会话读 .omc/state/tokens/lx-goal.json → plan_dir 续跑")
+   238	
+   239	    # Scope-from-Goal
+   240	    auto_scope = PROJECT_ROOT / ".claude" / "scripts" / "auto-scope.sh"
+   241	    if auto_scope.exists():
+   242	        os.system(f"bash {auto_scope} 2>/dev/null")
+   243	
+   244	    # 决策链注入（skill 自带 references，原 .claude/reference/ 路径不存在为死代码）
+   245	    decision_chain = SCRIPT_DIR.parent / "references" / "autonomous-execution.md"
+   246	    if decision_chain.exists():
+   247	        print(f"\n[{decision_chain.relative_to(PROJECT_ROOT)}]")
+   248	        print(decision_chain.read_text(encoding="utf-8"))
+   249	
+   250	
+   251	def cmd_off():
+   252	    """关闭目标模式 — 生成退出报告 + 更新锁 phase=off + 清理运行态"""
+   253	    if MODE_FILE.exists():
+   254	        mode_data, _ = _read_mode_file()
+   255	        plan_dir = _get_plan_dir(mode_data)
+   256	        if plan_dir:
+   257	            # 更新物理锁 phase → off
+   258	            slug = plan_dir.name
+   259	            date_dir = plan_dir.parent.name
+   260	            lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+   261	            if lock_file.exists():
+   262	                with open(lock_file, encoding="utf-8") as f:
+   263	                    lock = json.load(f)
+   264	                lock["phase"] = "off"
+   265	                lock["updated_at"] = get_now()
+   266	                with open(lock_file, "w", encoding="utf-8") as f:
+   267	                    json.dump(lock, f, indent=2, ensure_ascii=False)
+   268	                print(f"🔒 锁 phase 已更新为 off: {lock_file}")
+   269	
+   270	            done = len(mode_data.get("completed_tasks", []))
+   271	            skip = len(mode_data.get("skipped_risks", []))
+   272	            hard = len(mode_data.get("hard_boundary_hits", []))
+   273	            blocked = len(mode_data.get("blocked_human", []))
+   274	            checklist = plan_dir / "state" / "checklist.md"
+   275	            checklist.parent.mkdir(parents=True, exist_ok=True)
+   276	            checklist.write_text(
+   277	                f"# Checklist\n\n## 验收清单\n"
+   278	                f"- [x] 目标模式已关闭\n"
+   279	                f"- [x] 完成任务: {done} 项\n"
+   280	                f"- [x] 跳过风险: {skip} 项\n"
+   281	                f"- [x] 硬边界拦截: {hard} 项\n"
+   282	                f"- [x] 推迟决策: {blocked} 项\n"
+   283	                f"\n> 自动生成 @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
+   284	                encoding="utf-8",
+   285	            )
+   286	            # update state.json
+   287	            sf = plan_dir / "state.json"
+   288	            if sf.exists():
+   289	                with open(sf, encoding="utf-8") as f:
+   290	                    sd = json.load(f)
+   291	                sd["phase"] = "completed"
+   292	                sd["completed_at"] = get_now()
+   293	                with open(sf, "w", encoding="utf-8") as f:
+   294	                    json.dump(sd, f, indent=2, ensure_ascii=False)
+   295	            print(f"RPE退出报告: {checklist}")
+   296	
+   297	        # 关闭前自动生成完整退出报告（确保需人类介入项必反馈，不被遗漏）
+   298	        cmd_report()
+   299	
+   300	        MODE_FILE.unlink(missing_ok=True)
+   301	
+   302	    # 清理旧格式和信号
+   303	    for old in [STATE_DIR / "unattended-mode.json", STATE_DIR / ".unattended-mode"]:
+   304	        old.unlink(missing_ok=True)
+   305	    AUTONOMOUS_SIGNAL.unlink(missing_ok=True)
+   306	
+   307	    print("✅ 目标模式已关闭，所有 hook 恢复正常阻断")
+   308	
+   309	
+   310	def cmd_status():
+   311	    """查看目标模式状态（含物理锁信息）"""
+   312	    if MODE_FILE.exists():
+   313	        mode_data, _ = _read_mode_file()
+   314	        goal = mode_data.get("goal", "?")
+   315	        exp = mode_data.get("expires_at", "无")
+   316	        done = len(mode_data.get("completed_tasks", []))
+   317	        skip = len(mode_data.get("skipped_risks", []))
+   318	        hard = len(mode_data.get("hard_boundary_hits", []))
+   319	        blocked = len(mode_data.get("blocked_human", []))
+   320	        retry = mode_data.get("retry_count", 0)
+   321	        print(f"📋 目标模式 (lx-goal): 🟢 开启中")
+   322	        print(f"   目标: {_sanitize(goal)}")
+   323	        print(f"   过期: {exp}")
+   324	        print(f"   已完成: {done}  跳过风险: {skip}  硬边界: {hard}  推迟决策: {blocked}  重试: {retry}")
+   325	
+   326	        # 显示物理锁信息
+   327	        plan_dir = _get_plan_dir(mode_data)
+   328	        if plan_dir:
+   329	            slug = plan_dir.name
+   330	            date_dir = plan_dir.parent.name
+   331	            lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+   332	            if lock_file.exists():
+   333	                with open(lock_file, encoding="utf-8") as f:
+   334	                    lock = json.load(f)
+   335	                print(f"   物理锁: 🔒 {lock_file}")
+   336	                print(f"   锁 phase: {lock.get('phase', '?')}")
+   337	                print(f"   锁统计: completed={lock.get('completed_tasks', 0)} "
+   338	                      f"skipped={lock.get('skipped_risks', 0)} "
+   339	                      f"hard={lock.get('hard_boundary_hits', 0)} "
+   340	                      f"blocked={lock.get('blocked_human', 0)}")
+   341	            else:
+   342	                print(f"   物理锁: ⚠️ 不存在 ({lock_file})")
+   343	    elif (STATE_DIR / "unattended-mode.json").exists():
+   344	        print("📋 目标模式 (旧格式 unattended-mode.json): 🟡 兼容中")
+   345	        print('   建议执行 lx-goal.py off && lx-goal.py on "目标" 迁移到新格式')
+   346	    elif (STATE_DIR / ".unattended-mode").exists():
+   347	        print("📋 目标模式 (旧格式 .unattended-mode): 🟡 兼容中")
+   348	    else:
+   349	        print("📋 目标模式 (lx-goal): ⚪ 已关闭")
+   350	
+   351	
+   352	def cmd_set(key: str, value_str: str):
+   353	    """修改 mode file 中任意字段"""
+   354	    mode_data, path = _read_mode_file()
+   355	    try:
+   356	        value = json.loads(value_str)
+   357	    except (json.JSONDecodeError, ValueError):
+   358	        value = value_str
+   359	    mode_data[key] = value
+   360	    _write_mode_file(mode_data, path)
+   361	    print(f"✅ 目标模式 {key} 已更新为 {value}")
+   362	
+   363	
+   364	def cmd_phase0_done():
+   365	    """Phase 0 → 1 硬过渡: 验证 research.md 有内容 → 设置 phase=executing"""
+   366	    mode_data, path = _read_mode_file()
+   367	    plan_dir = _get_plan_dir(mode_data)
+   368	    if not plan_dir:
+   369	        print("❌ 计划目录不存在，请重新激活目标模式")
+   370	        sys.exit(1)
+   371	
+   372	    research_md = plan_dir / "research.md"
+   373	    if research_md.exists():
+   374	        lines = len(research_md.read_text(encoding="utf-8").split("\n"))
+   375	    else:
+   376	        lines = 0
+   377	    if lines <= 4:
+   378	        print(f"❌ Phase 0 未完成: research.md 内容不足 ({lines} 行)")
+   379	        print("   AI 必须写入: 子任务列表、验收标准、风险点")
+   380	        sys.exit(1)
+   381	
+   382	    # 更新 state.json
+   383	    sf = plan_dir / "state.json"
+   384	    if sf.exists():
+   385	        with open(sf, encoding="utf-8") as f:
+   386	            sd = json.load(f)
+   387	    else:
+   388	        sd = {"phase": "draft", "created_at": get_now()}
+   389	    sd["phase"] = "executing"
+   390	    sd["executing_since"] = get_now()
+   391	    with open(sf, "w", encoding="utf-8") as f:
+   392	        json.dump(sd, f, indent=2, ensure_ascii=False)
+   393	
+   394	    # 写 phase0_passed_at 到 mode file
+   395	    mode_data["phase0_passed_at"] = get_now()
+   396	    _write_mode_file(mode_data, path)
+   397	
+   398	    # 追加到 plan.md
+   399	    plan_md = plan_dir / "plan.md"
+   400	    with open(plan_md, "a", encoding="utf-8") as f:
+   401	        f.write(f"\n## Phase 0 完成 — 进入自主执行\n")
+   402	        f.write(f"- research.md: {lines} 行\n")
+   403	        f.write(f"- 激活时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+   404	        f.write(f"- 状态: executing\n")
+   405	
+   406	    print("✅ Phase 0 完成 → Phase 1 自主执行已解锁")
+   407	    print("   Plan Gate 现已放行 Edit/Write/Bash")
+   408	    print("   完成后运行: lx-goal.py done")
+   409	
+   410	
+   411	def cmd_report():
+   412	    """生成结构化执行报告"""
+   413	    mode_data, path = _read_mode_file()
+   414	    report_file = STATE_DIR / "goal-report.md"
+   415	
+   416	    goal = mode_data.get("goal", "?")
+   417	    done = len(mode_data.get("completed_tasks", []))
+   418	    skip = len(mode_data.get("skipped_risks", []))
+   419	    hard = len(mode_data.get("hard_boundary_hits", []))
+   420	    blocked = len(mode_data.get("blocked_human", []))
+   421	    retry = mode_data.get("retry_count", 0)
+   422	    activated = mode_data.get("activated_at", "?")
+   423	    expires = mode_data.get("expires_at", "?")
+   424	
+   425	    # build lists
+   426	    def _skip_line(r):
+   427	        if isinstance(r, dict):
+   428	            lvl = r.get("risk_level", "low")
+   429	            line = f"- [{lvl}] {r.get('description', '?')}"
+   430	            if r.get("reason"):
+   431	                line += f" — 理由: {r['reason']}"
+   432	            if r.get("impact"):
+   433	                line += f" / 影响: {r['impact']}"
+   434	            return line
+   435	        return f"- {r}"
+   436	
+   437	    skip_list = "\n".join(_skip_line(r) for r in mode_data.get("skipped_risks", [])) or "无"
+   438	    hard_list = ""
+   439	    for h in mode_data.get("hard_boundary_hits", []):
+   440	        hard_list += f"- **操作**: {h.get('description', '?')}\n  **原因**: {h.get('reason', '?')}\n  **需人类执行**: {h.get('human_action', '?')}\n\n"
+   441	    hard_list = hard_list or "无"
+   442	    blocked_list = ""
+   443	    for b in mode_data.get("blocked_human", []):
+   444	        blocked_list += f"- **决策**: {b.get('description', '?')}\n  **AI 推荐**: {b.get('ai_recommendation', '?')}\n  **依据**: {b.get('rationale', '?')}\n\n"
+   445	    blocked_list = blocked_list or "无"
+   446	    task_list = "\n".join(
+   447	        f"- [x] {t.get('description', t) if isinstance(t, dict) else t}  ({t.get('timestamp', '') if isinstance(t, dict) else ''})"
+   448	        for t in mode_data.get("completed_tasks", [])
+   449	    ) or "无"
+   450	
+   451	    # 人为决策汇总表
+   452	    decision_rows = []
+   453	    idx = 0
+   454	    for h in mode_data.get("hard_boundary_hits", []):
+   455	        idx += 1
+   456	        decision_rows.append(f"| {idx} | 硬边界 | {h.get('description', '?')} | {h.get('human_action', '?')} | {h.get('reason', '?')} |")
+   457	    for b in mode_data.get("blocked_human", []):
+   458	        idx += 1
+   459	        decision_rows.append(f"| {idx} | 推迟决策 | {b.get('description', '?')} | {b.get('ai_recommendation', '?')} | {b.get('rationale', '?')} |")
+   460	    # 中高风险跳过项 — 只跳过不执行，必须反馈人类干预（goal 模式核心安全阀）
+   461	    for r in mode_data.get("skipped_risks", []):
+   462	        if isinstance(r, dict) and r.get("risk_level") in ("medium", "high", "critical"):
+   463	            idx += 1
+   464	            basis = r.get("reason") or "风险规避"
+   465	            if r.get("impact"):
+   466	                basis += f" / 影响: {r['impact']}"
+   467	            decision_rows.append(
+   468	                f"| {idx} | 中高风险跳过[{r['risk_level']}] | {r.get('description', '?')} "
+   469	                f"| 建议人类评估后手动执行或明确放弃 | {basis} |"
+   470	            )
+   471	    if not decision_rows:
+   472	        decision_rows.append("| - | - | 无需人类介入的项 | - | - |")
+   473	
+   474	    report_content = f"""# 目标模式执行报告
+   475	
+   476	生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+   477	
+   478	## 目标
+   479	
+   480	{_sanitize(goal)}
+   481	
+   482	## 基本信息
+   483	
+   484	- 激活时间: {activated}
+   485	- 过期时间: {expires}
+   486	
+   487	## 执行摘要
+   488	
+   489	- 已完成任务数: {done}
+   490	- 跳过风险数: {skip}
+   491	- 硬边界拦截数: {hard}
+   492	- 推迟决策数: {blocked}
+   493	- 重试次数: {retry}
+   494	
+   495	## 已完成任务
+   496	
+   497	{task_list}
+   498	
+   499	## 跳过的风险
+   500	
+   501	{skip_list}
+   502	
+   503	## ⚠️ 需人为决策汇总
+   504	
+   505	| # | 类型 | 描述 | AI 推荐 | 依据 |
+   506	|---|------|------|---------|------|
+   507	{chr(10).join(decision_rows)}
+   508	
+   509	## ⚠️ 需人类介入项（硬边界）
+   510	
+   511	{hard_list}
+   512	
+   513	## 推迟决策项（裁决链 Level 3 — 需人类裁决）
+   514	
+   515	{blocked_list}
+   516	
+   517	## 验证状态
+   518	
+   519	VERIFIED: 报告生成完毕（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）
+   520	"""
+   521	    report_file.write_text(report_content, encoding="utf-8")
+   522	    print(f"✅ 报告已生成: {report_file}")
+   523	    print(report_content)
+   524	
+   525	
+   526	def cmd_poll():
+   527	    """轮询入口 — 由 loop skill / ralph-loop 调用"""
+   528	    if not MODE_FILE.exists():
+   529	        if (STATE_DIR / "unattended-mode.json").exists():
+   530	            poll_path = str(STATE_DIR / "unattended-mode.json")
+   531	        else:
+   532	            print("❌ 目标模式未激活，停止轮询")
+   533	            sys.exit(1)
+   534	    else:
+   535	        poll_path = str(MODE_FILE)
+   536	
+   537	    with open(poll_path, encoding="utf-8") as f:
+   538	        data = json.load(f)
+   539	
+   540	    # 检查过期
+   541	    expires_str = data.get("expires_at", "")
+   542	    if expires_str:
+   543	        try:
+   544	            exp = datetime.fromisoformat(expires_str)
+   545	            if exp.tzinfo is None:
+   546	                exp = exp.replace(tzinfo=timezone.utc)
+   547	            if datetime.now(timezone.utc) > exp:
+   548	                print(f"⏰ 目标模式已过期（{expires_str}），自动关闭")
+   549	                if MODE_FILE.exists():
+   550	                    print("   生成过期报告...")
+   551	                    cmd_report()
+   552	                MODE_FILE.unlink(missing_ok=True)
+   553	                AUTONOMOUS_SIGNAL.unlink(missing_ok=True)
+   554	                return
+   555	        except ValueError:
+   556	            pass
+   557	
+   558	    goal = data.get("goal", "?")
+   559	    done = len(data.get("completed_tasks", []))
+   560	    skip = len(data.get("skipped_risks", []))
+   561	    hard = len(data.get("hard_boundary_hits", []))
+   562	    retry = data.get("retry_count", 0)
+   563	    print(f"🔄 目标轮询 {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}")
+   564	    print(f"   目标: {_sanitize(goal)}")
+   565	    print(f"   已完成: {done}  已跳过风险: {skip}  硬边界: {hard}  重试次数: {retry}")
+   566	    print("   请继续执行目标，完成后用 lx-goal.py task-done 或 lx-goal.py report 输出报告")
+   567	
+   568	
+   569	def cmd_task_done(description: str = "未知任务"):
+   570	    """标记一项任务为已完成"""
+   571	    mode_data, path = _read_mode_file()
+   572	    ts = datetime.now().isoformat()
+   573	    mode_data.setdefault("completed_tasks", []).append({"description": description, "timestamp": ts})
+   574	    _write_mode_file(mode_data, path)
+   575	
+   576	    # Append to plan.md
+   577	    plan_dir = _get_plan_dir(mode_data)
+   578	    if plan_dir:
+   579	        plan_md = plan_dir / "plan.md"
+   580	        if plan_md.exists():
+   581	            with open(plan_md, "a", encoding="utf-8") as f:
+   582	                f.write(f"\n- [x] {description}  ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+   583	        # 更新物理锁计数器
+   584	        _update_lock_counter(plan_dir, "completed_tasks")
+   585	
+   586	    print(f"✅ 已标记任务完成: {_sanitize(description)}")
+   587	
+   588	
+   589	def cmd_skip_risk(description: str = "未知风险", risk_level: str = "low", reason: str = "", impact: str = ""):
+   590	    """记录跳过的风险。
+   591	
+   592	    risk_level: low/medium/high/critical。
+   593	    中高风险（medium+）只跳过不执行，会自动进入退出报告的「需人为决策汇总」表，
+   594	    反馈给人类干预 — 这是 goal 模式的核心安全阀。
+   595	    """
+   596	    risk_level = (risk_level or "low").lower()
+   597	    if risk_level not in ("low", "medium", "high", "critical"):
+   598	        risk_level = "low"
+   599	    mode_data, path = _read_mode_file()
+   600	    mode_data.setdefault("skipped_risks", []).append({
+   601	        "description": description,
+   602	        "risk_level": risk_level,
+   603	        "reason": reason,
+   604	        "impact": impact,
+   605	        "timestamp": get_now(),
+   606	    })
+   607	    _write_mode_file(mode_data, path)
+   608	
+   609	    plan_dir = _get_plan_dir(mode_data)
+   610	    if plan_dir:
+   611	        plan_md = plan_dir / "plan.md"
+   612	        if plan_md.exists():
+   613	            with open(plan_md, "a", encoding="utf-8") as f:
+   614	                f.write(f"\n- [skip-risk/{risk_level}] {description} — {reason or '未填理由'}  ({get_now()})\n")
+   615	        _update_lock_counter(plan_dir, "skipped_risks")
+   616	
+   617	    marker = "⚠️" if risk_level in ("medium", "high", "critical") else "📝"
+   618	    print(f"{marker} 已记录跳过的风险[{risk_level}]: {_sanitize(description)}")
+   619	    if risk_level in ("medium", "high", "critical"):
+   620	        print("   中高风险项：仅跳过不执行，将出现在退出报告「需人为决策汇总」")
+   621	
+   622	
+   623	def cmd_hard_boundary_hit(description: str = "未知硬边界", reason: str = "未知原因", human_action: str = "请人工审阅并决定是否执行"):
+   624	    """记录硬边界拦截项"""
+   625	    mode_data, path = _read_mode_file()
+   626	    mode_data.setdefault("hard_boundary_hits", []).append({
+   627	        "description": description,
+   628	        "reason": reason,
+   629	        "human_action": human_action,
+   630	        "timestamp": get_now(),
+   631	    })
+   632	    _write_mode_file(mode_data, path)
+   633	
+   634	    plan_dir = _get_plan_dir(mode_data)
+   635	    if plan_dir:
+   636	        plan_md = plan_dir / "plan.md"
+   637	        if plan_md.exists():
+   638	            with open(plan_md, "a", encoding="utf-8") as f:
+   639	                f.write(f"\n- [hard-boundary] {description} — {reason}  ({get_now()})\n")
+   640	        _update_lock_counter(plan_dir, "hard_boundary_hits")
+   641	
+   642	    print(f"🛑 硬边界拦截已记录: {_sanitize(description)} (原因: {_sanitize(reason)})")
+   643	
+   644	
+   645	def cmd_blocked_human(description: str = "未知决策", ai_recommendation: str = "AI 推荐方案未提供", rationale: str = "决策依据未提供"):
+   646	    """记录推迟到退出报告的人类决策项"""
+   647	    mode_data, path = _read_mode_file()
+   648	    mode_data.setdefault("blocked_human", []).append({
+   649	        "description": description,
+   650	        "ai_recommendation": ai_recommendation,
+   651	        "rationale": rationale,
+   652	        "timestamp": get_now(),
+   653	    })
+   654	    _write_mode_file(mode_data, path)
+   655	
+   656	    plan_dir = _get_plan_dir(mode_data)
+   657	    if plan_dir:
+   658	        plan_md = plan_dir / "plan.md"
+   659	        if plan_md.exists():
+   660	            with open(plan_md, "a", encoding="utf-8") as f:
+   661	                f.write(f"\n- [blocked-human] {description} → {ai_recommendation}  ({get_now()})\n")
+   662	        _update_lock_counter(plan_dir, "blocked_human")
+   663	
+   664	    print(f"🤔 推迟决策已记录: {_sanitize(description)} → 推荐: {_sanitize(ai_recommendation)}")
+   665	
+   666	
+   667	def cmd_retry():
+   668	    """重试计数 +1"""
+   669	    mode_data, path = _read_mode_file()
+   670	    mode_data["retry_count"] = mode_data.get("retry_count", 0) + 1
+   671	    _write_mode_file(mode_data, path)
+   672	    print("📝 重试计数 +1")
+   673	
+   674	
+   675	def cmd_subagent_log(action: str, agent_name: str = "", subtask: str = "", detail: str = ""):
+   676	    """记录 subagent 分配/回收/结果"""
+   677	    if not MODE_FILE.exists():
+   678	        print("❌ 目标模式未开启")
+   679	        sys.exit(1)
+   680	    mode_data, _ = _read_mode_file()
+   681	    plan_dir = _get_plan_dir(mode_data)
+   682	    if not plan_dir:
+   683	        print("❌ 计划目录不存在")
+   684	        sys.exit(1)
+   685	
+   686	    # subagent 日志写入 executor.md
+   687	    executor_md = plan_dir / "executor.md"
+   688	    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+   689	    with open(executor_md, "a", encoding="utf-8") as f:
+   690	        if action == "assign":
+   691	            f.write(f"\n### {ts} — 分配: {agent_name} → {subtask}\n")
+   692	        elif action == "complete":
+   693	            f.write(f"\n### {ts} — 完成: {agent_name} → {subtask}\n  - 结果: {detail}\n")
+   694	        elif action == "fail":
+   695	            f.write(f"\n### {ts} — 失败: {agent_name} → {subtask}\n  - 原因: {detail}\n")
+   696	        elif action == "summary":
+   697	            f.write(f"\n---\n### SubAgent 执行摘要 @ {ts}\n")
+   698	            # 简单的统计
+   699	            content = executor_md.read_text(encoding="utf-8")
+   700	            f.write(f"- 分配: {content.count('分配:')}\n")
+   701	            f.write(f"- 完成: {content.count('完成:')}\n")
+   702	            f.write(f"- 失败: {content.count('失败:')}\n")
+   703	        else:
+   704	            print("用法: lx-goal.py subagent-log assign|complete|fail|summary <agent> <subtask> [detail]")
+   705	            sys.exit(1)
+   706	
+   707	    print(f"📝 subagent 日志已更新: {executor_md}")
+   708	
+   709	
+   710	def cmd_done():
+   711	    """验收通过后删除物理锁"""
+   712	    if not MODE_FILE.exists():
+   713	        print("❌ 目标模式未开启")
+   714	        sys.exit(1)
+   715	    mode_data, _ = _read_mode_file()
+   716	    plan_dir = _get_plan_dir(mode_data)
+   717	    if not plan_dir:
+   718	        print("❌ 计划目录不存在，无法完成验收")
+   719	        sys.exit(1)
+   720	
+   721	    slug = plan_dir.name
+   722	    date_dir = plan_dir.parent.name
+   723	    lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+   724	
+   725	    if lock_file.exists():
+   726	        lock_file.unlink()
+   727	        print(f"🔓 物理锁已删除: {lock_file}")
+   728	        print("✅ 任务验收完成，锁已移除")
+   729	        # 更新 state.json
+   730	        sf = plan_dir / "state.json"
+   731	        if sf.exists():
+   732	            with open(sf, encoding="utf-8") as f:
+   733	                sd = json.load(f)
+   734	            sd["phase"] = "accepted"
+   735	            sd["accepted_at"] = get_now()
+   736	            with open(sf, "w", encoding="utf-8") as f:
+   737	                json.dump(sd, f, indent=2, ensure_ascii=False)
+   738	    else:
+   739	        print("⚠️ 锁文件不存在，可能已被删除")
+   740	
+   741	    # 更新 plan.md
+   742	    plan_md = plan_dir / "plan.md"
+   743	    with open(plan_md, "a", encoding="utf-8") as f:
+   744	        f.write(f"\n---\n✅ **任务验收完成** @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+   745	
+   746	
+   747	def cmd_update_lock(plan_dir_str: str = "", field: str = "", inc: int = 1):
+   748	    """更新物理锁计数器 — 内部子命令"""
+   749	    if not plan_dir_str:
+   750	        return
+   751	    plan_dir = Path(plan_dir_str)
+   752	    if not plan_dir.exists():
+   753	        return
+   754	    _update_lock_counter(plan_dir, field, inc)
+   755	
+   756	
+   757	# ============================================================
+   758	# 主入口
+   759	# ============================================================
+   760	KNOWN_SUBCOMMANDS = {
+   761	    "on": cmd_on,
+   762	    "off": cmd_off,
+   763	    "status": cmd_status,
+   764	    "set": cmd_set,
+   765	    "phase0-done": cmd_phase0_done,
+   766	    "report": cmd_report,
+   767	    "poll": cmd_poll,
+   768	    "is-active": cmd_is_active,
+   769	    "task-done": cmd_task_done,
+   770	    "skip-risk": cmd_skip_risk,
+   771	    "hard-boundary-hit": cmd_hard_boundary_hit,
+   772	    "blocked-human": cmd_blocked_human,
+   773	    "retry": cmd_retry,
+   774	    "subagent-log": cmd_subagent_log,
+   775	    "done": cmd_done,
+   776	    "_update-lock": cmd_update_lock,
+   777	}
+   778	
+   779	
+   780	def main():
+   781	    if len(sys.argv) < 2 or sys.argv[1] not in KNOWN_SUBCOMMANDS:
+   782	        # 无参数或参数不是已知子命令 → 当作目标描述自动激活
+   783	        goal = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else ""
+   784	        if goal:
+   785	            cmd_on(goal)
+   786	        else:
+   787	            cmd_status()
+   788	        return
+   789	
+   790	    cmd_name = sys.argv[1]
+   791	    args = sys.argv[2:]
+   792	
+   793	    if cmd_name == "on":
+   794	        goal = args[0] if args else "目标任务未指定"
+   795	        expiry = int(args[1]) if len(args) > 1 else 6
+   796	        cmd_on(goal, expiry)
+   797	    elif cmd_name == "set":
+   798	        if len(args) < 2:
+   799	            print("用法: lx-goal.py set <key> <value>")
+   800	            sys.exit(1)
+   801	        cmd_set(args[0], args[1])
+   802	    elif cmd_name == "subagent-log":
+   803	        if not args:
+   804	            print("用法: lx-goal.py subagent-log assign|complete|fail|summary <agent> <subtask> [detail]")
+   805	            sys.exit(1)
+   806	        cmd_subagent_log(*args[:4])
+   807	    elif cmd_name == "_update-lock":
+   808	        # kwargs parsing: key=value
+   809	        kwargs = {}
+   810	        for arg in args:
+   811	            if "=" in arg:
+   812	                k, v = arg.split("=", 1)
+   813	                kwargs[k] = v
+   814	        cmd_update_lock(**kwargs)
+   815	    elif cmd_name == "skip-risk":
+   816	        # skip-risk "描述" [risk_level] [reason] [impact]
+   817	        cmd_skip_risk(*(args[:4]))
+   818	    elif cmd_name in ("task-done", "hard-boundary-hit", "blocked-human"):
+   819	        handlers = {
+   820	            "task-done": cmd_task_done,
+   821	            "hard-boundary-hit": cmd_hard_boundary_hit,
+   822	            "blocked-human": cmd_blocked_human,
+   823	        }
+   824	        handlers[cmd_name](*(args[:3]))
+   825	    else:
+   826	        # off, status, phase0-done, report, poll, retry, done — 无参数
+   827	        rc = KNOWN_SUBCOMMANDS[cmd_name]()
+   828	        if isinstance(rc, int):
+   829	            sys.exit(rc)
+   830	
+   831	
+   832	if __name__ == "__main__":
+   833	    main()
+
+===== .claude/skills/lx-goal/scripts/lx-goal.sh =====
+     1	#!/usr/bin/env bash
+     2	# lx-goal.sh — 兼容 wrapper，实际逻辑委托给 lx-goal.py
+     3	# 用法: lx-goal on|off|status|set|report|poll|task-done|skip-risk|retry
+     4	
+     5	SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+     6	exec python3 "$SCRIPT_DIR/lx-goal.py" "$@"
+     7	

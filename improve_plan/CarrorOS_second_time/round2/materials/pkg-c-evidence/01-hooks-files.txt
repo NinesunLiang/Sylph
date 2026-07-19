@@ -1,0 +1,9 @@
+.claude/hooks/carroros-night-deny.py
+.claude/hooks/carroros_hooklib.py
+.claude/hooks/hook-launcher.sh
+.claude/hooks/posttool-gate.py
+.claude/hooks/pretool-gate.py
+.claude/hooks/pretool-user-approve.py
+.claude/hooks/session-start.py
+.claude/hooks/statusline-command.sh
+.claude/hooks/stop-flywheel.py

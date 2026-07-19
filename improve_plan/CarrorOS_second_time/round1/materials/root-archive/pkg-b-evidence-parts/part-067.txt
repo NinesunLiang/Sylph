@@ -1,0 +1,279 @@
+safety: false
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt-397-  pretool_user_correction: false
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt-398-  pretool_write_lock: false
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt-399-  read_tracker: false
+.omc/tasks/20260709/CarrorOS-vs-Sylph/sub_task/sub-S2/_prompt.txt-400-  score_archiver: false
+--
+.omc/tasks/20260713/round2-fixes/plan.md-1-# Plan
+.omc/tasks/20260713/round2-fixes/plan.md-2-## Goal
+.omc/tasks/20260713/round2-fixes/plan.md-3-
+.omc/tasks/20260713/round2-fixes/plan.md-4-## Scope
+.omc/tasks/20260713/round2-fixes/plan.md-5-
+.omc/tasks/20260713/round2-fixes/plan.md-6-## Steps
+.omc/tasks/20260713/round2-fixes/plan.md-7-- [x] R1: 
+.omc/tasks/20260713/round2-fixes/plan.md-8-- [x] R2: 
+.omc/tasks/20260713/round2-fixes/plan.md-9-- [x] R3: 
+.omc/tasks/20260713/round2-fixes/plan.md-10-- [x] R4: 
+.omc/tasks/20260713/round2-fixes/plan.md-11-- [x] R5: 
+.omc/tasks/20260713/round2-fixes/plan.md:12:- [x] R6: 
+.omc/tasks/20260713/round2-fixes/plan.md-13-
+.omc/tasks/20260713/round2-fixes/plan.md-14-## Verify
+.omc/tasks/20260713/round2-fixes/plan.md-15-- R1: 
+.omc/tasks/20260713/round2-fixes/plan.md-16-- R2: 
+.omc/tasks/20260713/round2-fixes/plan.md-17-- R3: 
+.omc/tasks/20260713/round2-fixes/plan.md-18-- R4: 
+.omc/tasks/20260713/round2-fixes/plan.md-19-- R5: 
+.omc/tasks/20260713/round2-fixes/plan.md:20:- R6: 
+.omc/tasks/20260713/round2-fixes/plan.md-21-
+.omc/tasks/20260713/round2-fixes/plan.md-22----
+.omc/tasks/20260713/round2-fixes/plan.md-23-> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。
+--
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-16-status: PASS
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-17-```
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-18-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-19-## S1 — Oracle engine 7-dimension L2 scoring + L3 Multi-Judge + Meta-Oracle
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-20-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-21-**证据块：**
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-22-```yaml
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-23-action: validate_oracle_engine_l2_l3_meta
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-24-files:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-25-  - .omc/scripts/oracle_engine.py
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-26-  - .omc/tasks/20260714/rpe-e-dual-judge-verify/state/dual-judge-report.json
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-27-commands:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md:28:  - python3 -m py_compile .omc/scripts/oracle_engine.py .claude/scripts/meta_oracle.py .claude/scripts/verify_gate.py
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-29-  - heredoc Python driver using run_l2_pass_curve / run_l3_multi_judge / run_meta_oracle
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-30-observed:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-31-  l2_dimensions: 7
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-32-  l2_scores:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-33-    evidence_coverage: 95.0
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-34-    scope_integrity: 90
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-35-    regression_risk: 100
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-36-    security_risk: 100
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-37-    contract_preservation: 90
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-38-    failure_resolution: 100
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-39-    archive_readiness: 80
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-40-  l2_average: 93.57
+--
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-45-  meta_decision: ACCEPT
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-46-  meta_reason: l2_l3_accept
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-47-status: PASS
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-48-```
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-49-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-50-## S2 — Meta-Oracle divergent verdicts + VerifyGate priority
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-51-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-52-**证据块：**
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-53-```yaml
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-54-action: validate_meta_divergent_and_verify_priority
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-55-files:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-56-  - .claude/scripts/meta_oracle.py
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md:57:  - .claude/scripts/verify_gate.py
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-58-  - .omc/tasks/20260714/rpe-e-dual-judge-verify/state/dual-judge-report.json
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-59-  - .omc/state/static-oracle-verdicts/rpe-e-dual-judge-verify/latest.json
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-60-  - .omc/state/runtime-oracle-verdicts/rpe-e-dual-judge-verify/latest.json
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-61-divergent_scenario:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-62-  static_oracle: ACCEPT (score=9.0, risk=LOW)
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-63-  runtime_oracle: REJECT (score=3.0, risk=HIGH)
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-64-observed:
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-65-  meta_final_verdict: REJECT
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-66-  meta_final_risk: HIGH
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-67-  meta_final_score: 6.0
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-68-  divergence_preserved: true
+.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md-69-  evidence_count: 2 (both agents recorded)
+--
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-1-# Plan
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-2-## Goal
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md:3:Validate RPE-E Dual Judge / oracle verification: oracle engine 7-dimension scoring, meta-oracle aggregation with divergent verdicts, and verify_gate REJECT higher priority than oracle ACCEPT.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-4-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-5-## Classification
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-6-- Level: L1
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-7-- Reason: validation-only batch using local oracle scripts and evidence docs; no destructive action, no release, no push, no `ga_ready` mutation.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-8-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-9-## Scope
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-10-- `.omc/scripts/oracle_engine.py`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-11-- `.claude/scripts/meta_oracle.py`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md:12:- `.claude/scripts/verify_gate.py`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-13-- `.claude/scripts/oracle_agent.py`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-14-- `.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-15-- `.omc/tasks/20260714/rpe-e-dual-judge-verify/executor.md`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-16-- `.omc/tasks/20260714/rpe-e-dual-judge-verify/state/`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-17-- `rpe/human_check_feature/executor.md`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-18-- `.omc/session-handoff.md`
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-19-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-20-## Out of Scope / Boundaries
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-21-- Do not push.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-22-- Do not delete historical evidence.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-23-- Do not set `ga_ready` to true.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-24-- Do not modify `AGENTS.md`, `.claude/kernel.md`, or `.claude/index.md`.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-25-- Do not spawn real CC agent processes for oracle agent; use local prompt simulation only.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-26-- Do not make the human acceptance verdict.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-27-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-28-## Steps
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-29-- [x] S1: Compile oracle/meta/verify scripts and run oracle_engine.py with a review pack to validate 7-dimension L2 scoring.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md:30:- [x] S2: Validate meta_oracle aggregation with divergent static/runtime verdicts and verify_gate REJECTED > oracle ACCEPT priority.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-31-- [x] S3: Record RPE-E evidence, human recheck flow, defects/fixes if any, and final boundaries in executor and handoff files.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-32-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-33-## Verify
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md:34:- S1: `python3 -m py_compile .omc/scripts/oracle_engine.py .claude/scripts/meta_oracle.py .claude/scripts/verify_gate.py` exits 0 and oracle_engine produces ACCEPT/REJECT decision from review pack.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md:35:- S2: meta_oracle aggregate with divergent verdicts preserves disagreement and does not silently override; verify_gate REJECTED is not overridden by oracle ACCEPT in evidence.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-36-- S3: `git diff --check` exits 0.
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-37-
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-38----
+.omc/tasks/20260714/rpe-e-dual-judge-verify/plan.md-39-> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。
+--
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-22-## 验收标准（每特性 ✅ 定义）
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-23-
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-24-| # | 特性 | ✅ 标准 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-25-|---|------|---------|
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-26-| 1 | context_boom | 大输出自动落盘+预览（PostToolUse 接线）；水位硬暂停保持；G1-G6 软门判定不再被丢弃 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-27-| 2 | compact 风暴 | prompt ring 每轮刷新；每5轮自动 compact-write；SessionStart 自动注入 handoff+last-user-prompt |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-28-| 3 | 文档系统 | 保持现有 ✅；error-dna 接入 PostToolUse 真实失败自动记录 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-29-| 4 | 飞轮 | Stop hook 自动触发 run_flywheel；升华机制真实执行一次（claude-next → anti-patterns/kernel 有记录） |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-30-| 5 | L1/L2 分级 | 保持现有 ✅（回归验证） |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-31-| 6 | U 型注意力 | 尾部注入接线：每5轮 UserPromptSubmit 注入任务状态（token step/进度/水位）；statusline 注册生效 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-32-| 7 | goal/无人/loop | is_mode_active() 实现；pretool-gate 读取 autonomous.active 降级 warn-only；轮询机制有代码 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-33-| 8 | 工作流 | 保持现有 ✅（回归验证） |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md:34:| 9 | 智能化 | ROI 真实计算（intake 信号→ROI 分级写入 plan.md）；gate 规则配置化（YAML 数据驱动）；oracle_gate 输出真实提示 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md:35:| 10 | 双审判官 | cmd_verify 对 L2 自动触发双审+meta 聚合；meta-oracle-review.py 存在可跑；裁决记录落 .omc/state |
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-36-
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-37-## 非范围
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-38-
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-39-- 不改变 L1/L2 分级标准本身；不改变铁律内容
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-40-- 不恢复 15 个旧 hook 文件原貌
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-41-- 不引入新依赖（纯 stdlib）
+.omc/tasks/20260717/rpe-f-ten-features-revival/prd.md-42-- UI/ 目录与 benchmark/ 不涉及
+--
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-9----
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-10-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-11-## 任务目标
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-12-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-13-N/A
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-14-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-15----
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-16-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-17-## 做了什么
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-18-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-19-### S1
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-20-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md:21:**pretool-gate 软门修复 + oracle_gate 真实提示**（特性1/9）
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-22-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-23-- action:
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-24-- file:
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-25-- command:
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-26-- output:
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-27-- status: [PASS/FAIL]
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-28-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-29-### S1
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-30-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md:31:**pretool-gate 软门修复 + oracle_gate 真实提示**（特性1/9）
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-32-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-33-- 改动：pretool-gate.py main() 增加 NARROW/CHECKPOINT_FIRST 分支（stderr WARN + audit gate_soft_warn + 放行；goal 模式下静默仅 audit）；_chec
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-34-- Evidence:
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-35-- [已测试] 非 goal 模式 G2 场景 → stderr `⚠️ [g2-large-file] NARROW large_file_no_offset path=AGENTS.md lines=567`，exit=0 放行
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-36-- [已测试] goal 模式 G2 场景 → stderr 空，audit 有 gate_soft_warn 事件（.omc/audit/2026-07-18.jsonl 2 条）
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-37-- Rollback 演练：git restore .claude/hooks/pretool-gate.py 可回退
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-38-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-39-### S2
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-40-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-41-**统一 UserPromptSubmit 门**（特性2/6/7）
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-42-
+.omc/tasks/20260717/rpe-f-ten-features-revival/final-report.md-43-- 改动：pretool-user-approve.py 扩展为多路复用（/approve保留 + prompt ring 20条 + 每5轮detached compact-write + 每5轮尾部状态注入 + goal状态注入）；cont
+--
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-7-
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-8-**证据块：**
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-9-```
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-10-- action:
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-11-- file:
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-12-- command:
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-13-- output:
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-14-- status: [PASS/FAIL]
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-15-```
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-16-
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-17----
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-18-
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md:19:## S1: pretool-gate 软门修复 + oracle_gate 真实提示 ✅
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md:20:- 改动：pretool-gate.py main() 增加 NARROW/CHECKPOINT_FIRST 分支（stderr WARN + audit gate_soft_warn + 放行；goal 模式下静默仅 audit）；_check_oracle_gate 增加 L2 FORCE/TRIGGER stderr 提示
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-21-- Evidence:
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-22-  - [已测试] 非 goal 模式 G2 场景 → stderr `⚠️ [g2-large-file] NARROW large_file_no_offset path=AGENTS.md lines=567`，exit=0 放行
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-23-  - [已测试] goal 模式 G2 场景 → stderr 空，audit 有 gate_soft_warn 事件（.omc/audit/2026-07-18.jsonl 2 条）
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-24-- Rollback 演练：git restore .claude/hooks/pretool-gate.py 可回退
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-25-
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-26-## S2: 统一 UserPromptSubmit 门 ✅
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-27-- 改动：pretool-user-approve.py 扩展为多路复用（/approve保留 + prompt ring 20条 + 每5轮detached compact-write + 每5轮尾部状态注入 + goal状态注入）；context_engine.py token_task/token_session 兼容非dict（修 goal 锁 token 崩溃）；hook _latest_token 过滤非 carros token
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-28-- Evidence:
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-29-  - [已测试] 10 轮模拟：ring total=10，第5/10轮输出 hookSpecificOutput.additionalContext（含 CarrorOS State task_id/current_step/verified + Goal Mode goal/done）
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-30-  - [已测试] compact-write detached 生效：.omc/state/last-user-prompt.md 由 7/10 停更刷新至 2026-07-18 13:56，session-handoff.md 同步刷新
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-31-  - [已测试] 快速路径 22ms（<100ms 约束）
+.omc/tasks/20260717/rpe-f-ten-features-revival/executor.md-32-- Rollback 演练：git restore 两文件
+--
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-42-- 活：头部 AGENTS.md 铁律（CLAUDE.md @引用自动加载）
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-43-- 死：`deepseek_inject.py:134-135` 每5轮逻辑零 import（全仓库无调用方）；`statusline.py:73-101` 渲染器存在但 settings.json 无 statusLine 注册；task_state_tracker 仅手动 CLI
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-44-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-45-### 特性 7 goal/无人 ⚠️
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-46-- 活：`goal_state_machine.py` 6 态机被 `carros_base.py:784-787,896-901` 调用；`lx-goal.py:118-194` 全子命令；物理锁真实创建；fallback_engine 接线
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-47-- 死：`autonomous.active` 信号（`lx-goal.py:147` 创建）全仓库无读取方；`is_mode_active()` 无实现（仅文档）；CronCreate 轮询无代码；跨会话恢复仅被动读文件
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-48-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-49-### 特性 8 工作流 ✅（保持，回归验证）
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-50-- VerifyGate 接线（`pretool-gate.py:543-572` 有真实 block 事件）；fallback gate 接线；抗 compact 六文件落盘
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-51-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-52-### 特性 9 智能化 ⚠️
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-53-- 活：intake_gate 4 级判级、pre_action_gate 9 种裁决（`carros_base.py:1134-1203` cmd_gate），rpe-d 全 PASS
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md:54:- 死：ROI 仅 `plan_builder.py:316,325` 静态文本；pre_action_gate 硬编码列表（`:37-92`）不读 philosophy/invariants；`_check_oracle_gate`（`pretool-gate.py:574-601`）写审计后 `return None` 永远放行
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-55-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-56-### 特性 10 双审判官 ⚠️
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-57-- 活：static/runtime/model 三套 oracle 完整可跑；真实裁决记录（`.omc/state/static-oracle-verdicts/rpe-e-dual-judge-verify/latest.json` ACCEPT 9.0 vs runtime REJECT 3.0）；`carros_base.py:1640-1713` cmd_oracle
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md:58:- 死：cmd_verify(`:721-790`) 不调 oracle；`meta_oracle.py` 聚合目录空（从未运行）；AGENTS.md:492 引用的 `meta-oracle-review.py` 不存在；`.claude/nodes/judgments/` 全空模板；`oracle_agent.py:50-56` `_find_available_agent` 阻塞 bug 永远走 local_review 空转
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-59-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-60-## 3. 方案设计（3 统一 hook + 3 处接线 + 1 bug 修复）
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-61-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-62-| 改动 | 文件 | 服务特性 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-63-|------|------|---------|
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-64-| A. 修 main() 软门丢弃 | pretool-gate.py | 1 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-65-| B. 扩展 userprompt 统一门 | pretool-user-approve.py（扩展） | 2/6/7 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-66-| C. 新建 posttool-gate.py | .claude/hooks/ | 1/3 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-67-| D. 新建 session-start.py | .claude/hooks/ | 2/7 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-68-| E. 新建 stop-flywheel.py | .claude/hooks/ | 4 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md:69:| F. oracle 接入 cmd_verify + meta-oracle-review.py + oracle_gate 提示 | carros_base.py / pretool-gate.py | 10/9 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-70-| G. ROI 计算 + gate 规则配置化 | intake_gate.py / plan_builder.py / pre_action_gate.py | 9 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-71-| H. lx-goal 硬化（is_mode_active + autonomous.active 读取 + 轮询） | lx-goal.py / pretool-gate.py | 7 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-72-| I. statusline 注册 + settings.json 四 hook 注册 | settings.json | 6/全部 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-73-| J. claude-next 单源化 + 升华执行 | flywheel.py / claude-next.md | 4 |
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-74-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-75-## 4. 风险与约束
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-76-
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-77-- R1 hook 性能：UserPromptSubmit 每轮触发，ring append 必须 <100ms；compact-write 子进程需 detached 不阻塞（旧 collector 设计已含此约束）
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-78-- R2 hook 失败不能阻断会话：所有新 hook 遵循"快速失败、非阻断"（除安全门），exit 0 + stderr 提示
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-79-- R3 settings.json 含明文 token（安全问题顺带处理：本次不改认证方式，但 .gitignore 检查）
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-80-- R4 铁律 6：不改 AGENTS.md/kernel.md/index.md 治理语义——仅修正 AGENTS.md:492 失效引用（meta-oracle-review.py 路径），属"修复文档错误"而非"自改治理"，需用户批准
+.omc/tasks/20260717/rpe-f-ten-features-revival/research.md-81-- R5 回归：特性 3/5/8 已 ✅，所有改动不得破坏现有门禁（verify gate/fallback/intake）
+--
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-8-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-9-**改**：`.claude/hooks/`（修1+扩1+新3）、`.claude/scripts/`（carros_base/intake_gate/plan_builder/pre_action_gate/flywheel + 新 meta-oracle-review.py）、`.claude/skills/lx-goal/scripts/lx-goal.py`、`.claude/settings.json`
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-10-**不改**：AGENTS.md/kernel.md/index.md 治理语义、L1/L2 分级标准、15 个旧 hook 文件不恢复、无新依赖（纯 stdlib）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-11-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-12-## 上下文锚点
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-13-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-14-- 架构决策：README.md "10 模块降级为内部实现" + commit 1f7047d 轻量化哲学（统一门、柔性约束）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-15-- 类似模块：`pretool-gate.py:824-840` GATES registry 模式（新 hook 复用同模式）；旧 prompt-collector（git 1f7047d^）ring buffer + detached 子进程模式
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-16-- 复用检查：`lib/handoff_writer.py` / `lib/flywheel.py` / `lib/error_dna.py` / `deepseek_inject.py` / `statusline.py` 均为现成可接线资产，零重写
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-17-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-18-## Steps
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-19-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md:20:- [x] S1: **pretool-gate 软门修复 + oracle_gate 真实提示**（特性1/9）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-21-  - main() 增加 NARROW/CHECKPOINT_FIRST 分支：stderr WARN 提示 + audit 记录 + 放行（不阻断，符合柔性约束哲学）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md:22:  - _check_oracle_gate：L2+force 触发时 stderr 输出"建议 /lx-oracle review"提示（仍放行）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-23-  - AC：构造 G2 场景（读 >200 行无 offset）→ stderr 有 NARROW 提示且工具放行；audit 有 narrow 事件
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-24-  - Rollback: git restore pretool-gate.py
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-25-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-26-- [x] S2: **统一 UserPromptSubmit 门**（特性2/6/7）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-27-  - 扩展 pretool-user-approve.py：保留 /approve /deny；新增 ①prompt ring 20 条滚动（.claude/.prompt-ring.json）②每5轮 detached 调 context_engine compact-write（刷新 handoff+last-user-prompt）③每5轮尾部注入任务状态（token 当前 step/进度/水位，stderr additionalContext）④goal 模式激活时（autonomous.active 存在）注入 goal 状态
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-28-  - AC：连发 5 个 prompt → ring=5 条、last-user-prompt.md 刷新、第5轮 stderr 有状态注入；单轮耗时 <100ms（非5倍数轮）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-29-  - Rollback: git restore pretool-user-approve.py
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-30-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-31-- [x] S3: **posttool-gate.py + session-start.py**（特性1/2/3/7）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-32-  - posttool-gate.py（PostToolUse）：①工具输出 >阈值（50KB）→ 落盘 .omc/artifacts/ + stderr 提示预览路径 ②工具失败（exit≠0/错误模式）→ error_dna.record_error ③audit 落盘
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-33-  - session-start.py（SessionStart，含 compact 恢复）：读 .omc/session-handoff.md + .omc/state/last-user-prompt.md + 活跃 token → 注入上下文（stdout context）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-34-  - AC：模拟大输出工具 → artifacts 有文件；模拟失败命令 → error-dna.jsonl +1；SessionStart 触发 → 输出含 handoff 摘要
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-35-  - Rollback: 删两文件 + settings.json 去注册
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-36-
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-37-- [x] S4: **stop-flywheel.py + 飞轮单源化 + 首次升华**（特性4）
+.omc/tasks/20260717/rpe-f-ten-features-revival/plan.md-38-  - stop-flywheel.py（Stop hook）：detached 调 run_flywheel；升华检查（hits≥5 或 age≥10天 → 写 kernel 候�

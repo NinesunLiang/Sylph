@@ -1,0 +1,216 @@
+status={task.get('status', data.get('status', '?'))}"
+    57	        )
+    58	    return ""
+    59	
+    60	
+    61	def main() -> None:
+    62	    try:
+    63	        payload = json.loads(sys.stdin.read() or "{}")
+    64	    except Exception:
+    65	        payload = {}
+    66	    source = str(payload.get("source") or "startup")
+    67	
+    68	    parts: list[str] = []
+    69	
+    70	    token_brief = _active_token_brief()
+    71	    if token_brief:
+    72	        parts.append(token_brief)
+    73	
+    74	    if HANDOFF.exists():
+    75	        try:
+    76	            text = HANDOFF.read_text(encoding="utf-8")[:MAX_HANDOFF]
+    77	            if text.strip():
+    78	                parts.append(f"[Session Handoff — {source} 恢复导航]\n{text}")
+    79	        except Exception:
+    80	            pass
+    81	
+    82	    if source in ("compact", "resume") and LAST_PROMPTS.exists():
+    83	        try:
+    84	            text = LAST_PROMPTS.read_text(encoding="utf-8")[:MAX_PROMPTS]
+    85	            if text.strip():
+    86	                parts.append(f"[Last User Prompts]\n{text}")
+    87	        except Exception:
+    88	            pass
+    89	
+    90	    if not parts:
+    91	        print(json.dumps({"continue": True}))
+    92	        sys.exit(0)
+    93	
+    94	    context = "\n\n".join(parts)
+    95	    print(json.dumps({
+    96	        "continue": True,
+    97	        "hookSpecificOutput": {
+    98	            "hookEventName": "SessionStart",
+    99	            "additionalContext": context,
+   100	        },
+   101	    }, ensure_ascii=False))
+   102	    sys.exit(0)
+   103	
+   104	
+   105	if __name__ == "__main__":
+   106	    main()
+
+===== .claude/hooks/stop-flywheel.py =====
+     1	#!/usr/bin/env python3
+     2	"""
+     3	stop-flywheel.py — CarrorOS Stop hook（飞轮自动触发 + 升华检查）
+     4	
+     5	会话停止时：
+     6	  1. run_flywheel：error-dna → 模式提取 → anti-patterns.md + claude-next.md
+     7	  2. 升华检查：claude-next 条目 hits≥5 → 升华至 anti-patterns.md（kernel 候选），
+     8	     记录 sublimation-log.jsonl（铁律 6：不直接改 kernel.md/AGENTS.md，升华候选由人类裁决晋升）
+     9	
+    10	设计：快速（<2s）、永不阻断（exit 0）、失败静默。
+    11	"""
+    12	from __future__ import annotations
+    13	
+    14	import json
+    15	import os
+    16	import re
+    17	import sys
+    18	from collections import Counter
+    19	from datetime import datetime, timezone
+    20	from pathlib import Path
+    21	
+    22	HOOK_DIR = Path(__file__).resolve().parent
+    23	ROOT = HOOK_DIR.parents[1]
+    24	os.chdir(str(ROOT))
+    25	sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
+    26	
+    27	KNOWLEDGE = ROOT / ".omc" / "knowledge"
+    28	CLAUDE_NEXT = KNOWLEDGE / "claude-next.md"
+    29	SUBLIMATION_LOG = KNOWLEDGE / "sublimation-log.jsonl"
+    30	ANTI_PATTERNS = ROOT / ".claude" / "references" / "anti-patterns.md"
+    31	
+    32	SUBLIMATION_HITS = 5
+    33	
+    34	
+    35	def _now_iso() -> str:
+    36	    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    37	
+    38	
+    39	def _run_flywheel() -> dict:
+    40	    try:
+    41	        from lib.flywheel import run_flywheel
+    42	        return run_flywheel(ROOT)
+    43	    except Exception as exc:
+    44	        return {"error": str(exc)}
+    45	
+    46	
+    47	def _sublimation_check() -> list[str]:
+    48	    """claude-next 中 hits≥5 的模式 → anti-patterns.md + 升华日志。返回升华的模式。"""
+    49	    if not CLAUDE_NEXT.exists():
+    50	        return []
+    51	    try:
+    52	        lines = CLAUDE_NEXT.read_text(encoding="utf-8").splitlines()
+    53	    except Exception:
+    54	        return []
+    55	
+    56	    # 统计每个 pattern 的 hits（每行 1 hit），跳过已升华
+    57	    pattern_counts: Counter[str] = Counter()
+    58	    for line in lines:
+    59	        if "已升华" in line or "升华到" in line:
+    60	            continue
+    61	        m = re.search(r"Pattern '([^']+)'", line)
+    62	        if m:
+    63	            pattern_counts[m.group(1)] += 1
+    64	
+    65	    candidates = [p for p, c in pattern_counts.items() if c >= SUBLIMATION_HITS]
+    66	    if not candidates:
+    67	        return []
+    68	
+    69	    # 已存在于 anti-patterns.md 的模式跳过
+    70	    existing = ""
+    71	    if ANTI_PATTERNS.exists():
+    72	        try:
+    73	            existing = ANTI_PATTERNS.read_text(encoding="utf-8")
+    74	        except Exception:
+    75	            existing = ""
+    76	
+    77	    sublimated: list[str] = []
+    78	    for pattern in candidates:
+    79	        if f"`{pattern}`" in existing or pattern in existing:
+    80	            continue
+    81	        hits = pattern_counts[pattern]
+    82	        entry = (
+    83	            f"\n### {pattern}（飞轮升华 {datetime.now(timezone.utc).strftime('%Y-%m-%d')}）\n"
+    84	            f"- 来源：claude-next 自动升华，hits={hits}（阈值≥{SUBLIMATION_HITS}）\n"
+    85	            f"- 触发条件：error-dna 中反复出现的 `{pattern}` 失败模式\n"
+    86	            f"- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决\n"
+    87	        )
+    88	        try:
+    89	            with ANTI_PATTERNS.open("a", encoding="utf-8") as f:
+    90	                f.write(entry)
+    91	            with SUBLIMATION_LOG.open("a", encoding="utf-8") as f:
+    92	                f.write(json.dumps({
+    93	                    "ts": _now_iso(), "pattern": pattern, "hits": hits,
+    94	                    "target": "anti-patterns.md", "kernel_promotion": "pending_human_review",
+    95	                }, ensure_ascii=False) + "\n")
+    96	            sublimated.append(pattern)
+    97	        except Exception:
+    98	            pass
+    99	    return sublimated
+   100	
+   101	
+   102	def main() -> None:
+   103	    # 读 stdin（Stop payload），但不依赖其内容
+   104	    try:
+   105	        sys.stdin.read()
+   106	    except Exception:
+   107	        pass
+   108	
+   109	    result = _run_flywheel()
+   110	    sublimated = _sublimation_check()
+   111	
+   112	    if result.get("patterns_found") or sublimated:
+   113	        print(
+   114	            f"🛞 [flywheel] patterns={result.get('patterns_found', 0)} "
+   115	            f"anti_patterns={result.get('anti_patterns_written', False)} "
+   116	            f"sublimated={sublimated or 'none'}",
+   117	            file=sys.stderr, flush=True,
+   118	        )
+   119	
+   120	    print(json.dumps({"continue": True}))
+   121	    sys.exit(0)
+   122	
+   123	
+   124	if __name__ == "__main__":
+   125	    main()
+
+===== .claude/hooks/statusline-command.sh =====
+     1	#!/usr/bin/env bash
+     2	set -u
+     3	
+     4	ROOT="${CARROROS_ROOT:-$(pwd)}"
+     5	PYTHON="${PYTHON:-python3}"
+     6	SCRIPT="$ROOT/.claude/scripts/statusline.py"
+     7	FALLBACK="$ROOT/.claude/scripts/fallback_engine.py"
+     8	
+     9	fallback_event() {
+    10	  local reason="$1"
+    11	  if command -v "$PYTHON" >/dev/null 2>&1 && [ -f "$FALLBACK" ]; then
+    12	    "$PYTHON" "$FALLBACK" cli_hook_failed low >/dev/null 2>&1 || true
+    13	  fi
+    14	  printf 'CarrorOS L1_BASE FALLBACK %s\n' "$reason" | cut -c 1-160
+    15	}
+    16	
+    17	if ! command -v "$PYTHON" >/dev/null 2>&1; then
+    18	  printf 'CarrorOS L1_BASE FALLBACK python_missing\n'
+    19	  exit 0
+    20	fi
+    21	
+    22	if [ ! -f "$SCRIPT" ]; then
+    23	  fallback_event "no_statusline_script"
+    24	  exit 0
+    25	fi
+    26	
+    27	OUTPUT="$("$PYTHON" "$SCRIPT" 2>/dev/null)"
+    28	STATUS=$?
+    29	
+    30	if [ "$STATUS" -ne 0 ] || [ -z "$OUTPUT" ]; then
+    31	  fallback_event "cli_hook_failed"
+    32	  exit 0
+    33	fi
+    34	
+    35	printf '%s\n' "$OUTPUT" | head -n 1 | tr '\r\n' ' ' | cut -c 1-160
+    36	exit 0
