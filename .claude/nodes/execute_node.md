@@ -6,6 +6,19 @@
 
 ---
 
+## Goal 模式覆盖（`.omc/state/tokens/autonomous.active` 存在时）
+
+本文件交互式条款在 goal 无人值守模式下**不适用**，按下表替代；执行期完整规则以 `skills/lx-goal/references/autonomous-execution.md` 为准：
+
+| 本文件条款 | goal 模式替代行为 |
+|-----------|------------------|
+| 遇到不确定性 → 停止并转 `need_clarification` | 按决策链（Philosophy→Iron Rules→既有实践→AI 判断）自主裁决；无法裁决 → `lx-goal skip-risk` 记录后继续，不停止 |
+| Fallback「→ 用户确认新方案 → 轮次重置」 | AI 按决策链自主选定新方案 → 写入 `alternatives_explored.md` → 轮次重置 → 继续，不等待人类 |
+| Git 门禁「…用户批准 → 提交」 | git 写操作属 lx-goal 硬边界 → 立即跳过 → `lx-goal hard-boundary-hit` 记录 → 继续 |
+| 状态 `blocked` 等待用户 | 记录 `blocked` / `blocked_human` → 继续其他 step，退出报告汇总 |
+
+---
+
 ## 硬规则（可靠性优先）
 
 - **每个 step 开始前**：Read 相关文件并记录 `file:line` 证据。

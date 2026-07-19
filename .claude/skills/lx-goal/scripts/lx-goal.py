@@ -226,7 +226,8 @@ def cmd_on(goal: str, expiry_hours: int = 6):
 
     print(f"🔒 物理锁: {lock_file}")
     print(f"✅ 目标模式已开启 — 目标: {goal}, {expiry_hours}h 过期")
-    print("   autonomous.active 信号已创建，所有 hook 降级为 warn-only")
+    print("   autonomous.active 信号已创建: hook 软门降级 warn-only;危险操作门(BLOCK/ASK_USER)保持 fail-closed 拦截")
+    print("   被拦项勿等待人类——用 blocked-human/skip-risk 记录后继续其他任务,退出报告自动汇总")
     print('   任务逐项标记: lx-goal.py task-done "完成项描述"')
     print("   完成后输出报告: lx-goal.py report")
     # 无人模式轮询指引（跨会话/compact 恢复硬化）

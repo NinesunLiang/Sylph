@@ -47,6 +47,32 @@ CRITICAL_STATE = OMC / "state" / "context-critical.json"
 FALLBACK_REQUIRED = OMC / "state" / "fallback-blocked-required"
 FALLBACK_APPROVED = OMC / "state" / "fallback-blocked-approved"
 TEMP_BYPASS = OMC / "state" / "temp-bypass.json"
+GOAL_SIGNAL = OMC / "state" / "tokens" / "autonomous.active"
+GOAL_MODE_FILE = OMC / "state" / "tokens" / "lx-goal.json"
+GOAL_MODE_LEGACY = OMC / "state" / "unattended-mode.json"
+
+
+def _goal_mode() -> bool:
+    """lx-goal 无人值守模式——与 lx-goal.py is_mode_active() 同语义:
+    信号存在 + mode file active + 未过期(防 DG-46 半态: 过期残留信号不算激活)。
+    hook 单发进程,成本=一次 stat + 一次小文件读。"""
+    if not GOAL_SIGNAL.exists():
+        return False
+    path = GOAL_MODE_FILE if GOAL_MODE_FILE.exists() else GOAL_MODE_LEGACY
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return False
+    if not data.get("active"):
+        return False
+    expires = data.get("expires_at")
+    if expires:
+        try:
+            if datetime.now(timezone.utc) >= datetime.fromisoformat(expires):
+                return False
+        except Exception:
+            pass
+    return True
 
 SENSITIVE_PATTERNS = [
     r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
@@ -194,11 +220,21 @@ def _block(reason: str, suggestion: str = "") -> int:
     msg_parts = [f"⛔ 操作被阻断: {safe_reason}"]
     if suggestion:
         msg_parts.append(f"💡 建议: {suggestion}")
-    bypass_hint = (
-        "🔑 如需临时授权跳过此检查，请运行: "
-        "`! python3 .claude/scripts/temp-bypass.py --minutes 60 --reason \"你的理由\"`"
-    )
-    msg_parts.append(bypass_hint)
+    if _goal_mode():
+        # lx-goal 无人值守: 人类不在场——保持 fail-closed(危险操作绝不执行),
+        # 但指引模型「记录→继续其他任务」,不把唯一出路设为「请用户操作」(=停下来求人)。
+        msg_parts.append(
+            "🤖 goal 无人值守模式: 此操作已按人类独占裁决/安全门拦截。勿等待或询问人类——"
+            "执行 `python3 .claude/skills/lx-goal/scripts/lx-goal.py blocked-human \"<操作>\" \"<AI建议>\" \"<依据>\"`"
+            "(中高风险用 `skip-risk \"<描述>\" <level> \"<理由>\" \"<影响>\"`)记录后,继续其他任务;"
+            "退出报告将自动汇总此项交由人类裁决。"
+        )
+    else:
+        bypass_hint = (
+            "🔑 如需临时授权跳过此检查，请运行: "
+            "`! python3 .claude/scripts/temp-bypass.py --minutes 60 --reason \"你的理由\"`"
+        )
+        msg_parts.append(bypass_hint)
     full_msg = "\n".join(msg_parts)
 
     print(json.dumps({
@@ -1025,7 +1061,7 @@ def main() -> int:
                     "gate": gate_name,
                     "reason": result,
                 })
-                goal_mode = (OMC / "state" / "tokens" / "autonomous.active").exists()
+                goal_mode = _goal_mode()
                 if not goal_mode:
                     print(f"⚠️ [{gate_name}] {result}", file=sys.stderr, flush=True)
                 continue

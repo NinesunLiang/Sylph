@@ -47,7 +47,7 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 
 ### Phase 1→N：全自动执行
 
-引用 behavior_rules §自主执行与 execute_node §降级触发：
+**执行期唯一规则源 = `references/autonomous-execution.md`**(§Phase 1→N 全自动执行 / §卡点分类处理矩阵 / §危险操作裁决链）。goal 模式下 `.claude/nodes/behavior_rules.md` 与 `.claude/nodes/execute_node.md` 中的交互式条款（用户裁定/澄清/确认/批准/每步确认）**全部不适用**；仅非交互条款（自洽检查/防编造/证据门禁/失败留痕）继续生效。降级触发参考 execute_node §降级触发条件，但其「用户确认新方案」由决策链自主裁决替代（见该文件 goal 模式覆盖节）。
 
 | 铁律 | 含义 |
 |------|------|
