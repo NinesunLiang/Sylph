@@ -46,7 +46,40 @@ hooks:
   philosophy: ['#7', '#3']
   type: monitor
   category: knowledge
-  description: 自动会话快照（根据 turn 间隔）
+  description: "DEPRECATED-by-PKG-C: subsumed by precompact-lifecycle SSOT; do not add second snapshot writer"
+  enabled_by_default: false
+  evidence_level: L1
+  status: zombie_deleted_from_runtime
+- name: precompact-lifecycle
+  philosophy: ['#1', '#3', '#6']
+  type: gate
+  category: runtime
+  description: PreCompact fail-closed flush of handoff+lifecycle SSOT; counters derived from disk items
+  path: .claude/hooks/precompact-lifecycle.py
+  enabled_by_default: true
+  evidence_level: L3
+- name: subagent-stop-lifecycle
+  philosophy: ['#1', '#3']
+  type: monitor
+  category: runtime
+  description: SubagentStop merges termination into handoff SSOT (idempotent)
+  path: .claude/hooks/subagent-stop-lifecycle.py
+  enabled_by_default: true
+  evidence_level: L3
+- name: session-end-lifecycle
+  philosophy: ['#1', '#3', '#6']
+  type: monitor
+  category: runtime
+  description: SessionEnd/Stop seal; mode collapses to idle; handoff reconcile
+  path: .claude/hooks/session-end-lifecycle.py
+  enabled_by_default: true
+  evidence_level: L3
+- name: lifecycle-ssot
+  philosophy: ['#1', '#3']
+  type: shared
+  category: utility
+  description: Disk SSOT for lifecycle mode + handoff counters (written==claimed==len(items))
+  path: .claude/hooks/lib/lifecycle_ssot.py
   enabled_by_default: true
   evidence_level: L3
 - name: inject-project-knowledge

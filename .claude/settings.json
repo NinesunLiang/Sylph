@@ -77,7 +77,40 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/stop-flywheel.py\"",
+            "command": "bash \".claude/hooks/stop-lifecycle-wrapper.sh\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/precompact-lifecycle.py\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/subagent-stop-lifecycle.py\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/session-end-lifecycle.py\"",
             "timeout": 10000
           }
         ]
