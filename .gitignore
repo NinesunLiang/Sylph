@@ -9,3 +9,5 @@ node_modules/
 .claude/settings.json
 .claude/settings_ds.json
 .claude/settings_k3.json
+benchmark/ci-*.log
+benchmark/runs/
