@@ -64,19 +64,34 @@ def _read_json(path: Path, default):
         return default
 
 
+# 终态集合：archived/done/completed 的 token 不参与水位回写与状态注入。
+# 根因(2026-07-20 幻影 token 事件)：mtime 取最新 + 本文件每轮回写 → 陈旧任务自我续命。
+_TERMINAL_TOKEN_STATUS = ("archived", "done", "completed")
+
+
 def _latest_token() -> Path | None:
-    """Latest carros task token (skips lx-goal lock tokens etc. with non-dict task)."""
+    """Latest ACTIVE carros task token (skips terminal-status and non-dict-task tokens)."""
     if not TOKENS_DIR.exists():
         return None
     candidates = sorted(
         [p for p in TOKENS_DIR.glob("*/*.json") if p.is_file()],
         key=lambda p: p.stat().st_mtime, reverse=True,
     )
-    for path in candidates[:5]:
+    for path in candidates:
         data = _read_json(path, {})
-        if isinstance(data.get("task"), dict) and isinstance(data.get("stats"), dict):
-            return path
-    return candidates[0] if candidates else None
+        if not isinstance(data, dict) or not data:
+            continue
+        if str(data.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
+            continue
+        task = data.get("task")
+        if not isinstance(task, dict):
+            continue  # lx-goal 物理锁等非任务 token
+        if str(task.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
+            continue
+        if not isinstance(data.get("stats"), dict):
+            continue
+        return path
+    return None
 
 
 def _extract_prompt(raw: str) -> str:

@@ -14,3 +14,4 @@ benchmark/runs/
 .claude/state/lifecycle.json
 .claude/state/handoff.json
 .claude/state/snapshots/precompact-*.json
+.claude/settings.json

@@ -277,6 +277,12 @@ def _read_json(path: Path) -> dict[str, Any]:
         return {}
     return {}
 
+# 终态集合：archived/done/completed 的 token 永不复活为"活跃任务"。
+# 根因(2026-07-20 幻影 token 事件)：本函数按 mtime 取最新，而水位同步每轮
+# 回写该 token 刷新 mtime → 陈旧任务自我续命，劫持状态注入与 scope 门。
+_TERMINAL_TOKEN_STATUS = ("archived", "done", "completed")
+
+
 def _latest_token() -> Path | None:
     if not TOKENS.exists():
         return None
@@ -284,7 +290,19 @@ def _latest_token() -> Path | None:
         [p for p in TOKENS.glob("*/*.json") if p.is_file()],
         key=lambda p: p.stat().st_mtime, reverse=True,
     )
-    return candidates[0] if candidates else None
+    for p in candidates:
+        d = _read_json(p)
+        if not isinstance(d, dict) or not d:
+            continue
+        if str(d.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
+            continue
+        task = d.get("task")
+        if not isinstance(task, dict):
+            continue  # lx-goal 物理锁等非任务 token(无 plan scope,本就不参与门禁)
+        if str(task.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
+            continue
+        return p
+    return None
 
 def _active_token() -> dict[str, Any] | None:
     """Returns normalized token dict, or None."""
