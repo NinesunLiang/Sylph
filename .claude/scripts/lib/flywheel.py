@@ -40,19 +40,26 @@ def read_error_dna(task_dir: Path, n: int = 50) -> list:
 
 def extract_patterns(errors: list) -> list:
     """从 Error DNA 中提取可复用的错误模式."""
-    patterns = []
-    seen = set()
+    grouped = {}
 
     for err in errors:
-        text = err.get("error", "").lower()
-        step = err.get("step", "?")
-        retry = err.get("retry_count", 0)
+        text = err.get("error", "")
+        normalized = re.sub(r";\s*attempt=\d+", "", text).lower()
+        prefix = normalized[:80]
+        item = grouped.setdefault(prefix, {
+            "error": text,
+            "step": err.get("step", "?"),
+            "retry_count": 0,
+            "count": 0,
+        })
+        item["retry_count"] = max(item["retry_count"], err.get("retry_count", 0))
+        item["count"] += 1
 
-        # Dedup by error prefix
-        prefix = text[:80]
-        if prefix in seen:
-            continue
-        seen.add(prefix)
+    patterns = []
+    for item in grouped.values():
+        text = item["error"].lower()
+        retry = item["retry_count"]
+        count = item["count"]
 
         # Classify pattern
         pattern_type = "unknown"
@@ -69,15 +76,15 @@ def extract_patterns(errors: list) -> list:
         elif any(k in text for k in ["not found", "no such file", "enoent"]):
             pattern_type = "not_found"
 
-        if retry >= 2:
+        if retry >= 2 or count >= 3:
             pattern_type += "_recurring"
 
         patterns.append({
-            "error": err.get("error", "")[:200],
-            "step": step,
+            "error": item["error"][:200],
+            "step": item["step"],
             "pattern": pattern_type,
             "retry_count": retry,
-            "count": errors.count(err),
+            "count": count,
         })
 
     return patterns
@@ -88,7 +95,7 @@ def get_anti_patterns_path(project_root: Path) -> Path:
     return project_root / ".claude" / "references" / "anti-patterns.md"
 
 
-def write_anti_patterns(project_root: Path, patterns: list) -> Path:
+def write_anti_patterns(project_root: Path, patterns: list) -> Optional[Path]:
     """将升华后的模式写入 anti-patterns.md."""
     if not patterns:
         return None
@@ -127,7 +134,7 @@ def write_claude_next(project_root: Path, entry: str) -> Path:
     lines = []
     if cn_path.exists():
         lines.append(cn_path.read_text(encoding="utf-8"))
-    
+
     lines.append(f"- [{datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')}] {entry}")
 
     cn_path.write_text("\n".join(lines[-200:]), encoding="utf-8")
@@ -141,18 +148,20 @@ def run_flywheel(project_root: Path, task_dir: Optional[Path] = None) -> dict:
     2. 提取模式
     3. 写 anti-patterns.md
     4. 写 knowledge/
-    
+
     Returns summary dict.
     """
     result = {"patterns_found": 0, "anti_patterns_written": False, "knowledge_entries": 0}
 
-    # Collect errors from all available task dirs
+    # Collect errors from the requested task dir when provided; otherwise scan all task dirs.
     all_errors = []
     tasks_root = project_root / ".omc" / "tasks"
-    if tasks_root.exists():
-        for task_dir in tasks_root.rglob("error-dna.jsonl"):
+    if task_dir is not None:
+        all_errors.extend(read_error_dna(task_dir))
+    elif tasks_root.exists():
+        for dna_file in tasks_root.rglob("error-dna.jsonl"):
             try:
-                all_errors.extend(read_error_dna(task_dir.parent))
+                all_errors.extend(read_error_dna(dna_file.parent))
             except Exception:
                 pass
 

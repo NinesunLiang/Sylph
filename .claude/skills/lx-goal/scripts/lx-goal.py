@@ -183,8 +183,8 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     # 创建 autonomous.active 信号
     AUTONOMOUS_SIGNAL.touch()
 
-    # 创建计划目录 + 物理锁
-    date_str = datetime.now().strftime("%Y-%m-%d")
+    # 创建计划目录 + 物理锁(日期统一 %Y%m%d,与 carros_base token 目录格式一致)
+    date_str = datetime.now().strftime("%Y%m%d")
     slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50]) or f"goal-{datetime.now().strftime('%H%M%S')}"
     plan_dir = PLANS_DIR / date_str / slug
     plan_dir.mkdir(parents=True, exist_ok=True)
@@ -778,14 +778,32 @@ KNOWN_SUBCOMMANDS = {
 }
 
 
+def _usage() -> str:
+    cmds = "、".join(sorted(k for k in KNOWN_SUBCOMMANDS if k != "_update-lock"))
+    return (
+        "用法: lx-goal.py <子命令> [参数]  或  lx-goal.py on \"<目标描述>\" [小时]\n"
+        f"子命令: {cmds}\n"
+        "说明: 无参数=status; 非子命令文本=当作目标激活(等价 on); 以 - 开头的未知参数报错不激活"
+    )
+
+
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in KNOWN_SUBCOMMANDS:
-        # 无参数或参数不是已知子命令 → 当作目标描述自动激活
-        goal = " ".join(sys.argv[1:]) if len(sys.argv) > 1 else ""
-        if goal:
-            cmd_on(goal)
-        else:
-            cmd_status()
+    if len(sys.argv) < 2:
+        cmd_status()
+        return
+
+    # 参数守卫: help 与未知 dash 参数 → usage,绝不激活(F7 修复: --help 曾被当 goal 建锁)
+    if sys.argv[1] in ("-h", "--help", "help"):
+        print(_usage())
+        sys.exit(0)
+    if sys.argv[1].startswith("-") and sys.argv[1] not in KNOWN_SUBCOMMANDS:
+        print(f"ERROR: 未知参数 {sys.argv[1]!r}(若以 - 开头请用 on \"目标\" 显式激活)", file=sys.stderr)
+        print(_usage(), file=sys.stderr)
+        sys.exit(2)
+
+    if sys.argv[1] not in KNOWN_SUBCOMMANDS:
+        # 非子命令文本 → 当作目标描述自动激活
+        cmd_on(" ".join(sys.argv[1:]))
         return
 
     cmd_name = sys.argv[1]

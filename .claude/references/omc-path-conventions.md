@@ -40,5 +40,5 @@
 | token.json | .omc/state/token.json | carros_base.py | 运行状态 |
 | plan.md | .omc/state/plan.md | carros_base.py init | 计划 |
 | executor.md | .omc/state/executor.md | 模型手动 | 执行证据 |
-| session-handoff.md | .omc/state/session-handoff.md | compact 前写 | 恢复摘要 |
+| session-handoff.md | .omc/session-handoff.md | compact 前写 | 恢复摘要 |
 | audit | .omc/state/audit/*.jsonl | carros_base.py | 审计链 |
