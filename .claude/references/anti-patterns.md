@@ -60,3 +60,17 @@ _Updated: 2026-07-14T16:20:56.799910+00:00_
 ### H2 未授权操作
 没经确认就执行删除/发布。
 → against: permission-gate + 三次确认。
+### unknown（飞轮升华 2026-07-20）
+- 来源：claude-next 自动升华，hits=155（阈值≥5）
+- 触发条件：error-dna 中反复出现的 `unknown` 失败模式
+- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决
+
+### unknown_recurring（飞轮升华 2026-07-20）
+- 来源：claude-next 自动升华，hits=124（阈值≥5）
+- 触发条件：error-dna 中反复出现的 `unknown_recurring` 失败模式
+- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决
+
+### timeout（飞轮升华 2026-07-20）
+- 来源：claude-next 自动升华，hits=16（阈值≥5）
+- 触发条件：error-dna 中反复出现的 `timeout` 失败模式
+- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决
