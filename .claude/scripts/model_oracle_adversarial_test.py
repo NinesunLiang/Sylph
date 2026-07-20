@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 meta_oracle.py (adversarial-test)
 """
 model_oracle_adversarial_test.py — 对抗性烟雾测试。
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 meta_oracle.py (aggregate)
 """
 model_meta_oracle.py — 动态聚合 Meta Oracle。
 

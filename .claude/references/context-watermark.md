@@ -12,13 +12,12 @@
 | 🟠 READONLY | 70-80% | 注入警告 + pretool-gate 阻断写工具(Write/Edit/MultiEdit/NotebookEdit) |
 | 🔴 FORCE | 80%+ | pretool-gate 阻断**全部**工具,立即运行 /compact |
 
-## 实测方法(limit = 170_000 默认)
+## 实测方法(limit 从 settings.json 模型名自动推断)
 
 - 数据源: hook payload 的 `transcript_path`,尾读 512KB 找最近一次 assistant `usage`
 - `used = input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
   (每轮 cache_read 重放几乎全部历史 → 最后一次 usage ≈ 当前上下文总量)
-- 默认 limit 170k = 2026-07-19 实测 auto-compact 触发点(preTokens=170,508);
-  模型标称 1M 为宣传上限,有效窗口以实测为准
+- limit 自动推断: env.ANTHROPIC_MODEL 含 "1m" → 1M,否则 200K
 - 覆盖: `CARROROS_CONTEXT_LIMIT=<N>` 环境变量
 
 ## 集成点(真实链路)
@@ -40,7 +39,7 @@ python3 .omc/scripts/context_watermark.py --used 85000
 
 返回 JSON:
 ```json
-{"used": 85000, "limit": 170000, "pct": 50.0, "level": "REMIND", "action": "inject_warning", ...}
+{"used": 85000, "limit": 1000000, "pct": 50.0, "level": "REMIND", "action": "inject_warning", ...}
 ```
 
 退出码: 0=SAFE, 1=REMIND(≥50), 2=READONLY/FORCE(≥70)。

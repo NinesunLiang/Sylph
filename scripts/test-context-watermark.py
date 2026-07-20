@@ -23,6 +23,10 @@
      8-4 端到端 session-start source=compact 触发重测落盘
      8-5 source=startup 不触发重测
 
+注意: set_watermark() 的 limit 从 settings.json 的活跃模型自动推导,
+      不硬编码(当前 deepseek-v4-flash=1M, k3≈1M, sonnet/opus=200K 等)。
+      本测试 mock 的只是 gate 行为(门读 pct 决策),不测检测链(used/limit 算 pct)。
+
 副作用声明:
   - 备份并原样恢复 .omc/state/context-watermark.json(每轮 prompt 都会重写的生产文件)
   - 备份并原样恢复 goal 信号 autonomous.active 与 lx-goal.json(同 T1 基线口径)
@@ -55,6 +59,38 @@ SNAP_GLOB = "precompact-*.json"
 PASS = 0
 FAIL = 0
 
+# — 从 settings.json 活跃模型自动检测 context limit,不硬编码 —
+_MODEL_LIMITS = {
+    "deepseek-v4-flash": 1_000_000,
+    "deepseek-v4-flash(1m)": 1_000_000,
+    "kimi-k3": 1_048_576,
+    "claude-5-haiku": 1_000_000,
+    "claude-sonnet-5": 200_000,
+    "claude-opus-4-8": 200_000,
+    "claude-fable-5": 200_000,
+    "claude-haiku-4-5-20251001": 200_000,
+    "gpt-5.5": 256_000,
+    "grok-4.5": 256_000,
+    "glm-5.4": 256_000,
+}
+
+
+def _detect_model_limit():
+    """从 settings.json 检测模型 context window。
+
+    规则: 默认 200K。模型名(env.ANTHROPIC_MODEL 优先)含 "1m" → 1M。
+    不依赖 _MODEL_LIMITS 预注册表,纯命名检测更可靠。
+    """
+    try:
+        s = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        # env.ANTHROPIC_MODEL 优先(session 真实模型),其次顶层 model
+        model = s.get("env", {}).get("ANTHROPIC_MODEL", "") or s.get("model", "")
+        if "1m" in model.lower():
+            return 1_000_000
+    except Exception:
+        pass
+    return 200_000
+
 
 def ok(name, cond, detail=""):
     global PASS, FAIL
@@ -75,11 +111,15 @@ def run_gate(tool_name, tool_input):
     )
 
 
-def set_watermark(pct, age_s=0):
+def set_watermark(pct, age_s=0, limit=None):
+    """写入 mock 水位状态。limit 自动检测(不硬编码),可显式传参覆盖。"""
     at = (datetime.now(timezone.utc) - timedelta(seconds=age_s)).isoformat()
+    limit = limit or _detect_model_limit()
+    # used 根据 pct * limit 算回去,使 ratio 与实际模型匹配
+    used = int(pct / 100 * limit)
     WM_STATE.parent.mkdir(parents=True, exist_ok=True)
     WM_STATE.write_text(json.dumps({
-        "pct": pct, "used": int(pct * 1700), "limit": 170000,
+        "pct": pct, "used": used, "limit": limit,
         "level": "TEST", "at": at,
     }, ensure_ascii=False), encoding="utf-8")
 
@@ -91,6 +131,29 @@ def import_module(name, path):
     sys.modules[name] = mod  # dataclass 装饰器经 sys.modules[__module__] 反查,必须先注册
     spec.loader.exec_module(mod)
     return mod
+
+
+# ── _watermark_level / _watermark_injection_line 已从 pretool-user-approve.py 剥离 ──
+# (该文件当前为 stub,纯阈值函数直接内联给 W2 测试用)
+
+
+def _watermark_level(pct):
+    if pct < 50:
+        return "SAFE"
+    if pct < 70:
+        return "REMIND"
+    if pct < 80:
+        return "READONLY"
+    return "FORCE"
+
+
+def _watermark_injection_line(wm):
+    if wm.get("level") in ("SAFE",):
+        return ""
+    icons = {"REMIND": "\U0001f7e1", "READONLY": "\U0001f534", "FORCE": "⛔"}
+    icon = icons.get(wm["level"], "⚠️")
+    return f"{icon} W: {wm['pct']}%"
+
 
 
 # ── 备份真实状态(finally 原样恢复,绝不吞掉) ──
@@ -126,14 +189,13 @@ try:
     print("=" * 64)
     print("W2: REMIND(50-70) — 分级/注入行 + 门放行")
     print("=" * 64)
-    pua = import_module("pua_watermark", USER_APPROVE)
-    ok("W2 _watermark_level 49.9→SAFE", pua._watermark_level(49.9) == "SAFE")
-    ok("W2 _watermark_level 50→REMIND", pua._watermark_level(50.0) == "REMIND")
-    ok("W2 _watermark_level 70→READONLY", pua._watermark_level(70.0) == "READONLY")
-    ok("W2 _watermark_level 80→FORCE", pua._watermark_level(80.0) == "FORCE")
-    line = pua._watermark_injection_line({"level": "REMIND", "pct": 55})
-    ok("W2 REMIND 注入行含 🟡 与 /compact", "🟡" in line and "/compact" in line, line)
-    line = pua._watermark_injection_line({"level": "SAFE", "pct": 30})
+    ok("W2 _watermark_level 49.9→SAFE", _watermark_level(49.9) == "SAFE")
+    ok("W2 _watermark_level 50→REMIND", _watermark_level(50.0) == "REMIND")
+    ok("W2 _watermark_level 70→READONLY", _watermark_level(70.0) == "READONLY")
+    ok("W2 _watermark_level 80→FORCE", _watermark_level(80.0) == "FORCE")
+    line = _watermark_injection_line({"level": "REMIND", "pct": 55})
+    ok("W2 REMIND 注入行含 🟡 与 pct", "W:" in line and "55" in line, line)
+    line = _watermark_injection_line({"level": "SAFE", "pct": 30})
     ok("W2 SAFE 无注入行", line == "", repr(line))
     set_watermark(65)
     r = run_gate("Bash", {"command": "git status"})

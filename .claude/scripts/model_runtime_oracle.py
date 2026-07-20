@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 oracle_agent.py (review_runtime)
 """
 model_runtime_oracle.py — 基于 LLM 的低频 Runtime Oracle。
 

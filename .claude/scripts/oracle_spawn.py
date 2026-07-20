@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议使用 oracle_agent.py (--mode duo) + meta_oracle.py (aggregate)
 """
 Oracle Spawn.
 

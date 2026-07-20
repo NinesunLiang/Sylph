@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 oracle_agent.py (--mode duo) + meta_oracle.py (combo)
 """
 model_oracle_spawn.py — 并发编排层 (v2, in-process).
 

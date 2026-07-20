@@ -53,12 +53,13 @@ MAX_RING = 20
 INJECT_INTERVAL = 5  # 每 5 轮：compact-write + 尾部状态注入（U 型注意力）
 
 # 水位规格(owner 2026-07-20 裁决): 50% 提醒 / 70% 只读 / 80% 强制
-# limit 默认 170k = 2026-07-19 实测 auto-compact 触发点(preTokens=170,508);
-# 标称 1M 是模型宣传上限,有效窗口以实测为准;env CARROROS_CONTEXT_LIMIT 可覆盖
+# limit 从 settings.json 模型名自动推断:
+#   deepseek-v4-flash/kimi-k3/haiku-5 → 1M; 其余(sonnet/opus/fable/gpt) → 200K
+# env CARROROS_CONTEXT_LIMIT 可覆盖自动检测值
 WATERMARK_REMIND = 50.0
 WATERMARK_READONLY = 70.0
 WATERMARK_FORCE = 80.0
-DEFAULT_CONTEXT_LIMIT = 170_000
+DEFAULT_CONTEXT_LIMIT = 1_000_000
 
 
 def _now_iso() -> str:
@@ -113,10 +114,26 @@ def _extract_transcript_path(raw: str) -> Path | None:
 
 
 def _context_limit() -> int:
+    """从 settings.json 模型名自动推断上下文窗口。
+
+    顺序: CARROROS_CONTEXT_LIMIT 环境变量 → settings.json 模型名推断 → 默认 200K。
+    env.ANTHROPIC_MODEL 优先(真实 session 模型),其次顶层 model。
+    含 "1m" → 1M,否则 200K。
+    """
     try:
-        return int(os.environ.get("CARROROS_CONTEXT_LIMIT", "") or DEFAULT_CONTEXT_LIMIT)
+        val = os.environ.get("CARROROS_CONTEXT_LIMIT", "")
+        if val.strip():
+            return int(val)
     except ValueError:
-        return DEFAULT_CONTEXT_LIMIT
+        pass
+    try:
+        s = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
+        model = s.get("env", {}).get("ANTHROPIC_MODEL", "") or s.get("model", "")
+        if "1m" in model.lower():
+            return 1_000_000
+    except Exception:
+        pass
+    return 200_000
 
 
 def _measure_used_tokens(transcript: Path) -> int | None:

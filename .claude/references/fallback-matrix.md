@@ -1,3 +1,4 @@
+<!-- ENHANCE-ONLY: 高级特性的降级矩阵 -->
 # Fallback Matrix — L2→L1 降级策略
 
 > L2 Enhance: 当 context 过高 / 模型异常 / 连续失败时，自动降级到 L1

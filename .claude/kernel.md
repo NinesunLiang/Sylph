@@ -1,5 +1,7 @@
 # kernel.md — 管理内核
 
+<!-- ENHANCE: 双水位体系(BASE 仅含三段式基础水位) -->
+
 > 不可自改。变更须人类裁决。
 
 ## 冻结规则
@@ -30,6 +32,18 @@ AI 不可自改 AGENTS.md / kernel.md / index.md。
 | ⛔ ≥80% | 全阻强制 compact |
 
 链: pretool-user-approve 实测 → pretool-gate watermark 门 → context_engine compact_decision；详见 `.claude/references/context-watermark.md`。
+
+## 错误分析体系（Error → 养分）
+每个错误都是 CarrorOS 的养分。错误触发后自动分析、分类、归档。
+
+| 阶段 | 机制 | 位置 |
+|:----:|:-----|:-----|
+| ① 采集 | Error DNA 自动记录 | `.claude/scripts/lib/error_dna.py` |
+| ② 分类 | 4 大类：GATE-BUG / HOOK-CHAIN / REF-DRIFT / LOGIC-GAP | `docs/carros/error-analysis-rca.md` |
+| ③ 根因 | RCA 分析写入持久化文件 | `docs/carros/error-analysis-rca.md` |
+| ④ 预防 | 修复后纳入预防措施 | 各组件自修 |
+
+未分类的错误在退出报告聚合成「⚠️ 需人类介入」。
 
 ## 降级规则
 能力缺失可降级。证据缺失、安全缺失、状态冲突不可降级。

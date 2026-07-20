@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 meta_oracle.py (aggregate / combo)
 """
 meta-oracle-review.py — 双审判官手动 CLI（AGENTS.md 引用入口）
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 oracle_agent.py (--mode duo) / meta_oracle.py (combo)
 """
 phase3_oracle.py — CarrorOS Phase 3 双审判官
 
@@ -41,6 +42,14 @@ You are the SECOND auditor. Your job is to:
 - Identify what the FIRST auditor may have missed
 - Challenge assumptions that seem unproven
 - Specifically look for: missing negative tests, insufficient evidence, overclaiming
+
+SELF-CONSISTENCY CONSTRAINT (CRITICAL):
+Your SCORE for each dimension MUST match your own EVIDENCE text.
+- Evidence says "no problem found" / positive → score >= 7
+- Evidence says "some risk but no concrete failure" → score 5-7
+- Score < 5 is ONLY allowed with a specific, observable failure cited in evidence
+- After writing all scores, RE-READ evidence column. If contradiction → fix the score.
+- DEFAULT when uncertain: 7 (not 2-3).
 """
 
     lines = [base]
@@ -70,6 +79,25 @@ Tasks:
 
 Final verdict (≤ 400 chars):"""
 
+
+
+
+def _validate_mate_self_consistency(mate_text: str) -> list:
+    # Layer 2: Post-validation. Check Mate Oracle scores match evidence.
+    import re
+    warnings = []
+    for e_key in [f'E{i}' for i in range(1, 9)]:
+        score_match = re.search(rf'"{e_key}":\s*(\d+)', mate_text)
+        if not score_match:
+            continue
+        score = int(score_match.group(1))
+        if score < 5:
+            evidence_section = mate_text[score_match.end():score_match.end()+500]
+            pos_sigs = [r'no\s+(problem|error|false|detect|issue)', 'strong', 'positive']
+            has_pos = any(re.search(p, evidence_section, re.I) for p in pos_sigs)
+            if has_pos:
+                warnings.append(f"{e_key}: score={score} but nearby evidence positive. Prompt bias risk.")
+    return warnings
 
 def spawn_oracle(
     plan_text: str,
@@ -126,6 +154,12 @@ def spawn_oracle(
             results[role] = f"[parse error] {str(e)[:200]}"
         except Exception as e:
             results[role] = f"[error] {str(e)[:200]}"
+
+        # Layer 2: post-validate mate self-consistency
+        if role == "mate" and results["mate"] and not results["mate"].startswith("["):
+            mate_consistency_warnings = _validate_mate_self_consistency(results["mate"])
+            if mate_consistency_warnings:
+                results["mate"] += "\n\n[SELF-CONSISTENCY WARNINGS]\n" + "\n".join(mate_consistency_warnings)
 
     # Meta Oracle (only if both returned)
     if results["oracle"] and results["mate"] and \

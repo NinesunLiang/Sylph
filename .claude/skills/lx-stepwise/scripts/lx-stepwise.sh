@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# lx-stepwise.sh — 兼容 wrapper,实际逻辑委托给 lx-stepwise.py
+# lx-stepwise.sh — [DEPRECATED] 兼容 wrapper，已不再需要。
+# 直接调用 python3 lx-stepwise.py 替代。保留以兼容旧 settings.json/local.json 引用。
 # 用法: lx-stepwise on|status|pass-card|fail-card|ask|resolve|off
 set -euo pipefail
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# DEPRECATED - 保留向后兼容，建议迁移到 oracle_agent.py (review_static / review_duo)
 """
 Static Oracle Agent.
 

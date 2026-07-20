@@ -1,3 +1,4 @@
+<!-- NOTE: 与 .omc/session-handoff.md 存在副本，.omc 版本为运行时源 -->
 # Session Handoff: test-blocked
 
 **Updated:** 2026-07-06 08:54 UTC

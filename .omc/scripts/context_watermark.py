@@ -13,7 +13,7 @@ Usage:
     python3 .omc/scripts/context_watermark.py [--used <N>] [--limit <N>]
 
 如果不传参数，尝试从环境变量或默认值计算。
-默认 limit: 170000 (2026-07-19 实测 auto-compact 触发点 preTokens=170,508;
+默认 limit: 1000000 (2026-07-19 实测 auto-compact 触发点 preTokens=170,508;
 模型标称 1M 为宣传上限,有效窗口以实测为准;env CARROROS_CONTEXT_LIMIT 可覆盖)
 生产集成: 实测在 pretool-user-approve.py(每轮尾读 transcript usage),
 门执行在 pretool-gate.py(watermark 门);本脚本为离线计算/调试入口。
