@@ -72,7 +72,25 @@ def write_handoff(token, plan_path, handoff_path):
 
 
 def write_audit(audit_dir, event_type, data, schema_version="v1.0"):
-    """追加审计事件到当天 JSONL"""
+    """追加审计事件到当天 JSONL
+
+    Round7 PKG-4(C4 写时 schema 机检): verify/claim 类事件缺关键字段拒写,
+    防畸形事件污染 E7 校准账(jq 统计 overturn 依赖字段完整)。
+    """
+    # PKG-4: verify/claim 类事件写时机检——缺字段拒写。
+    # task_id 由 carros_base._write_audit 统一注入(不存在=unknown),故此处校验
+    # step/result 两个调用方必须提供的字段;task_id 若存在但为 falsy 一并拒。
+    _CLAIM_EVENTS = {"verify", "verify_decision", "verify_degraded"}
+    if event_type in _CLAIM_EVENTS and isinstance(data, dict):
+        missing = [k for k in ("step",) if not data.get(k)]
+        if event_type == "verify" and not data.get("result"):
+            missing.append("result")
+        if "task_id" in data and not data.get("task_id"):
+            missing.append("task_id")
+        if missing:
+            raise ValueError(
+                f"audit_schema_violation: {event_type} 事件缺字段 {missing}——拒写(PKG-4 C4 机检)"
+            )
     audit_dir.mkdir(parents=True, exist_ok=True)
     date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     audit_file = audit_dir / f"{date_str}.jsonl"

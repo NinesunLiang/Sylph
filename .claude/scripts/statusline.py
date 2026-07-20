@@ -22,6 +22,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)
+# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
+sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
+try:
+    from task_ssot import latest_active_token as _ssot_latest_active_token
+except Exception:  # SSOT 不可用 → 降级 NO_TASK 显示(状态栏只读,永不炸)
+    _ssot_latest_active_token = None
+
 
 def read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
@@ -30,16 +38,10 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def latest_token(root: Path) -> Path | None:
-    token_root = root / ".omc" / "tokens"
-    if not token_root.exists():
+    """委托 task_ssot:终态(archived/done/completed)与非任务 token 永不复活。"""
+    if _ssot_latest_active_token is None:
         return None
-
-    candidates = sorted(
-        [p for p in token_root.glob("*/*.json") if p.is_file()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    return candidates[0] if candidates else None
+    return _ssot_latest_active_token(root / ".omc" / "tokens")
 
 
 def compact_label(token: dict[str, Any]) -> str:
@@ -58,6 +60,13 @@ def compact_label(token: dict[str, Any]) -> str:
         if isinstance(threshold, list) and len(threshold) == 2:
             return f"turn={turn}/{threshold[1]}"
         return f"turn={turn}"
+
+    # R7 修复(compact=unknown 根因):token 无 compact_strategy 字段时,
+    # 回退到水位系统每轮实写的 context_watermark/compact_status——数据一直在,只是没认。
+    watermark = session.get("context_watermark")
+    if isinstance(watermark, (int, float)):
+        level = session.get("compact_status", "")
+        return f"wm={int(watermark)}%{('/' + str(level)) if level else ''}"
 
     return "compact=unknown"
 

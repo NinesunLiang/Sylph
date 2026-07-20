@@ -51,6 +51,21 @@ GOAL_SIGNAL = OMC / "state" / "tokens" / "autonomous.active"
 GOAL_MODE_FILE = OMC / "state" / "tokens" / "lx-goal.json"
 GOAL_MODE_LEGACY = OMC / "state" / "unattended-mode.json"
 
+# ── Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)──
+# 导入约定:直插 lib 目录按顶层模块导入——hooks/lib 是带 __init__ 的正规包,
+# 走 `lib.task_ssot` 包路径会被它无条件遮蔽(regular>namespace,见 PKG-1 记录)。
+# launcher 对崩溃(非 0/2 退出码)按非阻断错误处理=门禁静默失效,
+# 故导入失败不抛出:_SSOT_ERR 记录,写门禁 fail-closed(见 _check_edit_scope)。
+sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
+try:
+    from task_ssot import latest_active_token as _ssot_latest_active_token
+    from task_ssot import latest_terminal_token as _ssot_latest_terminal_token
+    _SSOT_ERR: Exception | None = None
+except Exception as exc:  # pragma: no cover - 仅在生产环境 lib 缺失时触发
+    _ssot_latest_active_token = None
+    _ssot_latest_terminal_token = None
+    _SSOT_ERR = exc
+
 
 def _goal_mode() -> bool:
     """lx-goal 无人值守模式——与 lx-goal.py is_mode_active() 同语义:
@@ -82,6 +97,9 @@ SENSITIVE_PATTERNS = [
 
 DANGEROUS_COMMANDS = [
     r"(^|\s)rm\s+-rf\s+(/\s|\.\s|~\s|\*\s|/$|\.$|~$|\*$)", r"(^|\s)rm\s+-r\s+(/\s|\.\s|~\s|\*/)", r"^sudo\b",
+    # PKG-5 C5: 引号/嵌套壳变形——rm -rf 后仅跟引号+根/家目录/星号也命中
+    # (2026-07-20 刺杀实证: bash -c 'rm -rf /' 仅靠 (^|\s) 锚点可绕过)
+    r"rm\s+-rf?\s+['\"]?(/|~|\*)",
     r"^chmod\s+777\b", r"^chown\b", r"^git\s+push\s+(-f|--force)",
     r"^dd\s+if=", r"^mkfs\.", r"^fdisk\b", r":\(\)\{\s*:\|:\s*&\s*\};:",
 ]
@@ -157,7 +175,12 @@ PLAN_FILE_PATTERNS = ["plan.md", "plan"]
 def _read_stdin() -> dict[str, Any]:
     try:
         raw = sys.stdin.read()
-        return json.loads(raw) if raw else {}
+        if not raw:
+            return {}
+        data = json.loads(raw)
+        # PKG-5 C3: JSON null/标量/数组 → 归一为 {}(下游全程假定 dict,
+        # null 会让 _extract_tool  AttributeError 崩溃=门禁静默失效面)
+        return data if isinstance(data, dict) else {}
     except Exception:
         return {}
 
@@ -258,11 +281,28 @@ def _is_sensitive(path: str) -> bool:
     return any(re.search(pat, p, re.IGNORECASE) for pat in SENSITIVE_PATTERNS)
 
 def _append_audit(event: dict) -> None:
+    """Round7 PKG-4(audit schema 升级): 所有 gate 事件统一注入 task_id/step_id,
+    E7 校准账 jq 可按 task/step 聚合统计 overturn。失败静默(原契约)。"""
     try:
         from datetime import datetime, timezone
         AUDIT.mkdir(parents=True, exist_ok=True)
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         event.setdefault("timestamp", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        # PKG-4: task_id/step_id 全事件注入(调用点已显式提供的优先)
+        if "task_id" not in event or "step_id" not in event:
+            try:
+                token = _active_token()
+                if token:
+                    session = token.get("session", {}) or {}
+                    task = token.get("task", {}) or {}
+                    event.setdefault(
+                        "task_id",
+                        session.get("id") or (task.get("id") if isinstance(task, dict) else None) or "unknown",
+                    )
+                    if isinstance(task, dict) and task.get("current_step"):
+                        event.setdefault("step_id", task.get("current_step"))
+            except Exception:
+                pass
         with (AUDIT / f"{day}.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
     except OSError:
@@ -280,29 +320,11 @@ def _read_json(path: Path) -> dict[str, Any]:
 # 终态集合：archived/done/completed 的 token 永不复活为"活跃任务"。
 # 根因(2026-07-20 幻影 token 事件)：本函数按 mtime 取最新，而水位同步每轮
 # 回写该 token 刷新 mtime → 陈旧任务自我续命，劫持状态注入与 scope 门。
-_TERMINAL_TOKEN_STATUS = ("archived", "done", "completed")
-
-
 def _latest_token() -> Path | None:
-    if not TOKENS.exists():
+    """委托 task_ssot(单一真相源);SSOT 不可用 → None(fail-closed 由写门禁兜底)。"""
+    if _ssot_latest_active_token is None:
         return None
-    candidates = sorted(
-        [p for p in TOKENS.glob("*/*.json") if p.is_file()],
-        key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    for p in candidates:
-        d = _read_json(p)
-        if not isinstance(d, dict) or not d:
-            continue
-        if str(d.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
-            continue
-        task = d.get("task")
-        if not isinstance(task, dict):
-            continue  # lx-goal 物理锁等非任务 token(无 plan scope,本就不参与门禁)
-        if str(task.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
-            continue
-        return p
-    return None
+    return _ssot_latest_active_token(TOKENS)
 
 def _active_token() -> dict[str, Any] | None:
     """Returns normalized token dict, or None."""
@@ -344,10 +366,16 @@ def _parse_scope(plan_text: str) -> list[str]:
                 files.append(m.group(1).replace("\\", "/"))
     return files
 
+def _strip_dot_slash(s: str) -> str:
+    """只剥前缀 "./";lstrip("./") 会吃掉点目录前导点(.claude→claude)致 scope 永不命中
+    (2026-07-20 潜伏 bug 实证: plan scope 点前缀条目全灭,仅绝对路径条目幸免)"""
+    return s[2:] if s.startswith("./") else s
+
+
 def _in_scope(path: str, scope: list[str]) -> bool:
-    p = path.replace("\\", "/").lstrip("./")
+    p = _strip_dot_slash(path.replace("\\", "/"))
     for item in scope:
-        s = item.replace("\\", "/").lstrip("./")
+        s = _strip_dot_slash(item.replace("\\", "/"))
         if p == s or p.endswith("/" + s) or p.startswith(s.rstrip("/") + "/"):
             return True
     return False
@@ -584,13 +612,97 @@ def _check_action_gate(payload: dict) -> str | None:
         return f"ASK_USER approval_required pattern={ask}"
     return None
 
+def _failure_escalate(signature: str, *, window: int = 20, threshold: int = 3) -> bool:
+    """同一阻断签名在最近 window 条 gate 决策事件中出现 ≥threshold 次 → True(应升级)。
+
+    Round7 PKG-3(opus failure-escalate 意图折叠,GPT 形式=零新文件):
+    同一签名反复 BLOCK = 惯性重试(E4 失效模式),继续 BLOCK 只会被忽略——
+    升级为 ASK_USER 人类独占裁决。只读现有 audit jsonl,fail-open(读不出不升级)。
+    """
+    if not AUDIT.exists():
+        return False
+    try:
+        files = sorted(AUDIT.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)[:2]
+    except OSError:
+        return False
+    hits = 0
+    seen = 0
+    for path in files:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in reversed(lines):
+            if seen >= window:
+                return hits >= threshold
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(e, dict):
+                continue
+            if e.get("decision") not in ("BLOCK", "ESCALATE"):
+                continue
+            seen += 1
+            if signature and signature in str(e.get("reason", "")):
+                hits += 1
+    return hits >= threshold
+
+
 def _check_plan_gate(payload: dict) -> str | None:
-    """Gate 4: 自适应自治 — 无 token 自动 init，不阻断"""
+    """Gate 4: 自适应自治 — 无 token 自动 init，不阻断
+
+    Round7 PKG-3(E4 终态惯性 BLOCK):「无活跃 token」必须区分两种形态——
+      a) 连终态任务 token 都没有(全新仓库/刚清理)→ auto-init 合法,放行;
+      b) 最新任务 token 已终态 → 上一任务刚结束,auto-init 会在同会话误生
+         劫持 token(2026-07-20 劫持环路实证: 终态 token 在库仍连生 auto_* 残液)。
+         → BLOCK,要求显式开工(lx-goal on / carros_base init --task)。
+    """
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
     token = _active_token()
     if not token:
+        if _SSOT_ERR is not None:
+            # SSOT 不可读时 "无 token" 是不可信读数——auto-init 会误生劫持 token
+            # (2026-07-20 实证: 导入失败窗口连生 2 个 auto_* 残液,窄 scope 连环阻断)
+            return None  # 不放 auto-init;写门禁 fail-closed 在 Gate 5 兜底
+        # Round7 PKG-3: 终态惯性区分——最新任务 token 已终态 → BLOCK,不 auto-init
+        if _ssot_latest_terminal_token is not None:
+            terminal_path = _ssot_latest_terminal_token(TOKENS)
+            if terminal_path is not None:
+                terminal_data = _read_json(terminal_path)
+                terminal_task = terminal_data.get("task", {}) if isinstance(terminal_data, dict) else {}
+                terminal_id = (
+                    terminal_task.get("id") if isinstance(terminal_task, dict) else None
+                ) or terminal_path.stem
+                signature = f"terminal_inertia:{terminal_id}"
+                _append_audit({
+                    "event_type": "terminal_inertia_block",
+                    "actor": "hook:pretool-gate",
+                    "decision": "BLOCK",
+                    "reason": signature,
+                    "terminal_token": str(terminal_path.relative_to(ROOT))
+                    if terminal_path.is_relative_to(ROOT) else str(terminal_path),
+                })
+                suggestion = (
+                    f"上一任务 {terminal_id} 已终态——auto-init 已禁用(防 2026-07-20 劫持环路)。"
+                    f"开新任务: `python3 .claude/skills/lx-goal/scripts/lx-goal.py on \"<目标>\"` "
+                    f"或 `python3 .claude/scripts/carros_base.py init --task <name>`"
+                )
+                if _failure_escalate(signature):
+                    _append_audit({
+                        "event_type": "failure_escalate",
+                        "actor": "hook:pretool-gate",
+                        "decision": "ESCALATE",
+                        "reason": signature,
+                    })
+                    return (f"ASK_USER {signature}|同一阻断签名已 ≥3 次——惯性重试判定,"
+                            f"升级人类独占裁决。{suggestion}")
+                return f"BLOCK {signature}|{suggestion}"
         # 无 token → auto-init（不会阻阻断）
         path = _extract_path(payload)
         _auto_init(path)
@@ -615,6 +727,9 @@ def _check_edit_scope(payload: dict) -> str | None:
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
+    if _SSOT_ERR is not None:
+        # SSOT 导入失败=无法判定任务边界;launcher 对崩溃 fail-open,此处显式 fail-closed
+        return f"edit-scope: task_ssot 导入失败({_SSOT_ERR!r})——fail-closed 阻断写操作,修复 lib/task_ssot.py 后重试"
     path = _extract_path(payload)
     if not path:
         return None

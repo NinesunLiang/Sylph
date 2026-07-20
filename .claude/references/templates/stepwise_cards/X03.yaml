@@ -1,0 +1,26 @@
+card:
+  id: X03
+  title: 兼容性决策卡
+  objective: 公共契约必须变化时,摆数据让用户裁决兼容方案
+  exception: true
+  applies_to: [公共 props, hook 返回值, API payload, 默认值, 公共状态, 缓存 key]
+  inputs:
+    required: [旧契约, 新契约]
+    inherited: [C05.impact_table]
+  comparison_required:
+    - 旧契约
+    - 新契约
+    - 调用方数量
+    - 迁移成本
+    - 兼容方案
+    - 测试覆盖
+  outputs:
+    required: [compatibility_decision]   # 用户裁决 + 兼容方案,写入 state.user_decisions
+  evidence: [symbol, file_path, user_decision]
+  exit_criteria:
+    - 六项对比已列齐
+    - 用户已裁决
+    - 若改契约: contracts_to_preserve 已更新并重过 C07
+  failure_routes:
+    unresolved: Q01
+  next_card: null

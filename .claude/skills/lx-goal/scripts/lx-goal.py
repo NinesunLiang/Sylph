@@ -50,6 +50,14 @@ MODE_FILE = STATE_DIR / "tokens" / "lx-goal.json"
 AUTONOMOUS_SIGNAL = STATE_DIR / "tokens" / "autonomous.active"
 get_now = lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
+# Round7 PKG-6: 生命周期互斥 SSOT(set_mode 唯一写口;导入失败 = fail-closed 禁入 goal)
+os.environ.setdefault("CLAUDE_PROJECT_DIR", str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "hooks" / "lib"))
+try:
+    from lifecycle_ssot import set_mode as _lc_set_mode
+except Exception:
+    _lc_set_mode = None
+
 
 # ============================================================
 # 工具函数
@@ -158,6 +166,18 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
     now = get_now()
 
+    # Round7 PKG-6: 生命周期互斥(fail-closed)——ghost 激活中拒绝进入 goal,先于任何落盘
+    date_str = datetime.now().strftime("%Y%m%d")
+    slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50]) or f"goal-{datetime.now().strftime('%H%M%S')}"
+    if _lc_set_mode is None:
+        print("❌ lifecycle SSOT 不可用(lifecycle_ssot 导入失败),拒绝进入 goal 模式", file=sys.stderr)
+        sys.exit(2)
+    try:
+        _lc_set_mode("goal", goal_id=slug)
+    except ValueError as exc:
+        print(f"❌ 生命周期互斥拒绝: {exc}", file=sys.stderr)
+        sys.exit(2)
+
     # 写 mode file
     STATE_DIR.mkdir(parents=True, exist_ok=True)
     TOKENS_DIR.mkdir(parents=True, exist_ok=True)
@@ -184,8 +204,6 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     AUTONOMOUS_SIGNAL.touch()
 
     # 创建计划目录 + 物理锁(日期统一 %Y%m%d,与 carros_base token 目录格式一致)
-    date_str = datetime.now().strftime("%Y%m%d")
-    slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50]) or f"goal-{datetime.now().strftime('%H%M%S')}"
     plan_dir = PLANS_DIR / date_str / slug
     plan_dir.mkdir(parents=True, exist_ok=True)
     (plan_dir / "state").mkdir(exist_ok=True)
@@ -304,6 +322,13 @@ def cmd_off():
     for old in [STATE_DIR / "unattended-mode.json", STATE_DIR / ".unattended-mode"]:
         old.unlink(missing_ok=True)
     AUTONOMOUS_SIGNAL.unlink(missing_ok=True)
+
+    # Round7 PKG-6: 生命周期回 idle(off 永不阻断,失败仅警告)
+    if _lc_set_mode is not None:
+        try:
+            _lc_set_mode("idle")
+        except Exception as exc:
+            print(f"⚠️ lifecycle 回 idle 失败(不阻断 off): {exc}", file=sys.stderr)
 
     print("✅ 目标模式已关闭，所有 hook 恢复正常阻断")
 

@@ -26,22 +26,31 @@ RUNTIME_AGENT = SCRIPT_DIR / "runtime_oracle_agent.py"
 META = SCRIPT_DIR / "meta_oracle.py"
 TOKENS_DIR = ROOT / ".omc" / "tokens"
 
+# Round7 PKG-2: token 读取委托 SSOT(单一真相源,禁第二实现)
+# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
+sys.path.insert(0, str(SCRIPT_DIR / "lib"))
+try:
+    from task_ssot import latest_active_token as _ssot_latest_active_token
+except Exception:  # SSOT 不可用 → 无默认 task-id(调用方已处理 None)
+    _ssot_latest_active_token = None
+
 
 def _latest_task_id() -> str | None:
-    if not TOKENS_DIR.exists():
+    """委托 task_ssot:终态(archived/done/completed)与非任务 token 永不复活。
+
+    根因(2026-07-20 幻影 token 事件):旧实现按 mtime 取前 5,archived token
+    经水位回写刷新 mtime → 审核归属到已终态的旧任务。
+    """
+    if _ssot_latest_active_token is None:
         return None
-    candidates = sorted(
-        [p for p in TOKENS_DIR.glob("*/*.json") if p.is_file()],
-        key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    for path in candidates[:5]:
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if isinstance(data.get("task"), dict):
-            return data.get("session", {}).get("id") or path.stem
-    return None
+    path = _ssot_latest_active_token(TOKENS_DIR)
+    if path is None:
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    return data.get("session", {}).get("id") or path.stem
 
 
 def _run(cmd: list[str], timeout: int = 120) -> tuple[int, str, str]:

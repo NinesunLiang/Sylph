@@ -1,0 +1,28 @@
+card:
+  id: C04
+  title: 依赖与数据流卡
+  objective: 回答数据从哪里来、如何渲染、如何修改、如何回到 server
+  inputs:
+    required: [module]
+    inherited: [C02.requirement, C03.module]
+  auto_checks:
+    - 沿调用链跟踪(页面入口→组件→事件处理器→hook/store action→mapper/serializer→API client→server→response parser→cache/store→UI 重渲染)
+    - 检查 loading/error/empty/success 四态
+    - 检查缓存 key / optimistic update / query invalidation
+    - 检查 URL 状态 / 表单默认值
+    - 检查 API 类型与 UI 类型之间的转换
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 数据流经过仓库外服务,无法确认其行为
+  outputs:
+    required: [data_flow.reads, data_flow.writes, data_flow.state.readers, data_flow.state.writers, data_flow.state.defaults]
+  evidence: [file_path, symbol, command_result]
+  notes: 依赖树是事实制品,完整调查外置保存(无损可回滚);压缩摘要不得作为公共接口判断的唯一依据
+  exit_criteria:
+    - 读路径已追踪(source→path→destination)
+    - 写路径已追踪(trigger→endpoint→post_success/post_failure)
+    - 状态读写者与默认值已列明
+  failure_routes:
+    unresolved: Q01
+  next_card: C05

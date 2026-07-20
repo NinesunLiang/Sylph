@@ -1,0 +1,38 @@
+card:
+  id: C09
+  title: 机械验证卡
+  objective: 用工具证明改动没有引入基础质量问题
+  hard_gate: 未 pass 本卡,状态机拒绝 pass C13(机械验证未过,不宣称完成)
+  inputs:
+    required: [implementation_unit]
+    inherited: [C01.baseline.commands, C07.change_contract.verification_commands, C08.implementation_unit]
+  auto_checks:
+    顺序执行(只跑项目已有命令,不猜测、不中途自动修复):
+      - git diff --check
+      - changed-files lint
+      - targeted test
+      - typecheck
+      - project lint
+      - broader test
+      - build
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 验证命令在基线中不存在且无法推断
+  failure_classification:   # 失败时先分类再路由,不能默默修复
+    - pre_existing       # 基线已有 → X02 记录,不伪装成通过
+    - caused_by_change   # 本次改动造成且修复在契约内 → 抽新 C08 修复单元
+    - environmental      # 环境问题 → 记录
+    - unknown            # 原因不明 → X04
+  outputs:
+    required: [validation_table]   # {check, before, after, regression, result} 写入 state.validation_results
+  evidence: [command_result]
+  exit_criteria:
+    - 验证序列全部执行
+    - 无新增回归
+    - 所有失败已分类并按 route 处理完毕
+  failure_routes:
+    baseline_failure: X02
+    verification_failed: X04
+    unresolved: Q01
+  next_card: C10

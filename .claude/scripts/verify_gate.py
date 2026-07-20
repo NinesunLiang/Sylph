@@ -372,6 +372,12 @@ def write_audit(decision: VerifyDecision, token: dict[str, Any] | None = None) -
         "missing": decision.missing,
         "warnings": decision.warnings,
         "required_action": decision.required_action,
+        # Round7 PKG-4(E7 校准账): claim 语义字段——每条 verify_decision 是一条
+        # "本步已验证"断言,claim_id 稳定可索引,evidence_ids 回溯支撑证据,
+        # status 供 jq 统计 overturn(verified→后被推翻率)。
+        "claim_id": f"verify:{decision.step}",
+        "evidence_ids": [f"matched:{m}" for m in decision.matched],
+        "status": "verified" if decision.decision == "VERIFIED" else "unverified",
     }
     if token:
         event["task_id"] = (token.get("session", {}) or {}).get("id") \

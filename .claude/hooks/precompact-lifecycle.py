@@ -28,23 +28,24 @@ TOKENS_DIR = ROOT / ".omc" / "tokens"
 TASKS_DIR = ROOT / ".omc" / "tasks"
 CONTEXT_ENGINE = ROOT / ".claude" / "scripts" / "context_engine.py"
 
+# Round7 PKG-2: token 读取委托 SSOT(单一真相源,禁第二实现)
+# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
+sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
+try:
+    from task_ssot import latest_active_token as _ssot_latest_active_token
+except Exception:  # SSOT 不可用 → 跳过 compact-write 刷新(快照 fail-closed 不受影响)
+    _ssot_latest_active_token = None
+
 
 def _latest_token() -> Path | None:
-    if not TOKENS_DIR.exists():
+    """委托 task_ssot:终态(archived/done/completed)与非任务 token 永不复活。
+
+    根因(2026-07-20 幻影 token 事件):旧实现按 mtime 取前 5 + candidates[0] 兜底,
+    水位回写刷新 archived token mtime → compact 前 handoff 绑定到幻影任务。
+    """
+    if _ssot_latest_active_token is None:
         return None
-    candidates = sorted(
-        [p for p in TOKENS_DIR.glob("*/*.json") if p.is_file()],
-        key=lambda p: p.stat().st_mtime,
-        reverse=True,
-    )
-    for path in candidates[:5]:
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-        except Exception:
-            continue
-        if isinstance(data.get("task"), dict):
-            return path
-    return candidates[0] if candidates else None
+    return _ssot_latest_active_token(TOKENS_DIR)
 
 
 def _resolve_task_dir(token_path: Path) -> Path | None:

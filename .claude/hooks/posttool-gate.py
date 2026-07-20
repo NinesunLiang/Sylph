@@ -30,6 +30,21 @@ TOKENS_DIR = OMC / "tokens"
 SCRIPTS = ROOT / ".claude" / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
+# Round7 PKG-2: token 读取委托 SSOT + error_dna 死导入修复
+# 直插 lib 目录按顶层模块导入——hooks/lib 正规包(含 __init__.py)会遮蔽
+# lib.* 包路径,使旧 `from lib.error_dna import` 解析到 hooks/lib(无此模块)
+# → ImportError 被 :158 except 吞掉 → error DNA 自接入之日起静默死
+# (文件头 docstring 宣称"生产路径接入"=虚假接线,2026-07-20 实证)
+sys.path.insert(0, str(SCRIPTS / "lib"))
+try:
+    from task_ssot import latest_active_token as _ssot_latest_active_token
+except Exception:  # SSOT 不可用 → error DNA 跳过归属(永不阻断工具响应)
+    _ssot_latest_active_token = None
+try:
+    from error_dna import record_error as _record_error
+except Exception:  # error_dna 不可用 → 降级跳过(永不阻断)
+    _record_error = None
+
 SIZE_THRESHOLD = 50 * 1024  # 50KB
 PREVIEW_LEN = 1300
 
@@ -57,22 +72,24 @@ def _append_audit(event: dict) -> None:
 
 
 def _active_task() -> tuple[Path | None, str]:
-    """Returns (task_dir, current_step) of latest carros token."""
-    if not TOKENS_DIR.exists():
+    """Returns (task_dir, current_step) of latest ACTIVE carros token — 委托 task_ssot。
+
+    根因(2026-07-20 幻影 token 事件):旧实现按 mtime 取前 5 无终态过滤,
+    archived token 经水位回写刷新 mtime → error DNA 记录到已终态的旧任务目录。
+    """
+    if _ssot_latest_active_token is None:
         return None, "unknown"
-    candidates = sorted(
-        [p for p in TOKENS_DIR.glob("*/*.json") if p.is_file()],
-        key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    for path in candidates[:5]:
-        data = _read_json(path, {})
-        task = data.get("task")
-        if not isinstance(task, dict):
-            continue
-        task_dir = data.get("task_dir")
-        step = str(task.get("current_step") or "unknown")
-        if task_dir and (ROOT / task_dir).exists():
-            return ROOT / task_dir, step
+    path = _ssot_latest_active_token(TOKENS_DIR)
+    if path is None:
+        return None, "unknown"
+    data = _read_json(path, {})
+    task = data.get("task")
+    if not isinstance(task, dict):
+        return None, "unknown"
+    task_dir = data.get("task_dir")
+    step = str(task.get("current_step") or "unknown")
+    if task_dir and (ROOT / task_dir).exists():
+        return ROOT / task_dir, step
     return None, "unknown"
 
 
@@ -137,12 +154,11 @@ def main() -> None:
             pass
 
     # ─── 2. Error DNA: real tool failure → record ───
-    if _is_failure(tool, resp):
+    if _is_failure(tool, resp) and _record_error is not None:
         try:
             task_dir, step = _active_task()
             if task_dir:
-                from lib.error_dna import record_error
-                record_error(
+                _record_error(
                     task_dir=task_dir,
                     step_id=step,
                     error_text=f"[{tool}] {text[:400]}",

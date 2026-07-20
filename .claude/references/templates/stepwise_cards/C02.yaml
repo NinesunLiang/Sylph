@@ -1,0 +1,32 @@
+card:
+  id: C02
+  title: 需求澄清卡
+  objective: 把自然语言需求转成可验证的行为——不讨论实现方案
+  inputs:
+    required: [task.summary]
+    inherited: [C00.task, C01.baseline]
+  auto_checks:
+    - 搜索需求提到的文案/页面/组件名称
+    - 查看当前 UI 行为
+    - 查看相邻功能的交互模式
+    - 查看已有测试表达的业务规则
+    - 查看类型/接口/mock 数据
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 两种实现都符合现有代码,无法确定预期(产品决策)
+      - 需求与现有行为冲突
+      - 成功/失败/空状态未定义且会直接影响用户
+      - 是否保持向后兼容无法从代码确定
+      - 验收标准无法客观判断
+  outputs:
+    required: [requirement.actor, requirement.trigger, requirement.expected_behavior, requirement.visible_result, requirement.failure_behavior, requirement.loading_behavior, requirement.empty_behavior, requirement.out_of_scope, requirement.unresolved]
+  evidence: [file_path, symbol, user_decision]
+  exit_criteria:
+    - actor/trigger/预期行为已明确
+    - 失败/加载/空态已定义或标记待确认
+    - out_of_scope 已列明
+    - unresolved 已空或已走 Q01 闭环
+  failure_routes:
+    unresolved: Q01
+  next_card: C03

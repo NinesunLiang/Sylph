@@ -1,0 +1,26 @@
+card:
+  id: Q01
+  title: 用户问询卡
+  objective: 一次只问一个决策主题——已尽力自查仍无法确定时,向用户要决策
+  exception: true
+  inputs:
+    required: [来源卡的已确认事实, 无法自行确定的问题]
+    inherited: []
+  auto_checks: []   # 进入本卡前必须已按信息优先级自查过,本卡本身无自查项
+  question_format:
+    - 已确认事实(列清)
+    - 无法自行确定(一个问题主题)
+    - 可选项(A/B/C/D)
+    - 我的建议 + 原因
+    - 声明: 确认前不会继续实施
+  rules:
+    - 一次只问一个决策主题,不把十个问题一起丢给用户
+    - 用户回答后,结论写回来源主卡的 outputs,不是只留在聊天记录
+  outputs:
+    required: [user_decision]   # 写入 state.user_decisions
+  evidence: [user_decision]
+  exit_criteria:
+    - 用户已回复
+    - 结论已写回来源卡
+  failure_routes: {}
+  next_card: null   # resolve 后回到来源卡

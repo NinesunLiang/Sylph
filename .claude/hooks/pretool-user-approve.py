@@ -41,6 +41,14 @@ CONTEXT_ENGINE = ROOT / ".claude" / "scripts" / "context_engine.py"
 COMPACT_WRITE_LOG = STATE_DIR / "compact-write.log"
 WATERMARK_PATH = STATE_DIR / "context-watermark.json"
 
+# Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)
+# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
+sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
+try:
+    from task_ssot import latest_active_token as _ssot_latest_active_token
+except Exception:  # SSOT 不可用时本钩降级为跳过 token 回写/注入(永不阻断 prompt)
+    _ssot_latest_active_token = None
+
 MAX_RING = 20
 INJECT_INTERVAL = 5  # 每 5 轮：compact-write + 尾部状态注入（U 型注意力）
 
@@ -64,34 +72,15 @@ def _read_json(path: Path, default):
         return default
 
 
-# 终态集合：archived/done/completed 的 token 不参与水位回写与状态注入。
-# 根因(2026-07-20 幻影 token 事件)：mtime 取最新 + 本文件每轮回写 → 陈旧任务自我续命。
-_TERMINAL_TOKEN_STATUS = ("archived", "done", "completed")
-
-
 def _latest_token() -> Path | None:
-    """Latest ACTIVE carros task token (skips terminal-status and non-dict-task tokens)."""
-    if not TOKENS_DIR.exists():
+    """Latest ACTIVE carros task token — 委托 task_ssot(单一真相源)。
+
+    保 stats 要求(水位回写目标必须有 stats dict);SSOT 不可用 → None(降级跳过)。
+    根因(2026-07-20 幻影 token 事件):mtime 取最新 + 本文件每轮回写 → 陈旧任务自我续命。
+    """
+    if _ssot_latest_active_token is None:
         return None
-    candidates = sorted(
-        [p for p in TOKENS_DIR.glob("*/*.json") if p.is_file()],
-        key=lambda p: p.stat().st_mtime, reverse=True,
-    )
-    for path in candidates:
-        data = _read_json(path, {})
-        if not isinstance(data, dict) or not data:
-            continue
-        if str(data.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
-            continue
-        task = data.get("task")
-        if not isinstance(task, dict):
-            continue  # lx-goal 物理锁等非任务 token
-        if str(task.get("status", "")).lower() in _TERMINAL_TOKEN_STATUS:
-            continue
-        if not isinstance(data.get("stats"), dict):
-            continue
-        return path
-    return None
+    return _ssot_latest_active_token(TOKENS_DIR, require_stats=True)
 
 
 def _extract_prompt(raw: str) -> str:
@@ -170,13 +159,8 @@ def _watermark_level(pct: float) -> str:
     return "SAFE"
 
 
-def _update_watermark(transcript: Path | None) -> dict | None:
-    """实测水位 → 写 state 文件 + 同步 token session。返回 {pct, used, limit, level}。"""
-    if transcript is None:
-        return None
-    used = _measure_used_tokens(transcript)
-    if used is None or used <= 0:
-        return None
+def _write_watermark_state(used: int) -> dict:
+    """写 state 文件 + 同步 token session(唯一写口;session-start compact 重测复用)。"""
     limit = _context_limit()
     pct = round(used / limit * 100, 1)
     level_name = _watermark_level(pct)
@@ -199,6 +183,16 @@ def _update_watermark(transcript: Path | None) -> dict | None:
             except OSError:
                 pass
     return data
+
+
+def _update_watermark(transcript: Path | None) -> dict | None:
+    """实测水位 → 写 state 文件 + 同步 token session。返回 {pct, used, limit, level}。"""
+    if transcript is None:
+        return None
+    used = _measure_used_tokens(transcript)
+    if used is None or used <= 0:
+        return None
+    return _write_watermark_state(used)
 
 
 def _watermark_injection_line(wm: dict | None) -> str:

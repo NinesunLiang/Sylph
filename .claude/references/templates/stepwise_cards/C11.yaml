@@ -1,0 +1,34 @@
+card:
+  id: C11
+  title: 影响回归卡
+  objective: 从实际 diff 反向枚举所有变更符号,确认没有影响其他地方
+  inputs:
+    required: [实际 diff]
+    inherited: [C05.impact_table, C10.review_findings]
+  auto_checks:
+    对每个变更符号检查:
+      - 定义位置与全部调用方
+      - export 变化
+      - props/参数/返回类型变化
+      - 默认值变化
+      - null/undefined 行为变化
+      - 请求结构变化
+      - 缓存 key 变化
+      - 副作用时序变化
+      - 现有测试覆盖
+  user_questions:
+    policy: only_if_unresolved
+    questions: []
+  notes: 类型兼容不等于行为兼容——默认值/请求时机/错误处理/副作用顺序必须单独检查
+  outputs:
+    required: [regression_table]   # {变更符号, 调用方, 契约改变, 测试覆盖, 风险}
+  evidence: [symbol, file_path, command_result]
+  exit_criteria:
+    - 变更符号全部枚举
+    - 契约变化全部核对
+    - 风险项已清零或已走 X04 闭环
+  failure_routes:
+    verification_failed: X04
+    public_contract: X03
+    unresolved: Q01
+  next_card: C12

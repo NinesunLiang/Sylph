@@ -1,0 +1,24 @@
+card:
+  id: X05
+  title: 工作区冲突卡
+  objective: 用户未提交改动与目标文件重叠时,保护用户改动不受损
+  exception: true
+  inputs:
+    required: [重叠文件清单]
+    inherited: [C01.baseline.user_owned_changes]
+  hard_rules:
+    - 不 reset
+    - 不 checkout 覆盖
+    - 不 stash 用户改动,除非用户明确授权
+    - 展示重叠文件清单
+    - 说明可安全继续还是需要隔离 worktree
+  outputs:
+    required: [conflict_disposition]   # safe_continue|worktree|user_resolve,写入 state.user_decisions
+  evidence: [command_result, user_decision]
+  exit_criteria:
+    - 重叠文件已向用户展示
+    - 处置方式已确定
+    - 用户改动零损失
+  failure_routes:
+    unresolved: Q01
+  next_card: null

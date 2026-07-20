@@ -21,6 +21,19 @@ source "$SCRIPT_DIR/../../../hooks/harness_config.sh"
 mkdir -p "$STATE_DIR/tokens" 2>/dev/null
 MODE_FILE="$STATE_DIR/tokens/lx-ghost.json"
 
+# Round7 PKG-6: 生命周期互斥 SSOT 辅助(off/过期回 idle,永不阻断)
+_lc_reset_idle() {
+    CLAUDE_PROJECT_DIR="$PROJECT_ROOT" ${PYTHON_BIN:-python3} <<'PYEOF'
+import os, sys
+sys.path.insert(0, os.path.join(os.environ['CLAUDE_PROJECT_DIR'], '.claude', 'hooks', 'lib'))
+try:
+    from lifecycle_ssot import set_mode
+    set_mode("idle")
+except Exception as e:
+    print(f"⚠️ lifecycle 回 idle 失败(不阻断): {e}", file=sys.stderr)
+PYEOF
+}
+
 # 智能参数检测：第一个参数不是已知子命令 → 当作方向描述自动激活
 _KNOWN_SUBCOMMANDS="on|off|status|set|poll|skip-risk|hard-boundary-hit|blocked-human|retry"
 if [ -n "${1:-}" ] && ! echo "$1" | grep -Eq "^($_KNOWN_SUBCOMMANDS)$"; then
@@ -32,6 +45,28 @@ case "${1:-status}" in
         DIRECTION="${2:-自主探索和修复系统问题}"
         INTERVAL="${3:-$(hc_get "ghost_mode.default_poll_interval" "600")}"
         EXPIRY_HOURS="${4:-$(hc_get "ghost_mode.default_expiry_hours" "3")}"
+        # Round7 PKG-6: 生命周期互斥(fail-closed)——goal 激活中拒绝进入 ghost,先于任何落盘
+        DATE=$(date +%Y-%m-%d)
+        SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
+        [ -z "$SLUG" ] && SLUG="ghost-$(date +%H%M%S)"
+        export _LX_GHOST_SLUG="$SLUG"
+        if ! CLAUDE_PROJECT_DIR="$PROJECT_ROOT" ${PYTHON_BIN:-python3} <<'PYEOF'
+import os, sys
+sys.path.insert(0, os.path.join(os.environ['CLAUDE_PROJECT_DIR'], '.claude', 'hooks', 'lib'))
+try:
+    from lifecycle_ssot import set_mode
+except Exception as e:
+    print(f"❌ lifecycle SSOT 不可用({e}),拒绝进入 ghost 模式", file=sys.stderr)
+    sys.exit(2)
+try:
+    set_mode("ghost", ghost_id=os.environ['_LX_GHOST_SLUG'])
+except ValueError as e:
+    print(f"❌ 生命周期互斥拒绝: {e}", file=sys.stderr)
+    sys.exit(2)
+PYEOF
+        then
+            exit 2
+        fi
         # DG-007 安全修复: 用 json.dumps 序列化而非 heredoc 裸拼接
         # 避免 direction 中的换行/引号/特殊字符破坏 JSON 结构
         export _LX_DIRECTION="$DIRECTION"
@@ -70,9 +105,6 @@ PYEOF
         touch "$STATE_DIR/tokens/autonomous.active"
         # 清理旧格式文件
         rm -f "$STATE_DIR/.unattended-mode" "$STATE_DIR/ghost-mode.active" 2>/dev/null
-DATE=$(date +%Y-%m-%d)
-SLUG=$(echo "$DIRECTION" | tr " " "-" | tr -cd "[:alnum:]-_" | head -c 50)
-[ -z "$SLUG" ] && SLUG="ghost-$(date +%H%M%S)"
 CHAT_DIR="$PROJECT_ROOT/.omc/chats/${DATE}/${SLUG}"
 mkdir -p "$CHAT_DIR"
 	${PYTHON_BIN:-python3} -c "import json; json.dump({'phase':'exploring','created_at':'$(date -u +%Y-%m-%dT%H:%M:%SZ)'},open('$CHAT_DIR/state.json','w'))"
@@ -152,6 +184,8 @@ json.dump(d, open(sf, 'w'), indent=2, ensure_ascii=False)
 		# 清理旧格式文件
 		rm -f "$STATE_DIR/ghost-mode.json" "$STATE_DIR/ghost-mode.active" 2>/dev/null
 		rm -f "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
+		# Round7 PKG-6: 生命周期回 idle(off 永不阻断,失败仅警告)
+		_lc_reset_idle
 		echo "✅ 幽灵模式已关闭，所有 hook 恢复正常阻断"
 		;;
     status)
@@ -227,14 +261,19 @@ PYEOF
         EXPIRES=$(${PYTHON_BIN:-python3} -c "import json; d=json.load(open('$MODE_FILE')); print(d.get('expires_at',''))" 2>/dev/null)
         if [ -n "$EXPIRES" ]; then
             EXPIRED=$(${PYTHON_BIN:-python3} -c "
-from datetime import datetime
+from datetime import datetime, timezone
 try:
     exp = datetime.fromisoformat('$EXPIRES')
-    print('yes' if datetime.now() > exp else 'no')
-except: print('no')" 2>/dev/null)
+    if exp.tzinfo is None:
+        exp = exp.replace(tzinfo=timezone.utc)
+    print('yes' if datetime.now(timezone.utc) > exp else 'no')
+except Exception: print('no')" 2>/dev/null)
             if [ "$EXPIRED" = "yes" ]; then
-                echo "⏰ 幽灵模式已过期（$EXPIRES），自动关闭"
+                # bash3.2 反模式: \$VAR 直接跟多字节字符会吞字节——必须 \${VAR} 花括号
+                echo "⏰ 幽灵模式已过期（${EXPIRES}），自动关闭"
                 rm -f "$MODE_FILE" "$STATE_DIR/tokens/autonomous.active" 2>/dev/null
+                # Round7 PKG-6: 过期自动关闭同样回 idle(永不阻断)
+                _lc_reset_idle
                 exit 0
             fi
         fi

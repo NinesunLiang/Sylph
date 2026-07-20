@@ -1,0 +1,33 @@
+card:
+  id: C10
+  title: 独立审查卡
+  objective: 由没有参与实现上下文的 Reviewer 审查实际 diff(建议 fresh-context subagent)
+  inputs:
+    required: [实际 diff]
+    inherited: [C07.change_contract, C09.validation_table]
+  auto_checks:
+    - 是否偏离相邻模块写法
+    - 是否出现无关重构
+    - 是否修改公共资源
+    - 是否重复造轮子
+    - 是否改变默认值或错误行为
+    - 是否有 stale state/竞态/重复提交
+    - 是否破坏 a11y/responsive/dark mode
+    - 测试是否只覆盖实现细节
+  user_questions:
+    policy: only_if_unresolved
+    questions: []
+  severity_scale: [BLOCKER(错误/安全/公共契约破坏), HIGH(较大概率回归), MEDIUM(维护性或边界), LOW(非阻塞建议)]
+  finding_format: 每项必须带 文件+行号/证据/影响/最小修复建议
+  no_finding_format: 无问题时明确输出"未发现阻塞问题 + 剩余验证盲区",不为显得认真强行找问题
+  outputs:
+    required: [review_findings, review_residual_blind_spots]
+  evidence: [file_path, symbol]
+  exit_criteria:
+    - 实际 diff 已审查
+    - findings 已按四级分类
+    - BLOCKER/HIGH 已清零或已走 X04 闭环
+  failure_routes:
+    verification_failed: X04
+    unresolved: Q01
+  next_card: C11

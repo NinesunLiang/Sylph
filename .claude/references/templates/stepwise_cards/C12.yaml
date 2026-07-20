@@ -1,0 +1,30 @@
+card:
+  id: C12
+  title: 仓库清洁卡
+  objective: 保证项目没有被分析产物、生成文件或无关改动污染
+  hard_gate: 未 pass 本卡,状态机拒绝 off(仓库未清洁,不交付)
+  inputs:
+    required: [实际 diff]
+    inherited: [C01.baseline, C07.change_contract]
+  auto_checks:
+    - git status --short / git diff --stat / git diff --check / git diff --name-only
+    - 扫描 package.json 与 lockfile 是否被意外改动
+    - 扫描临时 HTML/coverage/dist/build/日志/截图/snapshot
+    - 扫描 console.log/debugger/TODO/FIXME/ts-ignore/eslint-disable
+    - 扫描大范围格式化扩散
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 无法确认归属的文件——不能自行删除,必须问用户
+  outputs:
+    required: [repository_cleanliness.intended_changes, repository_cleanliness.unintended_changes, repository_cleanliness.generated_files, repository_cleanliness.user_owned_files, repository_cleanliness.dependency_changes, repository_cleanliness.cleanup_required]
+  evidence: [command_result, file_path]
+  exit_criteria:
+    - git 状态已核对
+    - 非意图改动已清零或获用户确认
+    - 生成物/临时产物已清理
+    - cleanup_required 已空
+  failure_routes:
+    workspace_conflict: X05
+    unresolved: Q01
+  next_card: C13

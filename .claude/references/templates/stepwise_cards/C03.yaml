@@ -1,0 +1,30 @@
+card:
+  id: C03
+  title: 模块定位卡
+  objective: 准确定位页面入口、功能模块和模块边界,每项附证据
+  inputs:
+    required: [requirement]
+    inherited: [C01.baseline, C02.requirement]
+  auto_checks:
+    - 搜索路由
+    - 搜索页面文案
+    - 搜索组件引用
+    - 查找入口组件
+    - 查找相邻测试和 Storybook
+    - 使用语言服务查找 definition/references
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 存在多个同名组件/路由,无法确定目标
+      - 需求涉及的模块在仓库中不存在
+  outputs:
+    required: [module.route_entry, module.page_entry, module.primary_component, module.private_components, module.shared_components, module.related_tests, module.related_stories, module.ownership_boundary]
+  evidence: [file_path, symbol]   # 每项必须带: 定义位置/引用位置/私有或共享范围
+  exit_criteria:
+    - 找到页面或功能入口
+    - 找到主要组件
+    - 区分模块私有资源和共享资源
+    - 找到相关测试,或确认不存在
+  failure_routes:
+    unresolved: Q01
+  next_card: C04

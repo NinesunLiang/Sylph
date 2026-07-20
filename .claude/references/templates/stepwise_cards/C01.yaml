@@ -1,0 +1,32 @@
+card:
+  id: C01
+  title: 工作区基线卡
+  objective: 确定"修改前"的仓库状态——防覆盖用户改动,防把旧问题误判为新回归
+  inputs:
+    required: [task.summary, task.repository]
+    inherited: [C00.task]
+  auto_checks:
+    - git status --short / git branch --show-current / git diff --stat / git diff --name-only
+    - 读 package.json + lockfile + TS/lint/test/build 配置
+    - 成本可接受时跑现有项目脚本(禁自动修复参数)
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 目标文件已有用户未提交修改
+      - 工作区存在大量未知修改,无法区分归属
+      - 基线验证失败且会妨碍本任务判断
+      - 当前处于受保护分支,而流程要求新建分支
+  outputs:
+    required: [baseline.branch, baseline.package_manager, baseline.dirty_files, baseline.user_owned_changes, baseline.commands, baseline.existing_failures]
+  evidence: [command_result, file_path]
+  exit_criteria:
+    - 已记录修改前 Git 状态
+    - 已识别包管理器
+    - 已识别验证命令
+    - 已区分用户已有改动
+    - 没有覆盖风险
+  failure_routes:
+    workspace_conflict: X05
+    baseline_failure: X02
+    unresolved: Q01
+  next_card: C02

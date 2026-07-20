@@ -1,0 +1,35 @@
+card:
+  id: C06
+  title: 方案选择卡
+  objective: 提出最小可行方案,在修改代码前确定实现路径
+  inputs:
+    required: [requirement, change_boundary]
+    inherited: [C02.requirement, C05.change_boundary]
+  auto_checks:
+    - 提供最多三个方案(A 模块内局部实现 / B 复用现有公共能力 / C 扩展公共抽象)
+    - 按默认优先级排序(现有能力直接复用 > 模块内局部组合 > 向后兼容扩展公共能力 > 修改公共契约 > 新增依赖)
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 不同方案会产生不同用户行为
+      - 需要改变公共契约
+      - 需要新增依赖
+      - 需要修改受保护文件
+      - 需要在技术债务和局部重复之间做产品级取舍
+  auto_select_when:   # 全部满足才可不问人自动选定
+    - 只有一个明显符合现有 pattern 的方案
+    - 不修改公共资源
+    - 不引入依赖
+    - 不改变用户未说明的行为
+    - 修改范围局部且可逆
+  outputs:
+    required: [solution.files_to_change, solution.files_to_add, solution.public_contract_changes, solution.benefits, solution.risks, solution.verification]
+  evidence: [file_path, user_decision]
+  exit_criteria:
+    - 方案已选定(自动或 Q01 闭环)
+    - 文件清单已列明
+    - 公共契约变化已列明或确认为零
+  failure_routes:
+    scope_violation: X01
+    unresolved: Q01
+  next_card: C07

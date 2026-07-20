@@ -74,6 +74,12 @@ run_suite "verify-gate"       "verify"    python3 scripts/test-verify-gate.py
 run_suite "goal-mode-gate"    "goalmode"  python3 scripts/test-goal-mode-gate.py
 run_suite "hook-launcher"     "launcher"  bash scripts/test-hook-launcher.sh
 run_suite "pkg-c-lifecycle"   "pkgc"      python3 .claude/hooks/tests/test_pkg_c_lifecycle.py
+run_suite "task-ssot"         "ssot"      python3 scripts/test-task-ssot.py
+run_suite "e4-inertia"        "e4"        python3 scripts/test-e4-inertia.py
+run_suite "audit-schema"      "audit"     python3 scripts/test-audit-schema.py
+run_suite "nine-challenge"    "nine"      python3 scripts/test-nine-challenge.py
+run_suite "lx-stepwise"       "stepwise"  python3 scripts/test-lx-stepwise.py
+run_suite "lifecycle-mutex"   "mutex"     python3 scripts/test-lifecycle-mutex.py
 
 echo "---"
 echo "回归结果: $pass 过 / $fail 败 (共 $((pass + fail)) 套件)"

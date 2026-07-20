@@ -16,12 +16,20 @@
      80 COMPACT_NOW / 缺水位 DOWNGRADE_REQUIRED
   W7 precompact 刷新集成: precompact-lifecycle.py 跑通,compact_write=ok,
      handoff 刷新(备份/恢复真实文件,不吞生产状态)
+  W8 compact 后快照陈旧修复(SessionStart boundary-aware 重测):
+     8-1 boundary 终锚无 post-usage → postTokens+fallback overhead 刷新(非陈旧值)
+     8-2 overhead 取上一 boundary 实测(post/usage 差值)
+     8-3 boundary 后已有 usage → 委托 pua 常规路径
+     8-4 端到端 session-start source=compact 触发重测落盘
+     8-5 source=startup 不触发重测
 
 副作用声明:
   - 备份并原样恢复 .omc/state/context-watermark.json(每轮 prompt 都会重写的生产文件)
   - 备份并原样恢复 goal 信号 autonomous.active 与 lx-goal.json(同 T1 基线口径)
   - W7 备份并原样恢复 .omc/session-handoff.md 与 .omc/state/last-user-prompt.md;
     删除测试产生的 precompact-*.json 快照
+  - W8 备份并原样恢复最新活跃 token 文件(重测经 pua 写口会同步 session 字段);
+    删除 tt-w8-transcript.jsonl
   - 门在 .omc/audit/<today>.jsonl 留测试 block 事件(惰性,无真实任务引用)
 
 Usage: python3 scripts/test-context-watermark.py
@@ -92,6 +100,15 @@ mode_backup = MODE_FILE.read_bytes() if MODE_FILE.exists() else None
 handoff_backup = HANDOFF.read_bytes() if HANDOFF.exists() else None
 prompt_backup = LAST_PROMPT.read_bytes() if LAST_PROMPT.exists() else None
 snaps_before = set((ROOT / ".omc" / "state").glob(SNAP_GLOB))
+# W8: 重测经 pua._write_watermark_state 会同步写最新 token 的 session——备份待恢复
+sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
+_active_tok = None
+try:
+    import task_ssot as _tssot
+    _active_tok = _tssot.latest_active_token(ROOT / ".omc" / "tokens")
+except Exception:
+    _active_tok = None
+token_backup = _active_tok.read_bytes() if _active_tok is not None else None
 
 try:
     # 统一用交互基线口径(goal 信号临时移开,同 test-goal-mode-gate T1)
@@ -199,6 +216,78 @@ try:
        f"out={proc.stdout[:200]}")
     ok("W7 handoff 已刷新(含 Session Handoff)",
        HANDOFF.exists() and "Session Handoff" in HANDOFF.read_text(encoding="utf-8"))
+
+    print("=" * 64)
+    print("W8: compact 后水位快照陈旧修复(SessionStart boundary-aware 重测)")
+    print("=" * 64)
+    ss = import_module("session_start_watermark", ROOT / ".claude" / "hooks" / "session-start.py")
+    SESSION_START = ROOT / ".claude" / "hooks" / "session-start.py"
+    tmp_t = ROOT / ".omc" / "state" / "tt-w8-transcript.jsonl"
+
+    def _usage_line(total):
+        return json.dumps({"message": {"usage": {
+            "input_tokens": total, "cache_read_input_tokens": 0,
+            "cache_creation_input_tokens": 0}}})
+
+    def _boundary_line(post):
+        return json.dumps({"type": "system", "subtype": "compact_boundary",
+                           "compactMetadata": {"trigger": "manual", "postTokens": post}})
+
+    def _wm():
+        return json.loads(WM_STATE.read_text(encoding="utf-8"))
+
+    try:
+        # W8-1 最后锚点=boundary 且无 post-usage → postTokens+fallback(30000),非陈旧 84.3%
+        tmp_t.write_text("\n".join([_usage_line(143495), _boundary_line(14864)]),
+                         encoding="utf-8")
+        ss._remeasure_watermark(tmp_t)
+        d = _wm()
+        ok("W8-1 boundary 终锚 → postTokens+overhead 刷新(非陈旧 84.3%)",
+           d["used"] == 14864 + 30000 and d["level"] == "SAFE", d)
+
+        # W8-2 overhead 取上一 boundary 实测(B1 post=10000 + usage 40000 → oh=30000)
+        tmp_t.write_text("\n".join([
+            _usage_line(140000), _boundary_line(10000), _usage_line(40000),
+            _boundary_line(15000)]), encoding="utf-8")
+        ss._remeasure_watermark(tmp_t)
+        d = _wm()
+        ok("W8-2 overhead=上一 boundary 实测(40000-10000) → used=45000",
+           d["used"] == 45000 and abs(d["pct"] - 26.5) < 0.1, d)
+
+        # W8-3 boundary 后已有 usage → 委托常规路径取最后 usage
+        tmp_t.write_text("\n".join([_boundary_line(10000), _usage_line(46453)]),
+                         encoding="utf-8")
+        ss._remeasure_watermark(tmp_t)
+        d = _wm()
+        ok("W8-3 boundary 后有 usage → 常规实测 46453",
+           d["used"] == 46453 and abs(d["pct"] - 27.3) < 0.1, d)
+
+        # W8-4 端到端: session-start.py source=compact 触发重测并落盘
+        tmp_t.write_text("\n".join([_usage_line(143495), _boundary_line(14864)]),
+                         encoding="utf-8")
+        proc = subprocess.run(
+            [sys.executable, str(SESSION_START)],
+            input=json.dumps({"session_id": "tt-w8", "source": "compact",
+                              "transcript_path": str(tmp_t)}),
+            capture_output=True, text=True, cwd=str(ROOT), timeout=30,
+        )
+        d = _wm()
+        ok("W8-4 session-start source=compact → exit 0 + 快照刷新",
+           proc.returncode == 0 and d["used"] == 14864 + 30000,
+           f"rc={proc.returncode} d={d} err={proc.stderr[:200]}")
+
+        # W8-5 source=startup 不触发重测(快照保持 W8-4 值不被例行启动改写)
+        proc = subprocess.run(
+            [sys.executable, str(SESSION_START)],
+            input=json.dumps({"session_id": "tt-w8", "source": "startup",
+                              "transcript_path": str(tmp_t)}),
+            capture_output=True, text=True, cwd=str(ROOT), timeout=30,
+        )
+        d = _wm()
+        ok("W8-5 source=startup → 不重测(快照保持)", d["used"] == 14864 + 30000,
+           f"rc={proc.returncode} d={d}")
+    finally:
+        tmp_t.unlink(missing_ok=True)
 finally:
     if wm_backup is not None:
         WM_STATE.parent.mkdir(parents=True, exist_ok=True)
@@ -226,6 +315,8 @@ finally:
         LAST_PROMPT.unlink(missing_ok=True)
     for snap in set((ROOT / ".omc" / "state").glob(SNAP_GLOB)) - snaps_before:
         snap.unlink(missing_ok=True)
+    if _active_tok is not None and token_backup is not None:
+        _active_tok.write_bytes(token_backup)
 
 print("=" * 64)
 print(f"结果: {PASS}/{PASS + FAIL} PASS, {FAIL} FAIL")
