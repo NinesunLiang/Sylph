@@ -1,10 +1,15 @@
 {
-  "timestamp": 1780975429,
-  "pre_compact_usage": {
-    "input_tokens": 82000,
-    "output_tokens": 12000,
-    "context_compression_ratio": 0.68,
-    "timestamp": 1780975429
-  },
-  "compact_count": 1
+  "compacted_at": "2026-07-05T18:58:17.369509",
+  "active": [
+    {
+      "task_id": "FIX-BUG",
+      "date": "20260705",
+      "status": "planning"
+    },
+    {
+      "task_id": "REFACTOR-ME",
+      "date": "20260705",
+      "status": "planning"
+    }
+  ]
 }

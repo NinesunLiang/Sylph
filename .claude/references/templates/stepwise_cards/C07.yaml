@@ -1,0 +1,30 @@
+card:
+  id: C07
+  title: 变更契约卡
+  objective: 冻结本次允许修改的内容——实施前的硬门禁
+  hard_gate: 未 pass 本卡,状态机拒绝 pass 后续所有卡(变更契约未冻结,不动代码)
+  inputs:
+    required: [solution]
+    inherited: [C05.change_boundary, C06.solution]
+  auto_checks:
+    - 生成 change_contract(allowed_files/allowed_new_files/protected_files/contracts_to_preserve/acceptance_criteria/verification_commands/stop_conditions)
+    - protected_files 默认含 package.json/lockfiles/routing/permissions/global_state/build_config
+    - 向用户展示简化版(计划修改/明确不修改/验收标准)
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 前面信息不完全明确或存在公共风险时,等用户确认契约再冻结
+  outputs:
+    required: [change_contract.allowed_files, change_contract.allowed_new_files, change_contract.protected_files, change_contract.contracts_to_preserve, change_contract.acceptance_criteria, change_contract.verification_commands, change_contract.stop_conditions]
+  evidence: [user_decision, file_path]
+  state_writes: [allowed_files, protected_files]   # 冻结后写入状态文件,供 C08 pre-check 机检
+  exit_criteria:
+    - allowed_files 已冻结
+    - protected_files 已冻结
+    - 保持契约清单(props/hook_returns/function_signatures/api_payloads/api_responses/defaults/cache_keys)已列
+    - 验收标准已列
+    - stop_conditions 已列
+  failure_routes:
+    scope_violation: X01
+    unresolved: Q01
+  next_card: C08

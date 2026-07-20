@@ -1,0 +1,543 @@
+# =============================================================================
+# .hooks/unified.yaml — Universal Hook Event Model & Config
+# =============================================================================
+# Cross-platform hook definition for AI Coding CLI tools.
+# Supported platforms: Claude Code, Codex CLI, Gemini CLI, Qwen Code,
+#                      Cursor, OpenCode
+#
+# Usage:
+#   python3 .hooks/generate.py detect          # Detect available platforms
+#   python3 .hooks/generate.py generate        # Generate native configs
+#   python3 .hooks/generate.py install         # Generate + write configs
+#   python3 .hooks/generate.py validate        # Validate generated configs
+# =============================================================================
+
+version: "1.0.0"
+
+# ── Meta ───────────────────────────────────────────────────────────────────
+meta:
+  project: "Sylph Harness"
+  description: "Cross-platform AI CLI hook definitions — guardrails, audit, knowledge injection"
+  hooks_root: ".claude/hooks"
+  created: "2026-05-03"
+
+# ── Universal Event Model ──────────────────────────────────────────────────
+# These 9 events form the cross-platform abstraction layer.
+# Each adapter maps them to the platform's native event names.
+events:
+  session:start:
+    description: "Session initialization — inject project knowledge, restore state, setup context"
+    typical_use: "inject-knowledge, auto-snapshot restore"
+
+  prompt:submit:
+    description: "Before user prompt is sent to the model — inject context, detect corrections"
+    typical_use: "correction-detector, context injection"
+
+  tool:before:
+    description: "Before ANY tool call — validate parameters, block dangerous operations"
+    typical_use: "edit-guard, privacy-gate, subagent-guard"
+    can_block: true
+
+  tool:after:
+    description: "After tool execution — verify results, check evidence, track state"
+    typical_use: "completion-gate, quality-check"
+
+  shell:before:
+    description: "Before shell command execution — check for dangerous commands"
+    typical_use: "permission-gate, bash-audit, build-validator"
+    can_block: true
+
+  shell:after:
+    description: "After shell command execution — audit trail, build-failure tracking"
+    typical_use: "bash-audit, build-validator-failure-tracking"
+
+  file:write:
+    description: "Before file write or create — scan for secrets, protect sensitive paths"
+    typical_use: "privacy-gate, secret-scanning"
+    can_block: true
+
+    description: "Before context window compaction — preserve critical state, file paths, root causes"
+    typical_use: "state-preservation, critical-context-survival"
+
+  stop:
+    description: "After model response, before pausing — capture session state, auto-continue signals"
+    typical_use: "snapshot, auto-continuation, session-handoff capture"
+
+# ── Platform Event Mapping ─────────────────────────────────────────────────
+# Each platform has its own native event names.
+# null = event not supported on this platform.
+platform_events:
+  claude_code:
+    session:start: "SessionStart"
+    prompt:submit: "UserPromptSubmit"
+    tool:before: "PreToolUse"
+    tool:after: "PostToolUse"
+    shell:before: "PreToolUse"        # Shell is a tool variant; filtered by script
+    shell:after: "PostToolUse"
+    file:write: "PreToolUse"          # File write is a tool variant
+    stop: "Stop"
+
+  codex:
+    session:start: "UserPromptSubmit"  # No explicit SessionStart; hook on first prompt
+    prompt:submit: "UserPromptSubmit"
+    tool:before: "PreToolUse"
+    tool:after: "PostToolUse"
+    shell:before: "PreToolUse"
+    shell:after: "PostToolUse"
+    file:write: "PreToolUse"
+    stop: "Stop"
+
+  gemini:
+    session:start: null                # No explicit SessionStart; use BeforeTool on first call
+    prompt:submit: "BeforeTool"        # Gemini fires BeforeTool before both prompts and tools
+    tool:before: "BeforeTool"
+    tool:after: "AfterTool"
+    shell:before: "BeforeTool"
+    shell:after: "AfterTool"
+    file:write: "BeforeTool"
+    stop: "AfterAgent"                 # AfterAgent fires at turn end
+
+  qwen:
+    session:start: "SessionStart"
+    prompt:submit: "UserPromptSubmit"
+    tool:before: "PreToolUse"
+    tool:after: "PostToolUse"
+    shell:before: "PreToolUse"
+    shell:after: "PostToolUse"
+    file:write: "PreToolUse"
+    stop: "Stop"
+
+  cursor:
+    session:start: null                 # Documented but buggy as of early 2026
+    prompt:submit: "beforeSubmitPrompt"
+    tool:before: "beforeMCPExecution"
+    tool:after: "afterMCPExecution"
+    shell:before: "beforeShellExecution"
+    shell:after: "afterShellExecution"
+    file:write: "beforeFileWrite"        # Cursor supports beforeFileWrite (verified: .cursor/hooks.json)
+    stop: "stop"
+
+  opencode:
+    session:start: "session.created"
+    prompt:submit: "chat.message"
+    tool:before: "tool.execute.before"
+    tool:after: "tool.execute.after"
+    shell:before: "tool.execute.before" # Subset; filtered by the plugin
+    shell:after: "tool.execute.after"
+    file:write: "tool.execute.before"   # Subset; filtered by the plugin
+    stop: "session.idle"
+
+# ── Hook Definitions ──────────────────────────────────────────────────────
+# Each hook maps to one or more universal events and is backed by a script.
+# The `platforms` list controls where this hook is applicable.
+hooks:
+  completion_gate:
+    description: "Block marking tasks completed without evidence containing VERIFIED keyword"
+    events:
+      - tool:after
+    script: "completion-gate.sh"
+    blocking: true
+    timeout: 10000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  edit_guard:
+    description: "Enforce Read-before-Edit on source files"
+    events:
+      - tool:before
+    script: "edit-guard.sh"
+    blocking: true
+    timeout: 5000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+
+  permission_gate:
+    description: "Block git push --force, rm -rf, sudo, DROP TABLE without user authorization"
+    events:
+      - shell:before
+    script: "permission-gate.sh"
+    blocking: true
+    timeout: 5000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  bash_audit:
+    description: "Audit shell commands and detect C1 anti-pattern (blind build-fix looping)"
+    events:
+      - shell:after
+    script: "posttool-bash-audit.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "audit"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  build_validator:
+    description: "Track build failures, detect blind-fix anti-pattern (3-strike rule)"
+    events:
+      - shell:after
+    script: "build-validator.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "audit"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+
+  privacy_gate:
+    description: "Block reads/writes to .env files, private keys, and credential files"
+    events:
+      - file:write
+      - tool:before
+    script: "privacy-gate.sh"
+    blocking: true
+    timeout: 3000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  inject_knowledge:
+    description: "Inject project context (AGENTS.md, kernel.md, anti-patterns, claude-next) at session start"
+    events:
+      - session:start
+    script: "inject-project-knowledge.sh"
+    blocking: false
+    timeout: 10000
+    strategy: "inject"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  auto_snapshot:
+    description: "Auto-preserve state after tool calls and at turn end"
+    events:
+      - tool:after
+      - stop
+    script: "auto-snapshot.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "snapshot"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  user_correction_detector:
+    description: "Detect user correction patterns and log to claude-next.md"
+    events:
+      - prompt:submit
+    script: "pretool-user-correction.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "learn"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  context_guard:
+    description: "Monitor context usage and warn at 50%, force action at 80%"
+    events:
+      - tool:after
+    script: "context-guard.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "warn"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  error_dna:
+    description: "Record error DNA for cross-session error pattern detection"
+    events:
+      - tool:after
+    script: "error-dna.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  turn_counter:
+    description: "Track conversation turns, inject todo queue at intervals, detect fuzzy commands"
+    events:
+      - prompt:submit
+    script: "turn-counter.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  write_lock_pre:
+    description: "Acquire write lock before file modifications — concurrency guard"
+    events:
+      - tool:before
+    script: "pretool-write-lock.sh"
+    blocking: true
+    timeout: 10000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  subagent_guard:
+    description: "Restrict dangerous subagent types — enforces max_turns on executor/designer/scientist (stdin JSON, platform-agnostic)"
+    events:
+      - tool:before
+    script: "subagent-guard.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "warn"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  subagent_audit:
+    description: "Post-hoc subagent usage audit and high-usage flywheel alerting (stdin JSON, platform-agnostic)"
+    events:
+      - tool:after
+    script: "posttool-subagent-audit.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "audit"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  skill_flywheel:
+    description: "Flush flywheel buffer on stop — per-skill frequency analytics and deprecation detection (file-based, platform-agnostic)"
+    events:
+      - stop
+    script: "skill-flywheel.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  write_lock_post:
+    description: "Release write lock after file modifications"
+    events:
+      - tool:after
+    script: "posttool-write-lock.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "audit"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  edit_scope:
+    description: "Enforce edit scope boundary — block edits outside current scope"
+    events:
+      - tool:before
+    script: "pretool-edit-scope.sh"
+    blocking: true
+    timeout: 3000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  flywheel_report:
+    description: "Report previous session flywheel events at session start"
+    events:
+      - session:start
+    script: "flywheel-report.sh"
+    blocking: false
+    timeout: 5000
+    strategy: "report"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+    description: "Detect compaction signals and preserve critical context paths"
+    events:
+      - prompt:submit
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  token_writer:
+    description: "Track token usage across turns and write to token-tracking index"
+    events:
+      - tool:after
+      - session:start
+    script: "token_writer.sh"
+    blocking: false
+    timeout: 3000
+    strategy: "track"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  stop_drain:
+    description: "Drain remaining state on session stop — error-dna transcript scan, token parser, state hygiene"
+    events:
+      - stop
+    script: "stop-drain.sh"
+    blocking: false
+    timeout: 10000
+    strategy: "drain"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - opencode
+
+  oracle_gate:
+    description: "Oracle review pre-gate — blocks mechanism/governance edits without 24h Oracle/Meta-Oracle ACCEPT. DG-67 materialized (DG-115)"
+    events:
+      - tool:before
+    script: "pretool-oracle-gate.sh"
+    blocking: true
+    timeout: 3000
+    strategy: "exit2"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+  meta_oracle_trigger:
+    description: "Meta-Oracle last-line-of-defense auto-trigger — G1-G4 gate detection (architecture/PRD/release/Oracle). Philosophy #4 & #6 materialization."
+    events:
+      - tool:after
+    script: "meta-oracle-trigger.py"
+    blocking: false
+    timeout: 3000
+    strategy: "warn"
+    platforms:
+      - claude_code
+      - codex
+      - gemini
+      - qwen
+      - cursor
+      - opencode
+
+# ── Claude Code Specific ──────────────────────────────────────────────────
+# These hooks depend on Claude Code's internal tool pipeline (LSP, plan mode,
+# Read/Edit tool protocol). Not portable to other platforms.
+claude_specific:
+  lsp_suggest:
+    description: "Suggest LSP goto-definition before grep — depends on LSP tool"
+    events: [tool:before]
+    script: "lsp-suggest.sh"
+    reason: "LSP tools are Claude Code internal"
+
+  plan_gate:
+    description: "Plan mode enforcement — depends on plan mode API"
+    events: [tool:before]
+    script: "plan-gate.sh"
+    reason: "Plan mode is Claude Code internal"
+
+  read_tracker:
+    description: "Track which files the AI has read — depends on Read tool interception"
+    events: [tool:after]
+    script: "read-tracker.sh"
+    reason: "Read tool tracking requires Claude Code hook protocol"
+
+  edit_quality:
+    description: "Post-edit quality checks — depends on Edit tool output analysis"
+    events: [tool:after]
+    script: "posttool-edit-quality.sh"
+    reason: "Edit tool output format is Claude Code specific"
+
+  write_cite:
+    description: "Cite sources on file writes — depends on Write tool protocol"
+    events: [tool:after]
+    script: "posttool-write-cite.sh"
+    reason: "Write tool output format is Claude Code specific"
+
+  rule_anchor:
+    description: "Periodic rule review — depends on turn counting"
+    events: [tool:before]
+    script: "pretool-rule-anchor.sh"
+    reason: "Turn indexing is Claude Code internal"
+
+  read_cite:
+    description: "Cite source references on file reads — depends on Read tool interception"
+    events: [tool:after]
+    script: "posttool-read-cite.sh"
+    reason: "Read tool input/output format is Claude Code specific"

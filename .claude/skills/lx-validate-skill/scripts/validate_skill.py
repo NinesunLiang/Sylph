@@ -10,7 +10,7 @@ exit: 0=通过, 2=有违规
 
 """
 
-import argparse, sys, json
+import argparse, sys, json, subprocess
 
 from pathlib import Path
 
@@ -48,13 +48,31 @@ def check(skill_dir: Path):
         if (skill_dir / bad).exists():
             violations.append(f"包含私有 {bad} 目录（违反 R1/R2）")
 
-    # 6. scripts/*.py 如存在，必须有 exit code 处理
+    # 6. R6: scripts/ 仅允许 .py/.sh，且逐文件语法检查（.py=py_compile, .sh=bash -n）
     scripts_dir = skill_dir / "scripts"
     if scripts_dir.exists():
-        for py in scripts_dir.glob("*.py"):
-            code = py.read_text(encoding="utf-8")
-            if "sys.exit" not in code:
-                warnings.append(f"scripts/{py.name} 缺少 sys.exit（建议加退出码）")
+        script_files = sorted(
+            p for p in scripts_dir.rglob("*")
+            if p.is_file() and "__pycache__" not in p.parts
+        )
+        for script in script_files:
+            rel = script.relative_to(skill_dir)
+            if script.suffix not in {".py", ".sh"}:
+                violations.append(f"R6: scripts/ 含非 .py/.sh 文件: {rel}")
+                continue
+            if script.suffix == ".py":
+                proc = subprocess.run(
+                    [sys.executable, "-m", "py_compile", str(script)],
+                    capture_output=True, text=True, timeout=30,
+                )
+            else:
+                proc = subprocess.run(
+                    ["bash", "-n", str(script)],
+                    capture_output=True, text=True, timeout=30,
+                )
+            if proc.returncode != 0:
+                detail = (proc.stderr or proc.stdout).strip().replace("\n", " ")[:240]
+                violations.append(f"R6: 脚本语法检查失败 {rel}: {detail}")
 
     # 7. docs/ 不应存在（应改为 references/）
     if (skill_dir / "docs").exists():

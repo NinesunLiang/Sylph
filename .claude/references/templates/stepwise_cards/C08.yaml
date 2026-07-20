@@ -1,0 +1,42 @@
+card:
+  id: C08
+  title: 实施卡
+  objective: 一次只实现一个逻辑单元,不一口气改完整个需求(可循环抽取)
+  loop_units: [C08.1 UI 结构, C08.2 状态和事件, C08.3 请求与回写, C08.4 错误和边界状态, C08.5 测试]
+  inputs:
+    required: [change_contract]
+    inherited: [C06.solution, C07.change_contract]
+  auto_checks:
+    pre_checks:   # 每个单元动手前
+      - 当前文件在 allowed_files 中
+      - 文件没有未处理的用户修改冲突
+      - 不需要扩大公共契约
+    post_checks:  # 每个单元完成后
+      - 检查本逻辑单元 diff
+      - 运行最小相关验证
+      - 未出现越界文件
+      - 未出现自动格式化扩散
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 实际代码结构与调查结论不同
+  stop_conditions:   # 命中任一 → fail-card
+    - 实际代码结构与调查结论不同
+    - 需要修改契约外文件
+    - 需要改变公共默认值
+    - 需要新增依赖
+    - 需要用 any/ts-ignore 等规避错误
+    - 出现无法解释的测试失败
+  outputs:
+    required: [implementation_unit.objective, implementation_unit.files, implementation_unit.expected_diff, implementation_unit.local_verification]
+  evidence: [file_path, command_result]
+  exit_criteria:
+    - 每个实施单元 pre/post 检查全过
+    - 全部实施单元完成
+    - diff 无越界文件
+  failure_routes:
+    scope_violation: X01
+    verification_failed: X04
+    workspace_conflict: X05
+    unresolved: Q01
+  next_card: C09

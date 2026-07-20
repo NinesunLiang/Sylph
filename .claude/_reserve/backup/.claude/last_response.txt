@@ -1,0 +1,15 @@
+── CarrorOS 会话恢复（/compact 后/新会话）──
+
+## Active Tasks（任务状态恢复）
+
+  [20260705/FIX-BUG] plan — planning (S1)
+    Done: 0/1
+    Token: /Users/lucas.liang/Desktop/Sylph/Carror_OS/.omc/tokens/20260705/FIX-BUG.json
+
+  ⏩ Resume: `carros_base.py status --task-id FIX-BUG` → `tick --task-id FIX-BUG`
+
+## Recent User Prompts（最近用户询问）
+
+  （无最近询问记录）
+
+── 恢复结束，请继续工作 ──

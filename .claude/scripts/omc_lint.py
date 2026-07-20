@@ -1,0 +1,1 @@
+../../.omc/scripts/omc_lint.py

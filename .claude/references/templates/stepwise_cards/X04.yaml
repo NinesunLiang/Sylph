@@ -1,0 +1,25 @@
+card:
+  id: X04
+  title: 修复决策卡
+  objective: 验证失败时先定修复路线——未经确认不得用配置关闭错误
+  exception: true
+  inputs:
+    required: [失败详情与分类]
+    inherited: [C09.failure_classification, C07.change_contract]
+  options:
+    A: 契约内最小修复(抽新 C08 修复单元)
+    B: 扩大范围修复(→ 先走 X01 申请)
+    C: 回滚当前实现并换方案(回 C06)
+    D: 记录为环境/基线限制(→ X02 记录,不伪装通过)
+  rules:
+    - 未经用户确认,不得用 any/ts-ignore/eslint-disable/跳测试/改配置等方式隐藏问题
+    - 选 A 且修复在契约内: 可自动执行,不升级
+  outputs:
+    required: [fix_decision]   # A/B/C/D + 理由,写入 state.user_decisions
+  evidence: [command_result, user_decision]
+  exit_criteria:
+    - 修复路线已定
+    - 所选路线的后续卡(C08/X01/C06/X02)已衔接
+  failure_routes:
+    unresolved: Q01
+  next_card: null

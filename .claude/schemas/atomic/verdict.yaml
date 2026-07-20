@@ -8,6 +8,15 @@
 
 # Consumers: ALL lx-* skills
 
+# References:
+#   oracle_agent.py  — L2 验证层（静态+运行时审核）
+#   meta_oracle.py   — 元级审核（聚合+对抗性测试）
+#
+# Archive (旧版，保留向后兼容，建议迁移到 oracle_agent.py / meta_oracle.py):
+#   .claude/schemas/atomic/verdict_meta.yaml — (废弃，内容已合并至此)
+#   .claude/schemas/atomic/verdict_static.yaml — (废弃，内容已合并至此)
+#
+
 
 status:
   type: enum

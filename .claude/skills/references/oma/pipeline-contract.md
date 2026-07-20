@@ -11,7 +11,14 @@ hier → [og-001] → oma → [og-002] → gov → [og-00N] → rpe → dev (par
 
 ## 入口（编排模式）
 
-收到 `--pipeline <id>` 时：
+仅 `/lx-oma split` 可接收 `--pipeline <id>`。收到该参数时：
+
+**硬约束**：
+1. `<id>` 不存在、不可读或解析失败：返回 `BLOCKED`，不得降级为内存状态或人工声明。
+2. `lx-rpe` 不得接收该参数；RPE 只接收 OMA 从磁盘状态解析出的 `BASE_DIR`。
+3. pipeline 阶段推进必须先原子落盘，再向下游发出动作。
+
+**解析步骤**：
 1. 读 `state/pipeline.yaml`
 2. 检查当前阶段状态
 3. 使用 pipeline 中的 `path` 作为输入

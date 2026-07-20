@@ -37,6 +37,16 @@ def get_context_sweetspot_alert():
         pass
     return ""
 
+def _remark(content: str, task: str, from_states: str, to_state: str) -> str:
+    """把 `- [{from}] {task}` 行的状态标记改为 `[{to}]`。
+    行首锚定 + 词边界 — 修复 P0 前缀碰撞：str.replace 子串匹配会把
+    complete RPE-1 误作用到 RPE-10 / RPE-11（已复现的进度数据损坏）。"""
+    states = "".join(re.escape(s) for s in from_states)
+    # 外层 \[\] 匹配 markdown 字面方括号；内层 [{states}] 才是状态字符类
+    # （若写成 \[{states}\]，转义后的 states 会被当作字面量序列而非字符类）
+    pattern = rf"^(- )\[[{states}]\]( {re.escape(task)}\b)"
+    return re.sub(pattern, rf"\g<1>[{to_state}]\g<2>", content, flags=re.MULTILINE)
+
 def main():
     p = argparse.ArgumentParser(description="lx-rpe 进度更新 + 链路追踪")
     p.add_argument("--feature", required=True, help="特性名称")
@@ -62,19 +72,20 @@ def main():
     now = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     if args.action == "start":
-        content = content.replace(f"- [ ] {args.task}", f"- [·] {args.task}")
+        content = _remark(content, args.task, " ", "·")
     elif args.action == "complete":
-        content = content.replace(f"- [·] {args.task}", f"- [x] {args.task}")
-        content = content.replace(f"- [ ] {args.task}", f"- [x] {args.task}")
+        content = _remark(content, args.task, " ·", "x")
         if args.next:
             content = re.sub(r"(- 下一步：).*", f"\\1{args.next}", content)
     elif args.action == "block":
         marker = f"🚫 BLOCKED [{now}]"
         if args.reason:
             marker += f": {args.reason}"
-        content = content.replace(f"- [·] {args.task}", f"- [·] {args.task} {marker}")
+        # 词边界锚定 + 追加到行尾（原实现子串匹配且插到行中破坏格式）
+        pattern = rf"^(- \[·\] {re.escape(args.task)}\b[^\n]*)$"
+        content = re.sub(pattern, rf"\g<1> {marker}", content, flags=re.MULTILINE)
     elif args.action == "unblock":
-        content = re.sub(rf"( {re.escape(args.task)}) 🚫 BLOCKED[^\n]*", r"\1", content)
+        content = re.sub(rf"( {re.escape(args.task)}\b) 🚫 BLOCKED[^\n]*", r"\1", content)
 
     if args.step or args.branch or args.phase:
         trace_comment = f" <!-- trace: {now}"
@@ -85,9 +96,9 @@ def main():
         if args.branch:
             trace_comment += f" branch={args.branch}"
         trace_comment += f" action={args.action} -->"
-        content = content.replace(
-            f"- [·] {args.task}", f"- [·] {args.task}\n{trace_comment}"
-        ).replace(f"- [x] {args.task}", f"- [x] {args.task}\n{trace_comment}")
+        # 追加到匹配行尾（原实现插到 task id 后、行文本前，破坏行结构）
+        pattern = rf"^(- \[[·x]\] {re.escape(args.task)}\b[^\n]*)$"
+        content = re.sub(pattern, rf"\g<1>\n{trace_comment}", content, flags=re.MULTILINE)
 
     progress_file.write_text(content, encoding="utf-8")
 
@@ -98,6 +109,10 @@ def main():
     print(json.dumps({"status": "success", "feature": args.feature, "task": args.task,
                        "action": args.action, "step": args.step, "branch": args.branch,
                        "phase": args.phase, "file": str(progress_file)}, ensure_ascii=False))
+    # 甜点区守卫（原为死代码从未调用）：context_monitor 缺失时静默跳过
+    alert = get_context_sweetspot_alert()
+    if alert:
+        print(alert)
 
 if __name__ == "__main__":
     main()

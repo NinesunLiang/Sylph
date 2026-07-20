@@ -1,3 +1,4 @@
+<!-- ENHANCE-ONLY: 高级 Bash 风格规范 -->
 # Bash Style Rules（Carror OS 专用）
 
 适用于：所有 bash / sh / install.sh / hook / release 脚本

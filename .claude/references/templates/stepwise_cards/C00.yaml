@@ -1,0 +1,29 @@
+card:
+  id: C00
+  title: 启动卡
+  objective: 建立任务容器,只收集最小入口信息——不分析、不改代码
+  inputs:
+    required: [用户一句话需求]
+    inherited: []
+  auto_checks:
+    - 当前目录是否 Git 仓库
+    - 是否存在 CLAUDE.md / AGENTS.md / README.md
+    - 是否存在 package.json
+    - 当前分支与工作区状态
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 用户没有提供任何需求
+      - 不知道目标项目或目标目录
+      - 同时存在多个独立前端项目,无法判断目标
+      - 用户要求与仓库内容明显不一致
+  outputs:
+    required: [task.summary, task.repository, task.target_area, task.user_constraints, task.initial_risks]
+  evidence: [command_result, user_decision]
+  exit_criteria:
+    - 已获得一句话需求
+    - 已确定目标仓库
+    - 已记录用户明确禁区
+  failure_routes:
+    unresolved: Q01
+  next_card: C01

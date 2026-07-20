@@ -1,0 +1,27 @@
+card:
+  id: C14
+  title: 交付闭环卡
+  objective: 输出最终可审计交付记录
+  inputs:
+    required: [全部前序卡产出]
+    inherited: [C02.requirement, C07.change_contract, C09.validation_table, C10.review_findings, C11.regression_table, C13.user_acceptance]
+  auto_checks: []
+  user_questions:
+    policy: only_if_unresolved
+    questions: []
+  final_four_questions:   # 必须全部回答
+    - 改了什么?
+    - 为什么这些文件必须改?
+    - 如何证明没有影响其他地方?
+    - 还有什么没有被验证?
+  outputs:
+    required: [delivery.requirement, delivery.changed_files, delivery.behavior_changes, delivery.preserved_contracts, delivery.tests_added_or_updated, delivery.validation_results, delivery.user_acceptance, delivery.known_limitations, delivery.rollback_boundary, delivery.final_status]
+  final_status_enum: [READY, READY_WITH_KNOWN_LIMITATIONS, NOT_READY]
+  evidence: [file_path, command_result, user_decision]
+  exit_criteria:
+    - delivery 记录已完整写出
+    - 最终四问已全部回答
+    - final_status 已确定
+  failure_routes:
+    unresolved: Q01
+  next_card: null   # pass 后执行 off 关闭任务

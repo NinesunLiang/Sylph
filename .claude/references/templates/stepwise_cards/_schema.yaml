@@ -1,0 +1,54 @@
+# stepwise_cards/_schema.yaml — lx-stepwise 卡片模板与状态文件 schema
+# 论述源: .claude/workflows/front-stepwise/origin.md(完整设计);本目录为机器可执行骨架
+# 核心原则: 一次只抽一张卡;能检查就不问,不能决定才问;当前卡未闭环,绝不进入下一张
+schema_version: v1.0
+
+card_fields:
+  id: 卡号(C00-C14 主卡 | Q01/X01-X05 异常卡)
+  title: 卡名
+  objective: 本卡唯一目标
+  inputs:
+    required: 开始前必须具备的信息
+    inherited: 从前序卡继承的信息
+  auto_checks: AI 可自行执行的检查(按信息优先级,能自查就不问人)
+  user_questions:
+    policy: only_if_unresolved   # 固定值: 仅无法自行确定时才问
+    questions: 触发问人的具体条件
+  outputs:
+    required: 本卡必须产出的结构化字段(写入状态文件 outputs 区)
+  evidence: 通过本卡必须落盘的证据类型(file_path|symbol|command_result|user_decision)
+  exit_criteria: 通过条件清单——全部 checked 才放行(机械门禁,缺一项拒绝 pass)
+  failure_routes: {触发条件: 异常卡号}   # fail-card --route 必须命中此表
+  next_card: 下一张主卡;异常卡为 null(resolve 后回原卡);C14 为 null(完成后 off)
+
+info_source_priority:   # 找答案顺序,能用前层绝不用后层
+  - 用户已明确提供的信息
+  - 项目治理文档(CLAUDE.md / AGENTS.md / README)
+  - 代码/配置/测试(package.json、源码、现有测试)
+  - Git diff/history/语言服务/引用搜索
+  - 自动化命令实测结果
+  - 合理推断(必须标记"待确认")
+  - 最后才问用户(Q01)
+
+mechanical_gates:       # lx-stepwise.py 硬门禁,违反即拒绝并打印原因
+  - exit_criteria 未全部 checked → 拒绝 pass-card
+  - C07 未 passed → 拒绝 pass C08 及之后任何卡(变更契约未冻结,不动代码)
+  - C09 未 passed → 拒绝 pass C13(机械验证未过,不宣称完成)
+  - C12 未 passed → 拒绝 off(仓库未清洁,不交付)
+  - 仅 ask 子命令可将 status 置为 waiting_user;resolve 后清 pending_route 回原卡
+  - fail-card 必须 --route 指定当前卡 failure_routes 中存在的异常卡号
+  - 主卡只能顺序推进: pass-card 的卡号必须等于 current_card
+
+state_file:             # .state/<task_id>.json — lx-stepwise.py 读写
+  task_id: 任务标识(on 时生成的目录安全 slug)
+  summary: 一句话任务描述
+  current_card: 当前卡号
+  passed: [已 pass 卡号]
+  status: active | waiting_user | done
+  pending_route: ask/fail 挂起的异常卡号(resolve 后清回 null)
+  outputs: {卡号: 本卡 outputs.required 的结构化内容}
+  allowed_files: C07 冻结的可改文件清单
+  protected_files: C07 冻结的禁区清单
+  user_decisions: [{card, question, answer, at}]
+  unresolved_risks: [{card, risk, at}]
+  validation_results: [{check, before, after, regression, result}]

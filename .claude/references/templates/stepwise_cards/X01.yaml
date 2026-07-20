@@ -1,0 +1,25 @@
+card:
+  id: X01
+  title: 范围升级卡
+  objective: 实际实现必须修改契约外文件时,向用户申请扩大范围
+  exception: true
+  inputs:
+    required: [原允许范围, 新发现]
+    inherited: [C07.change_contract]
+  presentation_format:
+    - 原允许范围(列文件)
+    - 新发现(为什么契约内无法满足需求)
+    - 选择(A 批准向后兼容扩展共享能力 / B 模块内局部实现接受少量重复 / C 暂停任务重新设计)
+    - 我的建议 + 原因(含调用方数量与回归面评估)
+  outputs:
+    required: [scope_decision]   # A/B/C + 理由,写入 state.user_decisions
+  evidence: [file_path, symbol, user_decision]
+  rules:
+    - 用户批准 A 后,allowed_files 才可扩充,并重过 C07 冻结
+    - 未获批准前,不得修改契约外文件
+  exit_criteria:
+    - 用户已裁决 A/B/C
+    - 若批准扩充: 新范围已重过 C07 冻结
+  failure_routes:
+    unresolved: Q01
+  next_card: null

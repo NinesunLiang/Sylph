@@ -1,0 +1,34 @@
+card:
+  id: C13
+  title: 用户验收卡
+  objective: 将技术完成转换成用户可操作的验收步骤
+  inputs:
+    required: [delivery 候选内容]
+    inherited: [C02.requirement, C09.validation_table, C12.repository_cleanliness]
+  auto_checks:
+    可先自行完成的必须自验(不甩给用户):
+      - 浏览器自动化
+      - 组件测试
+      - Storybook
+      - 截图对比
+      - dev server 页面检查
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 需要用户账户/私有环境/MFA
+      - 需要主观视觉判断
+      - 需要真实外部服务
+      - 产品行为必须由用户确认
+      - Agent 无法访问浏览器环境
+  acceptance_format: [前置条件(启动命令/打开路径), 操作步骤, 预期行为, 请回复"通过"或描述不符步骤]
+  outputs:
+    required: [user_acceptance]   # 通过 | 不符描述(→ X04)
+  evidence: [command_result, user_decision]
+  exit_criteria:
+    - 可自行验证项已全部自验
+    - 需用户项已按格式发出并获回复
+    - 用户回复"通过",或不符项已走 X04 闭环
+  failure_routes:
+    verification_failed: X04
+    unresolved: Q01
+  next_card: C14

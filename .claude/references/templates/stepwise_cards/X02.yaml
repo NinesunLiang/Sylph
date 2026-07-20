@@ -1,0 +1,25 @@
+card:
+  id: X02
+  title: 基线异常卡
+  objective: 修改前仓库已有失败时,界定与本任务的关系——不得顺手修无关基线问题
+  exception: true
+  inputs:
+    required: [基线失败清单]
+    inherited: [C01.baseline.existing_failures]
+  checklist:
+    - 失败是否与目标模块相关
+    - 是否阻止验证本次需求
+    - 是否可以通过 targeted test 绕开
+    - 是否需要用户先处理基线
+  rules:
+    - 不得顺手修复无关基线问题
+    - 与本任务无关的基线失败: 记录在案,不伪装成通过,不阻塞
+  outputs:
+    required: [baseline_disposition]   # 每项失败: related|blocking|bypassable|user_action
+  evidence: [command_result]
+  exit_criteria:
+    - 每项基线失败已定处置方式
+    - 与本任务无关的失败已记录而非修复
+  failure_routes:
+    unresolved: Q01
+  next_card: null

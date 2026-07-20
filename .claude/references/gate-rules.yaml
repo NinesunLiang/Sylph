@@ -1,0 +1,61 @@
+# CarrorOS Gate Rules — pre_action_gate 数据驱动配置
+# 哲学映射：sensitive_paths→#3守护(隐私防线) | dangerous_commands→#3守护(不可逆) | safe_commands→#2增益(验证类放行)
+# 加载：pre_action_gate.py 启动时读取；解析失败回退内置默认（守护优先，永不放行未知）
+# 修改规则 = 改本文件，无需改代码。新增条目请标注哲学依据。
+
+sensitive_paths:
+  # 哲学 #3 守护：密钥/凭证/生产配置，读取即越权
+  - .env
+  - .env.*
+  - "*.pem"
+  - "*.key"
+  - id_rsa
+  - id_ed25519
+  - "*secret*"
+  - "*token*"
+  - "*credential*"
+  - "*password*"
+  - production.*
+  - prod.*
+  - kubeconfig
+  - "~/.ssh/*"
+  - ".ssh/*"
+  - .aws/credentials
+  - ".gcp/*"
+  - ".azure/*"
+
+dangerous_commands:
+  # 哲学 #3 守护：不可逆/破坏性/发布类，必须人工裁决
+  - rm -rf
+  - sudo
+  - chmod -R
+  - chown -R
+  - git reset --hard
+  - git clean -fd
+  - git push --force
+  - docker compose down -v
+  - kubectl delete
+  - terraform apply
+  - terraform destroy
+  - migration:run
+  - db:migrate
+  - DROP TABLE
+  - TRUNCATE TABLE
+  - ALTER TABLE
+  - npm publish
+  - pnpm publish
+  - pip upload
+  - twine upload
+
+safe_commands:
+  # 哲学 #2 增益 + #4 验证：验证/只读类，直接放行
+  - npm test
+  - pnpm test
+  - yarn test
+  - pytest
+  - python -m pytest
+  - npm run lint
+  - pnpm lint
+  - git status
+  - git diff
+  - git log

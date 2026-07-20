@@ -1,3 +1,4 @@
+<!-- ENHANCE-ONLY: 高级终端安全规范 -->
 # Terminal Safety Rules（终端命令输出规范）
 
 适用范围：所有涉及 git / bash / python / gh / sed / awk / jq 的命令  

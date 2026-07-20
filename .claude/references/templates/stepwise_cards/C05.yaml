@@ -1,0 +1,33 @@
+card:
+  id: C05
+  title: 影响面卡
+  objective: 写代码前找出所有可能被波及的调用方,划定三组变更边界
+  inputs:
+    required: [module, data_flow]
+    inherited: [C03.module, C04.data_flow]
+  auto_checks:
+    - 对每个计划修改的符号查找全部引用
+    - 检查是否 export / 是否跨模块
+    - 检查 props/参数/返回值/默认值
+    - 检查测试覆盖
+    - 检查公共状态的读写者
+  user_questions:
+    policy: only_if_unresolved
+    questions:
+      - 影响面涉及他团队维护的模块,修改权限不明
+  outputs:
+    required: [impact_table, change_boundary.safe_to_change, change_boundary.compatibility_required, change_boundary.forbidden_without_approval]
+  evidence: [symbol, file_path]
+  triggers: 以下任一命中不得直接继续,必须走异常卡
+    - 需求必然要求修改公共 hook → X01
+    - 必须修改全局状态/公共类型/路由/权限/API 契约 → X01 或 X03
+    - 必须新增依赖 → X01
+  exit_criteria:
+    - 拟改符号的全部引用已查
+    - 三组边界(safe/compatibility/forbidden)已划分
+    - 公共契约风险已标注并路由
+  failure_routes:
+    scope_violation: X01
+    public_contract: X03
+    unresolved: Q01
+  next_card: C06

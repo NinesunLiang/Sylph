@@ -106,3 +106,56 @@ Philosophy（7 条哲学原则，不可违背）
 | 发现无关问题 | 记入附带发现，不偏离主线 |
 | 子任务冲突 | Philosophy #2 选择更高价值路径 |
 | 硬边界触发 | 立即跳过 → hard-boundary-hit → 继续其他 |
+
+| **L1→L2 就地升级** | 检测到 L1 任务在执行中触及敏感路径/不可逆操作/跨模块 → 走就地升级通道（见下方） |
+
+## L1→L2 就地升级通道（来自重构2/forth.md §三）
+
+L1 执行中触发 L2 条件时（命中敏感路径/不可逆操作/跨模块/连续失败≥3），按以下 5 步就地升级：
+
+```text
+Step 1: 冻结当前 step
+  → executor.md 当前进度标记为 frozen
+  → 记录升级触发原因到 plan.md
+
+Step 2: 迁移文档
+  → 现有 plan.md → .omc/tasks/{date}/{slug}/ (L1 版保留)
+  → 现有 executor.md → 同目录 (执行证据保留)
+  → 补 research.md（从已有 executor 反向填充架构决策依据）
+
+Step 3: 重置 token
+  → token.level: L1 → L2
+  → token.phase: executing → review
+  → 打开 flywheel / oracle 字段
+
+Step 4: 从 L2 审核阶段重新进入
+  → 先跑 Oracle 审核已有执行结果
+  → 已完成的步骤不回滚，但需补审
+  → 剩余步骤按 L2 粒度重新 plan
+
+Step 5: 继续执行
+  → 后续步骤按 L2 工作流（三段式水位 + Oracle + 飞轮）
+  → 更新 plan.md 为 L2 格式
+```
+
+升级过程不中断用户。所有记录自动回溯。失败时走卡点矩阵（真阻断则 blocked_human）。
+
+---
+
+## SubAgent 异常接管机制（来自重构2/go.md §五）
+
+无人模式下 SubAgent 失效时，按以下规则自动接管，**永不阻塞等待用户**：
+
+| 异常类型 | 处理方式 |
+|---------|---------|
+| **Timeout** | 重试 1 次（同类超时）→ 仍失败 → main 降级接管 → 记录 error-dna → 继续下一个 step |
+| **Stalled** | 终止 subagent → main 降级接管 → 记录 error-dna → 继续 |
+| **Failed** | 重试 1 次 → 仍失败 → 跳过该 step，标记为 failed → 记录 error-dna → 继续 |
+| **Blocked（硬边界）** | 跳过 → 记录 hard-boundary-hit → 继续其他 |
+| **Blocked（需人类）** | 记录 blocked_human → 继续其他 → 退出报告汇总 |
+
+**接管协议**：降级接管时，main agent 读 subagent 的 executor.md 和 token.json 恢复上下文，在同一个文件上继续执行后续操作。
+
+**自动恢复标志**：
+- `lx-goal.py status` 显示每个 subagent 的 last_异常和自动恢复次数
+- 异常恢复后，main token 的 `retry_count` 递增

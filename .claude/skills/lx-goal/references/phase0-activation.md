@@ -30,7 +30,7 @@
 人类确认"开始"后，AI 必须**立即执行激活脚本**（不先做任何其他操作）。这是硬步骤，不可跳过、不可手动替代。
 
 ```bash
-bash .claude/skills/lx-goal/scripts/lx-goal.sh on "{目标描述}"
+python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"
 ```
 
 此命令创建两个信号文件：
