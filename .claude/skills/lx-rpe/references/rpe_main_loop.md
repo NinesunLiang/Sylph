@@ -9,7 +9,7 @@
 加载 `@../../nodes/behavior_rules.md`（执行阶段行为约束）。
 
 **执行前检查点（go/no-go）**：
-- [ ] 当前有活跃的 RPE 任务项（progress.md 中标记为当前项）
+- [ ] 当前有活跃的 RPE 任务项（`rpe/{feature_name}/state/progress.md` 中标记为当前项）
 - [ ] 上一步（如有前任务项）已完成并验收通过
 - [ ] 当前任务项的影响范围已知（文件列表或 module）
 - [ ] 不存在未解决的 BLOCKER

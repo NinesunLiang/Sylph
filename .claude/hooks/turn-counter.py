@@ -19,6 +19,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, output_continue, read_input, hc_get, is_mode_active, HOME_DIR
 
 
+def _get_terminal_id():
+    """获取终端唯一标识，用于多终端隔离 last-user-prompts。
+    优先级: tty > OPENCODE_SESSION_ID > CLAUDE_SESSION_ID > PID
+    """
+    try:
+        tty_id = os.popen("tty 2>/dev/null").read().strip()
+        if tty_id and tty_id != "not a tty":
+            return tty_id.replace("/dev/", "")
+    except Exception:
+        pass
+    oc_id = os.environ.get("OPENCODE_SESSION_ID", "")
+    if oc_id:
+        return "oc-" + oc_id[:8]
+    cc_id = os.environ.get("CLAUDE_SESSION_ID", "")
+    if cc_id:
+        return "cc-" + cc_id[:8]
+    return "pid-" + str(os.getpid())
+
+
 def main():
     # hc_enabled check — for UserPromptSubmit, must still read stdin
     if not hc_enabled("turn_counter"):
@@ -42,10 +61,16 @@ def main():
     print(json.dumps({"continue": True}))
     sys.stdout.flush()
 
-    # 【追加】写入环形 query 日志（供 pretool-compact-writer.py 收集最后20条）
+    # 【追加】写入环形 query 日志（供 SessionStart 恢复最近20轮用户意图）
+    # 按终端 ID 分文件，支持多终端隔离
     try:
-        prompt_log = state_dir / ".last-user-prompts"
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        prompts_dir = state_dir / "last-user-prompts"
+        prompts_dir.mkdir(parents=True, exist_ok=True)
+
+        # 获取终端 ID
+        term_id = _get_terminal_id()
+        prompt_path = prompts_dir / term_id
+
         # 提取纯文本（去掉 JSON 包裹）
         text = prompt
         try:
@@ -54,17 +79,16 @@ def main():
                 text = d.get("prompt", "") or d.get("text", "") or str(d)
         except (json.JSONDecodeError, TypeError):
             pass
-        text = text.strip()[:200]  # 截断，避免日志膨胀
+        text = text.strip()[:200]
         if text:
-            # 先读现有，追加，保留最多200条
             existing = []
-            if prompt_log.exists():
-                existing = prompt_log.read_text(encoding="utf-8", errors="replace").splitlines()
-            existing.append(f"{ts}||{text}")
-            # 保留最后200条
-            if len(existing) > 200:
-                existing = existing[-200:]
-            prompt_log.write_text("\n".join(existing), encoding="utf-8")
+            if prompt_path.exists():
+                existing = prompt_path.read_text(encoding="utf-8", errors="replace").splitlines()
+            existing.append(text)
+            # 只保留最后20条
+            if len(existing) > 20:
+                existing = existing[-20:]
+            prompt_path.write_text("\n".join(existing), encoding="utf-8")
     except OSError:
         pass
 

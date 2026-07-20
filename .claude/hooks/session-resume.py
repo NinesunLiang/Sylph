@@ -1,150 +1,192 @@
 #!/usr/bin/env python3
 """
-session-resume.py — SessionStart — 跨会话恢复: 注入进行中的 goal/ghost 任务上下文
+session-resume.py — SessionStart hook
 
-#36: 新会话启动时检测活跃自主模式，注入进度摘要 + 恢复指令
-哲学 #7(文档优先): 从 RPE progress.md 重建上下文，而非依赖记忆
+On new session start:
+  1. Scan .omc/tokens/{date}/ for active tokens (task state recovery)
+  2. Read .omc/state/last-user-prompts for recent user queries (context recovery)
+  3. Write a combined context block so the agent can resume seamlessly after /compact
+
+Target path: .omc/tokens/{YYYYMMDD}/{task_id}.json
+Recovery file: .omc/state/last-user-prompts
+
+Compatible with Python 3.9+ (no str | None syntax, no match/case).
 """
 
 import json
 import os
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
-_HOOKS_DIR = Path(__file__).resolve().parent
-sys.path.insert(0, str(_HOOKS_DIR))
-from harness_lib import (
-    hc_enabled, flywheel_event, output_continue,
-    PROJECT_ROOT, STATE_DIR,
-)
+PROJECT = Path.cwd()
+OMC_TOKENS = PROJECT / ".omc" / "tokens"
+STATE_DIR = PROJECT / ".omc" / "state"
+PROMPTS_DIR = STATE_DIR / "last-user-prompts"
+
+
+# ─── Token helpers ───
+
+
+def _all_date_dirs():
+    """List date subdirs under .omc/tokens/, newest first."""
+    if not OMC_TOKENS.exists():
+        return []
+    dirs = sorted(
+        (d for d in OMC_TOKENS.iterdir() if d.is_dir() and not d.name.startswith(".")),
+        key=lambda p: p.name,
+        reverse=True,
+    )
+    return dirs
+
+
+def _iter_tokens():
+    """Iterate all token files across date dirs."""
+    for d in _all_date_dirs():
+        date_str = d.name
+        for f in sorted(d.glob("*.json")):
+            if f.name == "token-writer.log":
+                continue
+            yield (f.stem, date_str, f)
+
+
+def _find_active_tokens():
+    """Return list of (task_id, date_str, path, token_dict) for non-completed tasks."""
+    active = []
+    for tid, date_str, fpath in _iter_tokens():
+        try:
+            tok = json.loads(fpath.read_text())
+            status = tok.get("task", {}).get("status", "")
+            if status not in ("completed", "archived"):
+                active.append((tid, date_str, fpath, tok))
+        except (json.JSONDecodeError, KeyError, OSError):
+            continue
+    return active
+
+
+def _get_terminal_id():
+    """Get terminal identifier for multi-terminal isolation.
+    Priority: tty > OPENCODE_SESSION_ID > CLAUDE_SESSION_ID > PID
+    """
+    try:
+        tty_id = os.popen("tty 2>/dev/null").read().strip()
+        if tty_id and tty_id != "not a tty":
+            return tty_id.replace("/dev/", "")
+    except Exception:
+        pass
+    oc_id = os.environ.get("OPENCODE_SESSION_ID", "")
+    if oc_id:
+        return "oc-" + oc_id[:8]
+    cc_id = os.environ.get("CLAUDE_SESSION_ID", "")
+    if cc_id:
+        return "cc-" + cc_id[:8]
+    return "pid-" + str(os.getpid())
+
+
+def _read_last_prompts():
+    """Read last user prompts (up to 20 most recent) for current terminal."""
+    term_id = _get_terminal_id()
+    prompts_file = PROMPTS_DIR / term_id
+    if not prompts_file.exists():
+        return []
+    try:
+        lines = prompts_file.read_text(encoding="utf-8", errors="replace").splitlines()
+        lines = [l.strip() for l in lines if l.strip()]
+        return lines[-20:]
+    except OSError:
+        return []
+
+
+def _build_context(active, prompts):
+    """Build a combined context message: active tokens + recent user prompts."""
+    lines = []
+    lines.append("── CarrorOS 会话恢复（/compact 后/新会话）──")
+    lines.append("")
+
+    # ── Section 1: Active Tokens ──
+    lines.append("## Active Tasks（任务状态恢复）")
+    lines.append("")
+
+    if not active:
+        lines.append("  No active tasks found.")
+        lines.append("  Start a new task: `carros_base.py init --task-id <NAME>`")
+    else:
+        for tid, date_str, fpath, tok in active:
+            task = tok.get("task", {})
+            phase = task.get("phase", "?")
+            step = task.get("current_step", "?")
+            status = task.get("status", "?")
+            stats = tok.get("stats", {})
+            done = stats.get("done", 0)
+            total = stats.get("total", "?")
+            scope = task.get("scope", [])
+
+            lines.append("  [{}/{}] {} — {} ({})".format(date_str, tid, phase, status, step))
+            lines.append("    Done: {}/{}".format(done, total))
+            if scope:
+                lines.append("    Scope: {}".format(", ".join(scope)))
+            lines.append("    Token: {}".format(fpath))
+
+        if len(active) == 1:
+            tid = active[0][0]
+            lines.append("")
+            lines.append("  ⏩ Resume: `carros_base.py status --task-id {}` → `tick --task-id {}`".format(tid, tid))
+
+    lines.append("")
+
+    # ── Section 2: Recent User Prompts ──
+    lines.append("## Recent User Prompts（最近用户询问）")
+    lines.append("")
+
+    if prompts:
+        lines.append("  以下是最新的 {} 条用户消息（时间倒序）：".format(len(prompts)))
+        lines.append("")
+        for i, p in enumerate(reversed(prompts), 1):
+            # Truncate long prompts for display
+            display = p if len(p) <= 120 else p[:117] + "..."
+            lines.append("  {}. {}".format(i, display))
+    else:
+        lines.append("  （无最近询问记录）")
+
+    lines.append("")
+    lines.append("── 恢复结束，请继续工作 ──")
+
+    return "\n".join(lines)
 
 
 def main():
-    STATE_DIR.mkdir(parents=True, exist_ok=True)
-    goal_file = STATE_DIR / "tokens" / "lx-goal.json"
-    ghost_file = STATE_DIR / "tokens" / "lx-ghost.json"
+    # ── Part A: Read active tokens ──
+    active = []
+    has_tokens = False
 
-    resume_ctx = ""
-    now = datetime.now(timezone.utc)
+    if OMC_TOKENS.exists():
+        for d in _all_date_dirs():
+            json_files = [f for f in d.glob("*.json") if f.name != "token-writer.log"]
+            if json_files:
+                has_tokens = True
+                break
 
-    # ── Goal mode recovery ──
-    if goal_file.exists():
-        try:
-            with open(str(goal_file), encoding="utf-8") as f:
-                d = json.load(f)
-            goal = d.get("goal", "?")
-            activated = d.get("activated_at", "?")
-            expires = d.get("expires_at", "?")
-            done = len(d.get("completed_tasks", []))
-            skip = len(d.get("skipped_risks", []))
-            hard = len(d.get("hard_boundary_hits", []))
-            blocked = len(d.get("blocked_human", []))
-            plan_dir = d.get("rpe_plan_dir", "")
-            phase0 = d.get("phase0_passed_at", "")
+        if has_tokens:
+            active = _find_active_tokens()
 
-            # Check expiry
-            expired = False
-            if expires:
-                try:
-                    exp = datetime.fromisoformat(expires)
-                    if exp.tzinfo is None:
-                        exp = exp.replace(tzinfo=timezone.utc)
-                    expired = now > exp
-                except (ValueError, TypeError):
-                    pass
+    # ── Part B: Read recent prompts ──
+    prompts = _read_last_prompts()
 
-            if expired:
-                resume_ctx += (
-                    f"\n⏰ [session-resume] 目标模式已过期 ({expires})，请运行 lx-goal off 清理。\n"
-                )
-            else:
-                phase_label = "Phase 0 (draft)"
-                if phase0:
-                    phase_label = "Phase 1 (executing, 已通过 phase0-done)"
+    # If neither has content, bail
+    if not has_tokens and not prompts:
+        return
 
-                resume_ctx += (
-                    f"\n🔄 [session-resume·跨会话恢复] 目标模式活跃中 — {phase_label}\n"
-                    f"\n"
-                    f"   📋 目标: {goal}\n"
-                    f"   📊 进度: {done} 完成 | {blocked} 推迟决策\n"
-                    f"   📁 RPE: {plan_dir}\n"
-                    f"\n"
-                    f"   🔧 恢复指令:\n"
-                    f"   1. 读取进度: cat {plan_dir}/progress.md\n"
-                    f"   2. 读取计划: cat {plan_dir}/prd.md\n"
-                    f"   3. 继续执行未完成任务 (使用 task-done/skip-risk/hard-boundary-hit/blocked-human)\n"
-                    f"   4. 完成后: lx-goal off && lx-goal report\n"
-                )
+    # ── Build combined context ──
+    context = _build_context(active, prompts)
 
-                # Append recent progress
-                if plan_dir:
-                    progress_file = Path(plan_dir) / "progress.md"
-                    if progress_file.exists():
-                        try:
-                            lines = progress_file.read_text(encoding="utf-8").split("\n")
-                            recent = lines[-5:] if len(lines) > 5 else lines
-                            if recent:
-                                recent_text = "\n".join(f"     {l}" for l in recent if l.strip())
-                                resume_ctx += f"\n   📝 最近进度:\n{recent_text}\n"
-                        except OSError:
-                            pass
-        except (json.JSONDecodeError, OSError):
-            pass
+    # Write context block for CC
+    cc_path = PROJECT / ".claude" / "last_response.txt"
+    try:
+        cc_path.parent.mkdir(parents=True, exist_ok=True)
+        cc_path.write_text(context + "\n")
+    except OSError:
+        pass
 
-    # ── Ghost mode recovery ──
-    if ghost_file.exists():
-        try:
-            with open(str(ghost_file), encoding="utf-8") as f:
-                d = json.load(f)
-            direction = d.get("direction", "?")
-            activated = d.get("activated_at", "?")
-            expires = d.get("expires_at", "?")
-            retry = d.get("retry_count", 0)
-            skip = len(d.get("skipped_risks", []))
-            hard = len(d.get("hard_boundary_hits", []))
-            chat_dir = d.get("rpe_chat_dir", "")
-
-            # Check expiry
-            expired = False
-            if expires:
-                try:
-                    exp = datetime.fromisoformat(expires)
-                    if exp.tzinfo is None:
-                        exp = exp.replace(tzinfo=timezone.utc)
-                    expired = now > exp
-                except (ValueError, TypeError):
-                    pass
-
-            if expired:
-                resume_ctx += (
-                    f"\n⏰ [session-resume] 幽灵模式已过期 — 请运行 lx-ghost off 清理。\n"
-                )
-            else:
-                resume_ctx += (
-                    f"\n👻 [session-resume] 幽灵模式活跃中\n"
-                    f"\n"
-                    f"   🧭 方向: {direction}\n"
-                    f"   🔄 轮次: {retry}\n"
-                    f"   📁 Chat: {chat_dir}\n"
-                    f"\n"
-                    f"   🔧 恢复指令:\n"
-                    f"   1. 读取探索进度: cat {chat_dir}/progress.md\n"
-                    f"   2. 继续围绕方向探索\n"
-                    f"   3. 记录发现: 追加到 {chat_dir}/progress.md\n"
-                    f"   4. 如有风险: lx-ghost skip-risk '描述'\n"
-                    f"   5. 如方向完成: lx-ghost off\n"
-                )
-        except (json.JSONDecodeError, OSError):
-            pass
-
-    # Output
-    if resume_ctx:
-        print(resume_ctx)
-        flywheel_event("session_resume", "inject_active_mode", "P1")
-
-    # Always pass through (SessionStart should not block)
-    output_continue()
+    print(context)
 
 
 if __name__ == "__main__":

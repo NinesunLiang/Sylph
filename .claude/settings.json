@@ -593,18 +593,12 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 .claude/hooks/pretool-compact-writer.py",
+            "command": "python3 .claude/hooks/compact-writer.py",
             "timeout": 5000
           }
         ]
       }
     ]
-  },
-  "env": {
-    "ANTHROPIC_MODEL": "deepseek-v4-pro[1m]",
-    "ANTHROPIC_DEFAULT_SONNET_MODEL": "deepseek-v4-pro[1m]",
-    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "deepseek-v4-pro[1m]",
-    "CLAUDE_CODE_MAX_CONTEXT_TOKENS": "1000000"
   },
   "permissions": {
     "defaultMode": "default"
