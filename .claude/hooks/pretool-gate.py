@@ -1001,7 +1001,58 @@ def _check_secret_scan(payload: dict) -> str | None:
 
 # ── Gate registry ──
 
+# ── 上下文水位门(owner 2026-07-20 规格: 50%提醒/70%只读/80%强制) ──
+# 实测在 pretool-user-approve(每轮尾读 transcript usage),本门只读 state 文件。
+# 提醒层由 UserPromptSubmit 注入完成;这里实现 70% 只读 + 80% 强制。
+WATERMARK_STATE = OMC / "state" / "context-watermark.json"
+WATERMARK_READONLY_PCT = 70.0
+WATERMARK_FORCE_PCT = 80.0
+WATERMARK_STALE_S = 1800  # 30 分钟未刷新=数据失效,fail-open(下轮 prompt 会刷新)
+MUTATING_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
+
+
+def _check_watermark_gate(payload: dict) -> str | None:
+    """Gate 0: 上下文水位——70% 只读(禁文件写工具),80% 强制 compact(全阻断)。"""
+    try:
+        data = json.loads(WATERMARK_STATE.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+    try:
+        pct = float(data.get("pct", 0))
+    except (TypeError, ValueError):
+        return None
+    at = data.get("at", "")
+    try:
+        age = (datetime.now(timezone.utc) - datetime.fromisoformat(at)).total_seconds()
+        if age > WATERMARK_STALE_S:
+            return None
+    except Exception:
+        return None
+    if pct >= WATERMARK_FORCE_PCT:
+        _append_audit({
+            "event_type": "context_watermark_block",
+            "actor": "hook:pretool-gate",
+            "level": "FORCE",
+            "pct": pct,
+            "tool": _extract_tool(payload),
+        })
+        return (f"BLOCK context_watermark_force:{pct}%|上下文 {pct}% ≥80%——强制 compact。"
+                f"停止一切操作,立即运行 /compact;compact 后水位回落自动解除")
+    if pct >= WATERMARK_READONLY_PCT and _extract_tool(payload) in MUTATING_TOOLS:
+        _append_audit({
+            "event_type": "context_watermark_block",
+            "actor": "hook:pretool-gate",
+            "level": "READONLY",
+            "pct": pct,
+            "tool": _extract_tool(payload),
+        })
+        return (f"BLOCK context_watermark_readonly:{pct}%|上下文 {pct}% ≥70%——只读模式,"
+                f"禁止文件写操作。收尾验证后立即 /compact")
+    return None
+
+
 GATES = [
+    ("watermark", _check_watermark_gate),
     ("context-critical", _check_context_critical_pause),
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),

@@ -7,7 +7,7 @@
 
 | # | 条件 | 检测方式 | 阈值 | 降级动作 |
 |---|------|---------|------|---------|
-| 1 | Context 过满 | context_watermark | ≥70% | L2→L1 全降级 |
+| 1 | Context 过满 | context_watermark | ≥80% | L2→L1 全降级 |
 | 2 | 连续 3 步未 Verify | audit 检查 | 连续 3 tick 无 verify 事件 | 暂停复杂操作 |
 | 3 | 3 次 Oracle 执行时间超过 30s | Oracle 响应时间 | 单次 >30s | 跳过 Oracle（ACCEPT 默认） |
 | 4 | 模型返回格式异常（非 JSON） | parse error 计数 | 连续 3 次 | 降级 L2→L1 |
@@ -18,7 +18,7 @@
 ```yaml
 fallbacks:
   - trigger: "context_full"
-    condition: "context_pct >= 70"
+    condition: "context_pct >= 80"
     actions:
       - "watermark_to_compact"
       - "disable_oracle"
@@ -53,5 +53,5 @@ python3 .omc/scripts/fallback_matrix.py [--check <触发点ID>]
 
 返回 JSON:
 ```json
-{"should_fallback": true, "action": "demote_to_L1", "reason": "context_pct=73% > 70%"}
+{"should_fallback": true, "action": "demote_to_L1", "reason": "context_pct=83% > 80%"}
 ```

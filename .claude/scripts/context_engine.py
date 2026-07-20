@@ -140,11 +140,12 @@ def compact_decision(token: dict[str, Any]) -> tuple[str, str, str, bool, str | 
                 True,
                 "context_watermark_unobservable",
             )
-        if watermark >= 85:
-            return ("COMPACT_NOW", "watermark_ge_85", "watermark", False, None)
-        if watermark >= 70:
-            return ("COMPACT_SOON", "watermark_ge_70", "watermark", False, None)
-        return ("CONTINUE", "watermark_lt_70", "watermark", False, None)
+        # owner 规格(2026-07-20): 50% 提醒 / 70% 只读 / 80% 强制
+        if watermark >= 80:
+            return ("COMPACT_NOW", "watermark_ge_80", "watermark", False, None)
+        if watermark >= 50:
+            return ("COMPACT_SOON", "watermark_ge_50", "watermark", False, None)
+        return ("CONTINUE", "watermark_lt_50", "watermark", False, None)
 
     turn = int(session.get("turn", 0) or 0)
     if turn >= 20:
@@ -443,7 +444,8 @@ def state_injection(token_path: Path) -> str:
 
 def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> int:
     """写入 .omc/session-handoff.md 和 .omc/state/last-user-prompt.md
-    供 @ 引用，下次会话自动注入上下文。
+    供 SessionStart hook(session-start.py, source=compact/resume)注入到
+    compact 后的上下文尾部,恢复任务状态。
     无 hook 参与，纯文件写入。
     同时读取 .claude/.prompt-ring.json 收集最近 20 轮用户 prompt。
     """
@@ -473,7 +475,7 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
     handoff_content = f"""# Session Handoff
 
 > 由 context_engine compact-write 于 {now_iso()} 更新
-> AGENTS.md 已 @ 引用本文件，启动时自动加载
+> 由 SessionStart hook(session-start.py, source=compact/resume)注入 compact 后上下文尾部
 
 ## Task
 - id: {task_id(token, token_path.stem)}

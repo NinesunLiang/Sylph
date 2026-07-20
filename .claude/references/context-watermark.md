@@ -1,34 +1,46 @@
 # Context Watermark 三段式水位检测
 
-> L2 Enhance 核心: 0-40% 安全 / 40-70% 警戒 / 70%+ 临界
-> 调用 `.omc/scripts/context_watermark.py`
+> owner 规格(2026-07-20 裁决): <50% 安全 / ≥50% 提醒 compact / ≥70% 只读 / ≥80% 强制
+> 实测: 每轮尾读 transcript usage;执行: PreToolUse 门
 
-## 三级水位
+## 四级水位
 
 | 水位 | 范围 | 行为 |
 |------|------|------|
-| 🟢 安全 | 0-40% | 无操作 |
-| 🟡 警戒 | 40-70% | tool 调用后注入一行警告 `🟡 W: 63%`，建议 compact |
-| 🔴 临界 | 70%+ | tool 调用后强制注入警告 + 禁止 L2 复杂操作 |
+| 🟢 SAFE | 0-50% | 无操作 |
+| 🟡 REMIND | 50-70% | 每 5 轮注入 `🟡 W: 63% — 建议 /compact 释放上下文` |
+| 🟠 READONLY | 70-80% | 注入警告 + pretool-gate 阻断写工具(Write/Edit/MultiEdit/NotebookEdit) |
+| 🔴 FORCE | 80%+ | pretool-gate 阻断**全部**工具,立即运行 /compact |
 
-## Token 计数策略
+## 实测方法(limit = 170_000 默认)
 
-1. **优先**: tiktoken（离线本地，零延迟）
-2. **回退**: char_count / 4（兜底）
-3. **校准源**: API response 的 `input_tokens`（每次请求后校准）
+- 数据源: hook payload 的 `transcript_path`,尾读 512KB 找最近一次 assistant `usage`
+- `used = input_tokens + cache_read_input_tokens + cache_creation_input_tokens`
+  (每轮 cache_read 重放几乎全部历史 → 最后一次 usage ≈ 当前上下文总量)
+- 默认 limit 170k = 2026-07-19 实测 auto-compact 触发点(preTokens=170,508);
+  模型标称 1M 为宣传上限,有效窗口以实测为准
+- 覆盖: `CARROROS_CONTEXT_LIMIT=<N>` 环境变量
 
-## 调用方式
+## 集成点(真实链路)
+
+1. **实测** `.claude/hooks/pretool-user-approve.py`(UserPromptSubmit,每轮):
+   算水位 → 写 `.omc/state/context-watermark.json` + 同步 token `session.context_watermark`
+2. **执行** `.claude/hooks/pretool-gate.py`(PreToolUse,watermark 门排第一):
+   读 state 文件;≥80 全阻断 / ≥70 阻断写工具;state 过期(>1800s)fail-open
+3. **决策** `.claude/scripts/context_engine.py compact_decision`(L2_ENHANCE):
+   ≥80 COMPACT_NOW / ≥50 COMPACT_SOON / 否则 CONTINUE
+4. **离线调试** `.omc/scripts/context_watermark.py --used N [--limit N]`:
+   同规格独立计算器,退出码 0/1/2 = SAFE·REMIND/READONLY·FORCE
+
+## 调用方式(离线)
 
 ```bash
-python3 .omc/scripts/context_watermark.py [--used <N>] [--limit <N>]
+python3 .omc/scripts/context_watermark.py --used 85000
 ```
 
 返回 JSON:
 ```json
-{"used": 85000, "limit": 200000, "pct": 42.5, "level": "WARNING", "remark": "40-70%"}
+{"used": 85000, "limit": 170000, "pct": 50.0, "level": "REMIND", "action": "inject_warning", ...}
 ```
 
-## 集成点
-
-- `completion-gate.py` 在每次 tool call 后注入水位
-- `pretool-action-gate.py` 在 70%+ 时阻断 L2 复杂操作
+退出码: 0=SAFE, 1=REMIND(≥50), 2=READONLY/FORCE(≥70)。
