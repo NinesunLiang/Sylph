@@ -1,0 +1,10 @@
+b8d0113 feat: context water. limit 动态化+worktree hooks 基础设施修复+系列优化
+deb13d9 feat:mvp版本优化结束
+e6026aa feat:消除token影响
+476a08b feat: 任务17+18 落地——PreCompact 刷新链接通 + 上下文水位 50/70/80 三段策略
+9db87ef fix: lx-goal 无人值守断裂点——执行期停止问人四根因修复
+6dcfb90 feat: R6-A+C 受限施工——E7 oracle 三层精确 BLOCK(31/31 对抗)+R6-C 选定 E2→9,总加权 8.51→8.65 加权门禁达成
+13b1c78 feat: R4 补缺冲刺——E1 越界 BLOCK 化 + 幽灵引用清零 + varlock 修复 + 注册表对齐现实
+009c749 feat: R2 PKG-A 验证链修复(E3 靶心)——cmd_verify 接线 verify_gate + task-bound audit + Gate6 双绑定
+6478951 feat: H2/H3 落地——PreToolUse matcher 扩 Read|Grep|Glob + launcher 关键 hook fail-closed
+05b8b5c feat: 十特性修复（3✅/7⚠️→10✅）+ goal 模式硬化 + lx-rpe P0 修复

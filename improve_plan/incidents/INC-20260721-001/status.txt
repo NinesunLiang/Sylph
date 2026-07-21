@@ -1,0 +1,54 @@
+ M .claude/.prompt-ring-state.json
+ M .claude/hooks/pretool-gate.py
+ M .gitignore
+ M .omc/session-handoff.md
+ D scripts/carroros-gates/abstraction-check.py
+ D scripts/carroros-gates/c7-check.py
+ D scripts/carroros-gates/evidence-check.py
+ D scripts/carroros-gates/finalize-page.py
+ D scripts/carroros-gates/gen-control-plane-lock.py
+ D scripts/carroros-gates/install-night-hook.py
+ D scripts/carroros-gates/lib/common.py
+ M scripts/carroros-gates/lib/gate_result.py
+ D scripts/carroros-gates/lib/run-gate.py
+ D scripts/carroros-gates/morning-report.py
+ M scripts/carroros-gates/preflight.py
+ D scripts/carroros-gates/scope-check.py
+ D scripts/carroros-gates/smoke/run-all.py
+?? .claude/hooks/agentic-ui.py
+?? .claude/hooks/completion-gate.py
+?? .claude/hooks/context-guard.py
+?? .claude/hooks/edit-guard.py
+?? .claude/hooks/error-dna-auto-fix.py
+?? .claude/hooks/error-dna.py
+?? .claude/hooks/harness_core.py
+?? .claude/hooks/harness_lib.py
+?? .claude/hooks/permission-gate.py
+?? .claude/hooks/posttool-bash-audit.py
+?? .claude/hooks/posttool-checkpoint.py
+?? .claude/hooks/posttool-claim-audit.py
+?? .claude/hooks/pre-ask-guard.py
+?? .claude/hooks/pre-completion-gate.py
+?? .claude/hooks/pretool-approve-detect.py
+?? .claude/hooks/pretool-blast-radius.py
+?? .claude/hooks/pretool-purify-gate.py
+?? .claude/hooks/pretool-terminal-safety.py
+?? .claude/hooks/pretool-write-lock.py
+?? .claude/hooks/privacy-gate.py
+?? .claude/hooks/read-tracker.py
+?? .claude/hooks/session-resume.py
+?? .claude/hooks/thinking-gate.py
+?? .claude/hooks/token_writer.py
+?? .claude/hooks/turn-counter.py
+?? .claude/scripts/provision_worktree_hooks.py
+?? scripts/carroros-gates/abstraction_check.py
+?? scripts/carroros-gates/c7_check.py
+?? scripts/carroros-gates/evidence_check.py
+?? scripts/carroros-gates/finalize_page.py
+?? scripts/carroros-gates/gen_control_plane_lock.py
+?? scripts/carroros-gates/install_night_hook.py
+?? scripts/carroros-gates/lib/common_lib.py
+?? scripts/carroros-gates/morning_report.py
+?? scripts/carroros-gates/run_gate.py
+?? scripts/carroros-gates/scope_check.py
+?? scripts/carroros-gates/smoke/run_all.py

@@ -1,0 +1,11 @@
+incident_id: INC-20260721-001
+severity: P0
+label: EVIDENCE_PROTOCOL_VIOLATION
+status: CLOSED_INCONCLUSIVE
+migration_causality: INCONCLUSIVE
+failure_mechanism: UNKNOWN
+launcher_identity: hook-launcher.py
+launcher_health: PASS (root=0, tmp=0)
+hook_syntax: PASS (3/3)
+migration_state: COMPLETED
+closed_at: "2026-07-21"

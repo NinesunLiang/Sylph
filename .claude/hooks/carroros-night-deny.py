@@ -37,7 +37,7 @@ Bash 夜间白名单（fullmatch；此外一律 exit 2）：
  10. lx-goal 运行时：python3 .claude/skills/lx-goal/scripts/lx-goal.py ...
  11. 版本探针：node|pnpm|npm|python3 --version（步 0 指纹比对）
  12. mkdir -p / scoped rm -rf（仅 .omc/task/** artifacts 清理，步 10）
- preflight/morning-report/gen-control-plane-lock/install-night-hook/smoke
+ preflight/morning_report/gen_control_plane_lock/install_night_hook/smoke
  均不在白名单——夜间禁跑（晨收前人类先 rm .omc/state/night-session.active）。
 
 协议与 pretool-gate.py 一致：stdin JSON payload；exit 0 放行，exit 2 阻断。
@@ -73,8 +73,8 @@ DENY_PATH_PATTERNS = [
     (re.compile(r"/tokens/"), "tokens 目录仅允许 token-write API"),
     (re.compile(r"\.claude/settings[^/]*\.json$"), "settings（防禁用 hook 本身）"),
     (re.compile(r"\.claude/hooks/"), "hook 目录（防改写信任边界自身）"),
-    (re.compile(r"verification-summaries/"), "结论文件仅 finalize-page.sh 可写"),
-    (re.compile(r"ac-aggregates/"), "AC 聚合仅 evidence-check.sh 可写"),
+    (re.compile(r"verification-summaries/"), "结论文件仅 finalize-page 门禁可写"),
+    (re.compile(r"ac-aggregates/"), "AC 聚合仅 evidence-check 门禁可写"),
     (re.compile(r"/metrics/"), "门禁指标仅门禁脚本可写"),
     (re.compile(r"page-baselines/"), "页基线仅允许夜循环步 0 的 git rev-parse 重定向"),
     (re.compile(r"smoke-results.*\.yaml"), "smoke 结果仅 preflight 可写"),
@@ -84,7 +84,7 @@ DENY_PATH_PATTERNS = [
 
 # run-gate wrapped 命令与 mkdir 禁触碰的控制面 token
 PROTECTED_TOKENS = (
-    "scripts/carroros-gates", "carroros-gates", "gate-results",
+    "scripts/carroros-gates", "scripts/carroros-gates/lib", "carroros-gates", "gate-results",
     ".omc/night", ".omc/state", "night-manifest",
     "verification-summar", "ac-aggregates", "page-baselines",
     "token.json", "tokens/", ".claude/settings", ".claude/hooks",
@@ -157,8 +157,8 @@ EVENTS_RE = re.compile(r"echo\s+[^&|;`<>$()]*>>\s*\S*execution-events\.jsonl")
 
 # ---------- Bash 夜间白名单（全部 fullmatch） ----------
 ALLOW_CMD_PATTERNS = [
-    # 1. 夜循环门禁脚本
-    (re.compile(r"bash\s+\S*scripts/carroros-gates/(scope-check|c7-check|evidence-check|finalize-page|abstraction-check)\.sh(\s+--[a-z-]+\s+" + _ARG + r")+"),
+    # 1. 夜循环门禁脚本（.sh 兼容 + .py 等价物）
+    (re.compile(r"(?:bash\s+\S*scripts/carroros-gates/(?:scope-check|c7-check|evidence-check|finalize-page|abstraction-check)\.sh|python3\s+\S*scripts/carroros-gates/(?:scope_check|c7_check|evidence_check|finalize_page|abstraction_check)\.py)(\s+--[a-z-]+\s+" + _ARG + r")+"),
      "门禁脚本"),
     # 3. carros_base 三个 API
     (re.compile(r"python3?\s+\S*carros_base\.py\s+(manifest-json|gate-results-init|token-write)(\s+--[a-z-]+\s+" + _ARG + r")+"),
@@ -186,7 +186,7 @@ ALLOW_CMD_PATTERNS = [
 ]
 
 # run-gate：bash .../run-gate.sh <参数段> -- <wrapped 命令>
-RUN_GATE_RE = re.compile(r"bash\s+\S*scripts/carroros-gates/lib/run-gate\.sh\s+(.*?)\s+--\s+(.+)")
+RUN_GATE_RE = re.compile(r"(?:bash\s+\S*scripts/carroros-gates/lib/run-gate\.sh|python3\s+\S*scripts/carroros-gates/run_gate\.py)\s+(.*?)\s+--\s+(.+)")
 RUN_GATE_OUR_ARGS_RE = re.compile(r"(--[a-z-]+\s+" + _ARG + r"\s*)+")
 WRAPPED_TOOLS = {"pnpm", "npm", "npx", "node", "tsc", "eslint", "playwright"}
 WRAPPED_SCRIPT_RE = re.compile(r"(bash|python3?)\s+\S*(tests?|visual|e2e|scripts)/")

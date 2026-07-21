@@ -18,9 +18,9 @@
 - [ ] **输入落位**：`inputs/{产品名}/prototype/`（原型图或 URL 清单，**必需**）、`prd.md`（可选）、`api.md`（可后到）
 - [ ] **目标 repo 位置**：选 `apps/{产品名}/`（monorepo 子目录；C1 越界检测/门禁执行/PR 三道边界都锚在这里）
 - [ ] **A1 骨架**（按 `phase0-checklist.md` §A1 逐项）：Vite8+React19+TS6 strict、tokens、`src/app/router/` **全量预注册路由+stub 页**、mock 层、ESLint 禁 antd、`tests/e2e/helpers/assertions.ts` 按 catalog 实现全部 17 个 helper、playwright.config
-- [ ] **A2 夜跑 hook**：`bash scripts/carroros-gates/install-night-hook.sh`（幂等）
+- [ ] **A2 夜跑 hook**：`python3 scripts/carroros-gates/install_night_hook.py`（幂等）
 - [ ] **A3 模型路由探针**：对 `http://127.0.0.1:9998` 用 opus/haiku 别名各发最小请求，验真身=v4-pro/v4-flash → `model-routing-proof.yaml`
-- [ ] **A4 独立 smoke**：rsync 到 /tmp 干净目录 → `SMOKE_RUNNER=independent bash scripts/carroros-gates/smoke/run-all.sh --manifest <模板> --night-dir <临时> --target-repo <真仓> --out $NIGHT_DIR/smoke-results-independent.yaml` 全绿
+- [ ] **A4 独立 smoke**：rsync 到 /tmp 干净目录 → `SMOKE_RUNNER=independent python3 scripts/carroros-gates/smoke/run_all.py --manifest <模板> --night-dir <临时> --target-repo <真仓> --out $NIGHT_DIR/smoke-results-independent.yaml` 全绿
   - ⚠️ **改完任何控制面脚本（hooks/scripts/carroros-gates）后必须重跑本步**，否则 preflight 9b 因 digest 过期硬拦
 
 ## 2. 每个开发周期 SOP（拿到新需求/PRD/UI 后）
@@ -34,7 +34,7 @@
 - [ ] **B2 feature 目录**：`prd/{app}/feat-{PAGE_ID}/prd.md` 头部写"夜间模式：验收委托机器门禁"
 - [ ] **B3 dry-cost**（**仅首夜**）：拿本夜页手动走一遍完整门禁周期，实测调用数/墙钟/fix 轮 → `budgets = P90 × 1.5` 填 manifest（禁止拍脑袋）
 - [ ] **B4 环境指纹**：node/pnpm/lockfile sha256/playwright 版本填 manifest
-- [ ] **B5 控制面锁**：`bash scripts/carroros-gates/gen-control-plane-lock.sh --manifest .omc/night/$(date +%F)/night-manifest.yaml --write`
+- [ ] **B5 控制面锁**：`python3 scripts/carroros-gates/gen_control_plane_lock.py --manifest .omc/night/$(date +%F)/night-manifest.yaml --write`
 
 ### 2.2 下班前点火（3 个动作，缺一个都点不着）
 
@@ -43,7 +43,7 @@
   - `shasum -a 256 .omc/night/$(date +%F)/night-manifest.yaml` → 填 `night-manifest.signoff.yaml`：`manifest_sha256` + `decision: GO` + `signer` + `signed_at`
 - [ ] **② preflight 全绿**：
   ```bash
-  bash scripts/carroros-gates/preflight.sh \
+  python3 scripts/carroros-gates/preflight.py \
     --manifest .omc/night/$(date +%F)/night-manifest.yaml \
     --night-dir .omc/night/$(date +%F) \
     --target-repo apps/{产品名}
@@ -60,7 +60,7 @@
 - [ ] **① 摘除标记（第一步必做，否则 hook 拦晨报脚本）**：`rm .omc/state/night-session.active`
 - [ ] **② 生成晨报**：
   ```bash
-  bash scripts/carroros-gates/morning-report.sh \
+  python3 scripts/carroros-gates/morning_report.py \
     --manifest .omc/night/<日期>/night-manifest.yaml --night-dir .omc/night/<日期>
   ```
 - [ ] **③ 先看记分卡**：`control-plane-scorecard.yaml` 的 `control_plane_green=true` **才准看页面和 Draft PR**。不绿 = 当夜失败，哪怕页面好看

@@ -3,7 +3,8 @@
 set -euo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-LAUNCHER="$PROJECT_ROOT/.claude/hooks/hook-launcher.sh"
+LAUNCHER="$PROJECT_ROOT/.claude/hooks/hook-launcher.py"
+LAUNCHER_CMD="python3"
 HOOKS_DIR="$PROJECT_ROOT/.claude/hooks"
 
 fail() { echo "FAIL: $1" >&2; exit 1; }
@@ -13,7 +14,7 @@ pass() { echo "PASS: $1"; }
 
 # --- Case 1: 非关键 hook 缺失 → exit 0（fail-open 维持）---
 set +e
-out="$(bash "$LAUNCHER" "definitely-not-exist-hook.py" 2>/dev/null)"
+out="$($LAUNCHER_CMD "$LAUNCHER" "definitely-not-exist-hook.py" 2>/dev/null)"
 code=$?
 set -e
 [ "$code" -eq 0 ] || fail "case1 非关键缺失应 exit 0，实际 $code"
@@ -30,7 +31,7 @@ restore() { mv "$BAK" "$HOOKS_DIR/$CRITICAL"; }
 trap restore EXIT
 
 set +e
-out="$(bash "$LAUNCHER" "$CRITICAL" 2>/dev/null)"
+out="$($LAUNCHER_CMD "$LAUNCHER" "$CRITICAL" 2>/dev/null)"
 code=$?
 set -e
 [ "$code" -eq 2 ] || fail "case2 关键缺失应 exit 2，实际 $code"
@@ -44,7 +45,7 @@ trap - EXIT
 # carroros-night-deny.py 无 stdin payload 时会自行退出；此处只验证 launcher
 # 不走 missing 分支（输出不含 hook not found / CRITICAL missing）。
 set +e
-out="$(echo '{}' | bash "$LAUNCHER" "$CRITICAL" 2>&1)"
+out="$(echo '{}' | $LAUNCHER_CMD "$LAUNCHER" "$CRITICAL" 2>&1)"
 code=$?
 set -e
 echo "$out" | grep -q "CRITICAL hook missing" && fail "case3 关键 hook 存在却走缺失分支"

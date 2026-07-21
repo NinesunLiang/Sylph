@@ -37,6 +37,8 @@ GATE_ID_ENUM = {"C0", "C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8a", "C8b"}
 PRODUCER_ENUM = {
     "preflight.sh", "scope-check.sh", "run-gate.sh", "c7-check.sh",
     "evidence-check.sh", "finalize-page.sh", "abstraction-check.sh",
+    "preflight.py", "scope_check.py", "run_gate.py", "c7_check.py",
+    "evidence_check.py", "finalize_page.py", "abstraction_check.py",
 }
 
 

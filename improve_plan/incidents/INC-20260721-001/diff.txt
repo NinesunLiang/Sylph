@@ -1,0 +1,17 @@
+.claude/.prompt-ring-state.json
+.claude/hooks/pretool-gate.py
+.gitignore
+.omc/session-handoff.md
+scripts/carroros-gates/abstraction-check.py
+scripts/carroros-gates/c7-check.py
+scripts/carroros-gates/evidence-check.py
+scripts/carroros-gates/finalize-page.py
+scripts/carroros-gates/gen-control-plane-lock.py
+scripts/carroros-gates/install-night-hook.py
+scripts/carroros-gates/lib/common.py
+scripts/carroros-gates/lib/gate_result.py
+scripts/carroros-gates/lib/run-gate.py
+scripts/carroros-gates/morning-report.py
+scripts/carroros-gates/preflight.py
+scripts/carroros-gates/scope-check.py
+scripts/carroros-gates/smoke/run-all.py
