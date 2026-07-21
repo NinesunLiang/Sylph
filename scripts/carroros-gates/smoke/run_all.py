@@ -15,14 +15,15 @@ import yaml
 GATES_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(GATES_DIR / "lib"))
 import gate_result as gr
+import common_lib as _cl
 from common_lib import *
 
 # Override: smoke runs with synthetic manifest
 OUT = ""
-PASS_ARGS = [a for a in sys.argv[1:] if not a.startswith("--out") or (OUT := sys.argv[sys.argv.index("--out") + 1]) is None and True]
-# Actually parse properly
+PASS_ARGS = []
 def parse_smoke_args():
-    global OUT
+    global OUT, PASS_ARGS
+    PASS_ARGS = []
     i = 1
     while i < len(sys.argv):
         if sys.argv[i] == "--out" and i + 1 < len(sys.argv):
@@ -35,6 +36,10 @@ if not OUT:
     sys.exit(2)
 
 gates_parse_args(PASS_ARGS)
+MANIFEST = _cl.MANIFEST
+NIGHT_DIR = _cl.NIGHT_DIR
+TARGET_REPO = _cl.TARGET_REPO
+PAGE_ID = _cl.PAGE_ID
 
 cases = []
 
@@ -49,7 +54,7 @@ _lock = subprocess.run(["python3", str(GATES_DIR / "gen_control_plane_lock.py")]
 if _lock.returncode != 0:
     print(f"ERROR: gen_control_plane_lock 失败: {_lock.stderr}", file=sys.stderr)
     sys.exit(2)
-_m = yaml.safe_load(MANIFEST.read_text())
+_m = yaml.safe_load(_cl.MANIFEST.read_text())
 _m["control_plane_lock"] = yaml.safe_load(_lock.stdout)
 _smoke_manifest = Path(tempfile.mkdtemp()) / "manifest.yaml"
 _smoke_manifest.write_text(yaml.safe_dump(_m))
