@@ -82,6 +82,8 @@ hooks_enabled:
   pretool_edit_scope: true
   lsp_suggest: true
   context_guard: true
+  blast_radius: true
+  terminal_safety: true
 
   # 工作流（用户感知变稳）
   posttool_checkpoint: true
@@ -126,7 +128,7 @@ hooks_enabled:
   pretool_agents_merge: false
   pretool_approve_detect: false
   pretool_b1_detect: false
-  pretool_blast_radius: false
+  pretool_blast_radius: true
   pretool_compact_writer: false
   pretool_cruise_check: false
   pretool_git_gate: false
@@ -139,7 +141,7 @@ hooks_enabled:
   pretool_sensitive_file_guard: false
   pretool_skill_body_enforce: false
   pretool_skill_version_guard: false
-  pretool_terminal_safety: false
+  pretool_terminal_safety: true
   pretool_user_correction: false
   pretool_write_lock: false
   read_tracker: false

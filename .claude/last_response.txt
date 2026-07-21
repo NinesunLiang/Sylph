@@ -2,11 +2,11 @@
 
 ## Active Tasks（任务状态恢复）
 
-  [20260705/FIX-BUG] plan — planning (S1)
+  [20260721/auto_19a8ad_023633] ? — active (S1)
     Done: 0/1
-    Token: /Users/lucas.liang/Desktop/Sylph/Carror_OS/.omc/tokens/20260705/FIX-BUG.json
+    Token: /Users/lucas.liang/Desktop/Sylph/Carror_Enhance_OS/.omc/tokens/20260721/auto_19a8ad_023633.json
 
-  ⏩ Resume: `carros_base.py status --task-id FIX-BUG` → `tick --task-id FIX-BUG`
+  ⏩ Resume: `carros_base.py status --task-id auto_19a8ad_023633` → `tick --task-id auto_19a8ad_023633`
 
 ## Recent User Prompts（最近用户询问）
 

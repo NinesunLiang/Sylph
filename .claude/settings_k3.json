@@ -1,8 +1,14 @@
 {
   "env": {
-    "ANTHROPIC_BASE_URL": "http://127.0.0.1:9998",
-    "ANTHROPIC_AUTH_TOKEN": "test",
-    "ANTHROPIC_MODEL": "deepseek-v4-flash(1m)"
+    "ANTHROPIC_AUTH_TOKEN": "sk-Xrwon2jxfgUlOlYCM2wLVcaMlT2ZkMnOjUZtivyuaFvP5r4F",
+    "ANTHROPIC_BASE_URL": "https://api.moonshot.cn/anthropic",
+    "ANTHROPIC_MODEL": "kimi-k3(1m)",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "kimi-k3(1m)",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "kimi-k3(1m)",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "kimi-k3(1m)",
+    "CLAUDE_CODE_SUBAGENT_MODEL": "kimi-k3(1m)",
+    "ENABLE_TOOL_SEARCH": "false",
+    "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "1048576"
   },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true
@@ -10,9 +16,7 @@
   "effortLevel": "xhigh",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
-  "model": "deepseek-v4-flash",
-  "apiUrl": "http://127.0.0.1:9998",
-  "authToken": "test",
+  "model": "opus",
   "hooks": {
     "PreToolUse": [
       {

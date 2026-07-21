@@ -3,19 +3,25 @@
 CarrorOS PreToolUse Unified Gate — merged from 7 individual hooks.
 
 Execution order (short-circuit on first BLOCK):
-  1. sensitive-edit   — block sensitive path access (.env, .ssh, keys)
-  2. fallback-check   — block if task is blocked/waiting_user
-  3. action-gate      — block dangerous commands; ask_user for risky ones
-  4. plan-gate        — block if task files missing
-  5. edit-scope       — block writes outside declared scope
-  6. verify-gate      — block unverified step completion marks in plan.md
-  7. oracle-gate      — L2 三层: 结构化危险 BLOCK / 不可解析+高危 ESCALATE / 模糊 hint(R6-A)
+  1. watermark        — 上下文水位: 70% 只读 / 80% 强制 compact
+  2. context-critical — GA hard gate: PAUSED_CONTEXT_CRITICAL 仅允许恢复操作
+  3. sensitive-edit   — block sensitive path access (.env, .ssh, keys)
+  4. fallback-check   — block if task is blocked/waiting_user
+  5. action-gate      — block dangerous commands; ask_user for risky ones
+  6. permission-gate-ext — DB 破坏性 (DROP/TRUNCATE/DELETE) + git reset --hard/clean -fdx
+  7. secret-scan      — block plaintext secrets (sk-...) in git staging
+  8. plan-gate        — block if task files missing
+  9. edit-scope       — block writes outside declared scope
+  10. verify-gate     — block unverified step completion marks in plan.md
+  11. oracle-gate     — L2 三层: 结构化危险 BLOCK / 不可解析+高危 ESCALATE / 模糊 hint(R6-A)
+  12. document-quality — block dialogue residue in spec docs
 
 Design constraints (from data_todo.md / 总结.md):
-  - Single Python process per tool call (was 7)
+  - Single Python process per tool call (was 7 individual hooks; now 12 gates + G2/G3/G5/G6)
   - Audit once per block decision, not per hook
   - Oracle: BLOCK 仅属结构化危险语义, 模糊关键词层维持 hint+audit(终审 R6-A)
   - First BLOCK short-circuits; later checks skip
+  - v1.1: +permission-gate-ext (DB destructive commands, enhance migration step 2)
 """
 
 from __future__ import annotations
@@ -102,6 +108,30 @@ DANGEROUS_COMMANDS = [
     r"rm\s+-rf?\s+['\"]?(/|~|\*)",
     r"^chmod\s+777\b", r"^chown\b", r"^git\s+push\s+(-f|--force)",
     r"^dd\s+if=", r"^mkfs\.", r"^fdisk\b", r":\(\)\{\s*:\|:\s*&\s*\};:",
+]
+
+# ── Permission-Gate-Ext: 数据库破坏性命令 + 附加文件系统危险 (enhance migration step 2) ──
+DB_DESTRUCTIVE_PATTERNS = [
+    r"\bdrop\s+(table|database|collection|schema)\b",
+    r"\btruncate(\s+table)?\s+\S",
+    r"\bdelete\s+from\b",
+]
+ADDITIONAL_DANGEROUS = [
+    r"^git\s+reset\s+--hard\b",
+    r"^git\s+clean\s+-[fdx]",
+    # Blast-radius: git checkout . / git checkout -- (enhance migration step 3)
+    r"git\s+checkout\s+(HEAD\s+)?(--\s+)?\.(\s|;|$|\||&)",
+    r"git\s+checkout\s+--($|\s)",
+    r"git\s+add\s+(-A|--all|\.)",
+]
+
+# ── DLP Content Scan: API token patterns (enhance migration step 3 - privacy-gate) ──
+DLP_PATTERNS = [
+    (r"sk-[a-zA-Z0-9]{20,}", "OpenAI/Anthropic API key"),
+    (r"sk-ant-[a-zA-Z0-9_-]{20,}", "Anthropic API key (ant prefix)"),
+    (r"ghp_[a-zA-Z0-9]{36}", "GitHub Personal Access Token"),
+    (r"xoxb-[0-9]{10,}-[0-9]{10,}", "Slack Bot Token"),
+    (r"Bearer\s+[A-Za-z0-9\-._~+/]{20,}=*", "Bearer token"),
 ]
 
 ASK_USER_COMMANDS = [
@@ -1184,12 +1214,128 @@ def _check_watermark_gate(payload: dict) -> str | None:
     return None
 
 
+# ── Permission-Gate-Ext: 数据库破坏性命令 + git 破坏性操作 (enhance migration step 2) ──
+def _check_permission_gate_ext(payload: dict) -> str | None:
+    """Gate: 数据库破坏性命令 (DROP/TABLE/TRUNCATE/DELETE FROM) + git reset --hard/clean -fdx.
+    从 enhance permission-gate.py 提取核心检测逻辑，补充 pretool-gate 已有 _check_action_gate 未覆盖的 SQL 层面。"""
+    command = _extract_command(payload)
+    if not command:
+        return None
+    # 数据库破坏性命令
+    for pat in DB_DESTRUCTIVE_PATTERNS:
+        if re.search(pat, command, re.IGNORECASE):
+            _append_audit({
+                "event_type": "permission_gate_ext_block",
+                "actor": "hook:pretool-gate",
+                "decision": "BLOCK",
+                "reason": "db_destructive",
+                "pattern": pat,
+                "command_preview": command[:160],
+            })
+            return (f"BLOCK db_destructive pattern={pat}|"
+                    f"检测到数据库破坏性操作 ({pat})——AI 不能代执行。"
+                    f"请人类在自己终端执行;若确需 AI 执行,申请临时 bypass")
+    # 附加破坏性 git 命令
+    for pat in ADDITIONAL_DANGEROUS:
+        if re.search(pat, command, re.IGNORECASE):
+            _append_audit({
+                "event_type": "permission_gate_ext_block",
+                "actor": "hook:pretool-gate",
+                "decision": "BLOCK",
+                "reason": "additional_dangerous",
+                "pattern": pat,
+                "command_preview": command[:160],
+            })
+            return (f"BLOCK additional_dangerous pattern={pat}|"
+                    f"检测到破坏性操作 ({pat})——AI 不能代执行。"
+                    f"请人类在自己终端执行;若确需 AI 执行,申请临时 bypass")
+    return None
+
+
+# ── Privacy-Gate-Ext: DLP content scan (enhance migration step 3) ──
+def _check_privacy_gate_ext(payload: dict) -> str | None:
+    """Gate: 扫描 Read 操作读取的文件内容，检测 API key/token 泄露 (sk-*, ghp_*, xoxb-*, Bearer)。
+    与 _check_sensitive_edit (Gate sensitive-edit, 阻断敏感路径 Write) 互补——本门禁阻断敏感内容的 Read。"""
+    tool = _extract_tool(payload).lower()
+    if tool not in READ_TOOLS:
+        return None
+    path = _extract_path(payload)
+    if not path:
+        return None
+    # 仅扫描已知凭据文件
+    cred_files = {'.env', '.pem', '.key', '.p12', '.pfx', '.jks', 'auth.json', 'kubeconfig',
+                  'credentials.json', 'credentials.yaml', 'credentials.yml',
+                  'secrets.yaml', 'secrets.yml', 'secret.yaml', 'secret.yml'}
+    fname = Path(path).name
+    if fname not in cred_files and not any(fname.endswith(ext) for ext in ('.pem', '.key', '.p12', '.pfx', '.jks')):
+        return None
+    p = ROOT / path.removeprefix("./") if not path.startswith("/") else Path(path)
+    if not p.exists():
+        return None
+    try:
+        content = p.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return None
+    for pattern, label in DLP_PATTERNS:
+        if re.search(pattern, content):
+            _append_audit({
+                "event_type": "privacy_gate_ext_block",
+                "actor": "hook:pretool-gate",
+                "decision": "BLOCK",
+                "reason": "dlp_credential_detected",
+                "pattern": label,
+                "path": path,
+            })
+            return (f"BLOCK dlp_credential_in_read path={path} type={label}|"
+                    f"检测到凭据文件 {path} 含 {label}——已阻断读取。"
+                    f"请确认是否需要此文件;如确需读取,申请临时 bypass")
+    return None
+
+
+# ── Terminal-Safety: 命令长度 + 危险模式 (enhance migration step 3) ──
+TERMINAL_MAX_COMMAND_CHARS = 2000
+TERMINAL_WARN_COMMAND_CHARS = 120
+
+def _check_terminal_safety(payload: dict) -> str | None:
+    """Gate: 终端安全——阻断 >2000字符命令 (硬阻断) + 检测 git commit # 截断风险。"""
+    command = _extract_command(payload)
+    if not command:
+        return None
+    # Rule 6: 硬阻断 >2000 字符命令 (必须用脚本文件)
+    if len(command) > TERMINAL_MAX_COMMAND_CHARS:
+        _append_audit({
+            "event_type": "terminal_safety_block",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": "command_too_long",
+            "cmd_len": len(command),
+        })
+        return (f"BLOCK command_too_long:{len(command)}chars|"
+                f"命令超过 {TERMINAL_MAX_COMMAND_CHARS} 字符——必须创建脚本文件。"
+                f"用 Write 工具创建 scripts/task.sh,再 bash scripts/task.sh 执行")
+    # Rule 4: git commit message 禁止 #
+    if re.search(r'git\s+commit.*#\s*[0-9]', command):
+        _append_audit({
+            "event_type": "terminal_safety_warn",
+            "actor": "hook:pretool-gate",
+            "decision": "WARN",
+            "reason": "git_commit_hash_risk",
+            "command_preview": command[:160],
+        })
+        print(f"⚠️ [terminal-safety] git commit 消息含 #——Git 会截断。# 后的内容将被丢弃,用中文冒号/括号替代",
+              file=sys.stderr, flush=True)
+    return None
+
+
 GATES = [
     ("watermark", _check_watermark_gate),
     ("context-critical", _check_context_critical_pause),
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
     ("action", _check_action_gate),
+    ("permission-gate-ext", _check_permission_gate_ext),
+    ("privacy-gate-ext", _check_privacy_gate_ext),
+    ("terminal-safety", _check_terminal_safety),
     ("secret-scan", _check_secret_scan),
     ("plan", _check_plan_gate),
     ("edit-scope", _check_edit_scope),
