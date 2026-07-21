@@ -1,12 +1,10 @@
 harness_version: 7.0.0
 mode: relaxed
-
 workflow:
   doc_root: rpe
   executor_doc: executor.md
   plan_doc: plan.md
   research_doc: research.md
-
 task_decomposition:
   require_step_file: true
   step_file_path: .claude/{YYYY-M-D}/{task}_step.md
@@ -18,27 +16,21 @@ task_decomposition:
   circuit_breaker_states: Closed → Open → Half-Open
   half_open_retry: true
   rollback_declaration: required_for_strict_mode
-
 knowledge:
   inject_files: false
   snapshot_expiry_sec: 86400
-
 ghost_mode:
   exit_report_gate: true
   default_poll_interval: 600
   default_expiry_hours: 3
   default_min_iterations: 0
-
 turn_counter:
   todo_refresh_interval: 10
   todo_max_items: 15
-
 fuzzy_detection:
   fuzzy_verbs: 继续 优化 修复 改进 完善 处理一下 看一下 搞一下
-
 lsp_suggest:
   enabled: true
-
 completion_gate:
   min_evidence_chars: 60
   required_keyword: VERIFIED
@@ -47,12 +39,10 @@ completion_gate:
   soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
     done|mostly complete|seems to work|probably works|theoretically|should work|looks
     good
-
 bash_audit:
   dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
   fail_streak_threshold: 3
   hard_block_threshold: 10
-
 permission_gate:
   git_commit_regex: git\s+(commit|add\s+--?all|\badd\b.*-A)
   git_push_force_regex: git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force
@@ -63,17 +53,13 @@ permission_gate:
   bypass_regex: base64\s+(-d|--decode).*\|\s*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|\s*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
   scope_write_regex: current-scope\.txt|sensitive-approved|permission-approved
   approved_ops_ttl: 1800
-  c1_whitelist: ""
-
+  c1_whitelist: ''
 hooks_enabled:
-  # 核心安全（不可协商）
   permission_gate: true
   privacy_gate: true
   fuzzy_block: true
   pretool_retry_check: true
   completion_gate: true
-
-  # 提效（用户感知变好）
   context_compressor: true
   session_resume: true
   posttool_handoff_writer: true
@@ -84,21 +70,17 @@ hooks_enabled:
   context_guard: true
   blast_radius: true
   terminal_safety: true
-
-  # 工作流（用户感知变稳）
   posttool_checkpoint: true
   meta_oracle_trigger: true
   pretool_plan_gate: true
   subagent_guard: true
-
-  # 全关
   auto_snapshot: false
   build_validator: false
   cross_platform_smoke_test: false
   distinct_concept_richner: false
   ecosystem_probe: false
   edit_guard: false
-  error_dna: false
+  error_dna: true
   error_dna_aggregator: false
   error_dna_auto_fix: false
   error_dna_shard: false
@@ -109,8 +91,8 @@ hooks_enabled:
   phase_state_tracker: false
   plan_gate: false
   posttool_anti_pattern_detect: false
-  posttool_bash_audit: false
-  posttool_claim_audit: false
+  posttool_bash_audit: true
+  posttool_claim_audit: true
   posttool_completion_audit: false
   posttool_edit_quality: false
   posttool_error_dna_shard: false
@@ -154,14 +136,11 @@ hooks_enabled:
   token_writer: false
   turn_counter: false
   user_correction_detector: false
-
 terminal_safety:
   max_command_length: 2000
-
 fail_closure:
   security_gates: close
   quality_gates: close
-
 read_exempt:
   exempt_tools: Read Grep
   exempt_bash_read: true
