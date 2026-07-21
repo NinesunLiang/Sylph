@@ -1,20 +1,20 @@
-#!/usr/bin/env bash
-# install-night-hook.sh — 把 carroros-night-deny 挂入 .claude/settings.json PreToolUse 链
-# 幂等（Rule 5）：已存在则不写；不改动任何其他字段；不打印文件内容（含密钥）。
-# 用法: bash scripts/carroros-gates/install-night-hook.sh [--uninstall]
+#!/usr/bin/env python3
+"""
+install-night-hook.py — 把 carroros-night-deny 挂入 .claude/settings.json PreToolUse 链
+幂等（Rule 5）：已存在则不写；不改动任何其他字段；不打印文件内容（含密钥）。
+用法: python3 scripts/carroros-gates/install-night-hook.py [--uninstall]
+"""
 
-set -euo pipefail
-CARROS_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-SETTINGS="$CARROS_ROOT/.claude/settings.json"
-UNINSTALL=0
-[[ "${1:-}" == "--uninstall" ]] && UNINSTALL=1
-
-python3 - "$SETTINGS" "$UNINSTALL" << 'PY'
-import json, sys
+import json
+import sys
 from pathlib import Path
 
-settings_path, uninstall = Path(sys.argv[1]), sys.argv[2] == "1"
-data = json.loads(settings_path.read_text(encoding="utf-8"))
+SCRIPT_DIR = Path(__file__).resolve().parent
+CARROS_ROOT = SCRIPT_DIR.parent.parent
+SETTINGS = CARROS_ROOT / ".claude" / "settings.json"
+UNINSTALL = "--uninstall" in sys.argv
+
+data = json.loads(SETTINGS.read_text(encoding="utf-8"))
 hooks = data.setdefault("hooks", {})
 pre = hooks.setdefault("PreToolUse", [])
 
@@ -22,26 +22,31 @@ NEEDLE = "carroros-night-deny.py"
 ENTRY = {
     "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Delete",
     "hooks": [{"type": "command",
-               "command": "bash \".claude/hooks/hook-launcher.sh\" \"carroros-night-deny.py\""}],
+               "command": "python3 \".claude/hooks/hook-launcher.py\" \"carroros-night-deny.py\""}],
 }
+
 
 def has_entry(lst):
     for grp in lst:
-        for h in (grp.get("hooks") or []):
+        for h in grp.get("hooks") or []:
             if NEEDLE in str(h.get("command", "")):
                 return True
     return False
 
+
 changed = False
-if uninstall:
+if UNINSTALL:
     new_pre = []
     for grp in pre:
-        grp_hooks = [h for h in (grp.get("hooks") or []) if NEEDLE not in str(h.get("command", ""))]
+        grp_hooks = [h for h in (grp.get("hooks") or [])
+                     if NEEDLE not in str(h.get("command", ""))]
         if grp_hooks:
             g = dict(grp)
             g["hooks"] = grp_hooks
             new_pre.append(g)
-        elif not (grp.get("hooks")):
+        elif grp.get("hooks"):
+            pass
+        else:
             new_pre.append(grp)
     if len(new_pre) != len(pre) or any(a != b for a, b in zip(new_pre, pre)):
         hooks["PreToolUse"] = new_pre
@@ -56,8 +61,8 @@ else:
         msg = "已挂载 carroros-night-deny 到 PreToolUse 链"
 
 if changed:
-    tmp = settings_path.with_suffix(".json.night-hook-tmp")
+    tmp = SETTINGS.with_suffix(".json.night-hook-tmp")
     tmp.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tmp.replace(settings_path)
+    tmp.replace(SETTINGS)
+
 print(f"install-night-hook: {msg}")
-PY

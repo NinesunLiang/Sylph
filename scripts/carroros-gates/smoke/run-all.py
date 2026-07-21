@@ -1,90 +1,110 @@
-#!/usr/bin/env bash
-# run-all.sh — 八类 smoke 套件（FINAL.md v3.1 §6/R4：门禁必须证明自己会失败）
-# 在合成 git repo + 合成 gate-results 上实跑，不碰真实目标 repo。
-# 类 1/2 正反向信封语义；类 3 崩溃恢复；类 4 fail-open 五连；类 5 篡改攻击集（权威链）；
-# 类 6 hook 工具面攻击集（Grok §17a P0-1，v3 起普通开发命令翻案为默认拒）；
-# 类 7 C1 子目录 prefix（Grok §17a P1-3）；
-# 类 8 Sol 动态路径/语义绕过攻击集（GPT §17a P0-SOL-1/P2-SOL-2：拼接/glob/env/
-#   find -exec/heredoc/引号内命令替换/坏 payload fail-closed/cwd 漂移锚定）。
-# 用法: run-all.sh --manifest M --night-dir D --target-repo R --out PATH
-# 环境: SMOKE_RUNNER=self|independent（写入 smoke-results.yaml，晨报 smoke_attestation 字段）
-# 产出: smoke-results.yaml（all_green / tamper_suite_passed / runner / cases[]）
-# 退出: 0=全绿 1=有用例失败 2=ERROR
+#!/usr/bin/env python3
+"""
+run-all.py — 八类 smoke 套件 (v6.0, .sh → .py 迁移)
+在合成 git repo + 合成 gate-results 上实跑，不碰真实目标 repo。
+退出: 0=全绿 1=有用例失败 2=ERROR
+"""
 
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-GATES_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-source "$GATES_DIR/lib/common.sh"
-
-# 先剥离 --out（common.sh 不认识），其余参数交 gates_parse_args
-OUT=""
-PASS_ARGS=()
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --out) OUT="$2"; shift 2;;
-    *) PASS_ARGS+=("$1"); shift;;
-  esac
-done
-gates_parse_args "${PASS_ARGS[@]}"
-[[ -n "$OUT" ]] || { echo "ERROR: 需要 --out PATH" >&2; exit 2; }
-
-python3 - "$GATES_DIR" "$MANIFEST" "$NIGHT_DIR" "$TARGET_REPO" "$OUT" << 'PY'
-import json, os, shutil, subprocess, sys, tempfile
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
 import yaml
 
-gates_dir, manifest, night_dir, target_repo, out_path = sys.argv[1:6]
-sys.path.insert(0, str(Path(gates_dir) / "lib"))
+SCRIPT_DIR = Path(__file__).resolve().parent
+GATES_DIR = SCRIPT_DIR.parent
+sys.path.insert(0, str(GATES_DIR / "lib"))
 import gate_result as gr
+from lib import common as cmn
 
-cases = []  # {name, expect, got, ok}
+# ── 参数解析 ──
+args = sys.argv[1:]
+manifest = ""
+night_dir = ""
+target_repo = ""
+out_path = ""
+i = 0
+while i < len(args):
+    if args[i] == "--manifest" and i + 1 < len(args):
+        manifest = args[i + 1]; i += 2
+    elif args[i] == "--night-dir" and i + 1 < len(args):
+        night_dir = args[i + 1]; i += 2
+    elif args[i] == "--target-repo" and i + 1 < len(args):
+        target_repo = args[i + 1]; i += 2
+    elif args[i] == "--out" and i + 1 < len(args):
+        out_path = args[i + 1]; i += 2
+    else:
+        print(f"ERROR: 未知参数 {args[i]}", file=sys.stderr)
+        sys.exit(2)
+
+if not out_path:
+    print("ERROR: 需要 --out PATH", file=sys.stderr)
+    sys.exit(2)
+
+cases = []
+
 
 def case(name, expect, got, ok):
     cases.append({"name": name, "expect": expect, "got": got, "ok": bool(ok)})
     print(f"  {'✓' if ok else '✗'} {name}: expect={expect} got={got}")
 
-# smoke 专用 manifest：模板 + 真实 control_plane_lock（finalize 的 preamble 要过自验）
-_lock = subprocess.run(["bash", str(Path(gates_dir) / "gen-control-plane-lock.sh")],
-                       capture_output=True, text=True)
+
+# smoke 专用 manifest：模板 + 真实 control_plane_lock
+_lock = subprocess.run(
+    [sys.executable, str(GATES_DIR / "gen-control-plane-lock.py")],
+    capture_output=True, text=True,
+)
 if _lock.returncode != 0:
     print(f"ERROR: gen-control-plane-lock 失败: {_lock.stderr}", file=sys.stderr)
     sys.exit(2)
-_m = yaml.safe_load(Path(manifest).read_text())
+
+_m = yaml.safe_load(Path(manifest).read_text(encoding="utf-8"))
 _m["control_plane_lock"] = yaml.safe_load(_lock.stdout)
 _smoke_manifest = Path(tempfile.mkdtemp()) / "manifest.yaml"
 _smoke_manifest.write_text(yaml.safe_dump(_m))
 manifest = str(_smoke_manifest)
 
+
 def compute_digest(mpath):
-    r = subprocess.run(["bash", "-c",
-                        f"source '{gates_dir}/lib/common.sh' && MANIFEST='{mpath}' gates_verify_control_plane_lock"],
-                       capture_output=True, text=True)
-    if r.returncode != 0:
-        print(f"ERROR: digest 计算失败: {r.stderr}", file=sys.stderr)
+    old_manifest = cmn.MANIFEST
+    cmn.MANIFEST = mpath
+    try:
+        d = cmn.verify_control_plane_lock()
+    except SystemExit:
+        d = ""
+    cmn.MANIFEST = old_manifest
+    if not d:
+        print("ERROR: digest 计算失败", file=sys.stderr)
         sys.exit(2)
-    return r.stdout.strip()
+    return d
+
 
 REAL_DIGEST = compute_digest(manifest)
 
-# gate_id → 合法 producer（与 finalize-page.sh EXPECTED_PRODUCER 一致）
-PRODUCERS = {"C1": "scope-check.sh", "C2": "run-gate.sh", "C3": "c7-check.sh",
-             "C4": "run-gate.sh", "C5": "run-gate.sh", "C6": "run-gate.sh",
-             "C7": "evidence-check.sh"}
+PRODUCERS = {"C1": "scope-check.py", "C2": "run-gate.py", "C3": "c7-check.py",
+             "C4": "run-gate.py", "C5": "run-gate.py", "C6": "run-gate.py",
+             "C7": "evidence-check.py"}
 
-# ============ 类 1/2：正向 + 反向（信封库基本语义） ============
+# ============ 类 1/2：正向 + 反向 ============
 with tempfile.TemporaryDirectory() as d:
-    gr.write_result(d, "C1", "PASS", "m", "c", "g", "2026-07-18T00:00:00+00:00", 0, [], producer="scope-check.sh")
+    gr.write_result(d, "C1", "PASS", "m", "c", "g", "2026-07-18T00:00:00+00:00", 0, [], producer="scope-check.py")
     latest = gr.reduce_latest(d)
-    case("正向: PASS 写入后可 reduce", "PASS", latest.get("C1", {}).get("status"), latest.get("C1", {}).get("status") == "PASS")
+    case("正向: PASS 写入后可 reduce", "PASS", latest.get("C1", {}).get("status"),
+         latest.get("C1", {}).get("status") == "PASS")
 
 with tempfile.TemporaryDirectory() as d:
-    gr.write_result(d, "C1", "FAIL", "m", "c", "g", "t", 1, [], producer="scope-check.sh")
-    case("反向: FAIL 结果不被算成 PASS", "FAIL", gr.reduce_latest(d)["C1"]["status"], gr.reduce_latest(d)["C1"]["status"] == "FAIL")
+    gr.write_result(d, "C1", "FAIL", "m", "c", "g", "t", 1, [], producer="scope-check.py")
+    case("反向: FAIL 结果不被算成 PASS", "FAIL",
+         gr.reduce_latest(d)["C1"]["status"],
+         gr.reduce_latest(d)["C1"]["status"] == "FAIL")
 
-# ============ 类 3：崩溃恢复（残留临时文件 → fail-closed） ============
+# ============ 类 3：崩溃恢复 ============
 with tempfile.TemporaryDirectory() as d:
-    gr.write_result(d, "C1", "PASS", "m", "c", "g", "t", 0, [], producer="scope-check.sh")
+    gr.write_result(d, "C1", "PASS", "m", "c", "g", "t", 0, [], producer="scope-check.py")
     Path(d, ".tmp-orphan.json").write_text("{}")
     try:
         gr.reduce_latest(d)
@@ -96,36 +116,43 @@ with tempfile.TemporaryDirectory() as d:
 with tempfile.TemporaryDirectory() as d:
     Path(d, "C1-x.json").write_text("{corrupt")
     try:
-        gr.reduce_latest(d); case("fail-open: 解析失败", "FailClosed", "passed", False)
-    except gr.FailClosed: case("fail-open: 解析失败", "FailClosed", "FailClosed", True)
+        gr.reduce_latest(d)
+        case("fail-open: 解析失败", "FailClosed", "passed", False)
+    except gr.FailClosed:
+        case("fail-open: 解析失败", "FailClosed", "FailClosed", True)
 
 try:
     gr.validate({"gate_id": "C1", "status": "PASS"})
     case("fail-open: 缺字段", "FailClosed", "passed", False)
-except gr.FailClosed: case("fail-open: 缺字段", "FailClosed", "FailClosed", True)
+except gr.FailClosed:
+    case("fail-open: 缺字段", "FailClosed", "FailClosed", True)
 
 try:
-    gr.write_result(tempfile.mkdtemp(), "C1", "PASS", "m", "c", "g", "t", 1, [], producer="scope-check.sh")
+    gr.write_result(tempfile.mkdtemp(), "C1", "PASS", "m", "c", "g", "t", 1, [], producer="scope-check.py")
     case("fail-open: 结果PASS但exit非0", "FailClosed", "written", False)
-except gr.FailClosed: case("fail-open: 结果PASS但exit非0", "FailClosed", "FailClosed", True)
+except gr.FailClosed:
+    case("fail-open: 结果PASS但exit非0", "FailClosed", "FailClosed", True)
 
 try:
-    gr.write_result(tempfile.mkdtemp(), "C1", "FAIL", "m", "c", "g", "t", 0, [], producer="scope-check.sh")
+    gr.write_result(tempfile.mkdtemp(), "C1", "FAIL", "m", "c", "g", "t", 0, [], producer="scope-check.py")
     case("fail-open: 结果FAIL但exit为0", "FailClosed", "written", False)
-except gr.FailClosed: case("fail-open: 结果FAIL但exit为0", "FailClosed", "FailClosed", True)
+except gr.FailClosed:
+    case("fail-open: 结果FAIL但exit为0", "FailClosed", "FailClosed", True)
 
 try:
-    gr.write_result(tempfile.mkdtemp(), "C1", "PASS", "m", "c", "g", "t", 0, [], producer="evil-forge.sh")
+    gr.write_result(tempfile.mkdtemp(), "C1", "PASS", "m", "c", "g", "t", 0, [], producer="evil-forge.py")
     case("fail-open: 非法producer", "FailClosed", "written", False)
-except gr.FailClosed: case("fail-open: 非法producer", "FailClosed", "FailClosed", True)
+except gr.FailClosed:
+    case("fail-open: 非法producer", "FailClosed", "FailClosed", True)
 
 with tempfile.TemporaryDirectory() as d:
-    latest = gr.reduce_latest(d)  # 0 文件
-    ok = (latest == {})
-    case("fail-open: 0 文件不得称 PASS", "empty-reduce", "empty-reduce" if ok else "phantom", ok)
+    latest = gr.reduce_latest(d)
+    ok_v = (latest == {})
+    case("fail-open: 0 文件不得称 PASS", "empty-reduce", "empty-reduce" if ok_v else "phantom", ok_v)
 
-# ============ 类 5：篡改攻击集（权威链） ============
+# ============ 类 5：篡改攻击集 ============
 tamper_ok = True
+
 
 def make_night(d, gates=None, digest=REAL_DIGEST, producers=None, agg=None, token=None):
     nd = Path(d)
@@ -134,7 +161,7 @@ def make_night(d, gates=None, digest=REAL_DIGEST, producers=None, agg=None, toke
     (nd / "ac-aggregates").mkdir()
     if gates:
         for g in gates:
-            prod = (producers or PRODUCERS).get(g, "run-gate.sh")
+            prod = (producers or PRODUCERS).get(g, "run-gate.py")
             gr.write_result(rd, g, "PASS", "m", "c", digest, "t", 0, [], producer=prod)
     if agg is not None:
         (nd / "ac-aggregates" / "FE-t.yaml").write_text(yaml.safe_dump(agg))
@@ -143,24 +170,26 @@ def make_night(d, gates=None, digest=REAL_DIGEST, producers=None, agg=None, toke
         (nd / "tokens" / "FE-t.token.json").write_text(json.dumps(token))
     return nd
 
+
 def run_finalize(nd):
-    return subprocess.run(["bash", str(Path(gates_dir) / "finalize-page.sh"),
+    return subprocess.run([sys.executable, str(GATES_DIR / "finalize-page.py"),
                            "--manifest", manifest, "--night-dir", str(nd),
                            "--page-id", "FE-t", "--target-repo", target_repo],
                           capture_output=True, text=True)
 
+
 ALL7 = ["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
 
-# 5a. 手写 token 称 DONE 但缺 C6 → finalize 必须 FAILED_INVARIANT
+# 5a
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d, gates=["C1", "C2", "C3", "C4", "C5"],
                     agg={"qualified": True, "code_sha": "c"}, token={"task": {"status": "done"}})
     r = run_finalize(nd)
-    ok = r.returncode == 3 and "token" in r.stderr
-    tamper_ok &= ok
-    case("篡改: 手写token称DONE缺C6", "exit3+token原因", f"exit{r.returncode}", ok)
+    ok_v = r.returncode == 3 and "token" in r.stderr
+    tamper_ok &= ok_v
+    case("篡改: 手写token称DONE缺C6", "exit3+token原因", f"exit{r.returncode}", ok_v)
 
-# 5b. 全部 PASS + qualified + 合法 producer/digest → finalize DONE（正向权威链）
+# 5b
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d, gates=ALL7, agg={"qualified": True, "code_sha": "c"})
     r = run_finalize(nd)
@@ -168,87 +197,96 @@ with tempfile.TemporaryDirectory() as d:
     sp = nd / "verification-summaries" / "FE-t.yaml"
     if sp.is_file():
         final = yaml.safe_load(sp.read_text()).get("final_status")
-    ok = (r.returncode == 0 and final == "DONE")
-    tamper_ok &= ok
-    case("正向权威链: 全PASS→DONE", "DONE", final, ok)
+    ok_v = (r.returncode == 0 and final == "DONE")
+    tamper_ok &= ok_v
+    case("正向权威链: 全PASS→DONE", "DONE", final, ok_v)
 
-# 5c. SUPERSEDED 的旧 PASS 不得参与 reducer
+# 5c
 with tempfile.TemporaryDirectory() as d:
-    e1 = gr.write_result(d, "C6", "PASS", "m", "c", "g", "2026-07-18T00:00:00+00:00", 0, [], producer="run-gate.sh")
+    e1 = gr.write_result(d, "C6", "PASS", "m", "c", "g", "2026-07-18T00:00:00+00:00", 0, [], producer="run-gate.py")
     run1 = json.loads(Path(e1).read_text())["gate_run_id"]
     gr.mark_superseded(d, run1, "code changed")
-    gr.write_result(d, "C6", "FAIL", "m", "c2", "g", "2026-07-18T01:00:00+00:00", 1, [], producer="run-gate.sh")
+    gr.write_result(d, "C6", "FAIL", "m", "c2", "g", "2026-07-18T01:00:00+00:00", 1, [], producer="run-gate.py")
     latest = gr.reduce_latest(d)
-    ok = latest["C6"]["status"] == "FAIL"
-    tamper_ok &= ok
-    case("篡改: SUPERSEDED旧PASS被排除", "FAIL", latest["C6"]["status"], ok)
+    ok_v = latest["C6"]["status"] == "FAIL"
+    tamper_ok &= ok_v
+    case("篡改: SUPERSEDED旧PASS被排除", "FAIL", latest["C6"]["status"], ok_v)
 
-# 5d. 改门禁脚本自身 → control_plane_lock 必须报警（篡改 entry 哈希模拟文件被改）
+# 5d
 with tempfile.TemporaryDirectory() as d:
     m = yaml.safe_load(Path(manifest).read_text())
     m["control_plane_lock"]["entries"][0]["sha256"] = "0" * 64
     bad = Path(d) / "manifest.yaml"
     bad.write_text(yaml.safe_dump(m))
-    r = subprocess.run(["bash", "-c",
-                        f"source '{gates_dir}/lib/common.sh' && MANIFEST='{bad}' gates_verify_control_plane_lock"],
-                       capture_output=True, text=True)
-    ok = r.returncode == 3
-    tamper_ok &= ok
-    case("篡改: control_plane_lock 哈希不符", "exit3", r.returncode, ok)
+    old_m = cmn.MANIFEST
+    cmn.MANIFEST = str(bad)
+    try:
+        cmn.verify_control_plane_lock()
+        ok_v = False
+    except SystemExit as e:
+        ok_v = e.code == 3
+    cmn.MANIFEST = old_m
+    tamper_ok &= ok_v
+    case("篡改: control_plane_lock 哈希不符", "exit3", 3 if ok_v else 0, ok_v)
 
-# 5e. 真实控制面文件当前与 lock 一致（自证当前未被改）
-r = subprocess.run(["bash", "-c",
-                    f"source '{gates_dir}/lib/common.sh' && MANIFEST='{manifest}' gates_verify_control_plane_lock >/dev/null"],
-                   capture_output=True, text=True)
-ok = r.returncode == 0
-tamper_ok &= ok
-case("正向: 当前控制面与 lock 一致", "exit0", r.returncode, ok)
+# 5e
+old_m = cmn.MANIFEST
+cmn.MANIFEST = manifest
+try:
+    cmn.verify_control_plane_lock()
+    ok_v = True
+except SystemExit:
+    ok_v = False
+cmn.MANIFEST = old_m
+tamper_ok &= ok_v
+case("正向: 当前控制面与 lock 一致", "exit0", 0 if ok_v else 3, ok_v)
 
-# 5f. Grok P0-3：schema 合法、producer 错配的假 PASS 全集 → finalize 必须 FAILED_INVARIANT
+# 5f
 with tempfile.TemporaryDirectory() as d:
-    nd = make_night(d, gates=ALL7, producers={**PRODUCERS, "C6": "c7-check.sh"},
+    nd = make_night(d, gates=ALL7, producers={**PRODUCERS, "C6": "c7-check.py"},
                     agg={"qualified": True, "code_sha": "c"})
     r = run_finalize(nd)
-    ok = r.returncode == 3 and "producer" in r.stderr
-    tamper_ok &= ok
-    case("篡改: 假PASS信封producer错配", "exit3+producer原因", f"exit{r.returncode}", ok)
+    ok_v = r.returncode == 3 and "producer" in r.stderr
+    tamper_ok &= ok_v
+    case("篡改: 假PASS信封producer错配", "exit3+producer原因", f"exit{r.returncode}", ok_v)
 
-# 5g. Grok P0-3：producer 正确但控制面 digest 不符 → finalize 必须 FAILED_INVARIANT
+# 5g
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d, gates=ALL7, digest="0" * 64, agg={"qualified": True, "code_sha": "c"})
     r = run_finalize(nd)
-    ok = r.returncode == 3 and "digest" in r.stderr
-    tamper_ok &= ok
-    case("篡改: 信封控制面digest不符", "exit3+digest原因", f"exit{r.returncode}", ok)
+    ok_v = r.returncode == 3 and "digest" in r.stderr
+    tamper_ok &= ok_v
+    case("篡改: 信封控制面digest不符", "exit3+digest原因", f"exit{r.returncode}", ok_v)
 
-# 5h. Grok P1-2#5：唯一结果被 SUPERSEDED 滤空 → 不得当空成功，必须 BLOCKED
+# 5h
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d)
     rd = nd / "gate-results" / "FE-t"
-    e1 = gr.write_result(rd, "C1", "PASS", "m", "c", REAL_DIGEST, "t", 0, [], producer="scope-check.sh")
+    e1 = gr.write_result(rd, "C1", "PASS", "m", "c", REAL_DIGEST, "t", 0, [], producer="scope-check.py")
     gr.mark_superseded(rd, json.loads(Path(e1).read_text())["gate_run_id"], "stale")
     r = run_finalize(nd)
     final = None
     sp = nd / "verification-summaries" / "FE-t.yaml"
     if sp.is_file():
         final = yaml.safe_load(sp.read_text()).get("final_status")
-    ok = (r.returncode == 0 and final == "BLOCKED")
-    tamper_ok &= ok
-    case("篡改: SUPERSEDED滤空→BLOCKED", "BLOCKED", final, ok)
+    ok_v = (r.returncode == 0 and final == "BLOCKED")
+    tamper_ok &= ok_v
+    case("篡改: SUPERSEDED滤空→BLOCKED", "BLOCKED", final, ok_v)
 
-# ============ 类 6：hook 工具面攻击集（Grok §17a P0-1） ============
-HOOK = Path(gates_dir).parents[1] / ".claude" / "hooks" / "carroros-night-deny.py"
+# ============ 类 6：hook 工具面攻击集 ============
+HOOK = GATES_DIR.parent.parent / ".claude" / "hooks" / "carroros-night-deny.py"
 M = ".omc/night/x/night-manifest.yaml"
+
 
 def B(cmd):
     return {"tool_name": "Bash", "tool_input": {"command": cmd}}
 
+
 def E(path):
     return {"tool_name": "Edit", "tool_input": {"file_path": path}}
 
+
 def hook_case(name, payload_fn, expect, marker=True, setup=None, tamper=False, cwd=None):
-    # v3 起 marker 锚定 NIGHT_DENY_ROOT（或 __file__），与 cwd 无关——
-    # smoke 统一用 env 指向合成根；cwd 参数用于 R-SOL-H 漂移用例。
     global tamper_ok
     with tempfile.TemporaryDirectory() as td:
         d = Path(td)
@@ -261,29 +299,30 @@ def hook_case(name, payload_fn, expect, marker=True, setup=None, tamper=False, c
         payload = payload_fn(d)
         raw = payload if isinstance(payload, str) else json.dumps(payload)
         env = dict(os.environ, NIGHT_DENY_ROOT=str(d))
-        r = subprocess.run(["python3", str(HOOK)], input=raw,
+        r = subprocess.run([sys.executable, str(HOOK)], input=raw,
                            capture_output=True, text=True, cwd=cwd or str(d), env=env)
-        ok = r.returncode == expect
+        ok_v = r.returncode == expect
         if tamper:
-            tamper_ok &= ok
-        case(name, f"exit{expect}", r.returncode, ok)
+            tamper_ok &= ok_v
+        case(name, f"exit{expect}", r.returncode, ok_v)
+
 
 hook_case("hook攻击: python heredoc 写 gate-results",
           lambda d: B("python3 - <<'PY'\nopen('.omc/night/x/gate-results/C6.json','w').write('{}')\nPY"), 2, tamper=True)
 hook_case("hook攻击: python3 -c 写 token.json",
           lambda d: B("python3 -c \"open('.omc/night/x/tokens/FE.token.json','w').write('{}')\""), 2, tamper=True)
 hook_case("hook攻击: 直调 gate_result.py write CLI",
-          lambda d: B("python3 scripts/carroros-gates/lib/gate_result.py write --out-dir .omc/night/x/gate-results --gate-id C6 --status PASS --manifest-sha256 m --code-sha256 c --control-plane-digest g --started-at t --process-exit-code 0 --producer run-gate.sh"), 2, tamper=True)
+          lambda d: B("python3 scripts/carroros-gates/lib/gate_result.py write --out-dir .omc/night/x/gate-results --gate-id C6 --status PASS --manifest-sha256 m --code-sha256 c --control-plane-digest g --started-at t --process-exit-code 0 --producer run-gate.py"), 2, tamper=True)
 hook_case("hook攻击: run-gate 包装 true 骗 PASS",
-          lambda d: B(f"bash scripts/carroros-gates/lib/run-gate.sh --gate-id C6 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- true"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/lib/run-gate.py --gate-id C6 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- true"), 2, tamper=True)
 hook_case("hook攻击: run-gate wrapped 含链式",
-          lambda d: B(f"bash scripts/carroros-gates/lib/run-gate.sh --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm test && cat gate-results/x"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/lib/run-gate.py --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm test && cat gate-results/x"), 2, tamper=True)
 hook_case("hook攻击: gen-control-plane-lock 夜间禁跑",
-          lambda d: B(f"bash scripts/carroros-gates/gen-control-plane-lock.sh --manifest {M} --write"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/gen-control-plane-lock.py --manifest {M} --write"), 2, tamper=True)
 hook_case("hook攻击: morning-report 夜间禁跑",
-          lambda d: B(f"bash scripts/carroros-gates/morning-report.sh --manifest {M} --night-dir .omc/night/x"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/morning-report.py --manifest {M} --night-dir .omc/night/x"), 2, tamper=True)
 hook_case("hook攻击: preflight 夜间禁跑",
-          lambda d: B(f"bash scripts/carroros-gates/preflight.sh --manifest {M} --night-dir .omc/night/x --target-repo apps/web"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/preflight.py --manifest {M} --night-dir .omc/night/x --target-repo apps/web"), 2, tamper=True)
 hook_case("hook攻击: cp 覆盖 token.json",
           lambda d: B("cp /tmp/fake.json .omc/night/x/tokens/FE-1.token.json"), 2, tamper=True)
 hook_case("hook攻击: ln 夜间全禁（symlink 绕过）",
@@ -297,11 +336,11 @@ hook_case("hook攻击: Edit 经 symlink 写控制面",
           setup=lambda d: ((d / ".omc" / "night" / "x" / "gate-results").mkdir(parents=True),
                            (d / "link").symlink_to(d / ".omc" / "night" / "x" / "gate-results")))
 hook_case("hook: run-gate 包装 pnpm tsc 放行",
-          lambda d: B(f"bash scripts/carroros-gates/lib/run-gate.sh --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web -- pnpm -C apps/web exec tsc --noEmit"), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/lib/run-gate.py --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web -- pnpm -C apps/web exec tsc --noEmit"), 0)
 hook_case("hook: scope-check 合法调用放行",
-          lambda d: B(f"bash scripts/carroros-gates/scope-check.sh --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/scope-check.py --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
 hook_case("hook: finalize 合法调用放行",
-          lambda d: B(f"bash scripts/carroros-gates/finalize-page.sh --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/finalize-page.py --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
 hook_case("hook: token-write API 放行",
           lambda d: B("python3 .omc/scripts/carros_base.py token-write --token-path .omc/night/x/tokens/FE-1.token.json --set task.status=fixing --expected-revision 3"), 0)
 hook_case("hook: manifest-json 读放行",
@@ -312,21 +351,20 @@ hook_case("hook: 页基线记录放行",
           lambda d: B("git -C apps/web rev-parse HEAD > .omc/night/x/page-baselines/FE-1.sha"), 0)
 hook_case("hook: 读 gate-results 放行",
           lambda d: B("cat .omc/night/x/gate-results/C1-abc.json"), 0)
-hook_case("hook: 普通开发命令默认拒（v3：工具链必须走 run-gate）",
+hook_case("hook: 普通开发命令默认拒",
           lambda d: B("pnpm -C apps/web test"), 2, tamper=True)
 hook_case("hook: git status 放行",
           lambda d: B("git -C apps/web status --short"), 0)
 hook_case("hook: 白天无标记全放行",
           lambda d: B("python3 -c \"open('.omc/night/x/gate-results/C6.json','w')\""), 0, marker=False)
 
-# ============ 类 8：Sol 动态路径/语义绕过攻击集（GPT §17a P0-SOL-1/P2-SOL-2） ============
-# 攻击：动态路径/拼接/glob/env/间接执行 —— v2 全放行，v3 默认拒全拦
+# ============ 类 8：Sol 动态路径攻击集 ============
 hook_case("Sol: 动态拼接删 marker（R-SOL-A）",
           lambda d: B("python3 -c 'from pathlib import Path; Path(\".omc/st\"+\"ate/night-session.active\").unlink()'"), 2, tamper=True)
 hook_case("Sol: 动态拼接改 hook（R-SOL-B）",
           lambda d: B("python3 -c 'from pathlib import Path; p=Path(\".claude\")/(\"hoo\"+\"ks\")/\"carroros-night-deny.py\"; p.write_text(\"\")'"), 2, tamper=True)
 hook_case("Sol: 动态拼接改 gate（R-SOL-C）",
-          lambda d: B("python3 -c 'from pathlib import Path; p=Path(\"scripts\")/(\"carroros\"+\"-gates\")/\"preflight.sh\"; p.write_text(\"\")'"), 2, tamper=True)
+          lambda d: B("python3 -c 'from pathlib import Path; p=Path(\"scripts\")/(\"carroros\"+\"-gates\")/\"preflight.py\"; p.write_text(\"\")'"), 2, tamper=True)
 hook_case("Sol: 环境变量拼接路径",
           lambda d: B("A=.omc/st; B=ate/night-session.active; rm \"$A$B\""), 2, tamper=True)
 hook_case("Sol: glob 删 marker",
@@ -361,16 +399,13 @@ hook_case("Sol: 引号外括号（subshell）",
           lambda d: B("git commit -m feat(a): x ( subshell )"), 2, tamper=True)
 hook_case("Sol: rm 非 scoped 路径默认拒",
           lambda d: B("rm -rf apps/web/src"), 2, tamper=True)
-# R-SOL-G：坏 payload 夜间 fail-closed（P1-SOL-3）
 hook_case("Sol: 坏payload 空stdin", lambda d: "", 2, tamper=True)
 hook_case("Sol: 坏payload 非法JSON", lambda d: "{corrupt", 2, tamper=True)
 hook_case("Sol: 坏payload 缺tool_name", lambda d: {"tool_input": {"command": "ls"}}, 2, tamper=True)
 hook_case("Sol: 坏payload 缺command", lambda d: {"tool_name": "Bash", "tool_input": {}}, 2, tamper=True)
 hook_case("Sol: 坏payload command类型错", lambda d: {"tool_name": "Bash", "tool_input": {"command": 42}}, 2, tamper=True)
-# R-SOL-H：cwd 漂移（P1-SOL-2：marker __file__/env 锚定，与启动目录无关）
 hook_case("Sol: cwd漂移 /tmp下攻击仍拦", lambda d: B("python3 -c 'print(1)'"), 2, tamper=True, cwd="/tmp")
 hook_case("Sol: cwd漂移 /tmp下合法仍放行", lambda d: B("git status --short"), 0, cwd="/tmp")
-# 合法面补齐（夜循环真实 Bash 面，night-loop.md 步 3-13）
 hook_case("Sol: git add 原子提交放行",
           lambda d: B("git add apps/web/src/pages/Login.tsx apps/web/tests/e2e/login.spec.ts"), 0)
 hook_case("Sol: git commit 带括号消息放行",
@@ -388,11 +423,11 @@ hook_case("Sol: scoped rm artifacts 放行（步10）",
 hook_case("Sol: 引号内管道字面量放行",
           lambda d: B('gh pr create --draft --body "a | b 对照表"'), 0)
 hook_case("Sol: run-gate wrapped 带引号 grep 放行",
-          lambda d: B(f"bash scripts/carroros-gates/lib/run-gate.sh --gate-id C4 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm exec playwright test --grep \"登录流程\""), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/lib/run-gate.py --gate-id C4 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm exec playwright test --grep \"登录流程\""), 0)
 hook_case("Sol: 单引号内命令替换是字面量放行",
           lambda d: B("git commit -m 'fix: $(id) 只是文本'"), 0)
 
-# ============ 类 7：C1 子目录 prefix（Grok §17a P1-3） ============
+# ============ 类 7：C1 子目录 prefix ============
 with tempfile.TemporaryDirectory() as td:
     d = Path(td)
     repo = d / "monorepo"
@@ -401,6 +436,7 @@ with tempfile.TemporaryDirectory() as td:
     (sub / "src" / "other").mkdir(parents=True)
     (sub / "spec").mkdir(parents=True)
     (sub / "spec" / "FE-t.md").write_text("# spec")
+
 
     def git(*a):
         r = subprocess.run(["git", "-C", str(repo)] + list(a), capture_output=True, text=True)
@@ -421,8 +457,9 @@ with tempfile.TemporaryDirectory() as td:
     m2p = d / "manifest-prefix.yaml"
     m2p.write_text(yaml.safe_dump(m2))
 
+
     def run_scope():
-        return subprocess.run(["bash", str(Path(gates_dir) / "scope-check.sh"),
+        return subprocess.run([sys.executable, str(GATES_DIR / "scope-check.py"),
                                "--manifest", str(m2p), "--night-dir", str(nd),
                                "--page-id", "FE-t", "--target-repo", str(sub)],
                               capture_output=True, text=True)
@@ -430,6 +467,7 @@ with tempfile.TemporaryDirectory() as td:
     (sub / "src" / "pages" / "x" / "A.tsx").write_text("export const A = 1")
     r = run_scope()
     case("prefix: 子目录内合规改动 PASS", "exit0", f"exit{r.returncode} {r.stderr.strip()[:80]}", r.returncode == 0)
+
     (sub / "src" / "other" / "B.tsx").write_text("export const B = 1")
     r = run_scope()
     case("prefix: 子目录内越界改动 FAIL", "exit1", f"exit{r.returncode} {r.stderr.strip()[:80]}", r.returncode == 1)
@@ -439,7 +477,6 @@ result = {
     "all_green": all_green,
     "tamper_suite_passed": tamper_ok,
     "runner": os.environ.get("SMOKE_RUNNER", "self"),
-    # Opus §17a P1-10：preflight 9b 比对当前 digest，防止"三天前的独立绿"冒充本夜证据
     "control_plane_digest": REAL_DIGEST,
     "cases": cases,
 }
@@ -447,4 +484,3 @@ Path(out_path).parent.mkdir(parents=True, exist_ok=True)
 Path(out_path).write_text(yaml.safe_dump(result, allow_unicode=True, sort_keys=False), encoding="utf-8")
 print(f"\nsmoke: {sum(1 for c in cases if c['ok'])}/{len(cases)} 绿 -> {out_path}")
 sys.exit(0 if all_green else 1)
-PY
