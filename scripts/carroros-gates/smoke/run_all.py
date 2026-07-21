@@ -154,19 +154,19 @@ def make_night(d, gates=None, digest=REAL_DIGEST, producers=None, agg=None, toke
         (nd / "tokens" / "FE-t.token.json").write_text(json.dumps(token))
     return nd
 
-def run_finalize(nd):
+def run_finalize(nd, skip_preamble=False):
+    extra = ["--skip-preamble"] if skip_preamble else []
     return subprocess.run(["python3", str(GATE_LIB / "finalize_page.py"),
                            "--manifest", str(manifest), "--night-dir", str(nd),
-                           "--page-id", "FE-t", "--target-repo", str(TARGET_REPO)],
+                           "--page-id", "FE-t", "--target-repo", str(TARGET_REPO)] + extra,
                           capture_output=True, text=True)
-
 ALL7 = ["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
 
 # 5a
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d, gates=["C1", "C2", "C3", "C4", "C5"],
                     agg={"qualified": True, "code_sha": "c"}, token={"task": {"status": "done"}})
-    r = run_finalize(nd)
+    r = run_finalize(nd, skip_preamble=True)
     ok = r.returncode == 3 and "token" in r.stderr
     tamper_ok &= ok
     case("篡改: 手写token称DONE缺C6", "exit3+token原因", f"exit{r.returncode}", ok)
@@ -233,7 +233,7 @@ case("正向: 当前控制面与 lock 一致", "exit0", "ok" if ok else "fail", 
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d, gates=ALL7, producers={**PRODUCERS, "C6": "c7_check.py"},
                     agg={"qualified": True, "code_sha": "c"})
-    r = run_finalize(nd)
+    r = run_finalize(nd, skip_preamble=True)
     ok = r.returncode == 3 and "producer" in r.stderr
     tamper_ok &= ok
     case("篡改: 假PASS信封producer错配", "exit3+producer原因", f"exit{r.returncode}", ok)
@@ -241,7 +241,7 @@ with tempfile.TemporaryDirectory() as d:
 # 5g
 with tempfile.TemporaryDirectory() as d:
     nd = make_night(d, gates=ALL7, digest="0" * 64, agg={"qualified": True, "code_sha": "c"})
-    r = run_finalize(nd)
+    r = run_finalize(nd, skip_preamble=True)
     ok = r.returncode == 3 and "digest" in r.stderr
     tamper_ok &= ok
     case("篡改: 信封控制面digest不符", "exit3+digest原因", f"exit{r.returncode}", ok)
@@ -252,7 +252,7 @@ with tempfile.TemporaryDirectory() as d:
     rd = nd / "gate-results" / "FE-t"
     e1 = gr.write_result(rd, "C1", "PASS", "m", "c", REAL_DIGEST, "t", 0, [], producer="scope_check.py")
     gr.mark_superseded(rd, json.loads(Path(e1).read_text())["gate_run_id"], "stale")
-    r = run_finalize(nd)
+    r = run_finalize(nd, skip_preamble=True)
     final = None
     sp = nd / "verification-summaries" / "FE-t.yaml"
     if sp.is_file():

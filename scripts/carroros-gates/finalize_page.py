@@ -12,7 +12,8 @@ def main() -> int:
     args_list = [a for a in sys.argv[1:] if a != "--regenerate"]
     gates_parse_args(args_list)
     assert TARGET_REPO is not None, "需要 --target-repo"
-    gates_preamble()
+    if "--skip-preamble" not in sys.argv:
+        gates_preamble()
     started_at = gates_now()
 
     results_dir = gates_results_dir()
