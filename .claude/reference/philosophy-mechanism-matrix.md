@@ -282,7 +282,7 @@
 | `auto-scope.sh` | #2 | #5(S) |
 | `hook-production-verify.sh` | #4 | — |
 | `lx-goal.py` | #3, #4, #6, #7 | #2(U) |
-| `lx-ghost.sh` | #3, #4, #6 | — |
+| `lx-ghost.py` | #3, #4, #6 | — |
 | `doc-sync-check.sh` | #7 | #1(A), #7(T) |
 | `escape-patch-apply.sh` | #6 | — |
 | `ed-red-team-test.sh` | #4, #6 | — |

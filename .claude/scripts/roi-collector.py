@@ -52,7 +52,7 @@ SCRIPTS = [
     "lx-unattended-toggle.sh", "ed-red-team-test.sh", "doc-sync-check.sh",
     "escape-patch-apply.sh", "audit-hooks.sh", "meta-oracle-review.sh",
     "score-self-check.sh", "auto-scope.sh", "pre-commit-self-review.sh",
-    "auto-score.sh", "lx-goal.py", "harness-smoke-test.sh", "lx-ghost.sh",
+    "auto-score.sh", "lx-goal.py", "harness-smoke-test.sh", "lx-ghost.py",
     "task-workspace.sh",
 ]
 
@@ -400,7 +400,7 @@ def main():
 
         if sc in ("harness-smoke-test.sh", "audit-hooks.sh", "auto-score.sh"):
             fe = 15; qb = 0.8
-        elif sc in ("lx-goal.py", "lx-ghost.sh", "task-workspace.sh"):
+        elif sc in ("lx-goal.py", "lx-ghost.py", "task-workspace.sh"):
             fe = 10; qb = 0.7
         elif sc in ("meta-oracle-review.sh", "pre-commit-self-review.sh"):
             fe = 5; qb = 0.7

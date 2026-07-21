@@ -876,7 +876,7 @@ def score_UX2():
     goal_ok = os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "skills", "lx-goal",
                                            "scripts", "lx-goal.py"))
     ghost_ok = os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "skills", "lx-ghost",
-                                            "scripts", "lx-ghost.sh"))
+                                            "scripts", "lx-ghost.py"))
     config_ok = 1 if (goal_ok and ghost_ok) else 0
     runtime_ok = 1 if _grep_any(r"is_mode_active",
                                  os.path.join(PROJECT_ROOT, ".claude", "hooks", "harness_config.sh")) else 0

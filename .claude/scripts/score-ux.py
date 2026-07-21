@@ -84,7 +84,7 @@ def score_UX2():
     runtime_ok = 0
 
     if (PROJECT_ROOT / ".claude" / "skills" / "lx-goal" / "scripts" / "lx-goal.py").exists() and \
-       (PROJECT_ROOT / ".claude" / "skills" / "lx-ghost" / "scripts" / "lx-ghost.sh").exists():
+       (PROJECT_ROOT / ".claude" / "skills" / "lx-ghost" / "scripts" / "lx-ghost.py").exists():
         config_ok = 1
 
     hc = PROJECT_ROOT / ".claude" / "hooks" / "harness_config.sh"
