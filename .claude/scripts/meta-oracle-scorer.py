@@ -480,7 +480,7 @@ def score_E1():
     scope = 1 if _grep_any(r"pretool-edit-scope", settings_path) else 0
     freeze = 1 if _grep_any(r"范围冻结|scope.freeze", ag) else 0
 
-    goal_script = os.path.join(PROJECT_ROOT, ".claude", "skills", "lx-goal", "scripts", "lx-goal.sh")
+    goal_script = os.path.join(PROJECT_ROOT, ".claude", "skills", "lx-goal", "scripts", "lx-goal.py")
     scope_from_goal = 1 if _grep_any(r"auto-scope.sh", goal_script) else 0
     harness_path = os.path.join(PROJECT_ROOT, ".claude", "harness.yaml")
     if _grep_any(r"pre-ask-guard", settings_path) and _grep_any(r"pre_ask_guard.*true", harness_path):
@@ -874,7 +874,7 @@ def score_UX1():
 def score_UX2():
     """UX2: Interaction frequency (2 pts)"""
     goal_ok = os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "skills", "lx-goal",
-                                           "scripts", "lx-goal.sh"))
+                                           "scripts", "lx-goal.py"))
     ghost_ok = os.path.isfile(os.path.join(PROJECT_ROOT, ".claude", "skills", "lx-ghost",
                                             "scripts", "lx-ghost.sh"))
     config_ok = 1 if (goal_ok and ghost_ok) else 0

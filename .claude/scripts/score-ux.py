@@ -83,7 +83,7 @@ def score_UX2():
     config_ok = 0
     runtime_ok = 0
 
-    if (PROJECT_ROOT / ".claude" / "skills" / "lx-goal" / "scripts" / "lx-goal.sh").exists() and \
+    if (PROJECT_ROOT / ".claude" / "skills" / "lx-goal" / "scripts" / "lx-goal.py").exists() and \
        (PROJECT_ROOT / ".claude" / "skills" / "lx-ghost" / "scripts" / "lx-ghost.sh").exists():
         config_ok = 1
 
