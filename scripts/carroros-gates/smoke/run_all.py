@@ -44,7 +44,7 @@ def case(name, expect, got, ok):
 
 # synthetic manifest
 import tempfile
-_lock = subprocess.run(["python3", str(GATES_DIR / "lib" / "gen_control_plane_lock.py")],
+_lock = subprocess.run(["python3", str(GATES_DIR / "gen_control_plane_lock.py")],
                        capture_output=True, text=True)
 if _lock.returncode != 0:
     print(f"ERROR: gen_control_plane_lock 失败: {_lock.stderr}", file=sys.stderr)
@@ -150,7 +150,7 @@ def make_night(d, gates=None, digest=REAL_DIGEST, producers=None, agg=None, toke
     return nd
 
 def run_finalize(nd):
-    return subprocess.run(["python3", str(GATE_LIB / "finalize_page.py"),
+    return subprocess.run(["python3", str(GATES_DIR / "finalize_page.py"),
                            "--manifest", str(manifest), "--night-dir", str(nd),
                            "--page-id", "FE-t", "--target-repo", str(TARGET_REPO)],
                           capture_output=True, text=True)
@@ -293,15 +293,15 @@ hook_case("hook攻击: python3 -c 写 token.json",
 hook_case("hook攻击: 直调 gate_result.py write CLI",
           lambda d: B("python3 scripts/carroros-gates/lib/gate_result.py write --out-dir .omc/night/x/gate-results --gate-id C6 --status PASS --manifest-sha256 m --code-sha256 c --control-plane-digest g --started-at t --process-exit-code 0 --producer run_gate.py"), 2, tamper=True)
 hook_case("hook攻击: run-gate 包装 true 骗 PASS",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/run_gate.py --gate-id C6 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- true"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/run_gate.py --gate-id C6 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- true"), 2, tamper=True)
 hook_case("hook攻击: run-gate wrapped 含链式",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/run_gate.py --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm test && cat gate-results/x"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/run_gate.py --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm test && cat gate-results/x"), 2, tamper=True)
 hook_case("hook攻击: gen-control-plane-lock 夜间禁跑",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/gen_control_plane_lock.py --manifest {M} --write"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/gen_control_plane_lock.py --manifest {M} --write"), 2, tamper=True)
 hook_case("hook攻击: morning-report 夜间禁跑",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/morning_report.py --manifest {M} --night-dir .omc/night/x"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/morning_report.py --manifest {M} --night-dir .omc/night/x"), 2, tamper=True)
 hook_case("hook攻击: preflight 夜间禁跑",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/preflight.py --manifest {M} --night-dir .omc/night/x --target-repo apps/web"), 2, tamper=True)
+          lambda d: B(f"python3 scripts/carroros-gates/preflight.py --manifest {M} --night-dir .omc/night/x --target-repo apps/web"), 2, tamper=True)
 hook_case("hook攻击: cp 覆盖 token.json",
           lambda d: B("cp /tmp/fake.json .omc/night/x/tokens/FE-1.token.json"), 2, tamper=True)
 hook_case("hook攻击: ln 夜间全禁",
@@ -315,11 +315,11 @@ hook_case("hook攻击: Edit 经 symlink 写控制面",
           setup=lambda d: ((d / ".omc" / "night" / "x" / "gate-results").mkdir(parents=True),
                            (d / "link").symlink_to(d / ".omc" / "night" / "x" / "gate-results")))
 hook_case("hook: run-gate 包装 pnpm tsc 放行",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/run_gate.py --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web -- pnpm -C apps/web exec tsc --noEmit"), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/run_gate.py --gate-id C2 --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web -- pnpm -C apps/web exec tsc --noEmit"), 0)
 hook_case("hook: scope-check 合法调用放行",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/scope_check.py --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/scope_check.py --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
 hook_case("hook: finalize 合法调用放行",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/finalize_page.py --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/finalize_page.py --manifest {M} --night-dir .omc/night/x --page-id FE-1 --target-repo apps/web"), 0)
 hook_case("hook: token-write API 放行",
           lambda d: B("python3 .omc/scripts/carros_base.py token-write --token-path .omc/night/x/tokens/FE-1.token.json --set task.status=fixing --expected-revision 3"), 0)
 hook_case("hook: manifest-json 读放行",
@@ -402,7 +402,7 @@ hook_case("Sol: scoped rm artifacts 放行",
 hook_case("Sol: 引号内管道字面量放行",
           lambda d: B('gh pr create --draft --body "a | b 对照表"'), 0)
 hook_case("Sol: run-gate wrapped 带引号 grep 放行",
-          lambda d: B(f"python3 scripts/carroros-gates/lib/run_gate.py --gate-id C4 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm exec playwright test --grep \"登录流程\""), 0)
+          lambda d: B(f"python3 scripts/carroros-gates/run_gate.py --gate-id C4 --manifest {M} --night-dir .omc/night/x --page-id FE-1 -- pnpm exec playwright test --grep \"登录流程\""), 0)
 hook_case("Sol: 单引号内命令替换是字面量放行",
           lambda d: B("git commit -m 'fix: $(id) 只是文本'"), 0)
 
@@ -436,7 +436,7 @@ with tempfile.TemporaryDirectory() as td:
     m2p.write_text(yaml.safe_dump(m2))
 
     def run_scope():
-        return subprocess.run(["python3", str(GATE_LIB / "scope_check.py"),
+        return subprocess.run(["python3", str(GATES_DIR / "scope_check.py"),
                                "--manifest", str(m2p), "--night-dir", str(nd),
                                "--page-id", "FE-t", "--target-repo", str(sub)],
                               capture_output=True, text=True)

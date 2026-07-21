@@ -27,7 +27,12 @@ def main() -> int:
         return 2
 
     try:
-        latest = __import__("gate_result", fromlist=["reduce_latest"]).reduce_latest(str(results_dir))
+        import importlib.util
+        gr_path = str(GATES_LIB / "gate_result.py")
+        spec = importlib.util.spec_from_file_location("gate_result", gr_path)
+        gr = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gr)
+        latest = gr.reduce_latest(str(results_dir))
     except Exception as e:
         print(f"FAILED_INVARIANT: gate-results 不可信: {e}", file=sys.stderr)
         return 3

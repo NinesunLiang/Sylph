@@ -6,7 +6,7 @@ from __future__ import annotations
 import json, sys
 from pathlib import Path
 
-CARROS_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+CARROS_ROOT = Path(__file__).resolve().parent.parent.parent
 SETTINGS = CARROS_ROOT / ".claude" / "settings.json"
 
 def main() -> int:

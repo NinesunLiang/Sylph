@@ -7,7 +7,7 @@ from __future__ import annotations
 import hashlib, json, sys, yaml
 from pathlib import Path
 
-CARROS_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+CARROS_ROOT = Path(__file__).resolve().parent.parent.parent
 
 def main() -> int:
     manifest_path = ""
@@ -32,11 +32,11 @@ def main() -> int:
     for p in sorted(gates.rglob("*")):
         if p.is_file() and p.suffix in (".sh", ".py", ".yaml", ".yml"):
             files.append(p)
-    for rel in (".claude/hooks/carroros-night-deny.py", ".claude/hooks/hook-launcher.sh"):
+    for rel in (".claude/hooks/carroros-night-deny.py", ".claude/hooks/hook-launcher.py"):
         p = CARROS_ROOT / rel
         if p.is_file():
             files.append(p)
-    cb = CARROS_ROOT / ".omc" / "scripts" / "carros_base.py"
+    cb = CARROS_ROOT / ".claude" / "scripts" / "carros_base.py"
     if cb.is_file():
         files.append(cb)
 
