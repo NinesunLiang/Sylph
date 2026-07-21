@@ -23,7 +23,7 @@
 | `harness-smoke-test.sh` | 脚本 | `.claude/scripts/harness-smoke-test.sh` | 回归验证(123/126动态计数) | ✅ |
 | `audit-hooks.sh` | 脚本 | `.claude/scripts/audit-hooks.sh` | 三方一致性审计 | ✅ |
 | `hook-production-verify.sh` | 脚本 | `.claude/scripts/hook-production-verify.sh` | 生产级端到端验证 | ✅ |
-| `validate-skill.sh` | 脚本 | `.claude/scripts/validate-skill.sh` | Skill原子化合规校验(11项) | ✅ |
+| `validate-skill.py` | 脚本 | `.claude/scripts/validate-skill.py` | Skill原子化合规校验(11项) | ✅ |
 | `auto-score.sh` | 脚本 | `.claude/scripts/auto-score.sh` | 子维度独立客观评分+--calibrated校准 | ✅ |
 | `score-self-check.sh` | 脚本 | `.claude/scripts/score-self-check.sh` | 评分方法论自检 | ✅ |
 | `doc-sync-check.sh` | 脚本 | `.claude/scripts/doc-sync-check.sh` | 文档-代码一致性验证 | ✅ |
@@ -290,7 +290,7 @@
 | `session-health-check.sh` | #3 | — |
 | `score-self-check.sh` | #4, #6 | #7(T) |
 | `pipeline-step.sh` | #7, #3 | — |
-| `validate-skill.sh` | #4 | — |
+| `validate-skill.py` | #4 | — |
 | `race_manager.sh` | #2 | — |
 | `snapshot-helper.sh` | #7, #4 | #4(G) |
 | `lx-orch-gate.sh` | #4 | #3(E) |

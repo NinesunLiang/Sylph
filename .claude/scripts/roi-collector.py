@@ -48,7 +48,7 @@ SCRIPTS = [
     "hook-production-verify.sh", "lx-oma-gov-human-check.sh", "lx-oma-gov-propagate.sh",
     "lx-oma-gov-resolve.sh", "lx-orch-advance.sh", "lx-orch-gate.sh", "lx-orch-status.sh",
     "pipeline-step.sh", "race_manager.sh", "retry-budget.sh", "session-health-check.sh",
-    "snapshot-helper.sh", "test_race.sh", "validate-skill.sh", "ghost-mode.sh",
+    "snapshot-helper.sh", "test_race.sh", "validate-skill.py", "ghost-mode.sh",
     "lx-unattended-toggle.sh", "ed-red-team-test.sh", "doc-sync-check.sh",
     "escape-patch-apply.sh", "audit-hooks.sh", "meta-oracle-review.sh",
     "score-self-check.sh", "auto-scope.sh", "pre-commit-self-review.sh",

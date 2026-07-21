@@ -1,21 +1,20 @@
 #!/usr/bin/env python3
 """
 validate-skill.py — Skill 原子化合规性校验入口
-v2: 在 lx-validate-skill 被清理后(e75adf4)，改为调用轻量替代品 validate_skill_refs.py
-Cross-platform Python resolution (DG-105)
+v3: .sh → .py 轻量化迁移，调用 validate_skill_refs.py
 """
+
+import os
 import sys
 import subprocess
-from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-VALIDATOR = SCRIPT_DIR / "validate_skill_refs.py"
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+VALIDATOR = os.path.join(SCRIPT_DIR, "validate_skill_refs.py")
 
-if not VALIDATOR.exists():
-    print("❌ 校验脚本不存在: {}".format(VALIDATOR), file=sys.stderr)
+if not os.path.isfile(VALIDATOR):
+    print(f"❌ 校验脚本不存在: {VALIDATOR}", file=sys.stderr)
     sys.exit(1)
 
-# Run the validator with passed args
-cmd = [sys.executable, str(VALIDATOR)] + sys.argv[1:]
-result = subprocess.run(cmd)
+python_bin = os.environ.get("PYTHON_BIN", sys.executable)
+result = subprocess.run([python_bin, VALIDATOR] + sys.argv[1:])
 sys.exit(result.returncode)

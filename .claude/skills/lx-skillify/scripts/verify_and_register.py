@@ -3,7 +3,7 @@
 verify_and_register.py — 技能验证 + 注册
 
 用于 skillify Phase 4-5 的确定性操作：
-  1. 调用 validate-skill.sh 检查 11 条规则
+  1. 调用 validate-skill.py 检查 11 条规则
   2. 调用 validate_skill_refs.py 检查引用完整性
   3. 通过后追加 feature-registry.yaml
   4. 通过后追加 skills-catalog.md
@@ -34,8 +34,8 @@ SKILLS_CATALOG = PROJECT_ROOT / "docs" / "guides" / "cn" / "skills-catalog.md"
 
 
 def run_validation(skill_name: str) -> dict:
-    """运行 validate-skill.sh 并解析结果。"""
-    validate_script = SCRIPTS_DIR / "validate-skill.sh"
+    """运行 validate-skill.py 并解析结果。"""
+    validate_script = SCRIPTS_DIR / "validate-skill.py"
 
     if not validate_script.exists():
         return {
@@ -47,7 +47,7 @@ def run_validation(skill_name: str) -> dict:
 
     try:
         result = subprocess.run(
-            ["bash", str(validate_script), skill_name],
+            [sys.executable, str(validate_script), skill_name],
             capture_output=True,
             text=True,
             timeout=30,

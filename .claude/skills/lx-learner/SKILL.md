@@ -90,7 +90,7 @@ DETECT → PROPOSE → GENERATE → VALIDATE → DOCUMENT → REPORT
 ### Phase 3: VALIDATE
 
 ```bash
-bash .claude/scripts/validate-skill.sh lx-{name}
+bash .claude/scripts/validate-skill.py lx-{name}
 python3 .claude/scripts/validate_skill_refs.py
 ```
 

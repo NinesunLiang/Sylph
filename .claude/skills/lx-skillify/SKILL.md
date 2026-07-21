@@ -70,7 +70,7 @@ CLARIFY → ANALYZE → GENERATE → CREATE_FILES → VALIDATE → REGISTER → 
 
 ### Phase 3-6: 创建→验证→注册→报告 → `@references/phases-create-validate-register-report.md`
 
-scripts/references 条件创建 → validate-skill.sh + validate_skill_refs.py → feature-registry + skills-catalog 注册 → 完成报告。
+scripts/references 条件创建 → validate-skill.py + validate_skill_refs.py → feature-registry + skills-catalog 注册 → 完成报告。
 
 ## 降级策略
 
