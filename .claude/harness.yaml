@@ -34,7 +34,7 @@ lsp_suggest:
 completion_gate:
   min_evidence_chars: 60
   required_keyword: VERIFIED
-  quality_threshold: 60
+  quality_threshold: 75
   evidence_freshness_sec: 300
   soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
     done|mostly complete|seems to work|probably works|theoretically|should work|looks

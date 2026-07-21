@@ -6,6 +6,8 @@ error_dna.py — CarrorOS Error DNA 自动生成与检索
 最多 retry 3 次，仍失败则 BLOCKED。
 """
 
+from __future__ import annotations
+
 import json
 import re
 from datetime import datetime, timezone
@@ -169,3 +171,93 @@ def check_retry_gate(task_dir: Path, step_id: str) -> tuple:
         return False, retry_count, f"MAX_RETRIES ({MAX_RETRIES}) reached for {step_id}"
 
     return True, retry_count, f"retry {retry_count}/{MAX_RETRIES} allowed"
+
+
+# ─── 以下为 E5 增强: gate BLOCK 事件收集 + 错误去重分析 ───
+
+_GATE_BLOCK_SOURCES = [
+    "scope_violation",
+    "action-loop", "action_loop_warn",
+    "secret_scan_block",
+    "completion_gate",
+    "verify_decision",
+]
+
+
+def collect_gate_blocks(project_root: Path, n: int = 50, sources: list[str] | None = None) -> list[dict]:
+    """从 audit jsonl 收集最近 n 条 gate BLOCK 事件，供错误分析和去重。
+
+    返回按 timestamp 逆序的 BLOCK/REJECTED 事件列表。
+    """
+    if sources is None:
+        sources = _GATE_BLOCK_SOURCES
+    audit_dir = project_root / ".omc" / "audit"
+    if not audit_dir.exists():
+        return []
+    events: list[dict] = []
+    for f in sorted(audit_dir.glob("*.jsonl"), reverse=True):
+        try:
+            for line in f.read_text(encoding="utf-8").splitlines():
+                try:
+                    ev = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(ev, dict):
+                    continue
+                decision = ev.get("decision", "") or ev.get("event_type", "")
+                reason = ev.get("reason", "") or ""
+                if decision in ("BLOCK", "REJECTED", "BLOCKED") or "block" in reason.lower():
+                    events.append(ev)
+            if len(events) >= n:
+                break
+        except OSError:
+            continue
+    # 逆序（最近在前）
+    events.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    return events[:n]
+
+
+def find_error_dedup(
+    project_root: Path,
+    n: int = 30,
+    min_occurrences: int = 2,
+) -> list[dict]:
+    """在最近 n 条 gate BLOCK/error 事件中检测重复错误模式。
+
+    返回重复模式的列表，每项含 {sig, count, events, first_seen, last_seen}。
+    min_occurrences=2 表示相同签名出现≥2次即为重复。
+    供 E5 去重使用。
+    """
+    events = collect_gate_blocks(project_root, n=n)
+    from collections import Counter
+    sigs = Counter()
+    event_map: dict[str, list[dict]] = {}
+    for ev in events:
+        # 构造签名
+        parts = [
+            str(ev.get("event_type", "")),
+            str(ev.get("reason", ""))[:60],
+            str(ev.get("pattern", ""))[:40],
+        ]
+        sig = "|".join(filter(None, parts))
+        if not sig:
+            continue
+        sigs[sig] += 1
+        if sig not in event_map:
+            event_map[sig] = []
+        event_map[sig].append(ev)
+
+    result = []
+    for sig, count in sigs.items():
+        if count >= min_occurrences:
+            batch = event_map[sig]
+            timestamps = [e.get("timestamp", "") for e in batch if e.get("timestamp")]
+            result.append({
+                "sig": sig,
+                "count": count,
+                "events": batch,
+                "first_seen": min(timestamps) if timestamps else "",
+                "last_seen": max(timestamps) if timestamps else "",
+            })
+    result.sort(key=lambda x: x["count"], reverse=True)
+    return result

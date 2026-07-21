@@ -373,10 +373,26 @@ def _strip_dot_slash(s: str) -> str:
 
 
 def _in_scope(path: str, scope: list[str]) -> bool:
+    """Check if a path is within the declared scope.
+
+    修复: 支持绝对路径 vs 相对 scope 的匹配。
+    - scope `.claude/scripts/` 应匹配 `/Users/.../.claude/scripts/verify_gate.py`
+    - scope `.claude/settings.json` 应匹配 `.claude/settings.json`
+    """
     p = _strip_dot_slash(path.replace("\\", "/"))
     for item in scope:
         s = _strip_dot_slash(item.replace("\\", "/"))
-        if p == s or p.endswith("/" + s) or p.startswith(s.rstrip("/") + "/"):
+        s_dir = s.rstrip("/")
+        if p == s or p == "/" + s:
+            return True
+        # 精确匹配: 以 /<scope> 结尾(文件匹配) 或 /<scope>/ 出现(目录匹配)
+        if p.endswith("/" + s_dir):
+            return True
+        # 目录前缀匹配: /<scope>/ 在路径中任意位置出现(支持绝对路径)
+        if "/" + s_dir + "/" in p:
+            return True
+        # 相对路径前缀: scope 开头（相对路径写工具调用）
+        if p.startswith(s_dir + "/") or p.startswith(s):
             return True
     return False
 
@@ -723,12 +739,15 @@ def _check_plan_gate(payload: dict) -> str | None:
     return None
 
 def _check_edit_scope(payload: dict) -> str | None:
-    """Gate 5: 越界阻断（E1 防线；CARROROS_EDIT_SCOPE=warn 恢复方案二柔性约束）"""
+    """Gate 5: 越界阻断（E1 防线 + E1增强: 逃逸升级检测）
+
+    规避逃逸模式: CARROROS_EDIT_SCOPE=warn 不再永久放行——
+    连续 ≥3 次越界后自动升级为 BLOCK（逃逸惯性惩罚）。
+    """
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
     if _SSOT_ERR is not None:
-        # SSOT 导入失败=无法判定任务边界;launcher 对崩溃 fail-open,此处显式 fail-closed
         return f"edit-scope: task_ssot 导入失败({_SSOT_ERR!r})——fail-closed 阻断写操作,修复 lib/task_ssot.py 后重试"
     path = _extract_path(payload)
     if not path:
@@ -736,13 +755,34 @@ def _check_edit_scope(payload: dict) -> str | None:
     token = _active_token()
     if not token:
         return None
+    # E1增强: 读取越界计数（持久化，防会话重启后清零）
+    _STREAK_FILE = OMC / "state" / "scope-violation-streak"
+    _streak = 0
+    try:
+        if _STREAK_FILE.exists():
+            raw = _STREAK_FILE.read_text(encoding="utf-8").strip()
+            if raw:
+                _streak = int(raw)
+    except (OSError, ValueError):
+        _streak = 0
+
     # 检查 token scope（比 plan scope 优先）
     token_scope = token.get("scope") or []
     if token_scope:
         in_scope = _in_scope(path, token_scope)
         if in_scope:
+            if _streak > 0:
+                try:
+                    _STREAK_FILE.unlink(missing_ok=True)
+                except OSError:
+                    pass
             return None
-        # 越界 → BLOCK（E1 目标漂移防线；CARROROS_EDIT_SCOPE=warn 恢复柔性）
+        _streak += 1
+        try:
+            _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _STREAK_FILE.write_text(str(_streak), encoding="utf-8")
+        except OSError:
+            pass
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
@@ -750,8 +790,14 @@ def _check_edit_scope(payload: dict) -> str | None:
             "reason": "token_scope_violation",
             "path": path,
             "scope": token_scope[:10],
+            "violation_streak": _streak,
         })
+        # E1增强: warn 模式但连续越界≥3次 → 自动升回 BLOCK
         if os.environ.get("CARROROS_EDIT_SCOPE", "block").lower() == "warn":
+            if _streak >= 3:
+                return (f"BLOCK edit_out_of_scope path={path} (warn逃逸惯性 {_streak}次→升级BLOCK)|"
+                        f"该路径不在 scope 内，且已连续 {_streak} 次越界写入——"
+                        f"warn 模式自动升级。修复: 加入 scope 或使用临时 bypass")
             return None
         return (f"BLOCK edit_out_of_scope path={path}|"
                 f"该路径不在当前任务 token scope 内。修复: 加入 token scope 或 plan.md ## Scope 段；"
@@ -767,6 +813,12 @@ def _check_edit_scope(payload: dict) -> str | None:
     if not scope:
         return None
     if not _in_scope(path, scope):
+        _streak += 1
+        try:
+            _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _STREAK_FILE.write_text(str(_streak), encoding="utf-8")
+        except OSError:
+            pass
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
@@ -774,12 +826,22 @@ def _check_edit_scope(payload: dict) -> str | None:
             "reason": "plan_scope_violation",
             "path": path,
             "scope": scope[:10],
+            "violation_streak": _streak,
         })
         if os.environ.get("CARROROS_EDIT_SCOPE", "block").lower() == "warn":
+            if _streak >= 3:
+                return (f"BLOCK edit_out_of_scope path={path} (plan scope warn逃逸惯性 {_streak}次→升级BLOCK)|"
+                        f"该路径不在 plan.md scope 内，且已连续 {_streak} 次越界写入——"
+                        f"warn 模式自动升级。修复: 加入 Scope 段或使用临时 bypass")
             return None
         return (f"BLOCK edit_out_of_scope path={path}|"
                 f"该路径不在 plan.md ## Scope 声明内。修复: 将其加入 Scope 段；"
                 f"临时放行: CARROROS_EDIT_SCOPE=warn 或临时 bypass")
+    if _streak > 0:
+        try:
+            _STREAK_FILE.unlink(missing_ok=True)
+        except OSError:
+            pass
     return None
 
 def _check_verify_gate(payload: dict) -> str | None:
@@ -1226,11 +1288,18 @@ def _check_watermark_gate(payload: dict) -> str | None:
 
 
 # ── E4: Action-loop detection — same tool+cmd repeated >=3 times in last 20 audit events ──
+_ACTION_LOOP_STREAK_FILE = OMC / "state" / "action-loop-streak"
+_ACTION_LOOP_ESCALATE_THRESHOLD = 3  # 连续3次NARROW → 升级为BLOCK
+# 惯性执行检测只关注写工具和 Bash（读工具的自然重复是正常行为）
+_ACTION_LOOP_MUTATING_TOOLS = {"write", "edit", "multiedit", "notebookedit", "bash"}
+
 def _check_action_loop(payload: dict) -> str | None:
     """Detects repetitive same-action calls (E4 inertial execution guard).
 
     Reads .omc/audit/{today}.jsonl, finds the last 20 Bash/Write tool events.
     If the same (tool_name + command_hash) appears >=3 times → soft NARROW warning.
+    E4增强: 连续3次同签名NARROW → 第4次升级为BLOCK（惯性执行硬化）。
+    仅跟踪写工具和 Bash（Read/Glob/Grep 自然重复不触发）。
     """
     from collections import Counter
     try:
@@ -1248,30 +1317,75 @@ def _check_action_loop(payload: dict) -> str | None:
             except json.JSONDecodeError:
                 continue
             if ev.get("event_type") not in ("preaction_decision", "gate_bypassed", "gate_soft_warn", "verify_decision", "token_init"):
-                # Normal tool call — record tool signature
-                tool = ev.get("tool", "") or ev.get("tool_name", "")
+                # 只跟踪写工具和 Bash 调用（排除 Read/Glob/Grep 自然重复）
+                tool = (ev.get("tool", "") or ev.get("tool_name", "") or "").lower()
+                if not tool:
+                    # 无 tool 字段的 audit 事件全部跳过(非正常工具调用)
+                    continue
+                if tool not in _ACTION_LOOP_MUTATING_TOOLS:
+                    continue
                 cmd = str(ev.get("command_preview", "") or ev.get("command", "") or "")
                 if tool and cmd:
-                    sig = f"{tool}:{cmd[:80]}"
-                elif tool:
-                    sig = tool
+                    recent_tools.append(f"{tool}:{cmd[:80]}")
                 else:
-                    continue
-                recent_tools.append(sig)
-            # skip audit events, only track actual tool calls
+                    fpath = str(ev.get("path", "") or ev.get("file_path", "") or "")
+                    if fpath:
+                        recent_tools.append(f"{tool}:{fpath[:80]}")
+                    else:
+                        continue  # 无命令也无路径 → 跳过
         if len(recent_tools) < 3:
             return None
         cnt = Counter(recent_tools)
         top_sig, top_n = cnt.most_common(1)[0]
         if top_n >= 3:
+            # E4增强: 读取 streak 判断是否升级
+            _streak_sig = ""
+            _streak_count = 0
+            try:
+                if _ACTION_LOOP_STREAK_FILE.exists():
+                    raw = json.loads(_ACTION_LOOP_STREAK_FILE.read_text(encoding="utf-8"))
+                    _streak_sig = raw.get("sig", "")
+                    _streak_count = raw.get("count", 0)
+            except Exception:
+                _streak_sig = ""
+                _streak_count = 0
+
+            if _streak_sig == top_sig:
+                _streak_count += 1
+            else:
+                _streak_count = 1  # 不同签名 → 重新计数
+                _streak_sig = top_sig
+
+            # 持久化 streak
+            try:
+                _ACTION_LOOP_STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
+                _ACTION_LOOP_STREAK_FILE.write_text(
+                    json.dumps({"sig": _streak_sig, "count": _streak_count}), encoding="utf-8")
+            except OSError:
+                pass
+
             _append_audit({
                 "event_type": "action_loop_warn",
                 "actor": "hook:pretool-gate",
                 "pattern": top_sig,
                 "count": top_n,
                 "window": len(recent_tools),
+                "streak": _streak_count,
             })
-            return f"NARROW action-loop: {top_sig} 重复 {top_n}/{len(recent_tools)} 次"
+
+            # E4增强: 连续N次同签名NARROW → 升级BLOCK
+            if _streak_count >= _ACTION_LOOP_ESCALATE_THRESHOLD:
+                # 升级后清理 streak，防无限重复
+                try:
+                    _ACTION_LOOP_STREAK_FILE.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                return (f"BLOCK action-loop-escalated: {top_sig} 重复 {top_n}/{len(recent_tools)} 次"
+                        f"（连续 {_streak_count} 次 NARROW 被忽略后升级为 BLOCK）|"
+                        f"检测到惯性执行模式——同一操作重复过多且之前的软门警告被持续忽略。"
+                        f"建议: 停止当前行为模式，分析是否在错误的方向上重复尝试")
+
+            return f"NARROW action-loop: {top_sig} 重复 {top_n}/{len(recent_tools)} 次 "
     except Exception:
         return None
     return None

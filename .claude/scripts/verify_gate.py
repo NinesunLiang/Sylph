@@ -409,16 +409,62 @@ def main() -> int:
             _cal_dir = Path(__file__).resolve().parent.parent.parent / ".omc" / "state"
             _cal_dir.mkdir(parents=True, exist_ok=True)
             _cal_path = _cal_dir / "calibration-log.jsonl"
-            with _cal_path.open("a", encoding="utf-8") as _cal_f:
-                _cal_f.write(json.dumps({
+
+            # E7增强1: 计算置信度 confidence（规则匹配率）
+            total_rules = len(result.matched) + len(result.missing)
+            confidence = round(len(result.matched) / max(total_rules, 1), 3) if total_rules > 0 else 0.0
+
+            # E7增强2: overturn 检测 — 读取审计中该 step 的决策历史
+            _prev_decisions = []
+            _audit_dir = _cal_dir.parent.parent / "audit"
+            if _audit_dir.exists():
+                for _f in sorted(_audit_dir.glob("*.jsonl")):
+                    try:
+                        for _line in _f.read_text(encoding="utf-8").splitlines():
+                            try:
+                                _ev = json.loads(_line)
+                            except json.JSONDecodeError:
+                                continue
+                            if (_ev.get("event_type") == "verify_decision"
+                                    and _ev.get("step") == args.step):
+                                past = _ev.get("decision", "")
+                                if past in ("BLOCKED", "REJECTED", "WARN"):
+                                    _prev_decisions.append(past)
+                    except OSError:
+                        continue
+
+            _overturn = len(_prev_decisions) > 0
+            if _overturn:
+                _cal_record = {
+                    "event_type": "calibration_overturn",
+                    "timestamp": now_iso(),
+                    "step": args.step,
+                    "decision": "VERIFIED",
+                    "overturn": True,
+                    "previous_decisions": _prev_decisions,
+                    "assertion": f"step {args.step} overturn alert: 此前 {len(_prev_decisions)} 次非通过({','.join(_prev_decisions)})→VERIFIED",
+                    "confidence": confidence,
+                    "matched_rules": result.matched,
+                    "missing_rules": result.missing,
+                }
+                with _cal_path.open("a", encoding="utf-8") as _cal_f:
+                    _cal_f.write(json.dumps(_cal_record, ensure_ascii=False, sort_keys=True) + "\n")
+                    _cal_f.flush()
+                print(f"⚠️ [E7:calibration_overturn] step={args.step} 此前 {len(_prev_decisions)} 次非通过 -> 当前 VERIFIED —— 过度自信风险，建议回溯验证断言有效性",
+                      file=sys.stderr, flush=True)
+            else:
+                _cal_record = {
                     "event_type": "calibration_assertion",
                     "timestamp": now_iso(),
                     "step": args.step,
                     "decision": "VERIFIED",
                     "matched_rules": result.matched,
-                    "assertion": f"step {args.step} 全部规则通过",
-                }, ensure_ascii=False, sort_keys=True) + "\n")
-                _cal_f.flush()
+                    "confidence": confidence,
+                    "assertion": f"step {args.step} 全部规则通过（置信度={confidence}）",
+                }
+                with _cal_path.open("a", encoding="utf-8") as _cal_f:
+                    _cal_f.write(json.dumps(_cal_record, ensure_ascii=False, sort_keys=True) + "\n")
+                    _cal_f.flush()
         except Exception:
             pass
 
