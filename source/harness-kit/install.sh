@@ -466,9 +466,8 @@ elif [ -n "$GITHUB_RELEASE_URL" ]; then
     fi
 fi
 
-chmod +x .claude/hooks/*.sh 2>/dev/null || true
-chmod +x .claude/scripts/*.py .claude/scripts/*.sh 2>/dev/null || true
-chmod +x .claude/profiles/merge-profile.sh 2>/dev/null || true
+chmod +x .claude/scripts/*.py 2>/dev/null || true
+chmod +x .claude/profiles/merge-profile.py 2>/dev/null || true
 
 # ═══ 清理旧版 OC plugin（防止 carror-hooks-compat.ts 等引用 .sh hook）═══
 if [ -d ".opencode/plugins" ]; then
@@ -1038,7 +1037,7 @@ echo ""
     || log_warn "⚠️ 安装完成，$ERRORS 个警告"
 
 if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL_MODE" == "base" ]] \
-    && [ -f ".claude/profiles/merge-profile.sh" ]; then
+    && [ -f ".claude/profiles/merge-profile.py" ]; then
 
     # Agentic UI: --lang flag > 自动检测 > 兜底 generic
     if [ -z "$LANG_SPEC" ]; then
@@ -1062,7 +1061,7 @@ if [[ "$INSTALL_MODE" == "enhanced" || "$INSTALL_MODE" == "harness" || "$INSTALL
     if [ -n "$LANG_SPEC" ]; then
         log_info "使用 $LANG_SPEC profile"
         case "$LANG_SPEC" in
-            go|node|python|rust) CLAUDE_DIR=".claude" bash ".claude/profiles/merge-profile.sh" "$LANG_SPEC" 2>/dev/null \
+            go|node|python|rust) CLAUDE_DIR=".claude" python3 ".claude/profiles/merge-profile.py" "$LANG_SPEC" 2>/dev/null \
                 && log_info "✅ 已合并 base + $LANG_SPEC profile → .claude/harness.yaml" \
                 || log_warn "merge 失败，保留 generic harness.yaml" ;;
             generic|*) cp ".claude/profiles/base/harness.yaml" ".claude/harness.yaml" 2>/dev/null \
@@ -1313,7 +1312,7 @@ else
     echo " - 使用 /lx-rpe 或 /lx-todo 开始任务驱动。"
     echo " - 参阅 .claude/index.md 获取完整武器库导航。"
 fi
-echo " 🔀 切换项目语言规范：bash .claude/profiles/merge-profile.sh <go|node|python|rust>"
+echo " 🔀 切换项目语言规范：python3 .claude/profiles/merge-profile.py <go|node|python|rust>"
 
 # 平台特定指引
 case "$PLATFORM_OS" in
