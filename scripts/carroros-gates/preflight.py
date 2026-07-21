@@ -16,17 +16,17 @@ import yaml
 SCRIPT_DIR = Path(__file__).resolve().parent
 GATES_DIR = SCRIPT_DIR
 sys.path.insert(0, str(GATES_DIR))
-from lib import common
+from lib.common_lib import *
 
-common.parse_args()
-if not common.NIGHT_DIR:
+gates_parse_args()
+if not NIGHT_DIR:
     print("ERROR: 需要 --night-dir", file=sys.stderr)
     sys.exit(2)
-if not common.TARGET_REPO:
+if not TARGET_REPO:
     print("ERROR: 需要 --target-repo", file=sys.stderr)
     sys.exit(2)
 
-CARROS_BASE = str(common.CARROS_BASE)
+CARROS_BASE = str(CARROS_BASE)
 
 fails = []
 
@@ -43,7 +43,7 @@ def ok(msg):
 print("== preflight ==")
 
 # 1. signoff 字节哈希
-signoff_path = common.MANIFEST.replace(".yaml", ".signoff.yaml") if common.MANIFEST.endswith(".yaml") else common.MANIFEST + ".signoff.yaml"
+signoff_path = str(MANIFEST).replace(".yaml", ".signoff.yaml") if str(MANIFEST).endswith(".yaml") else str(MANIFEST) + ".signoff.yaml"
 if not Path(signoff_path).is_file():
     note(f"signoff 缺失: {signoff_path}")
 else:
@@ -53,7 +53,7 @@ else:
     r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", signoff_path, "--get", "decision"],
                        capture_output=True, text=True)
     decision = r.stdout.strip() if r.returncode == 0 else ""
-    actual = common.sha256_file(common.MANIFEST)
+    actual = gates_sha256_file(MANIFEST)
     if not recorded or recorded != actual:
         note(f"signoff 哈希不匹配（manifest 签后被改动？） recorded={recorded[:12]} actual={actual[:12]}")
     elif decision not in ("GO", "CONDITIONAL_GO"):
@@ -63,13 +63,13 @@ else:
 
 # 2. control_plane_lock 自验
 try:
-    common.verify_control_plane_lock()
+    gates_verify_control_plane_lock()
     ok("control_plane_lock 自验通过")
 except SystemExit:
     note("control_plane_lock 自验失败（控制面被改动）")
 
 # 3. first_night_selection
-r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST, "--pages"],
+r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST, "--pages"],
                    capture_output=True, text=True)
 pages_count = len([l for l in r.stdout.splitlines() if l.strip()])
 if pages_count == 1:
@@ -79,7 +79,7 @@ else:
 
 for f in ("input_completeness", "complexity", "prototype_accessible",
           "acceptance_contract_complete", "happy_path_testable"):
-    r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+    r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                         "--get", f"first_night_selection.{f}"],
                        capture_output=True, text=True)
     v = r.stdout.strip() if r.returncode == 0 else "MISSING"
@@ -92,7 +92,7 @@ for f in ("input_completeness", "complexity", "prototype_accessible",
 
 # 4. assertion 词表封闭
 CATALOG = GATES_DIR / "assertion-catalog.yaml"
-r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                     "--get", "assertion_catalog_version"], capture_output=True, text=True)
 cat_ver = r.stdout.strip() if r.returncode == 0 else "MISSING"
 try:
@@ -108,7 +108,7 @@ else:
 
 # assertion ID 词表封闭
 try:
-    manifest_data = yaml.safe_load(Path(common.MANIFEST).read_text(encoding="utf-8"))
+    manifest_data = yaml.safe_load(Path(MANIFEST).read_text(encoding="utf-8"))
     known = set((cat_data.get("state_assertions") or {})) | set((cat_data.get("overlay_assertions") or {}))
     unknown = []
     for pg in manifest_data.get("pages") or []:
@@ -132,7 +132,7 @@ except Exception as e:
     note(f"assertion 词表校验异常: {e}")
 
 # 4b. catalog helper 绑定
-helpers_path = Path(common.TARGET_REPO) / "tests" / "e2e" / "helpers" / "assertions.ts"
+helpers_path = Path(TARGET_REPO) / "tests" / "e2e" / "helpers" / "assertions.ts"
 if not helpers_path.is_file():
     note(f"断言 helper 缺失: {helpers_path}")
 else:
@@ -157,7 +157,7 @@ else:
     else:
         note(f"模型代理离线（{base_url} 不可达）")
 
-routing_proof = Path(common.NIGHT_DIR) / "model-routing-proof.yaml"
+routing_proof = Path(NIGHT_DIR) / "model-routing-proof.yaml"
 if routing_proof.is_file():
     ok("model-routing-proof 存在（Phase 0 探针证据）")
 else:
@@ -165,7 +165,7 @@ else:
 
 # 6. 预算非空
 for f in ("per_page_calls", "fix_rounds", "page_wall_clock_min"):
-    r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+    r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                         "--get", f"budgets.{f}"], capture_output=True, text=True)
     v = r.stdout.strip() if r.returncode == 0 else "MISSING"
     if v not in ("null", "MISSING", "") and v:
@@ -174,40 +174,40 @@ for f in ("per_page_calls", "fix_rounds", "page_wall_clock_min"):
         note(f"budgets.{f} 为空（需 dry-cost 实测 P90×安全系数）")
 
 # 7. S1 残余风险签署
-r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                     "--get", "trust_boundary.residual_risk_accepted_by"], capture_output=True, text=True)
 signer = r.stdout.strip() if r.returncode == 0 else ""
 (ok if signer and signer != "null" else note)(f"trust_boundary 签署人: {signer}" if signer else "trust_boundary 未签署")
 
-r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                     "--get", "trust_boundary.auto_renew"], capture_output=True, text=True)
 renew = r.stdout.strip() if r.returncode == 0 else ""
 (ok if renew == "false" else note)(f"auto_renew={renew}（必须 false）")
 
-r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                     "--get", "trust_boundary.scope"], capture_output=True, text=True)
 scope_v = r.stdout.strip() if r.returncode == 0 else ""
 (ok if scope_v == "single_page_single_night" else note)(f"trust_boundary.scope={scope_v}")
 
 # 8. 环境指纹
 for f in ("node_version", "pnpm_version", "lockfile_sha256"):
-    r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST,
+    r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST,
                         "--get", f"environment_fingerprint.{f}"], capture_output=True, text=True)
     v = r.stdout.strip() if r.returncode == 0 else ""
     (ok if v and v != "null" else note)(f"fingerprint.{f} 为空")
 
 # 9. 五类 smoke
-smoke_out = Path(common.NIGHT_DIR) / "smoke-results.yaml"
+smoke_out = Path(NIGHT_DIR) / "smoke-results.yaml"
 r = subprocess.run([sys.executable, str(GATES_DIR / "smoke" / "run-all.py"),
-                    "--manifest", common.MANIFEST, "--night-dir", common.NIGHT_DIR,
-                    "--target-repo", common.TARGET_REPO, "--out", str(smoke_out)])
+                    "--manifest", MANIFEST, "--night-dir", NIGHT_DIR,
+                    "--target-repo", TARGET_REPO, "--out", str(smoke_out)])
 if r.returncode == 0:
     ok("五类 smoke 全绿")
 else:
     note(f"smoke 未全绿（见 {smoke_out}）")
 
 # 9b. 独立复跑
-smoke_ind = Path(common.NIGHT_DIR) / "smoke-results-independent.yaml"
+smoke_ind = Path(NIGHT_DIR) / "smoke-results-independent.yaml"
 if not smoke_ind.is_file():
     note(f"smoke 独立复跑证据缺失: {smoke_ind}")
 else:
@@ -225,7 +225,7 @@ else:
     ind_digest = r.stdout.strip() if r.returncode == 0 else "MISSING"
 
     try:
-        cur_digest = common.verify_control_plane_lock()
+        cur_digest = gates_verify_control_plane_lock()
     except SystemExit:
         cur_digest = ""
 
@@ -253,16 +253,16 @@ if fails:
     sys.exit(1)
 
 # GO
-common.preamble()
-started_at = common.now_iso()
-r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", common.MANIFEST, "--pages"],
+gates_preamble()
+started_at = gates_now()
+r = subprocess.run([sys.executable, CARROS_BASE, "manifest-json", "--manifest", MANIFEST, "--pages"],
                    capture_output=True, text=True)
 page_id = r.stdout.strip().splitlines()[0] if r.stdout.strip() else ""
-common.PAGE_ID = page_id
-common.write_result("C0", "PASS", 0, started_at)
+PAGE_ID = page_id
+gates_write_result("C0", "PASS", 0, started_at)
 
 # 夜会话标记
-state_dir = common.CARROS_ROOT / ".omc" / "state"
+state_dir = CARROS_ROOT / ".omc" / "state"
 state_dir.mkdir(parents=True, exist_ok=True)
 (state_dir / "night-session.active").write_text(
     datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") + "\n")

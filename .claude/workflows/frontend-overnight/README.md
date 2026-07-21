@@ -36,7 +36,7 @@
 
 ### ② intake + Phase 0（白天，你或整合者在场）
 按 `intake.md` 判定输入成熟度 → 生成 manifest → Phase 0 按 `phase0-checklist.md` 执行：
-目标 repo 骨架（首次）→ dry-cost 实测 → 预算入 manifest → `gen-control-plane-lock.sh --write` → 高阶模型预审（可选，§17b）。
+目标 repo 骨架（首次）→ dry-cost 实测 → 预算入 manifest → `gen_control_plane_lock.py --write` → 高阶模型预审（可选，§17b）。
 
 ### ③ 你签署（不可省）
 - manifest `trust_boundary.residual_risk_accepted_by` 签你的名字（S1 残余风险，FINAL §18#9）
@@ -45,7 +45,7 @@
 
 ### ④ 夜跑（你离开）
 ```bash
-bash scripts/carroros-gates/preflight.sh --manifest .omc/night/$(date +%F)/night-manifest.yaml \
+python3 scripts/carroros-gates/preflight.py --manifest .omc/night/$(date +%F)/night-manifest.yaml \
   --night-dir .omc/night/$(date +%F) --target-repo <目标repo>
 # preflight GO 后：
 /lx-goal "执行 .omc/night/$(date +%F)/night-manifest.yaml 夜循环：严格按 .claude/workflows/frontend-overnight/night-loop.md 的 13 步；验收=C1–C7 机器门禁（无人类验收）；J0 出口；禁止写结论/手写 summary；禁止碰控制面" 12
@@ -55,7 +55,7 @@ bash scripts/carroros-gates/preflight.sh --manifest .omc/night/$(date +%F)/night
 ### ⑤ 晨收（你回来）
 ```bash
 rm .omc/state/night-session.active   # 第一步：摘除夜会话标记（否则夜跑 hook 会拦晨报脚本）
-bash scripts/carroros-gates/morning-report.sh --manifest .omc/night/<日期>/night-manifest.yaml --night-dir .omc/night/<日期>
+python3 scripts/carroros-gates/morning_report.py --manifest .omc/night/<日期>/night-manifest.yaml --night-dir .omc/night/<日期>
 ```
 **顺序锁死**：先看 `control-plane-scorecard.yaml`——`control_plane_green=true` 才准看页面还原度和 Draft PR。不绿 = 首夜失败（哪怕页面好看）。
 scorecard 重点字段：`producer_mismatch_count` / `suspicious_gate_invocation_count`（信封伪造侦探，Grok §17a P0-3）、`smoke_attestation`（self=实现方自陈，independent=独立复跑）、`untrusted_contract_pages`（推断契约红旗，API 文档到后须对账）。
@@ -70,11 +70,11 @@ scorecard 重点字段：`producer_mismatch_count` / `suspicious_gate_invocation
 
 | 场景 | 命令 |
 |---|---|
-| 生成控制面锁 | `bash scripts/carroros-gates/gen-control-plane-lock.sh --manifest M --write` |
-| 起飞前检查 | `bash scripts/carroros-gates/preflight.sh --manifest M --night-dir D --target-repo R` |
-| 手动跑单门禁 | `scope-check.sh / c7-check.sh / evidence-check.sh / finalize-page.sh`（同参数） |
-| 晨报 | `morning-report.sh --manifest M --night-dir D` |
-| 挂载夜跑 hook | `bash scripts/carroros-gates/install-night-hook.sh`（幂等，已装过会跳过） |
+| 生成控制面锁 | `python3 scripts/carroros-gates/gen_control_plane_lock.py --manifest M --write` |
+| 起飞前检查 | `python3 scripts/carroros-gates/preflight.py --manifest M --night-dir D --target-repo R` |
+| 手动跑单门禁 | `scope_check.py / c7_check.py / evidence_check.py / finalize_page.py`（同参数） |
+| 晨报 | `morning_report.py --manifest M --night-dir D` |
+| 挂载夜跑 hook | `python3 scripts/carroros-gates/install_night_hook.py`（幂等，已装过会跳过） |
 
 ## 当前状态
 

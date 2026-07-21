@@ -11,7 +11,7 @@ policy:
   manifest_immutable: true
   draft_pr_on: "DONE_only"
 
-control_plane_lock:                  # S1 强化（GPT#3）：Phase 0 由 gen-control-plane-lock.sh 生成
+control_plane_lock:                  # S1 强化（GPT#3）：Phase 0 由 gen_control_plane_lock.py 生成
   algorithm: "sha256"
   entries: []                        # [{path, sha256}...] 七脚本+lib+hook配置+assertion-catalog.yaml+carros_base.py
 

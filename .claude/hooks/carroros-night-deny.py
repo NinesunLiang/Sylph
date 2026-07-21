@@ -10,7 +10,7 @@ v3 核心改动（GPT §17a P0-SOL-1：动态路径旁路）：
   .omc/state → 放行 → 删 marker → hook 熄灯 → 全控制面失守（修复前实证 7/8 穿防）。
   v3 夜间 Bash 改为【无条件默认拒绝】：凡命令必须 fullmatch 结构化白名单，
   与是否提及 token 无关；解释器（python/node/bash/sh）不得作为普通命令裸奔，
-  测试/构建必须经 run-gate.sh 包装；禁换行/链式/重定向/命令替换/glob 执行写操作。
+  测试/构建必须经 run_gate.py 包装；禁换行/链式/重定向/命令替换/glob 执行写操作。
   附带修复：P1-SOL-2 marker 改 __file__ 锚定绝对路径（cwd 漂移不再 fail-open；
   NIGHT_DENY_ROOT 仅供测试——锚定根夜间时 override 忽略 + launcher 生产路径
   显式 unset，双层防拐根）；P1-SOL-3 坏 payload / hook 内部异常
@@ -25,7 +25,7 @@ v3 核心改动（GPT §17a P0-SOL-1：动态路径旁路）：
 
 Bash 夜间白名单（fullmatch；此外一律 exit 2）：
   1. 门禁脚本：scope-check/c7-check/evidence-check/finalize-page/abstraction-check
-  2. run-gate.sh：参数段合法 + wrapped 命令过工具白名单（C2/C4/C5/C6 唯一入口）
+  2. run_gate.py：参数段合法 + wrapped 命令过工具白名单（C2/C4/C5/C6 唯一入口）
   3. carros_base.py 三 API：manifest-json / token-write / gate-results-init
   4. 页基线：git -C R rev-parse HEAD > .../page-baselines/X.sha（唯一合法 > ）
   5. 事件追加：echo ... >> .../execution-events.jsonl（唯一合法 >> ）
@@ -37,7 +37,7 @@ Bash 夜间白名单（fullmatch；此外一律 exit 2）：
  10. lx-goal 运行时：python3 .claude/skills/lx-goal/scripts/lx-goal.py ...
  11. 版本探针：node|pnpm|npm|python3 --version（步 0 指纹比对）
  12. mkdir -p / scoped rm -rf（仅 .omc/task/** artifacts 清理，步 10）
- preflight/morning-report/gen-control-plane-lock/install-night-hook/smoke
+ preflight/morning_report/gen_control_plane_lock/install_night_hook/smoke
  均不在白名单——夜间禁跑（晨收前人类先 rm .omc/state/night-session.active）。
 
 协议与 pretool-gate.py 一致：stdin JSON payload；exit 0 放行，exit 2 阻断。
@@ -73,8 +73,8 @@ DENY_PATH_PATTERNS = [
     (re.compile(r"/tokens/"), "tokens 目录仅允许 token-write API"),
     (re.compile(r"\.claude/settings[^/]*\.json$"), "settings（防禁用 hook 本身）"),
     (re.compile(r"\.claude/hooks/"), "hook 目录（防改写信任边界自身）"),
-    (re.compile(r"verification-summaries/"), "结论文件仅 finalize-page.sh 可写"),
-    (re.compile(r"ac-aggregates/"), "AC 聚合仅 evidence-check.sh 可写"),
+    (re.compile(r"verification-summaries/"), "结论文件仅 finalize-page 门禁可写"),
+    (re.compile(r"ac-aggregates/"), "AC 聚合仅 evidence-check 门禁可写"),
     (re.compile(r"/metrics/"), "门禁指标仅门禁脚本可写"),
     (re.compile(r"page-baselines/"), "页基线仅允许夜循环步 0 的 git rev-parse 重定向"),
     (re.compile(r"smoke-results.*\.yaml"), "smoke 结果仅 preflight 可写"),
@@ -84,7 +84,7 @@ DENY_PATH_PATTERNS = [
 
 # run-gate wrapped 命令与 mkdir 禁触碰的控制面 token
 PROTECTED_TOKENS = (
-    "scripts/carroros-gates", "carroros-gates", "gate-results",
+    "scripts/carroros-gates", "scripts/carroros-gates/lib", "carroros-gates", "gate-results",
     ".omc/night", ".omc/state", "night-manifest",
     "verification-summar", "ac-aggregates", "page-baselines",
     "token.json", "tokens/", ".claude/settings", ".claude/hooks",
@@ -157,8 +157,8 @@ EVENTS_RE = re.compile(r"echo\s+[^&|;`<>$()]*>>\s*\S*execution-events\.jsonl")
 
 # ---------- Bash 夜间白名单（全部 fullmatch） ----------
 ALLOW_CMD_PATTERNS = [
-    # 1. 夜循环门禁脚本
-    (re.compile(r"bash\s+\S*scripts/carroros-gates/(scope-check|c7-check|evidence-check|finalize-page|abstraction-check)\.sh(\s+--[a-z-]+\s+" + _ARG + r")+"),
+    # 1. 夜循环门禁脚本（.sh 兼容 + .py 等价物）
+    (re.compile(r"(?:bash\s+\S*scripts/carroros-gates/(?:scope-check|c7-check|evidence-check|finalize-page|abstraction-check)\.sh|python3\s+\S*scripts/carroros-gates/(?:scope_check|c7_check|evidence_check|finalize_page|abstraction_check)\.py)(\s+--[a-z-]+\s+" + _ARG + r")+"),
      "门禁脚本"),
     # 3. carros_base 三个 API
     (re.compile(r"python3?\s+\S*carros_base\.py\s+(manifest-json|gate-results-init|token-write)(\s+--[a-z-]+\s+" + _ARG + r")+"),
@@ -185,8 +185,8 @@ ALLOW_CMD_PATTERNS = [
      "版本探针"),
 ]
 
-# run-gate：bash .../run-gate.sh <参数段> -- <wrapped 命令>
-RUN_GATE_RE = re.compile(r"bash\s+\S*scripts/carroros-gates/lib/run-gate\.sh\s+(.*?)\s+--\s+(.+)")
+# run-gate：bash .../run_gate.py <参数段> -- <wrapped 命令>
+RUN_GATE_RE = re.compile(r"(?:bash\s+\S*scripts/carroros-gates/lib/run-gate\.sh|python3\s+\S*scripts/carroros-gates/run_gate\.py)\s+(.*?)\s+--\s+(.+)")
 RUN_GATE_OUR_ARGS_RE = re.compile(r"(--[a-z-]+\s+" + _ARG + r"\s*)+")
 WRAPPED_TOOLS = {"pnpm", "npm", "npx", "node", "tsc", "eslint", "playwright"}
 WRAPPED_SCRIPT_RE = re.compile(r"(bash|python3?)\s+\S*(tests?|visual|e2e|scripts)/")
@@ -276,7 +276,7 @@ def _bash_verdict(cmd: str) -> str | None:
         if pat.fullmatch(cmd):
             return None
     return ("夜间 Bash 默认拒绝：命令不在精确白名单"
-            "（工具链走 run-gate.sh；业务文件读写走 Edit/Write；合法形态见 night-loop.md）")
+            "（工具链走 run_gate.py；业务文件读写走 Edit/Write；合法形态见 night-loop.md）")
 
 
 def _night_verdict(payload: dict) -> str | None:
