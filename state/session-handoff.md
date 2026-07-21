@@ -1,6 +1,6 @@
 # Session Handoff
 
-> 由 context_engine compact-write 于 2026-07-20T19:27:47+00:00 更新
+> 由 context_engine compact-write 于 2026-07-21T10:39:46+00:00 更新
 > 由 SessionStart hook(session-start.py, source=compact/resume)注入 compact 后上下文尾部
 
 ## Task

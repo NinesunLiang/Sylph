@@ -403,6 +403,25 @@ def main() -> int:
 
     write_audit(result, token)
 
+    # E7: 校准日志 — 每条 VERIFIED 断言留痕,供后续 overturn 追踪
+    if result.decision == "VERIFIED":
+        try:
+            _cal_dir = Path(__file__).resolve().parent.parent.parent / ".omc" / "state"
+            _cal_dir.mkdir(parents=True, exist_ok=True)
+            _cal_path = _cal_dir / "calibration-log.jsonl"
+            with _cal_path.open("a", encoding="utf-8") as _cal_f:
+                _cal_f.write(json.dumps({
+                    "event_type": "calibration_assertion",
+                    "timestamp": now_iso(),
+                    "step": args.step,
+                    "decision": "VERIFIED",
+                    "matched_rules": result.matched,
+                    "assertion": f"step {args.step} 全部规则通过",
+                }, ensure_ascii=False, sort_keys=True) + "\n")
+                _cal_f.flush()
+        except Exception:
+            pass
+
     print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
     return 0 if result.decision == "VERIFIED" else 1
 

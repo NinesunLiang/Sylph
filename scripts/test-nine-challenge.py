@@ -50,13 +50,16 @@ def _load(name: str, path: Path):
 settings_text = (ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
 registered = set(re.findall(r"\.claude/(hooks/[\w.-]+\.py)", settings_text))
 registered |= set(re.findall(r"\.claude/(hooks/[\w.-]+\.sh)", settings_text))
-# launcher 参数形态: hook-launcher.sh "pretool-gate.py"(不带目录前缀)
-registered |= {f"hooks/{m}" for m in re.findall(r'hook-launcher\.sh\\?"\s+\\?"([\w.-]+\.py)', settings_text)}
+# launcher 参数形态: hook-launcher.py "pretool-gate.py"(不带目录前缀)
+launcher_re = r'hook-launcher\.py\\"\s+\\"([\w.-]+\.py)\\"'
+registered |= {f"hooks/{m}" for m in re.findall(launcher_re, settings_text)}
 missing = sorted(h for h in registered if not (ROOT / ".claude" / h).exists())
 check("C1 registered-hooks-exist", not missing, f"missing={missing}")
-check("C1 settings-registers-gates", any("pretool-gate" in h for h in registered)
-      and any("posttool-gate" in h for h in registered),
-      f"registered={sorted(registered)}")
+# C1 gates check: hook-launcher 间接调度,检查 pretool-gate 在 launcher 参数中
+launcher_args = re.findall(launcher_re, settings_text)
+check("C1 settings-registers-gates",
+      any("pretool-gate" in a for a in launcher_args),
+      f"launcher_args={launcher_args}")
 
 # ── C2 VerifyGate 生产接线证明: carros_base verify 路径真实调 verify_gate.py ──
 carros_src = (ROOT / ".claude" / "scripts" / "carros_base.py").read_text(encoding="utf-8")

@@ -12,7 +12,8 @@ def main() -> int:
     args_list = [a for a in sys.argv[1:] if a != "--regenerate"]
     gates_parse_args(args_list)
     assert TARGET_REPO is not None, "需要 --target-repo"
-    gates_preamble()
+    if "--skip-preamble" not in sys.argv:
+        gates_preamble()
     started_at = gates_now()
 
     results_dir = gates_results_dir()
@@ -27,12 +28,7 @@ def main() -> int:
         return 2
 
     try:
-        import importlib.util
-        gr_path = str(GATES_LIB / "gate_result.py")
-        spec = importlib.util.spec_from_file_location("gate_result", gr_path)
-        gr = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(gr)
-        latest = gr.reduce_latest(str(results_dir))
+        latest = __import__("gate_result", fromlist=["reduce_latest"]).reduce_latest(str(results_dir))
     except Exception as e:
         print(f"FAILED_INVARIANT: gate-results 不可信: {e}", file=sys.stderr)
         return 3

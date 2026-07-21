@@ -877,7 +877,10 @@ STATE_TOKEN = OMC / "state" / "token.json"
 
 def _clean_stale_state_token() -> None:
     """Auto-clear .omc/state/token.json if blocked/waiting longer than threshold.
-    Prevents stale lock accumulation (ref: GPT-5.5 audit finding)."""
+    Prevents stale lock accumulation (ref: GPT-5.5 audit finding).
+
+    E1 enhanced: also auto-archive cross-day tokens with done/completed/archived status
+    to prevent mtime-based selector from picking stale completed tokens (phantom token fix)."""
     if not STATE_TOKEN.exists():
         return
     try:
@@ -914,6 +917,44 @@ def _clean_stale_state_token() -> None:
         "reason": f"stale_{status}_age_{int(age)}s",
         "original_timestamp": ts_str,
     })
+
+    # E1: cross-day completed token auto-archive (phantom token prevention)
+    try:
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).strftime("%Y%m%d")
+        archive_base = OMC / "archive" / "tokens"
+        for date_dir in sorted(TOKENS.iterdir()):
+            if not date_dir.is_dir():
+                continue
+            date_str = date_dir.name
+            # Only process non-today dirs
+            if date_str >= today:
+                continue
+            for token_file in date_dir.iterdir():
+                if not token_file.name.endswith(".json") or token_file.name.endswith(".lock"):
+                    continue
+                try:
+                    tdata = json.loads(token_file.read_text(encoding="utf-8"))
+                except Exception:
+                    continue
+                t = tdata.get("task", {}) or {}
+                top_status = tdata.get("status", "") or ""
+                task_status = (t.get("status") if isinstance(t, dict) else "") or ""
+                if task_status in ("done", "completed", "archived") or top_status in ("archived",):
+                    # Move to archive
+                    archive_dir = archive_base / date_str
+                    archive_dir.mkdir(parents=True, exist_ok=True)
+                    dest = archive_dir / token_file.name
+                    # Use rename (atomic within same filesystem)
+                    token_file.rename(dest)
+                    _append_audit({
+                        "event_type": "token_auto_archived",
+                        "actor": "hook:pretool-gate",
+                        "reason": f"cross_day_completed_{date_str}/{token_file.name}",
+                        "dest": str(dest.relative_to(ROOT)),
+                    })
+    except Exception:
+        pass
 
 
 # Dialogue residue patterns — content that indicates AI chat output left in spec docs
@@ -1184,6 +1225,58 @@ def _check_watermark_gate(payload: dict) -> str | None:
     return None
 
 
+# ── E4: Action-loop detection — same tool+cmd repeated >=3 times in last 20 audit events ──
+def _check_action_loop(payload: dict) -> str | None:
+    """Detects repetitive same-action calls (E4 inertial execution guard).
+
+    Reads .omc/audit/{today}.jsonl, finds the last 20 Bash/Write tool events.
+    If the same (tool_name + command_hash) appears >=3 times → soft NARROW warning.
+    """
+    from collections import Counter
+    try:
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        audit_file = AUDIT / f"{today}.jsonl"
+        if not audit_file.exists():
+            return None
+        lines = audit_file.read_text(encoding="utf-8").strip().splitlines()
+        recent_tools: list[str] = []
+        for line in reversed(lines):
+            if len(recent_tools) >= 20:
+                break
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if ev.get("event_type") not in ("preaction_decision", "gate_bypassed", "gate_soft_warn", "verify_decision", "token_init"):
+                # Normal tool call — record tool signature
+                tool = ev.get("tool", "") or ev.get("tool_name", "")
+                cmd = str(ev.get("command_preview", "") or ev.get("command", "") or "")
+                if tool and cmd:
+                    sig = f"{tool}:{cmd[:80]}"
+                elif tool:
+                    sig = tool
+                else:
+                    continue
+                recent_tools.append(sig)
+            # skip audit events, only track actual tool calls
+        if len(recent_tools) < 3:
+            return None
+        cnt = Counter(recent_tools)
+        top_sig, top_n = cnt.most_common(1)[0]
+        if top_n >= 3:
+            _append_audit({
+                "event_type": "action_loop_warn",
+                "actor": "hook:pretool-gate",
+                "pattern": top_sig,
+                "count": top_n,
+                "window": len(recent_tools),
+            })
+            return f"NARROW action-loop: {top_sig} 重复 {top_n}/{len(recent_tools)} 次"
+    except Exception:
+        return None
+    return None
+
+
 GATES = [
     ("watermark", _check_watermark_gate),
     ("context-critical", _check_context_critical_pause),
@@ -1201,6 +1294,7 @@ GATES = [
     ("g3-reviews", _check_g3_reviews),
     ("g5-wide-glob", _check_g5_wide_glob),
     ("g6-budget", _check_g6_budget),
+    ("action-loop", _check_action_loop),
 ]
 
 

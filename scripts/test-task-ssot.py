@@ -105,17 +105,29 @@ live_tokens = ROOT / ".omc" / "tokens"
 live = latest_active_token(live_tokens)
 if live is not None:
     import importlib
+    import importlib.util
 
     statusline_mod = importlib.import_module("statusline")
     st = statusline_mod.latest_token(ROOT)
     check("L1 statusline-matches-ssot", st == live, f"ssot={live} statusline={st}")
 
-    import importlib.util
-
+    # user-approve uses require_stats=True (needs stats for watermark write-back)
+    # goal-mode tokens lack stats → expected disagreement for non-stats tasks
     spec = importlib.util.spec_from_file_location("ua", ROOT / ".claude" / "hooks" / "pretool-user-approve.py")
     ua = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(ua)
-    check("L1 user-approve-matches-ssot", ua._latest_token() == live, f"ua={ua._latest_token()} live={live}")
+    ua_token = ua._latest_token()
+    live_has_stats = False
+    try:
+        live_has_stats = "stats" in json.loads(live.read_text(encoding="utf-8"))
+    except Exception:
+        pass
+    if live_has_stats:
+        check("L1 user-approve-matches-ssot", ua_token == live, f"ua={ua_token} live={live}")
+    else:
+        # goal-mode token without stats → ua returns None (expected, require_stats filter)
+        check("L1 user-approve-matches-ssot (no-stats goal token)", ua_token is None,
+              f"ua={ua_token} live={live} (goal token lacks stats)")
 else:
     print("SKIP  L1 (无活跃任务 token)")
 

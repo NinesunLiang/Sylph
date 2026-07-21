@@ -148,13 +148,16 @@ def _auto_soft_block(message, autonomous):
 # ─── 证据质量评分 ───
 
 def _evidence_quality_score(content):
-    """评估证据质量评分（4维度），返回 (score, details_list)。"""
+    """评估证据质量评分（5维度），返回 (score, details_list)。
+
+    C4 增强: 结构化证据块校验——executor evidence block 必须含 action/file/command/output/status 五字段。
+    """
     fl_count = len(re.findall(r"[\w./-]+\.[a-z]+:\d+", content))
-    fl_score = min(fl_count / 3.0, 1.0) * 40
+    fl_score = min(fl_count / 3.0, 1.0) * 35
 
     cmd_patterns = ["exit.code", r"\bPASS\b", r"\bFAIL\b", "✅", "❌", "test", "build", r"\d+ passed", r"\d+ failed", "VERIFIED"]
     cmd_hits = sum(1 for p in cmd_patterns if re.search(p, content, re.IGNORECASE))
-    cmd_score = min(cmd_hits / 4.0, 1.0) * 30
+    cmd_score = min(cmd_hits / 4.0, 1.0) * 25
 
     multi_patterns = [r"\d+%", r"\d+ms", r"\d+ req", "coverage", "all tests", "zero errors", "edge.case", "regression"]
     multi_hits = sum(1 for p in multi_patterns if re.search(p, content, re.IGNORECASE))
@@ -164,12 +167,34 @@ def _evidence_quality_score(content):
     quant_hits = sum(1 for p in quant_patterns if re.search(p, content))
     quant_score = min(quant_hits / 2.0, 1.0) * 10
 
-    total = fl_score + cmd_score + multi_score + quant_score
+    # C4: 结构化证据块字段校验——检测 executor evidence block 至少含 action/file/command/output/status 中3字段
+    struct_fields = 0
+    struct_patterns = [
+        (r"\*\*证据块|证据块：|evidence.block|##+\s*EV-|###\s*EV-", "evidence_block_header"),
+        (r"(?m)^\s*[-*+]\s*`?action`?\s*:", "action_field"),
+        (r"(?m)^\s*[-*+]\s*`?file`?\s*:", "file_field"),
+        (r"(?m)^\s*[-*+]\s*`?command`?\s*:", "command_field"),
+        (r"(?m)^\s*[-*+]\s*`?output`?\s*:", "output_field"),
+        (r"(?m)^\s*[-*+]\s*`?status`?\s*:", "status_field"),
+    ]
+    for pat, name in struct_patterns:
+        if re.search(pat, content):
+            struct_fields += 1
+    struct_score = 0
+    if struct_fields >= 5:
+        struct_score = 10  # 五字段齐全
+    elif struct_fields >= 3:
+        struct_score = 6   # 核心字段齐
+    elif struct_fields >= 1:
+        struct_score = 3   # 仅标题
+
+    total = fl_score + cmd_score + multi_score + quant_score + struct_score
     details = [
-        f"file:line refs ({fl_count}处): {fl_score:.0f}/40",
-        f"test/cmd markers ({cmd_hits}处): {cmd_score:.0f}/30",
+        f"file:line refs ({fl_count}处): {fl_score:.0f}/35",
+        f"test/cmd markers ({cmd_hits}处): {cmd_score:.0f}/25",
         f"multi-aspect ({multi_hits}处): {multi_score:.0f}/20",
         f"quantification ({quant_hits}处): {quant_score:.0f}/10",
+        f"structured evidence ({struct_fields}/6字段): {struct_score:.0f}/10",
     ]
     return int(round(total)), details
 
@@ -446,13 +471,15 @@ def main():
         cmd = sum(1 for p in ["exit.code", r"PASS", r"FAIL", "✅", "❌", "test", "build"] if re.search(p, content, re.IGNORECASE))
         multi = sum(1 for p in [r"\d+%", r"\d+ms", "coverage", "all tests", "edge.case"] if re.search(p, content, re.IGNORECASE))
         quant = sum(1 for p in [r"\d+/\d+", r"\d+\.\d+"] if re.search(p, content))
-        fl_s = min(fl / 3.0, 1.0) * 40
-        cmd_s = min(cmd / 4.0, 1.0) * 30
+        struct = sum(1 for p in [r"action", r"command", r"output", r"status", r"file"] if re.search(rf"(?m)^\s*[-*+]\s*`?{p}`?\s*:", content))
+        fl_s = min(fl / 3.0, 1.0) * 35
+        cmd_s = min(cmd / 4.0, 1.0) * 25
         multi_s = min(multi / 3.0, 1.0) * 20
         quant_s = min(quant / 2.0, 1.0) * 10
-        total = fl_s + cmd_s + multi_s + quant_s
-        print(f"  总分分解: {total:.0f}/100 = file:line({fl_s:.0f}/40) + test/cmd({cmd_s:.0f}/30) + multi({multi_s:.0f}/20) + quant({quant_s:.0f}/10)", file=sys.stderr, flush=True)
-        print(f"  具体统计: file:line={fl}处(需≥3)  test/cmd={cmd}处(需≥2)  multi={multi}处(需≥2)  quant={quant}处(需≥1)", file=sys.stderr, flush=True)
+        struct_s = min(struct / 4.0, 1.0) * 10 if struct >= 1 else 0
+        total = fl_s + cmd_s + multi_s + quant_s + struct_s
+        print(f"  总分分解: {total:.0f}/100 = file:line({fl_s:.0f}/35) + test/cmd({cmd_s:.0f}/25) + multi({multi_s:.0f}/20) + quant({quant_s:.0f}/10) + struct({struct_s:.0f}/10)", file=sys.stderr, flush=True)
+        print(f"  具体统计: file:line={fl}处(需≥3)  test/cmd={cmd}处(需≥2)  multi={multi}处(需≥2)  quant={quant}处(需≥1)  struct={struct}字段(需≥4)", file=sys.stderr, flush=True)
 
         # Find weakest area
         candidates = [

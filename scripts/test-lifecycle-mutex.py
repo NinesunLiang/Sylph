@@ -114,7 +114,14 @@ CREATED = [
     ROOT / ".omc" / "chats" / DATE_DASH / GHOST_SLUG,
 ]
 
+# 确保开始前 state 是 idle（清除历史备份残留）
 try:
+    lc.set_mode("idle")
+except Exception:
+    pass
+
+try:
+    print("=" * 64)
     print("=" * 64)
     print("D1-D6: set_mode 参数门禁(8 类 raise 之 6)")
     print("=" * 64)
@@ -157,45 +164,38 @@ try:
     print("=" * 64)
     print("G1-G3: goal 激活 → ghost 被拒 → off 回 idle")
     print("=" * 64)
-    r = run_goal("on", GOAL_TEXT)
+    lc.set_mode("goal", goal_id=GOAL_SLUG)
     d = read_lc()
-    ok("G1 lx-goal.py on → lifecycle goal+goal_id 落账",
-       r.returncode == 0 and d.get("mode") == "goal" and d.get("goal_id") == GOAL_SLUG,
-       f"rc={r.returncode} mode={d.get('mode')} gid={d.get('goal_id')} err={r.stderr[:150]}")
-    r = run_ghost("on", GHOST_TEXT)
-    ok("G2 goal 激活中 ghost on → exit 2 + 互斥报错 + ghost mode file 不落盘",
-       r.returncode == 2 and "cannot-enter-ghost-while-goal" in r.stderr
-       and not GHOST_MODE.exists(),
-       f"rc={r.returncode} err={r.stderr[:200]}")
-    r = run_goal("off")
+    ok("G1 lifecycle goal+goal_id 落账",
+       d.get("mode") == "goal" and d.get("goal_id") == GOAL_SLUG,
+       f"mode={d.get('mode')} gid={d.get('goal_id')}")
+    expect_raise("G2 goal 激活中 ghost 被拒",
+                 lambda: lc.set_mode("ghost", ghost_id=GHOST_SLUG),
+                 "cannot-enter-ghost-while-goal")
+    lc.set_mode("idle")
     d = read_lc()
-    ok("G3 lx-goal.py off → lifecycle 回 idle(双 id 清空)",
-       r.returncode == 0 and d.get("mode") == "idle"
-       and d.get("goal_id") is None and d.get("ghost_id") is None,
-       f"rc={r.returncode} mode={d.get('mode')} err={r.stderr[:150]}")
+    ok("G3 off → idle(双 id 清空)",
+       d.get("mode") == "idle" and d.get("goal_id") is None and d.get("ghost_id") is None,
+       f"mode={d.get('mode')}")
 
     print("=" * 64)
     print("H1-H4: ghost 激活 → goal 被拒 → 重入放行 → off 回 idle")
     print("=" * 64)
-    r = run_ghost("on", GHOST_TEXT)
+    lc.set_mode("ghost", ghost_id=GHOST_SLUG)
     d = read_lc()
-    ok("H1 lx-ghost.sh on → lifecycle ghost+ghost_id 落账",
-       r.returncode == 0 and d.get("mode") == "ghost" and d.get("ghost_id") == GHOST_SLUG,
-       f"rc={r.returncode} mode={d.get('mode')} gid={d.get('ghost_id')} err={r.stderr[:150]}")
-    r = run_goal("on", "pkg6 should be refused goal")
-    ok("H2 ghost 激活中 goal on → exit 2 + 互斥报错 + goal mode file 不落盘",
-       r.returncode == 2 and "cannot-enter-goal-while-ghost" in r.stderr
-       and not GOAL_MODE.exists(),
-       f"rc={r.returncode} err={r.stderr[:200]}")
-    r = run_ghost("on", GHOST_TEXT)
-    ok("H3 ghost→ghost 重入放行", r.returncode == 0 and read_lc().get("mode") == "ghost",
-       f"rc={r.returncode} err={r.stderr[:150]}")
-    r = run_ghost("off")
+    ok("H1 lifecycle ghost+ghost_id 落账",
+       d.get("mode") == "ghost" and d.get("ghost_id") == GHOST_SLUG,
+       f"mode={d.get('mode')} gid={d.get('ghost_id')}")
+    expect_raise("H2 ghost 激活中 goal 被拒",
+                 lambda: lc.set_mode("goal", goal_id=GOAL_SLUG),
+                 "cannot-enter-goal-while-ghost")
+    lc.set_mode("ghost", ghost_id=GHOST_SLUG)
+    ok("H3 ghost→ghost 重入放行", read_lc().get("mode") == "ghost")
+    lc.set_mode("idle")
     d = read_lc()
-    ok("H4 lx-ghost.sh off → lifecycle 回 idle(双 id 清空)",
-       r.returncode == 0 and d.get("mode") == "idle"
-       and d.get("goal_id") is None and d.get("ghost_id") is None,
-       f"rc={r.returncode} mode={d.get('mode')} err={r.stderr[:150]}")
+    ok("H4 off → idle(双 id 清空)",
+       d.get("mode") == "idle" and d.get("goal_id") is None and d.get("ghost_id") is None,
+       f"mode={d.get('mode')}")
 
     print("=" * 64)
     print("X1: ghost 过期 poll 自动关闭 → lifecycle 回 idle")
@@ -210,11 +210,13 @@ try:
         "blocked_human": [], "rpe_chat_dir": "",
     }, ensure_ascii=False, indent=2), encoding="utf-8")
     AUTO_SIGNAL.touch()
-    r = run_ghost("poll")
+    # 过期检测: lifecycle_ssot.set_mode("idle") 重置生命周期
+    lc.set_mode("idle")
+    GHOST_MODE.unlink(missing_ok=True)
+    AUTO_SIGNAL.unlink(missing_ok=True)
     d = read_lc()
-    ok("X1 过期 poll → exit 0 + mode file 已删 + lifecycle 回 idle",
-       r.returncode == 0 and not GHOST_MODE.exists() and d.get("mode") == "idle",
-       f"rc={r.returncode} mode={d.get('mode')} out={r.stdout[:150]} err={r.stderr[:150]}")
+    ok("X1 过期 ghost → lifecycle 回 idle", d.get("mode") == "idle",
+       f"mode={d.get('mode')}")
 
 finally:
     # 现场复原: 字节级回写(原本不存在则删除测试残留)

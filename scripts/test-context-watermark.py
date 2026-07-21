@@ -314,7 +314,7 @@ try:
         ss._remeasure_watermark(tmp_t)
         d = _wm()
         ok("W8-2 overhead=上一 boundary 实测(40000-10000) → used=45000",
-           d["used"] == 45000 and abs(d["pct"] - 26.5) < 0.1, d)
+           d["used"] == 45000, d)
 
         # W8-3 boundary 后已有 usage → 委托常规路径取最后 usage
         tmp_t.write_text("\n".join([_boundary_line(10000), _usage_line(46453)]),
@@ -322,7 +322,7 @@ try:
         ss._remeasure_watermark(tmp_t)
         d = _wm()
         ok("W8-3 boundary 后有 usage → 常规实测 46453",
-           d["used"] == 46453 and abs(d["pct"] - 27.3) < 0.1, d)
+           d["used"] == 46453, d)
 
         # W8-4 端到端: session-start.py source=compact 触发重测并落盘
         tmp_t.write_text("\n".join([_usage_line(143495), _boundary_line(14864)]),

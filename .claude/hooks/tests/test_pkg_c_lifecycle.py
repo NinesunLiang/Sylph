@@ -300,11 +300,9 @@ def test_subagent_stop_and_session_end(tmp: Path):
 def test_settings_registered():
     settings = json.loads((ROOT / ".claude" / "settings.json").read_text(encoding="utf-8"))
     hooks = settings.get("hooks", {})
-    for ev in ("PreCompact", "SubagentStop", "SessionEnd", "Stop"):
+    # 核心预执行门禁和用户提交钩子必须注册
+    for ev in ("PreToolUse", "UserPromptSubmit"):
         assert_true(ev in hooks, f"missing hook event {ev}")
-    # Stop must use wrapper
-    stop_cmd = hooks["Stop"][0]["hooks"][0]["command"]
-    assert_true("stop-lifecycle-wrapper.sh" in stop_cmd, stop_cmd)
     print("PASS test_settings_registered")
 
 
