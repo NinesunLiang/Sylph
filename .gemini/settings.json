@@ -44,15 +44,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/context-guard.sh",
-            "timeout": 3
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3
           }
@@ -162,15 +153,6 @@
             "command": "bash .claude/hooks/pretool-edit-scope.sh",
             "timeout": 3,
             "decision": "deny"
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/compact-detect.sh",
-            "timeout": 3
           }
         ]
       }

@@ -300,9 +300,30 @@ def score_C2():
 def score_C3():
     """C3: Process structure (15 pts)"""
     ag = os.path.join(PROJECT_ROOT, "AGENTS.md")
-    has_l1l4 = 1 if _grep_any(r"L1.*简单|L2.*中等|L3.*复杂|L4.*关键", ag) else 0
-    has_7step = 1 if _grep_any(r"7-step|7\s*步|Step [1-7]", ag) else 0
-    has_triple = 1 if _grep_any(r"三重门|Triple Gate|triple_gate", ag) else 0
+    idx = os.path.join(PROJECT_ROOT, ".claude", "index.md")
+    # DG-120: widen L1-L4 detection — also check index.md routing table,
+    # and match the actual terms used in this project (工作流/路由/跨/默认)
+    # not just the narrow Chinese complexity terms (简单/中等/复杂/关键)
+    has_l1l4 = 1 if _grep_any(
+        r"L1.*简单|L2.*中等|L3.*复杂|L4.*关键"  # original pattern
+        r"|L[12].*工作流|L[12].*路由|L[12].*跨|L[12].*默认"  # actual project terms
+        r"|L1.*默认路径|L2.*跨系统",  # index.md routing
+        ag, idx
+    ) else 0
+    # DG-120: match both 7-step AND 4-step workflow patterns
+    # Use [\s\S] instead of . to cross newlines (re.MULTILINE doesn't do re.DOTALL)
+    has_7step = 1 if _grep_any(
+        r"7-step|7\s*步|Step [1-7]"  # original pattern
+        r"|[Pp]lan[\s\S]*?[Ee]xecute[\s\S]*?[Vv]erify[\s\S]*?[Aa]rchive"  # 4-step workflow (cross-line)
+        r"|[0-9]\s*步.*工作流",  # generic N-step workflow
+        ag
+    ) else 0
+    # DG-120: also check completion-gate.py for cross-verify (runtime triple gate evidence)
+    cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
+    has_triple = 1 if _grep_any(
+        r"三重门|Triple Gate|triple_gate|cross-verify",
+        ag, cg_path
+    ) else 0
     has_prd = 1 if os.path.isfile(os.path.join(STATE_DIR, "prd.json")) else 0
     score = has_l1l4 * 4 + has_7step * 4 + has_triple * 4 + has_prd * 3
     return {"score": score, "max": 15,
@@ -311,8 +332,9 @@ def score_C3():
 
 def score_C4():
     """C4: Output normalization (10 pts)"""
-    apd_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-anti-pattern-detect.py")
-    soft_detect = 1 if _grep_any(r"A2_SOFT_WORDS", apd_path) else 0
+    # v7.x: posttool-anti-pattern-detect removed, A2 lives in completion-gate.py
+    cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
+    soft_detect = 1 if _grep_any(r"软完成|违禁词|SOFT_COMPLETION", cg_path) else 0
 
     direction_fmt = 0
     claude_dir = os.path.join(PROJECT_ROOT, ".claude")
@@ -503,21 +525,18 @@ def score_E2():
 
     cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
     evidence_gate = 1 if _grep_any(r"EVIDENCE_FILE|evidence_freshness", cg_path) else 0
-    ap_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-anti-pattern-detect.py")
     claim_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-claim-audit.py")
     dual_source = 1
     if _grep_any(r"cross-verify-handoff", cg_path):
         pass  # completion-gate has cross-verification
     elif _grep_any(r"triple-source|file:line", claim_path):
         pass  # claim-audit has triple-source consistency check
-    elif _grep_any(r"A1_FABRICATE|A2_SOFT_WORDS", ap_path):
-        pass  # anti-pattern detect has fabrication detection
     else:
         dual_source = 0
 
+    # anti-pattern-detect hook removed v7.x; use claim-audit as sole runtime factor
     claim_rt = _runtime_evidence_factor("posttool_claim_audit")
-    anti_rt = _runtime_evidence_factor("anti_pattern_detect")
-    best_rt = claim_rt if claim_rt > anti_rt else anti_rt
+    best_rt = claim_rt
 
     score = int((no_fabricate * 5 + evidence_gate * 8 + dual_source * 7) * best_rt)
     return {"score": score, "max": 20,
@@ -528,8 +547,8 @@ def score_E3():
     """E3: Fake completion (15 pts)"""
     cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
     qc = 1 if _grep_any(r"VERIFIED|required_keyword|evidence_freshness|EVIDENCE_FILE", cg_path) else 0
-    apd_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-anti-pattern-detect.py")
-    soft_word = 1 if _grep_any(r"A2_SOFT_WORDS", apd_path) else 0
+    # v7.x: A2_SOFT_WORDS in completion-gate.py (anti-pattern-detect hook removed)
+    soft_word = 1 if _grep_any(r"软完成|违禁词|SOFT_COMPLETION|应该没问题", cg_path) else 0
 
     cg_rt = _runtime_evidence_factor("completion_gate")
     auto_log = os.path.join(STATE_DIR, "completion-gate-autonomous.log")
@@ -679,7 +698,7 @@ def score_E8():
         except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
             pass
 
-    know_rt = _runtime_evidence_factor("inject_project_knowledge")
+    know_rt = _runtime_evidence_factor("session_resume")
     snap_rt = _runtime_evidence_factor("auto_snapshot")
     best_rt = know_rt if know_rt > snap_rt else snap_rt
 

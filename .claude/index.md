@@ -33,10 +33,10 @@
 | `carros_base.py` | 主入口（init/status/tick/verify/archive/lint） |
 | `omc_lint.py` | 7 项代码规范检查 |
 | `verify_gate.py` | 完成验证门禁 |
-| `tool_store.py` | 工具结果落盘（Phase 0 S4） |
-| `error_dna.py` | Error DNA 自动生成与 Retry Gate（Phase 1） |
-| `oracle_gate_light.py` | Oracle 条件接入（Phase 1，同级模型） |
-| `water_level.py` | 三段式水位运行时（Phase 1，已接入） |
-| `phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
+| `lib/tool_store.py` | 工具结果落盘（Phase 0 S4） |
+| `lib/error_dna.py` | Error DNA 自动生成与 Retry Gate（Phase 1） |
+| `lib/oracle_gate_light.py` | Oracle 条件接入（Phase 1，同级模型） |
+| `lib/water_level.py` | 三段式水位运行时（Phase 1，已接入） |
+| `lib/phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
 
 > 完整脚本列表见 `.claude/scripts/` 目录。docs/carros/reviews/ 为审核参考材料，默认禁止入模。

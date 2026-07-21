@@ -93,7 +93,6 @@ hooks_enabled:
   error_dna_auto_fix: true
   error_dna: true
   fuzzy_block: true
-  inject_project_knowledge: true
   intent_tracker: true
   knowledge_condenser: true
   lsp_suggest: true
@@ -140,7 +139,6 @@ terminal_safety:
   stop_drain: true
   subagent_guard: true
   token_writer: true
-  skill_usage_tracker: true
   turn_counter: true
   user_correction_detector: true
   plan_system: true

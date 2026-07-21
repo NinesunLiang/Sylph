@@ -255,7 +255,7 @@ _CORE_HOOKS = frozenset({
     "privacy_gate", "permission_gate", "fuzzy_block",
     # A — 提效+正确性
     "completion_gate", "turn_counter", "session_resume",
-    "inject_project_knowledge", "knowledge_condenser",
+    "knowledge_condenser",
     "pretool_rules_inject", "pretool_compact_writer",
     "posttool_checkpoint", "posttool_handoff_writer",
     "posttool_output_compressor", "user_correction_detector",

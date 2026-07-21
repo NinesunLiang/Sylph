@@ -341,8 +341,9 @@ def score_C3():
 
 def score_C4():
     """C4: Output normalization (10 pts)"""
-    apd_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-anti-pattern-detect.py")
-    soft_detect = 1 if _grep_any(r"A2_SOFT_WORDS", apd_path) else 0
+    # A2_SOFT_WORDS now lives in completion-gate.py (posttool-anti-pattern-detect was removed v7.x)
+    cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
+    soft_detect = 1 if _grep_any(r"A2_SOFT_WORDS|SOFT_WORD", cg_path) else 0
 
     direction_fmt = 0
     claude_dir = os.path.join(PROJECT_ROOT, ".claude")
@@ -533,14 +534,14 @@ def score_E2():
 
     cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
     evidence_gate = 1 if _grep_any(r"EVIDENCE_FILE|evidence_freshness", cg_path) else 0
-    ap_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-anti-pattern-detect.py")
+    # A2/F1 detection now in completion-gate.py (posttool-anti-pattern-detect removed v7.x)
     claim_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-claim-audit.py")
     dual_source = 1
     if _grep_any(r"cross-verify-handoff", cg_path):
         pass  # completion-gate has cross-verification
     elif _grep_any(r"triple-source|file:line", claim_path):
         pass  # claim-audit has triple-source consistency check
-    elif _grep_any(r"A1_FABRICATE|A2_SOFT_WORDS", ap_path):
+    elif _grep_any(r"A1_FABRICATE|A2_SOFT_WORDS", cg_path):
         pass  # anti-pattern detect has fabrication detection
     else:
         dual_source = 0
@@ -558,8 +559,8 @@ def score_E3():
     """E3: Fake completion (15 pts)"""
     cg_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "completion-gate.py")
     qc = 1 if _grep_any(r"VERIFIED|required_keyword|evidence_freshness|EVIDENCE_FILE", cg_path) else 0
-    apd_path = os.path.join(PROJECT_ROOT, ".claude", "hooks", "posttool-anti-pattern-detect.py")
-    soft_word = 1 if _grep_any(r"A2_SOFT_WORDS", apd_path) else 0
+    # A2_SOFT_WORDS now in completion-gate.py (posttool-anti-pattern-detect removed v7.x)
+    soft_word = 1 if _grep_any(r"A2_SOFT_WORDS|SOFT_WORD", cg_path) else 0
 
     cg_rt = _runtime_evidence_factor("completion_gate")
     auto_log = os.path.join(STATE_DIR, "completion-gate-autonomous.log")
@@ -709,7 +710,7 @@ def score_E8():
         except (json.JSONDecodeError, ValueError, OSError, TypeError, AttributeError):
             pass
 
-    know_rt = _runtime_evidence_factor("inject_project_knowledge")
+    know_rt = _runtime_evidence_factor("session_resume")
     snap_rt = _runtime_evidence_factor("auto_snapshot")
     best_rt = know_rt if know_rt > snap_rt else snap_rt
 

@@ -50,7 +50,7 @@ Every switch in `harness.yaml`'s `hooks_enabled`:
 | `permission_gate` | true | Checks permission format before dangerous commands |
 | `auto_snapshot` | true | Saves session state snapshot on stop |
 | `posttool_edit_quality` | true | Post-edit style/doc-sync self-check |
-| `inject_project_knowledge` | true | Injects core knowledge into AI context |
+| `inject_project_knowledge` | ~~true~~ → removed v7.x | Replaced by session-start.py |
 | `plan_gate` | false | Checks for skipped planning before edits |
 | `turn_counter` | true | Turn counting + fuzzy instruction detection |
 | `read_tracker` | true | Tracks read files for edit-guard |

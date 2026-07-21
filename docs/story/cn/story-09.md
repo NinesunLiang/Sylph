@@ -171,15 +171,15 @@ R27 是 H1 的教科书案例。AI 通过了 edit-guard（读过 PRD）、通过
 
 镜子的训词：**"有证据文件" ≠ "证据文件内容的断言真实"。形式门禁通过后，增加内容门禁。无 source 的断言视为未验证。**
 
-posttool-anti-pattern-detect.sh 专门增设了 H1 扫描维度。
+posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh 专门增设了 H1 扫描维度。
 
 ---
 
 ## 镜宫如何使用
 
-镜宫在 SessionStart 时被 inject-project-knowledge 注入 AI 的意识。anti-patterns.md 的全文（16 条 + 检测信号 + 正确策略）在每轮对话中都生效。
+镜宫在 SessionStart 时被 inject-project-knowledge [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 注入 AI 的意识。anti-patterns.md 的全文（16 条 + 检测信号 + 正确策略）在每轮对话中都生效。
 
-但真正的检测在运行时。posttool-anti-pattern-detect.sh 在每次 TaskUpdate/Edit/Write 后扫描输出中的反模式信号：
+但真正的检测在运行时。posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh 在每次 TaskUpdate/Edit/Write 后扫描输出中的反模式信号：
 
 - A2 信号 → 标记为虚假完成 → 阻断 completion
 - F1 信号 → 标记为推断而非事实 → 要求 Read 验证
@@ -191,6 +191,6 @@ posttool-anti-pattern-detect.sh 专门增设了 H1 扫描维度。
 
 ## 相关故事
 
-- [证据裁判庭](story-04.md) — 反模式 A2/H1 的物理检测器（completion-gate + posttool-anti-pattern-detect）
+- [证据裁判庭](story-04.md) — 反模式 A2/H1 的物理检测器（completion-gate + posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]）
 - [门禁骑士团](story-03.md) — 反模式 E1/F1 的预防者（lsp-suggest + edit-guard）
 - [记忆神殿](story-05.md) — 反模式 D4（重复犯错）的对抗系统（knowledge-condenser）

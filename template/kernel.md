@@ -47,7 +47,7 @@
 ## Compact 记忆恢复
 
 - **Before**: stop-drain.sh→extract-compact-memory.py→todo-queue.md(最近20询问+任务摘要)
-- **After**: context-compressor.sh→context-cache.md(铁律/反模式/架构压缩) | inject-project-knowledge.sh→todo-queue.md+session-handoff.md(Feature/进度/决策)+session-dump.json摘要
+- **After**: context-compressor.sh→context-cache.md(铁律/反模式/架构压缩) | inject-project-knowledge [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh→todo-queue.md+session-handoff.md(Feature/进度/决策)+session-dump.json摘要
 
 ## E1/E2 逃逸
 

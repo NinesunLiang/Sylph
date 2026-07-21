@@ -39,8 +39,8 @@ AI 不可自改 AGENTS.md / kernel.md / index.md。
 | 阶段 | 机制 | 位置 |
 |:----:|:-----|:-----|
 | ① 采集 | Error DNA 自动记录 | `.claude/scripts/lib/error_dna.py` |
-| ② 分类 | 4 大类：GATE-BUG / HOOK-CHAIN / REF-DRIFT / LOGIC-GAP | `docs/carros/error-analysis-rca.md` |
-| ③ 根因 | RCA 分析写入持久化文件 | `docs/carros/error-analysis-rca.md` |
+| ② 分类 | 4 大类：GATE-BUG / HOOK-CHAIN / REF-DRIFT / LOGIC-GAP | `.omc/state/error-analysis-rca.md` |
+| ③ 根因 | RCA 分析写入持久化文件 | `.omc/state/error-analysis-rca.md` |
 | ④ 预防 | 修复后纳入预防措施 | 各组件自修 |
 
 未分类的错误在退出报告聚合成「⚠️ 需人类介入」。

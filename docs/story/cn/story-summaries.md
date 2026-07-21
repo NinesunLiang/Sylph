@@ -101,7 +101,7 @@
 | 4 | Git门禁 | CAPTCHA阻断 | permission-gate.sh | — |
 | 5 | 范围冻结 | 撤销越界改动 | pretool-edit-scope.sh | B1/B2 |
 | 6 | 隐私防线 | 强阻断 | privacy-gate.sh | — |
-| 7 | 断言真实 | 报告重写 | posttool-anti-pattern-detect.sh | H1(语义编造) |
+| 7 | 断言真实 | 报告重写 | posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh | H1(语义编造) |
 | 8 | 反自我矛盾 | 机制审计失败 | pre-commit-self-review.sh | — |
 
 **三层守护**:
@@ -119,7 +119,7 @@
 
 ### 与代码实现的差距
 - 铁律定义在 AGENTS.md/index.md 中，执行靠hook体系
-- 铁律#7（断言真实）的"自创指标vs行业标准物理隔离"靠故事传达，实际依赖 posttool-anti-pattern-detect
+- 铁律#7（断言真实）的"自创指标vs行业标准物理隔离"靠故事传达，实际依赖 posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]
 
 ---
 
@@ -173,7 +173,7 @@
 
 **辅助机制**:
 - **read-tracker**: 记录Read操作的文件/行/时间，为所有交叉验证提供数据源
-- **posttool-anti-pattern-detect**: 扫描A2(软完成语7词)、F1(假设用语)、H1(语义编造)
+- **posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]**: 扫描A2(软完成语7词)、F1(假设用语)、H1(语义编造)
 - **posttool-format-gate**: 哲学#5物化——检查输出方向感/结构/认知负荷
 - **intent-tracker**: 追踪同一文件反复修改，标记churn/revert模式
 
@@ -185,7 +185,7 @@
 - **DF-03**: pre-completion-gate在L1拦下无效扫描，减少L2开销
 
 ### 具体文件/路径
-- `completion-gate.sh`、`pre-completion-gate`、`posttool-completion-audit`、`posttool-claim-audit.sh`、`read-tracker`、`posttool-anti-pattern-detect.sh`、`posttool-format-gate.sh`、`intent-tracker`、`.omc/state/completion-gate-autonomous.log`
+- `completion-gate.sh`、`pre-completion-gate`、`posttool-completion-audit`、`posttool-claim-audit.sh`、`read-tracker`、`posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh`、`posttool-format-gate.sh`、`intent-tracker`、`.omc/state/completion-gate-autonomous.log`
 
 ### 与代码实现的差距
 - 质量评分算法在completion-gate.sh中实现
@@ -206,10 +206,10 @@
 |----|------|------|
 | **写入** | pretool-user-correction, posttool-handoff-writer, auto-snapshot | 捕获纠正信号、写交接书、自动快照 |
 | **保存** | claude-next.md, error-dna.jsonl, session-handoff.md, session-snapshot.json | 教训活化石、错误基因库、会话快照 |
-| **恢复** | inject-project-knowledge, compact-detect | SessionStart注入、compact后重注入 |
+| **恢复** | inject-project-knowledge [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721], compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] | SessionStart注入、compact后重注入 |
 | **升华** | knowledge-condenser | hits≥3→升华候选；hits≥5→升级kernel.md |
 
-**inject-project-knowledge 注入优先级**:
+**inject-project-knowledge [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 注入优先级**:
 1. index.md铁律速查 → 2. kernel.md架构铁律 → 3. claude-next.md教训库 → 4. anti-patterns.md反模式 → 5. session-handoff.md交接 → 6. flywheel高频告警
 
 **R39**: 每次注入预算 ~120行/3KB
@@ -222,7 +222,7 @@
 - **R33**: /compact后AI失忆，compact-detect注入铁律+架构+教训+当前step
 
 ### 具体文件/路径
-- `claude-next.md` (R/DG/DF/GL/ED/META系列)、`error-dna.jsonl`、`session-handoff.md`、`session-snapshot.json`、`inject-project-knowledge`、`compact-detect`、`knowledge-condenser`、`pretool-user-correction`、`posttool-handoff-writer`、`auto-snapshot`
+- `claude-next.md` (R/DG/DF/GL/ED/META系列)、`error-dna.jsonl`、`session-handoff.md`、`session-snapshot.json`、`inject-project-knowledge [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]`、`compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]`、`knowledge-condenser`、`pretool-user-correction`、`posttool-handoff-writer`、`auto-snapshot`
 
 ### 与代码实现的差距
 - claude-next.md 的条目格式 (@日期 hits:N) 依赖人工/AI共同维护
@@ -241,7 +241,7 @@
 ```
 token_writer(记录) → turn-counter(评估) → context-guard(阻断)
                           ↓                    ↓
-                skill-usage-tracker(追踪)  compact-detect(恢复)
+                skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721](追踪)  compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721](恢复)
 ```
 
 | 组件 | matcher | 功能 |
@@ -249,8 +249,8 @@ token_writer(记录) → turn-counter(评估) → context-guard(阻断)
 | token_writer | `.*` (所有工具) | 更新token使用计数，SessionStart --reset |
 | turn-counter | UserPromptSubmit | 轮次计数+context%+模糊指令检测 |
 | context-guard | Edit\|Write | 超90%阈值封锁写操作，保留Read/Bash诊断 |
-| skill-usage-tracker | 所有工具 | 追踪skill/hook使用频率 |
-| compact-detect | /compact命令 | 保存状态+重新注入知识摘要 |
+| skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] | 所有工具 | 追踪skill/hook使用频率 |
+| compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] | /compact命令 | 保存状态+重新注入知识摘要 |
 
 ### 关键创新点
 - **R29自锁修复**: context-guard从 `.*`→`Edit|Write`，保留诊断通道+逃生门(context-force-override)
@@ -259,7 +259,7 @@ token_writer(记录) → turn-counter(评估) → context-guard(阻断)
 - **原子化设计**: 5个独立hook而非1个单体管理器 → 独立开关/调试/测试
 
 ### 具体文件/路径
-- `token_writer`、`turn-counter`、`context-guard.sh`、`skill-usage-tracker`、`compact-detect`、`context-force-override` marker、`fuzzy-block`
+- `token_writer`、`turn-counter`、`context-guard.sh`、`skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]`、`compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]`、`context-force-override` marker、`fuzzy-block`
 
 ### 与代码实现的差距
 - context-guard的逃生门(context-force-override)需要明确的审计轨迹
@@ -376,7 +376,7 @@ bash .claude/skills/lx-ghost/scripts/lx-ghost.sh on "方向"
 | E-效率 | E3 | 过度请求确认 | goal mode批处理 |
 | F-推理 | F1 | 假设驱动("应该是/通常") | posttool-claim-audit |
 | G-报告 | G1 | 伪诚信剧场(自创指标) | 行业标准来源URL或标注[内部自检] |
-| H-语义 | H1 | 语义编造(通过所有形式门禁) | posttool-anti-pattern-detect H1扫描 |
+| H-语义 | H1 | 语义编造(通过所有形式门禁) | posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] H1扫描 |
 
 ### 关键创新点
 - **A2七个软完成语**: "应该没问题"、"基本完成"、"理论上"、"看起来正常"、"差不多了"、"之前验证过"、"大部分通过"
@@ -385,11 +385,11 @@ bash .claude/skills/lx-ghost/scripts/lx-ghost.sh on "方向"
 - **G1**: 自创指标与行业标准必须物理隔离（不同表格/章节）
 
 ### 具体文件/路径
-- `anti-patterns.md` (16条)、`posttool-anti-pattern-detect.sh`、`completion-gate.sh`、`pretool-edit-scope.sh`、`pretool-retry-check.sh`、`lsp-suggest.sh`
+- `anti-patterns.md` (16条)、`posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh`、`completion-gate.sh`、`pretool-edit-scope.sh`、`pretool-retry-check.sh`、`lsp-suggest.sh`
 
 ### 与代码实现的差距
 - 16条反模式定义在 anti-patterns.md 中
-- 运行时检测覆盖A2/F1/H1（posttool-anti-pattern-detect），其余反模式靠注入上下文让AI自省
+- 运行时检测覆盖A2/F1/H1（posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]），其余反模式靠注入上下文让AI自省
 - G1/H1的语义验证依赖AI能力，自动化程度有限
 
 ---
@@ -773,7 +773,7 @@ OMC/OMO Agent能力 → 有独立进程+critic模型
 - `context-cache.md`: 铁律速查压缩版
 - `kernel-compact.md`: 架构铁律压缩版
 - `anti-patterns-compact.md`: 反模式压缩版
-- `compact-detect.sh`: 5.1KB→3.3KB，去掉"善意的唠叨"
+- `compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh`: 5.1KB→3.3KB，去掉"善意的唠叨"
 
 **Oracle+Meta-Oracle双重审查**:
 - Oracle: 逐条对比原版与枯叶，确认语义无损
@@ -787,7 +787,7 @@ OMC/OMO Agent能力 → 有独立进程+critic模型
 - **悖论**: 留给AI的越少（只留脉络），幻觉密度反而越低——因为因果箭头锁死了幻觉路径
 
 ### 具体文件/路径
-- `context-cache.md`、`kernel-compact.md`、`anti-patterns-compact.md`、`compact-detect.sh`、`install.sh`
+- `context-cache.md`、`kernel-compact.md`、`anti-patterns-compact.md`、`compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721].sh`、`install.sh`
 
 ### 与代码实现的差距
 - 压缩版文件(context-cache.md等)需要与源文件保持同步更新

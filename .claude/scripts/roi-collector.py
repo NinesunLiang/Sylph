@@ -25,7 +25,7 @@ OUTPUT_FILE = STATE_DIR / "roi-data.json"
 
 HOOKS = [
     "context_guard", "ecosystem_probe", "edit_guard", "error_dna", "fuzzy_block",
-    "inject_project_knowledge", "intent_tracker", "knowledge_condenser", "lsp_suggest",
+    "intent_tracker", "knowledge_condenser", "lsp_suggest",
     "meta_oracle_trigger", "permission_gate", "plan_gate", "posttool_bash_audit",
     "posttool_claim_audit", "posttool_completion_audit", "posttool_edit_quality",
     "posttool_handoff_writer", "posttool_output_format", "posttool_read_cite",
@@ -33,7 +33,7 @@ HOOKS = [
     "pre_completion_gate", "completion_gate", "pretool_edit_scope", "pretool_sensitive_edit",
     "pretool_write_lock", "privacy_gate",
     "read_tracker", "retry_budget_check", "skill_flywheel", "stop_drain", "subagent_guard",
-    "token_writer", "skill_usage_tracker", "turn_counter", "user_correction_detector",
+    "token_writer", "turn_counter", "user_correction_detector",
 ]
 
 SKILLS = [
@@ -59,11 +59,11 @@ SCRIPTS = [
 # ── Frequency categories ──
 
 HIGH_FREQ = {
-    "completion_gate", "context_guard", "edit_guard", "inject_project_knowledge",
-    "error_dna", "turn_counter", "read_tracker", "token_writer", "anti_pattern_detect",
+    "completion_gate", "context_guard", "edit_guard",
+    "error_dna", "turn_counter", "read_tracker", "token_writer",
     "pretool_edit_scope", "pretool_write_lock", "posttool_write_lock",
     "pre_completion_gate", "intent_tracker",
-    "posttool_completion_audit", "ecosystem_probe", "skill_usage_tracker",
+    "posttool_completion_audit", "ecosystem_probe",
 }
 
 MED_FREQ = {
@@ -113,8 +113,8 @@ QUALITY_BOOST = {
     "retry_budget_check": 0.7, "subagent_guard": 0.7,
     "error_dna": 0.6, "stop_drain": 0.6, "skill_flywheel": 0.6,
     "user_correction_detector": 0.6,
-    "inject_project_knowledge": 0.5, "ecosystem_probe": 0.5,
-    "knowledge_condenser": 0.5, "anti_pattern_detect": 0.5,
+    "ecosystem_probe": 0.5,
+    "knowledge_condenser": 0.5,
     "turn_counter": 0.3, "read_tracker": 0.3, "token_writer": 0.3,
     "auto_snapshot": 0.3, "lsp_suggest": 0.3,
 }
@@ -136,9 +136,9 @@ MENTAL_BURDEN = {
     "privacy_gate": 5, "pretool_edit_scope": 5, "subagent_guard": 5,
     "edit_guard": 5, "plan_gate": 5,
     "retry_budget_check": 5,
-    "inject_project_knowledge": 1, "ecosystem_probe": 1,
+    "ecosystem_probe": 1,
     "turn_counter": 1, "read_tracker": 1, "token_writer": 1,
-    "auto_snapshot": 1, "lsp_suggest": 1, "skill_usage_tracker": 1,
+    "auto_snapshot": 1, "lsp_suggest": 1,
     "posttool_read_cite": 1, "posttool_write_cite": 1,
 }
 

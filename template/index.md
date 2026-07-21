@@ -6,7 +6,7 @@
 ──────────────────────
 SessionStart
 ──────────────────────
-*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge|sessionstart-gate-check|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate|cross-platform-smoke-test|session-inject
+*→context-compressor|knowledge-condenser|error-dna-auto-fix|meta-oracle-review|inject-project-knowledge [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]|sessionstart-gate-check|flywheel-report|token_writer|pretool-cruise-check|ecosystem-probe|session-resume|lsp-gate|oracle-gate|cross-platform-smoke-test|session-inject
 
 ──────────────────────
 PreToolUse（操作前阻断）
@@ -29,10 +29,10 @@ PostToolUse（操作后审计）
 Edit|Write→auto-snapshot|posttool-edit-quality|posttool-write-lock|posttool-claim-audit|intent-tracker|posttool-write-cite
 AGENTS.md→pretool-agents-merge
 TaskUpdate→completion-gate(软语)|posttool-handoff-writer|posttool-completion-audit|posttool-checkpoint
-TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect|posttool-template-check|phase-state-tracker
+<!-- REMOVED v7.x: TaskUpdate|Edit|Write→posttool-format-gate|posttool-anti-pattern-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]|posttool-template-check|phase-state-tracker -->
 Read→read-tracker|posttool-read-cite
 Bash→posttool-bash-audit|posttool-output-compressor|error-dna|build-validator
-Skill→skill-usage-tracker|posttool-skill-compliance
+<!-- REMOVED v7.x: Skill→skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721]|posttool-skill-compliance -->
 Task|Agent→posttool-subagent-audit
 .*→token_writer|meta-oracle-trigger(py+sh)|agentic-ui|permission-frequency-tracker
 

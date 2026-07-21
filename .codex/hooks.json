@@ -42,15 +42,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/context-guard.sh",
-            "timeout": 3
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "bash .claude/hooks/error-dna.sh",
             "timeout": 3
           }
@@ -150,15 +141,6 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash .claude/hooks/inject-project-knowledge.sh",
-            "timeout": 10
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
             "command": "bash .claude/hooks/pretool-user-correction.sh",
             "timeout": 3
           }
@@ -179,15 +161,6 @@
             "type": "command",
             "command": "bash .claude/hooks/flywheel-report.sh",
             "timeout": 5
-          }
-        ]
-      },
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/compact-detect.sh",
-            "timeout": 3
           }
         ]
       },

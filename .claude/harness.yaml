@@ -64,7 +64,6 @@ hooks_enabled:
   session_resume: true
   posttool_handoff_writer: true
   knowledge_condenser: true
-  inject_project_knowledge: true
   pretool_edit_scope: true
   lsp_suggest: true
   context_guard: true
@@ -90,7 +89,6 @@ hooks_enabled:
   permission_frequency_tracker: false
   phase_state_tracker: false
   plan_gate: false
-  posttool_anti_pattern_detect: false
   posttool_bash_audit: true
   posttool_claim_audit: true
   posttool_completion_audit: false
@@ -130,7 +128,6 @@ hooks_enabled:
   score_archiver: false
   sessionstart_gate_check: false
   skill_flywheel: false
-  skill_usage_tracker: false
   stop_drain: false
   thinking_gate: false
   token_writer: false

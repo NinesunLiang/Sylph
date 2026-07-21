@@ -26,7 +26,7 @@ AI 的上下文窗口有硬上限。每次 Read、每次工具输出、用户的
 ```
 token_writer (记录) → turn-counter (评估) → context-guard (阻断)
                       ↓                    ↓
-              skill-usage-tracker (追踪)  compact-detect (恢复)
+              skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] (追踪)  compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] (恢复)
 ```
 
 ---
@@ -75,22 +75,22 @@ AI: 需要 Write 来创建 context-force-override → blocked
 
 ---
 
-### skill-usage-tracker — 工具使用状况的观察员
+### skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] — 工具使用状况的观察员
 
-skill-usage-tracker 在每次会话中默默追踪各 skill 和 hook 的使用频率。它的数据是 turn-counter L2 层判断"哪些规则正在被遗忘"的关键输入。原 pretool-rule-anchor 的长对话规则锚定逻辑已被 pretool-edit-scope 吸收（story-03），skill-usage-tracker 接替了"监控上下文健康"的角色。
+skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 在每次会话中默默追踪各 skill 和 hook 的使用频率。它的数据是 turn-counter L2 层判断"哪些规则正在被遗忘"的关键输入。原 pretool-rule-anchor 的长对话规则锚定逻辑已被 pretool-edit-scope 吸收（story-03），skill-usage-tracker [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 接替了"监控上下文健康"的角色。
 
 ---
 
-### compact-detect — 压缩事件的急救员
+### compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] — 压缩事件的急救员
 
 compact 是最危险的时刻。AI 的上下文从 ~95% 骤降到 ~30%，但代价是丢失了项目知识注入的内容。
 
-compact-detect 在检测到 `/compact` 命令后立即行动：
+compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 在检测到 `/compact` 命令后立即行动：
 
 1. 保存 compact 前的关键状态
 2. 重新注入项目知识摘要：index.md 铁律速查 + kernel.md 架构 + claude-next.md 高频教训 + 当前 step 状态
 
-R33 记录了一次教训——compact 后 AI "失忆"，忘了技术栈、ADR 决策、活跃 feature 状态。修复后 compact-detect 现在充当了"二次 SessionStart"的注射器，确保 compact 后的 AI 仍然知道自己在做什么。
+R33 记录了一次教训——compact 后 AI "失忆"，忘了技术栈、ADR 决策、活跃 feature 状态。修复后 compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 现在充当了"二次 SessionStart"的注射器，确保 compact 后的 AI 仍然知道自己在做什么。
 
 ---
 
@@ -134,5 +134,5 @@ Round 30, AI: (修复完成)
 ## 相关故事
 
 - [门禁骑士团](story-03.md) — context-guard 在骑士团的"范围翼"中的位置
-- [记忆神殿](story-05.md) — compact-detect 在 compact 后重新注入记忆
+- [记忆神殿](story-05.md) — compact-detect [注: 此机制在 v7.x 评估 ROI 不足，已移除 — 见 clean-dead-code-20260721] 在 compact 后重新注入记忆
 - [双生之子](story-08.md) — ghost/goal 模式下 context-guard 降级为 warn-only
