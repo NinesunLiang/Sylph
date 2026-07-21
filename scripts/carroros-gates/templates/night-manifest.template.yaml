@@ -1,0 +1,83 @@
+# night-manifest.yaml v3.1 模板（FINAL.md §4.1）
+# Phase 0 复制到 .omc/night/{date}/night-manifest.yaml 并填充 {{...}} 占位。
+# 签署后 immutable：运行态任何字节变动 → preflight 拒绝放行 / FAILED_INVARIANT。
+
+policy:
+  ui_stack: "patch_a"                # Patch A 自定义组件（§18#1）
+  parallelism: 1                     # 首夜串行（§18#2）
+  merge_policy: "draft_pr_only"
+  real_backend: false                # 全 mock
+  visual_diagnosis: "disabled"       # 首夜 K3=0（§18#5）
+  manifest_immutable: true
+  draft_pr_on: "DONE_only"
+
+control_plane_lock:                  # S1 强化（GPT#3）：Phase 0 由 gen-control-plane-lock.sh 生成
+  algorithm: "sha256"
+  entries: []                        # [{path, sha256}...] 七脚本+lib+hook配置+assertion-catalog.yaml+carros_base.py
+
+trust_boundary:                      # S1 正式收口（Grok U2 五条）：Owner 未签署 = NO-GO（§18#9）
+  first_night_mode: "detective_controls"
+  preventive_isolation_complete: false
+  residual_risk_accepted_by: ""      # ← Owner 签署（Phase 0）
+  scope: "single_page_single_night"
+  auto_renew: false
+  mandatory_before_v3_2_ga: ["read_only_policy_dir", "supervisor_only_gate_results", "separate_execution_identity"]
+
+first_night_selection:               # O5 机器化：preflight 逐项 fail-closed
+  input_completeness: "complete"
+  complexity: "V0_or_V1"
+  prototype_accessible: true
+  acceptance_contract_complete: true
+  happy_path_testable: true
+
+assertion_catalog_version: "1.0"     # 未知 assertion ID → preflight/C4 FAIL
+
+inputs:                                # 分期到达模型（.claude/workflows/frontend-overnight/intake.md）
+  prototype:
+    kind: "{{PROTOTYPE_KIND}}"       # interactive | static | mixed（§18#3）
+    path_or_url: "{{PROTOTYPE_PATH_OR_URL}}"
+    status: "present"                # present | absent —— UI 还原硬输入，absent → C0 NO-GO
+    login_required: false
+  prd:
+    path: "{{PRD_PATH}}"
+    status: "present"                # present | absent —— absent → AC 来自原型+intake 问答，推断入 assumptions.yaml
+  api_doc:
+    path: "{{API_DOC_PATH}}"
+    status: "pending"                # present | pending | absent —— 非 present → 业务逻辑走推断契约
+
+pages:                               # 首夜 len == 1（硬规则）
+  - id: "{{PAGE_ID}}"                # 例：FE-login
+    feature_dir: "prd/{{APP}}/feat-{{PAGE_ID}}/"   # OMA split 格式（首夜手工同格式）
+    risk: "B1"
+    api_contract_status: "inferred"  # real | inferred | none —— inferred 时 assumptions.yaml 必须逐条登记推断契约；api_doc 到达后走 intake reconcile
+    ui_policy: { mode: "custom", token_source: "src/styles/tokens/", allow_global_override: false }
+    required_states:                 # O3：逐态断言契约，ID 必须在 assertion-catalog.yaml 内
+      loading:            { assert: "skeleton_visible", not: "no_layout_shift_on_resolve" }
+      success:            { assert: "list_or_detail_refreshed" }
+      empty:              { assert: "empty_state_visible" }
+      business_error:     { assert: "retry_affordance_present" }
+      network_error:      { assert: "no_white_screen", and: "retry_affordance_present" }
+      double_submit:      { assert: "trigger_disabled_during_inflight" }
+      modal_close_rollback: { assert: "no_dirty_state_after_close" }
+    overlay_contract:
+      status: "declared"             # declared | confirmed_none | unknown（unknown → 不许冻结 plan）
+      items: []                      # [{selector, type: modal|drawer|popover_click|popover_hover|tooltip, trigger, asserts: [...]}]
+    files_allowed: ["src/pages/{{PAGE_SLUG}}/**"]
+    paths:
+      spec: "tests/e2e/{{PAGE_SLUG}}.spec.ts"
+      artifacts: ".omc/task/{date}/{{PAGE_ID}}/artifacts/"
+
+environment_fingerprint:             # S4：Phase 0 记录，PAGE_BOUNDARY_RESET 校验
+  node_version: ""
+  pnpm_version: ""
+  lockfile_sha256: ""
+  playwright_version: ""
+  browser_version: ""
+  env_allowlist_digest: ""
+  dev_server_pid: null
+  dev_server_started_at: ""
+
+page_boundary_reset: { required: true, on_reset_failure: "NIGHT_FUSE_WORKSPACE_POISONED" }
+shared_gap_policy: { registry_path: ".omc/night/{date}/shared-gap-registry.yaml", max_local_workarounds_per_gap: 2, on_exceed: "BLOCKED_SCOPE" }
+budgets: { per_page_calls: null, fix_rounds: null, page_wall_clock_min: null, night_wall_clock_min: 600, kimi_calls_total: 0 }
+  # ↑ per_page_calls / fix_rounds / page_wall_clock_min 由 Phase 0 dry-cost 实测 P90 × 安全系数填入（O4），禁止拍脑袋

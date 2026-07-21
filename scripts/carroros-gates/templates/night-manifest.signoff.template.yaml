@@ -1,0 +1,6 @@
+# night-manifest.signoff.yaml 模板（FINAL.md §4.1 / S2 detached 签署）
+# 独立文件，避免 digest 自引用。preflight 在 lx-goal on 前重算 manifest 原始字节哈希比对。
+manifest_sha256: ""        # 对 .omc/night/{date}/night-manifest.yaml 原始字节的 SHA-256（不做 YAML 规范化）
+decision: "NO_GO"          # NO_GO | CONDITIONAL_GO | GO
+signer: ""                 # Owner 署名（§18#6）
+signed_at: ""              # ISO-8601
