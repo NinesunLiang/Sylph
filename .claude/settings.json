@@ -2,7 +2,7 @@
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:9998",
     "ANTHROPIC_AUTH_TOKEN": "test",
-    "ANTHROPIC_MODEL": "deepseek-v4-flash(1m)"
+    "ANTHROPIC_MODEL": "deepseek-v4-pro(1m)"
   },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true
@@ -10,7 +10,7 @@
   "effortLevel": "xhigh",
   "skipDangerousModePermissionPrompt": true,
   "skipWorkflowUsageWarning": true,
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-v4-pro(1m)",
   "apiUrl": "http://127.0.0.1:9998",
   "authToken": "test",
   "hooks": {
@@ -25,13 +25,97 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"token_writer.py\"",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"completion-gate.py\"",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-checkpoint.py\"",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-claim-audit.py\"",
+            "timeout": 10000
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"error-dna.py\"",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-bash-audit.py\"",
+            "timeout": 10000
+          }
+        ]
+      }
+    ],
     "UserPromptSubmit": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/pretool-user-approve.py\"",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-user-approve.py\"",
             "timeout": 3000
+          },
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"turn-counter.py\"",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"session-resume.py\"",
+            "timeout": 10000
+          },
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"error-dna-auto-fix.py\"",
+            "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"error-dna-auto-fix.py\"",
+            "timeout": 15000
           }
         ]
       }
