@@ -32,7 +32,7 @@
 2. **对照检查**：真实契约 vs assumptions.yaml 里的推断契约，逐条标 `confirmed | conflict`
 3. `conflict` 条目 → 生成一个 reconcile 夜任务（改 api 层 + 受影响断言），排进下一夜 manifest 的 pages[]（占当夜页位）
 4. `confirmed` 条目 → 仅把页面 `api_contract_status` 翻为 `real`（下次该页有任何变更时生效）
-5. manifest 任何变动 → 重跑 `gen-control-plane-lock.sh --write` → **重新签署**（signoff 哈希失效）
+5. manifest 任何变动 → 重跑 `gen_control_plane_lock.py --write` → **重新签署**（signoff 哈希失效）
 
 ## 4. BLOCKED_INPUT 规则（夜跑时）
 

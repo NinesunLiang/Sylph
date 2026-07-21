@@ -12,7 +12,7 @@
 
 ## Bash 精确白名单（hook v3 fullmatch；此外一律 exit 2）
 
-1. 门禁脚本：`scope-check / c7-check / evidence-check / finalize-page / abstraction-check`（bash 调用）
+1. 门禁脚本：`scope_check / c7_check / evidence_check / finalize_page / abstraction_check`（python3 调用）
 2. `lib/run_gate.py ... -- <wrapped>`：C2=tsc/eslint/build，C4/C5=playwright，C6=视觉脚本
 3. `carros_base.py` 三 API：`manifest-json / gate-results-init / token-write`
 4. 页基线：`git -C $R rev-parse HEAD > $NIGHT/page-baselines/{page}.sha`（唯一合法 `>`）
