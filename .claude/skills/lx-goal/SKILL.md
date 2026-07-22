@@ -85,7 +85,26 @@ lx-goal hard-boundary-hit "操作X被跳过" "原因Y" "建议人类执行Z"
 lx-goal blocked-human "决策X" "AI推荐Y" "依据Z"
 ```
 
-### 退出报告
+### 退出前验证
+
+> 进入退出报告前必须完成以下验证。未验证 = 软完成语违规。
+
+**Step V: 验收确认**
+1. `git status --short` — 确认文件变更与预期一致
+2. 跑项目测试命令（`go test ./...` / `npm test` / `pytest`）— **必须有实际输出证据**
+3. 逐项核对 plan.md 中的所有 AC — 每一项标注 ✅ 通过 / ❌ 未通过 / ⚠️ 跳过
+4. 自审：有无调试代码、硬编码值、未处理的边界 case
+5. 输出验证摘要：
+
+```
+🧪 lx-goal 退出前验证
+变更文件: {N} 文件
+测试结果: ✅ {N} passed / ❌ {N} failed
+AC 完成度: {N}/{M}（{N} 项通过）
+自审: ✅ 无遗留 / ⚠️ {N} 项需注意
+```
+
+**验证未通过 → 不生成退出报告，返回 Phase 1→N 修复问题。**
 
 ```bash
 lx-goal report   # 生成执行报告（含 verdict schema）
