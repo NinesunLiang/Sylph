@@ -1,5 +1,35 @@
 # 修复循环规则（Phase 4-5）
 
+## 循环计数与执行逻辑
+
+```
+retry = 0
+
+Phase4修复 → Phase5验证:
+  验证通过 → exit (成功)
+  验证失败 & retry < 3 → retry++, 记录失败证据, 回到Phase4
+  验证失败 & retry ≥ 3 → BLOCKED, 标记"不可修复"
+```
+
+每轮失败对比当前轮与上一轮失败模式：
+- 相同 → 同一根因反复出现 → 立即升级至 Oracle（忽略轮次）
+- 不同 → 暴露新问题 → 继续（在3轮上限内）
+
+## 每轮状态保留
+
+每轮修复循环在 executor.md 中保留：
+
+```json
+{
+  "round": 1,
+  "hypothesis": "根因描述",
+  "fix_applied": "具体修复操作",
+  "verification_method": "验证方式",
+  "verification_result": "PASS/FAIL",
+  "failure_mode": "new/same_recurrence"
+}
+```
+
 ## 循环上限：最多 3 轮
 | 轮次 | 动作|
 |------|------|

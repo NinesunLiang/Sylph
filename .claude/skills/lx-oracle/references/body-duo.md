@@ -25,11 +25,12 @@ python3 .claude/scripts/carros_base.py status
 
 ### 2. 双 Agent 审核
 
-用 `oracle_spawn.py` 同时调 Oracle agent + Meta-Oracle + G1-G4 聚合：
+用 `oracle_agent.py --mode duo` 同时调 Oracle Agent + Meta-Oracle + G1-G4 聚合：
 
 ```bash
-python3 .claude/scripts/oracle_spawn.py review \
+python3 .claude/scripts/oracle_agent.py review \
   --task-id <task_id> \
+  --mode duo \
   --plan .omc/tasks/<date>/<task_name>/plan.md \
   --executor .omc/tasks/<date>/<task_name>/executor.md \
   --token .omc/tokens/<date>/<task_name>.json \

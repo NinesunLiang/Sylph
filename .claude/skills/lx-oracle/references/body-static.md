@@ -20,17 +20,18 @@
 
 ## 流程
 
-### 1. 解析 task_id
+### 1. 准备 task
 
 ```bash
 python3 .claude/scripts/carros_base.py status
 ```
 
-### 2. 执行 Oracle Agent 审核
+### 2. 执行 Oracle Agent 审核（静态分析）
 
 ```bash
-python3 .claude/scripts/static_oracle_agent.py review \
+python3 .claude/scripts/oracle_agent.py review \
   --task-id <task_id> \
+  --mode static \
   --plan .omc/tasks/<date>/<task_name>/plan.md \
   --executor .omc/tasks/<date>/<task_name>/executor.md
 ```

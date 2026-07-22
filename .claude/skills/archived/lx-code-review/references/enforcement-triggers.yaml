@@ -1,0 +1,20 @@
+# enforcement-triggers.yaml — 运行时校验时机定义
+---
+enforcement:
+  schema_validation:
+    stage: pre_action
+    validator: policy_enforcer
+    on_violation: halt + audit_log
+  runtime_guard:
+    check_points:
+      - before_file_write
+      - before_autofix_apply
+      - before_verifier_skip
+    enforcer: policy_enforcer
+  audit:
+    destination: .lx-code-review/audit.jsonl
+    record_on:
+      - autofix_applied
+      - degrade_applied
+      - mode_conflict
+      - policy_violation

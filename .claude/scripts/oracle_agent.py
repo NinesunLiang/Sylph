@@ -1,19 +1,15 @@
 #!/usr/bin/env python3
-"""
-oracle_agent.py — Oracle L2 验证层 (重构版)
+"""oracle_agent.py -- Oracle review gate for CarrorOS Base.
 
-职责：
-- L2 验证层的独立审核入口
-- 支持静态分析（scope/危险路径/file:line）和运行时分析（token/失败/软完成）
-- 优先 LLM 审核（model_static/model_runtime），规则降级
-- 可单独调用，也可被 meta_oracle.py 组合使用
+Static analysis (Oracle-D) + runtime verification (Oracle-V) + duo mode.
+Uses DeepSeek API for LLM-based review, falls back to rule-based scan.
 
 Usage:
-    python3 .claude/scripts/oracle_agent.py review --task-id <ID> [--mode static|runtime|duo] [--plan <path>] [--executor <path>] [--token <path>] [--logs <path>] [--diff <path>]
-    python3 .claude/scripts/oracle_agent.py status                     # 查看活跃裁决
-    python3 .claude/scripts/oracle_agent.py bypass <task_id>           # 创建 24h bypass
+    python3 oracle_agent.py review --task-id <ID> [--mode static|runtime|duo] [--plan <path>] [--executor <path>] [--token <path>] [--logs <path>] [--diff <path>]
+    python3 oracle_agent.py status
+    python3 oracle_agent.py bypass <task_id>
 
-退出码: 0=ACCEPT 1=ADVISORY 2=REJECT 3=ESCALATE 4=UNAVAILABLE
+Exit codes: 0=ACCEPT 1=ADVISORY 2=REJECT 3=ESCALATE 4=UNAVAILABLE
 """
 
 from __future__ import annotations
@@ -26,7 +22,7 @@ import time
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional, List, Tuple
 
 ORACLE_VERDICTS_DIR = Path(".omc/state/oracle-verdicts")
 BYPASS_DIR = Path(".omc/state/oracle_bypass")
@@ -35,19 +31,23 @@ PROJECT_ROOT = Path.cwd()
 
 RETURN_CODES = {"ACCEPT": 0, "ADVISORY": 1, "REJECT": 2, "ESCALATE": 3, "UNAVAILABLE": 4}
 
-# ── 审核 prompt ──
-ORACLE_SYSTEM_PROMPT = """你是一个独立第三方审核员（Oracle）。你的职责：
-1. 根据用户提交的目标文件/描述，做独立审核
-2. 按以下维度输出裁决：
+ORACLE_SYSTEM_PROMPT = """You are an independent third-party reviewer (Oracle). Your responsibilities:
+1. Review the submitted task description, plan, executor log, and code diff independently
+2. Output verdict with these dimensions:
    - VERDICT: ACCEPT | REJECT | ADVISORY
-   - 安全风险: HIGH | MEDIUM | LOW
-   - 架构合理性: 0-10
-   - 证据充分性: 0-10
-3. 裁决必须附带 file:line 级别的证据
-4. 不可因为"不知道"就通过，不知道就是 REJECT
-"""
+   - Safety Risk: HIGH | MEDIUM | LOW
+   - Architecture: 0-10
+   - Evidence: 0-10
+3. Verdict must include evidence citations:
+   - For code changes: use file:line references
+   - For documents/skills/designs: reference sections, filenames, design concepts
+4. Check for autonomous/unmanned mode signal: if `.omc/state/tokens/autonomous.active` or `.omc/state/tokens/lx-goal.json` exists, the system is in autonomous/unmanned mode. In this mode:
+   - HARD-GATE and structural constraints are EXPECTED and NECESSARY, not a risk
+   - The autonomous execution guide (references/autonomous-execution.md) handles all blocking scenarios
+   - Do NOT flag autonomous guards as MEDIUM/HIGH risk - they are by-design safety features
+5. Do not pass something just because you don't know. Unknown = REJECT
+6. Be specific about what needs to change for ACCEPT"""
 
-# ── 危险路径/命令模式 ──
 DANGEROUS_PATH_PATTERNS = [
     r"\.ssh/", r"\.env\b", r"credentials?", r"secrets?",
     r"/etc/", r"/usr/local/", r"/var/lib/",
@@ -70,22 +70,18 @@ FAIL_PATTERNS = [
 ]
 
 
-# ═══════════════════════════════════════════════
-# 共享工具函数
-# ═══════════════════════════════════════════════
-
-def _ensure_dirs():
+def _ensure_dirs() -> None:
     ORACLE_VERDICTS_DIR.mkdir(parents=True, exist_ok=True)
     BYPASS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _read_stdin():
+def _read_stdin() -> str:
     if not sys.stdin.isatty():
         return sys.stdin.read().strip()
     return ""
 
 
-def _read_file_safe(path: str | Path) -> str:
+def _read_file_safe(path: str) -> str:
     p = Path(path)
     if not p.exists():
         return ""
@@ -95,30 +91,38 @@ def _read_file_safe(path: str | Path) -> str:
         return ""
 
 
-def _pattern_hits(text: str, patterns: list[str]) -> list[str]:
-    hits: list[str] = []
+def _is_autonomous_mode() -> bool:
+    """Check if system is in autonomous/unmanned mode."""
+    tokens_dir = Path(".omc/state/tokens")
+    return (tokens_dir / "autonomous.active").exists() or \
+           (tokens_dir / "lx-goal.json").exists()
+
+
+def _pattern_hits(text: str, patterns: List[str]) -> List[str]:
+    hits: List[str] = []
     for pat in patterns:
         if re.search(pat, text, flags=re.IGNORECASE):
             hits.append(pat)
     return hits
 
 
-def _extract_file_line_refs(text: str) -> list[tuple[str, int]]:
-    refs: list[tuple[str, int]] = []
+def _extract_file_line_refs(text: str) -> List[Tuple[str, int]]:
+    refs: List[Tuple[str, int]] = []
     for match in re.findall(r"([\w./-]+\.\w+):(\d+)", text):
         refs.append((match[0], int(match[1])))
     return refs
 
 
-def _save_verdict(target: str, verdict: dict[str, Any]) -> Path:
+def _save_verdict(target: str, verdict: dict) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    fname = ORACLE_VERDICTS_DIR / f"oracle-{ts}.json"
+    fname = ORACLE_VERDICTS_DIR / "oracle-{}.json".format(ts)
     with open(fname, "w") as f:
-        json.dump({"target": target, "verdict": verdict, "timestamp": ts, "project": str(PROJECT_ROOT)}, f, indent=2)
+        json.dump({"target": target, "verdict": verdict, "timestamp": ts,
+                    "project": str(PROJECT_ROOT)}, f, indent=2)
     return fname
 
 
-def _load_latest_verdict(hours: int = 24) -> dict[str, Any] | None:
+def _load_latest_verdict(hours: int = 24) -> Optional[dict]:
     now = time.time()
     for f in sorted(ORACLE_VERDICTS_DIR.glob("oracle-*.json"), reverse=True):
         if now - f.stat().st_mtime < hours * 3600:
@@ -129,8 +133,8 @@ def _load_latest_verdict(hours: int = 24) -> dict[str, Any] | None:
     return None
 
 
-def _find_available_agent() -> str | None:
-    """检测可用的独立 agent"""
+def _find_available_agent() -> Optional[str]:
+    """Check for available review agents (claude, opencode)."""
     for cmd, args in [
         ("claude", ["claude", "-p", "echo ready"]),
         ("opencode", ["opencode", "-p", "echo ready"]),
@@ -144,13 +148,13 @@ def _find_available_agent() -> str | None:
     return None
 
 
-# ═══════════════════════════════════════════════
-# 静态分析 — 规则版（LLM 不可用时降级）
-# ═══════════════════════════════════════════════
+# ---- Rule-based static scan (fallback when LLM unavailable) ----
 
-def _static_scan_rule_based(plan_text: str, executor_text: str, diff_text: str) -> dict[str, Any]:
-    """基于规则的静态审核（旧 static_oracle_agent.py 核心逻辑）"""
-    reasons: list[str] = []
+
+def _static_scan_rule_based(plan_text: str, executor_text: str,
+                            diff_text: str) -> dict:
+    """Fallback rule-based static review."""
+    reasons: List[str] = []
     score = 10.0
     risk = "LOW"
     combined = "\n".join([plan_text, executor_text, diff_text])
@@ -159,22 +163,21 @@ def _static_scan_rule_based(plan_text: str, executor_text: str, diff_text: str) 
     if dangerous_paths:
         score -= 2.0
         risk = "HIGH"
-        reasons.append("命中危险路径模式: " + ", ".join(dangerous_paths))
+        reasons.append("Dangerous path patterns: " + ", ".join(dangerous_paths))
 
     dangerous_commands = _pattern_hits(combined, DANGEROUS_COMMAND_PATTERNS)
     if dangerous_commands:
         score -= 2.5
         risk = "HIGH"
-        reasons.append("命中危险命令模式: " + ", ".join(dangerous_commands))
+        reasons.append("Dangerous commands: " + ", ".join(dangerous_commands))
 
-    # file:line 校验
     refs = _extract_file_line_refs(combined)
     missing = 0
     for rel_path, line_no in refs:
-        path = Path(rel_path)
-        if not path.exists():
+        p = Path(rel_path)
+        if not p.exists():
             missing += 1
-            reasons.append(f"file:line 引用文件不存在: {rel_path}:{line_no}")
+            reasons.append("Missing file ref: {}:{}".format(rel_path, line_no))
     if missing:
         score -= 1.5
 
@@ -189,16 +192,16 @@ def _static_scan_rule_based(plan_text: str, executor_text: str, diff_text: str) 
     else:
         verdict = "ACCEPT"
 
-    return {"verdict": verdict, "risk": risk, "score": score, "reasons": reasons}
+    return {"verdict": verdict, "risk": risk, "score": score,
+            "reasons": reasons}
 
 
-# ═══════════════════════════════════════════════
-# 运行时分析 — 规则版（LLM 不可用时降级）
-# ═══════════════════════════════════════════════
+# ---- Rule-based runtime scan (fallback when LLM unavailable) ----
 
-def _runtime_scan_rule_based(executor_text: str, logs_text: str) -> dict[str, Any]:
-    """基于规则的运行时审核（旧 runtime_oracle_agent.py 核心逻辑）"""
-    reasons: list[str] = []
+
+def _runtime_scan_rule_based(executor_text: str, logs_text: str) -> dict:
+    """Fallback rule-based runtime review."""
+    reasons: List[str] = []
     score = 10.0
     risk = "LOW"
     combined = "\n".join([executor_text, logs_text])
@@ -209,11 +212,11 @@ def _runtime_scan_rule_based(executor_text: str, logs_text: str) -> dict[str, An
     if fail_hits:
         score -= 3.0
         risk = "HIGH"
-        reasons.append("运行时证据命中失败模式: " + ", ".join(fail_hits))
+        reasons.append("Failure patterns found: " + ", ".join(fail_hits))
 
     if soft_hits:
         score -= 1.0
-        reasons.append("命中软完成语: " + ", ".join(soft_hits))
+        reasons.append("Soft completion language: " + ", ".join(soft_hits))
 
     score = max(0.0, round(score, 2))
 
@@ -226,16 +229,41 @@ def _runtime_scan_rule_based(executor_text: str, logs_text: str) -> dict[str, An
     else:
         verdict = "ACCEPT"
 
-    return {"verdict": verdict, "risk": risk, "score": score, "reasons": reasons}
+    return {"verdict": verdict, "risk": risk, "score": score,
+            "reasons": reasons}
 
 
-# ═══════════════════════════════════════════════
-# LLM 审核路径
-# ═══════════════════════════════════════════════
+# ---- LLM integration ----
 
-def _try_llm_model(path: str, prompt: str) -> tuple[bool, str]:
-    """尝试通过 LLM API 做审核"""
-    api_url = "http://127.0.0.1:9998/v1/chat/completions"
+
+def _get_deepseek_key() -> str:
+    """Get DeepSeek API key from env or shell config."""
+    key = os.environ.get("DEEPSEEK_API_KEY", "")
+    if key:
+        return key
+    for rc_path in [
+        os.path.expanduser("~/.zshrc"),
+        os.path.expanduser("~/.bashrc"),
+        os.path.expanduser("~/.profile"),
+    ]:
+        if os.path.isfile(rc_path):
+            with open(rc_path) as f:
+                for line in f:
+                    if "DEEPSEEK_API_KEY" in line and "export" in line:
+                        key = line.split("=")[-1].strip().strip("\"'")
+                        break
+            if key:
+                break
+    return key
+
+
+def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
+    """Call DeepSeek API for review. Returns (success, text)."""
+    api_key = _get_deepseek_key()
+    if not api_key:
+        return False, ""
+
+    api_url = "https://api.deepseek.com/v1/chat/completions"
     payload = json.dumps({
         "model": "deepseek-chat",
         "max_tokens": 2000,
@@ -245,29 +273,70 @@ def _try_llm_model(path: str, prompt: str) -> tuple[bool, str]:
             {"role": "user", "content": prompt},
         ],
     })
+
     try:
         r = subprocess.run(
             ["curl", "-s", "-X", "POST", api_url,
              "-H", "Content-Type: application/json",
-             "-H", "x-api-key: test",
+             "-H", "Authorization: Bearer " + api_key,
              "-d", payload],
             capture_output=True, text=True, timeout=60,
         )
         if r.returncode != 0:
             return False, ""
+
         resp = json.loads(r.stdout)
         choices = resp.get("choices", [])
         if choices:
             content = choices[0].get("message", {}).get("content", "")
-            return True, content
+            if content.strip():
+                return True, content
         return False, ""
     except Exception:
         return False, ""
 
 
-def _spawn_agent_review(agent_cmd: str, target_text: str) -> str | None:
-    """用独立 agent 进程做审核"""
-    review_prompt = f"{ORACLE_SYSTEM_PROMPT}\n\n请审核以下内容，输出 JSON 裁决：\n\n{target_text[:8000]}"
+def _parse_llm_verdict(llm_text: str) -> dict:
+    """Parse LLM output text into structured verdict.
+
+    Expected format from LLM:
+      VERDICT: ACCEPT|REJECT|ADVISORY
+      Safety Risk: HIGH|MEDIUM|LOW
+      Architecture: 7/10
+      Evidence: 8/10
+    """
+    text = llm_text[:3000]
+    result: dict = {"verdict": "ADVISORY", "risk": "LOW", "score": 7.0}
+
+    # Extract VERDICT
+    m = re.search(r'VERDICT\s*[:\s]\s*(ACCEPT|REJECT|ADVISORY)', text, re.IGNORECASE)
+    if m:
+        result["verdict"] = m.group(1).upper()
+
+    # Extract Safety Risk
+    m = re.search(r'(?:Safety Risk|安全风险)\s*[:\s]\s*(HIGH|MEDIUM|LOW)', text, re.IGNORECASE)
+    if m:
+        result["risk"] = m.group(1).upper()
+
+    # Extract Architecture score
+    m = re.search(r'(?:Architecture|架构)[^:]*[:：]\s*(\d+(?:\.\d+)?)\s*/?\s*10', text, re.IGNORECASE)
+    if m:
+        result["score"] = float(m.group(1))
+
+    # Extract Evidence score if architecture missing
+    if result["score"] == 7.0:
+        m = re.search(r'(?:Evidence|证据)[^:]*[:：]\s*(\d+(?:\.\d+)?)\s*/?\s*10', text, re.IGNORECASE)
+        if m:
+            result["score"] = float(m.group(1))
+
+    return result
+
+
+def _spawn_agent_review(agent_cmd: str, target_text: str) -> Optional[str]:
+    """Spawn an independent agent process for review."""
+    review_prompt = ("{}\n\nPlease review the following and output "
+                     "JSON verdict:\n\n{}").format(
+        ORACLE_SYSTEM_PROMPT, target_text[:8000])
     cmd = [agent_cmd, "-p", review_prompt]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -277,88 +346,91 @@ def _spawn_agent_review(agent_cmd: str, target_text: str) -> str | None:
 
 
 def _local_review_prompt(target_text: str) -> str:
-    """无 agent/LLM 时的本地 prompt 模板"""
-    return f"""【Oracle 本地审核请求】
+    """Build a local review prompt template."""
+    return ("[Oracle Local Review Request]\n\n"
+            "{}\n\n"
+            "Review content:\n\n"
+            "{}\n\n"
+            "Output format:\n"
+            '{{"verdict": "ACCEPT|REJECT|ADVISORY", '
+            '"safety_risk": "HIGH|MEDIUM|LOW", '
+            '"architecture_score": 0-10, '
+            '"evidence_score": 0-10, '
+            '"reason": "..."}}').format(
+        ORACLE_SYSTEM_PROMPT, target_text[:8000])
 
-{ORACLE_SYSTEM_PROMPT}
 
-请审核以下内容：
-
-{target_text[:8000]}
-
-输出格式：
-```json
-{{"verdict": "ACCEPT|REJECT|ADVISORY", "safety_risk": "HIGH|MEDIUM|LOW", "architecture_score": 0-10, "evidence_score": 0-10, "reason": "..."}}
-```"""
+# ---- Review functions ----
 
 
-# ═══════════════════════════════════════════════
-# 主编排
-# ═══════════════════════════════════════════════
-
-def review_static(task_id: str, plan_text: str = "", executor_text: str = "", diff_text: str = "") -> dict[str, Any]:
-    """
-    静态分析（LLM 优先，规则降级）。
-    返回 verdict dict。
-    """
-    target_text = f"### Task: {task_id}\n"
+def review_static(task_id: str, plan_text: str = "",
+                  executor_text: str = "", diff_text: str = "") -> dict:
+    """Static analysis: LLM-first, rule-based fallback."""
+    target_text = "### Task: {}\n".format(task_id)
     if plan_text:
-        target_text += f"### Plan\n{plan_text[:3000]}\n\n"
+        target_text += "### Plan\n{}\n\n".format(plan_text[:3000])
     if executor_text:
-        target_text += f"### Executor\n{executor_text[:5000]}\n\n"
+        target_text += "### Executor\n{}\n\n".format(executor_text[:5000])
     if diff_text:
-        target_text += f"### Diff\n{diff_text[:5000]}\n\n"
+        target_text += "### Diff\n{}\n\n".format(diff_text[:5000])
+    if _is_autonomous_mode():
+        target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
-    # 尝试 LLM
+    # Try LLM first
     ok, result = _try_llm_model(task_id, target_text[:8000])
     if ok:
-        return {"verdict": "ACCEPT", "risk": "LOW", "score": 8.0, "reasons": ["llm: " + result[:200]],
+        parsed = _parse_llm_verdict(result)
+        return {"verdict": parsed["verdict"], "risk": parsed["risk"],
+                "score": parsed["score"],
+                "reasons": ["llm: " + result[:300]],
                 "mode": "llm", "source": "oracle_agent"}
 
-    # 降级: 规则版
+    # Fallback to rule-based
     result = _static_scan_rule_based(plan_text, executor_text, diff_text)
     result["mode"] = "rule_fallback"
     result["source"] = "oracle_agent"
     return result
 
 
-def review_runtime(task_id: str, executor_text: str = "", logs_text: str = "") -> dict[str, Any]:
-    """
-    运行时分析（LLM 优先，规则降级）。
-    返回 verdict dict。
-    """
-    target_text = f"### Task: {task_id}\n"
+def review_runtime(task_id: str, executor_text: str = "",
+                   logs_text: str = "") -> dict:
+    """Runtime analysis: LLM-first, rule-based fallback."""
+    target_text = "### Task: {}\n".format(task_id)
     if executor_text:
-        target_text += f"### Executor\n{executor_text[:5000]}\n\n"
+        target_text += "### Executor\n{}\n\n".format(executor_text[:5000])
     if logs_text:
-        target_text += f"### Logs\n{logs_text[:5000]}\n\n"
+        target_text += "### Logs\n{}\n\n".format(logs_text[:5000])
+    if _is_autonomous_mode():
+        target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
-    # 尝试 LLM
+    # Try LLM first
     ok, result = _try_llm_model(task_id, target_text[:8000])
     if ok:
-        return {"verdict": "ACCEPT", "risk": "LOW", "score": 8.0, "reasons": ["llm: " + result[:200]],
+        parsed = _parse_llm_verdict(result)
+        return {"verdict": parsed["verdict"], "risk": parsed["risk"],
+                "score": parsed["score"],
+                "reasons": ["llm: " + result[:300]],
                 "mode": "llm", "source": "oracle_agent"}
 
-    # 降级: 规则版
+    # Fallback
     result = _runtime_scan_rule_based(executor_text, logs_text)
     result["mode"] = "rule_fallback"
     result["source"] = "oracle_agent"
     return result
 
 
-def review_duo(task_id: str, plan_text: str = "", executor_text: str = "",
-               token_path: str = "", logs_text: str = "", diff_text: str = "") -> dict[str, Any]:
-    """
-    双审（静态+运行时），返回综合 verdict。
-    """
+def review_duo(task_id: str, plan_text: str = "",
+               executor_text: str = "", diff_text: str = "",
+               logs_text: str = "") -> dict:
+    """Dual review: static + runtime, combined verdict."""
     static_result = review_static(task_id, plan_text, executor_text, diff_text)
     runtime_result = review_runtime(task_id, executor_text, logs_text)
 
-    # 简单综合
-    scores = [static_result.get("score", 5.0), runtime_result.get("score", 5.0)]
-    verdicts = [static_result.get("verdict", "ADVISORY"), runtime_result.get("verdict", "ADVISORY")]
+    scores = [static_result.get("score", 5.0),
+              runtime_result.get("score", 5.0)]
+    verdicts = [static_result.get("verdict", "ADVISORY"),
+                runtime_result.get("verdict", "ADVISORY")]
 
-    # 权重: 静态 0.5 + 运行时 0.5
     final_score = round((scores[0] + scores[1]) / 2, 2)
 
     if "REJECT" in verdicts:
@@ -382,18 +454,13 @@ def review_duo(task_id: str, plan_text: str = "", executor_text: str = "",
     }
 
 
-# ═══════════════════════════════════════════════
-# CLI 命令
-# ═══════════════════════════════════════════════
+# ---- CLI ----
 
-def cmd_review(args: list[str]) -> int:
+
+def cmd_review(args: List[str]) -> int:
     task_id = ""
     mode = "static"
-    plan = ""
-    executor = ""
-    token = ""
-    logs = ""
-    diff = ""
+    plan = executor = token = logs = diff = ""
 
     i = 0
     while i < len(args):
@@ -424,20 +491,19 @@ def cmd_review(args: list[str]) -> int:
     if not task_id:
         stdin_content = _read_stdin()
         if stdin_content:
-            task_id = "stdin"
-            # 把 stdin 作为 target 传给 review
-            target_text = stdin_content
             agent = _find_available_agent()
             if agent:
-                result = _spawn_agent_review(agent, target_text)
+                result = _spawn_agent_review(agent, stdin_content)
                 if result:
                     print(result)
-                    _save_verdict("stdin", {"mode": "agent_spawn", "result": result[:500]})
+                    _save_verdict("stdin", {"mode": "agent_spawn",
+                                             "result": result[:500]})
                     return 0
-            prompt = _local_review_prompt(target_text)
+            prompt = _local_review_prompt(stdin_content)
             print(prompt)
-            _save_verdict("stdin", {"mode": "local_prompt", "status": "pending"})
-            print(f"\n[Oracle] 裁决写入: {ORACLE_VERDICTS_DIR}")
+            _save_verdict("stdin", {"mode": "local_prompt",
+                                     "status": "pending"})
+            print("\n[Oracle] Verdict saved to: {}".format(ORACLE_VERDICTS_DIR))
             return 0
 
         print(json.dumps({"error": "No task-id provided"}))
@@ -448,60 +514,64 @@ def cmd_review(args: list[str]) -> int:
     elif mode == "runtime":
         result = review_runtime(task_id, executor, logs)
     elif mode == "duo":
-        result = review_duo(task_id, plan, executor, token, logs, diff)
+        result = review_duo(task_id, plan, executor, diff, logs)
     else:
         result = review_static(task_id, plan, executor, diff)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
     _save_verdict(task_id, result)
-    return RETURN_CODES.get(result.get("verdict", ""), RETURN_CODES["UNAVAILABLE"])
+    code = RETURN_CODES.get(result.get("verdict", "UNAVAILABLE"), 4)
+    return code
 
 
-def cmd_status(args: list[str]) -> int:
+def cmd_status(args: List[str]) -> int:
     _ensure_dirs()
-    verdict = _load_latest_verdict()
-    if verdict:
-        print(f"最新裁决 ({verdict.get('timestamp', '?')}):")
-        print(json.dumps(verdict, indent=2))
+    latest = _load_latest_verdict()
+    if latest:
+        print(json.dumps(latest, ensure_ascii=False, indent=2))
     else:
-        print("24h 内无活跃裁决")
+        print(json.dumps({"status": "no recent verdicts"}, indent=2))
     return 0
 
 
-def cmd_bypass(args: list[str]) -> int:
+def cmd_bypass(args: List[str]) -> int:
+    _ensure_dirs()
     if not args:
-        print("Usage: oracle_agent.py bypass <task_id>")
+        print(json.dumps({"error": "No task-id provided for bypass"}))
         return 1
     task_id = args[0]
-    _ensure_dirs()
-    bypass_file = BYPASS_DIR / f"{task_id}_approved.md"
-    bypass_file.write_text(f"Approved by Oracle bypass at {datetime.now(timezone.utc).isoformat()}")
-    print(f"[Oracle] Bypass created for {task_id} (24h)")
+    ts = int(time.time())
+    bypass = {"task_id": task_id, "bypass_until": ts + BYPASS_TTL,
+              "created_at": ts}
+    fname = BYPASS_DIR / "{}.json".format(task_id.replace("/", "_"))
+    with open(fname, "w") as f:
+        json.dump(bypass, f)
+    print(json.dumps({"status": "bypass_created", "task_id": task_id,
+                       "expires_in_hours": BYPASS_TTL // 3600}))
     return 0
 
 
 def main() -> int:
     _ensure_dirs()
     if len(sys.argv) < 2:
-        print(__doc__)
+        print("Usage: oracle_agent.py <review|status|bypass> [...]")
         return 1
 
-    cmd = sys.argv[1]
+    command = sys.argv[1]
     rest = sys.argv[2:]
 
-    commands = {
+    handlers = {
         "review": cmd_review,
         "status": cmd_status,
         "bypass": cmd_bypass,
     }
 
-    handler = commands.get(cmd)
-    if not handler:
-        print(f"Unknown command: {cmd}")
-        print(__doc__)
+    handler = handlers.get(command)
+    if handler:
+        return handler(rest)
+    else:
+        print("Unknown command: {}".format(command))
         return 1
-
-    return handler(rest)
 
 
 if __name__ == "__main__":

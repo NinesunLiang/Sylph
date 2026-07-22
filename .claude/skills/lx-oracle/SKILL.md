@@ -29,25 +29,25 @@ body_ref: references/body-duo.md
 > **合并技能**: 原 `lx-oracle-agent`(static) + `lx-oracle-meta`(runtime) + `lx-oracle-review`(duo)
 > 保留旧触发器别名 `/lx-oracle-agent` `/lx-oracle-meta` `/lx-oracle-review` 以向后兼容。
 
-三种执行模式：
+三条执行模式：
 
-| 模式 | 协议 | 倾向 | 角色 | 脚本 |
+| 模式 | 协议 | 倾向 | 角色 | 入口 |
 |------|------|------|------|------|
-| `static` | Oracle-D | 偏紧 · 广度优先 | 静态分析：scope/危险路径/file:line | `static_oracle_agent.py` |
-| `runtime` | Oracle-V | 偏松 · 深度优先 | 运行时验证：token/失败/软完成/G1-G4 | `runtime_oracle_agent.py` / `meta_oracle.py` |
-| `duo` | Oracle-D+V | 互补 | 完整审核：静态+运行时+G1-G4 聚合 | `oracle_spawn.py` |
+| `static` | Oracle-D | 偏紧 · 广度优先 | 静态分析：scope/危险路径/file:line | `oracle_agent.py --mode static` |
+| `runtime` | Oracle-V | 偏松 · 深度优先 | 运行时验证：token/失败/软完成/G1-G4 | `oracle_agent.py --mode runtime` |
+| `duo` | Oracle-D+V | 互补 | 完整审核：静态+运行时+G1-G4 聚合 | `oracle_agent.py --mode duo` |
 
 ## 快速开始
 
 ```bash
 # 静态分析（原 /lx-oracle-agent）
-python3 .claude/scripts/static_oracle_agent.py review --task-id <task_id> --plan <path> --executor <path>
+python3 .claude/scripts/oracle_agent.py review --task-id <task_id> --mode static --plan <path> --executor <path>
 
 # 运行时验证（原 /lx-oracle-meta）
-python3 .claude/scripts/runtime_oracle_agent.py review --task-id <task_id> --token <path> --executor <path> --audit-dir <path>
+python3 .claude/scripts/oracle_agent.py review --task-id <task_id> --mode runtime --token <path> --executor <path> --logs <path>
 
 # 双 Agent 完整审核（原 /lx-oracle-review）
-python3 .claude/scripts/oracle_spawn.py review --task-id <task_id> --plan <path> --executor <path> --token <path> --audit-dir <path>
+python3 .claude/scripts/oracle_agent.py review --task-id <task_id> --mode duo --plan <path> --executor <path> --token <path> --logs <path>
 ```
 
 ## 公共审核原则

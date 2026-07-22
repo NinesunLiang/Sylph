@@ -1,7 +1,7 @@
 ---
 name: lx-goal
-version: v1.4.2
-description: "目标模式 — 一次前置澄清 → 全自动执行 → 退出报告。人类离开后 AI 自主完成所有任务。入口：`/lx-goal` 或 `/executor`"
+version: v1.5.0-enhance
+description: "目标模式(Enhance版) — grill-me式澄清 → TDD优先执行 → 退出报告 + 知识采集。高阶模型专用，无spec模板限制"
 when_to_use: "Use when user says 'goal mode', 'lx-goal', '无人值守', '自主执行', `/lx-goal`, `/executor`, or auto-detects a well-defined L2+ task with clear AC"
 argument-hint: "[目标描述] [过期小时=6]"
 harness_version: ">=6.3.0"
@@ -37,15 +37,27 @@ schemas:
 Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自动执行 → 退出报告
 ```
 
-### Phase 0：前置澄清
+### Phase 0：grill-me 式前置澄清
 
-1. 解析目标（有完整目标 → 跳过。无参数 → 进入 interactive_prompt 引导问答）
-2. 一次性扫描所有不确定项：范围边界、硬边界预检、外部依赖、能力缺口、风险点、执行顺序、验收条件、过期策略
-3. 输出执行计划（子任务列表 + AC + 依赖 + 风险 + Q 项）
-4. 人类确认后激活：`python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"`
-5. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
+> HARD-GATE: Phase 0 未完成并获用户确认前，不得进入 Phase 1 执行。
 
-### Phase 1→N：全自动执行
+**Enhance 模式** — 无 spec 模板限制，grill-me 式自由对话调研。
+
+1. **先探索，再提问** — 读项目文件/文档/commits，能自答不问用户
+2. **一次一个问题** — 不堆叠，逐分支推进决策树
+3. **判断任务复杂度**（影响后续流程）：
+   - **简单**：单文件改动/配置修改/纯文档 → 跳过方案对比
+   - **复杂**：跨文件重构/架构变更/新增功能 → 强制 2-3 方案对比
+   - **判定标准**：
+     - 定量：3+ 文件修改 → 自动复杂
+     - 定性（覆盖定量）：DB schema / 认证逻辑 / API 契约 / 安全敏感路径 → 任意修改都算复杂
+4. 一次性扫描：边界/依赖/风险/验收/过期
+5. 输出执行计划（子任务 + AC + 依赖 + 风险）
+6. **自审计划** — 检查占位符/矛盾/模糊项
+
+> HARD-GATE 不跳过（Base 一样）。但 Enhance 不需 spec 模板格式，对话式记录即可。
+
+### Phase 1→N：TDD 优先的全自动执行
 
 **执行期唯一规则源 = `references/autonomous-execution.md`**(§Phase 1→N 全自动执行 / §卡点分类处理矩阵 / §危险操作裁决链）。goal 模式下 `.claude/nodes/behavior_rules.md` 与 `.claude/nodes/execute_node.md` 中的交互式条款（用户裁定/澄清/确认/批准/每步确认）**全部不适用**；仅非交互条款（自洽检查/防编造/证据门禁/失败留痕）继续生效。降级触发参考 execute_node §降级触发条件，但其「用户确认新方案」由决策链自主裁决替代（见该文件 goal 模式覆盖节）。
 
@@ -77,7 +89,30 @@ lx-goal hard-boundary-hit "操作X被跳过" "原因Y" "建议人类执行Z"
 lx-goal blocked-human "决策X" "AI推荐Y" "依据Z"
 ```
 
-### 退出报告
+### 退出前验证（TDD 双模式）
+
+> 进入退出报告前必须完成验证。未验证 = 软完成语违规。
+
+**Step V: TDD 优先验收确认**
+1. `git status --short` — 确认文件变更与预期一致
+2. 跑项目测试 — **必须有实际输出证据**
+3. TDD 判定：
+   - **改动了测试文件** → TDD 强制，不可降级
+   - **架构/安全变更**（DB schema / auth / API / 安全路径）→ TDD 强制（即使没改测试）
+   - 其他情况 → TDD 优先，Base check-list 降级
+4. 逐项核对 plan.md 中的所有 AC
+5. 自审：调试代码/硬编码/边界 case
+6. 📥 知识采集：记录本次执行的决策要点 + 新学到的项目知识 → 写入 `.claude-next.md`
+
+```
+🧪 lx-goal 退出前验证
+变更文件: {N} 文件
+测试结果: ✅ {N} passed / ❌ {N} failed
+AC 完成度: {N}/{M}（{N} 项通过）
+自审: ✅ 无遗留 / ⚠️ {N} 项需注意
+```
+
+**验证未通过 → 不生成退出报告，返回 Phase 1→N 修复问题。**
 
 ```bash
 lx-goal report   # 生成执行报告（含 verdict schema）
@@ -109,15 +144,15 @@ lx-goal subagent-log summary
 
 1. 检测：`.omc/state/tokens/lx-goal.json` 存在则读 goal + expires_at
 2. 恢复：读 `.omc/plans/{date}/{slug}/` — research.md / plan.md / executor.md
-3. 继续：从 plan.md 最后一步继续，不需要重新 Phase 0
+3. 继续：检测 token 中最后未完成（status != done）的 step，从该 step 继续。若所有 step 均 done 则跳至退出报告。不需要重新 Phase 0。
 4. 关闭：`lx-goal done` 删锁 → `lx-goal off`
 
 ## 子任务引擎路由
 
 | 特征 | → 引擎 |
 |:-----|:------|
-| ≥3 同构独立子任务 | **原生并行 Task 调用**（一条消息内多个 Agent 并行；lx-race 已归档，勿路由） |
-| 有依赖链/异构/跨模块/根因不明 | **串行 direct**（按依赖顺序执行+证据；lx-stepwise 已移除，勿路由） |
+| ≥3 同构独立子任务 | **原生并行 Task 调用**（一条消息内多个 Agent 并发执行） |
+| 有依赖链/异构/跨模块/根因不明 | **串行 direct + lx-stepwise**（按依赖顺序执行+证据） |
 | 单文件小改 | **direct**（无模式，直接执行+证据） |
 
 ## 硬边界
