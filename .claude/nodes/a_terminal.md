@@ -40,7 +40,7 @@
 
 ## 输出格式
 
-使用 [统一交付 Schema](../task_sys/unified_delivery_schema.md)：
+使用 [统一交付 Schema](../references/task-architecture/unified_delivery_schema.md)：
 - state: `spec_review`（前置）| `done`（后置）- 产出写入 `.omc/state/{date}/{task_name}/output/criteria.md`- 包含：验收标准列表 + 检查点（checkpoints）
 
 ---

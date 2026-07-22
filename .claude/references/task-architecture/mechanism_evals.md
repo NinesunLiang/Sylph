@@ -1,7 +1,7 @@
 # Mechanism Evaluations - 机制验收用例
 
 > >
-> ⚠️ **仅在回归测试时加载**（修改 CLAUDE.md 或 task_sys 文件后）
+> ⚠️ **仅在回归测试时加载**（修改 CLAUDE.md 或 task-architecture 文件后）
 > 正常任务流不需要加载此文件
 > 用于验证 Harness 任务系统是否正常工作
 > 版本：v1.0.0
@@ -84,5 +84,5 @@ yamltask_name: test-m1-missing-roletarget: 新增用户登录页面executor_mode
 ---
 
 ## 回归检查清单
-每次修改 CLAUDE.md 或 task_sys 文件后，执行：
+每次修改 CLAUDE.md 或 task-architecture 文件后，执行：
 - [ ] M1.1：完整输入能正确触发 ready- [ ] M1.2：缺失 criteria 能进入 need_clarification- [ ] M1.3：缺失 role 能推断并请求确认- [ ] M2.1：非琐碎任务进入 planning- [ ] M2.2：计划范围冻结，无越界- [ ] M3.1：无证据不得完成- [ ] M3.2：3 轮修复失败后 blocked- [ ] M4.1：A 终端生成可观测标准- [ ] M4.2：B 终端产出验收报告

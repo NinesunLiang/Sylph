@@ -93,7 +93,7 @@
 
 ## 输出格式
 
-使用 [统一交付 Schema](../task_sys/unified_delivery_schema.md)：
+使用 [统一交付 Schema](../references/task-architecture/unified_delivery_schema.md)：
 - state: `executing` | `blocked` | `done`
 - 本轮产出必须包含：
   - 做了什么改动（文件清单）

@@ -316,7 +316,7 @@ Role: 读取文件后提示引用规范
 在 skill 执行后审计 AI 是否按 body.md 执行了，发现偏差则注入警告 |
 | posttool-subagent-audit.py | python | 5.5KB | 157L | ⚠ | main | posttool-subagent-audit.py — PostToolUse:Task — 子 agent 执行后审计 content 用量，超限告警 |
 | posttool-template-check.py | python | 1.8KB | 63L | ⚠ | main | posttool-template-check.py — PostToolUse — 模板文件写入后输出 schema 提醒
-Role: 检测是否写入了 .claude/task_sys/templates/ 下的模板文件，输出 schema 提醒 |
+Role: 检测是否写入了 .claude/references/task-architecture/templates/ 下的模板文件，输出 schema 提醒 |
 | posttool-write-cite.py | python | 3.9KB | 114L | ⚠ | main | posttool-write-cite.py — PostToolUse:Write|Edit — 检测写入 claude-next.md 时验证教训格式 |
 | posttool-write-lock.py | python | 2.3KB | 78L | ⚠ | main | posttool-write-lock.py — PostToolUse:Edit|Write — 写操作后释放 OMA 并发锁
 Role: 写操作后释放 OMA 并发锁 |

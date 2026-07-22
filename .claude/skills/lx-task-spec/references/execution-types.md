@@ -40,6 +40,6 @@
 . 直接修改文档/注释2. → 跳到 Step 4（无需 Step 3 验证）
 1. 直接修改文档/注释2. → 跳到 Step 4（无需 Step 3 验证）
 ```
-**全类型完成标准**：- ✅ 关键代码已引用（📝 除外）- ✅ `go build ./...` 编译通过（📝 除外），引用实际编译输出- ✅ 变更文件 ≤3（`git diff --name-only | wc -l` 验证）- ✅ 变更文件数 >3 → **立即停止**，升级 lx-task-spec- ✅ debug/fix 重试 ≤2 次（见 `@../../nodes/execute_node.md` 降级触发矩阵，本 skill 上限 2 轮）- ✅ 证据门禁 + 置信度标注（见 `@../../nodes/behavior_rules.md` §1.3 + `@../../task_sys/unified_delivery_schema.md` 证据层级）
+**全类型完成标准**：- ✅ 关键代码已引用（📝 除外）- ✅ `go build ./...` 编译通过（📝 除外），引用实际编译输出- ✅ 变更文件 ≤3（`git diff --name-only | wc -l` 验证）- ✅ 变更文件数 >3 → **立即停止**，升级 lx-task-spec- ✅ debug/fix 重试 ≤2 次（见 `@../../nodes/execute_node.md` 降级触发矩阵，本 skill 上限 2 轮）- ✅ 证据门禁 + 置信度标注（见 `@../../nodes/behavior_rules.md` §1.3 + `@../../references/task-architecture/unified_delivery_schema.md` 证据层级）
 
 ---

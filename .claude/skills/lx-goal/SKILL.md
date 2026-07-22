@@ -109,7 +109,7 @@ lx-goal subagent-log summary
 
 1. 检测：`.omc/state/tokens/lx-goal.json` 存在则读 goal + expires_at
 2. 恢复：读 `.omc/plans/{date}/{slug}/` — research.md / plan.md / executor.md
-3. 继续：从 plan.md 最后一步继续，不需要重新 Phase 0
+3. 继续：检测 token 中最后未完成（status != done）的 step，从该 step 继续。若所有 step 均 done 则跳至退出报告。不需要重新 Phase 0。
 4. 关闭：`lx-goal done` 删锁 → `lx-goal off`
 
 ## 子任务引擎路由

@@ -30,7 +30,7 @@ status: stable
 | 2 | source-mirror | root `.claude/skills/` 与 `source/lx-skills-v5/.claude/skills/` 是否同步 |
 | 3 | version | `harness_version` 是否与 VERSION 文件对齐 |
 | 4 | duplicate-key | frontmatter 是否有重复 key（如 triggers 定义两次） |
-| 5 | references | SKILL.md 引用的 nodes/schemas/task_sys 文件是否存在 |
+| 5 | references | SKILL.md 引用的 nodes/schemas/task-architecture 文件是否存在 |
 | 6 | deps-version | skill-dependencies.yaml 版本号是否与 SKILL.md version 一致 |
 
 ## 执行

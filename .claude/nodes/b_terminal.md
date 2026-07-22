@@ -71,7 +71,7 @@
 
 ## 输出格式
 
-使用 [统一交付 Schema](../task_sys/unified_delivery_schema.md)：
+使用 [统一交付 Schema](../references/task-architecture/unified_delivery_schema.md)：
 - state: `done`（全部 PASS）| `executing`（有 FAIL，返回修复）
 - 产出写入 `.omc/state/{date}/{task_name}/output/acceptance_report.md`
 - 包含：逐条验证表 + 不通过项根因 + 结论

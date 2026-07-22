@@ -27,7 +27,7 @@
 | 阶段 | 触发条件 | 加载文件 | 说明|
 |------|---------|---------|------|
 |**研究阶段** | 需要行为准则（防编造/证据门禁/Git 门禁等） | `@../nodes/behavior_rules.md` | 行为约束规则|
-|**任务驱动** | 用户触发 `/lx-task-spec` | `@../task_sys/orchestrator.md`<br>`@../task_sys/unified_delivery_schema.md` | 状态机 + 输出格式|
+|**任务驱动** | 用户触发 `/lx-task-spec` | `@../references/task-architecture/orchestrator.md`<br>`@../references/task-architecture/unified_delivery_schema.md` | 状态机 + 输出格式|
 |**执行阶段** | 需要实施改动 | `@../nodes/execute_node.md` | 5-Why 根因 + 执行|
 |**验证阶段** | 执行完成，需要验证 | `@../nodes/verifier.md` | re-scan 验证|
 |**报告阶段** | 需要生成报告 | `@../nodes/report_generator.md` | 结构化报告 |
@@ -53,10 +53,10 @@
 ## L3：精确加载（操作触发）
 | 操作 | 触发条件 | 加载文件 | 说明|
 |------|---------|---------|------|
-|**创建任务文件** | 需要创建模板文件 | `@../task_sys/templates/{模板}.md` | 8 种模板|
+|**创建任务文件** | 需要创建模板文件 | `@../references/task-architecture/templates/{模板}.md` | 8 种模板|
 |**修改代码** | 需要编码规范 | `@../kernel.md`（对应章节） | 架构铁律/命名/错误处理/测试|
-|**上下文 >40%** | 触发总结 | `@../task_sys/context_guard.md` | 上下文守卫流程|
-|**回归测试** | 修改治理文件后 | `@../task_sys/mechanism_evals.md` | 机制评估 |
+|**上下文 >40%** | 触发总结 | `@../references/task-architecture/context_guard.md` | 上下文守卫流程|
+|**回归测试** | 修改治理文件后 | `@../references/task-architecture/mechanism_evals.md` | 机制评估 |
 
 ---
 
@@ -70,8 +70,8 @@
 ### @ 引用 vs 普通路径（核心规则）
 | 语法 | 示例 | 行为 | 是否加载内容 | 适用场景|
 |------|------|------|-------------|---------|
-|**@引用** | `@.claude/task_sys/orchestrator.md` | 触发文件读取，注入上下文 | ✅ **是** | 必须读取规则/模板/节点时|
-|**普通路径** | `.claude/task_sys/orchestrator.md` | 仅作文本描述，不读取 | ❌ **否** | 提及文件位置/索引时 |
+|**@引用** | `@.clau../references/task-architecture/orchestrator.md` | 触发文件读取，注入上下文 | ✅ **是** | 必须读取规则/模板/节点时|
+|**普通路径** | `.clau../references/task-architecture/orchestrator.md` | 仅作文本描述，不读取 | ❌ **否** | 提及文件位置/索引时 |
 **渐进式披露执行策略**：
 - CLAUDE.md 中的 `@` 引用是**索引**，仅在触发 skill 或进入对应阶段时才执行读取。
 - 未触发 skill 时，CLAUDE.md 保持轻量，**不加载**任何 L2/L3 文件。

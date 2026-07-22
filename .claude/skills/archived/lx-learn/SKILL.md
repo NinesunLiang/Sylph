@@ -61,8 +61,8 @@ triggers:
 
 | 组件 | 路径 | 用途 |
 |------|------|------|
-| 统一交付 Schema | `../../task_sys/unified_delivery_schema.md` | 输出统一格式 |
-| 上下文守卫 | `../../task_sys/context_guard.md` | 长会话上下文总结 |
+| 统一交付 Schema | `../../references/task-architecture/unified_delivery_schema.md` | 输出统一格式 |
+| 上下文守卫 | `../../references/task-architecture/context_guard.md` | 长会话上下文总结 |
 | SKILL.md 模板 | `../TEMPLATE.md` | 生成新 skill 的模板基准 |
 | skill 生成提示模板 | `../../references/skill_generation_prompts.md` | 按类型生成规则 |
 | lx-validate-skill | `../lx-validate-skill/SKILL.md` | 验证新 skill 合规 |

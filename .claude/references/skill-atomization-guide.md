@@ -74,7 +74,7 @@ Skill 通过复用 `.claude/nodes/` 下的通用节点来组装工作流，避�
 从 `skills/lx-{name}/SKILL.md` 中引用：
 - 通用节点：`../../nodes/{node_name}.md`
 - 通用 Schema：`../../schemas/atomic/{schema_name}.yaml`
-- task_sys 组件：`../../task_sys/{component}.md`
+- task-architecture 组件：`../../references/task-architecture/{component}.md`
 
 ---
 
@@ -138,7 +138,7 @@ Skill 应声明其状态机类型，并说明是否引用 `orchestrator.md`：
 所有跨 SKILL.md 的引用使用相对路径，确保文件移动后仍可解析：
 - Skill → nodes: `../../nodes/{name}.md`
 - Skill → schemas: `../../schemas/{category}/{name}.yaml`
-- Skill → task_sys: `../../task_sys/{name}.md`
+- Skill → task-architecture: `../../references/task-architecture/{name}.md`
 
 ---
 

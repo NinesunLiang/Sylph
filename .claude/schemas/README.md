@@ -7,7 +7,7 @@
 | 目录 | 用途 | 消费者 |
 |------|------|--------|
 | `atomic/` | 基础数据类型 (错误码、裁决、修复记录) | lx-* skills (SKILL.md 引用) |
-| `contract/` | 状态转换合约 | task_sys orchestrator |
+| `contract/` | 状态转换合约 | task-architecture/orchestrator |
 | `input/` | 结构化任务输入 | lx-task-spec |
 | `output/` | 验收报告、规范输出、评审报告 | lx-todo, lx-rpe |
 
