@@ -26,17 +26,18 @@
 python3 .claude/scripts/carros_base.py status
 ```
 
-### 2. 执行 Meta-Oracle 审核
+### 2. 执行运行时验证
 
 ```bash
-# 方式 A：直接运行时验证
-python3 .claude/scripts/runtime_oracle_agent.py review \
+# 方式 A：直接运行时验证（通过 oracle_agent.py）
+python3 .claude/scripts/oracle_agent.py review \
   --task-id <task_id> \
+  --mode runtime \
   --token .omc/tokens/<date>/<task_name>.json \
   --executor .omc/tasks/<date>/<task_name>/executor.md \
-  --audit-dir .omc/state/audit
+  --logs .omc/state/audit
 
-# 方式 B：G1-G4 完整评分
+# 方式 B：G1-G4 完整评分（独立聚合器）
 python3 .claude/scripts/meta_oracle.py score --task <task_id>
 ```
 
