@@ -155,11 +155,33 @@ def main():
     print(f"📋 [Checkpoint] {task_label} — ✅ 完成 | 未提交:{uncommitted} | 待办:{open_todos}", file=sys.stderr)
     print("   📌 下一步: 有未提交→commit | 有待办→/lx-todo | 全清→新任务", file=sys.stderr)
 
+    # ── 自动代码审查（stop 触发时生效）──
+    review_results = ""
+    try:
+        repo_root = str(PROJECT_ROOT) if PROJECT_ROOT else str(Path.cwd())
+        task_dir = str(STATE_DIR.parent) if STATE_DIR else ""
+        env = os.environ.copy()
+        env["CARROROS_ROOT"] = repo_root
+        env["TASK_DIR"] = task_dir
+        r = subprocess.run(
+            [sys.executable, str(_HOOKS_DIR / ".." / "scripts" / "auto-review.py")],
+            capture_output=True, text=True, timeout=10, env=env,
+        )
+        if r.returncode == 0 and r.stdout.strip():
+            review = json.loads(r.stdout)
+            if review.get("finding_count", 0) > 0:
+                review_results = review["summary"]
+    except Exception:
+        pass
+
     # Stop: just output continue. PostToolUse: inject additionalContext
     if event == "Stop":
         output_continue()
     else:
-        output_additional_context(checkpoint, "PostToolUse")
+        combined = checkpoint
+        if review_results:
+            combined += "\n" + review_results
+        output_additional_context(combined, "PostToolUse")
 
     flywheel_event("posttool_checkpoint", "generated", "P2")
 
