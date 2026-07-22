@@ -40,3 +40,8 @@
 | `lib/phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
 
 > 完整脚本列表见 `.claude/scripts/` 目录。docs/carros/reviews/ 为审核参考材料，默认禁止入模。
+
+## 架构决策记录
+
+`.claude/references/adr/INDEX.md` — 架构决策索引（手动管理）。
+
