@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """oracle_agent.py -- Oracle review gate for CarrorOS Base.
 
-Static analysis (Oracle-D) + runtime verification (Oracle-V) + duo mode.
+Static analysis (Oracle-D) + runtime verification (Oracle-V) + duo mode + analyze mode.
 Uses DeepSeek API for LLM-based review, falls back to rule-based scan.
 
 Usage:
-    python3 oracle_agent.py review --task-id <ID> [--mode static|runtime|duo] [--plan <path>] [--executor <path>] [--token <path>] [--logs <path>] [--diff <path>]
+    python3 oracle_agent.py review --task-id <ID> [--mode static|runtime|duo|analyze] [--plan <path>] [--executor <path>] [--token <path>] [--logs <path>] [--diff <path>]
     python3 oracle_agent.py status
     python3 oracle_agent.py bypass <task_id>
 
@@ -306,7 +306,8 @@ def _parse_llm_verdict(llm_text: str) -> dict:
       Evidence: 8/10
     """
     text = llm_text[:3000]
-    result: dict = {"verdict": "ADVISORY", "risk": "LOW", "score": 7.0}
+    result: dict = {"verdict": "ADVISORY", "risk": "LOW", "score": 7.0,
+                    "architecture": None, "evidence": None}
 
     # Extract VERDICT
     m = re.search(r'VERDICT\s*[:\s]\s*(ACCEPT|REJECT|ADVISORY)', text, re.IGNORECASE)
@@ -318,16 +319,26 @@ def _parse_llm_verdict(llm_text: str) -> dict:
     if m:
         result["risk"] = m.group(1).upper()
 
-    # Extract Architecture score
+    # Extract Architecture score (independent dimension)
     m = re.search(r'(?:Architecture|架构)[^:]*[:：]\s*(\d+(?:\.\d+)?)\s*/?\s*10', text, re.IGNORECASE)
     if m:
-        result["score"] = float(m.group(1))
+        result["architecture"] = float(m.group(1))
 
-    # Extract Evidence score if architecture missing
-    if result["score"] == 7.0:
-        m = re.search(r'(?:Evidence|证据)[^:]*[:：]\s*(\d+(?:\.\d+)?)\s*/?\s*10', text, re.IGNORECASE)
-        if m:
-            result["score"] = float(m.group(1))
+    # Extract Evidence score (independent dimension — no longer conflated with Architecture)
+    m = re.search(r'(?:Evidence|证据)[^:]*[:：]\s*(\d+(?:\.\d+)?)\s*/?\s*10', text, re.IGNORECASE)
+    if m:
+        result["evidence"] = float(m.group(1))
+
+    # Composite score: weighted average of Architecture (0.5) and Evidence (0.5) if both present
+    arch = result.get("architecture")
+    evid = result.get("evidence")
+    if arch is not None and evid is not None:
+        result["score"] = round((arch + evid) / 2, 2)
+    elif arch is not None:
+        result["score"] = arch
+    elif evid is not None:
+        result["score"] = evid
+    # else keep default 7.0
 
     return result
 
@@ -360,6 +371,92 @@ def _local_review_prompt(target_text: str) -> str:
         ORACLE_SYSTEM_PROMPT, target_text[:8000])
 
 
+
+# ---- Code complexity metrics for analyze mode ----
+
+
+def _compute_complexity_metrics(diff_text: str) -> dict:
+    """Compute code complexity metrics from a git diff."""
+    metrics: dict = {"files_changed": 0, "additions": 0, "deletions": 0,
+                     "functions_defined": 0, "classes_defined": 0,
+                     "max_indent_level": 0, "warnings": []}
+
+    # File count: lines starting with "+++ b/"
+    files = [l for l in diff_text.split("\n") if l.startswith("+++ b/")]
+    metrics["files_changed"] = len(files)
+
+    # Count added/deleted lines (ignoring diff metadata)
+    for line in diff_text.split("\n"):
+        if line.startswith("+") and not line.startswith("+++"):
+            metrics["additions"] += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            metrics["deletions"] += 1
+
+    # Function/class definitions in the diff (both Python and general)
+    for line in diff_text.split("\n"):
+        stripped = line.lstrip("+ ")
+        if re.match(r'^(async\s+)?def\s+[a-zA-Z_]', stripped) or            re.match(r'^function\s+[a-zA-Z_]', stripped):
+            metrics["functions_defined"] += 1
+        if re.match(r'^class\s+[a-zA-Z_]', stripped):
+            metrics["classes_defined"] += 1
+
+    # Max indentation depth (approximate nesting level)
+    for line in diff_text.split("\n"):
+        if line.startswith("+") and not line.startswith("+++"):
+            stripped_content = line.lstrip("+ ")
+            indent = len(line) - len(line.lstrip())
+            level = indent // 4  # assume 4-space indent
+            if level > metrics["max_indent_level"]:
+                metrics["max_indent_level"] = level
+
+    # Generate warnings
+    if metrics["files_changed"] > 10:
+        metrics["warnings"].append("Large change: {} files modified".format(
+            metrics["files_changed"]))
+    if metrics["functions_defined"] > 15:
+        metrics["warnings"].append("High function count: {} functions defined".format(
+            metrics["functions_defined"]))
+    if metrics["max_indent_level"] > 5:
+        metrics["warnings"].append("Deep nesting detected: indent level {}".format(
+            metrics["max_indent_level"]))
+    if metrics["additions"] > 500:
+        metrics["warnings"].append("Large addition delta: {} lines added".format(
+            metrics["additions"]))
+
+    return metrics
+
+
+# ---- Shared LLM+fallback pipeline (DRY fix, ref C8 Meta-Oracle eval 2026-07-23) ----
+
+def _review_with_llm_fallback(task_id: str, target_text: str,
+                               fallback_fn, *fallback_args) -> dict:
+    """Shared LLM-first + rule-based fallback pipeline.
+
+    Eliminates the ~25-line duplicated LLM-call block that was repeated in
+    both review_static and review_runtime.
+    """
+    if _is_autonomous_mode():
+        target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
+
+    ok, result = _try_llm_model(task_id, target_text[:8000])
+    if ok:
+        parsed = _parse_llm_verdict(result)
+        # Full LLM output preserved for audit trail; first 500 chars in reasons for readability
+        reasons_text = result[:500] + ("..." if len(result) > 500 else "")
+        return {"verdict": parsed["verdict"], "risk": parsed["risk"],
+                "score": parsed["score"],
+                "architecture": parsed.get("architecture"),
+                "evidence": parsed.get("evidence"),
+                "reasons": ["llm: " + reasons_text],
+                "llm_full": result,  # full un-truncated LLM response for audit
+                "mode": "llm", "source": "oracle_agent"}
+
+    result = fallback_fn(*fallback_args)
+    result["mode"] = "rule_fallback"
+    result["source"] = "oracle_agent"
+    return result
+
+
 # ---- Review functions ----
 
 
@@ -380,9 +477,14 @@ def review_static(task_id: str, plan_text: str = "",
     ok, result = _try_llm_model(task_id, target_text[:8000])
     if ok:
         parsed = _parse_llm_verdict(result)
+        # Full LLM output preserved for audit trail; first 500 chars in reasons for readability
+        reasons_text = result[:500] + ("..." if len(result) > 500 else "")
         return {"verdict": parsed["verdict"], "risk": parsed["risk"],
                 "score": parsed["score"],
-                "reasons": ["llm: " + result[:300]],
+                "architecture": parsed.get("architecture"),
+                "evidence": parsed.get("evidence"),
+                "reasons": ["llm: " + reasons_text],
+                "llm_full": result,  # full un-truncated LLM response for audit
                 "mode": "llm", "source": "oracle_agent"}
 
     # Fallback to rule-based
@@ -407,9 +509,14 @@ def review_runtime(task_id: str, executor_text: str = "",
     ok, result = _try_llm_model(task_id, target_text[:8000])
     if ok:
         parsed = _parse_llm_verdict(result)
+        # Full LLM output preserved for audit trail; first 500 chars in reasons for readability
+        reasons_text = result[:500] + ("..." if len(result) > 500 else "")
         return {"verdict": parsed["verdict"], "risk": parsed["risk"],
                 "score": parsed["score"],
-                "reasons": ["llm: " + result[:300]],
+                "architecture": parsed.get("architecture"),
+                "evidence": parsed.get("evidence"),
+                "reasons": ["llm: " + reasons_text],
+                "llm_full": result,  # full un-truncated LLM response for audit
                 "mode": "llm", "source": "oracle_agent"}
 
     # Fallback
@@ -433,16 +540,18 @@ def review_duo(task_id: str, plan_text: str = "",
 
     final_score = round((scores[0] + scores[1]) / 2, 2)
 
+    # Precedence: REJECT > ESCALATE > ADVISORY (low-score) > ACCEPT
+    # ADVISORY + score ≥8.0 → ACCEPT (one conservative reviewer shouldn't sink high-quality work)
     if "REJECT" in verdicts:
         final_verdict = "REJECT"
     elif "ESCALATE" in verdicts:
         final_verdict = "ESCALATE"
-    elif "ADVISORY" in verdicts:
-        final_verdict = "ADVISORY"
+    elif final_score < 6.0:
+        final_verdict = "REJECT"
     elif final_score < 7.0:
         final_verdict = "ADVISORY"
     else:
-        final_verdict = "ACCEPT"
+        final_verdict = "ACCEPT"  # score ≥7.0 and no REJECT/ESCALATE → ACCEPT
 
     return {
         "verdict": final_verdict,
@@ -451,6 +560,43 @@ def review_duo(task_id: str, plan_text: str = "",
         "runtime": runtime_result,
         "mode": "duo",
         "source": "oracle_agent",
+    }
+
+
+
+
+
+def review_analyze(task_id: str, plan_text: str = "",
+                    executor_text: str = "", diff_text: str = "",
+                    logs_text: str = "") -> dict:
+    """Analysis mode: static review + code complexity metrics."""
+    # Run static review first
+    static_result = review_static(task_id, plan_text, executor_text, diff_text)
+    
+    # Compute complexity metrics from diff
+    complexity = _compute_complexity_metrics(diff_text)
+    
+    # Combine findings
+    score = static_result.get("score", 5.0)
+    warnings = complexity.get("warnings", [])
+    
+    # Downgrade score if the size/nesting warnings exist
+    if warnings:
+        score = max(0.0, score - min(len(warnings) * 0.5, 2.0))
+        score = round(score, 2)
+    
+    # Override verdict for very large changes with no warnings is fine
+    verdict = static_result.get("verdict", "ADVISORY")
+    
+    return {
+        "verdict": verdict,
+        "score": score,
+        "risk": static_result.get("risk", "LOW"),
+        "mode": "analyze",
+        "source": "oracle_agent",
+        "static": static_result,
+        "complexity_metrics": complexity,
+        "reasons": static_result.get("reasons", []) + warnings,
     }
 
 
@@ -515,6 +661,8 @@ def cmd_review(args: List[str]) -> int:
         result = review_runtime(task_id, executor, logs)
     elif mode == "duo":
         result = review_duo(task_id, plan, executor, diff, logs)
+    elif mode == "analyze":
+        result = review_analyze(task_id, plan, executor, diff, logs)
     else:
         result = review_static(task_id, plan, executor, diff)
 

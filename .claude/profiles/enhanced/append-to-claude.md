@@ -11,6 +11,8 @@
 
 ## Enhanced 模式：三种任务驱动
 
+**🔴 EnterPlanMode 反劫持规则** — 当用户命令同时包含 `/lx-rpe`、`/lx-task-spec`、`/lx-todo`（或 rpe/task-spec/todo 关键词）和 "plan模式"/"plan mode"/"先规划"/"先做plan" 等词汇时，Enhanced 模式**自有的 Research Gate → Plan Gate 就是计划阶段**。**严禁**调用 EnterPlanMode 工具——那会跳过 Enhanced 的 Phase 1 Research + Phase 2 Plan 两阶段门禁，直接进入只读等待态。正确行为：走 lx-rpe Phase 1→2 或 lx-task-spec stepwise 规划。判断依据：本文件已加载 = Enhanced 模式已激活，"plan" 指 Enhanced 自带的计划流程而非 CC 内置 plan mode。
+
 ### 激活后可用能力
 
 ```plan
@@ -102,6 +104,20 @@ l
 > >
 > **注意**：plan_gate 只在编辑 `rpe/*/executor.md` 或 `rpe/*/plan.md` 时触发，
 > 普通开发文件不受影响，Base 模式用户无感知。
+
+---
+
+## Oracle 质量门禁集成
+
+Enhanced 模式在以下场景触发 Oracle Level 2 三方审核（调用 `python3 .claude/scripts/oracle_agent.py review --mode duo`）：
+
+| 触发场景 | 模式 | Oracle 类型 |
+|----------|------|------------|
+| lx-rpe Phase 3 执行触及敏感路径/跨模块/不可逆操作 | 模式一 | Oracle-D + Oracle-V (duo) |
+| lx-task-spec stepwise 高风险子任务（危险操作/安全变更） | 模式三 | Oracle-D 静态预检 |
+| 连续修复失败 ≥3 轮（触发 L1→L2 升级） | 全部 | Oracle duo + Meta-Oracle G1-G4 |
+
+> Oracle 裁决留痕 → `.omc/state/oracle-verdicts/`。详见 `skills/lx-oracle/SKILL.md` + `autonomous-execution.md` Level 2 裁决链。
 
 ---
 

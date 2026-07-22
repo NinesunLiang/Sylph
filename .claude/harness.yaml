@@ -122,7 +122,7 @@ hooks_enabled:
   pretool_skill_version_guard: false
   pretool_user_correction: false
   pretool_write_lock: false
-  read_tracker: false
+  read_tracker: true  # 启用 read-tracker 防止 claim-audit COLD_START_BLOCK (Meta-Oracle fix 2026-07-23)
   score_archiver: false
   sessionstart_gate_check: false
   skill_flywheel: false

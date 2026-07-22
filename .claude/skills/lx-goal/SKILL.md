@@ -41,6 +41,8 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 
 > **HARD-GATE**: Phase 0 未完成并获用户确认前，不得进入 Phase 1 执行。再简单的任务也不跳过。
 
+**🔴 EnterPlanMode 反劫持规则** — 当用户命令同时包含 `/lx-goal`（或 goal/gost 关键词）和 "plan模式"/"plan mode"/"先规划"/"先做plan" 等词汇时，Phase 0 **本身就是 plan 阶段**（探索→澄清→输出执行计划）。**严禁**调用 EnterPlanMode 工具——那会跳过 Phase 0 的人类澄清窗口，直接进入只读等待态。正确行为：直接在 lx-goal Phase 0 协议内探索+输出计划，不调用额外 plan 工具。判断依据：SKILL.md 已加载 = `/lx-goal` 已触发，"plan" 指的是 Phase 0 而非 CC 内置 plan mode。
+
 1. **🔴 先探索，再提问** — 硬规则。先读项目文件、文档、近期 commits，能自答的问题不问用户
 2. **🔴 一次一个问题** — 硬规则。不堆叠，逐分支推进决策树。违反=重新 Phase 0
 3. **判断任务规模** — 含多个独立子系统 → 先拆解为子项目，逐个进入 Phase 0

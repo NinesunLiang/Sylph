@@ -94,7 +94,8 @@ def main():
     try:
         masked_data = _mask_value(data)
         out = json.dumps(masked_data, ensure_ascii=False)
-        sys.stdout.write(out)
+        sys.stderr.write(out)  # stderr: filtered content
+        print(json.dumps({"continue": True}))  # stdout: continue signal (fix: was missing, caused CC "stopped continuation")
     except Exception:
         # fail-open: 处理异常时不阻塞
         print(json.dumps({"continue": True,

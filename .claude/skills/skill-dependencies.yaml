@@ -93,11 +93,26 @@ skills:
     orchestrator: lx-oma (optional)
     description: 蜂群协调层 — 状态跟踪+冲突协调
 
+  - id: lx-task-spec
+    version: v1.0.0
+    type: specification
+    consumes: [task_requirements]
+    provides: [task_input_yaml, task_spec]
+    references:
+      - lx-rpe     # deep mode delegates to lx-rpe engine
+      - lx-oracle  # stepwise/race 高风险子任务触发 Oracle 静态预检
+    description: Task spec router — light/standard self-contained, deep delegates to lx-stepwise
+
   - id: lx-oracle
     version: v2.0.0
     type: quality-gate
     consumes: [task_evidence, executor_logs, token_files]
     provides: [oracle_verdicts, gate_decisions]
+    references:
+      - lx-goal       # autonomous-execution.md Level2 裁决链依赖 Oracle 三方审核
+      - lx-rpe        # Enhanced 模式 Phase 3 执行触发 Oracle duo
+      - lx-task-spec  # stepwise/race 高风险子任务触发 Oracle 静态预检
+    orchestrator: lx-goal
     description: Oracle quality gate system — static (Oracle-D), runtime (Oracle-V), dual-agent review (Duo)
 
 # ─── 数据契约 ───

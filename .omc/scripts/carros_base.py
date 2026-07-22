@@ -804,10 +804,16 @@ def _run_dual_judge(token: dict) -> int:
     Returns: 0=ACCEPT/ADVISORY（放行）, 2=REJECT（verify 不通过）, 3=ESCALATE（放行但提示人工）。
     """
     task_id = token.get("session", {}).get("id", "unknown")
+    # Primary: unified oracle_agent.py (v2.0.0+)
+    oracle_agent = _hook_dir / "oracle_agent.py"
+    # Legacy fallback: static/runtime/meta are deprecated, keep for backward compat
     static_agent = _hook_dir / "static_oracle_agent.py"
     runtime_agent = _hook_dir / "runtime_oracle_agent.py"
     meta = _hook_dir / "meta_oracle.py"
-    if not (static_agent.exists() and runtime_agent.exists() and meta.exists()):
+    if oracle_agent.exists():
+        # Use unified oracle_agent.py (static+runtime+duo in one script)
+        pass  # caller should prefer oracle_agent.py over legacy scripts
+    elif not (static_agent.exists() and runtime_agent.exists() and meta.exists()):
         print(_yellow("⚠  dual-judge 脚本缺失，跳过（降级为人工复核）"))
         return 0
 

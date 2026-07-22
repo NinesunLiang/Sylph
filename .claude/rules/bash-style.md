@@ -34,3 +34,7 @@
 ## Rule 8：不假设 GNU 工具一定存在
 ❌ sed -i
 ✅ sed -i.bak
+
+## Rule 9：禁止在管道中使用 `xargs` 而不加 `-r` 标志
+❌ find . -name "*.tmp" | xargs rm
+✅ find . -name "*.tmp" | xargs -r rm
