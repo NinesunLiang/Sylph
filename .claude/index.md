@@ -39,4 +39,8 @@
 | `lib/water_level.py` | 三段式水位运行时（Phase 1，已接入） |
 | `lib/phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
 
+## 架构决策记录
+
+`@.claude/references/adr/INDEX.md` — 自动索引，每次新 ADR 产出后刷新。
+
 > 完整脚本列表见 `.claude/scripts/` 目录。docs/carros/reviews/ 为审核参考材料，默认禁止入模。
