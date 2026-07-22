@@ -13,7 +13,7 @@ triggers:
   - "review code"
   - "code review"
 ---
-# lx-code-review — Go 代码质量审查
+# lx-code-review — 通用代码质量审查
 
 ## 原子化声明
 
