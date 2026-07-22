@@ -1,0 +1,15 @@
+# lx-code-review 依赖声明
+# 安装前先检查此文件确认版本兼容性
+
+core:
+  python: ">=3.9"
+  pyyaml: ">=6.0,<7.0"
+  jsonschema: "==4.17.3"
+
+language_packs:
+  rules-go: ">=1.20"
+
+# 可选集成
+optional:
+  ast-grep: ">=0.17.0"
+  prettier: ">=3.0"

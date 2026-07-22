@@ -56,3 +56,16 @@ auto_fix_applied:
   required: false
   default: false
   description: "是否已自动修复"
+
+confidence:
+  type: string
+  required: false
+  default: medium
+  enum: [low, medium, high]
+  description: "置信度：low(<70%)仅建议不自动修, medium(70-85%), high(>85%)"
+
+autofix_level:
+  type: string
+  required: false
+  enum: [safe, review, suggest]
+  description: "自动修复等级：safe可自动落盘, review生成patch, suggest仅建议"
