@@ -1,13 +1,13 @@
 ---
 name: lx-root-cause-analysis
 version: v4.0.0
-description: "Trace recurring Go bugs via Five Whys: evidence chains → confidence scoring → immunity defense."
+description: "Trace recurring bugs via Five Whys: evidence chains → confidence scoring → immunity defense. Language-specific patterns loaded on-demand."
 complexity: intermediate
 when_to_use: "Use when bug recurs after fix, systematic debugging failed, or user says 'root cause', 'keeps happening'."
 argument-hint: "<recurring bug symptom and history>"
 harness_version: ">=6.3.0"
 status: mature
-role: "Five Whys root cause analysis for recurring Go bugs"
+role: "Five Whys root cause analysis — evidence-driven bug tracing, generic framework"
 execution_mode: stepwise
 triggers:
   - "/lx-root-cause-analysis"
@@ -15,7 +15,7 @@ triggers:
 ---
 # lx-root-cause-analysis — 五层 Why + 免疫防护
 
-> **侦探 → 免疫设计师。** 证据链发现根因 → 三重防护免疫复现。
+> **侦探 → 免疫设计师。** 证据链发现根因 → 三重防护免疫复现。语言专项规则在 references/ 按需加载。
 
 ## 原子化声明
 
@@ -34,7 +34,7 @@ Schema: scan_target / context_summary / finding / verdict → `../../schemas/ato
 |------|---------|
 | `references/anti-patterns.md` | anti patterns 阶段 |
 | `references/confidence-scoring.md` | confidence scoring 阶段 |
-| `references/go-root-cause-patterns.md` | go root cause patterns 阶段 |
+| `references/rules-go.md` | 检测到 Go 项目时 |
 | `references/oracle-escalation.md` | oracle escalation 阶段 |
 | `references/phase-five-whys.md` | phase five whys 阶段 |
 | `references/phase-fix-immunity.md` | phase fix immunity 阶段 |
@@ -54,25 +54,21 @@ Schema: scan_target / context_summary / finding / verdict → `../../schemas/ato
 
 ## 入口检查
 
-```bash
-ls go.mod                       # 缺失 → 不适用
-grep "go-zero" go.mod           # 存在 → go-zero 模式
-```
+检测项目类型（go.mod / package.json / pyproject.toml / Cargo.toml）→ 按语言加载对应规则。
 
 ## 执行步骤
 
 ### Phase 1: 症状映射
 
-Agent A（历史 + 已知模式）：git log / claude-next.md → 匹配已知模式
-Agent B（故障链）：错误日志 → 数据流追踪 → `go test -race`
-
-Go 模式 → `references/go-root-cause-patterns.md`
+- Agent A（历史 + 已知模式）：git log / claude-next.md → 匹配已知模式
+- Agent B（故障链）：错误日志 → 数据流追踪
+- 语言专项模式 → `references/rules-<lang>.md`
 
 ### Phase 2: 断点隔离
 
-精确定位预期 vs 实际行为的分叉点。LSP hover/references / ast-grep / go test -race / pprof。
+精确定位预期 vs 实际行为的分叉点。按项目类型使用对应工具。
 
-CP-2 检查点：故障链 → 断点 → 直接原因 → 并发评估 → 初始置信度 [N]/5
+CP-2 检查点：故障链 → 断点 → 直接原因 → 初始置信度 [N]/5
 
 ### Phase 3: 五层 Why + 证据链 → `references/phase-five-whys.md`
 
@@ -90,14 +86,13 @@ CP-3 检查点：故障链 → 断点 → 根因 → 置信度 → 修复目标 
 
 | 场景 | 主路径 | 降级 |
 |------|--------|------|
-| go test -race 不稳定 | 并发根因 | count=50 → count=10 + 人工 |
-| 5-Why 第3层无进展 | 根因分析 | 标注 [根因待定] + 升级 |
+| 测试不稳定 | 根因分析 | 缩小范围 + 人工 |
 
 ## 参考文件
 
 | 文件 | 用途 |
 |------|------|
-| `references/go-root-cause-patterns.md` | Go 症状搜索命令 |
+| `references/rules-go.md` | Go 语言专项根因模式（原名 go-root-cause-patterns.md） |
 | `references/confidence-scoring.md` | 5 维置信度评分标准 |
 | `references/tool-output-rules.md` | 工具输出引用规则 |
 | `references/anti-patterns.md` | 修复反模式 |
