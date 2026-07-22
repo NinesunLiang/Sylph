@@ -1,0 +1,56 @@
+# mode-rules.yaml — 模式优先级、冲突规则、状态机
+---
+mode_priorities:
+  report-only: 100
+  strict: 80
+  fix-with-confirmation: 60
+  fix-safe: 40
+  full: 20
+  fast: 10
+
+resolution_rules:
+  - when:
+      - report-only
+      - fix-safe
+    action: "reject - report-only blocks writes"
+  - when:
+      - report-only
+      - fix-with-confirmation
+    action: "reject - report-only blocks writes"
+  - when:
+      - strict
+      - fast
+    action: "strict wins - warn fast skipped checks bypassed"
+  - when:
+      - full
+      - fast
+    action: "full wins - suppress fast"
+  - default: higher_priority_wins
+
+mode_state_machine:
+  states:
+    - report-only
+    - fix-safe
+    - fix-with-confirmation
+    - strict
+    - fast
+    - full
+  transitions:
+    report-only:
+      to: [fix-safe, full]
+      forbidden: [strict, fix-with-confirmation]
+    fix-safe:
+      to: [report-only, fix-with-confirmation, strict, full]
+      forbidden: [fast]
+    fix-with-confirmation:
+      to: [report-only, fix-safe, strict, full]
+      forbidden: [fast]
+    strict:
+      to: [fix-with-confirmation, full]
+      forbidden: [report-only, fix-safe, fast]
+    fast:
+      to: [full, strict]
+      forbidden: [report-only, fix-safe, fix-with-confirmation]
+    full:
+      to: [fast, report-only, fix-safe]
+      forbidden: [strict, fix-with-confirmation]

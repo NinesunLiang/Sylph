@@ -1,0 +1,29 @@
+# verifier-rules.yaml — verifier 降级条件矩阵
+# 阻断矩阵优先级高于节点降级
+---
+verifier_degradation:
+  build:
+    degradable: false
+    on_failure: partial_report + review_inconclusive
+  schema:
+    degradable: false
+    on_failure: partial_report + review_inconclusive
+  typecheck:
+    degradable: true
+    conditions: [fast, fix-safe]
+    on_degrade: confidence_caps_at_medium
+  test:
+    degradable: true
+    conditions:
+      - mode == fast
+    on_degrade: confidence_caps_at_medium
+  formatter:
+    degradable: true
+    conditions: ["*"]
+    on_degrade: warn_no_confidence_impact
+  lint:
+    degradable: true
+    conditions: ["*"]
+    on_degrade: warn_no_confidence_impact
+
+audit_on_degrade: true

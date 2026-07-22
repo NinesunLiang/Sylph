@@ -1,0 +1,31 @@
+# autofix-policy.yaml — autofix 安全边界的可编程定义
+# 由 policy_enforcer.py 在运行时校验
+---
+autofix_policy:
+  safe:
+    allowed_patterns:
+      - formatting-only
+      - typo-in-comments
+      - import-cleanup
+    forbidden_patterns:
+      - public-api-change
+      - behavior-change
+      - dependency-change
+      - schema-change
+    constraints:
+      max_files: 1
+      max_lines_changed: 50
+      requires_verifier_pass: true
+  review:
+    requires:
+      - show_diff
+      - user_confirmation
+      - verifier_pass_or_override
+    constraints:
+      max_files: 5
+      max_lines_changed: 200
+      requires_diff_display: true
+  suggest:
+    action: report_only
+    constraints:
+      no_file_modification: true
