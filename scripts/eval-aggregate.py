@@ -257,6 +257,7 @@ def generate_report(
     regression: dict[str, Any] | None,
     audit_verdict: dict[str, Any] | None,
     meta: dict[str, Any],
+    weight_config: dict[str, float] | None = None,
 ) -> str:
     """输出 eval-report.md。"""
     lines = [
@@ -293,6 +294,11 @@ def generate_report(
     else:
         lines.append(f"| 回归 | **未跑** | |")
 
+    w_lon = (weight_config or {}).get("longitude", 0.7)
+    w_aud = (weight_config or {}).get("audit", 0.3)
+    if audit_score is not None:
+        combined = round(longitudinal * w_lon + audit_score * w_aud, 2)
+        lines.append(f"| 加权综合分 | **{combined}/10** | 纵向{w_lon*100:.0f}% + 审计{w_aud*100:.0f}% |")
     lines.append(f"| **最终裁定** | **{verdict}** | |")
     lines.append("")
 
@@ -423,9 +429,12 @@ def main() -> int:
     ap.add_argument("--run-regression", action="store_true", help="跑回归后再合成")
     ap.add_argument("--out", default=str(DEFAULT_OUT), help="输出报告路径")
     ap.add_argument("--verbose", action="store_true", help="输出详细信息")
+    ap.add_argument("--longitude-weight", type=float, default=0.7, help="纵向追踪权重(默认0.7)")
+    ap.add_argument("--audit-weight", type=float, default=0.3, help="独立审计权重(默认0.3)")
     args = ap.parse_args()
 
     meta_info = {"scorecard": args.scorecard, "meta_verdict": args.meta_verdict}
+    weight_config = {"longitude": args.longitude_weight, "audit": args.audit_weight}
 
     # 1. 读纵向账本
     scorecard_path = Path(args.scorecard)
@@ -467,7 +476,7 @@ def main() -> int:
         print(f"[verbose] longitudinal={longitudinal} audit={audit_score} Δ={delta} → {verdict}")
 
     # 5. 生成报告
-    report = generate_report(scores, longitudinal, audit_score, delta, verdict, regression, audit_verdict, meta_info)
+    report = generate_report(scores, longitudinal, audit_score, delta, verdict, regression, audit_verdict, meta_info, weight_config)
 
     out_path = Path(args.out)
     out_path.write_text(report, encoding="utf-8")
