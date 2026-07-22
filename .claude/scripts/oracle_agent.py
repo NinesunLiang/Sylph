@@ -45,7 +45,7 @@ ORACLE_SYSTEM_PROMPT = """You are an independent third-party reviewer (Oracle). 
    - HARD-GATE and structural constraints are EXPECTED and NECESSARY, not a risk
    - The autonomous execution guide (references/autonomous-execution.md) handles all blocking scenarios
    - Do NOT flag autonomous guards as MEDIUM/HIGH risk - they are by-design safety features
-5. Do not pass something just because you don't know. Unknown = REJECT
+5. When verdict is ADVISORY or REJECT, provide concrete architecture improvement suggestions (not just reject)
 6. Be specific about what needs to change for ACCEPT"""
 
 DANGEROUS_PATH_PATTERNS = [
@@ -237,7 +237,10 @@ def _runtime_scan_rule_based(executor_text: str, logs_text: str) -> dict:
 
 
 def _get_deepseek_key() -> str:
-    """Get DeepSeek API key from env or shell config."""
+    """Get API key from env or shell config."""
+    key = os.environ.get("ORACLE_API_KEY", "")
+    if key:
+        return key
     key = os.environ.get("DEEPSEEK_API_KEY", "")
     if key:
         return key
@@ -258,14 +261,25 @@ def _get_deepseek_key() -> str:
 
 
 def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
-    """Call DeepSeek API for review. Returns (success, text)."""
+    """Call LLM API for review. Supports configurable model/endpoint. Falls back DeepSeek."""
+
+    model = os.environ.get("ORACLE_MODEL", "deepseek-chat")
+    api_url = os.environ.get("ORACLE_API_URL", "https://api.deepseek.com/v1/chat/completions")
     api_key = _get_deepseek_key()
     if not api_key:
         return False, ""
 
-    api_url = "https://api.deepseek.com/v1/chat/completions"
+    # For non-DeepSeek endpoints, use x-api-key header
+    headers = [
+        "-H", "Content-Type: application/json",
+    ]
+    if "deepseek" in api_url.lower():
+        headers += ["-H", "Authorization: Bearer " + api_key]
+    else:
+        headers += ["-H", "Authorization: Bearer " + api_key]
+
     payload = json.dumps({
-        "model": "deepseek-chat",
+        "model": model,
         "max_tokens": 2000,
         "temperature": 0.0,
         "messages": [
@@ -276,10 +290,8 @@ def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
 
     try:
         r = subprocess.run(
-            ["curl", "-s", "-X", "POST", api_url,
-             "-H", "Content-Type: application/json",
-             "-H", "Authorization: Bearer " + api_key,
-             "-d", payload],
+            ["curl", "-s", "-X", "POST", api_url] + headers +
+            ["-d", payload],
             capture_output=True, text=True, timeout=60,
         )
         if r.returncode != 0:
