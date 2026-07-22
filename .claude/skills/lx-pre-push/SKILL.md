@@ -17,11 +17,17 @@ triggers:
 
 ## 流程
 
+> 每个 Gate 失败时必须设置 `exit code = 1`。任一 Gate 🔴 即停止后续检查，立即输出**阻塞推送**。
+
 ### Gate 0 — Commit Message 规范校验
 
 检查待推送 commits 的 message 格式。
 
-范围：用 `git log origin/main..HEAD --oneline`。若分支非 main 或无远程，降级用 `git log @{push}..HEAD --oneline`。
+范围：
+1. 当前分支名 → 确定目标分支（`git branch -a` 含 `main` / `master` / `develop`）
+2. `git log origin/<target-branch>..HEAD --oneline --no-merges`
+3. 目标分支不存在或新分支无 upstream → 跳过 Gate 0，**不阻塞**（首次推送无历史可对比）
+4. 降级 `git log @{push}..HEAD --oneline`（仅当 upstream 已建立）
 
 ```regex
 ^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,72}
@@ -46,10 +52,12 @@ triggers:
 用 `git diff origin/main..HEAD --stat --name-only` 检查待推送变更：
 
 - `.env*` / `*.pem` / `*.key` / `id_rsa*` / `credentials*` / `secret*` / `token*` → **🔴 阻塞推送**
-- 二进制文件 `>1MB`（jpg/png/ico/bin/dll） → **🟡 警告不阻塞**
+- 二进制文件 `>1MB`（扩展名: .exe .dll .so .dylib .bin .dat .zip .tar.gz .img .iso） → **🟡 警告不阻塞**
 - 注释中的 `TODO`/`FIXME`/`DEBUG`/`console.log`/`print()` → **🟡 警告不阻塞**
 
 ### 最终判定
+
+**每一门独立执行。任一 Gate 标记 🔴，立即 exit 1，不继续执行后续 Gate。**
 
 ```
 📋 lx-pre-push 推送门禁结果
