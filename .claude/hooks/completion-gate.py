@@ -41,6 +41,19 @@ from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, o
 PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
 STATE_DIR = PROJECT_ROOT / ".omc" / "state"
 
+# ─── C8 可维护性: 模块级常量（单点维护，消除散落魔数） ───
+_DEFAULT_SOFT_COMPLETION_WORDS = (
+    "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|"
+    "看起来正常|之前验证过|should be fine|basically done|mostly complete|"
+    "seems to work|probably works|theoretically|should work|looks good"
+)
+_DEFAULT_QUALITY_THRESHOLD = "75"
+_DEFAULT_MIN_EVIDENCE_CHARS = "20"
+_DEFAULT_FRESHNESS_SEC = "300"
+_DEFAULT_REQUIRED_KEYWORD = "VERIFIED"
+_DEFAULT_EVIDENCE_DIR = ".omc/state"
+_FALLBACK_LEVELS_MAP = {2: "降级模式", 3: "紧急模式"}
+
 # ─── Fallback level 机制 ───
 # Level 1（默认）：完整路径，不变
 # Level 2（降级）：finish-length-detected 标记存在时，走简化 3 步链
@@ -148,13 +161,17 @@ def _auto_soft_block(message, autonomous):
 # ─── 证据质量评分 ───
 
 def _evidence_quality_score(content):
-    """评估证据质量评分（4维度），返回 (score, details_list)。"""
+    """评估证据质量评分（5维度），返回 (score, details_list, stats_dict)。
+
+    C4 增强: 结构化证据块校验——executor evidence block 必须含 action/file/command/output/status 六字段。
+    stats_dict 供 BLOCKED 输出路径复用，避免重复计算（C8 可维护性）。
+    """
     fl_count = len(re.findall(r"[\w./-]+\.[a-z]+:\d+", content))
-    fl_score = min(fl_count / 3.0, 1.0) * 40
+    fl_score = min(fl_count / 3.0, 1.0) * 35
 
     cmd_patterns = ["exit.code", r"\bPASS\b", r"\bFAIL\b", "✅", "❌", "test", "build", r"\d+ passed", r"\d+ failed", "VERIFIED"]
     cmd_hits = sum(1 for p in cmd_patterns if re.search(p, content, re.IGNORECASE))
-    cmd_score = min(cmd_hits / 4.0, 1.0) * 30
+    cmd_score = min(cmd_hits / 4.0, 1.0) * 25
 
     multi_patterns = [r"\d+%", r"\d+ms", r"\d+ req", "coverage", "all tests", "zero errors", "edge.case", "regression"]
     multi_hits = sum(1 for p in multi_patterns if re.search(p, content, re.IGNORECASE))
@@ -164,14 +181,54 @@ def _evidence_quality_score(content):
     quant_hits = sum(1 for p in quant_patterns if re.search(p, content))
     quant_score = min(quant_hits / 2.0, 1.0) * 10
 
-    total = fl_score + cmd_score + multi_score + quant_score
+    # C4: 结构化证据块字段校验——6字段全必填（防AI省略字段后的伪验证）
+    struct_fields = 0
+    struct_bits = {}  # C8: 记录每字段命中/未命中供输出
+    _STRUCT_FIELD_PATTERNS = [
+        (r"\*\*证据块|证据块：|evidence.block|##+\s*EV-|###\s*EV-", "证据块标题"),
+        (r"(?m)^\s*[-*+]\s*`?action`?\s*:", "action"),
+        (r"(?m)^\s*[-*+]\s*`?file`?\s*:", "file"),
+        (r"(?m)^\s*[-*+]\s*`?command`?\s*:", "command"),
+        (r"(?m)^\s*[-*+]\s*`?output`?\s*:", "output"),
+        (r"(?m)^\s*[-*+]\s*`?status`?\s*:", "status"),
+    ]
+    for pat, name in _STRUCT_FIELD_PATTERNS:
+        hit = bool(re.search(pat, content))
+        struct_bits[name] = hit
+        if hit:
+            struct_fields += 1
+    struct_score = 0
+    if struct_fields >= 6:
+        struct_score = 10  # 六字段全齐（C4 硬化：必须6/6）
+    elif struct_fields >= 4:
+        struct_score = 5   # 缺关键字段
+
+    # C4: VERIFIED 模板格式检测——证据应为 `VERIFIED: <action> → <result>` 格式
+    # 防AI写"看起来没问题" 等软完成语假冒验证
+    _VERIFIED_TEMPLATE_RE = re.compile(
+        r"VERIFIED:\s*`?[^`\n]+`?\s*(?:→|->|=>)\s*`?[^`\n]+`?",
+        re.IGNORECASE,
+    )
+    if not _VERIFIED_TEMPLATE_RE.search(content):
+        struct_score = max(struct_score - 3, 0)  # 格式不合格扣3分
+
+    total = fl_score + cmd_score + multi_score + quant_score + struct_score
+    stats = {
+        "fl_count": fl_count, "fl_score": fl_score,
+        "cmd_hits": cmd_hits, "cmd_score": cmd_score,
+        "multi_hits": multi_hits, "multi_score": multi_score,
+        "quant_hits": quant_hits, "quant_score": quant_score,
+        "struct_fields": struct_fields, "struct_score": struct_score,
+        "struct_bits": struct_bits,
+    }
     details = [
-        f"file:line refs ({fl_count}处): {fl_score:.0f}/40",
-        f"test/cmd markers ({cmd_hits}处): {cmd_score:.0f}/30",
+        f"file:line refs ({fl_count}处): {fl_score:.0f}/35",
+        f"test/cmd markers ({cmd_hits}处): {cmd_score:.0f}/25",
         f"multi-aspect ({multi_hits}处): {multi_score:.0f}/20",
         f"quantification ({quant_hits}处): {quant_score:.0f}/10",
+        f"structured evidence ({struct_fields}/6字段): {struct_score:.0f}/10",
     ]
-    return int(round(total)), details
+    return int(round(total)), details, stats
 
 
 # ─── 双源证据检测 ───
@@ -225,19 +282,34 @@ def main():
     if finish_length_detected and fallback_level < 2:
         fallback_level = 2
 
-    # 获取配置
-    evidence_dir_str = hc_get("completion_gate.evidence_dir", ".omc/state")
+    # 获取配置（默认值引用模块级常量，C8: 单点维护）
+    evidence_dir_str = hc_get("completion_gate.evidence_dir", _DEFAULT_EVIDENCE_DIR)
     evidence_dir = PROJECT_ROOT / evidence_dir_str
-    freshness_sec = int(hc_get("completion_gate.evidence_freshness_sec", "300"))
-    min_chars = int(hc_get("completion_gate.min_evidence_chars", "20"))
-    req_keyword = hc_get("completion_gate.required_keyword", "VERIFIED")
-    quality_threshold = int(hc_get("completion_gate.quality_threshold", "65"))
-    soft_words_raw = hc_get("completion_gate.soft_completion_words",
-                            "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically done|mostly complete|seems to work|probably works|theoretically|should work|looks good")
+
+    # ── 优先检查 Harness 捕获的证据 ──
+    # harness 从真实命令执行中捕获的输出，比 AI 手写证据更可信
+    # 如果存在最近的 harness 证据，直接跳过 AI 证据文件检查
+    _HARNESS_EVIDENCE_DIR = PROJECT_ROOT / ".omc" / "state" / ".harness-evidence"
+    _harness_ok = False
+    try:
+        if _HARNESS_EVIDENCE_DIR.exists():
+            now_ts = time.time()
+            # 查找最近 10 分钟内的 harness 证据
+            for f in sorted(_HARNESS_EVIDENCE_DIR.iterdir(), reverse=True):
+                if f.suffix == ".json" and now_ts - f.stat().st_mtime < 600:
+                    _harness_ok = True
+                    break
+    except Exception:
+        pass
+    freshness_sec = int(hc_get("completion_gate.evidence_freshness_sec", _DEFAULT_FRESHNESS_SEC))
+    min_chars = int(hc_get("completion_gate.min_evidence_chars", _DEFAULT_MIN_EVIDENCE_CHARS))
+    req_keyword = hc_get("completion_gate.required_keyword", _DEFAULT_REQUIRED_KEYWORD)
+    quality_threshold = int(hc_get("completion_gate.quality_threshold", _DEFAULT_QUALITY_THRESHOLD))
+    soft_words_raw = hc_get("completion_gate.soft_completion_words", _DEFAULT_SOFT_COMPLETION_WORDS)
 
     # ── Fallback Level 2: 简化 3 步链 ──
     if fallback_level >= 2:
-        level_label = {2: "降级模式", 3: "紧急模式"}.get(fallback_level, "降级模式")
+        level_label = _FALLBACK_LEVELS_MAP.get(fallback_level, "降级模式")
 
         # Level 3（紧急）：warning-only 模式，记录但不阻断
         if fallback_level >= 3:
@@ -264,7 +336,7 @@ def main():
         evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
         # 简化步骤 1: 证据存在性检查
-        if not evidence_file.exists():
+        if not evidence_file.exists() and not _harness_ok:
             print(f"[Completion Gate] 证据文件缺失 (simplified check)", file=sys.stderr, flush=True)
             _auto_soft_block("无证据文件（降级模式）", autonomous)
 
@@ -318,7 +390,7 @@ def main():
     # 证据文件路径（当前分钟）
     evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
-    if not evidence_file.exists():
+    if not evidence_file.exists() and not _harness_ok:
         # 从 feature-registry.yaml 读取预期证据级别
         evidence_level_label = "L3"
         registry_path = _HOOKS_DIR.parent / "feature-registry.yaml"
@@ -434,25 +506,27 @@ def main():
         _auto_soft_block(f"证据仅来自 {dual_count}/3 类别", autonomous)
 
     # E3 增强: 证据质量评分
-    quality_score, quality_details = _evidence_quality_score(content)
+    quality_score, quality_details, quality_stats = _evidence_quality_score(content)
     thresh = quality_threshold
 
     if quality_score < thresh:
         print(f"⛔ COMPLETION BLOCKED: 证据质量评分 {quality_score}% < {thresh}% 最低要求。", file=sys.stderr, flush=True)
         print("质量分解与改进方向:", file=sys.stderr, flush=True)
 
-        # 统计各维度
-        fl = len(re.findall(r"[\w./-]+\.[a-z]+:\d+", content))
-        cmd = sum(1 for p in ["exit.code", r"PASS", r"FAIL", "✅", "❌", "test", "build"] if re.search(p, content, re.IGNORECASE))
-        multi = sum(1 for p in [r"\d+%", r"\d+ms", "coverage", "all tests", "edge.case"] if re.search(p, content, re.IGNORECASE))
-        quant = sum(1 for p in [r"\d+/\d+", r"\d+\.\d+"] if re.search(p, content))
-        fl_s = min(fl / 3.0, 1.0) * 40
-        cmd_s = min(cmd / 4.0, 1.0) * 30
-        multi_s = min(multi / 3.0, 1.0) * 20
-        quant_s = min(quant / 2.0, 1.0) * 10
-        total = fl_s + cmd_s + multi_s + quant_s
-        print(f"  总分分解: {total:.0f}/100 = file:line({fl_s:.0f}/40) + test/cmd({cmd_s:.0f}/30) + multi({multi_s:.0f}/20) + quant({quant_s:.0f}/10)", file=sys.stderr, flush=True)
-        print(f"  具体统计: file:line={fl}处(需≥3)  test/cmd={cmd}处(需≥2)  multi={multi}处(需≥2)  quant={quant}处(需≥1)", file=sys.stderr, flush=True)
+        # 统计各维度（复用 _evidence_quality_score 的返回值，避免重复计算）
+        fl = quality_stats["fl_count"]
+        cmd = quality_stats["cmd_hits"]
+        multi = quality_stats["multi_hits"]
+        quant = quality_stats["quant_hits"]
+        struct = quality_stats["struct_fields"]
+        fl_s = quality_stats["fl_score"]
+        cmd_s = quality_stats["cmd_score"]
+        multi_s = quality_stats["multi_score"]
+        quant_s = quality_stats["quant_score"]
+        struct_s = quality_stats["struct_score"]
+        total = fl_s + cmd_s + multi_s + quant_s + struct_s
+        print(f"  总分分解: {total:.0f}/100 = file:line({fl_s:.0f}/35) + test/cmd({cmd_s:.0f}/25) + multi({multi_s:.0f}/20) + quant({quant_s:.0f}/10) + struct({struct_s:.0f}/10)", file=sys.stderr, flush=True)
+        print(f"  具体统计: file:line={fl}处(需≥3)  test/cmd={cmd}处(需≥2)  multi={multi}处(需≥2)  quant={quant}处(需≥1)  struct={struct}字段(需≥4)", file=sys.stderr, flush=True)
 
         # Find weakest area
         candidates = [
@@ -472,15 +546,19 @@ def main():
             pass
         _auto_soft_block(f"证据质量评分过低（{quality_score}%）", autonomous)
 
-    # E5 根因分析门禁
+    # E5 根因分析门禁 + 错误去重（防AI伪装RCA + 防同一症状重复出现）
+    # ── 改进：不只检查字段存在性，还检查内容质量 ──
     rca_content_lines = content
     rca_structured = 0
     rca_has_repro = 0
     rca_repro_evidence = 0
     rca_templated = 0
     rca_has_reference = 0
+    rca_has_quant = 0        # E5增强: RCA含量化数据
+    rca_has_file_line = 0    # E5增强: RCA含具体代码位置
+    rca_depth_score = 0      # E5增强: 综合深度评分
 
-    # 检测1: 结构化字段存在性
+    # 检测: 结构化字段存在性
     if re.search(r"root\.cause[:=].{5,}", content, re.IGNORECASE):
         rca_structured += 1
     if re.search(r"(repro|复现|触发条件).{5,}", content, re.IGNORECASE):
@@ -493,10 +571,26 @@ def main():
     if re.search(r"(根因|原因分析|cause_analysis|根本原因)", content):
         rca_structured += 1
 
+    # E5深度检测1: RCA内容含具体代码位置(file:line)
+    if re.search(r"[a-zA-Z0-9_./-]+\.[a-z]+:\d+", content):
+        rca_has_file_line = 1
+        rca_has_reference = 1
+        rca_depth_score += 2
+
+    # E5深度检测2: RCA内容含量化数据(计数/比率/具体数值)
+    if re.search(r"\d+/\d+|\d+\.\d+%|\d+ passed|\d+ failed|\d+ errors?", content):
+        rca_has_quant = 1
+        rca_depth_score += 2
+
+    # E5深度检测3: RCA内容含验证性命令/操作(不是空头分析)
+    if re.search(r"(verified|测试|tested|confirmed|验证).{5,}(exit|通过|PASS|\d+)", content, re.IGNORECASE):
+        rca_depth_score += 1
+
     # Karpathy test-first: 复现证据
     if rca_has_repro == 1:
         if re.search(r"(FAIL|exit.*[1-9]|Traceback|Error:|assertion.*fail|失败输出|复现命令)", content, re.IGNORECASE):
             rca_repro_evidence = 1
+            rca_depth_score += 1
 
     # B5: 模板化 RCA 检测
     if re.search(r"(占位符|placeholder|待补充|TODO|待确定|TBD|具体.*根据.*情况)", content, re.IGNORECASE):
@@ -505,13 +599,54 @@ def main():
         rca_templated += 1
     if re.search(r"(typical\.common|generic|general.*error|standard.*root)", content, re.IGNORECASE):
         rca_templated += 1
-    # 检测 RCA 是否包含具体 file:line 引用
-    if re.search(r"[a-zA-Z0-9_./-]+\.[a-z]+:\d+", content):
-        rca_has_reference = 1
+
+    # E5跨步错误去重检测: 检查error-dna是否已有相同错误签名在不同步骤重复出现
+    _error_dna_dedup_found = False
+    _error_dna_dedup_steps = []
+    _error_dna_path = STATE_DIR / "error-dna.jsonl"
+    if _error_dna_path.exists():
+        try:
+            error_records = []
+            for line in _error_dna_path.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    try:
+                        error_records.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+            # 按错误类型聚类（使用error字段前40字符作为近似签名）
+            from collections import defaultdict
+            error_clusters = defaultdict(list)
+            for rec in error_records:
+                err_sig = rec.get("error", "")[:40]
+                step = rec.get("step", "unknown")
+                if err_sig.strip():
+                    error_clusters[err_sig].append(step)
+            # 检测: 同错误签名出现在≥3个不同步骤 → 症状反复
+            for sig, steps in error_clusters.items():
+                unique_steps = list(dict.fromkeys(steps))
+                if len(unique_steps) >= 3:
+                    _error_dna_dedup_found = True
+                    _error_dna_dedup_steps = unique_steps
+                    break
+        except Exception:
+            pass
+
+    if _error_dna_dedup_found:
+        print(f"⛔ COMPLETION BLOCKED [E5-dedup]: 检测到同一错误签名在 {len(_error_dna_dedup_steps)} 个不同步骤重复出现", file=sys.stderr, flush=True)
+        print(f"  重复步骤: {', '.join(_error_dna_dedup_steps)}", file=sys.stderr, flush=True)
+        print(f"  症状反复 = AI 在治标不治本（仅处理症状，未消除根因）", file=sys.stderr, flush=True)
+        print(f"  请提供全局根因分析，确认修复项覆盖所有出现该错误的步骤", file=sys.stderr, flush=True)
+        try:
+            consumed.unlink()
+        except OSError:
+            pass
+        _auto_soft_block("E5-dedup 硬阻断: 同错误签名跨步重复", autonomous)
+
+    # E5裁决: 综合深度评分 ≥4 才通过（字段存在性 rca_structured≥2 是旧要求）
+    _rca_passes_depth = rca_depth_score >= 4
 
     if rca_structured < 2:
         if quality_score >= thresh:
-            # 检查 RCA 是否模板化
             if rca_templated >= 1:
                 print(f"⛔ COMPLETION BLOCKED [E5+B5]: 检测到模板化 RCA（占位符/泛泛而谈），请提供具体根因分析。", file=sys.stderr, flush=True)
                 print(f"  RCA 中含模板化表述({rca_templated}处)，缺少具体 file:line 引用。", file=sys.stderr, flush=True)
@@ -525,7 +660,8 @@ def main():
             else:
                 print(f"⛔ COMPLETION BLOCKED [E5]: 证据质量评分 {quality_score}% 已达阈值 {thresh}%，但缺少根因分析。", file=sys.stderr, flush=True)
                 print("  高质量证据表明 AI 有能力完成验证，但未诊断问题根因 — 这是症状混淆风险（E5）。", file=sys.stderr, flush=True)
-                print("  请补充结构化根因分析后重试（需≥2/5字段）。格式示例:", file=sys.stderr, flush=True)
+                print(f"  深度评分: {rca_depth_score}/4 (需≥4)", file=sys.stderr, flush=True)
+                print("  请补充结构化根因分析后重试（需≥2/5字段，含file:line引用和验证性命令）。格式示例:", file=sys.stderr, flush=True)
                 print("    root_cause: <错误签名> / repro: <复现条件> / underlying: <底层原因> / fix_approach: <修复方式>", file=sys.stderr, flush=True)
                 if rca_has_repro == 1 and rca_repro_evidence == 0:
                     print("  ⚠️ [test-first] 复现字段存在但缺少实际失败输出（FAIL/exit非零/Traceback），请补充复现命令+输出。", file=sys.stderr, flush=True)
@@ -538,7 +674,13 @@ def main():
             print("  ⚠️ [E5] RCA 根因分析未检测到。建议在证据中包含根因分析（root cause analysis）以证明修复触及底层原因，而非仅表面修复。", file=sys.stderr, flush=True)
             print("    格式示例: 'root_cause: <错误签名> / <复现条件> / <底层原因> / <修复方式>'", file=sys.stderr, flush=True)
     else:
-        print(f"  ✓ RCA 根因分析已包含（{rca_structured}/5 结构化字段匹配）", file=sys.stderr, flush=True)
+        if not _rca_passes_depth:
+            print(f"  ⚠️ [E5] RCA结构字段已存在({rca_structured}/5)，但深度评分不足({rca_depth_score}/4)", file=sys.stderr, flush=True)
+            print(f"    改进: 补充 file:line 代码引用({'+2' if not rca_has_file_line else '✓'})", file=sys.stderr, flush=True)
+            print(f"          补充量化验证数据({'+2' if not rca_has_quant else '✓'})", file=sys.stderr, flush=True)
+            print(f"          补充验证性命令输出({'+1' if rca_depth_score < 4 else '✓'})", file=sys.stderr, flush=True)
+        else:
+            print(f"  ✓ RCA 根因分析已通过深度检测（结构{rca_structured}/5 + 深度{rca_depth_score}/5）", file=sys.stderr, flush=True)
 
     # P3.4: 质量评分透明输出
     if autonomous:

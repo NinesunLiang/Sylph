@@ -1,0 +1,43 @@
+# Gate Contract — CarrorOS Base
+# 定义 L1/L2 模式下必须运行的 gate、必须产出的证据、阻断规则
+# verify 命令检查此 contract 的 compliance
+schema_version: "1.1"
+
+L1:
+  required_gates:
+    - watermark
+    - sensitive-edit
+    - fallback
+    - action
+    - edit-scope
+    - stall
+  required_evidence:
+    - audit_event: true
+  enforcement:
+    missing_gate: WARN
+    missing_evidence: INFO
+
+L2:
+  required_gates:
+    - watermark
+    - sensitive-edit
+    - fallback
+    - action
+    - edit-scope
+    - stall
+    - secret-scan
+    - plan
+    - verify
+    - oracle
+    - action-loop
+    - numeric-claim
+    - g2-large-file
+    - g3-reviews
+    - g5-wide-glob
+    - g6-budget
+  required_evidence:
+    - audit_event: true
+    - harness_evidence: true
+  enforcement:
+    missing_gate: BLOCK
+    missing_evidence: BLOCK

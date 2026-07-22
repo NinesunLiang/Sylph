@@ -1,0 +1,158 @@
+harness_version: 7.0.0
+mode: relaxed
+
+# ── 项目级 scope（权威来源，AI 不可修改）──
+# 在此列出 AI 任务允许修改的文件/目录路径。
+# 启用后，所有写操作超出此范围将被阻断。
+# 格式: 文件列表或目录列表，支持 glob 模式（src/**/*.py）
+# project:
+#   scope:
+#     - src/**/*.py
+#     - tests/**/*.py
+#     - docs/**/*.md
+
+workflow:
+  doc_root: rpe
+  executor_doc: executor.md
+  plan_doc: plan.md
+  research_doc: research.md
+task_decomposition:
+  require_step_file: true
+  step_file_path: .claude/{YYYY-M-D}/{task}_step.md
+  substep_format: '[ ] {描述} → 验收标准'
+  timeout_minutes: 10
+  max_different_approaches: 3
+  on_exceed_attempts: record_in_step_file_and_continue
+  sync_rule: complete_one_mark_one
+  circuit_breaker_states: Closed → Open → Half-Open
+  half_open_retry: true
+  rollback_declaration: required_for_strict_mode
+knowledge:
+  inject_files: false
+  snapshot_expiry_sec: 86400
+ghost_mode:
+  exit_report_gate: true
+  default_poll_interval: 600
+  default_expiry_hours: 3
+  default_min_iterations: 0
+turn_counter:
+  todo_refresh_interval: 10
+  todo_max_items: 15
+fuzzy_detection:
+  fuzzy_verbs: 继续 优化 修复 改进 完善 处理一下 看一下 搞一下
+lsp_suggest:
+  enabled: true
+completion_gate:
+  min_evidence_chars: 60
+  required_keyword: VERIFIED
+  quality_threshold: 60
+  evidence_freshness_sec: 300
+  soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
+    done|mostly complete|seems to work|probably works|theoretically|should work|looks
+    good
+bash_audit:
+  dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
+  fail_streak_threshold: 3
+  hard_block_threshold: 10
+permission_gate:
+  git_commit_regex: git\s+(commit|add\s+--?all|\badd\b.*-A)
+  git_push_force_regex: git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force
+  git_push_regex: git\s+push\b
+  destructive_regex: \brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b
+  sudo_regex: ^\s*sudo\b|sudo\s
+  gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
+  bypass_regex: base64\s+(-d|--decode).*\|\s*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|\s*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
+  scope_write_regex: current-scope\.txt|sensitive-approved|permission-approved
+  approved_ops_ttl: 1800
+  c1_whitelist: ''
+hooks_enabled:
+  permission_gate: true
+  privacy_gate: true
+  fuzzy_block: true
+  pretool_retry_check: true
+  completion_gate: true
+  context_compressor: true
+  session_resume: true
+  posttool_handoff_writer: true
+  knowledge_condenser: true
+  inject_project_knowledge: true
+  pretool_edit_scope: true
+  lsp_suggest: true
+  context_guard: true
+  blast_radius: true
+  terminal_safety: true
+  posttool_checkpoint: true
+  meta_oracle_trigger: true
+  pretool_plan_gate: true
+  subagent_guard: true
+  auto_snapshot: false
+  build_validator: false
+  cross_platform_smoke_test: false
+  distinct_concept_richner: false
+  ecosystem_probe: false
+  edit_guard: false
+  error_dna: true
+  error_dna_aggregator: false
+  error_dna_auto_fix: false
+  error_dna_shard: false
+  flywheel_report: false
+  intent_tracker: false
+  oracle_gate: false
+  permission_frequency_tracker: false
+  phase_state_tracker: false
+  plan_gate: false
+  posttool_anti_pattern_detect: false
+  posttool_bash_audit: true
+  posttool_claim_audit: true
+  posttool_completion_audit: false
+  posttool_edit_quality: false
+  posttool_error_dna_shard: false
+  posttool_format_gate: false
+  posttool_output_compressor: false
+  posttool_read_cite: false
+  posttool_skill_compliance: false
+  posttool_subagent_audit: false
+  posttool_template_check: false
+  posttool_write_cite: false
+  posttool_write_lock: false
+  pre_ask_guard: false
+  pre_completion_gate: true
+  pre_edit_lsp_check: false
+  pretool_agents_merge: false
+  pretool_approve_detect: false
+  pretool_b1_detect: false
+  pretool_blast_radius: true
+  pretool_compact_writer: false
+  pretool_cruise_check: false
+  pretool_git_gate: false
+  pretool_node_reference: false
+  pretool_oracle_gate: false
+  pretool_purify_gate: false
+  pretool_rules_inject: false
+  pretool_scope_gate: false
+  pretool_sensitive_edit: false
+  pretool_sensitive_file_guard: false
+  pretool_skill_body_enforce: false
+  pretool_skill_version_guard: false
+  pretool_terminal_safety: true
+  pretool_user_correction: false
+  pretool_write_lock: false
+  read_tracker: true
+  score_archiver: false
+  sessionstart_gate_check: false
+  skill_flywheel: false
+  skill_usage_tracker: false
+  stop_drain: false
+  thinking_gate: false
+  token_writer: false
+  turn_counter: false
+  user_correction_detector: false
+terminal_safety:
+  max_command_length: 2000
+fail_closure:
+  security_gates: close
+  quality_gates: close
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true

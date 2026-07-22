@@ -16,6 +16,8 @@
 3. **范围冻结** — 只改 plan.md 声明文件
 4. **隐私防线** — 禁止读 .env / 密钥 / .ssh
 5. **先 init 后动手** — 任务必须先 `carros_base.py init` 再改代码
+6. **数值断言溯源** — 性能/指标类数字必须标来源（file:line/reference/benchmark）
+7. **治理文件不可改** — `.claude/hooks/*` / `scripts/carroros-gates/*` / `settings.json` 受 Gate1 保护
 
 灵魂：验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少
 

@@ -11,6 +11,8 @@ import re
 import subprocess
 import sys
 import time
+import hashlib
+from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -282,6 +284,37 @@ def main():
         combined_parts.append(escape_e3_msg)
     if skill_route_msg:
         combined_parts.append(skill_route_msg)
+
+    # ── Harness Evidence Capture ──
+    # 当验证类命令执行成功时，自动捕获真实命令输出到结构化证据文件
+    # completion-gate 会优先信任这些 harness 记录，而非 AI 手写证据
+    EVIDENCE_DIR = state_dir / ".harness-evidence"
+    _VERIFY_COMMANDS = [
+        r"\bpytest\b", r"\bgo test\b", r"\bgo build\b",
+        r"\bnpm test\b", r"\bnpm run test\b", r"\bcargo test\b",
+        r"\bcargo build\b", r"\bgolangci-lint\b", r"\brg\b.*-c\b",
+        r"\bshellcheck\b", r"\bpython3?\s+-m\s+pytest\b",
+        r"\bnpx\s+(tsc|jest|vitest)\b",
+    ]
+    is_verify = any(re.search(p, command) for p in _VERIFY_COMMANDS)
+    if is_verify and exit_code == "0":
+        try:
+            EVIDENCE_DIR.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+            cmd_hash = hashlib.md5(command.encode()).hexdigest()[:8]
+            ev = {
+                "source": "harness",
+                "command": command[:200],
+                "exit_code": 0,
+                "stdout": (tool_response.get("stdout", "") or "")[:2000],
+                "stderr": (tool_response.get("stderr", "") or "")[:1000],
+                "timestamp": datetime.now().isoformat(),
+                "cwd": os.getcwd(),
+            }
+            ev_file = EVIDENCE_DIR / f"{ts}-{cmd_hash}.json"
+            ev_file.write_text(json.dumps(ev, ensure_ascii=False, indent=2))
+        except Exception:
+            pass
 
     combined_msg = " | ".join(combined_parts)
 
