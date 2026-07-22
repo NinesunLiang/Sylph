@@ -1,6 +1,6 @@
 ---
 name: lx-goal
-version: v1.4.2
+version: v1.5.0
 description: "目标模式 — 一次前置澄清 → 全自动执行 → 退出报告。人类离开后 AI 自主完成所有任务。入口：`/lx-goal` 或 `/executor`"
 when_to_use: "Use when user says 'goal mode', 'lx-goal', '无人值守', '自主执行', `/lx-goal`, `/executor`, or auto-detects a well-defined L2+ task with clear AC"
 argument-hint: "[目标描述] [过期小时=6]"
@@ -39,11 +39,19 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 
 ### Phase 0：前置澄清
 
-1. 解析目标（有完整目标 → 跳过。无参数 → 进入 interactive_prompt 引导问答）
-2. 一次性扫描所有不确定项：范围边界、硬边界预检、外部依赖、能力缺口、风险点、执行顺序、验收条件、过期策略
-3. 输出执行计划（子任务列表 + AC + 依赖 + 风险 + Q 项）
-4. 人类确认后激活：`python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"`
-5. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
+> **HARD-GATE**: Phase 0 未完成并获用户确认前，不得进入 Phase 1 执行。再简单的任务也不跳过。
+
+1. **先探索，再提问** — 先读项目文件、文档、近期 commits，能自答的问题不问用户
+2. **一次一个问题** — 不堆叠，逐分支推进决策树
+3. **判断任务规模** — 含多个独立子系统 → 先拆解为子项目，逐个进入 Phase 0
+4. 一次性扫描所有不确定项：范围边界、硬边界预检、外部依赖、能力缺口、风险点、执行顺序、验收条件、过期策略
+5. 对非平凡任务 → **提出 2-3 种方案**（带权衡 + 你的推荐理由）
+6. 输出执行计划（子任务列表 + AC + 依赖 + 风险 + Q 项）
+7. **自审计划** — 检查执行计划是否有占位符、矛盾、模糊项，修正后再提交
+8. 人类确认后激活：`python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"`
+9. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
+
+> ⚠️ Anti-Pattern: "这任务太简单不需要澄清" — 简单的任务恰恰是未检视假设导致最多返工的地方。澄清可以短（几句话），但不能跳过。
 
 ### Phase 1→N：全自动执行
 
