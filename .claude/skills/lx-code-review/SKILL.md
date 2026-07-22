@@ -15,6 +15,10 @@ triggers:
 ---
 # lx-code-review — 通用代码质量审查
 
+## 零、增量 Review 模式（Git Diff）
+
+每次 review 优先检测增量变更（git diff HEAD），仅分析变更行及影响面。减少全量扫描开销。
+
 ## 原子化声明
 
 | 节点 | 路径 |

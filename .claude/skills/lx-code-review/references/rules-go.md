@@ -60,3 +60,9 @@
 ## 误报排除
 
 标记 FP（不报告）：注释/字符串中 | `//nolint` 且理由合理 | error 已通过其他路径处理 | go-zero 生成代码 | H1 内部函数 → P3 | H2 只读取不分支 → "待确认"
+
+## Go 规则元数据
+每条规则包含:
+- id: go.<category>.<name>
+- severity: critical|high|medium|low
+- autofix: safe|review|suggest
