@@ -215,8 +215,20 @@ def main():
     # ─── 组合违规 ───
     if VIOLATIONS or G1_VIOLATIONS or E6_VIOLATIONS:
         if not _READ_TRACKER_EXISTS and CLAIMED_FILES:
-            VIOLATIONS = ('⚠️ NO_READ_HISTORY: zero files read this session — all file:line claims are unverifiable. '
-                          'Read the referenced file before claiming its content.\n' + VIOLATIONS)
+            # 冷启动保护：read-tracker 为空时首次 WARN 而非 BLOCK
+            # 后续调用如果仍然无 read-tracker → BLOCK
+            _COLD_FILE = STATE_DIR / "claim-audit-cold-warned"
+            if _COLD_FILE.exists():
+                VIOLATIONS = ('⛔ COLD_START_BLOCK: read-tracker 为空（已警告过）。'
+                              '除非误报，请先 Read 文件再引用其内容。\n' + VIOLATIONS)
+            else:
+                VIOLATIONS = ('⚠️ COLD_START_WARN: read-tracker 为空，引用无法验证。'
+                              '首次警告，后续将阻断。请先 Read 文件再引用。\n' + VIOLATIONS)
+                try:
+                    _COLD_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    _COLD_FILE.write_text("1", encoding="utf-8")
+                except OSError:
+                    pass
 
         COMBINED = VIOLATIONS
         if G1_VIOLATIONS:

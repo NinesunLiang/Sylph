@@ -1,5 +1,16 @@
 harness_version: 7.0.0
 mode: relaxed
+
+# ── 项目级 scope（权威来源，AI 不可修改）──
+# 在此列出 AI 任务允许修改的文件/目录路径。
+# 启用后，所有写操作超出此范围将被阻断。
+# 格式: 文件列表或目录列表，支持 glob 模式（src/**/*.py）
+# project:
+#   scope:
+#     - src/**/*.py
+#     - tests/**/*.py
+#     - docs/**/*.md
+
 workflow:
   doc_root: rpe
   executor_doc: executor.md
@@ -105,7 +116,7 @@ hooks_enabled:
   posttool_write_cite: false
   posttool_write_lock: false
   pre_ask_guard: false
-  pre_completion_gate: false
+  pre_completion_gate: true
   pre_edit_lsp_check: false
   pretool_agents_merge: false
   pretool_approve_detect: false
@@ -126,7 +137,7 @@ hooks_enabled:
   pretool_terminal_safety: true
   pretool_user_correction: false
   pretool_write_lock: false
-  read_tracker: false
+  read_tracker: true
   score_archiver: false
   sessionstart_gate_check: false
   skill_flywheel: false

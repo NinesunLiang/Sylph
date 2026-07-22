@@ -29,6 +29,13 @@ def usage():
     sys.exit(1)
 
 def main():
+    # ── 强制交互终端 ──
+    # 防止 AI 在自主模式下自行调用 temp-bypass 绕过门禁
+    if not sys.stdin.isatty():
+        print("ERROR: temp-bypass 需要在交互终端中手动执行", file=sys.stderr)
+        print("       AI 无权自行授权绕过门禁。请在人类终端中执行此命令。", file=sys.stderr)
+        return 1
+
     minutes = 60
     reason = ""
 

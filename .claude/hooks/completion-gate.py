@@ -285,6 +285,22 @@ def main():
     # 获取配置（默认值引用模块级常量，C8: 单点维护）
     evidence_dir_str = hc_get("completion_gate.evidence_dir", _DEFAULT_EVIDENCE_DIR)
     evidence_dir = PROJECT_ROOT / evidence_dir_str
+
+    # ── 优先检查 Harness 捕获的证据 ──
+    # harness 从真实命令执行中捕获的输出，比 AI 手写证据更可信
+    # 如果存在最近的 harness 证据，直接跳过 AI 证据文件检查
+    _HARNESS_EVIDENCE_DIR = PROJECT_ROOT / ".omc" / "state" / ".harness-evidence"
+    _harness_ok = False
+    try:
+        if _HARNESS_EVIDENCE_DIR.exists():
+            now_ts = time.time()
+            # 查找最近 10 分钟内的 harness 证据
+            for f in sorted(_HARNESS_EVIDENCE_DIR.iterdir(), reverse=True):
+                if f.suffix == ".json" and now_ts - f.stat().st_mtime < 600:
+                    _harness_ok = True
+                    break
+    except Exception:
+        pass
     freshness_sec = int(hc_get("completion_gate.evidence_freshness_sec", _DEFAULT_FRESHNESS_SEC))
     min_chars = int(hc_get("completion_gate.min_evidence_chars", _DEFAULT_MIN_EVIDENCE_CHARS))
     req_keyword = hc_get("completion_gate.required_keyword", _DEFAULT_REQUIRED_KEYWORD)
@@ -320,7 +336,7 @@ def main():
         evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
         # 简化步骤 1: 证据存在性检查
-        if not evidence_file.exists():
+        if not evidence_file.exists() and not _harness_ok:
             print(f"[Completion Gate] 证据文件缺失 (simplified check)", file=sys.stderr, flush=True)
             _auto_soft_block("无证据文件（降级模式）", autonomous)
 
@@ -374,7 +390,7 @@ def main():
     # 证据文件路径（当前分钟）
     evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
-    if not evidence_file.exists():
+    if not evidence_file.exists() and not _harness_ok:
         # 从 feature-registry.yaml 读取预期证据级别
         evidence_level_label = "L3"
         registry_path = _HOOKS_DIR.parent / "feature-registry.yaml"

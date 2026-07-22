@@ -89,10 +89,30 @@ def _goal_mode() -> bool:
             pass
     return True
 
+
+def _is_governance(path: str) -> bool:
+    """检查路径是否为治理文件（硬阻断）"""
+    p = path.replace("\\", "/")
+    gov_patterns = [
+        r"(^|/)\.claude/hooks/",
+        r"(^|/)\.claude/settings\.json",
+        r"(^|/)scripts/carroros-gates/",
+        r"(^|/)\.claude/kernel\.md$",
+        r"(^|/)AGENTS\.md$",
+    ]
+    return any(re.search(pat, p, re.IGNORECASE) for pat in gov_patterns)
+
+
 SENSITIVE_PATTERNS = [
     r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
     r"(^|/)\.gcp(/|$)", r"(^|/)\.azure(/|$)", r"id_rsa", r"id_ed25519",
     r"private[_-]?key", r"(^|/)secret\b", r"(^|/)credential(s)?\b", r"(^|/)password\b", r"(^|/)\.[a-z_-]*(token|oauth|jwt|api[_-]?key)[a-z_-]*\b", r"cookie",
+    # ── 治理文件保护域 ──
+    r"(^|/)\.claude/hooks/",       # hook 脚本（AI 不可修改）
+    r"(^|/)\.claude/scripts/",     # 治理工具脚本
+    r"(^|/)\.claude/settings\.json",  # hook 注册配置
+    r"(^|/)scripts/carroros-gates/",    # harness 治理配置
+    r"(^|/)\.harness-evidence/",       # harness 捕获的证据（防篡改）
 ]
 
 DANGEROUS_COMMANDS = [
@@ -375,24 +395,38 @@ def _strip_dot_slash(s: str) -> str:
 def _in_scope(path: str, scope: list[str]) -> bool:
     """Check if a path is within the declared scope.
 
-    修复: 支持绝对路径 vs 相对 scope 的匹配。
-    - scope `.claude/scripts/` 应匹配 `/Users/.../.claude/scripts/verify_gate.py`
-    - scope `.claude/settings.json` 应匹配 `.claude/settings.json`
+    使用 canonical path（realpath）防止 ../ symlink 等路径绕过。
+    支持 glob 通配符（**/*.py 等）。
+    精确匹配和直接父目录匹配，删除宽松前缀匹配（防误放行）。
     """
-    p = _strip_dot_slash(path.replace("\\", "/"))
+    try:
+        p_real = os.path.realpath(path)
+    except Exception:
+        p_real = path.replace("\\\\", "/")
+    p = _strip_dot_slash(p_real)
     for item in scope:
-        s = _strip_dot_slash(item.replace("\\", "/"))
+        s = _strip_dot_slash(item.replace("\\\\", "/"))
+        # glob 模式
+        if "*" in s or "?" in s:
+            import fnmatch
+            if fnmatch.fnmatch(p, s) or fnmatch.fnmatch(os.path.basename(p), s):
+                return True
+            # also try matching against any part of the path
+            parts = p.split("/")
+            for i in range(len(parts)):
+                if fnmatch.fnmatch("/".join(parts[i:]), s):
+                    return True
+            continue
         s_dir = s.rstrip("/")
-        if p == s or p == "/" + s:
+        # 精确匹配
+        if p == s_dir or p == "/" + s_dir:
             return True
-        # 精确匹配: 以 /<scope> 结尾(文件匹配) 或 /<scope>/ 出现(目录匹配)
+        # 直接父目录匹配（路径在 scope 目录下）
+        prefix = s_dir + "/"
+        if p.startswith(prefix) or p.startswith("/" + prefix):
+            return True
+        # 后缀匹配（绝对路径 vs 相对 scope）
         if p.endswith("/" + s_dir):
-            return True
-        # 目录前缀匹配: /<scope>/ 在路径中任意位置出现(支持绝对路径)
-        if "/" + s_dir + "/" in p:
-            return True
-        # 相对路径前缀: scope 开头（相对路径写工具调用）
-        if p.startswith(s_dir + "/") or p.startswith(s):
             return True
     return False
 
@@ -454,12 +488,30 @@ def _auto_init(target_path: str | None = None) -> None:
         pass
 
 def _check_sensitive_edit(payload: dict) -> str | None:
-    """Gate 1: block sensitive path writes only (reads are safe)."""
+    """Gate 1: block sensitive path writes only (reads are safe).
+
+    分层阻断:
+    - 治理文件（hooks/ settings.json gate-contract.yaml AGENTS.md kernel.md）→ 硬阻断 continue:False
+    - 业务敏感文件（.env / .ssh / 密钥）→ 软阻断 continue:True + additionalContext
+    """
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
     path = _extract_path(payload)
-    if path and _is_sensitive(path):
+    if not path:
+        return None
+    # 治理文件 → 硬阻断（独立检查，不依赖 SENSITIVE_PATTERNS）
+    if _is_governance(path):
+        safe = path[:200]
+        print(json.dumps({
+            "continue": False,
+            "message": f"⛔ GOVERNANCE_VIOLATION: write to {safe} — 治理文件不可修改",
+        }, ensure_ascii=False))
+        sys.stderr.write(f"PreToolGate: HARD BLOCK - {safe}\n")
+        _append_audit({"event_type": "governance_hard_block", "path": path, "tool": tool})
+        return "HARD_BLOCK"
+    # 业务敏感文件 → 软阻断
+    if _is_sensitive(path):
         return f"BLOCK 敏感路径 {path}，需要确认后才能修改|请确认是否确实要修改敏感文件。如果确认，请使用临时 bypass 授权"
     return None
 
@@ -766,7 +818,54 @@ def _check_edit_scope(payload: dict) -> str | None:
     except (OSError, ValueError):
         _streak = 0
 
-    # 检查 token scope（比 plan scope 优先）
+    # ── 权威 scope 来源: harness.yaml project.scope ──
+    # 由用户/安装脚本写入，AI 不可修改（治理文件受保护）
+    # 优先于 token.json scope
+    _HARNESS_PATH = ROOT / "scripts" / "carroros-gates" / "harness.yaml"
+    harness_scope = []
+    try:
+        if _HARNESS_PATH.exists():
+            import yaml  # type: ignore
+            with open(_HARNESS_PATH, "r") as _fh:
+                _hdata = yaml.safe_load(_fh) or {}
+            _proj = _hdata.get("project", {}) or {}
+            hs = _proj.get("scope")
+            if isinstance(hs, list):
+                harness_scope = hs
+            elif isinstance(hs, str):
+                harness_scope = [hs]
+    except Exception:
+        pass
+
+    if harness_scope:
+        in_scope = _in_scope(path, harness_scope)
+        if in_scope:
+            if _streak > 0:
+                try:
+                    _STREAK_FILE.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            return None
+        _streak += 1
+        try:
+            _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
+            _STREAK_FILE.write_text(str(_streak), encoding="utf-8")
+        except OSError:
+            pass
+        _append_audit({
+            "event_type": "scope_violation",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": "harness_scope_violation",
+            "path": path,
+            "scope": harness_scope[:10],
+            "violation_streak": _streak,
+        })
+        return (f"BLOCK edit_out_of_scope path={path}|"
+                f"该路径不在项目 scope（harness.yaml project.scope）内。"
+                f"scope 由用户设定，AI 不可修改。如需临时放行，请用户执行 temp-bypass")
+
+    # 检查 token scope
     token_scope = token.get("scope") or []
     if token_scope:
         in_scope = _in_scope(path, token_scope)
@@ -792,51 +891,9 @@ def _check_edit_scope(payload: dict) -> str | None:
             "scope": token_scope[:10],
             "violation_streak": _streak,
         })
-        # E1增强: warn 模式但连续越界≥3次 → 自动升回 BLOCK
-        if os.environ.get("CARROROS_EDIT_SCOPE", "block").lower() == "warn":
-            if _streak >= 3:
-                return (f"BLOCK edit_out_of_scope path={path} (warn逃逸惯性 {_streak}次→升级BLOCK)|"
-                        f"该路径不在 scope 内，且已连续 {_streak} 次越界写入——"
-                        f"warn 模式自动升级。修复: 加入 scope 或使用临时 bypass")
-            return None
         return (f"BLOCK edit_out_of_scope path={path}|"
-                f"该路径不在当前任务 token scope 内。修复: 加入 token scope 或 plan.md ## Scope 段；"
-                f"临时放行: CARROROS_EDIT_SCOPE=warn 或临时 bypass")
-    # 回退到 plan scope 检查
-    task_dir = _task_dir(token)
-    if not task_dir:
-        return None
-    plan_path = task_dir / "plan.md"
-    if not plan_path.exists():
-        return None
-    scope = _parse_scope(plan_path.read_text(encoding="utf-8"))
-    if not scope:
-        return None
-    if not _in_scope(path, scope):
-        _streak += 1
-        try:
-            _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _STREAK_FILE.write_text(str(_streak), encoding="utf-8")
-        except OSError:
-            pass
-        _append_audit({
-            "event_type": "scope_violation",
-            "actor": "hook:pretool-gate",
-            "decision": "BLOCK",
-            "reason": "plan_scope_violation",
-            "path": path,
-            "scope": scope[:10],
-            "violation_streak": _streak,
-        })
-        if os.environ.get("CARROROS_EDIT_SCOPE", "block").lower() == "warn":
-            if _streak >= 3:
-                return (f"BLOCK edit_out_of_scope path={path} (plan scope warn逃逸惯性 {_streak}次→升级BLOCK)|"
-                        f"该路径不在 plan.md scope 内，且已连续 {_streak} 次越界写入——"
-                        f"warn 模式自动升级。修复: 加入 Scope 段或使用临时 bypass")
-            return None
-        return (f"BLOCK edit_out_of_scope path={path}|"
-                f"该路径不在 plan.md ## Scope 声明内。修复: 将其加入 Scope 段；"
-                f"临时放行: CARROROS_EDIT_SCOPE=warn 或临时 bypass")
+                f"该路径不在 token scope 内。修复: 将路径加入 token scope 或使用临时 bypass")
+    # 无 scope 来源 → 放行（无法判定边界）
     if _streak > 0:
         try:
             _STREAK_FILE.unlink(missing_ok=True)
@@ -1293,6 +1350,76 @@ _ACTION_LOOP_ESCALATE_THRESHOLD = 3  # 连续3次NARROW → 升级为BLOCK
 # 惯性执行检测只关注写工具和 Bash（读工具的自然重复是正常行为）
 _ACTION_LOOP_MUTATING_TOOLS = {"write", "edit", "multiedit", "notebookedit", "bash"}
 
+# ── Gate9: 数值断言溯源（E8 防止无来源数值声明）──
+# 拦截写入中 performance/evaluation 语义的数值断言，
+# 要求附带可验证来源（file:line / command output / benchmark ref）
+# 豁免：端口号、版本号、代码行数、配置值、操作计数
+_NUMERIC_CLAIM_PATTERNS = [
+    # 提升/下降类（必须溯源）
+    r"(?:提升|提高|增加|增长|下降|降低|减少|节省|优化)[了约]?\s*\d+(?:\.\d+)?%?",
+    r"(?:性能|速度|响应|延迟|耗时|质量|覆盖率)[^。\n]{0,10}(?:提升|提高|增加|改善|优化|降低|减少)\s*\d+(?:\.\d+)?%?",
+    # 通过率/成功率类
+    r"(?:通过|成功|准确|精确|召回)[率度]\s*(?:达[到至约]|:)?\s*\d+(?:\.\d+)?%",
+    # 比较类
+    r"(?:从|由)\s*\d+[^，。\n]{0,10}(?:提升|下降到|降低到|涨到|减到)\s*\d+",
+    # 倍率类
+    r"\d+(?:\.\d+)?\s*倍(?:的)?(?:性能|速度|提升|加速)?",
+]
+_ALLOWED_NUMERIC_CLAIM_EXEMPTIONS = [
+    r"(?:修复|修复了|添加|添加了|删除|删除了|重构|重构了|实现|实现了|新增|移除了)\s*\d+\s*个",
+    r"(?:第|共)\s*\d+\s*(?:步|个文件|条|次|行)",
+    r"\d+\.\d+\.\d+(?:-\w+)?",  # semver
+    r"(?:端口|port)\s*\d+",  # port numbers
+    r"HTTP[ /]\d+",  # HTTP codes
+    r"状态码[:：]?\s*\d+",
+    r"文件\s*[:：]?\s*[^\s]+\.\w+:\d+",  # file:line
+    r"代码行数[:：]?\s*\d+",
+]
+
+def _check_numeric_claim(payload: dict) -> str | None:
+    """Gate 9: 写入内容中检测无来源的性能/指标类数值断言"""
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS:
+        return None
+    path = _extract_path(payload)
+    if not path or not path.endswith((".md", ".rst", ".txt", ".json", ".yaml", ".yml")):
+        return None
+    ti = _extract_input(payload)
+    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
+    if not content:
+        return None
+    # 不检查代码文件、配置文件、纯数据
+    if any(path.endswith(ext) for ext in (".py", ".js", ".ts", ".go", ".rs", ".c", ".h", ".java")):
+        return None
+    hits = []
+    for pat in _NUMERIC_CLAIM_PATTERNS:
+        for m in re.finditer(pat, content, re.IGNORECASE):
+            text = m.group(0)
+            # 检查豁免
+            exempt = any(re.match(ep, text, re.IGNORECASE) for ep in _ALLOWED_NUMERIC_CLAIM_EXEMPTIONS)
+            # 检查是否已带来源引用
+            has_source = bool(re.search(
+                r'(?:\[已验证|\[已测试|\[内部自检|VERIFIED|source[:：]|来源[:：]|ref[:：]|https?://|[a-zA-Z0-9_./-]+\.[a-z]+:\d+)',
+                text
+            ))
+            if not exempt and not has_source:
+                hits.append(text)
+    if hits:
+        _append_audit({
+            "event_type": "numeric_claim_warning",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": "unverified_numeric_claim",
+            "path": path,
+            "claims": hits[:5],
+        })
+        sample = " | ".join(hits[:3])
+        return (f"BLOCK unverified_numeric_claim path={path}|"
+                f"检测到无来源的数值断言（{sample}）。"
+                f"性能/指标类数值声明必须附带可验证来源（file:line/reference/benchmark）。"
+                f"修复: 在数字后标注来源引用，或使用临时 bypass")
+    return None
+
 def _check_action_loop(payload: dict) -> str | None:
     """Detects repetitive same-action calls (E4 inertial execution guard).
 
@@ -1391,6 +1518,171 @@ def _check_action_loop(payload: dict) -> str | None:
     return None
 
 
+def _check_stall(payload: dict) -> str | None:
+    """检测 AI stall（长时间无有效推进）。
+
+    读取上次工具调用时间戳，如果间隔超过阈值则 WARN。
+    阈值: L1=120s, L2=60s（更严格），仅 goal/auto 模式生效。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS and tool != "bash":
+        return None
+    # 仅在 goal/auto 模式检查
+    goal_mode = _goal_mode()
+    if not goal_mode:
+        return None
+    gate_mode = _get_gate_mode()
+    stall_sec = 120 if gate_mode == "l1" else 60
+    now = datetime.now(timezone.utc).timestamp()
+    _STALL_FILE = OMC / "state" / ".last-tool-ts"
+    try:
+        if _STALL_FILE.exists():
+            last_ts = float(_STALL_FILE.read_text().strip())
+            elapsed = now - last_ts
+            _STALL_FILE.write_text(str(now))
+            if elapsed > stall_sec:
+                _append_audit({
+                    "event_type": "stall_warning",
+                    "actor": "hook:pretool-gate",
+                    "elapsed_sec": int(elapsed),
+                    "threshold": stall_sec,
+                })
+                return f"NARROW stall-detected: 上次工具调用已过 {int(elapsed)}s（阈值 {stall_sec}s）。建议: 检查是否需 compact 恢复上下文"
+    except (OSError, ValueError):
+        pass
+    try:
+        _STALL_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _STALL_FILE.write_text(str(now))
+    except OSError:
+        pass
+    return None
+
+
+def _get_gate_mode() -> str:
+    """读取当前 gate 模式（L1 轻量 / L2 完整）。
+
+    优先级（v3 修正）:
+    CI/non-tty:   harness.yaml > env（环境变量不覆盖治理配置）
+    Interactive:  CLI --mode > harness.yaml > env
+    """
+    # 检测是否为 CI/non-tty 环境
+    is_ci = _is_ci_environment()
+    env_mode = os.environ.get("CARROROS_GATE_MODE", "").lower()
+    # 读取 harness.yaml
+    harness_mode = "l1"
+    try:
+        _HM = ROOT / "scripts" / "carroros-gates" / "harness.yaml"
+        if _HM.exists():
+            import yaml
+            _hd = yaml.safe_load(_HM.read_text(encoding="utf-8")) or {}
+            gm = (_hd.get("project", {}) or {}).get("gate_mode", "l1")
+            if isinstance(gm, str) and gm.lower() in ("l1", "l2"):
+                harness_mode = gm.lower()
+    except Exception:
+        pass
+    # 优先级决策
+    if is_ci:
+        return harness_mode  # CI 环境只信 harness.yaml
+    if env_mode in ("l1", "l2"):
+        return env_mode  # 交互环境 CLI > harness
+    return harness_mode
+
+
+def _is_ci_environment() -> bool:
+    """检测是否为 CI/非交互环境"""
+    return (
+        not sys.stdin.isatty() or
+        os.environ.get("CI") == "true" or
+        os.environ.get("CARROROS_CI_MODE") == "1"
+    )
+
+
+def _validate_bypass_token(token: str) -> bool:
+    """校验 bypass token。
+
+    格式: HMAC-SHA256(secret, nonce + action + timestamp)
+    默认使用文件级 secret（.claude/hooks/.bypass_secret），不存在时返回 False
+    """
+    if not token or len(token) < 8:
+        return False
+    try:
+        _SECRET_FILE = _script_path.parent / ".bypass_secret"
+        if not _SECRET_FILE.exists():
+            return False
+        secret = _SECRET_FILE.read_text(encoding="utf-8").strip()
+        if not secret:
+            return False
+        # Token 格式: <nonce>:<hmac>
+        if ":" not in token:
+            return False
+        parts = token.split(":")
+        if len(parts) != 2:
+            return False
+        import hmac
+        nonce, signature = parts
+        expected = hmac.new(secret.encode(), nonce.encode(), digestmod="sha256").hexdigest()[:16]
+        return hmac.compare_digest(signature, expected)
+    except Exception:
+        return False
+
+
+# ── Per-run Gate Evidence ──
+def _record_gate_decision(gate_name: str, result: str | None, mode: str) -> None:
+    """记录每个 gate 的执行决策到 audit（per-run evidence）"""
+    now = datetime.now(timezone.utc)
+    _append_audit({
+        "event_type": "gate_decision",
+        "gate": gate_name,
+        "mode": mode,
+        "decision": result[:50] if result else "PASS",
+        "timestamp": now.isoformat(),
+    })
+
+
+def _verify_contract_compliance(mode: str, executed_gates: set[str]) -> str | None:
+    """检查当前 mode 的 gate contract 是否满足。
+
+    返回 None 表示通过，返回 str 表示违规详情。
+    """
+    try:
+        _CONTRACT_PATH = ROOT / "scripts" / "carroros-gates" / "gate-contract.yaml"
+        if not _CONTRACT_PATH.exists():
+            return None  # 无 contract 文件不检查
+        import yaml
+        contract = yaml.safe_load(_CONTRACT_PATH.read_text(encoding="utf-8")) or {}
+        mode_cfg = contract.get(mode.upper(), {}) or {}
+        required = mode_cfg.get("required_gates", [])
+        enforcement = mode_cfg.get("enforcement", {}) or {}
+        missing = [g for g in required if g not in executed_gates]
+        if not missing:
+            return None
+        policy = enforcement.get("missing_gate", "INFO")
+        missing_str = ", ".join(missing[:5])
+        if policy == "BLOCK":
+            return f"BLOCK contract-violation: {mode} missing required gates ({missing_str})|请检查 gate-contract.yaml 配置"
+        _append_audit({
+            "event_type": "contract_warning",
+            "mode": mode,
+            "missing_gates": missing,
+            "enforcement": policy,
+        })
+        return None
+    except Exception:
+        return None
+
+# ── L1/L2 Gate 分级 ──
+# L1: 轻量模式（日常任务），仅核心安全门
+# L2: 完整模式（复杂/危险任务），全量 16 Gate
+L1_GATES = [
+    ("watermark", _check_watermark_gate),
+    ("context-critical", _check_context_critical_pause),
+    ("sensitive-edit", _check_sensitive_edit),
+    ("fallback", _check_fallback),
+    ("action", _check_action_gate),
+    ("edit-scope", _check_edit_scope),
+    ("stall", _check_stall),
+]
+
 GATES = [
     ("watermark", _check_watermark_gate),
     ("context-critical", _check_context_critical_pause),
@@ -1409,6 +1701,8 @@ GATES = [
     ("g5-wide-glob", _check_g5_wide_glob),
     ("g6-budget", _check_g6_budget),
     ("action-loop", _check_action_loop),
+    ("stall", _check_stall),
+    ("numeric-claim", _check_numeric_claim),
 ]
 
 
@@ -1421,9 +1715,17 @@ def main() -> int:
 
     _clean_stale_state_token()
 
-    for gate_name, gate_fn in GATES:
+    # ── Gate 按模式选择 ──
+    # L1: 轻量（6 个核心安全门），L2: 全量（16 个 Gate）
+    gate_mode = _get_gate_mode()
+    active_gates = GATES if gate_mode == "l2" else L1_GATES
+
+    executed_gates: set[str] = set()
+    for gate_name, gate_fn in active_gates:
         try:
             result = gate_fn(payload)
+            _record_gate_decision(gate_name, result, gate_mode)
+            executed_gates.add(gate_name)
         except Exception:
             continue
         if result:
@@ -1440,6 +1742,10 @@ def main() -> int:
                 reason = parts[0].replace("BLOCK ", "").strip()
                 suggestion = parts[1].strip() if len(parts) > 1 else ""
                 return _block(reason, suggestion)
+            if result == "HARD_BLOCK":
+                # 硬阻断：_check_sensitive_edit 已打印 continue:False 到 stdout
+                # 直接返回 0，禁止 _ok 覆盖输出
+                return 0
             elif result.startswith("ASK_USER"):
                 parts = result.split("|", 1)
                 reason = parts[0].replace("ASK_USER ", "").strip()
@@ -1457,6 +1763,11 @@ def main() -> int:
                 if not goal_mode:
                     print(f"⚠️ [{gate_name}] {result}", file=sys.stderr, flush=True)
                 continue
+
+    # ── Gate Contract Compliance Check ──
+    contract_result = _verify_contract_compliance(gate_mode, executed_gates)
+    if contract_result and contract_result.startswith("BLOCK"):
+        return contract_result
 
     return _ok(f"ALLOW tool={tool_name}")
 
