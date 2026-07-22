@@ -34,10 +34,19 @@ Request: Based on Go runtime behavior and [framework] architecture constraints, 
 
 ## Oracle 后续动作
 
-1. 以 Oracle 的结论更新 Phase 3 根因结论
-2. 用新证据重新计算置信度
-3. 若置信度 ≥ 18 → 进入 Phase 4
-4. 若仍 < 18 → 调查终止，输出阻断模板
+### 裁决判定
+
+| 裁决 | 含义 | 后续动作 |
+|------|------|---------|
+| ACCEPT | Oracle确认根因正确 | 继续Phase4，用Oracle证据更新置信度 |
+| REJECT | Oracle认为根因不正确 | 置信度≥15→再尝试1次修正假设后提交；<15→ABORT，退出报告标记"Oracle rejected" |
+| ESCALATE | Oracle也无法确定 | 记录blocked_human，退出报告汇总需人为决策项 |
+
+### 超时处理
+
+Oracle审核等待超时30秒 → 降级为ADVISORY → 允许继续但标记低置信度。
+
+ADVISORY 行为：允许继续执行Phase4，但必须标记"低置信度修复"，并在退出报告中突出显示。
 
 ## Artistry Agent（用于并发专项根因）
 
