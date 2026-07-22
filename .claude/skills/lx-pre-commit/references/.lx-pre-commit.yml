@@ -1,6 +1,0 @@
-# lx-pre-commit 配置
-timeout:
-  build: 120    # 编译超时(秒)
-  test: 120     # 测试超时(秒)
-lint: true       # 是否运行 lint
-skip_tests: false # 是否跳过测试
