@@ -1,7 +1,7 @@
 ---
 name: lx-task-spec
 version: v6.0.0
-description: "统一任务驱动机制 — 三种模式：light（原 lx-todo，≤3文件快速闭环）、standard（原 lx-task-spec，需精确AC的中等任务）、deep（原 lx-stepwise，高难度串行攻坚）"
+description: "统一任务驱动机制 — 三种模式：light（原 lx-todo，≤3文件快速闭环）、standard（原 lx-task-spec，需精确AC的中等任务）、deep（调用 lx-stepwise 引擎，高难度串行攻坚）"
 harness_version: ">=6.3.0"
 status: stable
 complexity: intermediate
@@ -40,7 +40,7 @@ schemas:
 
 # lx-task-spec — 统一任务驱动机制
 
-> 合并自 lx-todo v4.0.0 + lx-task-spec v5.1.0 + lx-stepwise v1.0.0
+> **任务路由器**：light/standard 自包含 + deep 委托 lx-stepwise 引擎
 
 三种模式，按复杂度路由：
 
@@ -56,7 +56,8 @@ schemas:
 
 | 特征 | light | standard | deep |
 |------|-------|----------|------|
-| 原 skill | lx-todo | lx-task-spec | lx-stepwise |
+| 原 skill | lx-todo | lx-task-spec | — |
+| 执行引擎 | 自包含 | 自包含 | lx-stepwise（卡片推进器） |
 | 触发 | `/lx-todo` / `quick fix` | `/lx-task-spec` | `stepwise` / `deep debug` |
 | 文件范围 | ≤3 | >3 或需设计 | 不限 |
 | 子任务 | 无 | 可拆分 | 串行深潜 |
