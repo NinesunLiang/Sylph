@@ -1,8 +1,8 @@
 ---
 name: lx-code-review
 version: v4.0.0
-description: "Review & fix Go code: 8 categories, 39 rules covering error handling, concurrency, interface design, performance, robustness, observability."
-when_to_use: "Use after writing Go code, before tests/commit. Trigger: 'review code', 'code review', /lx-code-review."
+description: "代码审查 — 通用框架。支持语言专项规则按需加载。"
+when_to_use: "Use after writing code, before tests/commit. Trigger: 'review code', 'code review', /lx-code-review."
 argument-hint: "[file path, git ref, or function name]"
 harness_version: ">=6.3.0"
 status: stable
@@ -13,7 +13,7 @@ triggers:
   - "review code"
   - "code review"
 ---
-# lx-code-review — Go 代码质量审查
+# lx-code-review — 通用代码质量审查
 
 ## 原子化声明
 
@@ -71,3 +71,11 @@ P0+P1 自动修复 → re-scan 验证 → before/after 对比表。
 | auto-fix 后仍有 P0 | 修复+重审 | 2 次后 BLOCKED |
 | git 不可用 | git diff | 文件列表扫描 |
 | go-style-guide 缺失 | 项目规范 | 内置规范 [降级] |
+
+## 语言检测
+
+1. 用户显式指定 `--lang=go` → 加载 rules-go.md
+2. 文件扩展名统计（.go/.py/.java 占比）→ 加载对应语言规则
+3. 配置文件检测（go.mod/package.json/pom.xml）→ 自动判断
+4. 默认降级到 rules-general.md
+5. 多语言项目 → 按文件类型分语言执行规则
