@@ -41,6 +41,10 @@
           {
             "type": "command",
             "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-bash-audit.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"error-dna.py\""
           }
         ]
       },
@@ -59,6 +63,19 @@
           {
             "type": "command",
             "command": "python3 \".claude/hooks/hook-launcher.py\" \"completion-gate.py\""
+          },
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-checkpoint.py\""
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"read-tracker.py\""
           }
         ]
       }
@@ -70,6 +87,14 @@
             "type": "command",
             "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-user-approve.py\"",
             "timeout": 3000
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/hook-launcher.py\" \"session-resume.py\""
           }
         ]
       }
