@@ -4,19 +4,21 @@
 
 ## 模块索引
 
-### `.claude/` — 公共可复用资产（删除即丢失治理能力）
+## 模块路由
 
-| 目录 | 用途 | 内容结构 |
-|------|------|---------|
-| `hooks/` | CC 治理 hook 脚本 | 每个 hook 一个 `.py` 文件，配套 `harness_core.py` / `harness_lib.py` 共享库 |
-| `nodes/` | 最小公共节点 | 每个节点一个 `.md`，按 `decisions/` `judgments/` 等子目录分类 |
-| `schemas/` | 公共接口定义 | `atomic/`（基本类型） `contract/`（契约） `input/`（输入） `output/`（输出） |
-| `references/` | 公共资源文档 | `adr/` `design-docs/` `templates/` `race/` 等子目录 |
-| `scripts/` | 治理工具脚本 | 核心引擎（`carros_base.py` `oracle_engine.py` 等）+ `lib/` 子模块 |
-| `rules/` | 语言/工具规则 | 每个规则一个 `.md`（如 `bash-style.md` `terminal-safety.md`） |
-| `profiles/` | 项目语言 profile | 每种语言一个子目录（`python/` `go/` `rust/` `node/` `base/`），各含 `harness.yaml` |
-| `skills/` | AI agent skills | 按 category 子目录分组（`carroros/` `devops/` `software-development/` 等） |
-| `workflows/` | 工作流定义+基础设施 | 具体工作流（`front-stepwise/` `frontend-overnight/`）+ `hooks/` 通用基础设施 |
+| 模块 | 入口 | 说明 |
+|------|------|------|
+| hooks/ | [`hooks/index.md`](hooks/index.md) | CC 治理 Hook 脚本（34个） |
+| nodes/ | [`nodes/README.md`](nodes/README.md) | 最小公共节点（12个） |
+| schemas/ | [`schemas/README.md`](schemas/README.md) | 公共接口定义（atomic/contract/input/output） |
+| references/ | [`references/index.md`](references/index.md) | 公共资源文档（adr/design-docs/templates/race） |
+| scripts/ | [`scripts/index.md`](scripts/index.md) | 治理工具脚本（40+ 引擎 + lib/ 子模块） |
+| rules/ | [`rules/index.md`](rules/index.md) | 语言/工具规则 |
+| profiles/ | [`profiles/index.md`](profiles/index.md) | 项目语言 profile（6种语言） |
+| skills/ | [`skills/index.md`](skills/index.md) | AI agent skills（按 category 分组） |
+| workflows/ | [`workflows/index.md`](workflows/index.md) | 工作流定义+基础设施 |
+
+每个模块的 index 文件提供了完整的内容清单和导航入口。
 
 ### `.omc/` — 运行时任务状态（删除不影响治理能力）
 
