@@ -101,7 +101,8 @@ l
 #
 已通过 append-to-claude.md 激活plan_gate: true # Research Gate → Plan Gate 两阶段强制门禁 # 仅对 rpe/{feature}/executor.md 和 plan.md 生效 # 无 rpe/ 目录时自动 fail-open（不影响普通开发）
 ```
-> >
+> **前置依赖**：plan_gate 需 `profiles/base/harness.yaml` 中的 `pretool_plan_gate: true`（该文件 line 115）。若使用 root `harness.yaml`（`plan_gate: false` + `pretool_plan_gate: false`），plan_gate 不会生效。激活 Enhanced 模式时确保 base harness 已加载。
+>
 > **注意**：plan_gate 只在编辑 `rpe/*/executor.md` 或 `rpe/*/plan.md` 时触发，
 > 普通开发文件不受影响，Base 模式用户无感知。
 

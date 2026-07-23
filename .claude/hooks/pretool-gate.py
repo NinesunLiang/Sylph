@@ -113,6 +113,9 @@ SENSITIVE_PATTERNS = [
     r"(^|/)\.claude/settings\.json",  # hook 注册配置
     r"(^|/)scripts/carroros-gates/",    # harness 治理配置
     r"(^|/)\.harness-evidence/",       # harness 捕获的证据（防篡改）
+    # DG-136 fix (2026-07-23): AGENTS.md 软冻结增加机械保护
+    r"(^|/)AGENTS\.md$",             # 项目宪法文件
+    r"(^|/)AGENTS\.compact\.md$",    # 压缩版宪法
 ]
 
 DANGEROUS_COMMANDS = [
@@ -405,7 +408,14 @@ def _in_scope(path: str, scope: list[str]) -> bool:
         p_real = path.replace("\\\\", "/")
     p = _strip_dot_slash(p_real)
     for item in scope:
-        s = _strip_dot_slash(item.replace("\\\\", "/"))
+        s_orig = item.replace("\\\\", "/")
+        # DG-134 fix: 先 realpath（基于 cwd 解析为绝对路径），再 strip
+        # 避免 .claude/ → strip → claude/ → realpath 丢点号的 bug
+        try:
+            s_abs = os.path.realpath(s_orig)
+        except Exception:
+            s_abs = s_orig
+        s = _strip_dot_slash(s_abs)
         # glob 模式
         if "*" in s or "?" in s:
             import fnmatch

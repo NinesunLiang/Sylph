@@ -55,10 +55,17 @@ def _find_active_tokens():
     for tid, date_str, fpath in _iter_tokens():
         try:
             tok = json.loads(fpath.read_text())
-            status = tok.get("task", {}).get("status", "")
+            task = tok.get("task", {})
+            # lx-goal physical lock: task is a string, not a dict
+            if isinstance(task, str):
+                phase = tok.get("phase", "")
+                if phase != "off":
+                    active.append((tid, date_str, fpath, tok))
+                continue
+            status = task.get("status", "") if isinstance(task, dict) else ""
             if status not in ("completed", "archived"):
                 active.append((tid, date_str, fpath, tok))
-        except (json.JSONDecodeError, KeyError, OSError):
+        except (json.JSONDecodeError, KeyError, OSError, AttributeError):
             continue
     return active
 
@@ -111,14 +118,20 @@ def _build_context(active, prompts):
         lines.append("  Start a new task: `carros_base.py init --task-id <NAME>`")
     else:
         for tid, date_str, fpath, tok in active:
-            task = tok.get("task", {})
-            phase = task.get("phase", "?")
-            step = task.get("current_step", "?")
-            status = task.get("status", "?")
+            task_data = tok.get("task", {})
+            if isinstance(task_data, str):
+                # lx-goal physical lock: task is a string, extract from tok directly
+                phase = tok.get("phase", "active")
+                step = tok.get("step", "?")
+                status = "running" if phase != "off" else "completed"
+            else:
+                phase = task_data.get("phase", "?") if isinstance(task_data, dict) else "?"
+                step = task_data.get("current_step", "?") if isinstance(task_data, dict) else "?"
+                status = task_data.get("status", "?") if isinstance(task_data, dict) else "?"
             stats = tok.get("stats", {})
             done = stats.get("done", 0)
             total = stats.get("total", "?")
-            scope = task.get("scope", [])
+            scope = task_data.get("scope", []) if isinstance(task_data, dict) else []
 
             lines.append("  [{}/{}] {} — {} ({})".format(date_str, tid, phase, status, step))
             lines.append("    Done: {}/{}".format(done, total))

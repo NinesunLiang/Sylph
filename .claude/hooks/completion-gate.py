@@ -386,18 +386,33 @@ def main():
         print(json.dumps({"continue": True}))
         sys.exit(0)
 
-    # ── Fallback Level 1（默认）：完整路径不变 ──
-    # 证据文件路径（当前分钟）
-    evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
+    # ── Fallback Level 1（默认）：时间窗口查找最近 evidence ──
+    # DG-138 fix (2026-07-23): 精确分钟匹配 → 跨分钟边界失败 → 死循环
+    # 实证: evidence 写于 HH:MM:01, gate 查于 HH:MM:58, 路径不匹配
+    # 修复: 在 freshness_sec 窗口内查找最近的有效 evidence 文件
+    evidence_file = None
+    _candidates = sorted(
+        [p for p in evidence_dir.glob(".completion-evidence-????????-????")
+         if not p.name.endswith(".consumed") and not p.name.endswith(".tmp")],
+        key=lambda p: p.stat().st_mtime, reverse=True,
+    )
+    for _cand in _candidates:
+        try:
+            if time.time() - _cand.stat().st_mtime < freshness_sec:
+                evidence_file = _cand
+                break
+        except OSError:
+            continue
+    if evidence_file is None:
+        evidence_file = evidence_dir / f".completion-evidence-{datetime.now().strftime('%Y%m%d-%H%M')}"
 
-    if not evidence_file.exists() and not _harness_ok:
+    if (evidence_file is None or not evidence_file.exists()) and not _harness_ok:
         # 从 feature-registry.yaml 读取预期证据级别
         evidence_level_label = "L3"
         registry_path = _HOOKS_DIR.parent / "feature-registry.yaml"
         if registry_path.exists():
             try:
                 content = registry_path.read_text(encoding="utf-8", errors="replace")
-                # 查找 completion-gate 的 evidence_level
                 in_completion_gate = False
                 for line in content.splitlines():
                     if "name: completion-gate" in line:
@@ -408,7 +423,6 @@ def main():
                             evidence_level_label = m.group(1).strip()
                             break
                     elif in_completion_gate and line.strip().startswith("- ") and "name:" not in line:
-                        # End of this entry's properties
                         pass
                     elif in_completion_gate and "name:" in line and "completion-gate" not in line:
                         break
@@ -419,10 +433,13 @@ def main():
         _auto_soft_block("无证据文件", autonomous)
 
     # 证据文件存在，检查新鲜度
-    try:
-        age = time.time() - evidence_file.stat().st_mtime
-        fresh = age < freshness_sec
-    except OSError:
+    if evidence_file is not None:
+        try:
+            age = time.time() - evidence_file.stat().st_mtime
+            fresh = age < freshness_sec
+        except OSError:
+            fresh = False
+    else:
         fresh = False
 
     if not fresh:
