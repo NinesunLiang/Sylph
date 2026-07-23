@@ -1,409 +1,573 @@
 #!/usr/bin/env python3
 """
-meta_oracle.py — Mate Oracle (重构版)
+meta_oracle.py — Meta-Oracle 二阶评审评分器
 
-职责：
-- 元级审核：聚合 static + runtime 裁决（从 oracle_agent.py 的输出文件读取）
-- 对抗性测试：同质化检测、裁决冲突检测
-- 组合使用：可独立调用 CLI，也可被脚本 import 后调用
-- 可单独使用，也可与 oracle_agent.py 组合
+对已完成的任务做回顾性审查：G1-G4 门禁检查 + 加权评分。
+
+G1: 证据质量（file:line 引用、命令输出）
+G2: 范围冻结（只改 plan 声明文件）
+G3: 验收（VERIFIED 标记、verify 事件）
+G4: 哲学一致性（不编造、不软完成、有证据）
 
 Usage:
-    python3 .claude/scripts/meta_oracle.py aggregate --task-id <ID> [--policy static|runtime|duo]
-    python3 .claude/scripts/meta_oracle.py adversarial-test --task-id <ID>
-    python3 .claude/scripts/meta_oracle.py combo --task-id <ID> [--plan <path>] [--executor <path>] [--token <path>] [--logs <path>] [--diff <path>]
-
-退出码: 0=ACCEPT 1=ADVISORY 2=REJECT 3=ESCALATE 4=UNAVAILABLE
+    python3 .claude/scripts/meta_oracle.py score --task <task-id>
+    python3 .claude/scripts/meta_oracle.py score --all
+    python3 .claude/scripts/meta_oracle.py audit [--days 7] [--threshold 6.0]
+    python3 .claude/scripts/meta_oracle.py verify --step S1 [--token <path>]
 """
 
-from __future__ import annotations
-
-import argparse
 import json
-from collections import Counter
+import os
+import re
+import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
-STATE_ROOT = Path(".omc/state")
-VERDICT_DIR = STATE_ROOT / "oracle-verdicts"
-OUT_ROOT = STATE_ROOT / "meta-oracle-verdicts"
+# ── Paths ──
+META_VERDICTS_DIR = Path(".omc/state/meta-oracle-verdicts")
+TOKENS_DIR = Path(".omc/tokens")
+PLANS_DIR = Path(".omc/plan")
+AUDIT_DIR = Path(".omc/state/audit")
 
-RETURN_CODES = {"ACCEPT": 0, "ADVISORY": 1, "REJECT": 2, "ESCALATE": 3, "UNAVAILABLE": 4}
+# ── G1-G4 门禁评分权重 ──
+GATE_WEIGHTS = {
+    "G1": 0.35,  # 证据质量
+    "G2": 0.25,  # 范围冻结
+    "G3": 0.20,  # 验收
+    "G4": 0.20,  # 哲学一致性
+}
+
+# ── 哲学违规模式 ──
+PHILOSOPHY_PATTERNS = {
+    "编造证据": re.compile(r"(我觉得|我认为|应该是|可能需要)\s*(?:修改|加|删|改)"),
+    "软完成": re.compile(r"(完成了|做好了|差不多了|先这样|我觉得可以)"),
+}
 
 
-# ═══════════════════════════════════════════════
-# 工具函数
-# ═══════════════════════════════════════════════
+# ═══════════════════════════════════════════
+# Internal helpers
+# ═══════════════════════════════════════════
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-
-def run_id(prefix: str) -> str:
-    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + f"-{prefix}"
+def _ensure_dirs():
+    META_VERDICTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def read_json(path: Path) -> tuple[dict[str, Any] | None, str | None]:
-    if not path.exists():
-        return None, f"missing file: {path}"
+def _load_json(path) -> dict | None:
+    """安全加载 JSON 文件"""
     try:
-        return json.loads(path.read_text(encoding="utf-8")), None
-    except json.JSONDecodeError as exc:
-        return None, f"malformed JSON: {path}: {exc}"
+        p = Path(path)
+        if not p.exists():
+            return None
+        return json.loads(p.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
 
 
-def _latest_verdict_for(task_id: str) -> dict[str, Any] | None:
-    """从 oracle-verdicts 目录获取最新裁决"""
-    latest = VERDICT_DIR / task_id / "latest.json"
-    data, err = read_json(latest)
-    if data:
-        return data
-    # glob fallback
-    candidates = sorted(VERDICT_DIR.glob(f"{task_id}/*.json"), reverse=True)
-    if candidates:
-        data, _ = read_json(candidates[0])
-        return data
-    return None
+def _find_token_for_task(task_id: str) -> tuple:
+    """找到与 task_id 关联的 token 文件"""
+    for f in sorted(TOKENS_DIR.rglob("*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text())
+            tid = data.get("task_id") or data.get("session", {}).get("id", "")
+            if tid == task_id or task_id in str(f):
+                return data, f
+        except (json.JSONDecodeError, OSError):
+            continue
+    return None, None
 
 
-# ═══════════════════════════════════════════════
-# 聚合
-# ═══════════════════════════════════════════════
+def _find_plan_for_task(task_id: str) -> str:
+    """找到与 task_id 关联的 plan.md"""
+    # 尝试多级深度匹配（支持 .omc/plan/{date}/{taskid}_{time}/plan.md）
+    for f in PLANS_DIR.rglob(f"**/{task_id}/plan.md"):
+        return f.read_text(errors="replace")
+    for f in PLANS_DIR.rglob("**/plan.md"):
+        try:
+            content = f.read_text(errors="replace")
+            if task_id in content[:200]:
+                return content
+        except OSError:
+            continue
+    return ""
 
-def _merge_verdicts(verdicts: list[dict[str, Any]]) -> dict[str, Any]:
-    """合并多个裁决为一个元裁决"""
-    if not verdicts:
-        return {"verdict": "UNAVAILABLE", "score": 0.0, "risk": "HIGH", "reasons": ["no verdicts available"]}
 
-    scores = [float(v.get("score", 5.0)) for v in verdicts if v.get("score") is not None]
-    avg_score = round(sum(scores) / len(scores), 2) if scores else 5.0
+def _find_executor_for_task(task_id: str) -> str:
+    """找到与 task_id 关联的 executor.md"""
+    for f in PLANS_DIR.rglob(f"**/{task_id}/executor.md"):
+        return f.read_text(errors="replace")
+    # fallback: 全局搜索
+    for f in Path(".omc").rglob("**/executor.md"):
+        try:
+            content = f.read_text(errors="replace")
+            if task_id in str(f) or task_id in content[:100]:
+                return content
+        except OSError:
+            continue
+    return ""
 
-    verdict_values = [v.get("verdict", "") for v in verdicts]
-    risks = [v.get("risk", "LOW") for v in verdicts]
 
-    all_reasons: list[str] = []
-    for v in verdicts:
-        for r in v.get("reasons", []):
-            all_reasons.append(r)
+def _find_audit_events(task_id: str) -> list:
+    """找到与 task_id 关联的审计事件"""
+    events = []
+    if AUDIT_DIR.exists():
+        for f in sorted(AUDIT_DIR.glob("*.json"), reverse=True)[:50]:
+            try:
+                data = json.loads(f.read_text())
+                if data.get("task_id", "") == task_id or task_id in str(f):
+                    events.append(data)
+            except (json.JSONDecodeError, OSError):
+                continue
+    return events
 
-    if "REJECT" in verdict_values:
-        final_verdict = "REJECT"
-    elif "ESCALATE" in verdict_values:
-        final_verdict = "ESCALATE"
-    elif "ADVISORY" in verdict_values or avg_score < 7.0:
-        final_verdict = "ADVISORY"
+
+# ═══════════════════════════════════════════
+# G1-G4 门禁
+# ═══════════════════════════════════════════
+
+def _check_evidence(ctx: dict) -> dict:
+    """G1: 证据质量——检查 file:line 引用和命令输出"""
+    text = ctx.get("combined", "")
+    score = 0
+    reasons = []
+
+    # file:line 引用检查
+    file_line_matches = re.findall(r'[\w./-]+\.\w+:\d+', text)
+    if file_line_matches:
+        count = len(file_line_matches)
+        if count >= 3:
+            score += 6
+        elif count >= 1:
+            score += 3
+        reasons.append(f"file:line 引用 {count}处")
     else:
-        final_verdict = "ACCEPT"
+        reasons.append("缺少 file:line 引用")
 
-    if "CRITICAL" in risks:
-        final_risk = "CRITICAL"
-    elif "HIGH" in risks:
-        final_risk = "HIGH"
-    elif "MEDIUM" in risks:
-        final_risk = "MEDIUM"
+    # 命令输出检查
+    has_output = bool(re.search(r'(exit code|exit_code|[✅❌✔✘]|PASS|FAIL|timed out)', text))
+    if has_output:
+        score += 4
+        reasons.append("有命令输出证据")
     else:
-        final_risk = "LOW"
+        reasons.append("缺少命令输出证据")
 
-    return {
-        "verdict": final_verdict,
-        "score": avg_score,
-        "risk": final_risk,
-        "reasons": all_reasons,
+    passed = score >= 6
+    return {"score": min(score, 10), "reasons": reasons, "pass": passed}
+
+
+def _check_scope(ctx: dict) -> dict:
+    """G2: 范围冻结——检查修改是否在 plan 声明范围内"""
+    plan = ctx.get("plan", "")
+    executor = ctx.get("executor", "")
+
+    score = 8  # 默认高分，扣分制
+    reasons = ["未发现范围外修改"]
+
+    # 从 plan.md 提取声明文件
+    plan_files = set()
+    for m in re.findall(r'`([\w./-]+\.\w+)`', plan):
+        # 过滤非目标文件（URL、系统路径等）
+        if m.startswith("http") or m.startswith("/"):
+            continue
+        plan_files.add(m)
+
+    # 从 executor.md 提取操作文件
+    executor_files = set()
+    for m in re.findall(r'`([\w./-]+\.\w+)`', executor):
+        if m.startswith("http") or m.startswith("/"):
+            continue
+        executor_files.add(m)
+
+    # 排除治理文件
+    excluded = {".claude/AGENTS.md", ".claude/kernel.md", ".claude/index.md", ".claude/CLAUDE.md"}
+    outside = executor_files - plan_files - excluded
+
+    if outside:
+        outside_list = list(outside)[:5]
+        score -= 2 * len(outside_list)
+        reasons.append(f"修改 plan 未声明文件: {', '.join(outside_list)}")
+
+    score = max(0, score)
+    return {"score": score, "reasons": reasons, "pass": score >= 5}
+
+
+def _check_verification(ctx: dict) -> dict:
+    """G3: 验收——检查 VERIFIED 标记和 verify 事件"""
+    text = ctx.get("combined", "")
+    audit_events = ctx.get("audit_events", [])
+    token = ctx.get("token", {})
+
+    score = 0
+    reasons = []
+
+    # 1. VERIFIED 标记
+    if "VERIFIED" in text:
+        score += 4
+        reasons.append("有 VERIFIED 标记")
+
+    # 2. 验证关键词
+    if re.search(r'verify|验收|验证通过', text, re.IGNORECASE):
+        score += 2
+        reasons.append("有验证记录")
+
+    # 3. 审计事件
+    verify_events = [e for e in audit_events if e.get("event") == "verify"]
+    if verify_events:
+        score += 3
+        reasons.append(f"审计事件 {len(verify_events)}条")
+
+    # 4. token progress
+    if token and "stats" in token:
+        done = token["stats"].get("done", 0)
+        total = token["stats"].get("total", 0)
+        if total > 0 and done >= total:
+            score += 1
+            reasons.append("所有步骤完成")
+
+    if score == 0:
+        reasons.append("缺少验收证据")
+
+    return {"score": min(score, 10), "reasons": reasons, "pass": score >= 6}
+
+
+def _check_philosophy(ctx: dict) -> dict:
+    """G4: 哲学一致性——检查不编造/不软完成/有证据"""
+    text = ctx.get("combined", "")
+    score = 8
+    reasons = ["哲学一致性检查通过"]
+    violations = []
+
+    # 检测违规
+    for name, pattern in PHILOSOPHY_PATTERNS.items():
+        if pattern.search(text):
+            violations.append(name)
+
+    # 检查无证据断言：行末无 [已验证 标记的断言行
+    unverified_claims = re.findall(r'^(?!.*\[已验证|.*file:line|.*exit.code).*(?:修改了|删除了|创建了|改好了).*$', text, re.MULTILINE)
+    if unverified_claims:
+        violations.append("无证据断言")
+
+    if violations:
+        score -= 3
+        reasons.append(f"违规: {', '.join(violations[:3])}")
+        score = max(0, score)
+
+    return {"score": score, "reasons": reasons, "pass": score >= 5}
+
+
+# ═══════════════════════════════════════════
+# Scoring
+# ═══════════════════════════════════════════
+
+def _calculate_final_score(gate_results: dict, token_data: dict = None) -> float:
+    """加权计算最终评分"""
+    total_weight = sum(GATE_WEIGHTS.values())
+    if total_weight == 0:
+        return 0.0
+
+    weighted = 0.0
+    for gid, result in gate_results.items():
+        w = GATE_WEIGHTS.get(gid, 0)
+        weighted += result["score"] * w
+
+    final_score = weighted / total_weight
+
+    # token progress 修正
+    token_data = token_data or {}
+    if "steps" in token_data:
+        completed = sum(1 for s in token_data["steps"] if s.get("status") == "completed")
+        total = len(token_data["steps"])
+        if total > 0:
+            progress = completed / total
+            final_score = final_score * 0.8 + (progress * 10) * 0.2
+
+    return round(final_score, 1)
+
+
+def _collect_context(task_id: str, token_data: dict = None) -> dict:
+    """收集评审所需的所有上下文"""
+    ctx = {"task_id": task_id}
+
+    plan = _find_plan_for_task(task_id)
+    executor = _find_executor_for_task(task_id)
+    audit_events = _find_audit_events(task_id)
+
+    ctx["plan"] = plan
+    ctx["executor"] = executor
+    ctx["audit_events"] = audit_events
+
+    if token_data:
+        ctx["token"] = token_data
+
+    # 合并所有文本用于模式匹配
+    parts = [plan, executor]
+    if token_data:
+        parts.append(json.dumps(token_data, indent=2))
+    ctx["combined"] = "\n".join(parts)
+
+    return ctx
+
+
+# ═══════════════════════════════════════════
+# Public API
+# ═══════════════════════════════════════════
+
+def score_task(task_id: str) -> dict:
+    """对单个任务完整评分"""
+    _ensure_dirs()
+
+    token_data, token_file = _find_token_for_task(task_id)
+    ctx = _collect_context(task_id, token_data)
+
+    # G1-G4 门禁检查
+    gate_results = {}
+    all_pass = True
+    gate_checks = {
+        "G1": _check_evidence,
+        "G2": _check_scope,
+        "G3": _check_verification,
+        "G4": _check_philosophy,
     }
 
+    for gid, check_fn in gate_checks.items():
+        result = check_fn(ctx)
+        gate_results[gid] = result
+        if not result["pass"]:
+            all_pass = False
 
-# ═══════════════════════════════════════════════
-# 对抗性测试
-# ═══════════════════════════════════════════════
+    final_score = _calculate_final_score(gate_results, token_data)
 
-def detect_homogenization(verdicts: list[dict[str, Any]]) -> tuple[bool, float, list[str]]:
-    """
-    检测同质化——如果多个裁决的输出极端相似，标记告警。
+    # 裁决
+    if final_score >= 8.0 and all_pass:
+        verdict = "ACCEPT"
+    elif final_score >= 5.0:
+        verdict = "ADVISORY"
+    else:
+        verdict = "REJECT"
 
-    Returns:
-        (is_homogenized: bool, penalty: float, details: list[str])
-    """
-    if len(verdicts) < 2:
-        return False, 0.0, []
+    meta_result = {
+        "task_id": task_id,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "final_score": final_score,
+        "verdict": verdict,
+        "gates": {
+            gid: {
+                "score": r["score"],
+                "pass": r["pass"],
+                "reasons": r["reasons"],
+            }
+            for gid, r in gate_results.items()
+        },
+    }
 
-    # 检查 verdict 是否完全一致
-    verdict_set = set(v.get("verdict", "") for v in verdicts if v.get("verdict"))
-    if len(verdict_set) == 1 and len(verdicts) >= 2:
-        details = ["所有裁决 verdict 完全一致，疑似同质化"]
-        return True, 2.0, details
+    # 保存
+    ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    out = META_VERDICTS_DIR / f"meta-{task_id}-{ts}.json"
+    with open(out, "w") as f:
+        json.dump(meta_result, f, indent=2, ensure_ascii=False)
 
-    # 检查 score 是否极端接近（差值 <= 0.5）
-    scores = [v.get("score", 0) for v in verdicts if v.get("score") is not None]
-    if len(scores) >= 2:
-        max_diff = max(scores) - min(scores)
-        if max_diff <= 0.5:
-            details = [f"score 差异极小 (max_diff={max_diff}), 疑似同质化"]
-            return True, 1.0, details
-
-    return False, 0.0, []
-
-
-def detect_contradiction(verdicts: list[dict[str, Any]]) -> tuple[bool, list[str]]:
-    """检测裁决冲突——ACCEPT vs REJECT 等极端冲突"""
-    if len(verdicts) < 2:
-        return False, []
-
-    verdict_set = set(v.get("verdict", "") for v in verdicts if v.get("verdict"))
-    details: list[str] = []
-
-    if "ACCEPT" in verdict_set and "REJECT" in verdict_set:
-        details.append("极端冲突: 存在 ACCEPT 与 REJECT 对立裁决")
-
-    return bool(details), details
+    return meta_result
 
 
-# ═══════════════════════════════════════════════
-# 核心逻辑
-# ═══════════════════════════════════════════════
+def score_all() -> list:
+    """评分所有活跃任务"""
+    _ensure_dirs()
+    results = []
 
-def aggregate_verdicts(task_id: str, policy: str = "duo") -> dict[str, Any]:
-    """
-    聚合 task_id 对应的所有 oracle 裁决。
+    if not TOKENS_DIR.exists():
+        return results
 
-    支持策略:
-    - static: 只聚合静态裁决
-    - runtime: 只聚合运行时裁决
-    - duo: 聚合所有可用裁决
-    """
-    verdict_dir = VERDICT_DIR / task_id
-    reasons: list[str] = []
-    evidence: list[dict[str, Any]] = []
+    for f in TOKENS_DIR.rglob("*.json"):
+        try:
+            data = json.loads(f.read_text())
+            task_id = data.get("task_id", "") or data.get("session", {}).get("id", f.stem)
+            if data.get("status") == "archived":
+                continue
+            result = score_task(task_id)
+            results.append(result)
+        except Exception:
+            continue
 
-    # 读取所有可用裁决
-    all_verdicts: list[dict[str, Any]] = []
-    latest_path = verdict_dir / "latest.json"
-    if latest_path.exists():
-        data, err = read_json(latest_path)
-        if data:
-            all_verdicts.append(data)
-            evidence.append({
-                "file": str(latest_path),
-                "verdict": data.get("verdict"),
-                "score": data.get("score"),
-            })
+    return results
 
-    # 如果 latest.json 不够，尝试读取其他 oracle-verdict JSON
-    if not all_verdicts:
-        for f in sorted(verdict_dir.glob("oracle-*.json"), reverse=True):
-            data, err = read_json(f)
-            if data:
-                all_verdicts.append(data)
-                evidence.append({
-                    "file": str(f),
-                    "verdict": data.get("verdict"),
-                })
-                if len(all_verdicts) >= 3:
-                    break
 
-    # 尝试兼容 model-oracle-verdicts
-    model_dir = Path(".omc/state/model-oracle-verdicts") / task_id
-    if model_dir.exists():
-        for f in sorted(model_dir.glob("*.json"), reverse=True):
-            if f.name == "latest.json":
-                data, _ = read_json(f)
-                if data:
-                    all_verdicts.append({**data, "_from": "model"})
-                    evidence.append({
-                        "file": str(f),
-                        "verdict": data.get("verdict"),
-                        "verdict_agent": data.get("agent"),
-                    })
+# ═══════════════════════════════════════════
+# CLI commands
+# ═══════════════════════════════════════════
 
-    if not all_verdicts:
-        return {
-            "version": 2,
-            "agent": "meta_oracle",
-            "task_id": task_id,
-            "run_id": run_id("meta"),
-            "verdict": "ESCALATE",
-            "risk": "HIGH",
-            "score": 0.0,
-            "evidence": [],
-            "reasons": ["无可用裁决"],
-            "checks": {"verdicts_loaded": 0, "homogenization": None, "contradiction": None},
-            "timestamp": utc_now(),
-            "meta": {"policy": policy},
+def cmd_score(args: list) -> int:
+    task_id = None
+    all_tasks = False
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--task" and i + 1 < len(args):
+            task_id = args[i + 1]
+            i += 2
+        elif args[i] == "--all":
+            all_tasks = True
+            i += 1
+        else:
+            i += 1
+
+    if all_tasks:
+        results = score_all()
+        if not results:
+            print(json.dumps({"error": "No active tasks found"}, ensure_ascii=False))
+            return 0
+        summary = {
+            "total": len(results),
+            "accepted": sum(1 for r in results if r["verdict"] == "ACCEPT"),
+            "advisory": sum(1 for r in results if r["verdict"] == "ADVISORY"),
+            "rejected": sum(1 for r in results if r["verdict"] == "REJECT"),
+            "avg_score": round(sum(r["final_score"] for r in results) / len(results), 1),
         }
+        print(json.dumps({"summary": summary, "tasks": results}, indent=2, ensure_ascii=False))
+        return 0
 
-    # 合成
-    merged = _merge_verdicts(all_verdicts)
+    if task_id:
+        result = score_task(task_id)
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+        return 0
 
-    # 对抗性测试
-    is_homo, homo_penalty, homo_details = detect_homogenization(all_verdicts)
-    is_contra, contra_details = detect_contradiction(all_verdicts)
+    print("Usage: meta_oracle.py score --task <task-id> | --all")
+    return 1
 
-    if is_homo:
-        merged["score"] = max(0.0, merged["score"] - homo_penalty)
-        reasons.extend(homo_details)
-        if merged["verdict"] == "ACCEPT" and merged["score"] < 7.0:
-            merged["verdict"] = "ADVISORY"
 
-    if is_contra:
-        merged["verdict"] = "ESCALATE"
-        reasons.extend(contra_details)
+def cmd_audit(args: list) -> int:
+    """审计近期任务质量"""
+    days = 7
+    threshold = 6.0
 
-    reasons.extend(merged.get("reasons", []))
+    i = 0
+    while i < len(args):
+        if args[i] == "--days" and i + 1 < len(args):
+            try:
+                days = int(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        elif args[i] == "--threshold" and i + 1 < len(args):
+            try:
+                threshold = float(args[i + 1])
+            except ValueError:
+                pass
+            i += 2
+        else:
+            i += 1
 
-    return {
-        "version": 2,
-        "agent": "meta_oracle",
-        "task_id": task_id,
-        "run_id": run_id("meta"),
-        "verdict": merged["verdict"],
-        "risk": merged.get("risk", "LOW"),
-        "score": merged["score"],
-        "evidence": evidence,
-        "reasons": reasons[:20],
-        "checks": {
-            "verdicts_loaded": len(all_verdicts),
-            "homogenization": {"detected": is_homo, "penalty": homo_penalty},
-            "contradiction": {"detected": is_contra},
+    cutoff = time.time() - days * 86400
+    results = []
+
+    for f in sorted(META_VERDICTS_DIR.glob("meta-*.json"), reverse=True):
+        if f.stat().st_mtime < cutoff:
+            continue
+        try:
+            data = json.loads(f.read_text())
+            results.append(data)
+        except Exception:
+            continue
+
+    if not results:
+        print(json.dumps({"message": f"过去 {days} 天无 Meta-Oracle 裁决"}, ensure_ascii=False))
+        return 0
+
+    below_threshold = [r for r in results if r.get("final_score", 10) < threshold]
+
+    summary = {
+        "period": f"过去 {days} 天",
+        "total_reviews": len(results),
+        "verdicts": {
+            "ACCEPT": sum(1 for r in results if r.get("verdict") == "ACCEPT"),
+            "ADVISORY": sum(1 for r in results if r.get("verdict") == "ADVISORY"),
+            "REJECT": sum(1 for r in results if r.get("verdict") == "REJECT"),
         },
-        "bypass": {"active": False, "reason": None, "expires_at": None},
-        "timestamp": utc_now(),
-        "meta": {"policy": policy, "sources": list(set(v.get("_from", "") for v in all_verdicts))},
+        "avg_score": round(sum(r.get("final_score", 0) for r in results) / max(len(results), 1), 1),
+        "below_threshold": len(below_threshold),
     }
+    print(json.dumps({"summary": summary, "reviews": results[:10]}, indent=2, ensure_ascii=False))
+    return 0 if not below_threshold else 1
 
 
-def run_adversarial_test(task_id: str) -> dict[str, Any]:
-    """对 task_id 的所有可用裁决运行对抗性测试"""
-    result = aggregate_verdicts(task_id)
-    return {
-        "task_id": task_id,
-        "adversarial_checks": {
-            "homogenization": result["checks"]["homogenization"],
-            "contradiction": result["checks"]["contradiction"],
-        },
-        "meta_verdict": result["verdict"],
-        "meta_score": result["score"],
-        "reasons": result["reasons"],
-    }
+def cmd_verify_step(args: list) -> int:
+    """验证单个 step"""
+    step = None
+    token_path = None
+
+    i = 0
+    while i < len(args):
+        if args[i] == "--step" and i + 1 < len(args):
+            step = args[i + 1]
+            i += 2
+        elif args[i] == "--token" and i + 1 < len(args):
+            token_path = args[i + 1]
+            i += 2
+        else:
+            i += 1
+
+    if not step:
+        print("Usage: meta_oracle.py verify --step S1 [--token <path>]")
+        return 1
+
+    token_data = None
+    if token_path:
+        token_data = _load_json(token_path)
+
+    if not token_data:
+        for f in sorted(TOKENS_DIR.rglob("*.json"), reverse=True)[:5]:
+            token_data = _load_json(f)
+            if token_data:
+                break
+
+    task_id = token_data.get("task_id", "") or token_data.get("session", {}).get("id", "unknown") if token_data else "unknown"
+    ctx = _collect_context(task_id, token_data)
+
+    # S1→G1, S2→G2, S3→G3, S4→G4
+    gate_map = {"S1": "G1", "S2": "G2", "S3": "G3", "S4": "G4"}
+    gate_id = gate_map.get(step, "G1")
+
+    check_fns = {"G1": _check_evidence, "G2": _check_scope, "G3": _check_verification, "G4": _check_philosophy}
+    check_fn = check_fns.get(gate_id, _check_evidence)
+
+    result = check_fn(ctx)
+    result["gate_id"] = gate_id
+    result["step"] = step
+    print(json.dumps(result, indent=2, ensure_ascii=False))
+    return 0 if result["pass"] else 1
 
 
-def run_combo(task_id: str, plan_text: str = "", executor_text: str = "",
-              logs_text: str = "", diff_text: str = "") -> dict[str, Any]:
-    """
-    组合模式: 先调 oracle_agent 做审核，再聚合 + 对抗性测试。
-
-    这是 oracle_agent + meta_oracle 的组合使用方式。
-    """
-    # 尝试 import oracle_agent 做审核
-    try:
-        import oracle_agent
-
-        # 先跑 duo 模式写裁决
-        duo_result = oracle_agent.review_duo(task_id, plan_text, executor_text, "", logs_text, diff_text)
-
-        # 保存裁定
-        from oracle_agent import _save_verdict
-        _save_verdict(task_id, duo_result)
-    except ImportError:
-        # oracle_agent 不可用，仅做聚合
-        return aggregate_verdicts(task_id)
-
-    # 聚合
-    meta = aggregate_verdicts(task_id, policy="duo")
-
-    # 对抗性测试
-    test = run_adversarial_test(task_id)
-    meta["adversarial"] = test["adversarial_checks"]
-
-    # trio_result
-    meta["duo_result"] = {
-        "verdict": duo_result.get("verdict"),
-        "score": duo_result.get("score"),
-        "static": duo_result.get("static", {}).get("verdict"),
-        "runtime": duo_result.get("runtime", {}).get("verdict"),
-    } if "duo_result" not in duo_result else duo_result
-
-    return meta
-
-
-def write_verdict(verdict: dict[str, Any]) -> Path:
-    out_dir = OUT_ROOT / verdict["task_id"]
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    out_path = out_dir / f"{verdict['run_id']}.json"
-    latest_path = out_dir / "latest.json"
-
-    data = json.dumps(verdict, ensure_ascii=False, indent=2)
-    out_path.write_text(data + "\n", encoding="utf-8")
-    latest_path.write_text(data + "\n", encoding="utf-8")
-    return out_path
-
-
-# ═══════════════════════════════════════════════
-# CLI
-# ═══════════════════════════════════════════════
-
-def handle_aggregate(args: argparse.Namespace) -> int:
-    result = aggregate_verdicts(args.task_id, args.policy or "duo")
-    out_path = write_verdict(result)
-    print(str(out_path))
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return RETURN_CODES.get(result["verdict"], RETURN_CODES["UNAVAILABLE"])
-
-
-def handle_adversarial_test(args: argparse.Namespace) -> int:
-    result = run_adversarial_test(args.task_id)
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return 0 if result["meta_verdict"] in ("ACCEPT",) else 1
-
-
-def handle_combo(args: argparse.Namespace) -> int:
-    from pathlib import Path as _Path
-    def _rf(p: str) -> str:
-        if not p:
-            return ""
-        pp = _Path(p)
-        if pp.exists():
-            return pp.read_text(encoding="utf-8", errors="replace")
-        return ""
-
-    result = run_combo(
-        task_id=args.task_id,
-        plan_text=_rf(args.plan),
-        executor_text=_rf(args.executor),
-        logs_text=_rf(args.logs),
-        diff_text=_rf(args.diff),
-    )
-    out_path = write_verdict(result)
-    print(str(out_path))
-    print(json.dumps(result, ensure_ascii=False, indent=2))
-    return RETURN_CODES.get(result["verdict"], RETURN_CODES["UNAVAILABLE"])
-
+# ═══════════════════════════════════════════
+# Entry
+# ═══════════════════════════════════════════
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Mate Oracle — 元级审核 + 对抗性测试")
-    sub = parser.add_subparsers(dest="cmd", required=True)
+    _ensure_dirs()
 
-    p = sub.add_parser("aggregate")
-    p.add_argument("--task-id", required=True)
-    p.add_argument("--policy", choices=["static", "runtime", "duo"], default="duo")
-    p.set_defaults(func=handle_aggregate)
+    if len(sys.argv) < 2:
+        print(__doc__.strip())
+        return 1
 
-    p2 = sub.add_parser("adversarial-test")
-    p2.add_argument("--task-id", required=True)
-    p2.set_defaults(func=handle_adversarial_test)
+    cmd = sys.argv[1]
+    rest = sys.argv[2:]
 
-    p3 = sub.add_parser("combo")
-    p3.add_argument("--task-id", required=True)
-    p3.add_argument("--plan", default="")
-    p3.add_argument("--executor", default="")
-    p3.add_argument("--token", default="")
-    p3.add_argument("--logs", default="")
-    p3.add_argument("--diff", default="")
-    p3.set_defaults(func=handle_combo)
+    commands = {
+        "score": cmd_score,
+        "audit": cmd_audit,
+        "verify": cmd_verify_step,
+    }
 
-    args = parser.parse_args()
-    return args.func(args)
+    handler = commands.get(cmd)
+    if not handler:
+        print(f"Unknown command: {cmd}")
+        print(__doc__.strip())
+        return 1
+
+    try:
+        return handler(rest)
+    except Exception as e:
+        print(json.dumps({"error": str(e)}, ensure_ascii=False))
+        return 2
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    sys.exit(main())

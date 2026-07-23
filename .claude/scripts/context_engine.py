@@ -451,7 +451,7 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
     """
     handoff_path = ROOT / ".omc" / "session-handoff.md"
     prompt_path = ROOT / ".omc" / "state" / "last-user-prompt.md"
-    ring_path = ROOT / ".claude" / ".prompt-ring.json"
+    ring_path = ROOT / ".omc" / ".prompt-ring.json"
 
     token = read_json(token_path, {})
     task = token_task(token)

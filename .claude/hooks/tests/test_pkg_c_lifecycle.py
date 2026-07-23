@@ -59,7 +59,7 @@ def setup_tmp_state(tmp: Path):
     We sandbox by setting CLAUDE_PROJECT_DIR to a mini fixture tree.
     """
     (tmp / ".claude" / "hooks" / "lib").mkdir(parents=True)
-    (tmp / ".claude" / "state" / "snapshots").mkdir(parents=True)
+    (tmp / ".omc" / "state" / "snapshots").mkdir(parents=True)
     # copy hooks under test
     for name in [
         "lib/lifecycle_ssot.py",
@@ -92,7 +92,7 @@ def assert_true(cond, msg):
 
 def test_reconcile_forces_written_eq_claimed(tmp: Path):
     # inject distorted claimed
-    state = tmp / ".claude" / "state" / "handoff.json"
+    state = tmp / ".omc" / "state" / "handoff.json"
     state.write_text(
         json.dumps(
             {
@@ -154,11 +154,11 @@ def test_precompact_fail_closed_and_snapshot(tmp: Path):
     dig = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     assert_true(dig == out["sha256"], "sha mismatch")
     # handoff must contain precompact_flush item and counters match
-    hb = _load(tmp / ".claude" / "state" / "handoff.json")
+    hb = _load(tmp / ".omc" / "state" / "handoff.json")
     assert_true(hb["written"] == len(hb["items"]), "counter desync")
     assert_true(hb["claimed"] == hb["written"], "claimed desync")
     assert_true(any(i.get("kind") == "precompact_flush" for i in hb["items"]), "no flush item")
-    lc = _load(tmp / ".claude" / "state" / "lifecycle.json")
+    lc = _load(tmp / ".omc" / "state" / "lifecycle.json")
     assert_true(lc["compact"]["last_sha256"] == dig, "lifecycle compact sha")
     # idempotent second call with same session/transcript
     proc2 = _run(
@@ -172,14 +172,14 @@ def test_precompact_fail_closed_and_snapshot(tmp: Path):
         cwd=str(tmp),
     )
     assert_true(proc2.returncode == 0, f"precompact2 rc={proc2.returncode}")
-    hb2 = _load(tmp / ".claude" / "state" / "handoff.json")
+    hb2 = _load(tmp / ".omc" / "state" / "handoff.json")
     flush_count = sum(1 for i in hb2["items"] if i.get("kind") == "precompact_flush")
     assert_true(flush_count == 1, f"not idempotent flush_count={flush_count}")
     print("PASS test_precompact_fail_closed_and_snapshot")
 
 
 def test_precompact_fail_on_ro_snapshot_dir(tmp: Path):
-    snap = tmp / ".claude" / "state" / "snapshots"
+    snap = tmp / ".omc" / "state" / "snapshots"
     # make snapshots a file so write fails
     if snap.exists():
         shutil.rmtree(snap)
@@ -223,7 +223,7 @@ def test_goal_ghost_mutex(tmp: Path):
     except ValueError as e:
         assert_true("LIFECYCLE_MUTEX:" in str(e), str(e))
     # disk must not have both ids
-    lc = _load(tmp / ".claude" / "state" / "lifecycle.json")
+    lc = _load(tmp / ".omc" / "state" / "lifecycle.json")
     both = bool(lc.get("goal_id")) and bool(lc.get("ghost_id"))
     assert_true(not both, f"both ids set: {lc}")
     print("PASS test_goal_ghost_mutex")
@@ -267,7 +267,7 @@ def test_subagent_stop_and_session_end(tmp: Path):
         cwd=str(tmp),
     )
     assert_true(p1b.returncode == 0, p1b.stderr.decode())
-    hb = _load(tmp / ".claude" / "state" / "handoff.json")
+    hb = _load(tmp / ".omc" / "state" / "handoff.json")
     n_sub = sum(1 for i in hb["items"] if i.get("kind") == "subagent_stop")
     assert_true(n_sub == 1, f"subagent not idempotent {n_sub}")
 
@@ -278,11 +278,11 @@ def test_subagent_stop_and_session_end(tmp: Path):
         cwd=str(tmp),
     )
     assert_true(p2.returncode == 0, p2.stderr.decode())
-    lc = _load(tmp / ".claude" / "state" / "lifecycle.json")
+    lc = _load(tmp / ".omc" / "state" / "lifecycle.json")
     assert_true(lc["mode"] == "idle", lc)
     assert_true(lc["goal_id"] is None and lc["ghost_id"] is None, lc)
     assert_true(lc["end"]["sealed"] is True, lc)
-    hb2 = _load(tmp / ".claude" / "state" / "handoff.json")
+    hb2 = _load(tmp / ".omc" / "state" / "handoff.json")
     assert_true(hb2["written"] == hb2["claimed"] == len(hb2["items"]), hb2)
     # wrapper if present
     wrap = tmp / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh"

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
 ROOT = Path(os.environ.get("CLAUDE_PROJECT_DIR", os.getcwd())).resolve()
-STATE_DIR = ROOT / ".claude" / "state"
+STATE_DIR = ROOT / ".omc" / "state"
 LIFECYCLE_PATH = STATE_DIR / "lifecycle.json"
 HANDOFF_PATH = STATE_DIR / "handoff.json"
 SNAPSHOT_DIR = STATE_DIR / "snapshots"
