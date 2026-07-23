@@ -3,6 +3,11 @@
 > 按日分片的 JSONL 审计日志（`YYYY-MM-DD.jsonl`）。
 > 由 pretool/posttool gate hook 写入。
 
+## AI 使用守则
+
+> **只写不读** — 审计日志由 hook 自动追加，AI 不应直接写入。
+> **只读不修** — 如需排查问题，按日 `@.omc/audit/{date}.jsonl` 查看，不修改内容。
+
 ## 记录格式
 
 每条 JSONL 行包含：

@@ -3,6 +3,15 @@
 > 每个任务一个子目录，按 `YYYYMMDD/task-name/` 组织。
 > 由 `carros_base.py init` 创建初始骨架。
 
+## AI 使用守则
+
+> **按需加载** — 先确定任务日期和名称，再 `@.omc/tasks/{date}/{task}/plan.md`。
+> 不需要一次性加载 `executor.md` + `handoff.md` + `research.md`，
+> 根据当前阶段选择加载。
+>
+> **通过命令操作** — 不要手动创建/修改任务目录结构。
+> 用 `carros_base.py init` 创建，`tick` 推进，`verify` 验收。
+
 ## 标准任务目录结构
 
 ```

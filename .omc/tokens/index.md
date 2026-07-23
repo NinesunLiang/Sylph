@@ -3,6 +3,14 @@
 > 每任务一个 `.json` 文件，含步骤定义和状态。
 > 按日期分目录（`YYYYMMDD/`）。
 
+## AI 使用守则
+
+> **只读** — token 由 `carros_base.py` / `carros_utils.py` 管理，
+> AI 通过 `status`/`verify` 命令查看，不应直接改写。
+>
+> **按需加载** — 确认任务日期后再 `@.omc/tokens/{date}/{task}.json`，
+> 不要一次性遍历 tokens/。
+
 ## 文件规则
 
 | 文件 | 格式 | 说明 |

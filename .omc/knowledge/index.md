@@ -3,6 +3,12 @@
 > 飞轮升华引擎的输出产物。
 > `sublimation-log.jsonl` 记录升华事件，`claude-next.md` 为待验证的涌现知识。
 
+## AI 使用守则
+
+> **知识由飞轮自动写入** — AI 不应直接编辑 `sublimation-log.jsonl`。
+> `claude-next.md` 中的涌现知识需人工审阅后升入 `anti-patterns.md`。
+> AI 可读取 `claude-next.md` 作为历史决策的参考。
+
 | 文件 | 用途 |
 |------|------|
 | `sublimation-log.jsonl` | 升华事件日志（每次升华追加一行 JSON） |
