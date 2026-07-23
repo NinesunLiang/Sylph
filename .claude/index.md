@@ -4,21 +4,22 @@
 
 ## 模块索引
 
-## 模块路由
+## 模块路由 — 宫殿地图
 
-| 模块 | 入口 | 说明 |
+> 一级路由：`.claude/index.md` = 宫殿地图（房间位置）
+> 每个模块下的 `index.md` = 房间内地图（资源位置）
+
+| 房间 | 入口 | 功能 |
 |------|------|------|
-| hooks/ | [`hooks/index.md`](hooks/index.md) | CC 治理 Hook 脚本（34个） |
-| nodes/ | [`nodes/README.md`](nodes/README.md) | 最小公共节点（12个） |
-| schemas/ | [`schemas/README.md`](schemas/README.md) | 公共接口定义（atomic/contract/input/output） |
-| references/ | [`references/index.md`](references/index.md) | 公共资源文档（adr/design-docs/templates/race） |
-| scripts/ | [`scripts/index.md`](scripts/index.md) | 治理工具脚本（40+ 引擎 + lib/ 子模块） |
-| rules/ | [`rules/index.md`](rules/index.md) | 语言/工具规则 |
-| profiles/ | [`profiles/index.md`](profiles/index.md) | 项目语言 profile（6种语言） |
-| skills/ | [`skills/index.md`](skills/index.md) | AI agent skills（按 category 分组） |
-| workflows/ | [`workflows/index.md`](workflows/index.md) | 工作流定义+基础设施 |
-
-每个模块的 index 文件提供了完整的内容清单和导航入口。
+| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（34个，按触发点分类） |
+| nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12个，按功能/频率分类） |
+| schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/input/output） |
+| references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates/race） |
+| scripts/ | `@.claude/scripts/index.md` | 治理工具脚本（40+，按功能分 6 组 + lib/ 子模块） |
+| rules/ | `@.claude/rules/index.md` | 语言与工具行为规则（2个） |
+| profiles/ | `@.claude/profiles/index.md` | 项目语言 profile（6种语言，各含独立 harness.yaml） |
+| skills/ | `@.claude/skills/index.md` | AI agent skills（按 category 分组） |
+| workflows/ | `@.claude/workflows/index.md` | 工作流定义（2个）+ 基础设施 hook（4个） |
 
 ### `.omc/` — 运行时任务状态（删除不影响治理能力）
 
