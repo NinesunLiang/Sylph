@@ -29,7 +29,7 @@
 1. 所有路径使用 `pathlib.Path`（不用 os.path.join）。
 2. `.omc/state/` 在 .gitignore 中排除（运行时状态不提交）。
 3. `.omc/reference/` 提交到 git（参考文档）。
-4. `.omc/scripts/` 提交到 git。
+4. `.claude/scripts/` 提交到 git。
 5. audit JSONL 按日分片：`YYYYMMDD.jsonl`。
 6. 归档文件放在 `.omc/archive/` 中。
 

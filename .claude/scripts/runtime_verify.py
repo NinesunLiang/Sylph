@@ -104,7 +104,7 @@ def test_phase0_token_slim():
 
     # S4: Tool store
     ok, _ = run_verify("P0-S4", "工具落盘 250KB→1.3K preview",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.tool_store import store_tool_result; '
         'r=store_tool_result(\'verify-test\', b\'line\\n\'*50000,{\'exit_code\':0}); '
         'print(r[\'bytes\'], len(r[\'preview\']))"',
@@ -189,7 +189,7 @@ def test_phase1_l2():
 
     # P1: Error DNA
     ok, _ = run_verify("P1-DNA", "Error DNA 可记录",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.error_dna import record_error; '
         'from pathlib import Path; '
         'd=record_error(Path(\'.omc/tasks/20260713/phase3-dual-judge\'),\'T1\',\'test error\'); '
@@ -199,13 +199,13 @@ def test_phase1_l2():
 
     # P1: Retry gate
     ok, _ = run_verify("P1-DNA", "Retry Gate 3次阻断",
-        'python3 - << \'PY\'\nimport sys\nfrom pathlib import Path\nsys.path.insert(0, ".omc/scripts")\nfrom lib.error_dna import check_retry_gate, record_error\np=Path(".omc/tasks/20260713/phase3-dual-judge")\nfor i in range(4):\n    record_error(p,"T2",f"err{i}",retry_count=i)\na,_,_=check_retry_gate(p,"T2")\nprint(a)\nPY',
+        'python3 - << \'PY\'\nimport sys\nfrom pathlib import Path\nsys.path.insert(0, ".claude/scripts")\nfrom lib.error_dna import check_retry_gate, record_error\np=Path(".omc/tasks/20260713/phase3-dual-judge")\nfor i in range(4):\n    record_error(p,"T2",f"err{i}",retry_count=i)\na,_,_=check_retry_gate(p,"T2")\nprint(a)\nPY',
         check_fn=lambda o, _: "False" in o)
     all_pass &= ok
 
     # P1: Oracle trigger L1=no
     ok, _ = run_verify("P1-ORACLE", "Oracle L1=不触发",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.oracle_gate_light import should_trigger_oracle; '
         'print(should_trigger_oracle(\'L1\')[0])"',
         check_fn=lambda o, _: "False" in o)
@@ -213,7 +213,7 @@ def test_phase1_l2():
 
     # P1: Oracle trigger L2+high=yes
     ok, _ = run_verify("P1-ORACLE", "Oracle L2+high=触发",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.oracle_gate_light import should_trigger_oracle; '
         'print(should_trigger_oracle(\'L2\',risk_level=\'high\')[0])"',
         check_fn=lambda o, _: "True" in o)
@@ -229,7 +229,7 @@ def test_phase2_flywheel():
 
     # P2: Flywheel
     ok, _ = run_verify("P2-FLY", "飞轮可运行",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.flywheel import run_flywheel; '
         'from pathlib import Path; '
         'r=run_flywheel(Path.cwd()); print(r.get(\'patterns_found\',0), r.get(\'knowledge_entries\',0))"',
@@ -244,7 +244,7 @@ def test_phase2_flywheel():
 
     # P2: Loop detection
     ok, _ = run_verify("P2-AUTO", "Loop 检测",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.autonomy import LoopDetector; '
         'l=LoopDetector(3); [l.record_tick(\'S1\',\'same\',\'same\') for _ in range(5)]; '
         'd=l.detect_loop(); print(d[\'type\'] if d else \'none\')"',
@@ -253,13 +253,13 @@ def test_phase2_flywheel():
 
     # P2: Autonomy contract
     ok, _ = run_verify("P2-AUTO", "Autonomy Contract 加载",
-        'python3 - << \'PY\'\nimport sys\nfrom pathlib import Path\nsys.path.insert(0, ".omc/scripts")\nfrom lib.autonomy import load_contract\nc=load_contract(Path.cwd())\nprint(c["boundaries"]["max_autonomy_turns"])\nPY',
+        'python3 - << \'PY\'\nimport sys\nfrom pathlib import Path\nsys.path.insert(0, ".claude/scripts")\nfrom lib.autonomy import load_contract\nc=load_contract(Path.cwd())\nprint(c["boundaries"]["max_autonomy_turns"])\nPY',
         check_fn=lambda o, _: "30" in o)
     all_pass &= ok
 
     # P2: Budget exceeded pause
     ok, _ = run_verify("P2-AUTO", "超 budget 暂停",
-        'python3 -c "import sys; sys.path.insert(0,\'.omc/scripts\'); '
+        'python3 -c "import sys; sys.path.insert(0,\\'.claude/scripts\\'); '
         'from lib.autonomy import check_autonomy_gate, LoopDetector; '
         't={\'stats\':{\'tick\':35,\'done\':2},\'budget\':{\'max_turns_hard\':30}}; '
         'r=check_autonomy_gate(t, LoopDetector()); print(r is not None)"',

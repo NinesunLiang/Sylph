@@ -28,13 +28,13 @@
    读 state 文件;≥80 全阻断 / ≥70 阻断写工具;state 过期(>1800s)fail-open
 3. **决策** `.claude/scripts/context_engine.py compact_decision`(L2_ENHANCE):
    ≥80 COMPACT_NOW / ≥50 COMPACT_SOON / 否则 CONTINUE
-4. **离线调试** `.omc/scripts/context_watermark.py --used N [--limit N]`:
+4. **离线调试** `.claude/scripts/context_watermark.py --used N [--limit N]`:
    同规格独立计算器,退出码 0/1/2 = SAFE·REMIND/READONLY·FORCE
 
 ## 调用方式(离线)
 
 ```bash
-python3 .omc/scripts/context_watermark.py --used 85000
+python3 .claude/scripts/context_watermark.py --used 85000
 ```
 
 返回 JSON:

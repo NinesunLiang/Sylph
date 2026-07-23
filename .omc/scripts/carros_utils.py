@@ -1,1 +1,0 @@
-../../.claude/scripts/carros_utils.py

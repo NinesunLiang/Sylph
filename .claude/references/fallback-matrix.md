@@ -49,7 +49,7 @@ fallbacks:
 ## 调用方式
 
 ```bash
-python3 .omc/scripts/fallback_matrix.py [--check <触发点ID>]
+python3 .claude/scripts/fallback_matrix.py [--check <触发点ID>]
 ```
 
 返回 JSON:

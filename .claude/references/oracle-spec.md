@@ -1,8 +1,9 @@
 # Oracle 门禁规格
 
 > L2 Enhance 核心门禁。5 点触发 → 裁决(Accept/Warn/Reject/Escalate)
-> 触发后调用 `.omc/scripts/oracle_gate.py`
-> 人类可根据此文档配置 oracle 触发规则
+> 触发后调用 `.claude/scripts/oracle_gate.py`
+
+python3 .claude/scripts/oracle_gate.py --check
 
 ## 触发条件 (5 点)
 

@@ -472,10 +472,10 @@ def test_pre_action_script() -> None:
 
 def test_pre_action_git_operation() -> None:
     """Verify git_operation is handled (3.md §11 fix)."""
-    if not file_exists(".omc/scripts/pre_action_gate.py"):
+    if not file_exists(".claude/scripts/pre_action_gate.py"):
         log_skip("pre_action_gate.py (source) not found")
         return
-    source = open(ROOT / ".omc" / "scripts" / "pre_action_gate.py").read()
+    source = open(ROOT / ".claude" / "scripts" / "pre_action_gate.py").read()
     if "git_operation" in source:
         log_pass("pre_action_gate script: git_operation handled")
     else:

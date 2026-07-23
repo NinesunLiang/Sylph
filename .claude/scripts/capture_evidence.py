@@ -44,14 +44,14 @@ def main() -> int:
 
     run(
         "R1-WATER-CHAIN",
-        ["grep", "-R", "-n", "run_water_gate", ".claude/scripts/carros_base.py", ".omc/scripts/carros_base.py"],
+        ["grep", "-R", "-n", "run_water_gate", ".claude/scripts/carros_base.py"],
         lambda rc, out, _err: rc == 0 and "run_water_gate" in out,
     )
     run(
         "R1-WATER-BOUNDS",
         [
             "python3", "-c",
-            "import sys; sys.path.insert(0,'.omc/scripts'); from lib.water_level import get_water_detail; print(get_water_detail(controllable_tokens=4800)['level'], get_water_detail(controllable_tokens=8400)['level'])",
+            "import sys; sys.path.insert(0,'.claude/scripts'); from lib.water_level import get_water_detail; print(get_water_detail(controllable_tokens=4800)['level'], get_water_detail(controllable_tokens=8400)['level'])",
         ],
         lambda rc, out, _err: rc == 0 and out.strip() == "warn crit",
     )
