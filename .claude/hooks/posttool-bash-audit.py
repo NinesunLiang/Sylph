@@ -206,6 +206,9 @@ def main():
             sig = stderr_or_stdout[:200].split("\n")[0] if stderr_or_stdout else ""
             if sig and sig not in streak_data["signatures"]:
                 streak_data["signatures"].append(sig)
+            # 保留最近一次失败的完整命令和输出，用于快速恢复
+            streak_data["last_command"] = command
+            streak_data["last_output"] = (stderr_or_stdout or "")[:2000]
 
             with open(str(build_fail_file), "w", encoding="utf-8") as f:
                 json.dump(streak_data, f)
@@ -241,6 +244,11 @@ def main():
                 sigs_list = streak_data.get("signatures", [])[:5]
                 sigs_summary = "\n".join(f"      {i+1}. {s[:120]}" for i, s in enumerate(sigs_list))
 
+                last_cmd = streak_data.get("last_command", "")
+                last_out = streak_data.get("last_output", "")
+                if len(last_out) > 800:
+                    last_out = last_out[:800] + "\n      ... (剩余输出截断)"
+
                 summary = (
                     f"\n{'='*60}\n"
                     f"  ⛔ 构建失败 — 已自动中断\n"
@@ -250,12 +258,16 @@ def main():
                     f"  涉及 {distinct} 种不同错误：\n"
                     f"{sigs_summary}\n"
                     f"\n"
+                    f"  ── 最近一次失败详情 ──\n"
+                    f"  $ {last_cmd}\n"
+                    f"  {last_out}\n"
+                    f"\n"
                     f"  📌 建议的下一步：\n"
-                    f"  1. 执行根因分析: /lx-rca 或 对最新的错误做 5-Why\n"
-                    f"  2. 确认修改范围：检查 git diff，看是否超出了问题范围\n"
+                    f"  1. 手动跑上面的命令，看完整错误\n"
+                    f"  2. 执行根因分析: /lx-rca 或 5-Why\n"
                     f"  3. 如果错误各不相同 → 可能修错了地方，先确认问题根因\n"
                     f"  4. 如果错误一直相同 → 修复方案有 bug，仔细复查思路\n"
-                    f"  5. 手动运行失败命令，抓完整错误输出\n"
+                    f"  5. git diff 检查改了什么\n"
                     f"\n"
                     f"  🔄 重启后可继续，断点已记录在 build-fail-gate.json\n"
                     f"{'='*60}\n"
