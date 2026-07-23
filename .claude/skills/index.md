@@ -15,7 +15,7 @@
 | `github/` | GitHub 工作流 | PR, Issue, Code Review |
 | `media/` | 媒体 | YouTube, GIF, 音乐生成 |
 | `mlops/` | ML Ops | LLM 评估, 微调, 推理 |
-| `social/` | 社交 | 军师联盟, grill-me |
+| `social/` | 社交 | 军师联盟 |
 | `software-development/` | 软件开发 | TDD, 调试, 文档, 架构 |
 
 ## Skill 管理
