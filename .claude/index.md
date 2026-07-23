@@ -2,6 +2,35 @@
 
 > 指向 `.claude/` 下的可复用资产和 `.omc/` 下的运行时任务
 
+## 模块索引
+
+### `.claude/` — 公共可复用资产（删除即丢失治理能力）
+
+| 目录 | 用途 | 内容结构 |
+|------|------|---------|
+| `hooks/` | CC 治理 hook 脚本 | 每个 hook 一个 `.py` 文件，配套 `harness_core.py` / `harness_lib.py` 共享库 |
+| `nodes/` | 最小公共节点 | 每个节点一个 `.md`，按 `decisions/` `judgments/` 等子目录分类 |
+| `schemas/` | 公共接口定义 | `atomic/`（基本类型） `contract/`（契约） `input/`（输入） `output/`（输出） |
+| `references/` | 公共资源文档 | `adr/` `design-docs/` `templates/` `race/` 等子目录 |
+| `scripts/` | 治理工具脚本 | 核心引擎（`carros_base.py` `oracle_engine.py` 等）+ `lib/` 子模块 |
+| `rules/` | 语言/工具规则 | 每个规则一个 `.md`（如 `bash-style.md` `terminal-safety.md`） |
+| `profiles/` | 项目语言 profile | 每种语言一个子目录（`python/` `go/` `rust/` `node/` `base/`），各含 `harness.yaml` |
+| `skills/` | AI agent skills | 按 category 子目录分组（`carroros/` `devops/` `software-development/` 等） |
+| `workflows/` | 工作流定义+基础设施 | 具体工作流（`front-stepwise/` `frontend-overnight/`）+ `hooks/` 通用基础设施 |
+
+### `.omc/` — 运行时任务状态（删除不影响治理能力）
+
+| 目录 | 用途 |
+|------|------|
+| `tokens/` | 运行时令牌（每任务一个 `.json`，含步骤状态） |
+| `tasks/` | 运行时任务文档系统（`plan.md` `executor.md` `handoff.md` 等） |
+| `state/` | 运行时状态文件（lifecycle, hud, snapshots, 证据缓存等） |
+| `plans/` | 运行时历史计划文档 |
+| `archive/` | 归档的任务/令牌 |
+| `audit/` | 审计日志 JSONL |
+| `knowledge/` | 升华管道数据（`sublimation-log.jsonl` `claude-next.md`） |
+| `metrics/` | 基准测试数据 |
+
 ## 路由规则
 **默认 L1。** 当条件满足任意 L2 触发点时 → L2。
 
