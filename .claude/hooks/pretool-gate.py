@@ -513,12 +513,31 @@ def _check_sensitive_edit(payload: dict) -> str | None:
     # 治理文件 → 硬阻断（独立检查，不依赖 SENSITIVE_PATTERNS）
     if _is_governance(path):
         safe = path[:200]
+        if _goal_mode():
+            # goal 模式: 降级为 warn-only, AI 需要修改治理文件完成任务
+            msg = f"⚠️ [goal-mode] 治理文件写入: {safe} — goal 模式下降级放行，非 goal 模式本应硬阻断"
+            sys.stderr.write(f"PreToolGate: GOV_WARN (goal-mode) - {safe}\n")
+            print(json.dumps({"continue": True, "message": msg}, ensure_ascii=False))
+            _append_audit({"event_type": "governance_goal_warn", "path": path, "tool": tool})
+            return None  # 放行，让后续 gate 继续检查
+        # 非 goal 模式: 硬阻断 + 注入原因到 AI 上下文
+        reason_text = (
+            f"⛔ GOVERNANCE_HARD_BLOCK: 治理文件 {safe} 不可修改。\n"
+            f"  原因: .claude/settings.json 和 .claude/hooks/* 受 Gate 1 保护，AI 不可直接修改。\n"
+            f"  处理方式:\n"
+            f"    1. 激活 goal 模式: /lx-goal → governance gate 降级放行\n"
+            f"    2. 由人类手动编辑\n"
+            f"    3. 建议: 优先用 goal 模式，此阻断非 bug，是正常保护机制"
+        )
+        sys.stderr.write(f"PreToolGate: HARD BLOCK (gate=governance, path={safe})\n{reason_text}\n")
+        _append_audit({"event_type": "governance_hard_block", "path": path, "tool": tool})
         print(json.dumps({
             "continue": False,
-            "message": f"⛔ GOVERNANCE_VIOLATION: write to {safe} — 治理文件不可修改",
+            "hookSpecificOutput": {
+                "hookEventName": "PreToolUse",
+                "additionalContext": reason_text,
+            },
         }, ensure_ascii=False))
-        sys.stderr.write(f"PreToolGate: HARD BLOCK - {safe}\n")
-        _append_audit({"event_type": "governance_hard_block", "path": path, "tool": tool})
         return "HARD_BLOCK"
     # 业务敏感文件 → 软阻断
     if _is_sensitive(path):

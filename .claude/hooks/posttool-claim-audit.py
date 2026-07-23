@@ -213,22 +213,30 @@ def main():
                 print(E6_CHECK, file=sys.stderr, flush=True)
 
     # ─── 组合违规 ───
+    _IS_COLD_START = False
     if VIOLATIONS or G1_VIOLATIONS or E6_VIOLATIONS:
         if not _READ_TRACKER_EXISTS and CLAIMED_FILES:
-            # 冷启动保护：read-tracker 为空时首次 WARN 而非 BLOCK
-            # 后续调用如果仍然无 read-tracker → BLOCK
+            # 冷启动保护：read-tracker 为空 → 持续 WARN，不升级为 BLOCK
+            # 原因: COLD_START_BLOCK 导致 "PostToolUse:Edit stopped continuation" — 过于激进
+            # 修复: 永远 WARN-only，通过 flywheel 记录追踪，退出报告时统一审查
+            _IS_COLD_START = True
             _COLD_FILE = STATE_DIR / "claim-audit-cold-warned"
-            if _COLD_FILE.exists():
-                VIOLATIONS = ('⛔ COLD_START_BLOCK: read-tracker 为空（已警告过）。'
-                              '除非误报，请先 Read 文件再引用其内容。\n' + VIOLATIONS)
-            else:
-                VIOLATIONS = ('⚠️ COLD_START_WARN: read-tracker 为空，引用无法验证。'
-                              '首次警告，后续将阻断。请先 Read 文件再引用。\n' + VIOLATIONS)
-                try:
-                    _COLD_FILE.parent.mkdir(parents=True, exist_ok=True)
-                    _COLD_FILE.write_text("1", encoding="utf-8")
-                except OSError:
-                    pass
+            cold_count = 1
+            try:
+                if _COLD_FILE.exists():
+                    cold_count = int(_COLD_FILE.read_text(encoding="utf-8").strip() or "1") + 1
+                _COLD_FILE.parent.mkdir(parents=True, exist_ok=True)
+                _COLD_FILE.write_text(str(cold_count), encoding="utf-8")
+            except (OSError, ValueError):
+                pass
+            cold_warn = (
+                f'⚠️ COLD_START_WARN (#{cold_count}): read-tracker 为空，文件引用无法验证。\n'
+                f'  read-tracker 记录 ≤{cold_count} 条时持续警告，但不会阻断 Edit/Write。\n'
+                f'  建议: 先用 Read 工具读取文件，再引用其内容。\n'
+            )
+            VIOLATIONS = cold_warn + VIOLATIONS
+            flywheel_event('posttool_claim_audit', 'cold_start_warn', 'P3',
+                           'count=' + str(cold_count))
 
         COMBINED = VIOLATIONS
         if G1_VIOLATIONS:
@@ -257,12 +265,15 @@ def main():
             except Exception:
                 pass
 
-        if _AUTONOMOUS:
-            # 自主模式: 降级为 warn-only
-            mode_msg = f'⚠️ [{_MODE}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\n自主模式下降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}'
+        # COLD_START: 永远 warn-only（不阻断 Edit/Write），G1/E6 可独立阻断
+        _COLD_ONLY = _IS_COLD_START and not G1_VIOLATIONS and not E6_VIOLATIONS
+        if _AUTONOMOUS or _COLD_ONLY:
+            # 自主模式 or 纯 COLD_START: 降级为 warn-only
+            tag = _MODE if _AUTONOMOUS else "cold-start"
+            mode_msg = f'⚠️ [{tag}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\n降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}'
             result = hc_emit_hook_json(mode_msg, 'PostToolUse', True)
             print(result)
-            flywheel_event('posttool_claim_audit', 'blocked', 'P2')
+            flywheel_event('posttool_claim_audit', 'warned', 'P2')
             sys.exit(0)
         else:
             block_msg = f'⛔ [铁律#1+#7] AI 输出真实性违规:\n{COMBINED}\n宪法: "禁止编造" + "任何数值断言必须有可验证来源"\n请修复以上违规项后重试.{TRIAGE_SUFFIX}'

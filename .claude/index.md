@@ -41,7 +41,7 @@
 | archive/ | `@.omc/archive/index.md` | 归档任务快照（19个） |
 | audit/ | `@.omc/audit/index.md` | 审计日志 JSONL（按日分片） |
 | knowledge/ | `@.omc/knowledge/index.md` | 升华管道数据 |
-| plans/ | `@.omc/plans/index.md` | 历史计划文档 |
+| tasks/ | `@.omc/tasks/index.md` | 任务文档系统（plan/research/executor/evidence） — 唯一入口 |
 | metrics/ | `@.omc/metrics/index.md` | 基准测试报告 |
 
 ## 路由规则

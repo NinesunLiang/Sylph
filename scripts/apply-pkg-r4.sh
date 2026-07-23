@@ -24,7 +24,7 @@ files = [
     ".claude/skills/skill-dependencies.yaml",
     ".claude/skills/lx-varlock/SKILL.md",
     ".claude/references/feature-registry.yaml",
-    "VERSION",
+    ".claude/VERSION",
     "CHANGELOG.md",
     ".omc/scripts/carros_base.py",
     "scripts/test-verify-gate.py",
@@ -398,7 +398,7 @@ python3 .claude/skills/lx-varlock/scripts/varlock.py run "curl -X POST <https://
     marker='```bash\npython3 .claude/skills/lx-varlock/scripts/varlock.py run')
 
 # ── K3: VERSION 解冻 + CHANGELOG ──
-replace("VERSION", "v7.1.0", "v7.2.0", "K3 VERSION bump")
+replace(".claude/VERSION", "v7.1.0", "v7.2.0", "K3 VERSION bump")
 replace("CHANGELOG.md",
     '# Changelog\n\n## v7.1.0 (2026-07-12)',
     '''# Changelog
@@ -482,7 +482,7 @@ grep -qF '_check_secret_scan' .claude/hooks/pretool-gate.py || fail "A-R4-2 secr
 grep -qF '("secret-scan", _check_secret_scan)' .claude/hooks/pretool-gate.py || fail "A-R4-2 GATES entry"
 grep -qF 'quarantined: noise below MIN_ERROR_LEN(8)' .claude/scripts/lib/error_dna.py || fail "A-R4-2 K1 filter"
 grep -qF 'runtime_reality' .claude/references/feature-registry.yaml || fail "A-R4-2 K4"
-grep -qF 'v7.2.0' VERSION || fail "A-R4-2 VERSION"
+grep -qF 'v7.2.0' .claude/VERSION || fail "A-R4-2 VERSION"
 grep -qF '%Y%m%d")' .claude/scripts/verify_gate.py || fail "A-R4-2 H10"
 echo "A-R4-2 OK"
 
@@ -611,7 +611,7 @@ git diff --check -- \
   .claude/skills/skill-dependencies.yaml \
   .claude/skills/lx-varlock/SKILL.md \
   .claude/references/feature-registry.yaml \
-  VERSION CHANGELOG.md || fail "A-R4-8 git diff --check"
+  .claude/VERSION CHANGELOG.md || fail "A-R4-8 git diff --check"
 echo "A-R4-8 OK"
 
 echo "== ALL R4 ACCEPTANCE PASSED =="

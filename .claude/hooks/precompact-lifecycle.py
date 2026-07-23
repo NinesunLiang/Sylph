@@ -62,7 +62,7 @@ def _resolve_task_dir(token_path: Path) -> Path | None:
         if p.exists():
             return p
     stem = token_path.stem
-    slug = stem[: -len("_token")] if stem.endswith("_token") else stem
+    slug = stem
     candidate = TASKS_DIR / token_path.parent.name / slug
     return candidate if candidate.exists() else None
 

@@ -44,8 +44,9 @@ def _find_project_root(start: Path) -> Path:
 
 PROJECT_ROOT = _find_project_root(SCRIPT_DIR)
 STATE_DIR = PROJECT_ROOT / ".omc" / "state"
-TOKENS_DIR = PROJECT_ROOT / ".omc" / "tokens"
-PLANS_DIR = PROJECT_ROOT / ".omc" / "plans"
+TASKS_DIR = PROJECT_ROOT / ".omc" / "tasks"   # 文档系统 — "房间"
+TOKENS_DIR = PROJECT_ROOT / ".omc" / "tokens"  # 令牌系统 — "钥匙" (独立于 tasks，compact 恢复入口)
+PLANS_DIR = TASKS_DIR                           # 向后兼容: plan/research/executor 写入 tasks
 MODE_FILE = STATE_DIR / "tokens" / "lx-goal.json"
 AUTONOMOUS_SIGNAL = STATE_DIR / "tokens" / "autonomous.active"
 get_now = lambda: datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -145,7 +146,7 @@ def _update_lock_counter(plan_dir: Path, field: str, inc: int = 1):
     from_plan = str(plan_dir)
     slug = Path(from_plan).name
     date_dir = Path(from_plan).parent.name
-    lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+    lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
     if not lock_file.exists():
         return  # 锁不存在时静默跳过
     with open(lock_file, encoding="utf-8") as f:
@@ -180,7 +181,6 @@ def cmd_on(goal: str, expiry_hours: int = 6):
 
     # 写 mode file
     STATE_DIR.mkdir(parents=True, exist_ok=True)
-    TOKENS_DIR.mkdir(parents=True, exist_ok=True)
     mode_data = {
         "active": True,
         "mode": "goal",
@@ -217,8 +217,8 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     with open(plan_dir / "state.json", "w", encoding="utf-8") as f:
         json.dump({"phase": "draft", "created_at": now}, f, indent=2, ensure_ascii=False)
 
-    # 创建物理锁（内容增强：含 mode/phase/时间线/统计计数器）
-    lock_file = TOKENS_DIR / date_str / f"{slug}_token.json"
+    # 创建物理锁（"钥匙"）— 独立于 tasks，compact 恢复时扫描 .omc/tokens/ 即可定位活跃任务
+    lock_file = TOKENS_DIR / date_str / f"{slug}.json"
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     lock_data = {
         "task": slug,
@@ -276,7 +276,7 @@ def cmd_off():
             # 更新物理锁 phase → off
             slug = plan_dir.name
             date_dir = plan_dir.parent.name
-            lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+            lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
             if lock_file.exists():
                 with open(lock_file, encoding="utf-8") as f:
                     lock = json.load(f)
@@ -354,7 +354,7 @@ def cmd_status():
         if plan_dir:
             slug = plan_dir.name
             date_dir = plan_dir.parent.name
-            lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+            lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
             if lock_file.exists():
                 with open(lock_file, encoding="utf-8") as f:
                     lock = json.load(f)
@@ -746,7 +746,7 @@ def cmd_done():
 
     slug = plan_dir.name
     date_dir = plan_dir.parent.name
-    lock_file = TOKENS_DIR / date_dir / f"{slug}_token.json"
+    lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
 
     if lock_file.exists():
         lock_file.unlink()

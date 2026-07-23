@@ -83,11 +83,21 @@ def main():
         data = json.loads(raw)
     except (json.JSONDecodeError, ValueError):
         # 非 JSON 格式 → 做文本掩码后输出
-        masked = mask_text(raw)
+        try:
+            masked = mask_text(raw)
+        except Exception:
+            masked = raw  # mask_text 失败时保留原文本
         print(json.dumps({"continue": True,
                           "_filtered": True,
                           "message": "sensitive data masked"}))
-        sys.stderr.write(masked)
+        try:
+            sys.stderr.write(masked)
+        except (UnicodeEncodeError, UnicodeDecodeError, OSError, ValueError):
+            # stderr encoding failure → write sanitized version
+            try:
+                sys.stderr.write(masked.encode("utf-8", errors="replace").decode("utf-8", errors="replace"))
+            except Exception:
+                pass  # fail-open: stderr is non-critical
         return
 
     # 递归处理所有字符串字段

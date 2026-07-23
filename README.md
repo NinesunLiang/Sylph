@@ -85,7 +85,7 @@ CarrorOS/
 ├── AGENTS.md                    # 核心入口
 ├── .claude/                     # 可复用核心资产
 │   ├── scripts/                 # python脚本
-│   ├── references/              # 渐进式披露md文档库
+│   ├── references/              # 渐进式披露文档库
 │   ├── hooks/                   # 6 个 CC hooks
 │   ├── nodes/                   # 原子化节点
 │   ├── schemas/                 # 原子化接口
@@ -98,10 +98,11 @@ CarrorOS/
 │   ├── tasks/{date}/{task_name}/{research|plan|executor|stats/|sub_tasks/}                       # 任务文档系统
 │   ├── tasks/{date}/{task_name}.json                       # 任务令牌系统，含有终端id信息
 │   └── state/
-│       ├── static-oracle-verdicts/{task_id}/
-│       ├── runtime-oracle-verdicts/{task_id}/
-│       ├── meta-oracle-verdicts/{task_id}/
-│       └── oracle-bypass/{task_id}/
+│         └── /{date}/{task_name}
+│                       ├── static-oracle-verdicts/{task_id}/
+│                       ├── runtime-oracle-verdicts/{task_id}/
+│                       ├── meta-oracle-verdicts/{task_id}/
+│                       └── oracle-bypass/{task_id}/
 └── opencode/                    # OpenCode plugin
 ```
 
