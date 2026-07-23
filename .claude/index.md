@@ -21,18 +21,18 @@
 | skills/ | `@.claude/skills/index.md` | AI agent skills（按 category 分组） |
 | workflows/ | `@.claude/workflows/index.md` | 工作流定义（2个）+ 基础设施 hook（4个） |
 
-### `.omc/` — 运行时任务状态（删除不影响治理能力）
+### `.omc/` — 运行时任务状态
 
-| 目录 | 用途 |
-|------|------|
-| `tokens/` | 运行时令牌（每任务一个 `.json`，含步骤状态） |
-| `tasks/` | 运行时任务文档系统（`plan.md` `executor.md` `handoff.md` 等） |
-| `state/` | 运行时状态文件（lifecycle, hud, snapshots, 证据缓存等） |
-| `plans/` | 运行时历史计划文档 |
-| `archive/` | 归档的任务/令牌 |
-| `audit/` | 审计日志 JSONL |
-| `knowledge/` | 升华管道数据（`sublimation-log.jsonl` `claude-next.md`） |
-| `metrics/` | 基准测试数据 |
+| 房间 | 入口 | 功能 |
+|------|------|------|
+| tokens/ | `@.omc/tokens/index.md` | 运行时令牌（78个，按日期分目录） |
+| tasks/ | `@.omc/tasks/index.md` | 任务文档系统（534个文件，按日期/任务组织） |
+| state/ | `@.omc/state/index.md` | 运行时状态（lifecycle/hud/error-dna/snapshots） |
+| archive/ | `@.omc/archive/index.md` | 归档任务快照（19个） |
+| audit/ | `@.omc/audit/index.md` | 审计日志 JSONL（按日分片） |
+| knowledge/ | `@.omc/knowledge/index.md` | 升华管道数据 |
+| plans/ | `@.omc/plans/index.md` | 历史计划文档 |
+| metrics/ | `@.omc/metrics/index.md` | 基准测试报告 |
 
 ## 路由规则
 **默认 L1。** 当条件满足任意 L2 触发点时 → L2。
