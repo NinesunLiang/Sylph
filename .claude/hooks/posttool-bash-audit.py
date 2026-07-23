@@ -235,15 +235,41 @@ def main():
                 with open(str(gate_file), "w", encoding="utf-8") as f:
                     json.dump(gate, f, indent=2)
 
-            # E5 Hard Block: excessive consecutive failures → hard exit(2)
+            # E5 Hard Block: excessive consecutive failures → hard block with summary
             if streak >= hard_block_threshold:
-                print(f"[Build Fail Gate] ⛔ 连续 {streak} 次构建失败（硬阻断阈值: {hard_block_threshold}）。"
-                      f"禁止继续盲修。请执行根因分析后再试。",
-                      file=sys.stderr, flush=True)
+                distinct = len(streak_data.get("signatures", []))
+                sigs_list = streak_data.get("signatures", [])[:5]
+                sigs_summary = "\n".join(f"      {i+1}. {s[:120]}" for i, s in enumerate(sigs_list))
+
+                summary = (
+                    f"\n{'='*60}\n"
+                    f"  ⛔ 构建失败 — 已自动中断\n"
+                    f"{'='*60}\n"
+                    f"\n"
+                    f"  尝试了 {streak} 次修复，均未通过构建。\n"
+                    f"  涉及 {distinct} 种不同错误：\n"
+                    f"{sigs_summary}\n"
+                    f"\n"
+                    f"  📌 建议的下一步：\n"
+                    f"  1. 执行根因分析: /lx-rca 或 对最新的错误做 5-Why\n"
+                    f"  2. 确认修改范围：检查 git diff，看是否超出了问题范围\n"
+                    f"  3. 如果错误各不相同 → 可能修错了地方，先确认问题根因\n"
+                    f"  4. 如果错误一直相同 → 修复方案有 bug，仔细复查思路\n"
+                    f"  5. 手动运行失败命令，抓完整错误输出\n"
+                    f"\n"
+                    f"  🔄 重启后可继续，断点已记录在 build-fail-gate.json\n"
+                    f"{'='*60}\n"
+                )
+                print(summary, file=sys.stderr, flush=True)
                 flywheel_event("posttool_bash_audit", "build_fail_hard_block", "P0", "carror-os")
                 print(json.dumps({
                     "continue": False,
-                    "reason": f"连续 {streak} 次构建失败达到硬阻断阈值 {hard_block_threshold}。执行根因分析后再试。"
+                    "reason": (
+                        f"⛔ 连续 {streak} 次构建失败达到阈值。"
+                        f"涉及 {distinct} 种不同错误。"
+                        f"建议: 执行根因分析(/lx-rca)确认问题后再修，不要继续盲试。"
+                    ),
+                    "_summary": summary.strip(),
                 }))
                 sys.exit(2)
         else:
