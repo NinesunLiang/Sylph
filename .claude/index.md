@@ -36,12 +36,11 @@
 | 房间 | 入口 | 功能 |
 |------|------|------|
 | tokens/ | `@.omc/tokens/index.md` | 运行时令牌（78个，按日期分目录） |
-| tasks/ | `@.omc/tasks/index.md` | 任务文档系统（534个文件，按日期/任务组织） |
-| state/ | `@.omc/state/index.md` | 运行时状态（lifecycle/hud/error-dna/snapshots） |
-| archive/ | `@.omc/archive/index.md` | 归档任务快照（19个） |
+| tasks/ | `@.omc/tasks/index.md` | 任务文档系统 — 唯一入口 |
+| state/ | `@.omc/state/index.md` | 运行时状态（lifecycle/hud/snapshots/oracle） |
+| archive/ | `@.omc/archive/index.md` | 归档任务快照 |
 | audit/ | `@.omc/audit/index.md` | 审计日志 JSONL（按日分片） |
 | knowledge/ | `@.omc/knowledge/index.md` | 升华管道数据 |
-| tasks/ | `@.omc/tasks/index.md` | 任务文档系统（plan/research/executor/evidence） — 唯一入口 |
 | metrics/ | `@.omc/metrics/index.md` | 基准测试报告 |
 
 ## 路由规则

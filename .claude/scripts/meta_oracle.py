@@ -25,7 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ── Paths ──
-META_VERDICTS_DIR = Path(".omc/state/meta-oracle-verdicts")
+META_VERDICTS_DIR = Path(".omc/state/oracle")
 TOKENS_DIR = Path(".omc/tokens")
 PLANS_DIR = Path(".omc/plan")
 AUDIT_DIR = Path(".omc/state/audit")
@@ -362,7 +362,7 @@ def score_task(task_id: str) -> dict:
 
     # 保存
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    out = META_VERDICTS_DIR / f"meta-{task_id}-{ts}.json"
+    out = META_VERDICTS_DIR / task_id / f"meta-{ts}.json"
     with open(out, "w") as f:
         json.dump(meta_result, f, indent=2, ensure_ascii=False)
 
@@ -459,7 +459,7 @@ def cmd_audit(args: list) -> int:
     cutoff = time.time() - days * 86400
     results = []
 
-    for f in sorted(META_VERDICTS_DIR.glob("meta-*.json"), reverse=True):
+    for f in sorted((META_VERDICTS_DIR / task_id).glob("meta-*.json"), reverse=True):
         if f.stat().st_mtime < cutoff:
             continue
         try:

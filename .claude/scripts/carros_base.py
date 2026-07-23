@@ -800,7 +800,7 @@ def cmd_tick():
 def _run_dual_judge(token: dict) -> int:
     """L2 任务 verify 自动双审判：static + runtime oracle → meta 聚合。
 
-    裁决落盘 .omc/state/meta-oracle-verdicts/{task_id}/latest.json。
+    裁决落盘 .omc/state/oracle/{task_id}/meta-latest.json。
     Returns: 0=ACCEPT/ADVISORY（放行）, 2=REJECT（verify 不通过）, 3=ESCALATE（放行但提示人工）。
     """
     task_id = token.get("session", {}).get("id", "unknown")
@@ -844,7 +844,7 @@ def _run_dual_judge(token: dict) -> int:
             pass
         _write_audit("dual_judge", {"task_id": task_id, "verdict": verdict, "exit": r.returncode})
         if verdict == "REJECT":
-            print(_red(f"⚖️  双审判 REJECT — verify 不通过，详见 .omc/state/meta-oracle-verdicts/{task_id}/latest.json"))
+            print(_red(f"⚖️  双审判 REJECT — verify 不通过，详见 .omc/state/oracle/{task_id}/meta-latest.json"))
             return 2
         if verdict == "ESCALATE":
             print(_yellow(f"⚖️  双审判 ESCALATE — 建议人工复核"))
@@ -1843,93 +1843,6 @@ def cmd_oracle():
     if not argv:
         print(__doc__)
         return 2
-
-    if argv[0] == "review":
-        # 新模型 Oracle — 调 model_oracle_spawn.py
-        spawn = _hook_dir / "model_oracle_spawn.py"
-        if not spawn.exists():
-            print("model_oracle_spawn.py not found")
-            return 1
-
-        # 组装子命令
-        cmd = [sys.executable, str(spawn), "review", "--task-id"]
-        # 找 task-id
-        i = 1
-        task_id = None
-        extra_args = []
-        while i < len(argv):
-            a = argv[i]
-            if a == "--task-id" and i + 1 < len(argv):
-                task_id = argv[i + 1]
-                i += 2
-            elif a in ("--plan", "--executor", "--token", "--logs", "--diff", "--policy"):
-                if i + 1 < len(argv):
-                    extra_args.extend([a, argv[i + 1]])
-                    i += 2
-                else:
-                    i += 1
-            else:
-                i += 1
-
-        if not task_id:
-            # 尝试从 token 推断
-            tok, tp = _find_latest_token()
-            if tok:
-                task_id = tok.get("session", {}).get("id", "unknown")
-            else:
-                print(_red("❌ No task-id provided and no active token found"))
-                return 2
-
-        cmd.extend([task_id] + extra_args)
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-        print(result.stdout.strip())
-        if result.stderr:
-            print(_yellow(result.stderr[:500]))
-        return result.returncode
-
-    elif argv[0] == "health":
-        spawn = _hook_dir / "model_oracle_spawn.py"
-        if not spawn.exists():
-            print("model_oracle_spawn.py not found")
-            return 1
-        result = subprocess.run([sys.executable, str(spawn), "health"],
-                                capture_output=True, text=True, timeout=10)
-        print(result.stdout.strip())
-        return result.returncode
-
-    elif argv[0] == "reset":
-        spawn = _hook_dir / "model_oracle_spawn.py"
-        if not spawn.exists():
-            print("model_oracle_spawn.py not found")
-            return 1
-        result = subprocess.run([sys.executable, str(spawn), "reset"],
-                                capture_output=True, text=True, timeout=5)
-        print(result.stdout.strip())
-        return result.returncode
-
-    elif argv[0] == "status" and "--task-id" in argv:
-        spawn = _hook_dir / "model_oracle_spawn.py"
-        if not spawn.exists():
-            print("model_oracle_spawn.py not found")
-            return 1
-        idx = argv.index("--task-id") + 1
-        tid = argv[idx] if idx < len(argv) else ""
-        result = subprocess.run([sys.executable, str(spawn), "status", "--task-id", tid],
-                                capture_output=True, text=True, timeout=5)
-        print(result.stdout.strip())
-        return result.returncode
-
-    # Fallback: 旧模式 (direct review_pack_path)
-    pack_path = argv[0]
-    engine = _hook_dir / "oracle_engine.py"
-    if engine.exists():
-        cmd = [sys.executable, str(engine), pack_path]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        print(result.stdout.strip())
-        return result.returncode
-    print(_red("Unknown oracle subcommand or oracle_engine.py not found"))
-    return 2
-
 
 def cmd_fallback():
     """Fallback Protocol — 调用 fallback_engine.py 处理能力失效降级"""

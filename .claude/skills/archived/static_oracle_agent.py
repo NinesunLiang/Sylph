@@ -10,7 +10,7 @@ Reviews static task evidence only:
 - file:line evidence sanity
 
 It writes verdicts to:
-.omc/state/static-oracle-verdicts/{task_id}/{run_id}.json
+.omc/state/oracle/{task_id}/static-{run_id}.json
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 STATE_ROOT = Path(".omc/state")
-OUT_ROOT = STATE_ROOT / "static-oracle-verdicts"
+OUT_ROOT = STATE_ROOT / "oracle"
 
 DANGEROUS_PATH_PATTERNS = [
     r"\.ssh/",

@@ -24,8 +24,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, List, Tuple
 
-ORACLE_VERDICTS_DIR = Path(".omc/state/oracle-verdicts")
-BYPASS_DIR = Path(".omc/state/oracle_bypass")
+ORACLE_VERDICTS_DIR = Path(".omc/state/oracle")
+BYPASS_DIR = Path(".omc/state/oracle")
 BYPASS_TTL = 86400
 PROJECT_ROOT = Path.cwd()
 
@@ -115,7 +115,7 @@ def _extract_file_line_refs(text: str) -> List[Tuple[str, int]]:
 
 def _save_verdict(target: str, verdict: dict) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    fname = ORACLE_VERDICTS_DIR / "oracle-{}.json".format(ts)
+    fname = ORACLE_VERDICTS_DIR / task_id / "{}.json".format(ts)
     with open(fname, "w") as f:
         json.dump({"target": target, "verdict": verdict, "timestamp": ts,
                     "project": str(PROJECT_ROOT)}, f, indent=2)
@@ -124,7 +124,7 @@ def _save_verdict(target: str, verdict: dict) -> Path:
 
 def _load_latest_verdict(hours: int = 24) -> Optional[dict]:
     now = time.time()
-    for f in sorted(ORACLE_VERDICTS_DIR.glob("oracle-*.json"), reverse=True):
+    for f in sorted((ORACLE_VERDICTS_DIR / task_id).glob("*.json"), reverse=True):
         if now - f.stat().st_mtime < hours * 3600:
             try:
                 return json.loads(f.read_text(encoding="utf-8"))
@@ -691,7 +691,7 @@ def cmd_bypass(args: List[str]) -> int:
     ts = int(time.time())
     bypass = {"task_id": task_id, "bypass_until": ts + BYPASS_TTL,
               "created_at": ts}
-    fname = BYPASS_DIR / "{}.json".format(task_id.replace("/", "_"))
+    fname = BYPASS_DIR / task_id / "bypass.json"
     with open(fname, "w") as f:
         json.dump(bypass, f)
     print(json.dumps({"status": "bypass_created", "task_id": task_id,

@@ -2,7 +2,7 @@
 """
 summarize_verdicts.py -- 汇总 Oracle 裁决文件的 C5 工具生命周期指标。
 
-遍历 .omc/state/oracle-verdicts/ 下所有 oracle-*.json 文件，
+遍历 .omc/state/oracle/ 下所有 *.json 文件，
 提取并输出汇总表：每个裁决的 verdict / score / timestamp。
 
 Usage:
@@ -17,7 +17,7 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-VERDICTS_DIR = Path(".omc/state/oracle-verdicts")
+VERDICTS_DIR = Path(".omc/state/oracle")
 
 
 def _safe_load(path: Path) -> dict[str, Any] | None:
@@ -95,7 +95,7 @@ def main() -> int:
         print(f"ERROR: verdicts directory not found: {VERDICTS_DIR}", file=sys.stderr)
         return 1
 
-    files = sorted(VERDICTS_DIR.glob("oracle-*.json"))
+    files = sorted(VERDICTS_DIR.glob("*.json"))
     if not files:
         print("No oracle verdict files found.")
         return 0

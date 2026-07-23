@@ -8,7 +8,6 @@
 | 脚本 | 用途 |
 |------|------|
 | `carros_base.py` | 主入口 CLI — `init/status/tick/verify/archive/lint/bench` |
-| `carros_oracle_base.py` | Oracle 基础引擎 |
 | `oracle_engine.py` | Oracle 引擎（静态 + 运行时） |
 | `pre_action_gate.py` | 前置动作门禁 |
 | `oracle_spawn.py` | Oracle 双审生成器 |

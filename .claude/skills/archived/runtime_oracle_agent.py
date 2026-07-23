@@ -11,7 +11,7 @@ Reviews runtime evidence only:
 - obvious FAIL/error markers
 
 It writes verdicts to:
-.omc/state/runtime-oracle-verdicts/{task_id}/{run_id}.json
+.omc/state/oracle/{task_id}/runtime-{run_id}.json
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Any
 
 STATE_ROOT = Path(".omc/state")
-OUT_ROOT = STATE_ROOT / "runtime-oracle-verdicts"
+OUT_ROOT = STATE_ROOT / "oracle"
 
 FAIL_PATTERNS = [
     r"\bFAIL\b",
