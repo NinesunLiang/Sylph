@@ -53,7 +53,7 @@ PROMPT_TEMPLATES = {
     },
     "scope_in": {
         "question": "📦 范围 — IN：这个任务必须覆盖哪些文件/模块？",
-        "hint": "例：.omc/scripts/carros_base.py, .omc/scripts/goal_state_machine.py",
+        "hint": "例：.claude/scripts/carros_base.py, .claude/scripts/goal_state_machine.py",
     },
     "scope_out": {
         "question": "⛔ 范围 — OUT：明确不做什么？",

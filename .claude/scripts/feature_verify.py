@@ -51,9 +51,9 @@ FEATURES = {
         "check": lambda: "plan" in open(BASE/".claude/scripts/plan_builder.py").read().lower() and
                  "audit" in open(BASE/".claude/scripts/plan_builder.py").read().lower()},
     "2.md-04": {"desc": "carros_base.py 内置 lint 检查 plan/token 一致 (omc_lint)",
-        "check": lambda: "plan" in open(BASE/".omc/scripts/omc_lint.py").read().lower() or
-                 "token" in open(BASE/".omc/scripts/omc_lint.py").read().lower() or
-                 "inconsist" in open(BASE/".omc/scripts/carros_base.py").read().lower()},
+        "check": lambda: "plan" in open(BASE/".claude/scripts/omc_lint.py").read().lower() or
+                 "token" in open(BASE/".claude/scripts/omc_lint.py").read().lower() or
+                 "inconsist" in open(BASE/".claude/scripts/carros_base.py").read().lower()},
     "2.md-05": {"desc": "PlanBuilder 必须提供可执行入口或保留源码文件",
         "check": lambda: _test_plan_builder_entry() if file_exists(".claude/scripts/plan_builder.py") else False},
     "2.md-10": {"desc": "PlanBuilder 必须写 plan_created/plan_updated/plan_blocked audit",
@@ -61,42 +61,42 @@ FEATURES = {
                  "plan_" in open(BASE/".claude/scripts/plan_builder.py").read()},
     # ── 3.md PreActionGate (13 条) ──
     "3.md-01": {"desc": "PreActionGate 是唯一动作级前置安全门",
-        "check": lambda: file_exists(".omc/scripts/pre_action_gate.py") and
-                 file_size(".omc/scripts/pre_action_gate.py") > 5000},
+        "check": lambda: file_exists(".claude/scripts/pre_action_gate.py") and
+                 file_size(".claude/scripts/pre_action_gate.py") > 5000},
     "3.md-02": {"desc": "输出 ALLOW/ASK_USER/BLOCK/ESCALATE",
-        "check": lambda: all(k in open(BASE/".omc/scripts/pre_action_gate.py").read() for k in
+        "check": lambda: all(k in open(BASE/".claude/scripts/pre_action_gate.py").read() for k in
                 ["ALLOW", "ASK_USER", "BLOCK", "ESCALATE"])},
     "3.md-03": {"desc": "敏感路径读取默认 BLOCK",
-        "check": lambda: "sensitive" in open(BASE/".omc/scripts/pre_action_gate.py").read().lower()},
+        "check": lambda: "sensitive" in open(BASE/".claude/scripts/pre_action_gate.py").read().lower()},
     "3.md-04": {"desc": "危险命令默认 ASK_USER 或 BLOCK",
-        "check": lambda: "rm" in open(BASE/".omc/scripts/pre_action_gate.py").read()},
+        "check": lambda: "rm" in open(BASE/".claude/scripts/pre_action_gate.py").read()},
     "3.md-08": {"desc": "destructive hard block 命令直接 BLOCK",
-        "check": lambda: "destructive" in open(BASE/".omc/scripts/pre_action_gate.py").read().lower() or
-                 "BLOCK" in open(BASE/".omc/scripts/pre_action_gate.py").read()},
+        "check": lambda: "destructive" in open(BASE/".claude/scripts/pre_action_gate.py").read().lower() or
+                 "BLOCK" in open(BASE/".claude/scripts/pre_action_gate.py").read()},
     "3.md-09": {"desc": "用户授权结构化、可审计、限范围",
-        "check": lambda: any(k in open(BASE/".omc/scripts/pre_action_gate.py").read().lower()
+        "check": lambda: any(k in open(BASE/".claude/scripts/pre_action_gate.py").read().lower()
                              for k in ("authorization", "audit", "scope", "confirm")) or
                  (file_exists(".claude/hooks/pretool-action-gate.py") and
                   "expir" in open(BASE/".claude/hooks/pretool-action-gate.py").read().lower())},
     "3.md-10": {"desc": "audit 写入失败时非 ALLOW / BLOCK 语义可观测",
-        "check": lambda: ("audit" in open(BASE/".omc/scripts/pre_action_gate.py").read().lower() and
-                          "BLOCK" in open(BASE/".omc/scripts/pre_action_gate.py").read()) if
-                 file_exists(".omc/scripts/pre_action_gate.py") else False},
+        "check": lambda: ("audit" in open(BASE/".claude/scripts/pre_action_gate.py").read().lower() and
+                          "BLOCK" in open(BASE/".claude/scripts/pre_action_gate.py").read()) if
+                 file_exists(".claude/scripts/pre_action_gate.py") else False},
     "3.md-12": {"desc": "PreActionGate 不可被 VerifyGate/Oracle 覆盖（gate 隔离）",
-        "check": lambda: file_exists(".omc/scripts/pre_action_gate.py") and file_exists(".omc/scripts/oracle_engine.py") and file_exists(".claude/scripts/verify_gate.py")},
+        "check": lambda: file_exists(".claude/scripts/pre_action_gate.py") and file_exists(".claude/scripts/oracle_engine.py") and file_exists(".claude/scripts/verify_gate.py")},
     # ── 4.md Executor Ledger (14 条) ──
     "4.md-01": {"desc": "executor.md 追加式记录,不删失败历史",
-        "check": lambda: "executor" in open(BASE/".omc/scripts/carros_base.py").read().lower()},
+        "check": lambda: "executor" in open(BASE/".claude/scripts/carros_base.py").read().lower()},
     "4.md-02": {"desc": "evidence 必须绑定 step",
-        "check": lambda: "step" in open(BASE/".omc/scripts/task_state_tracker.py").read().lower() if 
-                 Path(BASE/".omc/scripts/task_state_tracker.py").exists() else file_exists(".omc/scripts/carros_base.py")},
+        "check": lambda: "step" in open(BASE/".claude/scripts/task_state_tracker.py").read().lower() if 
+                 Path(BASE/".claude/scripts/task_state_tracker.py").exists() else file_exists(".claude/scripts/carros_base.py")},
     "4.md-04": {"desc": "command evidence 含 command/exit_code/output_tail",
         "check": lambda: file_exists(".claude/scripts/verify_gate.py")},
     "4.md-05": {"desc": "执行状态追踪器记录 step status/failure lifecycle",
-        "check": lambda: all(k in open(BASE/".omc/scripts/task_state_tracker.py").read().lower()
+        "check": lambda: all(k in open(BASE/".claude/scripts/task_state_tracker.py").read().lower()
                             for k in ("status", "running", "completed")) if
-                 Path(BASE/".omc/scripts/task_state_tracker.py").exists() else
-                 "failure" in open(BASE/".omc/scripts/carros_base.py").read().lower()},
+                 Path(BASE/".claude/scripts/task_state_tracker.py").exists() else
+                 "failure" in open(BASE/".claude/scripts/carros_base.py").read().lower()},
     "4.md-08": {"desc": "用户确认必须是原子验收项",
         "check": lambda: "user_confirmation" in open(BASE/".claude/scripts/verify_gate.py").read() if file_exists(".claude/scripts/verify_gate.py") else True},
     "4.md-13": {"desc": "Executor Ledger 不得裁决 step 完成",
@@ -111,56 +111,56 @@ FEATURES = {
         "check": lambda: file_exists(".claude/hooks/pretool-gate.py") and "verify" in open(BASE/".claude/hooks/pretool-gate.py").read().lower()},
     # ── 6.md Context Engine ──
     "6.md-01": {"desc": "三段式水位管理 (SAFE/WARNING/CRITICAL)",
-        "check": lambda: all(k in open(BASE/".omc/scripts/context_watermark.py").read() for k in
+        "check": lambda: all(k in open(BASE/".claude/scripts/context_watermark.py").read() for k in
                 ["SAFE", "WARNING", "CRITICAL"])},
     "6.md-02": {"desc": "session-handoff.md 写入 (handoff 生成)",
-        "check": lambda: "handoff" in open(BASE/".omc/scripts/carros_base.py").read().lower()},
+        "check": lambda: "handoff" in open(BASE/".claude/scripts/carros_base.py").read().lower()},
     "6.md-03": {"desc": "compact/resume 恢复 (bench 05 验证)",
         "check": lambda: cli_ok([sys.executable, ".claude/scripts/context_engine.py", "resume-check", "--token", ".omc/audit/__init__.py", "--task", "."]) if file_exists(".claude/scripts/context_engine.py") else file_exists(".claude/scripts/context_engine.py")},
     "6.md-04": {"desc": "State Injection 注入",
         "check": lambda: file_exists(".claude/scripts/context_engine.py")},
     "6.md-05": {"desc": "水位分级: SAFE <40%, WARNING 40-70%, CRITICAL >70%",
-        "check": lambda: all(p in open(BASE/".omc/scripts/context_watermark.py").read() for p in ["40", "70"])},
+        "check": lambda: all(p in open(BASE/".claude/scripts/context_watermark.py").read() for p in ["40", "70"])},
     "6.md-06": {"desc": "CRITICAL 水位触发 block_complex",
-        "check": lambda: "block_complex" in open(BASE/".omc/scripts/context_watermark.py").read()},
+        "check": lambda: "block_complex" in open(BASE/".claude/scripts/context_watermark.py").read()},
     # ── 7.md Oracle ──
     "7.md-01": {"desc": "L2 pass-curve 7 维度评分",
-        "check": lambda: "7" in open(BASE/".omc/scripts/oracle_engine.py").read() or 
-                 len([l for l in open(BASE/".omc/scripts/oracle_engine.py").readlines() if "score" in l.lower()]) > 3},
+        "check": lambda: "7" in open(BASE/".claude/scripts/oracle_engine.py").read() or 
+                 len([l for l in open(BASE/".claude/scripts/oracle_engine.py").readlines() if "score" in l.lower()]) > 3},
     "7.md-02": {"desc": "L3 Multi-Judge 3 法官 (Safety/Correctness/Architecture)",
-        "check": lambda: "Judge" in open(BASE/".omc/scripts/oracle_engine.py").read()},
+        "check": lambda: "Judge" in open(BASE/".claude/scripts/oracle_engine.py").read()},
     "7.md-03": {"desc": "Meta-Oracle 归一裁决 ACCEPT/WARN/REJECT/ESCALATE",
-        "check": lambda: all(k in open(BASE/".omc/scripts/oracle_engine.py").read() for k in
+        "check": lambda: all(k in open(BASE/".claude/scripts/oracle_engine.py").read() for k in
                 ["ACCEPT", "WARN", "REJECT"])},
     "7.md-04": {"desc": "error-dna/audit 路径可用于 oracle verdict 记录",
         "check": lambda: file_exists(".omc/error-dna.jsonl") or
-                 "audit" in open(BASE/".omc/scripts/oracle_engine.py").read().lower() if
-                 file_exists(".omc/scripts/oracle_engine.py") else False},
+                 "audit" in open(BASE/".claude/scripts/oracle_engine.py").read().lower() if
+                 file_exists(".claude/scripts/oracle_engine.py") else False},
     "7.md-05": {"desc": "oracle_engine.py 评分+裁决逻辑存在 (支持 oracle verdict)",
-        "check": lambda: "ACCEPT" in open(BASE/".omc/scripts/oracle_engine.py").read()},
+        "check": lambda: "ACCEPT" in open(BASE/".claude/scripts/oracle_engine.py").read()},
     "7.md-06": {"desc": "oracle 引擎包含决策和审计记录路径",
-        "check": lambda: "decision" in open(BASE/".omc/scripts/oracle_engine.py").read() if
-                 file_exists(".omc/scripts/oracle_engine.py") else
+        "check": lambda: "decision" in open(BASE/".claude/scripts/oracle_engine.py").read() if
+                 file_exists(".claude/scripts/oracle_engine.py") else
                  "oracle_decision" in open(BASE/".claude/scripts/oracle_agent.py").read() if
                  file_exists(".claude/scripts/oracle_agent.py") else False},
     # ── 8.md Fallback ──
     "8.md-01": {"desc": "15 failure_type 固定枚举",
-        "check": lambda: len([l for l in open(BASE/".omc/scripts/fallback_engine.py").readlines()
+        "check": lambda: len([l for l in open(BASE/".claude/scripts/fallback_engine.py").readlines()
                 if '"' in l and '_' in l]) > 5},
     "8.md-02": {"desc": "4 裁决: CONTINUE/DOWNGRADE_TO_BASE/ASK_USER/BLOCKED",
-        "check": lambda: all(k in open(BASE/".omc/scripts/fallback_engine.py").read() for k in
+        "check": lambda: all(k in open(BASE/".claude/scripts/fallback_engine.py").read() for k in
                 ["CONTINUE", "DOWNGRADE_TO_BASE", "ASK_USER", "BLOCKED"])},
     "8.md-03": {"desc": "决策矩阵 (risk × failure 组合)",
-        "check": lambda: "matrix" in open(BASE/".omc/scripts/fallback_engine.py").read().lower() or
-                 "risk" in open(BASE/".omc/scripts/fallback_engine.py").read().lower()},
+        "check": lambda: "matrix" in open(BASE/".claude/scripts/fallback_engine.py").read().lower() or
+                 "risk" in open(BASE/".claude/scripts/fallback_engine.py").read().lower()},
     "8.md-04": {"desc": "BLOCKED 写 token.task.blocked",
-        "check": lambda: "blocked" in open(BASE/".omc/scripts/fallback_engine.py").read().lower()},
+        "check": lambda: "blocked" in open(BASE/".claude/scripts/fallback_engine.py").read().lower()},
     "8.md-05": {"desc": "Fallback 不修改 plan.md [x] 和 executor 证据",
-        "check": lambda: all(phrase in open(BASE/".omc/scripts/fallback_engine.py").read()
+        "check": lambda: all(phrase in open(BASE/".claude/scripts/fallback_engine.py").read()
                              for phrase in ["Does not", "decision", "BLOCKED"]) if
-                 file_exists(".omc/scripts/fallback_engine.py") else True},
+                 file_exists(".claude/scripts/fallback_engine.py") else True},
     "8.md-06": {"desc": "Fallback 不得假装 Oracle ACCEPT",
-        "check": lambda: "ACCEPT" not in open(BASE/".omc/scripts/fallback_engine.py").read() if file_exists(".omc/scripts/fallback_engine.py") else True},
+        "check": lambda: "ACCEPT" not in open(BASE/".claude/scripts/fallback_engine.py").read() if file_exists(".claude/scripts/fallback_engine.py") else True},
     # ── 9.md CLI Integration ──
     "9.md-01": {"desc": "statusline-command.sh 存在",
         "check": lambda: file_exists(".claude/hooks/statusline-command.sh")},
@@ -177,24 +177,24 @@ FEATURES = {
         "check": lambda: "VERIFIED" not in open(BASE/".claude/scripts/statusline.py").read() if file_exists(".claude/scripts/statusline.py") else True},
     # ── 10.md Archive ──
     "10.md-01": {"desc": "8 前置检查 (verify/oracle/fallback 预检)",
-        "check": lambda: "verify" in open(BASE/".omc/scripts/archive_engine.py").read().lower() and
-                 "oracle" in open(BASE/".omc/scripts/archive_engine.py").read().lower()},
+        "check": lambda: "verify" in open(BASE/".claude/scripts/archive_engine.py").read().lower() and
+                 "oracle" in open(BASE/".claude/scripts/archive_engine.py").read().lower()},
     "10.md-02": {"desc": "sovereign-verdict.json 生成",
-        "check": lambda: "sovereign" in open(BASE/".omc/scripts/archive_engine.py").read().lower()},
+        "check": lambda: "sovereign" in open(BASE/".claude/scripts/archive_engine.py").read().lower()},
     "10.md-03": {"desc": "manifest.json 含 sha256",
-        "check": lambda: "sha256" in open(BASE/".omc/scripts/archive_engine.py").read().lower() or
-                 "manifest" in open(BASE/".omc/scripts/archive_engine.py").read().lower()},
+        "check": lambda: "sha256" in open(BASE/".claude/scripts/archive_engine.py").read().lower() or
+                 "manifest" in open(BASE/".claude/scripts/archive_engine.py").read().lower()},
     "10.md-04": {"desc": "token-tombstone.json 生成",
-        "check": lambda: "tombstone" in open(BASE/".omc/scripts/archive_engine.py").read().lower()},
+        "check": lambda: "tombstone" in open(BASE/".claude/scripts/archive_engine.py").read().lower()},
     "10.md-05": {"desc": "audit-slice.jsonl 包含 verify/oracle/fallback/archive",
-        "check": lambda: "audit" in open(BASE/".omc/scripts/archive_engine.py").read().lower()},
+        "check": lambda: "audit" in open(BASE/".claude/scripts/archive_engine.py").read().lower()},
     "10.md-06": {"desc": "Oracle REJECT/ESCALATE 不可归档",
-        "check": lambda: "REJECT" in open(BASE/".omc/scripts/archive_engine.py").read()},
+        "check": lambda: "REJECT" in open(BASE/".claude/scripts/archive_engine.py").read()},
     "10.md-07": {"desc": "Sovereign Verdict: ARCHIVED/BLOCKED/ASK_USER/REJECTED",
-        "check": lambda: all(k in open(BASE/".omc/scripts/archive_engine.py").read() for k in
+        "check": lambda: all(k in open(BASE/".claude/scripts/archive_engine.py").read() for k in
                 ["ARCHIVED", "BLOCKED", "REJECTED"])},
     "10.md-08": {"desc": "final-report 生成",
-        "check": lambda: "final" in open(BASE/".omc/scripts/archive_engine.py").read().lower()},
+        "check": lambda: "final" in open(BASE/".claude/scripts/archive_engine.py").read().lower()},
 }
 
 def file_exists(path):

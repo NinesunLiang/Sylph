@@ -37,7 +37,7 @@ for i in range(1, iterations + 1):
     print(f"\n[{i:2d}/{iterations}] 场景: {scene}  seed: {seed}")
 
     # run bench with seed
-    cmd = f"python3 .omc/scripts/carros_base.py bench {scene} --seed {seed} 2>&1"
+    cmd = f"python3 .claude/scripts/carros_base.py bench {scene} --seed {seed} 2>&1"
     proc = subprocess.run(
         cmd,
         shell=True,

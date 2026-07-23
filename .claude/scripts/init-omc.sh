@@ -1,18 +1,13 @@
 #!/bin/bash
-# init-omc.sh — 初始化 round3-core 项目
-# 用法: bash .omc/scripts/init-omc.sh [project_root]
-set -e
+# init-omc.sh — 初始化 .omc/ 任务系统
+# 用法: bash .claude/scripts/init-omc.sh [project_root]
 
 ROOT="${1:-$(pwd)}"
-echo "Initializing round3-core in: $ROOT"
+cd "$ROOT" || exit 1
 
-# 创建目录
-mkdir -p "$ROOT/.omc/state/audit"
-mkdir -p "$ROOT/.omc/archive"
-mkdir -p "$ROOT/.omc/reference"
+mkdir -p .omc/tasks .omc/tokens .omc/state
 
-# 初始化 token
-python3 .omc/scripts/carros_base.py init --task-id "sess_$(date +%Y%m%d)_0001"
+python3 .claude/scripts/carros_base.py init --task-id "sess_$(date +%Y%m%d)_0001"
 
-echo "✅ round3-core initialized"
-echo "   Run 'python3 .omc/scripts/carros_base.py help' to see available commands"
+echo "=== .omc 任务系统已初始化 ==="
+echo "   Run 'python3 .claude/scripts/carros_base.py help' to see available commands"
