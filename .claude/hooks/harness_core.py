@@ -363,3 +363,44 @@ def flywheel_event(hook_name="unknown", event_type="triggered", severity="P2", p
             f.write(f"{date_str},{hook_name}_{event_type},{severity},{project}\n")
     except Exception:
         pass
+
+
+# ─── hook_report: 标准 hook 输出（阻断 + 总结统一使用）───
+# Schema: .claude/schemas/output/block-output.yaml
+# 所有 hook 的 stdout 输出都必须通过此函数，确保格式统一。
+#
+# 两种模式:
+#   block  → continue: false, 带 reason + detail + recover
+#   summary → continue: true, 带 summary + detail
+
+def hook_report(report_type, summary, reason="", detail=None, recover=None):
+    """输出标准化的 hook 报告。
+
+    同时输出两份：
+      1. stderr: summary（人类可读的完整总结/详情）
+      2. stdout: JSON（CC hook 协议 + 结构化 detail/recover）
+
+    Args:
+        report_type: "block"（阻断）或 "summary"（完成总结）
+        summary: 完整的人类可读总结（含详情和下一步建议）
+        reason: block 模式下的简短原因（<=200 chars, 给 CC reason 字段）
+        detail: 可选 dict, 结构化详情
+        recover: 可选 dict, block 模式下恢复路径
+    """
+    # stderr: 人类可读
+    print(summary, file=sys.stderr, flush=True)
+
+    # stdout: CC 协议信号
+    is_block = (report_type == "block")
+    payload = {
+        "continue": not is_block,
+        "report_type": report_type,
+    }
+    if reason:
+        payload["reason"] = reason
+    if detail:
+        payload["detail"] = detail
+    if recover:
+        payload["recover"] = recover
+
+    print(json.dumps(payload, ensure_ascii=False))

@@ -16,7 +16,7 @@ from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, output_continue, read_input, hc_get, HOME_DIR
+from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, output_continue, hook_report, read_input, hc_get, HOME_DIR
 
 
 def main():
@@ -249,6 +249,15 @@ def main():
                 if len(last_out) > 800:
                     last_out = last_out[:800] + "\n      ... (剩余输出截断)"
 
+                suggestions = [
+                    "手动跑上面的命令，看完整错误",
+                    "执行根因分析: /lx-rca 或 5-Why",
+                    "如果错误各不相同 → 可能修错了地方，先确认问题根因",
+                    "如果错误一直相同 → 修复方案有 bug，仔细复查思路",
+                    "git diff 检查改了什么",
+                ]
+                sug_lines = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(suggestions))
+
                 summary = (
                     f"\n{'='*60}\n"
                     f"  ⛔ 构建失败 — 已自动中断\n"
@@ -263,26 +272,30 @@ def main():
                     f"  {last_out}\n"
                     f"\n"
                     f"  📌 建议的下一步：\n"
-                    f"  1. 手动跑上面的命令，看完整错误\n"
-                    f"  2. 执行根因分析: /lx-rca 或 5-Why\n"
-                    f"  3. 如果错误各不相同 → 可能修错了地方，先确认问题根因\n"
-                    f"  4. 如果错误一直相同 → 修复方案有 bug，仔细复查思路\n"
-                    f"  5. git diff 检查改了什么\n"
+                    f"{sug_lines}\n"
                     f"\n"
                     f"  🔄 重启后可继续，断点已记录在 build-fail-gate.json\n"
                     f"{'='*60}\n"
                 )
-                print(summary, file=sys.stderr, flush=True)
                 flywheel_event("posttool_bash_audit", "build_fail_hard_block", "P0", "carror-os")
-                print(json.dumps({
-                    "continue": False,
-                    "reason": (
-                        f"⛔ 连续 {streak} 次构建失败达到阈值。"
-                        f"涉及 {distinct} 种不同错误。"
-                        f"建议: 执行根因分析(/lx-rca)确认问题后再修，不要继续盲试。"
-                    ),
-                    "_summary": summary.strip(),
-                }))
+                hook_report(
+                    report_type="block",
+                    reason=f"连续 {streak} 次构建失败达到阈值。涉及 {distinct} 种不同错误。",
+                    summary=summary,
+                    detail={
+                        "attempts": streak,
+                        "distinct_errors": distinct,
+                        "signatures": sigs_list,
+                        "last_command": last_cmd,
+                        "last_output": last_out,
+                        "suggestions": suggestions,
+                    },
+                    recover={
+                        "method": "manual_rca",
+                        "state_file": str(state_dir / "build-fail-gate.json"),
+                        "resume_command": f"rm {state_dir / 'build-fail-gate.json'}",
+                    },
+                )
                 sys.exit(2)
         else:
             # Build succeeded, reset streak
