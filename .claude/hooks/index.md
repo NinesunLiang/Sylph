@@ -10,6 +10,7 @@
 | `harness_core.py` | 核心共享库 — `hc_enabled`, `output_continue`, `hook_report`, `read_input` |
 | `harness_lib.py` | 扩展共享库 — 自动从 `harness_core` 导入所有符号 |
 | `hook-launcher.py` | Hook 调度器 — 从 settings.json 按名启动 hook |
+| (lib/) | 共享库 _(`agentic-ui.py`, `lifecycle_ssot.py`)_ |
 
 ## Hook 分类
 
@@ -31,7 +32,7 @@
 | **会话管理** | `session-start.py`, `session-resume.py`, `session-end-lifecycle.py` | SessionStart / PreCompact |
 | **生命周期** | `precompact-lifecycle.py`, `subagent-stop-lifecycle.py` | PreCompact / SubAgentStop |
 | **飞轮** | `stop-flywheel.py` | PreCompact |
-| **其他** | `agentic-ui.py`, `carroros-night-deny.py`, `thinking-gate.py`, `pre-ask-guard.py`, `pretool-purify-gate.py`, `pretool-blast-radius.py`, `read-tracker.py` | 各触发点 |
+| **其他** | `carroros-night-deny.py`, `thinking-gate.py`, `pre-ask-guard.py`, `pretool-purify-gate.py`, `pretool-blast-radius.py`, `read-tracker.py` | 各触发点 |
 
 ## 注册方式
 
