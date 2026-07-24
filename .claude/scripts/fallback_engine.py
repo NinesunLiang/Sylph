@@ -106,30 +106,36 @@ def append_text(path: Path, text: str) -> None:
 
 
 def task_id_from_token(token: dict[str, Any]) -> str:
+    task = token.get("task") or {}
     return (
-        token.get("task", {}).get("id")
+        task.get("id")
         or token.get("session", {}).get("id")
         or "unknown_task"
     )
 
 
 def current_step_from_token(token: dict[str, Any]) -> str | None:
-    return token.get("task", {}).get("current_step")
+    task = token.get("task") or {}
+    return task.get("current_step")
 
 
-def level_from_token(token: dict[str, Any]) -> str:
+def level_from_token(token: dict[str, Any] | None) -> str:
+    if not token:
+        return "L1_BASE"
     return token.get("session", {}).get("level", "L1_BASE")
 
 
-def risk_from_token(token: dict[str, Any], explicit_risk: str | None = None) -> str:
+def risk_from_token(token: dict[str, Any] | None, explicit_risk: str | None = None) -> str:
+    if not token:
+        return "low"
     if explicit_risk in {"low", "medium", "high"}:
         return explicit_risk
 
-    hints = set(token.get("task", {}).get("risk_hints", []) or [])
+    hints = set((token.get("task") or {}).get("risk_hints", []) or [])
     if hints & HIGH_RISK_HINTS:
         return "high"
 
-    diff = token.get("task", {}).get("diff_summary", {}) or {}
+    diff = (token.get("task") or {}).get("diff_summary", {}) or {}
     files_changed = int(diff.get("files_changed", 0) or 0)
     insertions = int(diff.get("insertions", 0) or 0)
     deletions = int(diff.get("deletions", 0) or 0)
@@ -259,8 +265,9 @@ def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None =
 
 
 def update_token(token_path: Path, token: dict[str, Any], decision: FallbackDecision) -> None:
-    token.setdefault("task", {})
-    token.setdefault("session", {})
+    # 处理 JSON null 值: setdefault 不会覆盖已有的 None
+    token["task"] = token.get("task") or {}
+    token["session"] = token.get("session") or {}
 
     if decision.decision == "DOWNGRADE_TO_BASE":
         token["session"]["level"] = "L1_BASE"

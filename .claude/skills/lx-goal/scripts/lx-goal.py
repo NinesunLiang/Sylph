@@ -169,7 +169,9 @@ def cmd_on(goal: str, expiry_hours: int = 6):
 
     # Round7 PKG-6: 生命周期互斥(fail-closed)——ghost 激活中拒绝进入 goal,先于任何落盘
     date_str = datetime.now().strftime("%Y%m%d")
-    slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50]) or f"goal-{datetime.now().strftime('%H%M%S')}"
+    slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50])
+    # 纯中文/纯符号名(all non-ASCII)→slug被掏空只剩"-",回退到时间戳
+    slug = slug.strip("-_") or f"goal-{datetime.now().strftime('%H%M%S')}"
     if _lc_set_mode is None:
         print("❌ lifecycle SSOT 不可用(lifecycle_ssot 导入失败),拒绝进入 goal 模式", file=sys.stderr)
         sys.exit(2)
