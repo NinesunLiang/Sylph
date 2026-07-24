@@ -115,7 +115,9 @@ def _extract_file_line_refs(text: str) -> List[Tuple[str, int]]:
 
 def _save_verdict(target: str, verdict: dict) -> Path:
     ts = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    fname = ORACLE_VERDICTS_DIR / task_id / "{}.json".format(ts)
+    verdict_dir = ORACLE_VERDICTS_DIR / target
+    verdict_dir.mkdir(parents=True, exist_ok=True)
+    fname = verdict_dir / "{}.json".format(ts)
     with open(fname, "w") as f:
         json.dump({"target": target, "verdict": verdict, "timestamp": ts,
                     "project": str(PROJECT_ROOT)}, f, indent=2)
@@ -124,7 +126,16 @@ def _save_verdict(target: str, verdict: dict) -> Path:
 
 def _load_latest_verdict(hours: int = 24) -> Optional[dict]:
     now = time.time()
-    for f in sorted((ORACLE_VERDICTS_DIR / task_id).glob("*.json"), reverse=True):
+    # Scan all subdirectories under ORACLE_VERDICTS_DIR (no closure variable dependency)
+    verdict_dir = ORACLE_VERDICTS_DIR
+    if not verdict_dir.exists():
+        return None
+    candidates: list[Path] = []
+    for subdir in sorted(verdict_dir.iterdir()):
+        if subdir.is_dir():
+            candidates.extend(sorted(subdir.glob("*.json"), reverse=True))
+    candidates.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    for f in candidates:
         if now - f.stat().st_mtime < hours * 3600:
             try:
                 return json.loads(f.read_text(encoding="utf-8"))
