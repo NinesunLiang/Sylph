@@ -12,7 +12,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-CRITICAL_HOOKS = {"pretool-gate.py", "carroros-night-deny.py"}
+CRITICAL_HOOKS = {"pretool-gate.py"}
 
 
 def _emit_continue(message="", hook_name=""):

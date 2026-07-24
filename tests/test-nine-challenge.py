@@ -126,10 +126,10 @@ for label, cmd in (
     check(f"C5 dangerous-{label}-blocked", bool(blocked) and blocked.startswith("BLOCK"),
           f"cmd={cmd!r} result={blocked!r}")
 
-# ── C6 error_dna 生产接线: posttool._record_error 非 None ──
-pt = _load("posttool_gate", ROOT / ".claude" / "hooks" / "posttool-gate.py")
-check("C6 error-dna-wired", pt._record_error is not None,
-      "posttool._record_error is None——虚假接线复活")
+# ── C6 error_dna 生产接线: lib/error_dna.record_error 非 None ──
+ed = _load("error_dna_lib", ROOT / ".claude" / "scripts" / "lib" / "error_dna.py")
+check("C6 error-dna-wired", ed.record_error is not None,
+      "error_dna.record_error is None——虚假接线复活")
 
 print("---")
 if failures:

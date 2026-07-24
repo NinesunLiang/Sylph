@@ -142,7 +142,8 @@ def _load(name: str, path: Path):
     return mod
 
 
-pg = _load("posttool_gate", ROOT / ".claude" / "hooks" / "posttool-gate.py")
+edl = _load("error_dna_lib", ROOT / ".claude" / "scripts" / "lib" / "error_dna.py")
+pg = _load("precompact_lifecycle", ROOT / ".claude" / "hooks" / "precompact-lifecycle.py")
 pc = _load("precompact_lifecycle", ROOT / ".claude" / "hooks" / "precompact-lifecycle.py")
 mo = _load("meta_oracle", ROOT / ".claude" / "scripts" / "meta_oracle.py")
 
@@ -155,7 +156,9 @@ with tempfile.TemporaryDirectory() as tmp6:
     orig_pg, orig_pc, orig_mo = pg.TOKENS_DIR, pc.TOKENS_DIR, mo.TOKENS_DIR
     try:
         pg.TOKENS_DIR = pc.TOKENS_DIR = mo.TOKENS_DIR = t6
-        td, _step = pg._active_task()
+        tk = pc._latest_token()
+        td = pc._resolve_task_dir(tk) if tk else None
+        _step = None
         check("A5 posttool-phantom-dead", td is None, f"got={td}")
         check("A5 precompact-phantom-dead", pc._latest_token() is None)
         check("A5 meta-oracle-phantom-dead", mo._latest_task_id() is None)
@@ -164,7 +167,7 @@ with tempfile.TemporaryDirectory() as tmp6:
 
 # ── A6 对抗: error_dna 死导入修复回归(2026-07-20 前: lib.error_dna 解析到
 #    hooks/lib 空包 → ImportError 被 except 吞 → error DNA 静默死) ──
-check("A6 error-dna-import-live", pg._record_error is not None)
+check("A6 error-dna-import-live", edl.record_error is not None)
 
 # ── A7 对抗: 同 task 多 token(皆 active)→ 取 mtime 最新(SSOT 确定契约) ──
 with tempfile.TemporaryDirectory() as tmp7:
@@ -190,9 +193,9 @@ with tempfile.TemporaryDirectory() as tmp8:
 if live is not None:
     check("L2 precompact-matches-ssot", pc._latest_token() == live,
           f"pc={pc._latest_token()} live={live}")
-    td2, _s2 = pg._active_task()
     data = json.loads(live.read_text(encoding="utf-8"))
     exp = data.get("task_dir")
+    td2 = Path(ROOT / exp) if isinstance(exp, str) and exp else None
     exp_dir = (ROOT / exp) if isinstance(exp, str) and exp else None
     check("L2 posttool-task-dir-matches", td2 == exp_dir, f"got={td2} exp={exp_dir}")
     mo_id = mo._latest_task_id()

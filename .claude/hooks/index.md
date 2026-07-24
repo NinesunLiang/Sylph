@@ -17,22 +17,19 @@
 | 类别 | Hook 文件 | 触发点 |
 |------|-----------|--------|
 | **门禁（G1-G6）** | `pretool-gate.py` | PreToolUse |
-| **权限** | `permission-gate.py`, `privacy-gate.py` | PreToolUse |
 | **完成门禁** | `completion-gate.py`, `pre-completion-gate.py` | PreToolUse / UserPromptSubmit |
-| **终端安全** | `pretool-terminal-safety.py` | PreToolUse:Bash |
-| **写入保护** | `pretool-write-lock.py`, `edit-guard.py` | PreToolUse:Write |
-| **用户审批** | `pretool-user-approve.py`, `pretool-approve-detect.py` | PreToolUse |
+| **用户审批** | `pretool-user-approve.py` | PreToolUse |
 | **Bash审计** | `posttool-bash-audit.py` | PostToolUse:Bash |
 | **Claim审计** | `posttool-claim-audit.py` | PostToolUse |
 | **安全过滤** | `posttool-sensitive-filter.py` | PostToolUse |
-| **检查点** | `posttool-checkpoint.py`, `posttool-gate.py` | PostToolUse |
-| **上下文水位** | `context-guard.py` | PreToolUse |
+| **输出校验** | `posttool-output-schema.py` | PostToolUse:Bash/Edit/Write |
+| **夜航模式** | `carroros-night-deny.py` | PreToolUse |
 | **Error DNA** | `error-dna.py`, `error-dna-auto-fix.py` | PostToolUse |
 | **token 系统** | `token_writer.py`, `turn-counter.py` | PostToolUse / UserPromptSubmit |
 | **会话管理** | `session-start.py`, `session-resume.py`, `session-end-lifecycle.py` | SessionStart / PreCompact |
 | **生命周期** | `precompact-lifecycle.py`, `subagent-stop-lifecycle.py` | PreCompact / SubAgentStop |
 | **飞轮** | `stop-flywheel.py` | PreCompact |
-| **其他** | `carroros-night-deny.py`, `thinking-gate.py`, `pre-ask-guard.py`, `pretool-purify-gate.py`, `pretool-blast-radius.py`, `read-tracker.py` | 各触发点 |
+| **阅读追踪** | `read-tracker.py` | PostToolUse:Read |
 
 ## 注册方式
 
