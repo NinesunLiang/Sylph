@@ -1,6 +1,6 @@
 # 共享节点索引（v5 MVP）
 
-> 12 个通用执行节点，按功能 + 使用频率分类
+> 10 个通用执行节点，按功能 + 使用频率分类
 
 ---
 
@@ -75,7 +75,7 @@
 
 ---
 
-## 已删除节点（6 个，Oracle 评审 P0）
+## 已删除节点（8 个）
 
 | 原节点 | 删除理由 |
 |--------|---------|
@@ -85,6 +85,8 @@
 | `fallback_exploration.md` | 0 引用，降级触发在 execute_node 中 |
 | `fallback_framework.md` | 0 引用，同上 |
 | `judge.md` | 0 引用，verdict schema 已定义判定结构 |
+| `mode_selector.md` | 0 skill 引用，已删除 |
+| `oracle_terminal.md` | 0 skill 引用，已迁移到 scripts/oracle_agent.py |
 
 ---
 

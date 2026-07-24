@@ -27,6 +27,8 @@
 #
 
 # 已清理 schemas（文件已从磁盘删除）：
+# atomic/severity.yaml — 0 skill 引用，已删除（2026-07-25）
+# atomic/error_codes.yaml — 0 skill 引用，已删除（2026-07-25）
 
 # output/plan_output.yaml — 消费者 plan_node 已删除
 
