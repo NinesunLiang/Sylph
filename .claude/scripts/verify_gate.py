@@ -416,7 +416,7 @@ def main() -> int:
 
             # E7增强2: overturn 检测 — 读取审计中该 step 的决策历史
             _prev_decisions = []
-            _audit_dir = _cal_dir.parent.parent / "audit"
+            _audit_dir = _cal_dir.parent / "audit"  # .omc/audit/ — parent of .omc/state/
             if _audit_dir.exists():
                 for _f in sorted(_audit_dir.glob("*.jsonl")):
                     try:

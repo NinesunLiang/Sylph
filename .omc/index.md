@@ -8,7 +8,6 @@
 |------|------|
 | `tasks/` | 任务文档系统 — AI 任务的唯一落脚点 |
 | `tokens/` | 令牌系统 — 任务/会话级令牌（goal、无人模式、AI 任务） |
-| `state/` | 运行时状态 — lifecycle / hud / snapshots / 证据缓存 / oracle verdicts |
 | `archive/` | 已归档任务和令牌 |
 | `audit/` | 审计日志 JSONL（pretool/posttool 门禁记录） |
 | `knowledge/` | 升华管道数据 |
@@ -46,8 +45,5 @@
 ├── last-user-prompt.md                      # 最近用户请求
 ├── last-user-prompts/                       # 多终端用户 prompt 记录
 ├── snapshots/                               # PreCompact 快照
-├── .harness-evidence/                       # Harness 捕获的测试命令输出
-├── static-oracle-verdicts/{task_id}/        # Oracle-D 静态预检裁决
-├── runtime-oracle-verdicts/{task_id}/       # Oracle-V 运行时验证裁决
-├── meta-oracle-verdicts/{task_id}/          # Meta-Oracle 终审裁决
-└── oracle_bypass/{task_id}/                 # Oracle 绕过授权
+├── oracle/                                    # Oracle 统一裁决（static/runtime/meta/duo/bypass 按 type 区分）
+├── oracle-audit/                              # Oracle 执行审计日志
