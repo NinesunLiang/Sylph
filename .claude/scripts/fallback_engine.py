@@ -105,7 +105,9 @@ def append_text(path: Path, text: str) -> None:
         f.write(text)
 
 
-def task_id_from_token(token: dict[str, Any]) -> str:
+def task_id_from_token(token: dict[str, Any] | None) -> str:
+    if not token:
+        return "unknown_task"
     task = token.get("task") or {}
     return (
         task.get("id")
@@ -114,7 +116,9 @@ def task_id_from_token(token: dict[str, Any]) -> str:
     )
 
 
-def current_step_from_token(token: dict[str, Any]) -> str | None:
+def current_step_from_token(token: dict[str, Any] | None) -> str | None:
+    if not token:
+        return None
     task = token.get("task") or {}
     return task.get("current_step")
 

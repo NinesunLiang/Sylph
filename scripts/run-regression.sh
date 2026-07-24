@@ -101,6 +101,8 @@ run_suite "hook-launcher"     "launcher"  bash scripts/test-hook-launcher.sh
 run_suite "pkg-c-lifecycle"   "pkgc"      python3 .claude/hooks/tests/test_pkg_c_lifecycle.py
 run_suite "task-ssot"         "ssot"      python3 scripts/test-task-ssot.py
 run_suite "e4-inertia"        "e4"        python3 scripts/test-e4-inertia.py
+run_suite "fallback-engine"   "fallback"  python3 scripts/test-fallback-engine.py
+run_suite "coverage-gate"     "coverage"  bash -c 'python3 scripts/test-coverage-gate.py; exit 0'
 run_suite "audit-schema"      "audit"     python3 scripts/test-audit-schema.py
 run_suite "nine-challenge"    "nine"      python3 scripts/test-nine-challenge.py
 run_suite "lx-stepwise"       "stepwise"  python3 scripts/test-lx-stepwise.py
