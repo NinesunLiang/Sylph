@@ -44,7 +44,22 @@ def main():
         tool_name = data.get('args', {}).get('tool_name', '') or ''
     tool_name = tool_name.lower()
 
-    if tool_name != 'bash':
+    # ─── 提取字段（前置一步，以便判断是否需要采集）───
+    tool_response = data.get('tool_response', {})
+    tool_input = data.get('tool_input', {})
+    exit_code = tool_response.get('exit_code', 0)
+    stderr = tool_response.get('stderr', '') or ''
+    stdout = tool_response.get('stdout', '') or ''
+    top_error = data.get('error', '') or ''
+    event_name = data.get('hook_event_name', '') or ''
+
+    # L1/BF 错误采集：Bash exit≠0 + 所有工具的 stderr/error/BLOCK 信号
+    _has_stderr = bool(stderr.strip())
+    _has_error_event = bool(top_error) or event_name == 'PostToolUseFailure'
+    _has_block_signal = 'BLOCK' in stdout[:300] or '⛔' in stdout[:300]
+    _is_bash_error = tool_name == 'bash' and exit_code != 0
+
+    if not (_is_bash_error or _has_stderr or _has_error_event or _has_block_signal):
         print(json.dumps({'continue': True}))
         sys.exit(0)
 
@@ -86,13 +101,8 @@ def main():
         except Exception:
             pass
 
-    # ─── 提取字段 ───
-    tool_response = data.get('tool_response', {})
-    tool_input = data.get('tool_input', {})
-    exit_code = tool_response.get('exit_code', 0)
+    # ─── command 提取 ───
     command = tool_input.get('command', '') or ''
-    stderr = tool_response.get('stderr', '') or ''
-    stdout = tool_response.get('stdout', '') or ''
 
     # === Total-ops counter ===
     ops_path = STATE_DIR / 'total-ops.txt'
@@ -193,9 +203,12 @@ def main():
             ESCAPE_E2_TARGET = _cm
             break
 
-    if not command:
-        print(json.dumps({'continue': True}))
-        sys.exit(0)
+    if not command and tool_name != 'bash':
+        # Non-bash tool without command: collect what we can
+        command = tool_input.get('file_path', '') or tool_input.get('path', '') or tool_name
+        if not command:
+            print(json.dumps({'continue': True}))
+            sys.exit(0)
 
     # === Inline classifier ===
     cmd_normalized = re.sub(
