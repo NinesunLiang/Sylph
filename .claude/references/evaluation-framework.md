@@ -48,27 +48,27 @@
 
 | # | 套件 | 文件 | 覆盖 |
 |---|------|------|------|
-| 1 | context-watermark | feature_test/test-context-watermark.py | 水位 B 三段策略 |
-| 2 | oracle-gate | feature_test/test-oracle-gate.py | oracle 三层对抗审核 |
-| 3 | verify-gate | feature_test/test-verify-gate.py | VerifyGate 双绑定 |
-| 4 | goal-mode-gate | feature_test/test-goal-mode-gate.py | goal 模式降级/恢复 |
-| 5 | hook-launcher | feature_test/test-hook-launcher.sh | launcher 自锚定/fail-closed |
-| 6 | pkg-c-lifecycle | feature_test/test_pkg_c_lifecycle.py | 生命周期 pkg |
-| 7 | task-ssot | feature_test/test-task-ssot.py | 任务状态源 SSOT |
-| 8 | e4-inertia | feature_test/test-e4-inertia.py | E4 惯性执行防护 |
-| 9 | audit-schema | feature_test/test-audit-schema.py | 审计 schema 合规 |
-| 10 | nine-challenge | feature_test/test-nine-challenge.py | 9 分挑战 |
-| 11 | lx-stepwise | feature_test/test-lx-stepwise.py | 逐步执行 |
-| 12 | lifecycle-mutex | feature_test/test-lifecycle-mutex.py | 生命周期互斥 |
-| 13 | fallback-engine | feature_test/test-fallback-engine.py | 15 种失败/4 种决策 |
-| 14 | coverage-gate | feature_test/test-coverage-gate.py | 56/56 覆盖率门禁 |
+| 1 | context-watermark | tests/test-context-watermark.py | 水位 B 三段策略 |
+| 2 | oracle-gate | tests/test-oracle-gate.py | oracle 三层对抗审核 |
+| 3 | verify-gate | tests/test-verify-gate.py | VerifyGate 双绑定 |
+| 4 | goal-mode-gate | tests/test-goal-mode-gate.py | goal 模式降级/恢复 |
+| 5 | hook-launcher | tests/test-hook-launcher.sh | launcher 自锚定/fail-closed |
+| 6 | pkg-c-lifecycle | tests/test_pkg_c_lifecycle.py | 生命周期 pkg |
+| 7 | task-ssot | tests/test-task-ssot.py | 任务状态源 SSOT |
+| 8 | e4-inertia | tests/test-e4-inertia.py | E4 惯性执行防护 |
+| 9 | audit-schema | tests/test-audit-schema.py | 审计 schema 合规 |
+| 10 | nine-challenge | tests/test-nine-challenge.py | 9 分挑战 |
+| 11 | lx-stepwise | tests/test-lx-stepwise.py | 逐步执行 |
+| 12 | lifecycle-mutex | tests/test-lifecycle-mutex.py | 生命周期互斥 |
+| 13 | fallback-engine | tests/test-fallback-engine.py | 15 种失败/4 种决策 |
+| 14 | coverage-gate | tests/test-coverage-gate.py | 56/56 覆盖率门禁 |
 
-以上 14 套已显式注册，其余 40 套由自动发现覆盖（`feature_test/test-*.py` 扫描，排除已注册项）。
+以上 14 套已显式注册，其余 40 套由自动发现覆盖（`tests/test-*.py` 扫描，排除已注册项）。
 
 **规则**:
 - 回归通过 = 证据硬门槛，不可绕过
 - 每次提分时回归必须 rc=0
-- 全量套件存于 `.claude/references/feature_test/`（AI/Auditor 共享入口）
+- 全量套件存于 `.claude/references/tests/`（AI/Auditor 共享入口）
 - Coverage Gate `--block` 可阻断 scorecard 提分（当有新机制无测试时）
 
 ### Layer 1.5 — 测试覆盖率自动评价（新增）
@@ -85,8 +85,8 @@
 | 80-99% | 部分机制未覆盖 | scorecard 需显式 human-override |
 | <80% | 大规模缺口 | 强制阻止 scorecard 提分 |
 
-Coverage Gate 位置: `.claude/references/feature_test/test-coverage-gate.py`  
-运行方式: `python3 .claude/references/feature_test/test-coverage-gate.py --block`
+Coverage Gate 位置: `.claude/references/tests/test-coverage-gate.py`  
+运行方式: `python3 .claude/references/tests/test-coverage-gate.py --block`
 
 **当前状态**: 56/56 = 100% ✅
 
@@ -239,7 +239,7 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 
 ```text
 1. 提分施工 → git commit + 跑回归: bash scripts/run-regression.sh
-2. 回归全过 → 验证覆盖门禁: python3 .claude/references/feature_test/test-coverage-gate.py --block
+2. 回归全过 → 验证覆盖门禁: python3 .claude/references/tests/test-coverage-gate.py --block
 3. 覆盖通过 → 写 scorecard.md 记录三元组
 4. 每 3 轮 → 独立审计: python3 .claude/scripts/meta_oracle.py aggregate --policy duo
 5. 合成报告: python3 scripts/eval-aggregate.py --scorecard X --meta-verdict Y
@@ -255,8 +255,8 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 |------|------|
 | `.claude/references/evaluation-framework.md` | 本文件——框架规范 |
 | `scripts/run-regression.sh` | 回归地基（54/54 全量套件） |
-| `.claude/references/feature_test/` | 54 套测试文件仓库 |
-| `.claude/references/feature_test/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
+| `.claude/references/tests/` | 54 套测试文件仓库 |
+| `.claude/references/tests/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
 | `scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |
 | `.claude/scripts/meta_oracle.py` | 审计器——G1-G4 框架 |
 | `improve_plan/CarrorOS_second_time/scorecard.md` | 纵向账本 |
