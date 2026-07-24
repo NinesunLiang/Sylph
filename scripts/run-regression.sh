@@ -108,6 +108,21 @@ run_suite "nine-challenge"    "nine"      python3 scripts/test-nine-challenge.py
 run_suite "lx-stepwise"       "stepwise"  python3 scripts/test-lx-stepwise.py
 run_suite "lifecycle-mutex"   "mutex"     python3 scripts/test-lifecycle-mutex.py
 
+# ── 全覆盖套件: 自动发现所有 scripts/test-*.py(排除已注册的独立套件) ──
+EXCLUDED="test-context-watermark|test-oracle-gate|test-verify-gate|test-goal-mode-gate|test-hook-launcher|test_pkg_c|test-task-ssot|test-e4-inertia|test-fallback-engine|test-coverage-gate|test-audit-schema|test-nine-challenge|test-lx-stepwise|test-lifecycle-mutex"
+for f in scripts/test-*.py scripts/test-*.sh; do
+  base=$(basename "$f" | sed 's/\.py$//;s/\.sh$//')
+  if echo "$base" | grep -qE "^($EXCLUDED)\$"; then
+    continue
+  fi
+  name=$(echo "$f" | sed 's|^scripts/test-||;s|\.py$||;s|\.sh$||')
+  if echo "$f" | grep -q '\.sh$'; then
+    run_suite "test-$name" "$name" bash "$f"
+  else
+    run_suite "test-$name" "$name" python3 "$f"
+  fi
+done
+
 echo "---"
 echo "回归结果: $pass 过 / $fail 败 (共 $((pass + fail)) 套件)"
 if [ "$rc_all" != "0" ]; then
