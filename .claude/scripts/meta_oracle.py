@@ -284,6 +284,37 @@ def _calculate_final_score(gate_results: dict, token_data: dict = None) -> float
     return round(final_score, 1)
 
 
+def _latest_task_id() -> str | None:
+    """返回 TOKENS_DIR 中最新活跃任务的 task.id，无活跃任务返回 None。
+
+    供 test-task-ssot.py 对抗测试使用（A5: 幻影形态全灭验证）。
+    """
+    if not TOKENS_DIR.exists():
+        return None
+    best: tuple[float, str | None] = (0, None)
+    for f in sorted(TOKENS_DIR.rglob("*.json"), reverse=True):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        task_raw = data.get("task")
+        task = task_raw if isinstance(task_raw, dict) else {}
+        # 任一字段指示非活跃即跳过: task.status, data.phase, data.status(顶层/archived)
+        if (task.get("status") or "") in ("done", "archived", "completed", "off"):
+            continue
+        if (data.get("phase") or "") in ("done", "archived", "completed", "off"):
+            continue
+        if (data.get("status") or "") in ("archived",):
+            continue
+        mtime = f.stat().st_mtime
+        tid = task.get("id") if isinstance(task_raw, dict) else (task_raw or "")
+        if mtime > best[0]:
+            best = (mtime, tid)
+    return best[1]
+
+
 def _collect_context(task_id: str, token_data: dict = None) -> dict:
     """收集评审所需的所有上下文"""
     ctx = {"task_id": task_id}

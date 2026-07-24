@@ -213,10 +213,13 @@ def main():
                 print(E6_CHECK, file=sys.stderr, flush=True)
 
     # ─── 组合违规 ───
+    # 计算 read-tracker 条目数（避免冷启动误阻断）
+    _READ_FILE_COUNT = len([l for l in read_files.splitlines() if l.strip()]) if read_files else 0
+
     _IS_COLD_START = False
     if VIOLATIONS or G1_VIOLATIONS or E6_VIOLATIONS:
-        if not _READ_TRACKER_EXISTS and CLAIMED_FILES:
-            # 冷启动保护：read-tracker 为空 → 持续 WARN，不升级为 BLOCK
+        if (not _READ_TRACKER_EXISTS or _READ_FILE_COUNT < 3) and CLAIMED_FILES:
+            # 冷启动保护：read-tracker 为空或 <3 条 → 持续 WARN，不升级为 BLOCK
             # 原因: COLD_START_BLOCK 导致 "PostToolUse:Edit stopped continuation" — 过于激进
             # 修复: 永远 WARN-only，通过 flywheel 记录追踪，退出报告时统一审查
             _IS_COLD_START = True
