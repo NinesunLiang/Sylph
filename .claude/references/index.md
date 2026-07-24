@@ -25,11 +25,19 @@
 | `fallback-matrix.md` | 降级矩阵 |
 | `feature-registry.yaml` | 功能注册表 |
 | `gate-rules.yaml` | Gate 规则 |
-| `invariants.md` | 12 条系统不变量 |
+| `invariants.md` | 12 条系统不变量 [内部自检，非行业标准] |
 | `oracle-spec.md` | Oracle 门禁规格 |
 | `philosophy.md` | 决策链哲学 |
 | `skill-atomization-guide.md` | Skill 原子化指南 |
 
 ## ADR
+
+| 编号 | 标题 | 摘要 |
+|------|------|------|
+| 0001 | `.omc/` 作为 AI 唯一写入域 | AI 读取 `.claude/`，写入 `.omc/`，实现读写分离与审计 |
+| 0002 | Token + Lock 双层任务生命周期 | `token.json` 存元数据 + lock 文件保并发安全，零外部依赖 |
+| 0003 | VerifyGate 证据等级体系 | E3(exit=0) > E2(assert) > E1(confirm) > E0(rejected)，防虚假完成 |
+| 0004 | Oracle 双模型对抗审核 | Oracle-D(静态) + Oracle-V(动态) 独立运行后交叉校验 |
+| 0005 | Goal 模式自主执行 + skip-risk 安全阀 | L1 硬边界/L2 跳过记录/L3 人工审批，7 步闭环执行 |
 
 新增架构决策时在 `adr/` 下创建文件并按模板格式填写。
