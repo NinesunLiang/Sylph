@@ -1,1 +1,0 @@
-读文件 ~/Desktop/CarrorOS/AGENTS.md，提取其中的核心灵魂内容，输出到 executor.md
