@@ -19,6 +19,7 @@ BYPASS="$STATE/temp-bypass.json"
 WM="$STATE/context-watermark.json"
 GOAL_SIGNAL="$TOKENS/autonomous.active"
 GOAL_MODE="$TOKENS/lx-goal.json"
+FEATURE_TEST="$PROJECT_ROOT/.claude/references/feature_test"
 S1="/tmp/carros-regression.temp-bypass.stash"
 S2="/tmp/carros-regression.watermark.stash"
 S3="/tmp/carros-regression.goal-signal.stash"
@@ -93,29 +94,29 @@ run_suite() {
   fi
 }
 
-run_suite "context-watermark" "watermark" python3 scripts/test-context-watermark.py
-run_suite "oracle-gate"       "oracle"    python3 scripts/test-oracle-gate.py
-run_suite "verify-gate"       "verify"    python3 scripts/test-verify-gate.py
-run_suite "goal-mode-gate"    "goalmode"  python3 scripts/test-goal-mode-gate.py
-run_suite "hook-launcher"     "launcher"  bash scripts/test-hook-launcher.sh
-run_suite "pkg-c-lifecycle"   "pkgc"      python3 .claude/hooks/tests/test_pkg_c_lifecycle.py
-run_suite "task-ssot"         "ssot"      python3 scripts/test-task-ssot.py
-run_suite "e4-inertia"        "e4"        python3 scripts/test-e4-inertia.py
-run_suite "fallback-engine"   "fallback"  python3 scripts/test-fallback-engine.py
-run_suite "coverage-gate"     "coverage"  bash -c 'python3 scripts/test-coverage-gate.py; exit 0'
-run_suite "audit-schema"      "audit"     python3 scripts/test-audit-schema.py
-run_suite "nine-challenge"    "nine"      python3 scripts/test-nine-challenge.py
-run_suite "lx-stepwise"       "stepwise"  python3 scripts/test-lx-stepwise.py
-run_suite "lifecycle-mutex"   "mutex"     python3 scripts/test-lifecycle-mutex.py
+run_suite "context-watermark" "watermark" python3 .claude/references/feature_test/test-context-watermark.py
+run_suite "oracle-gate"       "oracle"    python3 .claude/references/feature_test/test-oracle-gate.py
+run_suite "verify-gate"       "verify"    python3 .claude/references/feature_test/test-verify-gate.py
+run_suite "goal-mode-gate"    "goalmode"  python3 .claude/references/feature_test/test-goal-mode-gate.py
+run_suite "hook-launcher"     "launcher"  bash .claude/references/feature_test/test-hook-launcher.sh
+run_suite "pkg-c-lifecycle"   "pkgc"      python3 .claude/references/feature_test/test_pkg_c_lifecycle.py
+run_suite "task-ssot"         "ssot"      python3 .claude/references/feature_test/test-task-ssot.py
+run_suite "e4-inertia"        "e4"        python3 .claude/references/feature_test/test-e4-inertia.py
+run_suite "fallback-engine"   "fallback"  python3 .claude/references/feature_test/test-fallback-engine.py
+run_suite "coverage-gate"     "coverage"  bash -c 'python3 .claude/references/feature_test/test-coverage-gate.py; exit 0'
+run_suite "audit-schema"      "audit"     python3 .claude/references/feature_test/test-audit-schema.py
+run_suite "nine-challenge"    "nine"      python3 .claude/references/feature_test/test-nine-challenge.py
+run_suite "lx-stepwise"       "stepwise"  python3 .claude/references/feature_test/test-lx-stepwise.py
+run_suite "lifecycle-mutex"   "mutex"     python3 .claude/references/feature_test/test-lifecycle-mutex.py
 
 # ── 全覆盖套件: 自动发现所有 scripts/test-*.py(排除已注册的独立套件) ──
 EXCLUDED="test-context-watermark|test-oracle-gate|test-verify-gate|test-goal-mode-gate|test-hook-launcher|test_pkg_c|test-task-ssot|test-e4-inertia|test-fallback-engine|test-coverage-gate|test-audit-schema|test-nine-challenge|test-lx-stepwise|test-lifecycle-mutex"
-for f in scripts/test-*.py scripts/test-*.sh; do
+for f in "$FEATURE_TEST"/test-*.py "$FEATURE_TEST"/test-*.sh; do
   base=$(basename "$f" | sed 's/\.py$//;s/\.sh$//')
   if echo "$base" | grep -qE "^($EXCLUDED)\$"; then
     continue
   fi
-  name=$(echo "$f" | sed 's|^scripts/test-||;s|\.py$||;s|\.sh$||')
+  name=$(echo "$(basename "$f")" | sed 's/^test-//;s/\.py$//;s/\.sh$//')
   if echo "$f" | grep -q '\.sh$'; then
     run_suite "test-$name" "$name" bash "$f"
   else

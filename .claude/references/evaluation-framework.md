@@ -35,35 +35,60 @@
                      │  [commit, 回归证据, 裁决] 三元组│
                      ├─────────────────────────────┤
                      │  Layer 1 回归地基 (Ground Truth)│
-                     │  12 套件一键跑                 │
+                     │  54 套件全覆盖一键跑              │
                      │  bash scripts/run-regression.sh│
                      └─────────────────────────────┘
 ```
 
 ### Layer 1 — 回归地基
 
-**什么**: 12 套自动化测试套件，一键 `bash scripts/run-regression.sh`
+**什么**: 54 套自动化测试套件，全量覆盖 56/56 机制，一键 `bash scripts/run-regression.sh`
+
+**14 注册套件（精确测试名，独立报告）**:
 
 | # | 套件 | 文件 | 覆盖 |
 |---|------|------|------|
-| 1 | context-watermark | test-context-watermark.py | 水位 B 三段策略 |
-| 2 | oracle-gate | test-oracle-gate.py | oracle 三层对抗审核 |
-| 3 | verify-gate | test-verify-gate.py | VerifyGate 双绑定 |
-| 4 | goal-mode-gate | test-goal-mode-gate.py | goal 模式降级/恢复 |
-| 5 | hook-launcher | test-hook-launcher.sh | launcher 自锚定/fail-closed |
-| 6 | pkg-c-lifecycle | test_pkg_c_lifecycle.py | 生命周期 pkg |
-| 7 | task-ssot | test-task-ssot.py | 任务状态源 SSOT |
-| 8 | e4-inertia | test-e4-inertia.py | E4 惯性执行防护 |
-| 9 | audit-schema | test-audit-schema.py | 审计 schema 合规 |
-| 10 | nine-challenge | test-nine-challenge.py | 9 分挑战 |
-| 11 | lx-stepwise | test-lx-stepwise.py | 逐步执行 |
-| 12 | lifecycle-mutex | test-lifecycle-mutex.py | 生命周期互斥 |
+| 1 | context-watermark | feature_test/test-context-watermark.py | 水位 B 三段策略 |
+| 2 | oracle-gate | feature_test/test-oracle-gate.py | oracle 三层对抗审核 |
+| 3 | verify-gate | feature_test/test-verify-gate.py | VerifyGate 双绑定 |
+| 4 | goal-mode-gate | feature_test/test-goal-mode-gate.py | goal 模式降级/恢复 |
+| 5 | hook-launcher | feature_test/test-hook-launcher.sh | launcher 自锚定/fail-closed |
+| 6 | pkg-c-lifecycle | feature_test/test_pkg_c_lifecycle.py | 生命周期 pkg |
+| 7 | task-ssot | feature_test/test-task-ssot.py | 任务状态源 SSOT |
+| 8 | e4-inertia | feature_test/test-e4-inertia.py | E4 惯性执行防护 |
+| 9 | audit-schema | feature_test/test-audit-schema.py | 审计 schema 合规 |
+| 10 | nine-challenge | feature_test/test-nine-challenge.py | 9 分挑战 |
+| 11 | lx-stepwise | feature_test/test-lx-stepwise.py | 逐步执行 |
+| 12 | lifecycle-mutex | feature_test/test-lifecycle-mutex.py | 生命周期互斥 |
+| 13 | fallback-engine | feature_test/test-fallback-engine.py | 15 种失败/4 种决策 |
+| 14 | coverage-gate | feature_test/test-coverage-gate.py | 56/56 覆盖率门禁 |
+
+以上 14 套已显式注册，其余 40 套由自动发现覆盖（`feature_test/test-*.py` 扫描，排除已注册项）。
 
 **规则**:
 - 回归通过 = 证据硬门槛，不可绕过
-- 基线首次跑录 `benchmark/runs/{date}-baseline.json`
 - 每次提分时回归必须 rc=0
-- `run-regression.sh --json` 输出结构化结果给下游
+- 全量套件存于 `.claude/references/feature_test/`（AI/Auditor 共享入口）
+- Coverage Gate `--block` 可阻断 scorecard 提分（当有新机制无测试时）
+
+### Layer 1.5 — 测试覆盖率自动评价（新增）
+
+**什么**: 由 Coverage Gate 自动计算机制覆盖率，作为评分体系的补充约束性维度。
+
+```
+覆盖率分 = 测试覆盖机制数 / 总机制数 × 10
+```
+
+| 阈值 | 含义 | 作用 |
+|------|------|------|
+| 100% | 每项机制有独立测试 | 覆盖门禁通过，不扣分 |
+| 80-99% | 部分机制未覆盖 | scorecard 需显式 human-override |
+| <80% | 大规模缺口 | 强制阻止 scorecard 提分 |
+
+Coverage Gate 位置: `.claude/references/feature_test/test-coverage-gate.py`  
+运行方式: `python3 .claude/references/feature_test/test-coverage-gate.py --block`
+
+**当前状态**: 56/56 = 100% ✅
 
 ### Layer 2 — 增量提分账 (Longitude)
 
@@ -214,11 +239,12 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 
 ```text
 1. 提分施工 → git commit + 跑回归: bash scripts/run-regression.sh
-2. 回归全过 → 写 scorecard.md 记录三元组
-3. 每 3 轮 → 独立审计: python3 .claude/scripts/meta_oracle.py aggregate --policy duo
-4. 合成报告: python3 scripts/eval-aggregate.py --scorecard X --meta-verdict Y
-5. 读 eval-report.md: 得分 + 分歧分析 + 下轮建议
-6. Δ ≥ 1.0 必须查明原因后才可继续迭代
+2. 回归全过 → 验证覆盖门禁: python3 .claude/references/feature_test/test-coverage-gate.py --block
+3. 覆盖通过 → 写 scorecard.md 记录三元组
+4. 每 3 轮 → 独立审计: python3 .claude/scripts/meta_oracle.py aggregate --policy duo
+5. 合成报告: python3 scripts/eval-aggregate.py --scorecard X --meta-verdict Y
+6. 读 eval-report.md: 得分 + 分歧分析 + 下轮建议
+7. Δ ≥ 1.0 必须查明原因后才可继续迭代
 ```
 
 ---
@@ -228,11 +254,13 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 | 文件 | 职责 |
 |------|------|
 | `.claude/references/evaluation-framework.md` | 本文件——框架规范 |
-| `scripts/run-regression.sh` | 回归地基（已有，维持） |
+| `scripts/run-regression.sh` | 回归地基（54/54 全量套件） |
+| `.claude/references/feature_test/` | 54 套测试文件仓库 |
+| `.claude/references/feature_test/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
 | `scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |
-| `.claude/scripts/meta_oracle.py` | 审计器——G1-G4 框架（已有，维持） |
-| `improve_plan/CarrorOS_second_time/scorecard.md` | 纵向账本（已有，维持） |
-| `benchmark/runs/` | 基准回归存档（已有，维持） |
+| `.claude/scripts/meta_oracle.py` | 审计器——G1-G4 框架 |
+| `improve_plan/CarrorOS_second_time/scorecard.md` | 纵向账本 |
+| `benchmark/runs/` | 基准回归存档 |
 
 ---
 
