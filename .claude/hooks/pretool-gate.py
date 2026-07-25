@@ -959,9 +959,26 @@ def _check_plan_gate(payload: dict) -> str | None:
         return None
     plan = task_dir / "plan.md"
     if not plan.exists():
-        return f"REDIRECT plan_missing task_dir={task_dir}|任务目录缺少 plan.md,请确认任务已正确初始化后重试。"
+        # ai_self_decision.md Rule 2: 流程提示 → WARN 不阻断
+        _append_audit({
+            "event_type": "plan_gate_warn",
+            "actor": "hook:pretool-gate",
+            "decision": "WARN",
+            "reason": f"plan_missing task_dir={task_dir}",
+        })
+        print(f"⚠️ [plan-gate] plan.md 不存在: {task_dir}", file=sys.stderr, flush=True)
+        print("  请先确认任务已正确初始化。如需初始化: carros_base.py init --task <name>", file=sys.stderr, flush=True)
+        return None
     if not task.get("current_step"):
-        return "REDIRECT current_step_missing|任务缺少 current_step 状态,请确认 token 完整后重试。"
+        # ai_self_decision.md Rule 2: 流程提示 → WARN 不阻断
+        _append_audit({
+            "event_type": "plan_gate_warn",
+            "actor": "hook:pretool-gate",
+            "decision": "WARN",
+            "reason": "current_step_missing",
+        })
+        print("⚠️ [plan-gate] 任务缺少 current_step 状态", file=sys.stderr, flush=True)
+        return None
     return None
 
 def _check_edit_scope(payload: dict) -> str | None:
@@ -1089,7 +1106,40 @@ def _check_oracle_gate(payload: dict) -> str | None:
     task = token.get("task", {})
     step = task.get("current_step") if isinstance(task, dict) else None
     if verdict == "REDIRECT":
-        # 查找对应的 redirect_guidance（先静态规则,再动态规则）
+        # ai_self_decision.md 原则:
+        #   Rule 1: gov_file_bypass 是越权行为 → 保持 REDIRECT（告知后打断）
+        #   Rule 2: multi_cmd_newline/redundant_file_probe/cd_churn 是行为风格指导
+        #           动态 anti-pattern 继承来源规则 → WARN 不阻断
+        if detail in ("gov_file_bypass",):
+            _guidance = ""
+            for _, _detail, _guide in _ORACLE_ANTI_PATTERN_RULES:
+                if _detail == detail:
+                    _guidance = _guide
+                    break
+            if not _guidance:
+                for _, _detail, _guide in _load_anti_pattern_redirects():
+                    if _detail == detail:
+                        _guidance = _guide
+                        break
+            _append_audit({
+                "event_type": "oracle_redirect",
+                "actor": "hook:pretool-gate",
+                "decision": "REDIRECT",
+                "reason": detail,
+                "current_step": step,
+                "cmd_head": command[:120],
+            })
+            return f"REDIRECT oracle_redirect:{detail}|{_guidance}"
+        # Rule 2 行为指导 → WARN 不阻断
+        _append_audit({
+            "event_type": "oracle_redirect_warn",
+            "actor": "hook:pretool-gate",
+            "decision": "WARN",
+            "reason": detail,
+            "current_step": step,
+            "cmd_head": command[:120],
+        })
+        # 查找 guidance 告知 AI
         _guidance = ""
         for _, _detail, _guide in _ORACLE_ANTI_PATTERN_RULES:
             if _detail == detail:
@@ -1100,15 +1150,10 @@ def _check_oracle_gate(payload: dict) -> str | None:
                 if _detail == detail:
                     _guidance = _guide
                     break
-        _append_audit({
-            "event_type": "oracle_redirect",
-            "actor": "hook:pretool-gate",
-            "decision": "REDIRECT",
-            "reason": detail,
-            "current_step": step,
-            "cmd_head": command[:120],
-        })
-        return f"REDIRECT oracle_redirect:{detail}|{_guidance}"
+        print(f"⚠️ [oracle-gate] 检测到反模式({detail})，建议修正", file=sys.stderr, flush=True)
+        if _guidance:
+            print(f"  {_guidance}", file=sys.stderr, flush=True)
+        return None
     if verdict == "BLOCK":
         _append_audit({
             "event_type": "oracle_gate_block",
@@ -1295,7 +1340,17 @@ def _check_document_quality(payload: dict) -> str | None:
                 "path": path,
             })
             if is_critical:
-                return f"REDIRECT dialogue_residue_in_spec_doc pattern={pat} path={path}|检测到对话残渣写入关键文档。请清理多余对话用语,保留纯文档内容后重试。"
+                # ai_self_decision.md Rule 2: 文档质量问题 → WARN 不打断
+                _append_audit({
+                    "event_type": "document_quality_warning_downgraded",
+                    "actor": "hook:pretool-gate",
+                    "decision": "WARN",
+                    "reason": f"dialogue_residue pattern={pat} downgraded per ai_self_decision Rule 2",
+                    "path": path,
+                })
+                print(f"⚠️ [document-quality] 对话残渣检测(被阻断): path={path}", file=sys.stderr, flush=True)
+                print(f"  请清理多余对话用语,保持文档纯内容。", file=sys.stderr, flush=True)
+                return None
             return None  # WARN passes through
     return None
 

@@ -190,9 +190,11 @@ try:
                     "updated_at": datetime.now(timezone.utc).isoformat()},
     }, ensure_ascii=False), encoding="utf-8")
     before_redirect = len(audit_events("oracle_redirect"))
+    before_warn = len(audit_events("oracle_redirect_warn"))
     r = pg._check_oracle_gate(payload("cat foo.py && wc -l foo.py"))
-    ok("G7 REDIRECT 返回 REDIRECT 字符串", isinstance(r, str) and r.startswith("REDIRECT oracle_redirect"), repr(r))
-    ok("G7 audit oracle_redirect 留痕", len(audit_events("oracle_redirect")) == before_redirect + 1)
+    # ai_self_decision.md Rule 2: 行为风格指导 → WARN(返回 None),不阻断
+    ok("G7 反模式 WARN 返回 None(ai_self_decision Rule 2)", r is None, repr(r))
+    ok("G7 audit oracle_redirect_warn 留痕", len(audit_events("oracle_redirect_warn")) == before_warn + 1)
 
     r = pg._check_oracle_gate(payload("echo x > .claude/hooks/test.py"))
     ok("G8 gov_file_bypass REDIRECT", isinstance(r, str) and r.startswith("REDIRECT oracle_redirect:gov_file_bypass"), repr(r))
@@ -251,14 +253,14 @@ try:
     )
     ok("E2 PASS → exit 0 + ALLOW", r2.returncode == 0 and "ALLOW" in r2.stdout, f"rc={r2.returncode} out={r2.stdout[:120]}")
 
-    # E3: REDIRECT → exit 2 + REDIRECT 文案
+    # E3: REDIRECT(反模式) → ai_self_decision Rule 2: WARN 不阻断 → exit 0 + ALLOW
     r3 = subprocess.run(
         [sys.executable, str(hook)],
         input=json.dumps(payload("cat foo.py && wc -l foo.py")),
         capture_output=True, text=True, cwd=str(ROOT), timeout=30,
         env=env,
     )
-    ok("E3 REDIRECT → exit 2 + 操作重定向文案", r3.returncode == 2 and "操作重定向" in r3.stdout, f"rc={r3.returncode} out={r3.stdout[:80]}")
+    ok("E3 反模式 WARN(ai_self_decision Rule 2) → exit 0 + ALLOW", r3.returncode == 0 and "ALLOW" in r3.stdout, f"rc={r3.returncode} out={r3.stdout[:80]}")
 
     # E4: cp 覆写审批文件 → exit 2
     r4 = subprocess.run(
