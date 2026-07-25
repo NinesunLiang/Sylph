@@ -53,15 +53,37 @@ def main():
     top_error = data.get('error', '') or ''
     event_name = data.get('hook_event_name', '') or ''
 
+    # ── 噪声 stderr 前缀：这些不是实际错误信号 ──
+    _NOISE_STDERR_PREFIXES = (
+        "Shell cwd was reset", "shell cwd was reset",
+        "warning:", "warn:",
+        "info:", "debug:",
+        "could not change directory",
+    )
+    def _is_noise_stderr(s: str) -> bool:
+        first = s.strip().split("\n")[0].strip().lower()
+        return any(first.startswith(p.lower()) for p in _NOISE_STDERR_PREFIXES)
+
     # L1/BF 错误采集：Bash exit≠0 + 所有工具的 stderr/error/BLOCK 信号
-    _has_stderr = bool(stderr.strip())
+    _has_stderr = bool(stderr.strip()) and not _is_noise_stderr(stderr)
     _has_error_event = bool(top_error) or event_name == 'PostToolUseFailure'
-    _has_block_signal = 'BLOCK' in stdout[:300] or '⛔' in stdout[:300]
+    _has_block_signal = ('BLOCK' in stdout[:300] or '⛔' in stdout[:300]) and exit_code != 0
     _is_bash_error = tool_name == 'bash' and exit_code != 0
 
     if not (_is_bash_error or _has_stderr or _has_error_event or _has_block_signal):
         print(json.dumps({'continue': True}))
         sys.exit(0)
+
+    # A3: exit_code=0 且无实际错误内容 → 跳过（防 stdout 误报）
+    if exit_code == 0 and not _has_error_event:
+        if not stderr.strip() or _is_noise_stderr(stderr):
+            print(json.dumps({'continue': True}))
+            sys.exit(0)
+        ERR_KW = ("error", "fail", "exception", "traceback", "permission denied",
+                  "not found", "cannot", "invalid", "syntax error")
+        if not any(kw in stderr.lower() for kw in ERR_KW):
+            print(json.dumps({'continue': True}))
+            sys.exit(0)
 
     # ─── 路径初始化 ───
     SCRIPT_DIR = _HOOKS_DIR
@@ -218,7 +240,6 @@ def main():
         r'|/tmp/[^\s]+|/private/tmp/[^\s]+',
         '<NORMALIZED>', cmd_clean
     )
-    signature = hashlib.md5(cmd_normalized.encode()).hexdigest()[:16]
     cmd_lower = cmd_clean.lower()
 
     if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc',
@@ -241,6 +262,28 @@ def main():
     else:
         error_type = 'runtime'
 
+    # === B3: 复合指纹签名 (error_type + exit_code + cmd + message摘要) ===
+    _msg_for_sig = (message or cmd_clean)[:80]
+    _combined_for_hash = f"{error_type}:{exit_code}:{cmd_normalized[:150]}:{_msg_for_sig}"
+    signature = hashlib.md5(_combined_for_hash.encode()).hexdigest()[:16]
+
+    # === B1: step 与 retry_count 字段准备 ===
+    _step = os.environ.get("CARROROS_STEP", "?")
+
+    # === Retry budget 提前读取（为了在 record 中嵌入 retry_count） ===
+    budget_path = STATE_DIR / 'retry-budget.json'
+    _budget = {'signatures': {}}
+    if budget_path.is_file():
+        try:
+            with open(budget_path, encoding='utf-8') as _bf:
+                _budget = json.load(_bf)
+        except Exception:
+            pass
+    _sigs = _budget.get('signatures', {})
+    _existing = _sigs.get(signature, {})
+    # retry_count = 本次之前的历史重试次数（budget 中的次数不含本次）
+    _retry_count = _existing.get('retry_count', 0)
+
     output_snippet = (stderr or stdout)[:500]
     message = output_snippet[:200].replace('\n', ' ').replace('\r', ' ').strip()
     message = re.sub(r'\\*\\u[Dd][89a-fA-F][0-9a-fA-F]{2}', 'U+FFFD', message)
@@ -257,16 +300,47 @@ def main():
     stdout = _strip_surrogates(stdout)
     stderr = _strip_surrogates(stderr)
 
+    # === C6: fingerprint 多维度分组键（借鉴 Sentry 设计） ===
+    # fingerprint 数组替代单字段 signature，允许多维度组合分组：
+    #   [error_type, exit_code_group, step, cmd_family]
+    # 与 signature 共存（兼容消费端），fingerprint 用于高级去重和分组分析。
+    _exit_code_group = '0' if exit_code == 0 else '1' if exit_code == 1 else '128+' if exit_code >= 128 else '2-127'
+    _cmd_family = cmd_clean.split()[0] if cmd_clean else 'unknown'
+    _cmd_family_stripped = os.path.basename(_cmd_family).lower()[:32]
+    fingerprint = [error_type, _exit_code_group, _step, _cmd_family_stripped]
+
+    # === C6: level 严重级别 ===
+    if is_escape:
+        _level = 'error'
+    elif exit_code != 0 and _has_stderr:
+        _level = 'error'
+    elif exit_code != 0:
+        _level = 'warn'
+    elif _has_stderr:
+        _level = 'warn'
+    elif _has_block_signal:
+        _level = 'error'
+    else:
+        _level = 'info'
+
+    # === C6: resolution 解决状态（首次出现为 pending） ===
+    _resolution = _existing.get('resolution', 'pending') if _retry_count > 0 else 'pending'
+
     # === Build record ===
     record = {
         'ts': TS,
         'signature': signature,
+        'fingerprint': fingerprint,
+        'level': _level,
+        'resolution': _resolution,
         'cmd': cmd_clean,
         'exit_code': exit_code,
         'error_type': error_type,
         'message': message,
         'session_id': session_id,
         'escape_type': '',
+        'step': _step,
+        'retry_count': _retry_count,
     }
 
     is_escape = False
