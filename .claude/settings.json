@@ -1,0 +1,140 @@
+{
+    "env": {
+        "ANTHROPIC_BASE_URL": "http://127.0.0.1:9998",
+        "ANTHROPIC_AUTH_TOKEN": "test",
+        "ANTHROPIC_MODEL": "deepseek-v4-flash(1m)"
+    },
+    "enabledPlugins": {
+        "pyright-lsp@claude-plugins-official": true
+    },
+    "effortLevel": "xhigh",
+    "skipDangerousModePermissionPrompt": true,
+    "skipWorkflowUsageWarning": true,
+    "model": "deepseek-v4-flash(1m)",
+    "apiUrl": "http://127.0.0.1:9998",
+    "authToken": "test",
+    "hooks": {
+        "PreToolUse": [
+            {
+                "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Delete",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-gate.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "Edit|Write|MultiEdit",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-scorecard-gate.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "TaskUpdate",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"pre-completion-gate.py\""
+                    }
+                ]
+            }
+        ],
+        "PostToolUse": [
+            {
+                "matcher": "Bash|Read|Write|Edit|MultiEdit|Grep|SearchFiles|Task|TaskUpdate",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-sensitive-filter.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "Edit|Write",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-claim-audit.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "Read",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"read-tracker.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "Bash|Edit|Write|Read|Grep|SearchFiles",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-output-schema.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "TaskUpdate",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"completion-gate.py\""
+                    }
+                ]
+            },
+            {
+                "matcher": "Edit|Write|Bash|Read",
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"error-dna.py\"",
+                        "timeout": 5000
+                    }
+                ]
+            }
+        ],
+        "UserPromptSubmit": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-user-approve.py\"",
+                        "timeout": 3000
+                    }
+                ]
+            }
+        ],
+        "SessionStart": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "python3 \".claude/hooks/session-start.py\""
+                    }
+                ]
+            }
+        ],
+        "PreCompact": [
+            {
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": "/usr/bin/python3 \".claude/hooks/precompact-lifecycle.py\""
+                    },
+                    {
+                        "type": "command",
+                        "command": "/usr/bin/python3 \".claude/hooks/hook-launcher.py\" \"stop-flywheel.py\"",
+                        "timeout": 15000
+                    }
+                ]
+            }
+        ]
+    }
+}

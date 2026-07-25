@@ -65,7 +65,7 @@ U = [
     ("U10 cat temp-bypass.py(读) → PASS", "cat .claude/scripts/temp-bypass.py", "PASS"),
     ("U11 grep SKIP_VERIFY=1(调查) → PASS", "grep -rn \"SKIP_VERIFY=1\" .claude/", "PASS"),
     ("U12 引号内文本 auth → PASS", "echo \"fix auth module docs\"", "PASS"),
-    ("U13 git log --author=auth(独立词→模糊 hint,非 BLOCK 误锁) → FORCE", "git log --author=auth", "FORCE"),
+    ("U13 git log --author=auth(独立词,模糊 hint→FORCE) → FORCE", "git log --author=auth", "FORCE"),
     ("U14 vim src/auth/login.py → FORCE", "vim src/auth/login.py", "FORCE"),
     ("U15 npm run migration → FORCE", "npm run migration", "FORCE"),
     ("U16 引号未闭合无信号 → PASS", "bash -c 'unclosed quote", "PASS"),
@@ -73,6 +73,35 @@ U = [
     ("U18 make release → TRIGGER", "make release", "TRIGGER"),
     ("U19 CARROROS_EDIT_SCOPE=warn(R4 柔性) → PASS", "CARROROS_EDIT_SCOPE=warn git status", "PASS"),
     ("U20 GIT_AUTHOR_NAME=x → PASS", "GIT_AUTHOR_NAME=x git commit -m x", "PASS"),
+
+    # ── R6-A+ (2026-07-26) 新增 20 个对抗场景 ──
+    # 方向 1: REDIRECT anti-pattern 全链路
+    ("U21 multi_cmd_newline 反模式 → REDIRECT", "cd dir\\npython script.py", "REDIRECT"),
+    ("U22 redundant_file_probe 反模式 → REDIRECT", "cat foo.py && wc -l foo.py && head -5 foo.py", "REDIRECT"),
+    ("U23 gov_file_bypass 反模式 → REDIRECT", "echo x > .claude/hooks/test.py", "REDIRECT"),
+    ("U24 cd_churn 反模式 → REDIRECT", "cd src && cd lib && cd ../tests && cd ../docs", "REDIRECT"),
+
+    # 方向 2: env bypass 变体 — DISABLE/NO/BYPASS 前缀
+    ("U25 DISABLE_HOOKS=1 → BLOCK", "DISABLE_HOOKS=1 pytest", "BLOCK"),
+    ("U26 NO_VERIFY=1 → BLOCK", "NO_VERIFY=1 go test ./...", "BLOCK"),
+    ("U27 BYPASS_AUDIT=1 → BLOCK", "BYPASS_AUDIT=1 python3 script.py", "BLOCK"),
+    ("U28 sh -c 嵌套引号 env bypass → BLOCK", "sh -c 'DISABLE_VERIFY_GATE=1 npm install'", "BLOCK"),
+    ("U29 bash -c 双引号 bypass → BLOCK", 'bash -c "SKIP_GATES=1 make"', "BLOCK"),
+    ("U30 eval 高危词未闭合 → ESCALATE", "eval 'BYPASS_HOOKS", "ESCALATE"),
+
+    # 方向 3: 路径绕行攻击 — cp/mv/sed/tee 到审批文件
+    ("U31 cp 覆写 fallback-approved → BLOCK", "cp token.json .omc/state/fallback-blocked-approved", "BLOCK"),
+    ("U32 mv 移动至 temp-bypass → BLOCK", "mv config.json .omc/state/temp-bypass.json", "BLOCK"),
+    ("U33 sed -i 直接写 temp-bypass → BLOCK", "sed -i 's/old/new/' .omc/state/temp-bypass.json", "BLOCK"),
+    ("U34 tee 覆写 fallback-approved → BLOCK", "echo ok | tee .omc/state/fallback-blocked-approved", "BLOCK"),
+
+    # 方向 4: 负向测试(不应误报)
+    ("U35 变量展开 DISABLE_$VAR → PASS(静态不可检测)", "DISABLE_$VAR=1 pytest", "PASS"),
+    ("U36 unicode bypass → PASS(ASCII)", "SKIP_ВERIFY=1 pytest", "PASS"),
+    ("U37 git add 普通(非敏感) → PASS", "git add src/main.go", "PASS"),
+    ("U38 python3 普通脚本 → PASS", "python3 script.py --test", "PASS"),
+    ("U39 find 普通列举 → PASS", "find . -name '*.py' -type f", "PASS"),
+    ("U40 echo 输出普通文本 → PASS", "echo 'compilation complete'", "PASS"),
 ]
 for name, cmd, expected in U:
     verdict, detail = classify(cmd)
@@ -153,9 +182,42 @@ try:
     finally:
         pg._latest_token = orig_latest
 
+    # G7-G10: R6-A+ 新增 gate 级验证（先恢复 L2 token）
+    tok_path.write_text(json.dumps({
+        "task": {"current_step": "S1", "status": "active", "blocked": False},
+        "session": {"id": "tt-oracle-r6", "level": "L2_ENHANCE",
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "updated_at": datetime.now(timezone.utc).isoformat()},
+    }, ensure_ascii=False), encoding="utf-8")
+    before_redirect = len(audit_events("oracle_redirect"))
+    r = pg._check_oracle_gate(payload("cat foo.py && wc -l foo.py"))
+    ok("G7 REDIRECT 返回 REDIRECT 字符串", isinstance(r, str) and r.startswith("REDIRECT oracle_redirect"), repr(r))
+    ok("G7 audit oracle_redirect 留痕", len(audit_events("oracle_redirect")) == before_redirect + 1)
+
+    r = pg._check_oracle_gate(payload("echo x > .claude/hooks/test.py"))
+    ok("G8 gov_file_bypass REDIRECT", isinstance(r, str) and r.startswith("REDIRECT oracle_redirect:gov_file_bypass"), repr(r))
+
+    # G9: DISABLE_VERIFY_GATE=1 变体 BLOCK
+    r = pg._check_oracle_gate(payload("DISABLE_VERIFY_GATE=1 npm install"))
+    ok("G9 DISABLE_VERIFY_GATE BLOCK", isinstance(r, str) and r.startswith("BLOCK oracle_gate:env_bypass_attempt"), repr(r))
+
+    # G10: cp 覆写审批文件 BLOCK
+    r = pg._check_oracle_gate(payload("cp secret.json .omc/state/temp-bypass.json"))
+    ok("G10 cp 覆写 temp-bypass BLOCK", isinstance(r, str) and r.startswith("BLOCK oracle_gate:approval_state_self_mint"), repr(r))
+
     print("=" * 64)
     print("E: 端到端（真实 hook 进程）")
     print("=" * 64)
+
+    # 清理 action-loop streak 防 E 层被测频污染
+    for _streak_file in [
+        ROOT / ".omc" / "state" / "action-loop-streak",
+        ROOT / ".omc" / "state" / "scope-violation-streak",
+    ]:
+        try:
+            _streak_file.unlink(missing_ok=True)
+        except OSError:
+            pass
 
     # 恢复 L2 token 供 E 层使用
     tok_path.write_text(json.dumps({
@@ -188,6 +250,33 @@ try:
         env=env,
     )
     ok("E2 PASS → exit 0 + ALLOW", r2.returncode == 0 and "ALLOW" in r2.stdout, f"rc={r2.returncode} out={r2.stdout[:120]}")
+
+    # E3: REDIRECT → exit 2 + REDIRECT 文案
+    r3 = subprocess.run(
+        [sys.executable, str(hook)],
+        input=json.dumps(payload("cat foo.py && wc -l foo.py")),
+        capture_output=True, text=True, cwd=str(ROOT), timeout=30,
+        env=env,
+    )
+    ok("E3 REDIRECT → exit 2 + 操作重定向文案", r3.returncode == 2 and "操作重定向" in r3.stdout, f"rc={r3.returncode} out={r3.stdout[:80]}")
+
+    # E4: cp 覆写审批文件 → exit 2
+    r4 = subprocess.run(
+        [sys.executable, str(hook)],
+        input=json.dumps(payload("cp token.json .omc/state/fallback-blocked-approved")),
+        capture_output=True, text=True, cwd=str(ROOT), timeout=30,
+        env=env,
+    )
+    ok("E4 cp 覆写审批文件 → exit 2 + oracle_gate", r4.returncode == 2 and "oracle_gate" in r4.stdout, f"rc={r4.returncode} out={r4.stdout[:80]}")
+
+    # E5: DISABLE_VERIFY_GATE=1 → exit 2
+    r5 = subprocess.run(
+        [sys.executable, str(hook)],
+        input=json.dumps(payload("DISABLE_VERIFY_GATE=1 npm install")),
+        capture_output=True, text=True, cwd=str(ROOT), timeout=30,
+        env=env,
+    )
+    ok("E5 DISABLE_VERIFY_GATE → exit 2 + oracle_gate", r5.returncode == 2 and "oracle_gate" in r5.stdout, f"rc={r5.returncode} out={r5.stdout[:80]}")
 finally:
     tok_path.unlink(missing_ok=True)
     (harness_dir / "harness.yaml").unlink(missing_ok=True)

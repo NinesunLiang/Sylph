@@ -263,7 +263,8 @@ def main():
         error_type = 'runtime'
 
     # === B3: 复合指纹签名 (error_type + exit_code + cmd + message摘要) ===
-    _msg_for_sig = (message or cmd_clean)[:80]
+    # message 在 line 288 才赋值,这里用 stderr/stdout/cmd_clean 提前构造签名摘要
+    _msg_for_sig = ((stderr or stdout or cmd_clean)[:80])[:80]
     _combined_for_hash = f"{error_type}:{exit_code}:{cmd_normalized[:150]}:{_msg_for_sig}"
     signature = hashlib.md5(_combined_for_hash.encode()).hexdigest()[:16]
 

@@ -138,9 +138,10 @@ def reconcile_handoff(data: Dict[str, Any], persist: bool = False) -> Dict[str, 
     claimed = data.get("claimed")
     if not isinstance(claimed, int):
         claimed = written
+        data["claimed"] = claimed
     data["reconciled"] = bool(claimed != written)
     data["written"] = written
-    data["claimed"] = written  # disk wins
+    # 保留 claimed（不强制=written），让 reconciled 真实反映漂移
     data["updated_at"] = _utc()
     data["version"] = HANDOFF_VERSION
     if persist:
