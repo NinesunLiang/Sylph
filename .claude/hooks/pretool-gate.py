@@ -26,6 +26,7 @@ import secrets
 import shlex
 import shutil
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -141,8 +142,8 @@ ORACLE_TRIGGER_KW = [
 ORACLE_FORCE_KW = ["auth", "payment", "migration", "permission"]
 
 # ── R6-A: oracle 精确分类(终审 0:3 否决 hint-only 整体终态后施工) ──
-# 三层: 结构化危险语义 → BLOCK;不可解析+高危信号 → ESCALATE(ASK_USER 人类独占);
-#       模糊关键词 → hint+audit(模糊层终态保留);其余 → PASS。
+# 四层: 结构化危险语义 → BLOCK;反模式匹配 → REDIRECT(拦截+引导);
+#        不可解析+高危信号 → ESCALATE(ASK_USER 人类独占);模糊关键词 → hint+audit;其余 → PASS。
 # BLOCK 层扫原文(引号藏不住危险),但 env 赋值只在真实生效位锚定
 # (命令首/分隔符后/sh -c 引号内首)——grep 参数、commit message 不误伤。
 _ORACLE_QUOTED_RE = re.compile(r"'[^']*'|\"[^\"]*\"|`[^`]*`")
@@ -163,16 +164,83 @@ _ORACLE_TEMP_BYPASS_SELF_RE = re.compile(
 _ORACLE_RISK_SIGNAL_RE = re.compile(
     r"(?i)(?:skip_|bypass|temp-bypass|fallback-blocked|verify_gate|pretool-gate)"
 )
+# ── ADR-0012: REDIRECT 反模式匹配规则 ──
+# 优先级 P0: 精确匹配反模式行为(初始规则集映射 anti-patterns.md 典型反模式):
+#   - 多命令 \n 换行(应 && 链式)
+#   - 同文件反复 head/wc/cat(空转)
+#   - 治理文件绕过企图
+#   - 连续 cd 无实质操作
+# 每条反模式配 redirect_guidance(告诉 AI 正确做法)
+_ORACLE_ANTI_PATTERN_RULES: list[tuple[re.Pattern, str, str]] = [
+    (re.compile(r"(?:^|(?:[;&|]|&&)\s*)[a-z]+\s+[^\n;]*\\n\s*[a-z]", re.IGNORECASE),
+     "multi_cmd_newline",
+     "多命令请用 && 连接单行而非 \\n 换行:\n  × cd dir\\npython script.py\n  ✓ cd dir && python script.py"),
+    (re.compile(r"(?i)(?:(?:^|(?:[;&|]|&&)\s*)(?:head|wc|l[a-z]+|cat)\s+(\S+/)?[-.\w]+\.\w+\s*){2,}"),
+     "redundant_file_probe",
+     "检查文件内容请一次 read 完成,不要反复 head/cat/wc 同一文件。确认内容足够后直接推进修改"),
+    (re.compile(r"echo.*>.*\.claude/(?:hooks|settings)", re.IGNORECASE),
+     "gov_file_bypass",
+     "治理文件(.claude/hooks/*)不可直接编辑。如需修改 hook: 使用 goal 模式(/lx-goal)"),
+    (re.compile(r"(?:^|(?:[;&|]|&&)\s*)cd\s+\S+(?:\s*(?:[;&|]|&&)\s*cd\s+\S+){2,}"),
+     "cd_churn",
+     "连续 cd 但没有实质操作。确认目标目录后直接执行目标命令,不要空 cd 导航"),
+]
+
+
+# ── ADR-0012: 动态 anti-pattern redirects 缓存 ──
+_ANTI_PATTERN_REDIRECTS_PATH = OMC / "state" / "anti-pattern-redirects.jsonl"
+_ANTI_PATTERN_REDIRECTS_CACHE: list[tuple[re.Pattern, str, str]] | None = None
+_ANTI_PATTERN_REDIRECTS_CACHE_AT: float = 0.0
+_ANTI_PATTERN_REDIRECTS_TTL: float = 300.0
+
+
+def _load_anti_pattern_redirects() -> list[tuple[re.Pattern, str, str]]:
+    global _ANTI_PATTERN_REDIRECTS_CACHE, _ANTI_PATTERN_REDIRECTS_CACHE_AT
+    now = time.time()
+    if (_ANTI_PATTERN_REDIRECTS_CACHE is not None
+            and now - _ANTI_PATTERN_REDIRECTS_CACHE_AT < _ANTI_PATTERN_REDIRECTS_TTL):
+        return _ANTI_PATTERN_REDIRECTS_CACHE
+    rules: list[tuple[re.Pattern, str, str]] = []
+    if _ANTI_PATTERN_REDIRECTS_PATH.exists():
+        try:
+            for line in _ANTI_PATTERN_REDIRECTS_PATH.read_text(encoding="utf-8").strip().splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    entry = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                pk = entry.get("pattern_key", "")
+                guidance = entry.get("guidance", "")
+                if not pk or not guidance:
+                    continue
+                esc = re.escape(pk)
+                pat = re.compile(rf"\b{esc}\b", re.IGNORECASE)
+                rules.append((pat, f"dyn:{pk}", guidance))
+        except (OSError, ValueError):
+            pass
+    _ANTI_PATTERN_REDIRECTS_CACHE = rules
+    _ANTI_PATTERN_REDIRECTS_CACHE_AT = now
+    return rules
 
 
 def _oracle_classify(command: str) -> tuple[str, str]:
-    """R6-A 精确分类: 返回 (verdict, detail),verdict ∈ BLOCK/ESCALATE/FORCE/TRIGGER/PASS。"""
+    """R6-A + ADR-0012 精确分类: 返回 (verdict, detail),verdict ∈ BLOCK/REDIRECT/ESCALATE/FORCE/TRIGGER/PASS。"""
     if _ORACLE_ENV_BYPASS_RE.search(command):
         return "BLOCK", "env_bypass_attempt"
     if _ORACLE_TEMP_BYPASS_SELF_RE.search(command):
         return "BLOCK", "temp_bypass_user_only"
     if _ORACLE_APPROVAL_PATH_RE.search(command) and _ORACLE_WRITE_OP_RE.search(command):
         return "BLOCK", "approval_state_self_mint"
+    # ADR-0012: 反模式匹配 → REDIRECT（在结构危险之后,不可解析/模糊之前）
+    # 先匹配硬编码规则（P0-P1），再匹配动态加载规则（stop-flywheel 升华产生）
+    for pattern, detail, _ in _ORACLE_ANTI_PATTERN_RULES:
+        if pattern.search(command):
+            return "REDIRECT", detail
+    for pattern, detail, _ in _load_anti_pattern_redirects():
+        if pattern.search(command):
+            return "REDIRECT", detail
     try:
         shlex.split(command, posix=True)
     except ValueError:
@@ -292,6 +360,45 @@ def _block(reason: str, suggestion: str = "") -> int:
     }, ensure_ascii=False))
     sys.stderr.write(f"PreToolGate: BLOCKED - {safe_reason}\n")
     return 2
+
+def _redirect(reason: str, guidance: str = "") -> int:
+    """Redirect a tool call — block the bad action & tell AI the right way.
+
+    REDIRECT 是 ADR-0012 新增的 oracle 判决级别,位于 PASS 与 FORCE 之间:
+      PASS → REDIRECT → FORCE/TRIGGER → ESCALATE → BLOCK
+    行为: continue=False(阻止工具调用),additionalContext 包含 reason+guidance,
+    AI 看到指引后自行修正并重试——零人工介入。
+    """
+    safe_reason = reason[:300]
+    msg_parts = [f"🔄 操作重定向: {safe_reason}"]
+    if guidance:
+        msg_parts.append(f"💡 正确做法:\n{guidance}")
+    if _goal_mode():
+        msg_parts.append("🤖 goal 模式: 修正后自动重试")
+    full_msg = "\n".join(msg_parts)
+    # 日志到 redirects.jsonl
+    try:
+        _REDIRECT_LOG = OMC / "redirects.jsonl"
+        _REDIRECT_LOG.parent.mkdir(parents=True, exist_ok=True)
+        with _REDIRECT_LOG.open("a", encoding="utf-8") as f:
+            f.write(json.dumps({
+                "event": "redirect",
+                "reason": safe_reason,
+                "guidance": guidance,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }, ensure_ascii=False) + "\n")
+    except OSError:
+        pass
+    sys.stderr.write(f"PreToolGate: REDIRECTED - {safe_reason}\n")
+    print(json.dumps({
+        "continue": False,
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "additionalContext": full_msg,
+        }
+    }, ensure_ascii=False))
+    return 2
+
 
 def _match_any(text: str, patterns: list[str]) -> str | None:
     for pat in patterns:
@@ -977,6 +1084,27 @@ def _check_oracle_gate(payload: dict) -> str | None:
     verdict, detail = _oracle_classify(command)
     task = token.get("task", {})
     step = task.get("current_step") if isinstance(task, dict) else None
+    if verdict == "REDIRECT":
+        # 查找对应的 redirect_guidance（先静态规则,再动态规则）
+        _guidance = ""
+        for _, _detail, _guide in _ORACLE_ANTI_PATTERN_RULES:
+            if _detail == detail:
+                _guidance = _guide
+                break
+        if not _guidance:
+            for _, _detail, _guide in _load_anti_pattern_redirects():
+                if _detail == detail:
+                    _guidance = _guide
+                    break
+        _append_audit({
+            "event_type": "oracle_redirect",
+            "actor": "hook:pretool-gate",
+            "decision": "REDIRECT",
+            "reason": detail,
+            "current_step": step,
+            "cmd_head": command[:120],
+        })
+        return f"REDIRECT oracle_redirect:{detail}|{_guidance}"
     if verdict == "BLOCK":
         _append_audit({
             "event_type": "oracle_gate_block",
@@ -1375,7 +1503,8 @@ def _check_watermark_gate(payload: dict) -> str | None:
 
 # ── E4: Action-loop detection — same tool+cmd repeated >=3 times in last 20 audit events ──
 _ACTION_LOOP_STREAK_FILE = OMC / "state" / "action-loop-streak"
-_ACTION_LOOP_ESCALATE_THRESHOLD = 3  # 连续3次NARROW → 升级为BLOCK
+_ACTION_LOOP_REDIRECT_THRESHOLD = 3  # 连续3次NARROW → 升级为REDIRECT（拦截+引导）
+_ACTION_LOOP_ESCALATE_THRESHOLD = 4  # 连续4次NARROW → 升级为BLOCK（硬拦截）
 # 惯性执行检测只关注写工具和 Bash（读工具的自然重复是正常行为）
 _ACTION_LOOP_MUTATING_TOOLS = {"write", "edit", "multiedit", "notebookedit", "bash"}
 
@@ -1529,17 +1658,31 @@ def _check_action_loop(payload: dict) -> str | None:
                 "streak": _streak_count,
             })
 
-            # E4增强: 连续N次同签名NARROW → 升级BLOCK
+            # E4增强(ADR-0012): 连续同签名NARROW → REDIRECT(拦截+引导) → BLOCK(硬拦截)
             if _streak_count >= _ACTION_LOOP_ESCALATE_THRESHOLD:
-                # 升级后清理 streak，防无限重复
+                # 4次+ 升级后清理 streak，防无限重复
                 try:
                     _ACTION_LOOP_STREAK_FILE.unlink(missing_ok=True)
                 except OSError:
                     pass
                 return (f"BLOCK action-loop-escalated: {top_sig} 重复 {top_n}/{len(recent_tools)} 次"
-                        f"（连续 {_streak_count} 次 NARROW 被忽略后升级为 BLOCK）|"
-                        f"检测到惯性执行模式——同一操作重复过多且之前的软门警告被持续忽略。"
+                        f"（连续 {_streak_count} 次警告被忽略后升级为 BLOCK）|"
+                        f"检测到惯性执行模式——同一操作重复过多且之前的 REDIRECT 指引被持续忽略。"
                         f"建议: 停止当前行为模式，分析是否在错误的方向上重复尝试")
+            if _streak_count >= _ACTION_LOOP_REDIRECT_THRESHOLD:
+                # 3次: REDIRECT（拦截+引导），不清理 streak
+                _append_audit({
+                    "event_type": "action_loop_redirect",
+                    "actor": "hook:pretool-gate",
+                    "decision": "REDIRECT",
+                    "pattern": top_sig,
+                    "count": top_n,
+                    "window": len(recent_tools),
+                    "streak": _streak_count,
+                })
+                return (f"REDIRECT action-loop-redirect: {top_sig} 重复 {top_n}/{len(recent_tools)} 次|"
+                        f"同一操作已重复过多——请停止当前行为,换一个不同的方法。"
+                        f"如果是修复尝试,先确认前一次修复失败的原因(查看 stderr/exit code)再换方案")
 
             return f"NARROW action-loop: {top_sig} 重复 {top_n}/{len(recent_tools)} 次 "
     except Exception:
@@ -1758,6 +1901,12 @@ def main() -> int:
         except Exception:
             continue
         if result:
+            if result.startswith("REDIRECT"):
+                # ADR-0012: REDIRECT = 阻止 + 指引 + AI 自行修正重试
+                parts = result.split("|", 1)
+                reason = parts[0].replace("REDIRECT ", "").strip()
+                guidance = parts[1].strip() if len(parts) > 1 else ""
+                return _redirect(reason, guidance)
             if result.startswith("BLOCK"):
                 if bypass_active:
                     _append_audit({

@@ -28,8 +28,41 @@ KNOWLEDGE = ROOT / ".omc" / "knowledge"
 CLAUDE_NEXT = KNOWLEDGE / "claude-next.md"
 SUBLIMATION_LOG = KNOWLEDGE / "sublimation-log.jsonl"
 ANTI_PATTERNS = ROOT / ".claude" / "references" / "anti-patterns.md"
+ANTI_PATTERN_REDIRECTS = ROOT / ".omc" / "state" / "anti-pattern-redirects.jsonl"
 
 SUBLIMATION_HITS = 5
+
+
+# ── ADR-0012: 反模式→REDIRECT 规则转译 ──
+# 升华时自动产生一条机器可读的 redirect rule，供 pretool-gate oracle 消费。
+# 规则 = pattern 的 escaped 版本 → 匹配 bash 命令/Edit 路径。
+# hits≥SUBLIMATION_HITS→写入 anti-pattern-redirects.jsonl。
+_ANTI_PATTERN_GUIDANCE_MAP: dict[str, str] = {
+    "E1": "做完了必须回去验证,smoke-test + audit-hooks 全绿才提交",
+    "E2": "犯错后立即写 claude-next 条目,DG-xxx 格式记录失败",
+    "E3": "同一失败反复出现时启用升华管道,不要盲目重试",
+    "E4": "编译不过先读错误信息定位问题,不要在错误方向上反复重试",
+    "F1": "用 Read 工具读文件,不要用 cat/grep/shell 命令读文件",
+    "F2": "使用 PROJECT_ROOT 环境变量或相对路径,不写死绝对路径",
+    "G1": "每次会话开头加载 AGENTS.md,阅读治理文档后再执行",
+    "G2": "新会话先读 session-handoff.md 继承上下文",
+    "H1": "密钥走环境变量引用,不敲明文 token/密码到命令中",
+    "H2": "删除/发布前需 permission-gate + 三次确认",
+}
+
+
+def _to_redirect_rule(pattern_name: str, guidance: str, source: str = "sublimation",
+                       hits: int = 0) -> dict:
+    """将反模式名转译为 pretool-gate 可消费的 REDIRECT 规则."""
+    # pattern_name 可能是中文（如 "不回查"）或英文 slug，转译为匹配 key
+    key = pattern_name.lower().replace(" ", "_")[:40]
+    return {
+        "pattern_key": key,
+        "guidance": guidance,
+        "source": source,
+        "hits": hits,
+        "created": _now_iso(),
+    }
 
 
 def _now_iso() -> str:
@@ -93,6 +126,12 @@ def _sublimation_check() -> list[str]:
                     "ts": _now_iso(), "pattern": pattern, "hits": hits,
                     "target": "anti-patterns.md", "kernel_promotion": "pending_human_review",
                 }, ensure_ascii=False) + "\n")
+            # ── ADR-0012: 同时写入 redirect rule ──
+            _rule = _to_redirect_rule(pattern, f"error-dna 中反复出现 {pattern} 失败,见 claude-next 条目;路径正确做法见对应条目",
+                                       source="sublimation", hits=hits)
+            ANTI_PATTERN_REDIRECTS.parent.mkdir(parents=True, exist_ok=True)
+            with ANTI_PATTERN_REDIRECTS.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(_rule, ensure_ascii=False) + "\n")
             sublimated.append(pattern)
         except Exception:
             pass

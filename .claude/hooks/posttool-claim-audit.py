@@ -6,10 +6,12 @@ Role: 铁律 #1 enforce — AI 不能编造没读过的代码事实 + 不能写�
 等效移植自 posttool-claim-audit.sh (218行)
 """
 
+import hashlib
 import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 
 # ─── 导入共享库 ───
@@ -60,6 +62,33 @@ def main():
     if not FILE_PATH:
         print(json.dumps({'continue': True}))
         sys.exit(0)
+
+    # ── E6: edit-churn-log 写入（每个 Edit/Write 操作记录一条）──
+    # 供 posttool-claim-audit.py 自身（同一会话/跨会话）做自我矛盾检测:
+    #   - CONTRADICTION: intent-tracker 标记矛盾
+    #   - REVERT_DETECTED: 内容回退
+    #   - EDIT_REPEAT / CONTENT_FLIP: 高频抖动/方向摇摆
+    _EH_LOG = STATE_DIR / 'edit-churn-log.jsonl'
+    try:
+        _EH_LOG.parent.mkdir(parents=True, exist_ok=True)
+        _ti = data.get('tool_input', {}) or {}
+        _old = str(_ti.get('old_string', '') or _ti.get('content', '') or '')
+        _new = str(_ti.get('new_string', '') or '')
+        _hash = hashlib.md5((_old + _new).encode()).hexdigest()[:16]
+        _eh_entry = {
+            "ts": int(time.time()),
+            "file_path": FILE_PATH,
+            "tool_name": TOOL_NAME,
+            "sig": _hash,
+            "edit_count": 1,
+            "contradiction": False,
+            "revert_of": None,
+            "content_hash": _hash,
+        }
+        with _EH_LOG.open("a", encoding="utf-8") as _eh_f:
+            _eh_f.write(json.dumps(_eh_entry, ensure_ascii=False) + "\n")
+    except Exception:
+        pass
 
     READ_LOG = STATE_DIR / 'read-tracker.txt'
 
