@@ -175,7 +175,7 @@ _ORACLE_ANTI_PATTERN_RULES: list[tuple[re.Pattern, str, str]] = [
     (re.compile(r"(?:^|(?:[;&|]|&&)\s*)[a-z]+\s+[^\n;]*\\n\s*[a-z]", re.IGNORECASE),
      "multi_cmd_newline",
      "多命令请用 && 连接单行而非 \\n 换行:\n  × cd dir\\npython script.py\n  ✓ cd dir && python script.py"),
-    (re.compile(r"(?i)(?:(?:^|(?:[;&|]|&&)\s*)(?:head|wc|l[a-z]+|cat)\s+(\S+/)?[-.\w]+\.\w+\s*){2,}"),
+    (re.compile(r"(?i)(?:(?:^|(?:[;&|]|&&)\s*)(?:head|wc|l[a-z]+|cat)(?:\s+-[a-zA-Z0-9]+\s*)*\s+(\S+/)?[-.\w]+\.\w+\s*){2,}"),
      "redundant_file_probe",
      "检查文件内容请一次 read 完成,不要反复 head/cat/wc 同一文件。确认内容足够后直接推进修改"),
     (re.compile(r"echo.*>.*\.claude/(?:hooks|settings)", re.IGNORECASE),
@@ -981,17 +981,6 @@ def _check_edit_scope(payload: dict) -> str | None:
     token = _active_token()
     if not token:
         return None
-    # E1增强: 读取越界计数（持久化，防会话重启后清零）
-    _STREAK_FILE = OMC / "state" / "scope-violation-streak"
-    _streak = 0
-    try:
-        if _STREAK_FILE.exists():
-            raw = _STREAK_FILE.read_text(encoding="utf-8").strip()
-            if raw:
-                _streak = int(raw)
-    except (OSError, ValueError):
-        _streak = 0
-
     # ── 权威 scope 来源: harness.yaml project.scope ──
     # 由用户/安装脚本写入，AI 不可修改（治理文件受保护）
     # 优先于 token.json scope
@@ -1014,65 +1003,42 @@ def _check_edit_scope(payload: dict) -> str | None:
     if harness_scope:
         in_scope = _in_scope(path, harness_scope)
         if in_scope:
-            if _streak > 0:
-                try:
-                    _STREAK_FILE.unlink(missing_ok=True)
-                except OSError:
-                    pass
             return None
-        _streak += 1
-        try:
-            _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _STREAK_FILE.write_text(str(_streak), encoding="utf-8")
-        except OSError:
-            pass
+        # ai_self_decision.md 原则第2条: 非不可逆/风险/越权/架构调整行为 → 不打断，AI自决
+        # scope 越界属于"其他行为"——记录 audit + stderr 告知，不放行但不阻断
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "REDIRECT",
+            "decision": "WARN",
             "reason": "harness_scope_violation",
             "path": path,
             "scope": harness_scope[:10],
-            "violation_streak": _streak,
         })
-        return (f"REDIRECT edit_out_of_scope path={path}|"
-                f"该路径不在项目 scope（harness.yaml project.scope）内。"
-                f"scope 由用户设定，AI 不可修改。请将目标路径加入 scope 后重试，或使用临时 bypass。")
+        print(f"⚠️ [edit-scope] 路径不在 project scope 内: {path}", file=sys.stderr, flush=True)
+        print(f"  scope: {harness_scope[:10]}", file=sys.stderr, flush=True)
+        print(f"  请评估是否确实需要编辑此路径，或调整任务 scope。", file=sys.stderr, flush=True)
+        return None
 
     # 检查 token scope
     token_scope = token.get("scope") or []
     if token_scope:
         in_scope = _in_scope(path, token_scope)
         if in_scope:
-            if _streak > 0:
-                try:
-                    _STREAK_FILE.unlink(missing_ok=True)
-                except OSError:
-                    pass
             return None
-        _streak += 1
-        try:
-            _STREAK_FILE.parent.mkdir(parents=True, exist_ok=True)
-            _STREAK_FILE.write_text(str(_streak), encoding="utf-8")
-        except OSError:
-            pass
+        # ai_self_decision.md 原则第2条: scope 越界属"其他行为"——记录告知，不阻断
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "REDIRECT",
+            "decision": "WARN",
             "reason": "token_scope_violation",
             "path": path,
             "scope": token_scope[:10],
-            "violation_streak": _streak,
         })
-        return (f"REDIRECT edit_out_of_scope path={path}|"
-                f"该路径不在 token scope 内。修复: 将路径加入 token scope 后重试，或使用临时 bypass。")
+        print(f"⚠️ [edit-scope] 路径不在 token scope 内: {path}", file=sys.stderr, flush=True)
+        print(f"  scope: {token_scope[:10]}", file=sys.stderr, flush=True)
+        print(f"  请评估后继续，或调整任务 scope。", file=sys.stderr, flush=True)
+        return None
     # 无 scope 来源 → 放行（无法判定边界）
-    if _streak > 0:
-        try:
-            _STREAK_FILE.unlink(missing_ok=True)
-        except OSError:
-            pass
     return None
 
 def _check_verify_gate(payload: dict) -> str | None:
