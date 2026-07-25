@@ -51,15 +51,15 @@ def _load(path: Path):
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-def setup_tmp_state(tmp: Path):
+def setup_tmp_state(tmp_path: Path):
     """Point state into a writable temp by chdir overlay would be hard;
     instead we use real ROOT state but reset files under a work tree.
 
     Tests MUST be run on a disposable worktree OR reset state after.
     We sandbox by setting CLAUDE_PROJECT_DIR to a mini fixture tree.
     """
-    (tmp / ".claude" / "hooks" / "lib").mkdir(parents=True)
-    (tmp / ".omc" / "state" / "snapshots").mkdir(parents=True)
+    (tmp_path / ".claude" / "hooks" / "lib").mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".omc" / "state" / "snapshots").mkdir(parents=True, exist_ok=True)
     # copy hooks under test
     for name in [
         "lib/lifecycle_ssot.py",
@@ -68,21 +68,21 @@ def setup_tmp_state(tmp: Path):
         "session-end-lifecycle.py",
     ]:
         src = HOOKS / name
-        dst = tmp / ".claude" / "hooks" / name
+        dst = tmp_path / ".claude" / "hooks" / name
         dst.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, dst)
-    (tmp / ".claude" / "hooks" / "lib" / "__init__.py").write_text("", encoding="utf-8")
+    (tmp_path / ".claude" / "hooks" / "lib" / "__init__.py").write_text("", encoding="utf-8")
     # stop-flywheel stub for wrapper tests
-    stub = tmp / ".claude" / "hooks" / "stop-flywheel.py"
+    stub = tmp_path / ".claude" / "hooks" / "stop-flywheel.py"
     stub.write_text(
         "#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n",
         encoding="utf-8",
     )
     wrapper_src = HOOKS / "stop-lifecycle-wrapper.sh"
     if wrapper_src.is_file():
-        shutil.copy2(wrapper_src, tmp / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh")
-        os.chmod(tmp / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh", 0o755)
-    return tmp
+        shutil.copy2(wrapper_src, tmp_path / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh")
+        os.chmod(tmp_path / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh", 0o755)
+    return tmp_path
 
 
 def assert_true(cond, msg):
@@ -90,9 +90,10 @@ def assert_true(cond, msg):
         raise AssertionError(msg)
 
 
-def test_reconcile_forces_written_eq_claimed(tmp: Path):
+def test_reconcile_forces_written_eq_claimed(tmp_path: Path):
+    setup_tmp_state(tmp_path)
     # inject distorted claimed
-    state = tmp / ".omc" / "state" / "handoff.json"
+    state = tmp_path / ".omc" / "state" / "handoff.json"
     state.write_text(
         json.dumps(
             {
@@ -111,13 +112,13 @@ def test_reconcile_forces_written_eq_claimed(tmp: Path):
         + "\n",
         encoding="utf-8",
     )
-    # import ssot with CLAUDE_PROJECT_DIR=tmp
-    sys.path.insert(0, str(tmp / ".claude" / "hooks"))
+    # import ssot with CLAUDE_PROJECT_DIR=tmp_path
+    sys.path.insert(0, str(tmp_path / ".claude" / "hooks"))
     # force reimport
     for mod in list(sys.modules):
         if mod == "lib.lifecycle_ssot" or mod.startswith("lib."):
             del sys.modules[mod]
-    os.environ["CLAUDE_PROJECT_DIR"] = str(tmp)
+    os.environ["CLAUDE_PROJECT_DIR"] = str(tmp_path)
     from lib.lifecycle_ssot import load_handoff, reconcile_handoff  # type: ignore
 
     hb = load_handoff()
@@ -130,17 +131,18 @@ def test_reconcile_forces_written_eq_claimed(tmp: Path):
     print("PASS test_reconcile_forces_written_eq_claimed")
 
 
-def test_precompact_fail_closed_and_snapshot(tmp: Path):
-    env = {"CLAUDE_PROJECT_DIR": str(tmp)}
+def test_precompact_fail_closed_and_snapshot(tmp_path: Path):
+    setup_tmp_state(tmp_path)
+    env = {"CLAUDE_PROJECT_DIR": str(tmp_path)}
     proc = _run(
-        ["python3", str(tmp / ".claude" / "hooks" / "precompact-lifecycle.py")],
+        ["python3", str(tmp_path / ".claude" / "hooks" / "precompact-lifecycle.py")],
         stdin_obj={
             "session_id": "sess-pkgc-1",
             "hook_event_name": "PreCompact",
             "transcript_path": "/tmp/t.jsonl",
         },
         env=env,
-        cwd=str(tmp),
+        cwd=str(tmp_path),
     )
     assert_true(proc.returncode == 0, f"precompact rc={proc.returncode} err={proc.stderr!r}")
     out = json.loads(proc.stdout.decode("utf-8"))
@@ -154,42 +156,43 @@ def test_precompact_fail_closed_and_snapshot(tmp: Path):
     dig = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     assert_true(dig == out["sha256"], "sha mismatch")
     # handoff must contain precompact_flush item and counters match
-    hb = _load(tmp / ".omc" / "state" / "handoff.json")
+    hb = _load(tmp_path / ".omc" / "state" / "handoff.json")
     assert_true(hb["written"] == len(hb["items"]), "counter desync")
     assert_true(hb["claimed"] == hb["written"], "claimed desync")
     assert_true(any(i.get("kind") == "precompact_flush" for i in hb["items"]), "no flush item")
-    lc = _load(tmp / ".omc" / "state" / "lifecycle.json")
+    lc = _load(tmp_path / ".omc" / "state" / "lifecycle.json")
     assert_true(lc["compact"]["last_sha256"] == dig, "lifecycle compact sha")
     # idempotent second call with same session/transcript
     proc2 = _run(
-        ["python3", str(tmp / ".claude" / "hooks" / "precompact-lifecycle.py")],
+        ["python3", str(tmp_path / ".claude" / "hooks" / "precompact-lifecycle.py")],
         stdin_obj={
             "session_id": "sess-pkgc-1",
             "hook_event_name": "PreCompact",
             "transcript_path": "/tmp/t.jsonl",
         },
         env=env,
-        cwd=str(tmp),
+        cwd=str(tmp_path),
     )
     assert_true(proc2.returncode == 0, f"precompact2 rc={proc2.returncode}")
-    hb2 = _load(tmp / ".omc" / "state" / "handoff.json")
+    hb2 = _load(tmp_path / ".omc" / "state" / "handoff.json")
     flush_count = sum(1 for i in hb2["items"] if i.get("kind") == "precompact_flush")
     assert_true(flush_count == 1, f"not idempotent flush_count={flush_count}")
     print("PASS test_precompact_fail_closed_and_snapshot")
 
 
-def test_precompact_fail_on_ro_snapshot_dir(tmp: Path):
-    snap = tmp / ".omc" / "state" / "snapshots"
+def test_precompact_fail_on_ro_snapshot_dir(tmp_path: Path):
+    setup_tmp_state(tmp_path)
+    snap = tmp_path / ".omc" / "state" / "snapshots"
     # make snapshots a file so write fails
     if snap.exists():
         shutil.rmtree(snap)
     snap.write_text("not-a-dir", encoding="utf-8")
-    env = {"CLAUDE_PROJECT_DIR": str(tmp)}
+    env = {"CLAUDE_PROJECT_DIR": str(tmp_path)}
     proc = _run(
-        ["python3", str(tmp / ".claude" / "hooks" / "precompact-lifecycle.py")],
+        ["python3", str(tmp_path / ".claude" / "hooks" / "precompact-lifecycle.py")],
         stdin_obj={"session_id": "sess-fail", "hook_event_name": "PreCompact"},
         env=env,
-        cwd=str(tmp),
+        cwd=str(tmp_path),
     )
     assert_true(proc.returncode == 2, f"expected 2 got {proc.returncode}")
     err = proc.stderr.decode("utf-8", errors="replace")
@@ -200,12 +203,13 @@ def test_precompact_fail_on_ro_snapshot_dir(tmp: Path):
     print("PASS test_precompact_fail_on_ro_snapshot_dir")
 
 
-def test_goal_ghost_mutex(tmp: Path):
-    os.environ["CLAUDE_PROJECT_DIR"] = str(tmp)
+def test_goal_ghost_mutex(tmp_path: Path):
+    setup_tmp_state(tmp_path)
+    os.environ["CLAUDE_PROJECT_DIR"] = str(tmp_path)
     for mod in list(sys.modules):
         if mod == "lib.lifecycle_ssot" or mod.startswith("lib."):
             del sys.modules[mod]
-    sys.path.insert(0, str(tmp / ".claude" / "hooks"))
+    sys.path.insert(0, str(tmp_path / ".claude" / "hooks"))
     from lib.lifecycle_ssot import set_mode  # type: ignore
 
     set_mode("goal", goal_id="G1")
@@ -223,27 +227,28 @@ def test_goal_ghost_mutex(tmp: Path):
     except ValueError as e:
         assert_true("LIFECYCLE_MUTEX:" in str(e), str(e))
     # disk must not have both ids
-    lc = _load(tmp / ".omc" / "state" / "lifecycle.json")
+    lc = _load(tmp_path / ".omc" / "state" / "lifecycle.json")
     both = bool(lc.get("goal_id")) and bool(lc.get("ghost_id"))
     assert_true(not both, f"both ids set: {lc}")
     print("PASS test_goal_ghost_mutex")
 
 
-def test_subagent_stop_and_session_end(tmp: Path):
-    env = {"CLAUDE_PROJECT_DIR": str(tmp)}
+def test_subagent_stop_and_session_end(tmp_path: Path):
+    setup_tmp_state(tmp_path)
+    env = {"CLAUDE_PROJECT_DIR": str(tmp_path)}
     # ensure clean lifecycle mode first
-    os.environ["CLAUDE_PROJECT_DIR"] = str(tmp)
+    os.environ["CLAUDE_PROJECT_DIR"] = str(tmp_path)
     for mod in list(sys.modules):
         if mod == "lib.lifecycle_ssot" or mod.startswith("lib."):
             del sys.modules[mod]
-    sys.path.insert(0, str(tmp / ".claude" / "hooks"))
+    sys.path.insert(0, str(tmp_path / ".claude" / "hooks"))
     from lib.lifecycle_ssot import set_mode  # type: ignore
 
     set_mode("idle")
     set_mode("goal", goal_id="G-end")
 
     p1 = _run(
-        ["python3", str(tmp / ".claude" / "hooks" / "subagent-stop-lifecycle.py")],
+        ["python3", str(tmp_path / ".claude" / "hooks" / "subagent-stop-lifecycle.py")],
         stdin_obj={
             "session_id": "sess-end",
             "agent_id": "agent-9",
@@ -251,12 +256,12 @@ def test_subagent_stop_and_session_end(tmp: Path):
             "hook_event_name": "SubagentStop",
         },
         env=env,
-        cwd=str(tmp),
+        cwd=str(tmp_path),
     )
     assert_true(p1.returncode == 0, p1.stderr.decode())
     # idempotent
     p1b = _run(
-        ["python3", str(tmp / ".claude" / "hooks" / "subagent-stop-lifecycle.py")],
+        ["python3", str(tmp_path / ".claude" / "hooks" / "subagent-stop-lifecycle.py")],
         stdin_obj={
             "session_id": "sess-end",
             "agent_id": "agent-9",
@@ -264,34 +269,34 @@ def test_subagent_stop_and_session_end(tmp: Path):
             "hook_event_name": "SubagentStop",
         },
         env=env,
-        cwd=str(tmp),
+        cwd=str(tmp_path),
     )
     assert_true(p1b.returncode == 0, p1b.stderr.decode())
-    hb = _load(tmp / ".omc" / "state" / "handoff.json")
+    hb = _load(tmp_path / ".omc" / "state" / "handoff.json")
     n_sub = sum(1 for i in hb["items"] if i.get("kind") == "subagent_stop")
     assert_true(n_sub == 1, f"subagent not idempotent {n_sub}")
 
     p2 = _run(
-        ["python3", str(tmp / ".claude" / "hooks" / "session-end-lifecycle.py")],
+        ["python3", str(tmp_path / ".claude" / "hooks" / "session-end-lifecycle.py")],
         stdin_obj={"session_id": "sess-end", "hook_event_name": "Stop"},
         env=env,
-        cwd=str(tmp),
+        cwd=str(tmp_path),
     )
     assert_true(p2.returncode == 0, p2.stderr.decode())
-    lc = _load(tmp / ".omc" / "state" / "lifecycle.json")
+    lc = _load(tmp_path / ".omc" / "state" / "lifecycle.json")
     assert_true(lc["mode"] == "idle", lc)
     assert_true(lc["goal_id"] is None and lc["ghost_id"] is None, lc)
     assert_true(lc["end"]["sealed"] is True, lc)
-    hb2 = _load(tmp / ".omc" / "state" / "handoff.json")
+    hb2 = _load(tmp_path / ".omc" / "state" / "handoff.json")
     assert_true(hb2["written"] == hb2["claimed"] == len(hb2["items"]), hb2)
     # wrapper if present
-    wrap = tmp / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh"
+    wrap = tmp_path / ".claude" / "hooks" / "stop-lifecycle-wrapper.sh"
     if wrap.is_file():
         p3 = _run(
             ["bash", str(wrap)],
             stdin_obj={"session_id": "sess-end", "hook_event_name": "Stop"},
             env=env,
-            cwd=str(tmp),
+            cwd=str(tmp_path),
         )
         assert_true(p3.returncode == 0, p3.stderr.decode())
     print("PASS test_subagent_stop_and_session_end")
@@ -309,16 +314,16 @@ def test_settings_registered():
 def main() -> int:
     assert_true(SSOT.is_file(), f"missing {SSOT}")
     test_settings_registered()
-    tmp = Path(tempfile.mkdtemp(prefix="pkgc-"))
+    tmp_path = Path(tempfile.mkdtemp(prefix="pkgc-"))
     try:
-        setup_tmp_state(tmp)
-        test_reconcile_forces_written_eq_claimed(tmp)
-        test_precompact_fail_closed_and_snapshot(tmp)
-        test_precompact_fail_on_ro_snapshot_dir(tmp)
-        test_goal_ghost_mutex(tmp)
-        test_subagent_stop_and_session_end(tmp)
+        setup_tmp_state(tmp_path)
+        test_reconcile_forces_written_eq_claimed(tmp_path)
+        test_precompact_fail_closed_and_snapshot(tmp_path)
+        test_precompact_fail_on_ro_snapshot_dir(tmp_path)
+        test_goal_ghost_mutex(tmp_path)
+        test_subagent_stop_and_session_end(tmp_path)
     finally:
-        shutil.rmtree(tmp, ignore_errors=True)
+        shutil.rmtree(tmp_path, ignore_errors=True)
     print("ALL_PKG_C_TESTS_PASSED")
     return 0
 

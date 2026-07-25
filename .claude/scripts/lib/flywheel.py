@@ -43,7 +43,8 @@ def extract_patterns(errors: list) -> list:
     grouped = {}
 
     for err in errors:
-        text = err.get("error", "")
+        # === B2: 多字段回退 (error → message → cmd) ===
+        text = err.get("error") or err.get("message") or err.get("cmd") or ""
         normalized = re.sub(r";\s*attempt=\d+", "", text).lower()
         prefix = normalized[:80]
         item = grouped.setdefault(prefix, {
@@ -153,8 +154,14 @@ def run_flywheel(project_root: Path, task_dir: Optional[Path] = None) -> dict:
     """
     result = {"patterns_found": 0, "anti_patterns_written": False, "knowledge_entries": 0}
 
-    # Collect errors from the requested task dir when provided; otherwise scan all task dirs.
+    # Collect errors from .omc/state/error-dna.jsonl (primary) and .omc/tasks/*/ (legacy).
     all_errors = []
+    state_dna = project_root / ".omc" / "state" / "error-dna.jsonl"
+    if state_dna.exists():
+        try:
+            all_errors.extend(read_error_dna(state_dna.parent))
+        except Exception:
+            pass
     tasks_root = project_root / ".omc" / "tasks"
     if task_dir is not None:
         all_errors.extend(read_error_dna(task_dir))
@@ -169,17 +176,13 @@ def run_flywheel(project_root: Path, task_dir: Optional[Path] = None) -> dict:
         result["note"] = "no errors found in any task"
         return result
 
-    # Extract patterns
+    # Extract patterns (for telemetry only; promotion to anti-patterns.md
+    # is handled by stop-flywheel.py _sublimation_check() with hit threshold + dedup)
     patterns = extract_patterns(all_errors)
     result["patterns_found"] = len(patterns)
+    result["anti_patterns_written"] = False
 
-    # Write anti-patterns
-    if patterns:
-        ap = write_anti_patterns(project_root, patterns)
-        result["anti_patterns_written"] = ap is not None
-        result["anti_patterns_path"] = str(ap) if ap else None
-
-    # Write knowledge entries
+    # Write knowledge entries (append-only, safe)
     for p in patterns[:5]:
         entry = f"Pattern '{p['pattern']}' detected in step {p['step']}: {p['error'][:80]}"
         write_claude_next(project_root, entry)
