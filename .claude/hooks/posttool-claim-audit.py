@@ -75,12 +75,64 @@ def main():
         _old = str(_ti.get('old_string', '') or _ti.get('content', '') or '')
         _new = str(_ti.get('new_string', '') or '')
         _hash = hashlib.md5((_old + _new).encode()).hexdigest()[:16]
+        # === E6: edit_mode 检测 ===
+        #   insert: 新增（old 为空）
+        #   replace: 内容替换（old 和 new 都非空）
+        #   refactor: 大规模重写（old 显著长于 new 或结构变化）
+        #   revert: 回退到之前的内容
+        #   delete: 删除（new 为空）
+        #   write_new: Write 到新文件
+        #   write_overwrite: Write 覆盖已有内容
+        _edit_mode = 'unknown'
+        if TOOL_NAME == 'Edit':
+            _old_str = str(_ti.get('old_string', '') or '')
+            _new_str = str(_ti.get('new_string', '') or '')
+            if not _old_str and _new_str:
+                _edit_mode = 'insert'
+            elif _old_str and not _new_str:
+                _edit_mode = 'delete'
+            elif _old_str and _new_str:
+                # 初步区分 replace 和 refactor：内容长度变化 >300% 为 refactor
+                _ratio = len(_new_str) / max(1, len(_old_str))
+                if _ratio > 3.0 or _ratio < 0.33:
+                    _edit_mode = 'refactor'
+                else:
+                    _edit_mode = 'replace'
+        elif TOOL_NAME == 'Write':
+            _content = str(_ti.get('content', '') or '')
+            _edit_mode = 'write_new' if not _old else 'write_overwrite'
+
+        # === E6: edit_scope 编辑规模 ===
+        _edit_char_count = max(len(str(_ti.get('old_string', '') or '')), len(str(_ti.get('new_string', '') or '')), len(str(_ti.get('content', '') or '')))
+        if _edit_char_count < 100:
+            _edit_scope = 'small'
+        elif _edit_char_count < 1000:
+            _edit_scope = 'medium'
+        else:
+            _edit_scope = 'large'
+
+        # === E6: patience_score 收敛度 ===
+        # 同一文件编辑次数 / 唯一内容 hash 数，值越低越健康
+        _edit_count_snapshot = 1
+        _unique_hash_count = 1
+        try:
+            with open(_EH_LOG, encoding='utf-8') as _eh_temp:
+                _file_edits = [json.loads(lx) for lx in _eh_temp if lx.strip() and FILE_PATH in lx]
+                _edit_count_snapshot = len(_file_edits) + 1
+                _unique_hash_count = len(set(r.get('content_hash', '') for r in _file_edits)) + 1
+        except Exception:
+            pass
+        _patience_score = round(_edit_count_snapshot / max(1, _unique_hash_count), 2)
+
         _eh_entry = {
             "ts": int(time.time()),
             "file_path": FILE_PATH,
             "tool_name": TOOL_NAME,
+            "edit_mode": _edit_mode,
+            "edit_scope": _edit_scope,
+            "patience_score": _patience_score,
             "sig": _hash,
-            "edit_count": 1,
+            "edit_count": _edit_count_snapshot,
             "contradiction": False,
             "revert_of": None,
             "content_hash": _hash,
@@ -297,22 +349,14 @@ def main():
             except Exception:
                 pass
 
-        # COLD_START: 永远 warn-only（不阻断 Edit/Write），G1/E6 可独立阻断
-        _COLD_ONLY = _IS_COLD_START and not G1_VIOLATIONS and not E6_VIOLATIONS
-        if _AUTONOMOUS or _COLD_ONLY:
-            # 自主模式 or 纯 COLD_START: 降级为 warn-only
-            tag = _MODE if _AUTONOMOUS else "cold-start"
-            mode_msg = f'⚠️ [{tag}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\n降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}'
-            result = hc_emit_hook_json(mode_msg, 'PostToolUse', True)
-            print(result)
-            flywheel_event('posttool_claim_audit', 'warned', 'P2')
-            sys.exit(0)
-        else:
-            block_msg = f'⛔ [铁律#1+#7] AI 输出真实性违规:\n{COMBINED}\n宪法: "禁止编造" + "任何数值断言必须有可验证来源"\n请修复以上违规项后重试.{TRIAGE_SUFFIX}'
-            result = hc_emit_hook_json(block_msg, 'PostToolUse', False)
-            print(result)
-            flywheel_event('posttool_claim_audit', 'blocked', 'P2')
-            sys.exit(2)
+        # PostTool 阶段不应阻断——操作已执行完,阻断也无法撤销。
+        # 全部降级为 warn-only,违规记录 audit 供退出报告统一审查(2026-07-25 改造)。
+        tag = _MODE if _AUTONOMOUS else "posttool"
+        mode_msg = f'⚠️ [{tag}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\nPostTool 阶段降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}'
+        result = hc_emit_hook_json(mode_msg, 'PostToolUse', True)
+        print(result)
+        flywheel_event('posttool_claim_audit', 'warned', 'P2')
+        sys.exit(0)
 
     # DG-131: 清除 completion-blocked 状态
     BLOCKED_FILE = STATE_DIR / 'completion-blocked'

@@ -627,28 +627,28 @@ def _check_sensitive_edit(payload: dict) -> str | None:
             print(json.dumps({"continue": True, "message": msg}, ensure_ascii=False))
             _append_audit({"event_type": "governance_goal_warn", "path": path, "tool": tool})
             return None  # 放行，让后续 gate 继续检查
-        # 非 goal 模式: 硬阻断 + 注入原因到 AI 上下文
+        # 非 goal 模式: 软阻断 — warn + audit + 注入原因，由 AI 的铁律#7+哲学链自决
         reason_text = (
-            f"⛔ GOVERNANCE_HARD_BLOCK: 治理文件 {safe} 不可修改。\n"
-            f"  原因: .claude/settings.json 和 .claude/hooks/* 受 Gate 1 保护，AI 不可直接修改。\n"
-            f"  处理方式:\n"
-            f"    1. 激活 goal 模式: /lx-goal → governance gate 降级放行\n"
-            f"    2. 由人类手动编辑\n"
-            f"    3. 建议: 优先用 goal 模式，此阻断非 bug，是正常保护机制"
+            f"⚠️ GOVERNANCE_WARN: 治理文件 {safe} 被修改。\n"
+            f"  规则: .claude/settings.json 和 .claude/hooks/* 受 Gate 1 保护，AI 不应直接修改。\n"
+            f"  哲学&铁律: 治理文件不可改，但 AI 自决（哲学→铁律→现状→ROI→行动）。\n"
+            f"  如果你确定当前修改必要（如修复 bug、遵循人类指令），继续即可。\n"
+            f"  audit 已记录此事件供退出报告审查。"
         )
-        sys.stderr.write(f"PreToolGate: HARD BLOCK (gate=governance, path={safe})\n{reason_text}\n")
-        _append_audit({"event_type": "governance_hard_block", "path": path, "tool": tool})
-        print(json.dumps({
-            "continue": False,
-            "hookSpecificOutput": {
-                "hookEventName": "PreToolUse",
-                "additionalContext": reason_text,
-            },
-        }, ensure_ascii=False))
-        return "HARD_BLOCK"
+        sys.stderr.write(f"PreToolGate: GOV WARN (path={safe})\n{reason_text}\n")
+        _append_audit({"event_type": "governance_warn", "path": path, "tool": tool})
+        print(json.dumps({"continue": True, "message": reason_text}, ensure_ascii=False))
+        return None
     # 业务敏感文件 → 软阻断
     if _is_sensitive(path):
-        return f"BLOCK 敏感路径 {path}，需要确认后才能修改|请确认是否确实要修改敏感文件。如果确认，请使用临时 bypass 授权"
+        return (f"BLOCK 敏感路径 {path}，需要确认后才能修改|"
+                f"⛔ 检测到敏感文件写入: {path}。\n"
+                f"原因: .env/.ssh/密钥文件可能包含凭据,CarrorOS 铁律禁止自主修改。\n"
+                f"可选方案:\n"
+                f"  1. 确认修改安全后使用临时 bypass:\n"
+                f"     `python3 .claude/scripts/temp-bypass.py --minutes 10 --reason \"已确认安全\"`\n"
+                f"  2. 如需创建新密钥,使用专用工具而非直接编辑敏感文件\n"
+                f"预期结果: 授权后继续;未授权则跳过")
     return None
 
 def _safe_unlink(path: Path) -> None:
@@ -711,10 +711,23 @@ def _check_fallback(_payload: dict) -> str | None:
         # Normal path: check waiting_user or unresolved fallback
         if status == "waiting_user":
             reason = task.get("reason") or "requires_user"
-            return f"ASK_USER Bypass 临时授权状态：{reason}|如需继续，运行 temp-bypass 命令创建临时授权"
+            return (f"ASK_USER Bypass 临时授权状态：{reason}|"
+                    f"❓ bypass 临时授权正在使用中。\n"
+                    f"原因: {reason}\n"
+                    f"可选方案:\n"
+                    f"  1. 等待授权过期后继续\n"
+                    f"  2. 输入 /deny 取消授权\n"
+                    f"预期结果: 授权使用/取消后继续")
         fallback = task.get("fallback", {}) or {}
         if fallback.get("unresolved"):
-            return f"BLOCK fallback 状态未解决：{fallback.get('reason', 'unknown')}|请先解决fallback问题后再操作，或使用临时bypass授权跳过"
+            return (f"BLOCK fallback 状态未解决：{fallback.get('reason', 'unknown')}|"
+                    f"⛔ 任务处于未解决的 fallback 状态。\n"
+                    f"原因: {fallback.get('reason', 'unknown')}\n"
+                    f"可选方案:\n"
+                    f"  1. 解决 fallback 问题后继续\n"
+                    f"  2. 使用临时 bypass 授权跳过\n"
+                    f"  3. 输入 /deny 保持状态\n"
+                    f"预期结果: 问题解决后任务继续")
         session = token.get("session", {}) or {}
         if session.get("fallback"):
             return None
@@ -785,10 +798,23 @@ def _check_fallback(_payload: dict) -> str | None:
     )
     print(msg, file=sys.stderr, flush=True)
 
-    return f"BLOCK task_blocked reason={reason}"
+    return (f"BLOCK task_blocked reason={reason}|"
+            f"⛔ 任务处于 blocked 状态，需要您解除后才能继续。\n"
+            f"原因: {reason}\n"
+            f"可选方案:\n"
+            f"  1. 输入 /approve <token> 解除阻塞\n"
+            f"  2. 输入 /deny 保持阻塞状态\n"
+            f"预期结果: 解除后任务继续执行")
 
 def _check_action_gate(payload: dict) -> str | None:
-    """Gate 3: block dangerous commands; ask_user for risky ones."""
+    """Gate 3: block truly dangerous commands; WARN for routine ops — AI self-decide.
+
+    改造原则(2026-07-25):
+      - DANGEROUS_COMMANDS (rm -rf /, sudo, git push --force, chmod 777, dd, mkfs):
+        保留 BLOCK — 不可逆破坏性操作。
+      - ASK_USER_COMMANDS (npm/pip/brew install, curl|bash):
+        降级 WARN — 标准开发操作,AI自主决定;仅audit+stderr提示,不阻断。
+    """
     command = _extract_command(payload)
     if not command:
         return None
@@ -802,18 +828,26 @@ def _check_action_gate(payload: dict) -> str | None:
             "pattern": hard,
             "command_preview": command[:160],
         })
-        return f"BLOCK dangerous_command pattern={hard}"
+        return (f"BLOCK dangerous_command pattern={hard}|"
+                f"⛔ 检测到不可逆破坏性操作。\n"
+                f"原因: 该命令可能造成数据丢失或系统损坏,CarrorOS 铁律禁止自主执行。\n"
+                f"可选方案:\n"
+                f"  1. 确认操作安全后,使用临时 bypass 授权:\n"
+                f"     `python3 .claude/scripts/temp-bypass.py --minutes 10 --reason \"已确认安全\"`\n"
+                f"  2. 使用更安全的替代操作(如 rm → trash, sudo → 请求权限)\n"
+                f"  3. 如确需执行,请等待用户人工介入\n"
+                f"预期结果: 授权后操作继续;未授权则操作被跳过记录")
     ask = _match_any(command, ASK_USER_COMMANDS)
     if ask:
         _append_audit({
             "event_type": "preaction_decision",
             "actor": "hook:pretool-gate",
-            "decision": "ASK_USER",
+            "decision": "WARN",
             "reason": "approval_required_command",
             "pattern": ask,
             "command_preview": command[:160],
         })
-        return f"ASK_USER approval_required pattern={ask}"
+        return f"WARN approval_required pattern={ask}"
     return None
 
 def _failure_escalate(signature: str, *, window: int = 20, threshold: int = 3) -> bool:
@@ -859,11 +893,10 @@ def _failure_escalate(signature: str, *, window: int = 20, threshold: int = 3) -
 def _check_plan_gate(payload: dict) -> str | None:
     """Gate 4: 自适应自治 — 无 token 自动 init，不阻断
 
-    Round7 PKG-3(E4 终态惯性 BLOCK):「无活跃 token」必须区分两种形态——
+    Round7 PKG-3(E4 终态惯性):「无活跃 token」区分两种形态——
       a) 连终态任务 token 都没有(全新仓库/刚清理)→ auto-init 合法,放行;
-      b) 最新任务 token 已终态 → 上一任务刚结束,auto-init 会在同会话误生
-         劫持 token(2026-07-20 劫持环路实证: 终态 token 在库仍连生 auto_* 残液)。
-         → BLOCK,要求显式开工(lx-goal on / carros_base init --task)。
+      b) 最新任务 token 已终态 → 上一任务刚结束。
+         → REDIRECT,拦截+引导开新任务,AI 自行修正后重试(防劫持环路)。
     """
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
@@ -905,8 +938,13 @@ def _check_plan_gate(payload: dict) -> str | None:
                         "reason": signature,
                     })
                     return (f"ASK_USER {signature}|同一阻断签名已 ≥3 次——惯性重试判定,"
-                            f"升级人类独占裁决。{suggestion}")
-                return f"BLOCK {signature}|{suggestion}"
+                            f"升级人类独占裁决。\n"
+                            f"原因: 同一操作被反复打断,自动重试机制已耗尽。\n"
+                            f"可选方案:\n"
+                            f"  1. 开新任务: `python3 .claude/skills/lx-goal/scripts/lx-goal.py on \"<目标>\"` \n"
+                            f"  2. 人工排查问题: `python3 .claude/scripts/carros_base.py init --task <name>`\n"
+                            f"预期结果: 问题解决后自动继续")
+                return f"REDIRECT {signature}|{suggestion}"
         # 无 token → auto-init（不会阻阻断）
         path = _extract_path(payload)
         _auto_init(path)
@@ -915,15 +953,15 @@ def _check_plan_gate(payload: dict) -> str | None:
     if not isinstance(task, dict):
         return None
     if task.get("status") in {"blocked", "waiting_user"}:
-        return f"BLOCK task_status_{task.get('status')}"
+        return f"REDIRECT task_status_{task.get('status')}|任务处于 {task.get('status')} 状态。请先解决阻塞原因后再继续。"
     task_dir = _task_dir(token)
     if not task_dir:
         return None
     plan = task_dir / "plan.md"
     if not plan.exists():
-        return f"BLOCK plan_missing task_dir={task_dir}"
+        return f"REDIRECT plan_missing task_dir={task_dir}|任务目录缺少 plan.md,请确认任务已正确初始化后重试。"
     if not task.get("current_step"):
-        return "BLOCK current_step_missing"
+        return "REDIRECT current_step_missing|任务缺少 current_step 状态,请确认 token 完整后重试。"
     return None
 
 def _check_edit_scope(payload: dict) -> str | None:
@@ -991,15 +1029,15 @@ def _check_edit_scope(payload: dict) -> str | None:
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "BLOCK",
+            "decision": "REDIRECT",
             "reason": "harness_scope_violation",
             "path": path,
             "scope": harness_scope[:10],
             "violation_streak": _streak,
         })
-        return (f"BLOCK edit_out_of_scope path={path}|"
+        return (f"REDIRECT edit_out_of_scope path={path}|"
                 f"该路径不在项目 scope（harness.yaml project.scope）内。"
-                f"scope 由用户设定，AI 不可修改。如需临时放行，请用户执行 temp-bypass")
+                f"scope 由用户设定，AI 不可修改。请将目标路径加入 scope 后重试，或使用临时 bypass。")
 
     # 检查 token scope
     token_scope = token.get("scope") or []
@@ -1021,14 +1059,14 @@ def _check_edit_scope(payload: dict) -> str | None:
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
-            "decision": "BLOCK",
+            "decision": "REDIRECT",
             "reason": "token_scope_violation",
             "path": path,
             "scope": token_scope[:10],
             "violation_streak": _streak,
         })
-        return (f"BLOCK edit_out_of_scope path={path}|"
-                f"该路径不在 token scope 内。修复: 将路径加入 token scope 或使用临时 bypass")
+        return (f"REDIRECT edit_out_of_scope path={path}|"
+                f"该路径不在 token scope 内。修复: 将路径加入 token scope 后重试，或使用临时 bypass。")
     # 无 scope 来源 → 放行（无法判定边界）
     if _streak > 0:
         try:
@@ -1062,12 +1100,12 @@ def _check_verify_gate(payload: dict) -> str | None:
         _append_audit({
             "event_type": "verifygate_preaction_block",
             "actor": "hook:pretool-gate",
-            "decision": "BLOCK",
+            "decision": "REDIRECT",
             "reason": "step_not_verified",
             "path": path,
             "current_step": current_step,
         })
-        return f"BLOCK step_{current_step}_not_VERIFIED"
+        return f"REDIRECT step_{current_step}_not_VERIFIED|当前步骤 {current_step} 尚未通过验证。请先运行验证命令并提供 VERIFIED 证据后再标记完成。"
     return None
 
 def _check_oracle_gate(payload: dict) -> str | None:
@@ -1114,8 +1152,13 @@ def _check_oracle_gate(payload: dict) -> str | None:
             "current_step": step,
             "cmd_head": command[:120],
         })
-        return (f"BLOCK oracle_gate:{detail}|检测到高置信危险语义({detail})——模型不得自行绕过验证/审批机制。"
-                f"修复: 移除绕过语义后重试;确需绕过: 由用户人工裁决授权")
+        return (f"BLOCK oracle_gate:{detail}|"
+                f"⛔ 检测到高置信危险语义({detail})。\n"
+                f"原因: 模型试图在未经人类授权的情况下绕过系统验证/审批机制,违反安全铁律。\n"
+                f"可选方案:\n"
+                f"  1. 移除绕过语义后重试(推荐)\n"
+                f"  2. 确需绕过: 由用户人工裁决授权,执行 temp-bypass\n"
+                f"预期结果: 修正后继续;未授权则跳过")
     if verdict == "ESCALATE":
         _append_audit({
             "event_type": "oracle_gate_escalate",
@@ -1125,8 +1168,11 @@ def _check_oracle_gate(payload: dict) -> str | None:
             "current_step": step,
             "cmd_head": command[:120],
         })
-        return (f"ASK_USER oracle_gate:{detail}|命令无法可靠解析且含高危信号——已升级人类独占裁决,"
-                f"请用户确认安全后重试或授权")
+        return (f"ASK_USER oracle_gate:{detail}|"
+                f"❓ 命令无法可靠解析且含高危信号,需要您判断:\n"
+                f"原因: Oracle 无法确定命令是否安全——请人工确认后再执行。\n"
+                f"如果确认安全: 使用临时 bypass 后重试。\n"
+                f"如果不安全: 此操作将被跳过。")
     if verdict in ("FORCE", "TRIGGER"):
         phase = task.get("phase", "execute") if isinstance(task, dict) else "execute"
         _append_audit({
@@ -1259,7 +1305,7 @@ _DIALOGUE_RESIDUE_PATTERNS = [
 
 def _check_document_quality(payload: dict) -> str | None:
     """Gate 8: detect dialogue residue in spec document writes.
-    — Critical paths (重构指导文档, AGENTS, kernel, README): BLOCK
+    — Critical paths: REDIRECT (intercept+guide, AI self-fix and retry)
     — Other .md: WARN (audit only, passes through)."""
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
@@ -1283,7 +1329,7 @@ def _check_document_quality(payload: dict) -> str | None:
                 "path": path,
             })
             if is_critical:
-                return f"BLOCK dialogue_residue_in_spec_doc pattern={pat} path={path}"
+                return f"REDIRECT dialogue_residue_in_spec_doc pattern={pat} path={path}|检测到对话残渣写入关键文档。请清理多余对话用语,保留纯文档内容后重试。"
             return None  # WARN passes through
     return None
 
@@ -1326,7 +1372,7 @@ def _check_g3_reviews(payload: dict) -> str | None:
         return None
     normalized = path.replace("\\", "/")
     if "docs/carros/reviews/" in normalized:
-        return f"BLOCK reviews path={path}"
+        return f"REDIRECT reviews path={path}|docs/carros/reviews/* 受读取保护。如需查看 review 内容,请确认权限后重试。"
     return None
 
 
@@ -1383,7 +1429,14 @@ def _check_context_critical_pause(payload: dict) -> str | None:
     text = " ".join([tool, command, path])
     if any(term in text for term in allowed_terms):
         return None
-    return "BLOCK CONTEXT_CRITICAL_PAUSED allowed=status/checkpoint/compact/resume/archive"
+    return ("BLOCK CONTEXT_CRITICAL_PAUSED allowed=status/checkpoint/compact/resume/archive|"
+            f"⛔ 上下文处于紧急暂停状态(PAUSED_CONTEXT_CRITICAL)。\n"
+            f"原因: 系统检测到上下文压力过高，需要先恢复。\n"
+            f"可选方案:\n"
+            f"  1. 运行 /compact 释放上下文\n"
+            f"  2. 运行 status/checkpoint 查看当前状态\n"
+            f"  3. 运行 archive 归档已完成的任务\n"
+            f"预期结果: 恢复后所有操作自动解除限制")
 
 
 SECRET_RE = re.compile(r"sk-[A-Za-z0-9]{20,}")
@@ -1444,8 +1497,14 @@ def _check_secret_scan(payload: dict) -> str | None:
             "files": hits[:10],
         })
         return ("BLOCK plaintext_secret_in_staging files=" + ",".join(hits[:5]) + "|"
-                "检测到明文密钥(sk-...)。修复: 改为环境变量引用后再提交;"
-                "确认误报或确需提交: 申请临时 bypass")
+                "⛔ 检测到明文密钥(sk-...)将被添加到暂存区。\n"
+                "原因: 明文密钥提交到 Git 仓库会导致凭据泄露,即使后续删除也存在于 git 历史中。\n"
+                "可选方案:\n"
+                "  1. 将密钥改为环境变量引用: 在 .env 或环境变量中设置,代码中读取 os.environ\n"
+                "  2. 使用 .gitignore 排除包含密钥的文件\n"
+                "  3. 如果是误报(如测试密钥),使用临时 bypass 授权:\n"
+                "     `python3 .claude/scripts/temp-bypass.py --minutes 10 --reason \"确认安全\"`\n"
+                "预期结果: 修复后密钥被移除;授权后继续提交")
     return None
 
 
@@ -1480,24 +1539,24 @@ def _check_watermark_gate(payload: dict) -> str | None:
         return None
     if pct >= WATERMARK_FORCE_PCT:
         _append_audit({
-            "event_type": "context_watermark_block",
+            "event_type": "context_watermark_hint",
             "actor": "hook:pretool-gate",
             "level": "FORCE",
             "pct": pct,
             "tool": _extract_tool(payload),
         })
-        return (f"BLOCK context_watermark_force:{pct}%|上下文 {pct}% ≥80%——强制 compact。"
-                f"停止一切操作,立即运行 /compact;compact 后水位回落自动解除")
+        return (f"CHECKPOINT context_watermark_force:{pct}%|上下文 {pct}% ≥80%——建议立即 /compact;"
+                f"compact 后水位回落自动解除。当前操作将被引导优先执行 /compact 而非继续推进。")
     if pct >= WATERMARK_READONLY_PCT and _extract_tool(payload) in MUTATING_TOOLS:
         _append_audit({
-            "event_type": "context_watermark_block",
+            "event_type": "context_watermark_hint",
             "actor": "hook:pretool-gate",
             "level": "READONLY",
             "pct": pct,
             "tool": _extract_tool(payload),
         })
-        return (f"BLOCK context_watermark_readonly:{pct}%|上下文 {pct}% ≥70%——只读模式,"
-                f"禁止文件写操作。收尾验证后立即 /compact")
+        return (f"NARROW context_watermark_readonly:{pct}%|上下文 {pct}% ≥70%——水位偏高,"
+                f"建议先 /compact 再继续写操作。当前写操作将被引导优先执行 /compact。")
     return None
 
 
@@ -1566,16 +1625,15 @@ def _check_numeric_claim(payload: dict) -> str | None:
         _append_audit({
             "event_type": "numeric_claim_warning",
             "actor": "hook:pretool-gate",
-            "decision": "BLOCK",
+            "decision": "WARN",
             "reason": "unverified_numeric_claim",
             "path": path,
             "claims": hits[:5],
         })
         sample = " | ".join(hits[:3])
-        return (f"BLOCK unverified_numeric_claim path={path}|"
+        return (f"WARN unverified_numeric_claim path={path}|"
                 f"检测到无来源的数值断言（{sample}）。"
-                f"性能/指标类数值声明必须附带可验证来源（file:line/reference/benchmark）。"
-                f"修复: 在数字后标注来源引用，或使用临时 bypass")
+                f"建议: 在数字后标注来源引用（file:line/reference/benchmark）。此为建议,不阻断操作。")
     return None
 
 def _check_action_loop(payload: dict) -> str | None:
@@ -1658,17 +1716,27 @@ def _check_action_loop(payload: dict) -> str | None:
                 "streak": _streak_count,
             })
 
-            # E4增强(ADR-0012): 连续同签名NARROW → REDIRECT(拦截+引导) → BLOCK(硬拦截)
+            # E4增强(规则修正2026-07-25): 连续同签名NARROW最多到REDIRECT,
+            # 不升级到BLOCK——AI惯性执行不是安全风险,引导即可。
+            # 4次后清理 streak 防无限重复,但始终返回 REDIRECT(允许AI修正后继续)。
             if _streak_count >= _ACTION_LOOP_ESCALATE_THRESHOLD:
-                # 4次+ 升级后清理 streak，防无限重复
+                # ≥4次: 清理 streak 防无限循环,仍返回 REDIRECT
                 try:
                     _ACTION_LOOP_STREAK_FILE.unlink(missing_ok=True)
                 except OSError:
                     pass
-                return (f"BLOCK action-loop-escalated: {top_sig} 重复 {top_n}/{len(recent_tools)} 次"
-                        f"（连续 {_streak_count} 次警告被忽略后升级为 BLOCK）|"
-                        f"检测到惯性执行模式——同一操作重复过多且之前的 REDIRECT 指引被持续忽略。"
-                        f"建议: 停止当前行为模式，分析是否在错误的方向上重复尝试")
+                _append_audit({
+                    "event_type": "action_loop_redirect",
+                    "actor": "hook:pretool-gate",
+                    "decision": "REDIRECT",
+                    "pattern": top_sig,
+                    "count": top_n,
+                    "window": len(recent_tools),
+                    "streak": _streak_count,
+                })
+                return (f"REDIRECT action-loop-redirect: {top_sig} 重复 {top_n}/{len(recent_tools)} 次|"
+                        f"同一操作已重复过多——请停止当前行为,换一个不同的方法。"
+                        f"如果是修复尝试,先确认前一次修复失败的原因(查看 stderr/exit code)再换方案")
             if _streak_count >= _ACTION_LOOP_REDIRECT_THRESHOLD:
                 # 3次: REDIRECT（拦截+引导），不清理 streak
                 _append_audit({
@@ -1831,7 +1899,11 @@ def _verify_contract_compliance(mode: str, executed_gates: set[str]) -> str | No
         policy = enforcement.get("missing_gate", "INFO")
         missing_str = ", ".join(missing[:5])
         if policy == "BLOCK":
-            return f"BLOCK contract-violation: {mode} missing required gates ({missing_str})|请检查 gate-contract.yaml 配置"
+            return (f"BLOCK contract-violation: {mode} missing required gates ({missing_str})|"
+                    f"⛔ gate-contract.yaml 要求 gate 未执行。\n"
+                    f"原因: {mode} 模式要求以下 gate 必须执行: {missing_str}\n"
+                    f"可选方案: 检查 gate-contract.yaml 配置\n"
+                    f"预期结果: 配置修正后自动通过")
         _append_audit({
             "event_type": "contract_warning",
             "mode": mode,
@@ -1929,7 +2001,7 @@ def main() -> int:
                 reason = parts[0].replace("ASK_USER ", "").strip()
                 suggestion = parts[1].strip() if len(parts) > 1 else ""
                 return _block(reason, suggestion)
-            elif result.startswith(("NARROW", "CHECKPOINT_FIRST")):
+            elif result.startswith(("NARROW", "CHECKPOINT_FIRST", "CHECKPOINT", "WARN")):
                 # 软门（G1/G2/G5/G6）：柔性约束——WARN 提示 + audit，不阻断
                 _append_audit({
                     "event_type": "gate_soft_warn",

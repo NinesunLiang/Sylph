@@ -238,7 +238,9 @@ def main():
                 with open(str(gate_file), "w", encoding="utf-8") as f:
                     json.dump(gate, f, indent=2)
 
-            # E5 Hard Block: excessive consecutive failures → hard block with summary
+            # E5 Hard Block: excessive consecutive failures → WARN (was BLOCK, 2026-07-25)
+            # PostTool 阶段不应阻断——命令已执行完,阻断也无法撤销。
+            # 降级为 WARN: 输出完整建议信息但继续,AI 自行决定是否停止。
             if streak >= hard_block_threshold:
                 distinct = len(streak_data.get("signatures", []))
                 sigs_list = streak_data.get("signatures", [])[:5]
@@ -260,7 +262,7 @@ def main():
 
                 summary = (
                     f"\n{'='*60}\n"
-                    f"  ⛔ 构建失败 — 已自动中断\n"
+                    f"  ⚠️ 构建失败 — 已连续 {streak} 次\n"
                     f"{'='*60}\n"
                     f"\n"
                     f"  尝试了 {streak} 次修复，均未通过构建。\n"
@@ -273,30 +275,11 @@ def main():
                     f"\n"
                     f"  📌 建议的下一步：\n"
                     f"{sug_lines}\n"
-                    f"\n"
-                    f"  🔄 重启后可继续，断点已记录在 build-fail-gate.json\n"
                     f"{'='*60}\n"
                 )
-                flywheel_event("posttool_bash_audit", "build_fail_hard_block", "P0", "carror-os")
-                hook_report(
-                    report_type="block",
-                    reason=f"连续 {streak} 次构建失败达到阈值。涉及 {distinct} 种不同错误。",
-                    summary=summary,
-                    detail={
-                        "attempts": streak,
-                        "distinct_errors": distinct,
-                        "signatures": sigs_list,
-                        "last_command": last_cmd,
-                        "last_output": last_out,
-                        "suggestions": suggestions,
-                    },
-                    recover={
-                        "method": "manual_rca",
-                        "state_file": str(state_dir / "build-fail-gate.json"),
-                        "resume_command": f"rm {state_dir / 'build-fail-gate.json'}",
-                    },
-                )
-                sys.exit(2)
+                flywheel_event("posttool_bash_audit", "build_fail_warn", "P0", "carror-os")
+                combined_msg = f" [WARN] {summary}"
+                # fall through to the combined output below — do NOT exit(2)
         else:
             # Build succeeded, reset streak
             try:

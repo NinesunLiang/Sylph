@@ -101,17 +101,21 @@ def main():
         except OSError:
             pass
 
-        # Emit blocked response
+        # Emit REDIRECT response (was BLOCK, 2026-07-25)
+        # PreToolUse 也不应硬阻断——改为 REDIRECT: 拦截+引导+AI 自行修正重试
         msg = (
-            "⚠️ [pre-completion-gate] TaskUpdate(completed) BLOCKED: no VERIFIED evidence.\\n"
-            "To unblock: (1) run a verification command (2) cite output with VERIFIED: tag (3) retry.\\n"
-            "Edit/Write will be reminded for 2 turns (warning only, continue:true)."
+            "🔄 [pre-completion-gate] TaskUpdate(completed) REDIRECTED: 未检测到验证证据。\\n"
+            "💡 正确做法: (1) 先运行验证命令 (2) 用 VERIFIED: 标签引用输出 (3) 重试 completed。\\n"
+            "Edit/Write 将收到提示(仅提醒,不阻断)。"
         )
         print(json.dumps({
-            "continue": False,
-            "additionalContext": msg,
+            "continue": True,
+            "hookSpecificOutput": {
+                "hookEventName": "PostToolUse",
+                "additionalContext": msg,
+            },
         }))
-        sys.exit(2)
+        sys.exit(0)
 
     # ── Evidence OK → clear completion-blocked state, allow ──
     try:

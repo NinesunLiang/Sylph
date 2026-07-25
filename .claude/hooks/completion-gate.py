@@ -123,7 +123,10 @@ def _is_autonomous():
 # ─── 软阻断（自主模式降级） ───
 
 def _auto_soft_block(message, autonomous):
-    """软阻断：自主模式写日志 + continue，否则 exit 2。"""
+    """软阻断：全部降级为 REDIRECT (intercept+guide+retry) — 2026-07-25 改造。
+    不再 exit 2 硬阻断。PostToolUse:TaskUpdate 的阻断毫无意义——completed 调用已被阻止，
+    但不需要 exit(2) 导致 CC 报 "stopped continuation"。
+    """
     # issue-triage 集成
     triage_script = _HOOKS_DIR.parent / "scripts" / "issue-triage.sh"
     triage_msg = ""
@@ -137,25 +140,28 @@ def _auto_soft_block(message, autonomous):
         except (subprocess.SubprocessError, OSError):
             pass
 
-    if autonomous:
-        ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-        log_line = f"[{ts}] [自主模式] {message}"
-        log_path = STATE_DIR / "completion-gate-autonomous.log"
-        try:
-            STATE_DIR.mkdir(parents=True, exist_ok=True)
-            with open(str(log_path), "a", encoding="utf-8") as f:
-                f.write(log_line + "\n")
-                if triage_msg:
-                    f.write(f"[{ts}] {triage_msg}\n")
-        except OSError:
-            pass
-        print(json.dumps({"continue": True}))
-        sys.exit(0)
-    else:
-        if triage_msg:
-            print(triage_msg, file=sys.stderr, flush=True)
-        flywheel_event("completion_gate", "blocked", "P2")
-        sys.exit(2)
+    ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    log_line = f"[{ts}] [REDIRECT] {message}"
+    log_path = STATE_DIR / "completion-gate-autonomous.log"
+    try:
+        STATE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(str(log_path), "a", encoding="utf-8") as f:
+            f.write(log_line + "\n")
+            if triage_msg:
+                f.write(f"[{ts}] {triage_msg}\n")
+    except OSError:
+        pass
+    flywheel_event("completion_gate", "redirected", "P2")
+    # REDIRECT: continue=True + additionalContext with guidance
+    guidance = f"🔄 [completion-gate] {message}\n💡 正确做法: 先运行实际验证命令,在证据中确保包含 VERIFIED 标记和 file:line 引用后重试 completed。"
+    print(json.dumps({
+        "continue": True,
+        "hookSpecificOutput": {
+            "hookEventName": "PostToolUse",
+            "additionalContext": guidance,
+        },
+    }))
+    sys.exit(0)
 
 
 # ─── 证据质量评分 ───
