@@ -295,15 +295,15 @@ class TestPreCompletionGate(unittest.TestCase):
         self.assertEqual(result["exit_code"], 0)
 
     def test_blocked_file_created_on_block(self):
-        """Blocking writes the completion-blocked file into state."""
+        """REDIRECT still writes the completion-blocked file into state."""
         blocked_file = self._state_dir / "completion-blocked"
         self.assertFalse(blocked_file.exists(),
                          "Precondition: blocked file should not exist yet")
 
         result = self._run_hook(stdin_data=self._stdin_json("completed"))
-        self.assertFalse(result["stdout"].get("continue", True))
+        self.assertTrue(result["stdout"].get("continue", True))  # REDIRECT: continue=True
         self.assertTrue(blocked_file.exists(),
-                        "completion-blocked file should be created on block")
+                        "completion-blocked file should be created on REDIRECT")
         content = json.loads(blocked_file.read_text(encoding="utf-8"))
         self.assertEqual(content.get("reason"), "no_evidence")
         self.assertIn("blocked_at", content)

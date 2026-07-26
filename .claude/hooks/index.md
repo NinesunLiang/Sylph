@@ -26,8 +26,8 @@
 | **夜航模式** | `carroros-night-deny.py` | PreToolUse |
 | **Error DNA** | `error-dna.py`, `error-dna-auto-fix.py` | PostToolUse |
 | **token 系统** | `token_writer.py`, `turn-counter.py` | PostToolUse / UserPromptSubmit |
-| **会话管理** | `session-start.py`, `session-resume.py`, `session-end-lifecycle.py` | SessionStart / PreCompact |
-| **生命周期** | `precompact-lifecycle.py`, `subagent-stop-lifecycle.py` | PreCompact / SubAgentStop |
+| **会话管理** | `session-start.py`, `session-resume.py` | SessionStart / PreCompact |
+| **生命周期** | `precompact-lifecycle.py` | PreCompact |
 | **飞轮** | `stop-flywheel.py` | PreCompact |
 | **阅读追踪** | `read-tracker.py` | PostToolUse:Read |
 

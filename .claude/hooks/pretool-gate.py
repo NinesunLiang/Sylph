@@ -120,12 +120,24 @@ SENSITIVE_PATTERNS = [
 ]
 
 DANGEROUS_COMMANDS = [
-    r"(^|\s)rm\s+-rf\s+(/\s|\.\s|~\s|\*\s|/$|\.$|~$|\*$)", r"(^|\s)rm\s+-r\s+(/\s|\.\s|~\s|\*/)", r"^sudo\b",
-    # PKG-5 C5: 引号/嵌套壳变形——rm -rf 后仅跟引号+根/家目录/星号也命中
-    # (2026-07-20 刺杀实证: bash -c 'rm -rf /' 仅靠 (^|\s) 锚点可绕过)
-    r"rm\s+-rf?\s+['\"]?(/|~|\*)",
+    # 仅匹配"根/家/全删"这类不可逆破坏
+    # 注意 aj_sell_decision.md Rule 2: 有具体路径的 rm -rf（如 /tmp/evidence）→ 类别 2 不阻断
+    r"(^|\s)rm\s+-rf\s+(/\s|\.\s|~\s|\*\s|/$|\.$|~$|\*$)", r"(^|\s)rm\s+-r\s+(/\s|\.\s|~\s|\*/)",
+    # 接根/家目录自身（不含子路径）
+    r"rm\s+-rf?\s+['\"]?(/|~|\*)(\s|$|'|\")", r"rm\s+-rf?\s+['\"]?\.['\"]?(\s|$)",
+    # 过滤：rm -rf /Users/.../evidence 里的 /Users 不以 / 结尾也不以 \s 结尾 → 不匹配
+    # 2026-07-26 fix per ai_self_decision.md: 有路径后缀的 rm -rf 降到 WARN
+    r"^sudo\b",
     r"^chmod\s+777\b", r"^chown\b", r"^git\s+push\s+(-f|--force)",
     r"^dd\s+if=", r"^mkfs\.", r"^fdisk\b", r":\(\)\{\s*:\|:\s*&\s*\};:",
+]
+
+# WARN_ONLY_COMMANDS — 有破坏潜力但不属于"不可逆破坏"的操作
+# ai_self_decision.md Rule 2: 此类别仅 WARN 不阻断,AI 自决
+WARN_ONLY_COMMANDS = [
+    # rm -rf 带具体子路径（不是 rm -rf / 也不是 rm -rf ~ 也不是 rm -rf *）
+    r"(^|\s)rm\s+-rf?\s+['\"]?/(?!\s|$|'|\")",
+    r"(^|\s)rm\s+-rf?\s+['\"]?~/(?!/|$|'|\")",
 ]
 
 ASK_USER_COMMANDS = [
@@ -848,6 +860,18 @@ def _check_action_gate(payload: dict) -> str | None:
             "command_preview": command[:160],
         })
         return f"WARN approval_required pattern={ask}"
+    # WARN_ONLY_COMMANDS: 有破坏潜力但不属于不可逆破坏(ai_self_decision Rule 2)
+    warn_only = _match_any(command, WARN_ONLY_COMMANDS)
+    if warn_only:
+        _append_audit({
+            "event_type": "preaction_decision",
+            "actor": "hook:pretool-gate",
+            "decision": "WARN",
+            "reason": "path_specific_destructive",
+            "pattern": warn_only,
+            "command_preview": command[:160],
+        })
+        return f"WARN path_specific_destructive pattern={warn_only}"
     return None
 
 def _failure_escalate(signature: str, *, window: int = 20, threshold: int = 3) -> bool:

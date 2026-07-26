@@ -342,7 +342,7 @@ class TestPosttoolBashAudit(unittest.TestCase):
     # ═════════════════════════════════════════
 
     def test_hard_block_on_excessive_failures(self):
-        """连续 10 次失败 → hook_report(block) + sys.exit(2)"""
+        """连续 10 次失败 → hook_report(warn) + sys.exit(0) — 2026-07-25 改造: PostTool 不阻断"""
         self._rmstate("build-fail-streak.json")
         self._rmstate("build-fail-gate.json")
         self._mkstate("build-fail-streak.json",
@@ -351,7 +351,7 @@ class TestPosttoolBashAudit(unittest.TestCase):
         stdout, stderr, ec = self._run(
             "go build ./...", exit_code="1", stderr="another error",
             cache=self.HARD_BLOCK_CACHE)
-        self.assertEqual(ec, 2)
+        self.assertEqual(ec, 0)  # 改造: PostTool 不再阻断
         self.assertIn("构建失败", stderr)
 
     def test_hard_block_not_below_threshold(self):

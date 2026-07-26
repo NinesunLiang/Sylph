@@ -141,12 +141,13 @@ def reconcile_handoff(data: Dict[str, Any], persist: bool = False) -> Dict[str, 
         data["items"] = items
     written = len(items)
     claimed = data.get("claimed")
-    if not isinstance(claimed, int):
+    if not isinstance(claimed, int) or (claimed == 0 and written > 0):
+        # claimed=0 + items>0 = 未初始化（default_handoff 设的 0），归零为 written
         claimed = written
         data["claimed"] = claimed
     data["reconciled"] = bool(claimed != written)
     data["written"] = written
-    # 保留 claimed（不强制=written），让 reconciled 真实反映漂移
+    # 在 claimed 已显式设置(非零)且≠written 时,保留 claimed 值让 reconciled 反映真实漂移
     data["updated_at"] = _utc()
     data["version"] = HANDOFF_VERSION
     if persist:
