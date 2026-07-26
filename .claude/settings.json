@@ -8,7 +8,6 @@
         "pyright-lsp@claude-plugins-official": true
     },
     "effortLevel": "xhigh",
-    "skipDangerousModePermissionPrompt": true,
     "skipWorkflowUsageWarning": true,
     "model": "deepseek-v4-flash(1m)",
     "apiUrl": "http://127.0.0.1:9998",

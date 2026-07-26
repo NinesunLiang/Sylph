@@ -90,26 +90,26 @@ proc = subprocess.run(
     capture_output=True, text=True, timeout=15, cwd=str(ROOT),
 )
 # 活跃任务在库时该路径越界 → rc=2;无任务时 plan-gate auto-init → rc=0
-# 两种都合法,关键是不崩且 stdout 是合法 JSON
+# 两种都合法(防御纵深而非硬阻拦),但 stdout 必须始终是合法 JSON 且含 continue 字段
 try:
     out = json.loads(proc.stdout)
-    check("C3 write-valid-json-response", isinstance(out, dict), f"stdout={proc.stdout[:200]}")
+    has_continue = isinstance(out, dict) and "continue" in out
+    check("C3 write-valid-json-response", has_continue, f"stdout={proc.stdout[:200]}")
 except Exception:
     check("C3 write-valid-json-response", False, f"stdout={proc.stdout[:200]}")
 
-# ── C4 handoff 计数三角: reconcile 后 claimed==written ──
+# ── C4 handoff 计数三角: reconcile 保留 claimed 值,reconciled 真实反映漂移 ──
 lc = _load("lifecycle_ssot", ROOT / ".claude" / "hooks" / "lib" / "lifecycle_ssot.py")
-# 直接调生产 reconcile 语义: claimed!=written → reconciled=True 且 disk 赢(claimed:=written)
+# 直接调生产 reconcile 语义: claimed!=written → reconciled=True
 fake = {"written": 5, "claimed": 3}
 claimed = fake.get("claimed")
-if not isinstance(claimed, int):
-    claimed = fake["written"]
-reconciled = bool(claimed != fake["written"])
+written = fake["written"]
+reconciled = bool(claimed != written)
 check("C4 reconcile-detects-fraud", reconciled is True, "claimed!=written 未检出")
-# 生产文件里 disk-wins 语义必须存在(claimed = written)
+# 生产文件 preserve claimed 值(不强制=written)
 lc_src = (ROOT / ".claude" / "hooks" / "lib" / "lifecycle_ssot.py").read_text(encoding="utf-8")
-check("C4 disk-wins-in-production", 'data["claimed"] = written' in lc_src,
-      "lifecycle_ssot 缺 claimed=written disk-wins 行")
+check("C4 claimed-preserved-in-production", 'data["claimed"] = written' not in lc_src,
+      "lifecycle_ssot 应保留 claimed 值而非强制 writer=claimed(ADR-0013 reconcile修复)")
 
 # ── C5 E2 变形对抗: 危险命令层(Gate 3 action-gate)对 rm 变形必须 BLOCK ──
 pg_src = pretool.read_text(encoding="utf-8")

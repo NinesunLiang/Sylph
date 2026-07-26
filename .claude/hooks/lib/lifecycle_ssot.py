@@ -130,6 +130,11 @@ def load_lifecycle() -> Dict[str, Any]:
 
 
 def reconcile_handoff(data: Dict[str, Any], persist: bool = False) -> Dict[str, Any]:
+    """检测 handoff 漂移(不消除)。
+
+    reconciled=true = claimed!=written（检测到漂移，不是已对账一致）。
+    保留 claimed 值不强制=written，以便调用方看到真实漂移量。
+    """
     items = data.get("items")
     if not isinstance(items, list):
         items = []

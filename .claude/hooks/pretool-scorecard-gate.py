@@ -201,7 +201,7 @@ def main() -> int:
     )
 
     print(json.dumps({
-        "continue": True,
+        "continue": False,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "additionalContext": guidance,
