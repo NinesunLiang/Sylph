@@ -21,7 +21,10 @@ Scorecard 自评（8.65）与外评（7.67）之间存在 **-0.98 的显著偏�
 2. **双模型交叉校验** — 每轮 scorecard 更新触发一次 Oracle Duo（当前模型 + 对立模型）独立评分。**分差 ≥1.0 的项标黄**，需人工仲裁。
 3. **组合执行** — 先过证据溯源筛（防无源断言），再过双模型验证（防有源但逻辑牵强）。
 
-门禁执行点：`completion-gate` PostToolUse:TaskUpdate(scorecard update) 或新设 `PreToolUse:Edit|Write` on scorecard.md。
+门禁执行点：`compound-verify-gate.py` PostToolUse:Write(scorecard.md) 或 PreToolUse:Edit|Write on scorecard.md。
+
+**Phase 2 实现**: `compound-verify-gate.py` 完成双模型交叉校验，对比两个模型评分，
+Δ≥1.5 的维度自动标注 `⚠️ 仲裁中`。
 
 ## 替代方案
 

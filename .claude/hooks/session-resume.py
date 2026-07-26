@@ -12,6 +12,7 @@ Recovery file: .omc/state/last-user-prompts
 
 Compatible with Python 3.9+ (no str | None syntax, no match/case).
 """
+from __future__ import annotations
 
 import json
 import os

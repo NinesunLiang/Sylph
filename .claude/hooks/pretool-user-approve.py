@@ -16,6 +16,7 @@ Constraints:
   - Fast path <100ms on non-5th rounds (ring append + tail-read watermark)
   - compact-write runs detached (Popen, no wait) — hook never waits on it
 """
+from __future__ import annotations
 import json
 import os
 import re

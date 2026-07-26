@@ -10,6 +10,7 @@ Verifies:
 5. Allows TaskUpdate in autonomous/ghost/goal mode
 6. Blocks TaskUpdate when evidence is stale (> 5 min)
 """
+from __future__ import annotations
 
 import json
 import os

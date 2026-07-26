@@ -18,6 +18,7 @@ Usage:
 生产集成: 实测在 pretool-user-approve.py(每轮尾读 transcript usage),
 门执行在 pretool-gate.py(watermark 门);本脚本为离线计算/调试入口。
 """
+from __future__ import annotations
 import json
 import os
 import sys

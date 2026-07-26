@@ -15,6 +15,7 @@ Usage:
     python3 .claude/scripts/meta_oracle.py audit [--days 7] [--threshold 6.0]
     python3 .claude/scripts/meta_oracle.py verify --step S1 [--token <path>]
 """
+from __future__ import annotations
 
 import json
 import os

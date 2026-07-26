@@ -8,6 +8,7 @@ Validates:
 3. TOKENS_DIR path exists
 4. GATE_WEIGHTS are defined
 """
+from __future__ import annotations
 
 import os
 import sys

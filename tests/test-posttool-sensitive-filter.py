@@ -2,6 +2,7 @@
 """
 test-posttool-sensitive-filter.py — 单元测试 posttool-sensitive-filter.py
 """
+from __future__ import annotations
 
 import json
 import subprocess

@@ -11,6 +11,7 @@ Verifies:
 
 Run:  python3 scripts/test-session-resume.py
 """
+from __future__ import annotations
 
 import json
 import os
