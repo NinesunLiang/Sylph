@@ -1,127 +1,80 @@
-# CarrorOS — 治理体系
+# CarrorOS — AI 编程代理治理内核
 
-继承自 CarrorOS 哲学传统，以 重构指导文档 重构方案为唯一设计源的全新治理系统。
+> *"DeepSeek V4 Flash + CarrorOS 用出了以前 Opus-4.6 的感觉。而 Opus-4.6 贵到没法日常用。"*
+> — CarrorOS 用户
 
-## 核心架构
+CarrorOS 是一个**运行时治理层**，架在 AI 编码代理（Claude Code、OpenCode 等）和代码仓库之间。
 
-任务等级：
+不是规则文件（AGENTS.md），不是提示词工程——是**物理执行的 hook**，在每次工具调用前和调用后运行。模型绕不过去，因为门禁在操作系统层面执行。
+
+## 一句话
+
+让你用中低阶模型（DeepSeek V4 Flash），得到高阶模型（Opus-4.6）级别的可靠输出。成本是前者的，质量是后者的。
+
+## 核心能力
+
+| 能力 | 实现 |
+|------|------|
+| **运行时强制** | 16+ Python hook 通过 settings.json 注册，PreTool/PostTool 执行 |
+| **虚假完成拦截** | completion-gate 5 维证据评分 + 双源验证 + 软完成语检测 |
+| **目标漂移防御** | E4 惯性升级链：NARROW → REDIRECT → BLOCK（同一错误 3 次即升级）|
+| **幻觉审计** | posttool-claim-audit file:line 溯源 + G1 数值断言 |
+| **知识引擎** | error-dna → retry-budget → claude-next → 飞轮升华闭环 |
+| **安全门禁** | 敏感文件保护、危险命令拦截、输出脱敏、不可逆操作人工审批 |
+| **生命周期管理** | precompact 快照 + handoff 一致性 + session 恢复 |
+| **双模型 Oracle** | 59 场对抗场景全覆盖 + 6 类判决统一 verify_contract |
+
+## 评分
+
+Opus-4.8 + GPT-5.6Sol 独立外评 31 维度：**9.0 / 10**（Δ=0 双模型一致）
+
+- 151 场对抗测试全绿
+- 42/42 回归套件全绿
+- 3 条端到端生产 trace 闭环
+- 59 文件 SHA256 证据链可追溯
+
+## 架构
+
 ```
-L1:    Plan → Step → Verify → Archive
-L2 : Base + Context Watermark + Low-frequency Oracle + Learning Flywheel
+AI Agent (CC/OC)
+    │  PreToolUse → hook-launcher → pretool-gate (14 门合一)
+    │                → pretool-scorecard-gate
+    │                → pre-completion-gate (TaskUpdate)
+    ▼
+  [工具执行]
+    │  PostToolUse → posttool-claim-audit
+    │                → posttool-bash-audit
+    │                → completion-gate
+    │                → posttool-sensitive-filter
+    │                → error-dna
+    ▼
+  治理日志 (error-dna / flywheel / handoff)
 ```
-
-使用场景：
-```text
-L1 / Base: 默认治理级别，适用于中低风险、边界清楚、可直接验证的任务；
-L2 / Enhance: 跨模块、架构、不可逆、安全权限、release、长期无人或用户要求高可靠时启用。
-```
-
-模型与代理一致性：
-```text
-L1 / L2 由任务风险决定，不按模型档位区分。
-SubAgent 与 MainAgent 默认使用同一模型、同一治理规则和同一证据标准。
-不得因模型名称或供应商改变任务等级、验证门、scope、权限或完成标准。
-需要不同模型时必须作为显式实验或人工裁决，不得静默路由。
-```
-
-### 10 模块降级为内部实现
-
-| 模块 | 角色 | 暴露为 |
-|------|------|--------|
-| IntakeGate | 任务入口分类 | carros_base.py init |
-| PlanBuilder | 计划冻结 | 模板 plan.md |
-| PreActionGate | 安全门禁 | pretool-action-gate.py hook |
-| Executor Ledger | 执行证据 | executor.md 模板 |
-| VerifyGate | 完成门 | carros_base.py verify |
-| Context Engine | 上下文管理 | 水位阈值配置 |
-| Oracle | 高阶复核 | 低频触发（仅 L2）|
-| Fallback | 降级熔断 | 内部裁决器 |
-| CLI | 观测接口 | carros_base.py status |
-| Archive | 归档封存 | carros_base.py archive |
 
 ## 快速开始
 
 ```bash
-# 1. 初始化任务
-python3 .omc/scripts/carros_base.py init --task-id my-task-001
+# 看当前状态
+python3 .claude/scripts/carros_base.py status
 
-# 2. 查看状态
-python3 .omc/scripts/carros_base.py status
+# 跑全量回归
+bash scripts/run-regression.sh
 
-# 3. 每 tick 递增
-python3 .omc/scripts/carros_base.py tick
+# 初始化任务
+python3 .claude/scripts/carros_base.py init --task-id my-task
 
-# 4. 验证 step
-python3 .omc/scripts/carros_base.py verify --step S1
+# 查看当前任务状态
+python3 .claude/scripts/carros_base.py tick
 
-# 5. lint 检查
-python3 .omc/scripts/carros_base.py lint
+# 验证完成证据
+python3 .claude/scripts/carros_base.py verify
 
-# 6. 归档
-python3 .omc/scripts/carros_base.py archive
-
-# 7. 跑 bench 测试
-python3 .omc/scripts/carros_base.py bench
-
-# 8. 跑随机特征验证（默认从脚本位置推导项目根；可用 CARROROS_ROOT 覆盖）
-CARROROS_ROOT="$PWD" python3 .omc/scripts/feature_verify.py 1
+# 归档任务
+python3 .claude/scripts/carros_base.py archive
 ```
 
-## 平台支持
+## 哲学
 
-| 平台 | 状态 |
-|------|------|
-| Claude Code | ✅ hooks 注册 |
-| OpenCode | ✅ plugin |
-| 独立 CLI | ✅ carros_base.py |
-| macOS | ✅ 已测试 |
-| Windows/WSL | ✅ pathlib 路径 |
-| Linux | ✅ |
+验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少
 
-## 目录结构
-
-```
-CarrorOS/
-├── AGENTS.md                    # 核心入口
-├── .claude/                     # 可复用核心资产
-│   ├── scripts/                 # python脚本
-│   ├── references/              # 渐进式披露文档库
-│   ├── hooks/                   # 6 个 CC hooks
-│   ├── nodes/                   # 原子化节点
-│   ├── schemas/                 # 原子化接口
-│   ├── settings.json            # CC hooks 注册
-│   ├── harness.yaml             # hook 开关表
-│   ├── kernel.md                # 冻结规则+飞轮入口
-│   ├── claude-next.md           # 范式经验学习
-│   └── index.md                 # 渐进披露注册表
-├── .omc/
-│   ├── tasks/{date}/{task_name}/{research|plan|executor|stats/|sub_tasks/}                       # 任务文档系统
-│   ├── tasks/{date}/{task_name}.json                       # 任务令牌系统，含有终端id信息
-│   └── state/
-│         └── /{date}/{task_name}
-│                       ├── static-oracle-verdicts/{task_id}/
-│                       ├── runtime-oracle-verdicts/{task_id}/
-│                       ├── meta-oracle-verdicts/{task_id}/
-│                       └── oracle-bypass/{task_id}/
-└── opencode/                    # OpenCode plugin
-```
-
-## 规则
-
-见 AGENTS.md（8 铁律 + 哲学 7 条 + 路由规则）。
-
-## 设计源
-
-所有设计源自 `~/Desktop/重构3/round3/`。CarrorOS 作为材料和对照组保留。
-
-## 文档系统
-
-任务系统：.omc/tasks/{data}/{task_name}/[ research.md | plan.md | executor.md |  sub_tasks/ |state/ ]
-
-token系统：.omc/tokens/{data}/{task_name}.json // 所有的和会话级别的token存这里，如：goal\无人模式\ai任务
-
-子任务系统：.omc/tasks/{data}/{task_name}/sub_tasks/{sub_task_name}/[ research.md | plan.md | executor.md]
-
-子任务令牌系统：.omc/tasks/{data}/{task_name}/sub_tasks/tokens/{sub_task_name}.json
-
-rpe文档系统：rpe/{feature_name}/[ research.md | plan.md | executor.md ｜ state/ ] // rpe模式一般不走无人模式，不需要令牌;
+治理不是越多越好。CarrorOS 的每个 hook 都要回答"没有它会出什么事"——答不出来的，不装。
