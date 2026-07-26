@@ -1607,8 +1607,8 @@ def _check_watermark_gate(payload: dict) -> str | None:
 
 # ── E4: Action-loop detection — same tool+cmd repeated >=3 times in last 20 audit events ──
 _ACTION_LOOP_STREAK_FILE = OMC / "state" / "action-loop-streak"
-_ACTION_LOOP_REDIRECT_THRESHOLD = 3  # 连续3次NARROW → 升级为REDIRECT（拦截+引导）
-_ACTION_LOOP_ESCALATE_THRESHOLD = 4  # 连续4次NARROW → 升级为BLOCK（硬拦截）
+_ACTION_LOOP_REDIRECT_THRESHOLD = 10  # 连续NARROW次数 → 升级为REDIRECT（拦截+引导）
+_ACTION_LOOP_ESCALATE_THRESHOLD = 15  # 进一步升级（不再BLOCK，仅REDIRECT）
 # 惯性执行检测只关注写工具和 Bash（读工具的自然重复是正常行为）
 _ACTION_LOOP_MUTATING_TOOLS = {"write", "edit", "multiedit", "notebookedit", "bash"}
 

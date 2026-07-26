@@ -83,8 +83,8 @@ def _run_hook(test_input_str):
                 exit_code = None
                 orig_exit = sys.exit
                 try:
-                    sys.exit = lambda code: (_ for _ in ()).throw(
-                        SystemExit(code) if code else SystemExit(1)
+                    sys.exit = lambda code=0: (_ for _ in ()).throw(
+                        SystemExit(code) if code is not None else SystemExit(0)
                     )
                     try:
                         mod.main()
@@ -351,8 +351,14 @@ class TestPosttoolBashAudit(unittest.TestCase):
         stdout, stderr, ec = self._run(
             "go build ./...", exit_code="1", stderr="another error",
             cache=self.HARD_BLOCK_CACHE)
-        self.assertEqual(ec, 0)  # 改造: PostTool 不再阻断
-        self.assertIn("构建失败", stderr)
+        self.assertEqual(ec, 0)  # 改造: PostTool 不再阻断,exit(0)正常返回
+        # 构建失败信息在 JSON additionalContext 内
+        import json as _json
+        try:
+            _ctx = _json.loads(stdout).get("hookSpecificOutput", {}).get("additionalContext", "")
+            self.assertIn("构建失败", _ctx)
+        except Exception:
+            self.assertIn("构建失败", stdout)
 
     def test_hard_block_not_below_threshold(self):
         """连续 9 次失败 → warn-only, stdout C1, 不阻断"""

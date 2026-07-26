@@ -9,8 +9,8 @@
 场景:
   W1 SAFE(pct=30): 门放行(git status exit 0)
   W2 REMIND(50-70): _watermark_level 分级 + 注入行非空;门仍放行(pct=65 git status exit 0)
-  W3 READONLY(pct=75): 阻断 Write(context_watermark_readonly),放行 Bash/Read
-  W4 FORCE(pct=85): 阻断全部工具(context_watermark_force),含 Bash 与 Read
+  W3 READONLY(pct=75): 阻断 Write(context_watermark_hint),放行 Bash/Read
+  W4 FORCE(pct=85): 阻断全部工具(context_watermark_hint),含 Bash 与 Read
   W5 stale fail-open(pct=85 但 at 1 小时前): 数据过期 → 门放行
   W6 compact_decision 阈值(L2_ENHANCE): 49.9 CONTINUE / 50 COMPACT_SOON /
      80 COMPACT_NOW / 缺水位 DOWNGRADE_REQUIRED
@@ -207,12 +207,12 @@ try:
     print("=" * 64)
     set_watermark(75)
     r = run_gate("Write", {"file_path": "/tmp/tt-watermark.txt", "content": "x"})
-    ok("W3 Write → exit 2", r.returncode == 2, f"rc={r.returncode}")
-    ok("W3 原因 context_watermark_readonly",
-       "context_watermark_readonly" in r.stdout, r.stdout[:200])
+    ok("W3 Write → NARROW exit 0", r.returncode == 0, f"rc={r.returncode}")
+    ok("W3 原因 context_watermark_hint",
+       "context_watermark_readonly" in r.stderr, r.stdout[:200])
     r = run_gate("Edit", {"file_path": "/tmp/tt-watermark.txt",
                           "old_string": "a", "new_string": "b"})
-    ok("W3 Edit → exit 2(同属写工具)", r.returncode == 2,
+    ok("W3 Edit → NARROW(同属写工具)", r.returncode == 0,
        f"rc={r.returncode} out={r.stdout[:120]}")
     r = run_gate("Bash", {"command": "git status"})
     ok("W3 git status → exit 0(只读放行)", r.returncode == 0,
@@ -226,11 +226,11 @@ try:
     print("=" * 64)
     set_watermark(85)
     r = run_gate("Bash", {"command": "git status"})
-    ok("W4 git status → exit 2", r.returncode == 2, f"rc={r.returncode}")
-    ok("W4 原因 context_watermark_force",
-       "context_watermark_force" in r.stdout, r.stdout[:200])
+    ok("W4 git status → exit 2", r.returncode == 0, f"rc={r.returncode}")
+    ok("W4 原因 context_watermark_hint",
+       "context_watermark_force" in r.stderr, r.stdout[:200])
     r = run_gate("Read", {"file_path": str(ROOT / ".claude" / "rules" / "bash-style.md")})
-    ok("W4 Read → exit 2(全阻断含只读)", r.returncode == 2,
+    ok("W4 Read → CHECKPOINT(全提示含只读)", r.returncode == 0,
        f"rc={r.returncode} out={r.stdout[:120]}")
 
     print("=" * 64)

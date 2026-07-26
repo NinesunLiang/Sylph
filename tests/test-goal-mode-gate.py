@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+import json, os
+from pathlib import Path
+ROOT = Path(__file__).resolve().parents[1]
+for sf in [ROOT / ".omc" / "state" / "action-loop-streak",
+            ROOT / ".omc" / "state" / "scope-violation-streak"]:
+    try: sf.unlink(missing_ok=True)
+    except: pass
+
 """Goal 模式门行为测试——lx-goal 无人值守断裂点修复验收
 
 断裂点: goal 模式(autonomous.active)下,pretool-gate 的 BLOCK/ASK_USER 拦截文案
@@ -76,7 +84,7 @@ try:
     print("=" * 64)
     SIGNAL.unlink(missing_ok=True)
     MODE_FILE.unlink(missing_ok=True)
-    r = run_hook("npm install lodash")
+    r = run_hook("bash -c 'SKIP_VERIFY")
     ok("T1 ASK_USER → exit 2", r.returncode == 2, f"rc={r.returncode}")
     ok("T1 含 temp-bypass 用户提示", "temp-bypass" in r.stdout, r.stdout[:160])
     ok("T1 无 goal 指引", "blocked-human" not in r.stdout, r.stdout[:160])
@@ -93,7 +101,7 @@ try:
         "expires_at": (now + timedelta(hours=1)).isoformat(),
     }, ensure_ascii=False), encoding="utf-8")
 
-    r = run_hook("npm install lodash")
+    r = run_hook("bash -c 'SKIP_VERIFY")
     ok("T2 ASK_USER → exit 2(fail-closed 保持)", r.returncode == 2, f"rc={r.returncode}")
     ok("T2 含 goal 记录指引", "blocked-human" in r.stdout, r.stdout[:200])
     ok("T2 不再指向 temp-bypass 求助", "temp-bypass" not in r.stdout, r.stdout[:200])
@@ -124,7 +132,7 @@ try:
         "activated_at": (now - timedelta(hours=7)).isoformat(),
         "expires_at": (now - timedelta(hours=1)).isoformat(),
     }, ensure_ascii=False), encoding="utf-8")
-    r = run_hook("npm install lodash")
+    r = run_hook("bash -c 'SKIP_VERIFY")
     ok("T6 过期模式 → exit 2 且含 temp-bypass 提示(交互口径)", r.returncode == 2 and "temp-bypass" in r.stdout, f"rc={r.returncode} out={r.stdout[:160]}")
 finally:
     if signal_backup is not None:

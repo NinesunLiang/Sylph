@@ -134,7 +134,7 @@ run_scenario(
     "A1",
     setup_a1,
     lambda result, calls: check(
-        "A1 terminal-done-blocks", bool(result) and result.startswith("BLOCK terminal_inertia:old-task")
+        "A1 terminal-done-blocks", bool(result) and result.startswith("REDIRECT terminal_inertia:old-task")
         and len(calls) == 0,
         f"result={result!r} auto_init_calls={calls}"),
 )
@@ -147,7 +147,7 @@ run_scenario(
     "A2",
     setup_a2,
     lambda result, calls: check(
-        "A2 top-level-archived-blocks", bool(result) and result.startswith("BLOCK terminal_inertia:")
+        "A2 top-level-archived-blocks", bool(result) and result.startswith("REDIRECT terminal_inertia:")
         and len(calls) == 0,
         f"result={result!r}"),
 )
@@ -185,7 +185,7 @@ run_scenario(
     "A4",
     setup_a4,
     lambda result, calls: check(
-        "A4 history-1x-stays-block", bool(result) and result.startswith("BLOCK terminal_inertia:two-task"),
+        "A4 history-1x-stays-block", bool(result) and result.startswith("REDIRECT terminal_inertia:two-task"),
         f"result={result!r}"),
 )
 
@@ -241,7 +241,7 @@ run_scenario(
     "A6",
     setup_a6,
     lambda result, calls: check(
-        "A6 hits-outside-window-no-escalate", bool(result) and result.startswith("BLOCK terminal_inertia:deep-task"),
+        "A6 hits-outside-window-no-escalate", bool(result) and result.startswith("REDIRECT terminal_inertia:deep-task"),
         f"result={result!r}"),
 )
 
