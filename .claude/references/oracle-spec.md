@@ -1,9 +1,10 @@
 # Oracle 门禁规格
 
 > L2 Enhance 核心门禁。5 点触发 → 裁决(Accept/Warn/Reject/Escalate)
-> 触发后调用 `.claude/scripts/oracle_gate.py`
+> 注: oracle_gate.py 已于 2026-07-26 删除(PKG-B)，功能合并至 pretool-gate.py _oracle_classify() + verify_contract.py
+> 触发后调用 pretool-gate 内置 oracle 门 (L2_ENHANCE 模式生效)
 
-python3 .claude/scripts/oracle_gate.py --check
+python3 .claude/hooks/pretool-gate.py --oracle-check
 
 ## 触发条件 (5 点)
 
@@ -33,7 +34,7 @@ ESCALATE → 人类审批（生成 CAPTCHA 文件对）
 ## 调用方式
 
 ```
-python3 .omc/scripts/oracle_gate.py --check <触发点ID> [--path <路径>] [--command <命令>]
+python3 .claude/hooks/pretool-gate.py --oracle-check <触发点ID> [--path <路径>] [--command <命令>]
 ```
 
 返回 JSON: `{"verdict":"ACCEPT","reason":"..."}`

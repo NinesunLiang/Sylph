@@ -16,6 +16,10 @@ def ok(name, cond, detail=""):
         FAIL += 1; print(f"  ❌ {name}  {detail}")
 
 ok("exists", HOOK.exists())
+# write harness cache to enable hook
+CACHE = PROJECT_ROOT / ".omc" / "state" / ".harness-cache"
+CACHE.parent.mkdir(parents=True, exist_ok=True)
+CACHE.write_text("__parsed_count__=1\nhooks_enabled.posttool_claim_audit=true\n")
 r = subprocess.run([sys.executable, str(HOOK)], input='{"tool_name":"Edit","tool_input":{"file_path":"test.py"}}', capture_output=True, text=True, timeout=10, cwd=str(PROJECT_ROOT))
 try:
     d = json.loads(r.stdout); ok("accepts Edit input", "continue" in d, f"got={r.stdout[:100]}")

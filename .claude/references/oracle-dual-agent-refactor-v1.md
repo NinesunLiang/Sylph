@@ -245,7 +245,7 @@ def _run_meta_oracle_check(task_id):
 
 | 文件 | 原因 |
 |------|------|
-| `.claude/scripts/oracle_gate.py` | 独立 hook，不参与双 agent 体系 |
+| ~~`.claude/scripts/oracle_gate.py`~~ | 已删除(PKG-B)，功能合并至 pretool-gate _oracle_classify + verify_contract |
 | `.claude/scripts/carros_utils.py` | 辅助函数已稳定 |
 | `.omc/state/oracle-verdicts/` | 目录结构不变，裁决写入目标 |
 | `.omc/state/oracle_bypass/` | 目录结构不变 |
