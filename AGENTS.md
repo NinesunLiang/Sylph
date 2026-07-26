@@ -31,14 +31,16 @@
 4. **Archive** → `python3 .claude/scripts/carros_base.py archive`
 
 **executor.md 证据块模板：**
+每步完成后，在 executor.md 末尾追加：
 ```markdown
-## S<N>
+### EV-<step_id>
 
-- action: 做了什么
+- step: <step_id>
+- type: test/review/change
+- source: 执行来源
+- exit_code: 0
 - file: 改了什么文件
-- command: 执行了什么命令
-- output: 命令输出摘要
-- status: PASS/FAIL
+- assertion: 验证了什么
 ```
 
 L2（跨模块/架构/不可逆/安全权限/release/长期无人）→ 自动触发附加治理。
