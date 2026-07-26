@@ -21,7 +21,7 @@
 
 | 房间 | 入口 | 功能 |
 |------|------|------|
-| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（34个，按触发点分类） |
+| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（24个，按触发点分类） |
 | nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12个，按功能/频率分类） |
 | schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/input/output） |
 | references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates/race） |

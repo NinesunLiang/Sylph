@@ -609,7 +609,15 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
         print(f"   Archived previous tokens: {archived_count} total")
 
     # ── PlanBuilder 生成冻结计划 ──
-    if intake_decision_data:
+    if steps and len(steps) > 1:
+        # 显式多步骤：绕过 PlanBuilder，按步骤列表生成
+        token = _default_token(task_id=task_id, level=level, steps=steps)
+        _save_token(token)
+        _write_default_plan(steps=steps)
+        _write_default_executor()
+        _write_default_research()
+        print(_green(f"   Multi-step plan: {len(steps)} steps (bypassed PlanBuilder)"))
+    elif intake_decision_data:
         plan_md_output, pb_err = _run_plan_builder(intake_decision_data, user_request, task_id, feature)
         if pb_err:
             print(_yellow(f"   ⚠ PlanBuilder warning: {pb_err}"))
@@ -892,7 +900,7 @@ def _run_verify_gate(step_id):
     return payload.get("decision", "BLOCKED"), payload.get("reason", ""), payload
 
 
-def cmd_verify(step_id=None):
+def cmd_verify(step_id=None, all_steps=False):
     """验证 step 完成 — VerifyGate 裁决通过才标记 plan.md [x] + 写 task-bound audit"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
@@ -911,10 +919,16 @@ def cmd_verify(step_id=None):
         return 2
 
     plan = PLAN_PATH.read_text()
-    lines = plan.split("\n")
 
     if step_id:
         targets = [step_id]
+    elif all_steps:
+        # --all: 扫描 plan.md 找所有 [ ] 步骤，逐个验证
+        targets = re.findall(r"^\- \[ \] (\S+?):", plan, re.MULTILINE)
+        if not targets:
+            print(_yellow("⚠  No pending steps to verify"))
+            return 0
+        print(f"   Batch verify: {len(targets)} pending step(s)")
     else:
         targets = []
         current = token.get("task", {}).get("current_step")
@@ -2377,6 +2391,16 @@ def main(argv=None):
                 while i < len(args) and not args[i].startswith("--"):
                     steps.append(args[i])
                     i += 1
+            elif args[i] == "--steps" and i + 1 < len(args):
+                # 支持 --steps "S1:xxx|S2:yyy" 管道符分割
+                if steps is None:
+                    steps = []
+                raw = args[i + 1]
+                for part in raw.split("|"):
+                    part = part.strip()
+                    if part:
+                        steps.append(part)
+                i += 2
             elif args[i] == "--user-request" and i + 1 < len(args):
                 user_request = args[i + 1]
                 i += 2
@@ -2397,9 +2421,10 @@ def main(argv=None):
 
     elif command == "verify":
         step_id = None
+        all_steps = "--all" in args
         if args and args[0] == "--step" and len(args) >= 2:
             step_id = args[1]
-        return cmd_verify(step_id=step_id)
+        return cmd_verify(step_id=step_id, all_steps=all_steps)
 
     elif command == "archive":
         force = "--force" in args or "-f" in args

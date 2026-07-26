@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 """
-session-resume.py — SessionStart hook
+session-resume.py — ⚠️ 已废弃，被 session-start.py 替代
 
-On new session start:
-  1. Scan .omc/tokens/{date}/ for active tokens (task state recovery)
-  2. Read .omc/state/last-user-prompts for recent user queries (context recovery)
-  3. Write a combined context block so the agent can resume seamlessly after /compact
-
-Target path: .omc/tokens/{YYYYMMDD}/{task_id}.json
-Recovery file: .omc/state/last-user-prompts
-
-Compatible with Python 3.9+ (no str | None syntax, no match/case).
+当前不注册，不启用。session-start.py 已覆盖所有 token 扫描 + prompt 恢复 + context 注入功能。
+保留文件供参考。如需激活，合并逻辑到 session-start.py 后删除本文件。
 """
 from __future__ import annotations
 

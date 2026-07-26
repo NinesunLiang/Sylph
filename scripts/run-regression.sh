@@ -24,10 +24,8 @@ S1="/tmp/carros-regression.temp-bypass.stash"
 S2="/tmp/carros-regression.watermark.stash"
 S3="/tmp/carros-regression.goal-signal.stash"
 S4="/tmp/carros-regression.goal-mode.stash"
-M1=0
-M2=0
-M3=0
-M4=0
+S5="/tmp/carros-regression.active-tokens.stash"
+M1=0; M2=0; M3=0; M4=0; M5=0
 
 restore() {
   if [ "$M1" = "1" ] && [ -f "$S1" ]; then
@@ -46,11 +44,28 @@ restore() {
     mv "$S4" "$GOAL_MODE"
     echo "[restore] lx-goal.json 已还原"
   fi
+  if [ "$M5" = "1" ] && [ -f "$S5" ]; then
+    STASH_DIR="/tmp/carros-regression.active-tokens"
+    if [ -d "$STASH_DIR" ]; then
+      for f in "$STASH_DIR"/*.json; do
+        [ -f "$f" ] || continue
+        # Restore to original path (encode date+name in filename)
+        base=$(basename "$f")
+        date_dir=$(echo "$base" | cut -d'_' -f1)
+        tok_name=$(echo "$base" | cut -d'_' -f2-)
+        mkdir -p "$PROJECT_ROOT/.omc/tokens/$date_dir"
+        mv "$f" "$PROJECT_ROOT/.omc/tokens/$date_dir/$tok_name"
+      done
+      rm -rf "$STASH_DIR"
+      echo "[restore] active tokens 已还原"
+    fi
+    M5=0
+  fi
 }
 trap restore EXIT
 
-if [ -f "$S1" ] || [ -f "$S2" ] || [ -f "$S3" ] || [ -f "$S4" ]; then
-  echo "ERROR: 发现上次异常退出的 stash 残留($S1 $S2 $S3 $S4)" >&2
+if [ -f "$S1" ] || [ -f "$S2" ] || [ -f "$S3" ] || [ -f "$S4" ] || [ -f "$S5" ]; then
+  echo "ERROR: 发现上次异常退出的 stash 残留($S1 $S2 $S3 $S4 $S5)" >&2
   exit 1
 fi
 
@@ -74,6 +89,25 @@ if [ -f "$GOAL_MODE" ]; then
   M4=1
   echo "[stash] lx-goal.json 移出(测试后自动还原)"
 fi
+# stash 活跃 token（防止测试中的 init 归档真实活跃 token）
+STASH_DIR="/tmp/carros-regression.active-tokens"
+mkdir -p "$STASH_DIR"
+found=0
+for tokfile in "$PROJECT_ROOT"/.omc/tokens/*/*.json; do
+  [ -f "$tokfile" ] || continue
+  if python3 -c "import json;d=json.load(open('$tokfile'));exit(0 if d.get('status')=='active' else 1)" 2>/dev/null; then
+    date_dir=$(basename "$(dirname "$tokfile")")
+    tok_name=$(basename "$tokfile")
+    cp "$tokfile" "$STASH_DIR/${date_dir}_${tok_name}"
+    rm "$tokfile"
+    found=$((found + 1))
+  fi
+done
+if [ "$found" -gt 0 ]; then
+  M5=1
+  echo "[stash] $found active token(s) 移出(测试后自动还原)"
+fi
+rmdir "$STASH_DIR" 2>/dev/null || true
 
 cd "$PROJECT_ROOT"
 rc_all=0

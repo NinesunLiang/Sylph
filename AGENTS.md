@@ -23,12 +23,14 @@
 
 ## L1 工作流
 
-1. **Plan** → `python3 .claude/scripts/carros_base.py init --task-id <ID>`
-2. **Execute** → 按 plan.md 执行。每完成一步：
+1. **Plan** → `python3 .claude/scripts/carros_base.py init --task-id <ID> --steps "S1:调研|S2:实现"`
+2. **Research** — 先调研，写 research.md（背景、约束、已知信息）
+3. **Execute** → 按 plan.md 执行。每完成一步：
    - 写 executor.md 证据块（模板见下）
+   - 更新 research.md（如有新发现）
    - `python3 .claude/scripts/carros_base.py tick`
-3. **Verify** → `python3 .claude/scripts/carros_base.py verify`
-4. **Archive** → `python3 .claude/scripts/carros_base.py archive`
+4. **Verify** → `python3 .claude/scripts/carros_base.py verify`
+5. **Archive** → `python3 .claude/scripts/carros_base.py archive`
 
 **executor.md 证据块模板：**
 每步完成后，在 executor.md 末尾追加：
