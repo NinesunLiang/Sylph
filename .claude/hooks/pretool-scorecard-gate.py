@@ -24,6 +24,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+# ── 审计: 阻断时记 flywheel ──
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from harness_lib import flywheel_event  # noqa: E402
+
 _HOOK_DIR = Path(__file__).resolve().parent
 ROOT = _HOOK_DIR.parents[1]
 
@@ -208,6 +212,8 @@ def main() -> int:
         },
     }, ensure_ascii=False))
     sys.stderr.write(f"pretool-scorecard-gate: REDIRECTED - {len(violations)} 项缺证据\n")
+    flywheel_event("pretool_scorecard_gate", "redirected", "P1",
+                   f"scorecard:{len(violations)}_violations")
     return 2
 
 

@@ -16,6 +16,10 @@ import re
 import sys
 from pathlib import Path
 
+# ── 审计: 掩码时记 flywheel ──
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from harness_lib import flywheel_event  # noqa: E402
+
 # 敏感模式清单 — 编译后列表
 _PATTERNS = [
     # API Keys
@@ -48,8 +52,13 @@ _PATTERNS = [
 def mask_text(text: str) -> str:
     """对文本中的敏感模式做掩码替换"""
     masked = text
+    hits = 0
     for compiled_re, replacement in _PATTERNS:
-        masked = compiled_re.sub(replacement, masked)
+        masked, count = compiled_re.subn(replacement, masked)
+        hits += count
+    if hits:
+        flywheel_event("posttool_sensitive_filter", "masked", "P1",
+                       f"hits:{hits}")
     return masked
 
 

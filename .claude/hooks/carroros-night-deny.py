@@ -50,6 +50,10 @@ import re
 import sys
 from pathlib import Path
 
+# ── 审计: 阻断时记 error-dna / flywheel ──
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from harness_lib import flywheel_event  # noqa: E402
+
 # P1-SOL-2：marker 锚定 hook 文件位置（cwd 漂移不 fail-open）；
 # NIGHT_DENY_ROOT 仅供 smoke 测试覆写仓库根。
 # Sol 复审锁紧：锚定根处于夜间时 env override 一律忽略——即便有人能把
@@ -207,6 +211,8 @@ def _block(reason: str) -> int:
         "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": full},
     }, ensure_ascii=False))
     sys.stderr.write(f"night-deny: BLOCKED - {reason}\n")
+    flywheel_event("carroros_night_deny", f"blocked", "P0",
+                   f"night_deny:{reason[:60]}")
     return 2
 
 
