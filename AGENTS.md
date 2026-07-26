@@ -22,10 +22,24 @@
 灵魂：验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少
 
 ## L1 工作流
-1. Plan → `python3 .claude/scripts/carros_base.py init --task-id <ID>`
-2. Execute → 按 plan.md 执行，贴 executor.md 证据
-3. Verify → `python3 .claude/scripts/carros_base.py verify`
-4. Archive → `python3 .claude/scripts/carros_base.py archive`
+
+1. **Plan** → `python3 .claude/scripts/carros_base.py init --task-id <ID>`
+2. **Execute** → 按 plan.md 执行。每完成一步：
+   - 写 executor.md 证据块（模板见下）
+   - `python3 .claude/scripts/carros_base.py tick`
+3. **Verify** → `python3 .claude/scripts/carros_base.py verify`
+4. **Archive** → `python3 .claude/scripts/carros_base.py archive`
+
+**executor.md 证据块模板：**
+```markdown
+## S<N>
+
+- action: 做了什么
+- file: 改了什么文件
+- command: 执行了什么命令
+- output: 命令输出摘要
+- status: PASS/FAIL
+```
 
 L2（跨模块/架构/不可逆/安全权限/release/长期无人）→ 自动触发附加治理。
 
