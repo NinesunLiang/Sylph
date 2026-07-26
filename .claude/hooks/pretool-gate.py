@@ -60,6 +60,7 @@ TEMP_BYPASS = OMC / "state" / "temp-bypass.json"
 GOAL_SIGNAL = OMC / "state" / "tokens" / "autonomous.active"
 GOAL_MODE_FILE = OMC / "state" / "tokens" / "lx-goal.json"
 GOAL_MODE_LEGACY = OMC / "state" / "unattended-mode.json"
+TRUST_BREACH = OMC / "state" / "trust-breach.json"
 
 # ── Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)──
 # 导入约定:直插 lib 目录按顶层模块导入——hooks/lib 是带 __init__ 的正规包,
@@ -419,6 +420,65 @@ def _redirect(reason: str, guidance: str = "") -> int:
         }
     }, ensure_ascii=False))
     return 2
+
+
+# ── Trust Breach: 信任破裂标记（一次违规永久升阻）──
+# Opus 5 的 "once refused, all subsequent requests are treated with extreme caution"
+# CarrorOS 实现: 信任破裂（env_bypass/temp_bypass/self_mint）后写文件标记 →
+# 后续所有工具调用直接 BLOCK，不经过 gate 判决链。标记在 archive 时清除。
+
+_TRUST_BREACH_REASONS = frozenset({
+    "env_bypass_attempt",    # 设环境变量关 Gate
+    "temp_bypass_user_only", # 自审批绕过
+    "approval_state_self_mint",  # 自己写审批文件
+})
+
+
+def _check_trust_breach() -> str | None:
+    """检查信任破裂标记。返回锁定原因，None=无标记。"""
+    if not TRUST_BREACH.exists():
+        return None
+    try:
+        data = json.loads(TRUST_BREACH.read_text(encoding="utf-8", errors="replace"))
+        reason = data.get("reason", "unknown")
+        ts = data.get("timestamp", "?")
+        return f"trust_breach_lockdown:{reason}@{ts}"
+    except (json.JSONDecodeError, OSError):
+        return "trust_breach_lockdown:unreadable"
+
+
+def _record_trust_breach(reason: str) -> None:
+    """记录信任破裂事件到磁盘标记文件。一次写入，永久生效。"""
+    if TRUST_BREACH.exists():
+        return  # 已有标记，不重复写
+    try:
+        TRUST_BREACH.parent.mkdir(parents=True, exist_ok=True)
+        data = {
+            "reason": reason,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "type": "trust_breach",
+        }
+        TRUST_BREACH.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        sys.stderr.write(f"trust_breach: RECORDED — {reason}\n")
+    except OSError:
+        pass  # fail-open: 标记写失败不阻断自身
+
+
+def _is_trust_breach_reason(detail: str) -> bool:
+    """判断是否属于信任破裂类违规。"""
+    return detail in _TRUST_BREACH_REASONS
+
+
+def _clear_trust_breach() -> bool:
+    """清除信任破裂标记。手工干预使用。"""
+    if TRUST_BREACH.exists():
+        try:
+            TRUST_BREACH.unlink()
+            sys.stderr.write("trust_breach: CLEARED (manual intervention)\n")
+            return True
+        except OSError:
+            pass
+    return False
 
 
 def _match_any(text: str, patterns: list[str]) -> str | None:
@@ -2011,6 +2071,12 @@ def main() -> int:
     # 如果用户已创建临时 bypass token，跳过所有 gate 检查
     bypass_active = _check_temp_bypass()
 
+    # 信任破裂封禁：一次信任破裂后，所有后续调用直接 BLOCK
+    breach = _check_trust_breach()
+    if breach:
+        return _block(f"trust_broken: {breach}",
+                       f"信任已破裂。如需恢复：人工删除 .omc/state/trust-breach.json 后重试。")
+
     _clean_stale_state_token()
 
     # ── Gate 按模式选择 ──
@@ -2045,6 +2111,9 @@ def main() -> int:
                 parts = result.split("|", 1)
                 reason = parts[0].replace("BLOCK ", "").strip()
                 suggestion = parts[1].strip() if len(parts) > 1 else ""
+                # 信任破裂：检查是否属于永久标记类违规
+                if _is_trust_breach_reason(reason):
+                    _record_trust_breach(reason)
                 return _block(reason, suggestion)
             if result == "HARD_BLOCK":
                 # 硬阻断：_check_sensitive_edit 已打印 continue:False 到 stdout

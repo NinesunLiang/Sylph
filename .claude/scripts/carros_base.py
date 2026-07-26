@@ -1161,6 +1161,15 @@ def cmd_archive(force=False):
     TOKEN_PATH.unlink(missing_ok=True)
     print(_green(f"✅ Token 已删除: {token_path_str}"))
 
+    # Step X: 清除信任破裂标记（archive = 人工确认任务结束）
+    trust_breach = PROJECT_ROOT / ".omc" / "state" / "trust-breach.json"
+    if trust_breach.exists():
+        try:
+            trust_breach.unlink()
+            print(_green("✅ trust_breach 标记已清除"))
+        except OSError:
+            print(_yellow("⚠  trust_breach 清除失败"))
+
     # Step 7: 输出 {"continue": false}
     print(json.dumps({"continue": False}))
     print(_green("✅ Task archived"))

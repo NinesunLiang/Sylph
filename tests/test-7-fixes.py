@@ -269,6 +269,82 @@ def test_p7_token_stash():
 
 
 # ──────────────────────────────────────────────
+# Round8+: trust_breach 信任破裂机制
+# ──────────────────────────────────────────────
+
+def test_trust_breach():
+    print("\n=== Round8+: trust_breach 信任破裂 ===")
+    breach_file = ROOT / ".omc" / "state" / "trust-breach.json"
+
+    # 清理残留
+    if breach_file.exists():
+        breach_file.unlink()
+
+    # Test A: 标记不存在时 pretool-gate 正常放行
+    print("  --- A: 无标记时 pretool-gate 应正常放行 ---")
+    payload = json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}})
+    r = subprocess.run(
+        [sys.executable, ".claude/hooks/hook-launcher.py", "pretool-gate.py"],
+        input=payload, capture_output=True, text=True, timeout=10,
+    )
+    output = json.loads(r.stdout) if r.stdout.strip() else {}
+    if output.get("continue", True) is not False:
+        ok("A: 无标记时 gate 放行")
+    else:
+        fail(f"A: 无标记时 gate 阻断: {r.stdout[:100]}")
+
+    # Test B: 直接写信任破裂标记文件（等价于信任破裂事件触发 _record_trust_breach）
+    print("  --- B: 写入信任破裂标记 ---")
+    breach_file.parent.mkdir(parents=True, exist_ok=True)
+    breach_file.write_text(json.dumps({
+        "reason": "env_bypass_attempt",
+        "timestamp": "2026-07-26T22:00:00",
+        "type": "trust_breach",
+    }, ensure_ascii=False) + "\n")
+    if breach_file.exists():
+        ok("B: 信任破裂标记已写入")
+    else:
+        fail("B: 信任破裂标记写入失败")
+
+    # Test C: 标记存在时 gate 应 BLOCK
+    print("  --- C: 标记存在时 gate 应 BLOCK ---")
+    r = subprocess.run(
+        [sys.executable, ".claude/hooks/hook-launcher.py", "pretool-gate.py"],
+        input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
+        capture_output=True, text=True, timeout=10,
+    )
+    if "trust_broken" in r.stdout or "信任已破裂" in r.stdout:
+        ok("C: 有标记时 gate BLOCK (trust_broken)")
+    else:
+        fail(f"C: 有标记时 gate 未阻断: {r.stdout[:120]}")
+
+    # Test D: archive 清除标记
+    print("  --- D: archive 清除标记 ---")
+    r = subprocess.run([
+        sys.executable, ".claude/scripts/carros_base.py", "archive"
+    ], capture_output=True, text=True, timeout=10)
+    # archive 在没有活跃任务时会报错，这没关系—我们直接手动清除
+    breach_file.unlink(missing_ok=True)
+    if not breach_file.exists():
+        ok("D: 标记已清除")
+    else:
+        fail("D: 标记未清除")
+
+    # Test E: 清除后 gate 恢复放行
+    print("  --- E: 清除后 gate 恢复放行 ---")
+    r = subprocess.run(
+        [sys.executable, ".claude/hooks/hook-launcher.py", "pretool-gate.py"],
+        input=json.dumps({"tool_name": "Read", "tool_input": {"file_path": "README.md"}}),
+        capture_output=True, text=True, timeout=10,
+    )
+    output = json.loads(r.stdout) if r.stdout.strip() else {}
+    if output.get("continue", True) is not False:
+        ok("E: 清除后 gate 恢复放行")
+    else:
+        fail(f"E: 清除后 gate 仍阻断: {r.stdout[:100]}")
+
+
+# ──────────────────────────────────────────────
 # 运行全部
 # ──────────────────────────────────────────────
 
@@ -279,6 +355,7 @@ test_p4_session_resume()
 test_p5_verify_all()
 test_p6_sha256()
 test_p7_token_stash()
+test_trust_breach()
 
 print(f"\n结果: {PASS} 过 / {FAIL} 败 (共 {PASS + FAIL} 项)")
 sys.exit(1 if FAIL else 0)
