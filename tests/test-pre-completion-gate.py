@@ -153,14 +153,15 @@ class TestPreCompletionGate(unittest.TestCase):
 
     # ── Verification 1: blocks when no evidence ──
 
-    def test_blocks_when_no_evidence(self):
-        """Blocks TaskUpdate(completed) when no evidence files exist."""
+    def test_redirects_when_no_evidence(self):
+        """Redirects TaskUpdate(completed) when no evidence files exist (2026-07-25 REDIRECT).
+        PreToolUse 不应硬阻断——改为 REDIRECT: 拦截+引导+AI 自动修正重试。"""
         result = self._run_hook(stdin_data=self._stdin_json("completed"))
         stdout = result["stdout"]
         self.assertIsNotNone(stdout)
-        self.assertFalse(stdout.get("continue", True),
-                         "Should block (continue=False) when no evidence")
-        self.assertEqual(result["exit_code"], 2)
+        self.assertTrue(stdout.get("continue", True),
+                        "Should redirect (continue=True) when no evidence")
+        self.assertEqual(result["exit_code"], 0)
 
     # ── Verification 2: allows when fresh evidence exists ──
 
@@ -230,8 +231,8 @@ class TestPreCompletionGate(unittest.TestCase):
 
     # ── Verification 6: stale evidence is blocked ──
 
-    def test_blocks_when_evidence_stale(self):
-        """Blocks when evidence file is older than 5 minutes."""
+    def test_redirects_when_evidence_stale(self):
+        """Redirects when evidence file is older than 5 minutes (REDIRECT: continue=True)."""
         date_str = time.strftime("%Y%m%d")
         ev_file = self._state_dir / f".completion-evidence-{date_str}"
         ev_file.write_text("old evidence", encoding="utf-8")
@@ -241,9 +242,9 @@ class TestPreCompletionGate(unittest.TestCase):
         result = self._run_hook(stdin_data=self._stdin_json("completed"))
         stdout = result["stdout"]
         self.assertIsNotNone(stdout)
-        self.assertFalse(stdout.get("continue", True),
-                         "Should block when evidence is stale")
-        self.assertEqual(result["exit_code"], 2)
+        self.assertTrue(stdout.get("continue", True),
+                        "Should redirect (continue=True) when evidence is stale")
+        self.assertEqual(result["exit_code"], 0)
 
     # ── Edge Cases ──
 
