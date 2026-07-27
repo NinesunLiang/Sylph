@@ -21,7 +21,9 @@ Constraints:
 from __future__ import annotations
 
 import json
+import os
 import sys
+import time
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
@@ -88,6 +90,48 @@ def read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, An
         return default or {}
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
+
+
+_LOCK_FD: int | None = None  # module-level lock file descriptor
+
+
+def _acquire_token_lock(token_path: Path, timeout: float = 5.0) -> bool:
+    """Advisory shared file lock on token.json via lock file.
+
+    Prevents concurrent writes from multiple gates (Grok P0 finding).
+    Uses a .lock sidecar file with timeout. Retry 3x with 0.5s backoff.
+    """
+    lock_path = token_path.with_suffix(token_path.suffix + ".lock")
+    deadline = time.monotonic() + timeout
+    global _LOCK_FD
+    while time.monotonic() < deadline:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+            _LOCK_FD = fd
+            os.write(fd, str(os.getpid()).encode())
+            return True
+        except FileExistsError:
+            # Check if lock is stale (>10s old)
+            try:
+                lock_age = time.monotonic() - lock_path.stat().st_mtime
+                if lock_age > 10.0:
+                    lock_path.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                pass
+            time.sleep(0.5)
+    return False
+
+
+def _release_token_lock() -> None:
+    """Release the advisory lock."""
+    global _LOCK_FD
+    if _LOCK_FD is not None:
+        try:
+            os.close(_LOCK_FD)
+        except OSError:
+            pass
+        _LOCK_FD = None
 
 
 def write_json_atomic(path: Path, data: dict[str, Any]) -> None:
@@ -292,13 +336,28 @@ def update_token(token_path: Path, token: dict[str, Any], decision: FallbackDeci
         }
 
     elif decision.decision == "BLOCKED":
-        token["task"]["status"] = "blocked"
-        token["task"]["blocked"] = decision.reason
-        token["task"]["fallback"] = {
-            "timestamp": now_iso(),
-            "reason": decision.failure_type,
-            "recovery_required": True,
-        }
+        # Check for governance recovery lock before writing recovery_required
+        governance = token.get("governance") if isinstance(token.get("governance"), dict) else {}
+        if governance.get("recovery_lock") is True:
+            # Locked: do NOT overwrite recovery_ack, skip recovery_required
+            token["task"]["status"] = "blocked"
+            token["task"]["blocked"] = decision.reason
+            token["task"]["fallback"] = {
+                "timestamp": now_iso(),
+                "reason": decision.failure_type,
+                "recovery_required": False,
+                "recovery_ack": True,
+                "recovery_lock_active": True,
+                "note": "Recovery lock active: fallback engine skipped recovery_required write",
+            }
+        else:
+            token["task"]["status"] = "blocked"
+            token["task"]["blocked"] = decision.reason
+            token["task"]["fallback"] = {
+                "timestamp": now_iso(),
+                "reason": decision.failure_type,
+                "recovery_required": True,
+            }
 
     write_json_atomic(token_path, token)
 
