@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-regression.sh — CarrorOS 12 套件一键回归
+# run-regression.sh — CarrorOS 全量一键回归（14 注册 + N 自动发现）
 #
 # 为什么需要 stash: 活体 state 会污染门禁测试——
 #   1. .omc/state/temp-bypass.json 存在时全部门禁降级 BYPASS_ALLOW,期望 BLOCK 的用例假失败

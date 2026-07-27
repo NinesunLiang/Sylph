@@ -93,6 +93,7 @@ Philosophy（7 条哲学原则，不可违背）
 2. **不提问** — 歧义按决策框架判断
 3. **不中断** — 卡点处理后继续
 4. **只记录** — 风险和阻断写入 skipped_risks
+5. **只锚定** — 进入执行期前必须调用 `lx-goal.py assert-plan-dir` 绑定 plan_dir，此后所有文档 I/O 锁定此路径。禁止另建目录、禁止猜测路径、禁止 mv 文件到其他目录。
 
 ### 常见场景自主处理
 
@@ -107,6 +108,7 @@ Philosophy（7 条哲学原则，不可违背）
 | 子任务冲突 | Philosophy #2 选择更高价值路径 |
 | 硬边界触发 | 立即跳过 → hard-boundary-hit → 继续其他 |
 | 触及 L2 风险（危险操作/敏感路径/跨模块） | 走三级裁决链 → Oracle Level2 审核（`python3 .claude/scripts/oracle_agent.py review --mode duo`）→ 记录 verdict → 继续 |
+| **REDIRECT 三次上限** | Gate 拦截为非高险场景时返回 REDIRECT（拦截+三选项指引）。**同 Gate 连续 REDIRECT 3 次 → 升级 BLOCK**，放弃当前操作方向。计数器有 6h TTL（`pretool-gate.py:2178`），跨会话不会永久累加。机制详见 `redirect-mechanism.md §五`。 |
 
 | **L1→L2 就地升级** | 检测到 L1 任务在执行中触及敏感路径/不可逆操作/跨模块 → 走就地升级通道（见下方） |
 

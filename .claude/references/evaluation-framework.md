@@ -35,14 +35,14 @@
                      │  [commit, 回归证据, 裁决] 三元组│
                      ├─────────────────────────────┤
                      │  Layer 1 回归地基 (Ground Truth)│
-                     │  54 套件全覆盖一键跑              │
+                     │  44 套件全覆盖一键跑              │
                      │  bash scripts/run-regression.sh│
                      └─────────────────────────────┘
 ```
 
 ### Layer 1 — 回归地基
 
-**什么**: 54 套自动化测试套件，全量覆盖 56/56 机制，一键 `bash scripts/run-regression.sh`
+**什么**: 44 套自动化测试套件，全量覆盖 56/56 机制，一键 `bash scripts/run-regression.sh`
 
 **14 注册套件（精确测试名，独立报告）**:
 
@@ -63,7 +63,7 @@
 | 13 | fallback-engine | tests/test-fallback-engine.py | 15 种失败/4 种决策 |
 | 14 | coverage-gate | tests/test-coverage-gate.py | 56/56 覆盖率门禁 |
 
-以上 14 套已显式注册，其余 40 套由自动发现覆盖（`tests/test-*.py` 扫描，排除已注册项）。
+以上 14 套已显式注册，其余 30 套由自动发现覆盖（`tests/test-*.py` 扫描，排除已注册项）。
 
 **规则**:
 - 回归通过 = 证据硬门槛，不可绕过
@@ -254,8 +254,8 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 | 文件 | 职责 |
 |------|------|
 | `.claude/references/evaluation-framework.md` | 本文件——框架规范 |
-| `scripts/run-regression.sh` | 回归地基（54/54 全量套件） |
-| `.claude/references/tests/` | 54 套测试文件仓库 |
+| `scripts/run-regression.sh` | 回归地基（44/44 全量套件） |
+| `.claude/references/tests/` | 44 套测试文件仓库 |
 | `.claude/references/tests/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
 | `scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |
 | `.claude/scripts/meta_oracle.py` | 审计器——G1-G4 框架 |
