@@ -1441,12 +1441,24 @@ def _clean_stale_state_token() -> None:
     if age < STALE_LOCK_THRESHOLD:
         return
     # Stale lock detected — auto-clear
+    # Preserve governance fields (recovery_lock etc.) and fallback history
+    governance = data.get("governance") if isinstance(data.get("governance"), dict) else {}
+    previous_fallback = data.get("task", {}).get("fallback") if isinstance(data.get("task"), dict) else None
     cleared = {
         "schema_version": 3,
         "session": {"clean": True, "note": f"Auto-cleared stale {status} from {ts_str}",
                      "cleaned_at": datetime.now(timezone.utc).isoformat()},
         "task": None,
     }
+    # Only add governance block if lock is explicitly set
+    if governance.get("recovery_lock") is True:
+        cleared["governance"] = {
+            "recovery_lock": True,
+            "lock_reason": governance.get("lock_reason", "Recovery lock preserved from auto-cleaner"),
+            "locked_at": governance.get("locked_at", datetime.now(timezone.utc).isoformat()),
+        }
+    if previous_fallback:
+        cleared["_previous_fallback"] = previous_fallback
     STATE_TOKEN.write_text(json.dumps(cleared, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     _append_audit({
         "event_type": "state_lock_auto_cleared",
