@@ -18,27 +18,15 @@ Design constraints (from data_todo.md / 总结.md):
   - First BLOCK short-circuits; later checks skip
 """
 
-from __future__ import annotations
-
 import json
 import re
 import secrets
 import shlex
-import shutil
 import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-
-# ── PKG-B: 统一验证判决契约 ──
-try:
-    import sys as _sys
-    _sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from verify_contract import classify_verdict as _vc_classify
-    _VERIFY_CONTRACT_OK = True
-except Exception:
-    _VERIFY_CONTRACT_OK = False
 
 # ── Bootstrap: self-locate project root ──
 _script_path = Path(__file__).resolve()
