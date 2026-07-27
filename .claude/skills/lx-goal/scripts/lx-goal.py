@@ -560,6 +560,18 @@ def cmd_report():
     if not decision_rows:
         decision_rows.append("| - | - | 无需人类介入的项 | - | - |")
 
+    # GateKeeper 事件摘要（从 gatekeeper_digest 消费）
+    _gk_digest = ""
+    try:
+        _gk_result = subprocess.run(
+            [sys.executable, str(Path(__file__).resolve().parent.parent.parent / "scripts" / "gatekeeper_digest.py"), "--alert"],
+            capture_output=True, text=True, timeout=10,
+        )
+        _gk_digest = _gk_result.stdout.strip()
+    except Exception:
+        pass
+    _gk_section = f"\n## GateKeeper 事件摘要\n\n```\n{_gk_digest}\n```\n\n" if _gk_digest else ""
+
     report_content = f"""# 目标模式执行报告
 
 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -603,7 +615,7 @@ def cmd_report():
 
 {blocked_list}
 
-## 验证状态
+{_gk_section}## 验证状态
 
 VERIFIED: 报告生成完毕（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）
 """
