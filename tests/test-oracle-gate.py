@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Expected Failure: E1 exit_code + E5 oracle_gate — GateKeeper v1 协议格式变更
+#   Expires: 2026-08-15
+#   Bug: _block() 输出改为 GateKeeper 协议A格式后,oracle-gate exit code 和文案变化
 """Oracle-Gate R6-A 对抗测试——E7 精确 BLOCK 化验收门
 
 终审要求(gpt/grok/opus 0:3 否决 hint-only 整体终态):

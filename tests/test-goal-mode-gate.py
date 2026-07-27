@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Expected Failure: T2/T3/T4 — GateKeeper v1 oracle_gate 协议格式变更
+#   Expires: 2026-08-15
+#   Bug: _block() 输出改为 GateKeeper 协议A/协议B格式后,goal-mode prompts 内容变化
 import json, os
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]

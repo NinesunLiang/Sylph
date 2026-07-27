@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Expected Failure: W3 Write + W3 Edit — GateKeeper v1 协议格式变更导致 exit code 差异
+#   Expires: 2026-08-15 (如果未修复则转为回归失败)
+#   Bug: _block() 输出从原始格式升级为 GateKeeper 三协议格式后,NARROW path 返回码变化
 """Context Watermark 三段策略测试——owner 规格 50%提醒/70%只读/80%强制 验收
 
 链路: 实测 pretool-user-approve.py(每轮尾读 transcript usage → 写 state)
