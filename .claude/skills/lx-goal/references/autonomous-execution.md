@@ -74,16 +74,32 @@ Philosophy（7 条哲学原则，不可违背）
 | Git 只读操作 | 自主执行 status/diff/log/blame/show |
 | 模式降级 | 遇到阻塞时自主降级备选方案 |
 
-## 卡点分类处理矩阵
+## 卡点分类处理矩阵（按实际 hook 链 14 行）
 
-| 卡点类型 | 判定标准 | 处理方式 |
-|---------|---------|---------|
-| **硬边界** | rm / git写 / 敏感文件 / API Key | 立即跳过 → 记录 hard-boundary-hit → 报告需人类 |
-| 可跳过 | 不阻断目标，有替代路径 | skip-risk 记录，继续 |
-| 可绕行 | 可换方案达成目标 | 自动降级到备选方案 |
-| 危险操作 | 远程推送/权限操作/破坏性命令 | 走三级裁决链 |
-| 真阻断 | 核心路径被堵死 | 记录 blocked，继续其他 |
-| 需人类 | 裁决链三级均无法确定 | 记录 blocked_human，继续其他 |
+> 匹配 pretool-gate.py 7 门 + 全链路门禁。BLOCK 类均走三级裁决链。
+
+| # | 卡点类型 | 判断依据 | 默认处理 | 升级路线 | 对应 Gate |
+|---|---------|---------|---------|---------|----------|
+| 1 | **Sensitive Edit** | 访问 .env/.ssh/*key/*secret 等敏感路径 | BLOCK → skip-risk | hard-boundary-hit 记录 | sensitive-edit |
+| 2 | **Fallback Check** | token 标记 blocked/waiting_user | BLOCK → skip-risk | 更新 token 恢复标记 | fallback-check |
+| 3 | **Dangerous Command** | rm/rmdir/sudo/drop/destroy/等 | BLOCK → 三级裁决链 | AGENTS→Oracle→blocked_human | action-gate |
+| 4 | **Risky Command** | push/force/delete/非破坏性敏感 | ASK_USER → 三级裁决链 | AGENTS→Oracle→skip-risk | action-gate |
+| 5 | **Temp Bypass** | temp-bypass/token-block-bypass | BLOCK → 跳过 | AGENTS 裁决 | action-gate |
+| 6 | **Plan Missing** | plan.md/token 缺失 | REDIRECT → 自动 call init | 自动创建最小计划 | plan-gate |
+| 7 | **Edit Scope Escape** | 写入 plan.md scope 外文件 | BLOCK → skip-risk | ASK_USER→范围重审 | edit-scope |
+| 8 | **Unverified Step** | [x] 标记但 VerifyGate 未通过 | REDIRECT → 补验 | 自动执行 verify | verify-gate |
+| 9 | **Oracle BLOCK** | 结构化危险语义（L2） | BLOCK → skip-risk | 三级裁决链 | oracle-gate (L2) |
+| 10 | **Oracle ESCALATE** | 不可解析+高危信号（L2） | ESCALATE → ASK_USER | 降级 skip-risk+记录 | oracle-gate (L2) |
+| 11 | **Oracle Hint** | 模糊关键词（L2） | PASS → warn | audit 记录+继续 | oracle-gate (L2) |
+| 12 | **K1 PSEUDO_INTEGRITY** | 无来源数值断言 | WARN → autofix (goal) / soft-block (L1) / hard-block (L2) | 自动标注来源 | posttool-claim-audit |
+| 13 | **K2 EDIT_REPEAT** | 同文件高频编辑未收敛 | WARN → autofix log (goal) / soft-block (L1) / REDIRECT (L2) | 自动记录 evidence | posttool-claim-audit |
+| 14 | **Completion Gate** | 软完成语/证据不足 | BLOCK → verify | 自动执行回访 | completion-gate |
+
+### 隔离执行策略
+
+卡点 1-11 在 pretool 阶段执行，BLOCK 后短路跳过后续门禁。
+卡点 12-14 在 posttool 阶段执行，不阻断操作但记录违规供退出报告审查。
+goal 模式下卡点 1-11 BLOCK → skip-risk 直接记录+继续；卡点 12-14 自动修复+继续。
 
 ## Phase 1→N 全自动执行
 
@@ -95,22 +111,23 @@ Philosophy（7 条哲学原则，不可违背）
 4. **只记录** — 风险和阻断写入 skipped_risks
 5. **只锚定** — 进入执行期前必须调用 `lx-goal.py assert-plan-dir` 绑定 plan_dir，此后所有文档 I/O 锁定此路径。禁止另建目录、禁止猜测路径、禁止 mv 文件到其他目录。
 
-### 常见场景自主处理
+### 常见场景自主处理（按新卡点矩阵映射）
 
-| 场景 | 自主处理 |
-|------|---------|
-| 修复范围超预期 | 评估仍在目标内 → 继续，否则 skip-risk |
-| 需安装依赖 | 能自动装则装，需管理员权限 → skip-risk |
-| 远程推送 | commit 照常，push → 走裁决链 |
-| Context Guard 阻断 | 创建 override 文件，改用 Bash |
-| Permission Gate 拦截 | 走三级裁决链 |
-| 发现无关问题 | 记入附带发现，不偏离主线 |
-| 子任务冲突 | Philosophy #2 选择更高价值路径 |
-| 硬边界触发 | 立即跳过 → hard-boundary-hit → 继续其他 |
-| 触及 L2 风险（危险操作/敏感路径/跨模块） | 走三级裁决链 → Oracle Level2 审核（`python3 .claude/scripts/oracle_agent.py review --mode duo`）→ 记录 verdict → 继续 |
-| **REDIRECT 三次上限** | Gate 拦截为非高险场景时返回 REDIRECT（拦截+三选项指引）。**同 Gate 连续 REDIRECT 3 次 → 升级 BLOCK**，放弃当前操作方向。计数器有 6h TTL（`pretool-gate.py:2178`），跨会话不会永久累加。机制详见 `redirect-mechanism.md §五`。 |
-
-| **L1→L2 就地升级** | 检测到 L1 任务在执行中触及敏感路径/不可逆操作/跨模块 → 走就地升级通道（见下方） |
+| 场景 | 对应卡点 | 自主处理 |
+|------|---------|---------|
+| 修复范围超预期 | #7 edit-scope | 评估仍在目标内 → 继续，否则 skip-risk 记录+范围重审 |
+| 需安装依赖 | #3 dangerous-command | 能自动装则装，需管理员权限 → skip-risk |
+| 远程推送 | #4 risky-command | 走三级裁决链（AGENTS → Oracle → blocked_human） |
+| Context Guard 阻断 | #2 fallback-check | 更新 token 恢复标记 |
+| Permission Gate 拦截 | #1 sensitive-edit / #3 dangerous | 走三级裁决链 |
+| 发现无关问题 | #7 edit-scope | 记入附带发现，不偏离主线 |
+| 子任务冲突 | — | Philosophy #2 选择更高价值路径 |
+| 硬边界触发 | #3 dangerous-command | 立即跳过 → hard-boundary-hit → 继续其他 |
+| 触及 L2 风险 | #9 oracle-gate(BLOCK) | 走三级裁决链 → Oracle Level2 审核 → 记录 verdict → 继续 |
+| REDIRECT 三次上限 | #6 plan-gate/#8 verify-gate | 同 gate 连续 3 次 REDIRECT → 升级 BLOCK，放弃当前方向 (6h TTL) |
+| K1 数值断言无来源 | #12 PSEUDO_INTEGRITY | goal/autonomous 模式自动插入 [内部自检，非行业标准] 标注 |
+| K2 高频编辑 | #13 EDIT_REPEAT | goal/autonomous 模式自动记录 evidence 日志 |
+| 完成证据不足 | #14 completion-gate | 自动回访 verify |
 
 ## L1→L2 就地升级通道（来自重构2/forth.md §三）
 
