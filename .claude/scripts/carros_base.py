@@ -347,23 +347,24 @@ def _write_default_plan(steps=None):
 
 
 def _write_default_executor():
-    """创建空 executor.md 证据账簿"""
+    """创建空 executor.md 证据账簿（格式对齐 AGENTS.md:51-62 + verify_gate 解析器）"""
     EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
     content = """# Executor Evidence Ledger
 
-> schema_version: v1.0
-> 每步必须包含标准 evidence block。
+> schema_version: v2
+> 格式对齐 AGENTS.md §executor.md 证据块模板 — 每步对应一个 ### EV-<step_id> 块
+> verify_gate 和 oracle 通过解析 ### EV-xxx / step: / assertion: 字段验证完成状态。
 
 ## S1
 
-**证据块：**
-```
-- action:
-- file:
-- command:
-- output:
-- status: [PASS/FAIL]
-```
+### EV-S1
+
+- step: S1
+- type: test/review/change
+- source: 执行来源
+- exit_code: 0
+- file: 改了什么文件
+- assertion: 验证了什么
 
 ---
 """

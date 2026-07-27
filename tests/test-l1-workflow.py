@@ -160,7 +160,18 @@ elif TOKEN_PATH.exists():
 # ── 清理 ────────────────────────────────────────────────
 
 if TASK_DIR.exists():
-    shutil.rmtree(TASK_DIR)
+    # Python 3.14+ shutil.rmtree raises on symlinks; handle gracefully
+    if TASK_DIR.is_symlink():
+        TASK_DIR.unlink()
+    else:
+        import os as _os
+        def _rmtree_onexc(fn, path, exc):
+            p = Path(path)
+            if p.is_symlink():
+                p.unlink()
+            else:
+                raise exc[1]
+        shutil.rmtree(TASK_DIR, onexc=_rmtree_onexc)
 if TOKEN_PATH.exists():
     TOKEN_PATH.unlink()
 

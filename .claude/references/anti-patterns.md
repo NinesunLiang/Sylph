@@ -1,6 +1,6 @@
 # Anti-Patterns — 经验沉淀
 
-_Updated: 2026-07-27T10:45:00+00:00_
+_Updated: 2026-07-27T10:45:00+00:00 (timeout, unknown, unknown_recurring) [来源：`.omc/knowledge/sublimation-log.jsonl`]_
 
 sublimation processed: timeout→I1 promoted, unknown→J1 archived, unknown_recurring→J2 archived [来源：`.omc/knowledge/sublimation-log.jsonl`，内部自检，非行业标准]  
 K section added: K1/K2/K3 from 2026-07-27 CarrorOS independent eval session — hook real-time detections [来源：本会话 PostToolUse hook 实时告警，内部自检，非行业标准；Write 方式写入收敛]
@@ -130,7 +130,7 @@ claude-next 中 `unknown` 模式以 "Test error"、"err2" 和 `[Bash] {"stdout":
 **与 K2 的边界**：
   - K2（EDIT_REPEAT）：聚焦编辑**次数**超标 → 应该用 Write 代替 Edit
   - K3（CONTENT_FLIP）：聚焦编辑**方向**摇摆 → 写之前应该先在别处打好草稿
-  **→ against**：在做出重大方向变更前，先在草稿文件或 executor.md 中收敛方案，再 Edit 目标文件。编辑决策链：读完现状 → 决定方向 → 一次性 Write 成文。
+→ against: 在做出重大方向变更前，先在草稿文件或 executor.md 中收敛方案，再 Edit 目标文件。编辑决策链：读完现状 → 决定方向 → 一次性 Write 成文。
 
 ---
 

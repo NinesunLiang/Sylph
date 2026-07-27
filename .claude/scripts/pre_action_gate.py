@@ -264,18 +264,12 @@ def load_current_step(token: dict[str, Any]) -> str | None:
 
 
 def resolve_doc_root(token: dict[str, Any]) -> Path:
-    """根据 token 解析文档根路径——兼容新旧格式"""
-    level = token.get("session", {}).get("level", "L1")
-    # L1_BASE -> L1
-    level_short = level.replace("_BASE", "").replace("_ENHANCE", "")
-    if level_short == "L2":
-        feature = token.get("task", {}).get("feature", "unknown")
-        return Path(f"rpe/{feature}")
+    """解析文档根路径 — L1/L2 均使用 .omc/tasks/{date}/{task_name}/
 
-    # L1: 从 task_dir 或 session.id 推断
+    lx-rpe skill 独立使用 rpe/{feature}/，不经过此函数。
+    """
     task_dir = token.get("task_dir", "")
     if task_dir:
-        # 从绝对路径提取 .omc/tasks/{date}/{id} 相对路径
         parts = Path(task_dir).parts
         try:
             idx = parts.index("tasks")

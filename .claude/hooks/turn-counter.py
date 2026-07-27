@@ -156,22 +156,30 @@ def main():
                 for line in lines[:5]:
                     print(line)
 
-        # 最新 executor.md 范围
-        doc_search_path = project_root / doc_root
-        if doc_search_path.exists():
-            exec_files = sorted(doc_search_path.rglob(exec_doc), key=lambda p: p.stat().st_mtime, reverse=True)
-            if exec_files:
-                latest_exec = exec_files[0]
-                feature = str(latest_exec.relative_to(project_root)).split("/" + doc_root + "/", 1)[-1]
-                feature = feature.rsplit("/" + exec_doc, 1)[0] if exec_doc in feature else feature
-                exec_content = latest_exec.read_text(encoding="utf-8", errors="replace")
-                active_step = ""
-                for line in exec_content.split("\n"):
-                    if re.search(r"^##.*🔄|^## Step.*进行中|^##.*in.progress", line):
-                        active_step = line.strip()
-                        break
-                if active_step:
-                    print(f"范围: {feature} {active_step}")
+        # 最新 executor.md 范围（双文档系统: rpe/ (lx-rpe) + .omc/tasks/ (goal/carros_base)）
+        _search_roots = [doc_root, ".omc/tasks"]
+        _found = False
+        for _root in _search_roots:
+            _path = project_root / _root
+            if _path.exists():
+                exec_files = sorted(_path.rglob(exec_doc), key=lambda p: p.stat().st_mtime, reverse=True)
+                if exec_files:
+                    latest_exec = exec_files[0]
+                    feature = str(latest_exec.relative_to(project_root)).split(f"/{_root}/", 1)[-1]
+                    feature = feature.rsplit("/" + exec_doc, 1)[0] if exec_doc in feature else feature
+                    exec_content = latest_exec.read_text(encoding="utf-8", errors="replace")
+                    active_step = ""
+                    for line in exec_content.split("\n"):
+                        if re.search(r"^##.*🔄|^## Step.*进行中|^##.*in.progress", line):
+                            active_step = line.strip()
+                            break
+                    if active_step:
+                        print(f"范围: {feature} {active_step}")
+                    _found = True
+                    break
+        if not _found:
+            # 任一文档系统有 executor.md 才输出，不输空行
+            pass
 
         # Session 目标锚定
         handoff_file = project_root / ".omc" / "state" / "session-handoff.md"

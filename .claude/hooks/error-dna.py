@@ -64,9 +64,17 @@ def main():
         first = s.strip().split("\n")[0].strip().lower()
         return any(first.startswith(p.lower()) for p in _NOISE_STDERR_PREFIXES)
 
+    # ── 噪声信号检测：门禁 NARROW 提示非实际错误 ──
+    _NOISE_SIGNAL_PATTERNS = (
+        "NARROW ",  # 所有 NARROW 级别门禁提示（大文件/宽glob/action-loop 等）
+    )
+    def _is_noise_signal(s: str) -> bool:
+        """检测 gate_narrow_warn 等非错误信号，避免误入 error-dna 管道。"""
+        return any(p in s for p in _NOISE_SIGNAL_PATTERNS)
+
     # L1/BF 错误采集：Bash exit≠0 + 所有工具的 stderr/error/BLOCK 信号
     _has_stderr = bool(stderr.strip()) and not _is_noise_stderr(stderr)
-    _has_error_event = bool(top_error) or event_name == 'PostToolUseFailure'
+    _has_error_event = bool(top_error) and not _is_noise_signal(top_error) or event_name == 'PostToolUseFailure'
     _has_block_signal = ('BLOCK' in stdout[:300] or '⛔' in stdout[:300]) and exit_code != 0
     _is_bash_error = tool_name == 'bash' and exit_code != 0
 

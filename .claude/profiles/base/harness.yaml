@@ -6,7 +6,7 @@ workflow:
   plan_doc: plan.md
   research_doc: research.md
 task_decomposition:
-  require_step_file: true
+  require_step_file: false
   step_file_path: .claude/{YYYY-M-D}/{task}_step.md
   substep_format: '[ ] {描述} → 验收标准'
   timeout_minutes: 10

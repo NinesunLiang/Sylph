@@ -29,6 +29,8 @@ CLAUDE_NEXT = KNOWLEDGE / "claude-next.md"
 SUBLIMATION_LOG = KNOWLEDGE / "sublimation-log.jsonl"
 ANTI_PATTERNS = ROOT / ".claude" / "references" / "anti-patterns.md"
 ANTI_PATTERN_REDIRECTS = ROOT / ".omc" / "state" / "anti-pattern-redirects.jsonl"
+ERROR_DNA = ROOT / ".omc" / "state" / "error-dna.jsonl"
+KERNEL_CANDIDATES = KNOWLEDGE / "kernel-candidates.md"
 
 SUBLIMATION_HITS = 5
 
@@ -78,24 +80,45 @@ def _run_flywheel() -> dict:
 
 
 def _sublimation_check() -> list[str]:
-    """claude-next 中 hits≥5 的模式 → anti-patterns.md + 升华日志。返回升华的模式。"""
-    if not CLAUDE_NEXT.exists():
-        return []
-    try:
-        lines = CLAUDE_NEXT.read_text(encoding="utf-8").splitlines()
-    except Exception:
-        return []
+    """claude-next + error-dna 中 hits≥5 的模式 → anti-patterns.md + 升华日志。返回升华的模式。"""
+    patterns: dict[str, int] = {}  # pattern -> hit count
 
-    # 统计每个 pattern 的 hits（每行 1 hit），跳过已升华
-    pattern_counts: Counter[str] = Counter()
-    for line in lines:
-        if "已升华" in line or "升华到" in line:
-            continue
-        m = re.search(r"Pattern '([^']+)'", line)
-        if m:
-            pattern_counts[m.group(1)] += 1
+    # ── 数据源1: claude-next.md ──
+    if CLAUDE_NEXT.exists():
+        try:
+            lines = CLAUDE_NEXT.read_text(encoding="utf-8").splitlines()
+            for line in lines:
+                if "已升华" in line or "升华到" in line:
+                    continue
+                m = re.search(r"Pattern '([^']+)'", line)
+                if m:
+                    patterns[m.group(1)] = patterns.get(m.group(1), 0) + 1
+        except Exception:
+            pass
 
-    candidates = [p for p, c in pattern_counts.items() if c >= SUBLIMATION_HITS]
+    # ── 数据源2: error-dna.jsonl 中的高频 error_type 簇 ──
+    _error_type_counts: dict[str, int] = {}
+    if ERROR_DNA.exists():
+        try:
+            with ERROR_DNA.open("r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    entry = json.loads(line)
+                    et = entry.get("error_type")
+                    msg = entry.get("message", "")
+                    # 跳过旧 harvester 格式（无 error_type）
+                    if not et or et == "?" or entry.get("_source") == "harvester":
+                        continue
+                    _error_type_counts[et] = _error_type_counts.get(et, 0) + 1
+        except Exception:
+            pass
+    for et, cnt in _error_type_counts.items():
+        if cnt >= SUBLIMATION_HITS and et not in patterns:
+            patterns[et] = cnt
+
+    candidates = [p for p, c in patterns.items() if c >= SUBLIMATION_HITS]
     if not candidates:
         return []
 
@@ -108,14 +131,15 @@ def _sublimation_check() -> list[str]:
             existing = ""
 
     sublimated: list[str] = []
+    _now_dt = datetime.now(timezone.utc)
     for pattern in candidates:
         if f"`{pattern}`" in existing or pattern in existing:
             continue
-        hits = pattern_counts[pattern]
+        hits = patterns[pattern]
         entry = (
-            f"\n### {pattern}（飞轮升华 {datetime.now(timezone.utc).strftime('%Y-%m-%d')}）\n"
-            f"- 来源：claude-next 自动升华，hits={hits}（阈值≥{SUBLIMATION_HITS}）\n"
-            f"- 触发条件：error-dna 中反复出现的 `{pattern}` 失败模式\n"
+            f"\n### {pattern}（飞轮升华 {_now_dt.strftime('%Y-%m-%d')}）\n"
+            f"- 来源：自动升华，hits={hits}（阈值≥{SUBLIMATION_HITS}）\n"
+            f"- 触发条件：反复出现的 `{pattern}` 失败模式\n"
             f"- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决\n"
         )
         try:
@@ -126,12 +150,36 @@ def _sublimation_check() -> list[str]:
                     "ts": _now_iso(), "pattern": pattern, "hits": hits,
                     "target": "anti-patterns.md", "kernel_promotion": "pending_human_review",
                 }, ensure_ascii=False) + "\n")
-            # ── ADR-0012: 同时写入 redirect rule ──
-            _rule = _to_redirect_rule(pattern, f"error-dna 中反复出现 {pattern} 失败,见 claude-next 条目;路径正确做法见对应条目",
-                                       source="sublimation", hits=hits)
-            ANTI_PATTERN_REDIRECTS.parent.mkdir(parents=True, exist_ok=True)
-            with ANTI_PATTERN_REDIRECTS.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(_rule, ensure_ascii=False) + "\n")
+            # ── ADR-0012: 同时写入 redirect rule（幂等：跳过已存在的 pattern） ──
+            _key = pattern.lower().replace(" ", "_")[:40]
+            _already_redirect = False
+            if ANTI_PATTERN_REDIRECTS.exists():
+                try:
+                    with ANTI_PATTERN_REDIRECTS.open("r", encoding="utf-8") as f:
+                        _existing_redirects = [json.loads(l) for l in f if l.strip()]
+                    if any(r.get("pattern_key") == _key for r in _existing_redirects):
+                        _already_redirect = True
+                except Exception:
+                    pass
+            if not _already_redirect:
+                _rule = _to_redirect_rule(pattern, f"error-dna 中反复出现 {pattern} 失败,见 claude-next 条目;路径正确做法见对应条目",
+                                           source="sublimation", hits=hits)
+                ANTI_PATTERN_REDIRECTS.parent.mkdir(parents=True, exist_ok=True)
+                with ANTI_PATTERN_REDIRECTS.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(_rule, ensure_ascii=False) + "\n")
+            # ── 写入 kernel-candidates.md（升华候选暂存区，不碰冻结的 kernel.md） ──
+            KERNEL_CANDIDATES.parent.mkdir(parents=True, exist_ok=True)
+            kc_entry = (
+                f"\n## {pattern}\n"
+                f"- 升华时间: {_now_iso()}\n"
+                f"- hits: {hits}（阈值≥{SUBLIMATION_HITS}）\n"
+                f"- 状态: pending_human_review\n"
+                f"- 来源: error-dna 自动升华\n"
+                f"- 描述: 反复出现的 `{pattern}` 失败模式\n"
+                f"- 晋升 kernel: 需人类审查后将此节迁移至 kernel.md\n"
+            )
+            with KERNEL_CANDIDATES.open("a", encoding="utf-8") as f:
+                f.write(kc_entry)
             sublimated.append(pattern)
         except Exception:
             pass
