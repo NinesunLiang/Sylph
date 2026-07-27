@@ -1,9 +1,14 @@
 # Anti-Patterns — 经验沉淀
 
-_Updated: 2026-07-27T10:45:00+00:00 (timeout, unknown, unknown_recurring) [来源：`.omc/knowledge/sublimation-log.jsonl`]_
+_Updated: 2026-07-27T17:30+00:00 (Phase0-A baseline recovery complete)_
 
-sublimation processed: timeout→I1 promoted, unknown→J1 archived, unknown_recurring→J2 archived [来源：`.omc/knowledge/sublimation-log.jsonl`，内部自检，非行业标准]  
-K section added: K1/K2/K3 from 2026-07-27 CarrorOS independent eval session — hook real-time detections [来源：本会话 PostToolUse hook 实时告警，内部自检，非行业标准；Write 方式写入收敛]
+**Phase0-A 状态更新 (2026-07-27)**:
+- K1/K2: 已确认在 posttool-claim-audit.py 中实现 (G1_PSEUDO_INTEGRITY + E6_EDIT_REPEAT), 测试 7/7 PASS
+- I1 timeout: carros_base.py 已使用动态 timeout (10-300s), 非系统性问题
+- J1/J2: posttool-bash-audit 已 disabled, 有 28 项测试 (启用后可直接覆盖 Bash 分类)
+- 详见: `.omc/docs/phase0a-baseline.md` / `.omc/docs/phase0a-disabled-hooks.md`
+
+[来源：Phase0-A 真实基线分析，内部自检，非行业标准]
 
 ---
 

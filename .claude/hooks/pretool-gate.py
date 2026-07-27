@@ -51,6 +51,11 @@ GOAL_MODE_FILE = OMC / "state" / "tokens" / "lx-goal.json"
 GOAL_MODE_LEGACY = OMC / "state" / "unattended-mode.json"
 TRUST_BREACH = OMC / "state" / "trust-breach.json"
 
+# ── GateKeeper 分层裁决链 ──
+sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
+from gatekeeper import GateKeeper, GateContext, make_context
+GateKeeper.set_state_dir(OMC / "state")
+
 # ── Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)──
 # 导入约定:直插 lib 目录按顶层模块导入——hooks/lib 是带 __init__ 的正规包,
 # 走 `lib.task_ssot` 包路径会被它无条件遮蔽(regular>namespace,见 PKG-1 记录)。
@@ -335,32 +340,78 @@ def _ok(msg: str = "OK") -> int:
     return 0
 
 def _block(reason: str, suggestion: str = "") -> int:
-    """Block a tool call with HUMAN-READABLE reason and next step.
+    """Block a tool call with GateKeeper protocol A format.
 
-    Sylph-inspired pattern: instead of a terse machine-only message,
-    give the user the context they need to decide what to do next.
-    Also supports a TEMP_KEY bypass mechanism for user-authorized overrides.
+    Danger/irreversible/privilege-escalation/architecture changes:
+      → explain-why + options + recommendation → ASK_USER
+    Normal blocks (sensitive-edit/scope/plan):
+      → reason + suggestion + bypass
     """
     safe_reason = reason[:300]
-    msg_parts = [f"⛔ 操作被阻断: {safe_reason}"]
-    if suggestion:
-        msg_parts.append(f"💡 建议: {suggestion}")
-    if _goal_mode():
-        # lx-goal 无人值守: 人类不在场——保持 fail-closed(危险操作绝不执行),
-        # 但指引模型「记录→继续其他任务」,不把唯一出路设为「请用户操作」(=停下来求人)。
-        msg_parts.append(
-            "🤖 goal 无人值守模式: 此操作已按人类独占裁决/安全门拦截。勿等待或询问人类——"
-            "执行 `python3 .claude/skills/lx-goal/scripts/lx-goal.py blocked-human \"<操作>\" \"<AI建议>\" \"<依据>\"`"
-            "(中高风险用 `skip-risk \"<描述>\" <level> \"<理由>\" \"<影响>\"`)记录后,继续其他任务;"
-            "退出报告将自动汇总此项交由人类裁决。"
+    unattended = _goal_mode()
+
+    # Map common block reasons to hazard flags for GateKeeper
+    _REASON_TO_HAZARD = {
+        "destructive": ("destructive", "irreversible"),
+        "irreversible": ("irreversible",),
+        "privilege": ("privilege_escalation",),
+        "architecture": ("architecture_change",),
+        "production": ("production",),
+        "production_op": ("production",),
+        "env_bypass": ("privilege_escalation",),
+        "trust_broken": ("privilege_escalation", "irreversible"),
+        "governance": ("governance_violation",),
+    }
+
+    is_high_risk = any(k in safe_reason.lower() for k in _REASON_TO_HAZARD)
+
+    if is_high_risk:
+        # 高风险: GateKeeper protocol A
+        hazard_flags = []
+        for key, flags in _REASON_TO_HAZARD.items():
+            if key in safe_reason.lower():
+                hazard_flags.extend(flags)
+
+        ctx = make_context(
+            action=safe_reason,
+            target="",
+            destructive="destructive" in hazard_flags,
+            irreversible="irreversible" in hazard_flags,
+            privilege_escalation="privilege_escalation" in hazard_flags,
+            architecture_change="architecture_change" in hazard_flags,
+            production="production" in hazard_flags,
+            risk="high",
+            unattended=unattended,
         )
+        result = GateKeeper.evaluate(ctx)
+        full_msg = GateKeeper.format_output(result)
+
+        if result.decision.value == "skip":
+            # 无人模式: 输出提示 + continue
+            print(json.dumps({
+                "continue": True,
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "additionalContext": full_msg,
+                }
+            }, ensure_ascii=False))
+            sys.stderr.write(f"PreToolGate: SKIPPED - {safe_reason}\n")
+            return 0
     else:
-        bypass_hint = (
-            "🔑 如需临时授权跳过此检查，请运行: "
-            "`! python3 .claude/scripts/temp-bypass.py --minutes 60 --reason \"你的理由\"`"
-        )
-        msg_parts.append(bypass_hint)
-    full_msg = "\n".join(msg_parts)
+        # 常规阻断: 保留原简洁格式
+        full_msg = f"⛔ 操作被阻断: {safe_reason}"
+        if suggestion:
+            full_msg += f"\n💡 建议: {suggestion}"
+        if unattended:
+            full_msg += (
+                "\n🤖 goal 无人值守模式: 此操作已按安全门拦截。"
+                "勿等待——执行 skip-risk 记录后继续其他任务;退出报告将自动汇总。"
+            )
+        else:
+            full_msg += (
+                "\n🔑 如需临时授权跳过此检查，请运行: "
+                "`! python3 .claude/scripts/temp-bypass.py --minutes 60 --reason \"你的理由\"`"
+            )
 
     print(json.dumps({
         "continue": True,
@@ -373,20 +424,36 @@ def _block(reason: str, suggestion: str = "") -> int:
     return 2
 
 def _redirect(reason: str, guidance: str = "") -> int:
-    """Redirect a tool call — block the bad action & tell AI the right way.
+    """Redirect — GateKeeper protocol B format.
 
-    REDIRECT 是 ADR-0012 新增的 oracle 判决级别,位于 PASS 与 FORCE 之间:
-      PASS → REDIRECT → FORCE/TRIGGER → ESCALATE → BLOCK
-    行为: continue=False(阻止工具调用),additionalContext 包含 reason+guidance,
-    AI 看到指引后自行修正并重试——零人工介入。
+    Protocol B = intercept + guide + auto-retry.
+    AI 看到后自行修正并重试——零人工介入。
     """
     safe_reason = reason[:300]
-    msg_parts = [f"🔄 操作重定向: {safe_reason}"]
-    if guidance:
-        msg_parts.append(f"💡 正确做法:\n{guidance}")
-    if _goal_mode():
-        msg_parts.append("🤖 goal 模式: 修正后自动重试")
-    full_msg = "\n".join(msg_parts)
+    unattended = _goal_mode()
+
+    ctx = make_context(
+        action=safe_reason,
+        target="",
+        risk="low",
+        unattended=unattended,
+        fixable_issue=True,
+        positive_roi=True,
+    )
+    result = GateKeeper.evaluate(ctx)
+    # 协议B: REDIRECT+guidance
+    ctx2 = make_context(action=safe_reason, risk="low", fixable_issue=True)
+    r2 = GateKeeper.evaluate(ctx2)
+    gk_msg = GateKeeper.format_output(r2)
+
+    # 保留原始guidance
+    if guidance and r2.protocol == "B":
+        full_msg = f"🔄 操作重定向: {safe_reason}\n💡 {guidance}\n继续..."
+    elif gk_msg:
+        full_msg = gk_msg
+    else:
+        full_msg = f"🔄 操作重定向: {safe_reason}\n继续..."
+
     # 日志到 redirects.jsonl
     try:
         _REDIRECT_LOG = OMC / "redirects.jsonl"
