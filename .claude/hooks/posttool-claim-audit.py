@@ -21,6 +21,10 @@ _HOOKS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HOOKS_DIR))
 from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, is_mode_active, output_continue
 
+# ─── GateKeeper 协议格式 ───
+sys.path.insert(0, str(_HOOKS_DIR.parent / "scripts"))
+from gatekeeper import GateKeeper, make_context
+
 
 def _autofix_source_annotations(file_path: str, num_claims: list[str], mode: str) -> bool:
     """K1 autofix: auto-append [内部自检，非行业标准] after unsourced numerical claims.
@@ -464,9 +468,23 @@ def main():
                 pass
 
         # PostTool 阶段不应阻断——操作已执行完,阻断也无法撤销。
-        # 全部降级为 warn-only,违规记录 audit 供退出报告统一审查(2026-07-25 改造)。
+        # 全部降级为 protocol B format (warn-only),违规记录 audit 供退出报告统一审查。
         tag = _MODE if _AUTONOMOUS_LOCAL else "posttool"
-        mode_msg = f'⚠️ [{tag}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\nPostTool 阶段降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}'
+        try:
+            _gk_ctx = make_context(
+                action=f"claim-audit: {'G1' if G1_VIOLATIONS else 'E6'} 违规",
+                target=FILE_PATH,
+                risk="low",
+                fixable_issue=True,
+            )
+            _gk_r = GateKeeper.evaluate(_gk_ctx)
+            _gk_msg = GateKeeper.format_output(_gk_r)
+            if _gk_msg:
+                mode_msg = f"⚠️ [{tag}] [铁律#1+#7] {_gk_msg}\n{COMBINED}{TRIAGE_SUFFIX}"
+            else:
+                mode_msg = f"⚠️ [{tag}] [铁律#1+#7] 输出真实性违规:\n{COMBINED}\n{TRIAGE_SUFFIX}"
+        except Exception:
+            mode_msg = f"⚠️ [{tag}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\nPostTool 阶段降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}"
         result = hc_emit_hook_json(mode_msg, 'PostToolUse', True)
         print(result)
         flywheel_event('posttool_claim_audit', 'warned', 'P2')

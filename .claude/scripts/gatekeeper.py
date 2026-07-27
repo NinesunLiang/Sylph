@@ -11,6 +11,9 @@ gatekeeper.py — CarrorOS GateKeeper 分层裁决链
   GateContext → Step1 铁律检查 → Step2 协议A/B分流 → Step3 哲学授权
               → Step4 现状/ROI调节 → GateDecision → 格式化输出
 
+熔断开关: GATEKEEPER_DISABLED=true 环境变量可全局禁用 GateKeeper 裁决。
+         用于运行时出 bug 时的快速止血。不影响已有 hook 的 fallback 行为。
+
 用法:
   from gatekeeper import GateKeeper, GateContext, GateDecision
   gk = GateKeeper()
@@ -175,7 +178,19 @@ class GateKeeper:
 
     @classmethod
     def evaluate(cls, context: GateContext) -> GateDecisionResult:
-        """分层裁决链主入口"""
+        """分层裁决链主入口
+
+        环境变量 GATEKEEPER_DISABLED=true 时熔断——返回 ALLOW 绕过裁决。
+        """
+        # 熔断开关: env GATEKEEPER_DISABLED=true → bypass all logic
+        import os as _os
+        if _os.environ.get("GATEKEEPER_DISABLED", "").lower() in ("true", "1", "yes"):
+            return GateDecisionResult(
+                decision=GateDecision.ALLOW,
+                reason="GATEKEEPER_DISABLED bypass",
+                protocol="C",
+            )
+
         # Step 1: 铁律检查 — 一票否决
         iron_violations = cls._check_iron_rules(context)
         if iron_violations:
