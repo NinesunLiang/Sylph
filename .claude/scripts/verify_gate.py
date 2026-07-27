@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass, asdict
@@ -468,8 +469,26 @@ def main() -> int:
         except Exception:
             pass
 
+    # GateKeeper protocol output for consistency (BLOCKED/REJECTED -> stderr guidance)
+    try:
+        _gk_script = Path(__file__).resolve().parent
+        sys.path.insert(0, str(_gk_script))
+        from gatekeeper import GateKeeper, make_context
+        if result.decision in ("BLOCKED", "REJECTED"):
+            _gk_ctx = make_context(
+                action="verify: " + result.reason, target=result.step,
+                risk="medium", has_verification=True,
+            )
+            _gk_r = GateKeeper.evaluate(_gk_ctx)
+            _gk_msg = GateKeeper.format_output(_gk_r)
+            if _gk_msg:
+                sys.stderr.write(_gk_msg + "\n")
+    except Exception:
+        pass
+
     print(json.dumps(asdict(result), ensure_ascii=False, indent=2))
     return 0 if result.decision == "VERIFIED" else 1
+
 
 
 if __name__ == "__main__":
