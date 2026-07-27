@@ -371,8 +371,12 @@ def _write_default_executor():
 
 
 def _write_default_research():
-    """创建 research.md — 子任务也可引用 src.md"""
+    """创建 research.md — 子任务也可引用 src.md
+
+    goal 模式时写入 Phase 0 前置要求，防止 AI 声称 Phase 0 完成但文档为空。
+    """
     RESEARCH_PATH.parent.mkdir(parents=True, exist_ok=True)
+    is_goal = os.environ.get("CARROROS_TASK_MODE") == "goal"
     content = """# Research
 
 > 事实层：技术决策、架构边界、参考来源
@@ -382,6 +386,13 @@ def _write_default_research():
 ## 约束
 
 ## 已知信息
+"""
+    if is_goal:
+        content += """
+## Phase 0（goal 模式前置澄清）
+<!-- ⓪ 以下内容由 AI 在 Phase 0 完成后写入 -->
+<!-- ⚠️ phase0-done 门禁：research.md 必须 >4 行非空内容才放行 -->
+
 """
     RESEARCH_PATH.write_text(content)
 
@@ -550,9 +561,14 @@ def cmd_auto_init(steps=None, target=None):
     return 0
 
 
-def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None):
-    """初始化任务 — IntakeGate 分级 → PlanBuilder 生成冻结计划"""
+def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None, task_mode=None):
+    """初始化任务 — IntakeGate 分级 → PlanBuilder 生成冻结计划
+
+    task_mode: "goal" 时写入 token 标记,由 lx-goal.py 委托调用。
+    """
     _init_task_paths(task_id=task_id, task_dir=task_dir)
+    if task_mode:
+        os.environ.setdefault("CARROROS_TASK_MODE", task_mode)
 
     intake_decision_data = None
 
@@ -656,6 +672,18 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
     print(f"   Task:  {TASK_DIR}")
     print(f"   Plan:  {PLAN_PATH}")
     print(f"   Exec:  {EXECUTOR_PATH}")
+
+    # task_mode="goal": 向 token 注入 mode 字段,供 lx-goal.py 捕获
+    if task_mode == "goal":
+        token_data = _load_token()
+        if token_data:
+            token_data["mode"] = "goal"
+            _save_token(token_data)
+        else:
+            # 静默丢失比明确失败更危险 — token 不存在时 mode 注入丢失,必须告警
+            print("⚠️ goal mode: token 未生成, mode=goal 注入跳过", file=sys.stderr)
+        # 输出机器可读路径供 lx-goal.py 解析 (stdout 最后一行的 CARROROS_TASK_DIR= 为契约)
+        print(f"\nCARROROS_TASK_DIR={TASK_DIR}")
     return 0
 
 
@@ -1108,7 +1136,15 @@ def cmd_archive(force=False):
 
     # Step 3: generate final report (shared node)
     task_sid = token.get("session", {}).get("id", "unknown")
-    archive_dir = OMC_ROOT / "archive" / task_sid
+
+    # 用 task 目录语义名替代 session ID 作为 archive 目录名
+    if TASK_DIR and TASK_DIR.exists():
+        _d = TASK_DIR.parent.name
+        _n = TASK_DIR.name
+        archive_name = f"{_d}_{_n}"
+    else:
+        archive_name = task_sid
+    archive_dir = OMC_ROOT / "archive" / archive_name
     archive_dir.mkdir(parents=True, exist_ok=True)
     cmd_report(use_stdout=False)
     print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
@@ -1152,6 +1188,25 @@ def cmd_archive(force=False):
     handoff_src = HANDOFF_PATH if HANDOFF_PATH else Path(".omc/session-handoff.md")
     if handoff_src.exists():
         shutil.copy2(handoff_src, archive_dir / "session-handoff.md")
+
+    # Step 5a: 将 task 目录整体 mv 到 archive（统一存储策略）
+    if TASK_DIR and TASK_DIR.exists():
+        # 如果 TASK_DIR 已是 symlink，shutil.move 会移走真实目标导致 dangling symlink
+        if TASK_DIR.is_symlink():
+            print(_yellow("⚠  TASK_DIR 是 symlink，跳过 archive mv 避免 dangling"))
+        else:
+            _dst_task = archive_dir / TASK_DIR.name
+            if not _dst_task.exists():
+                try:
+                    shutil.move(str(TASK_DIR), str(_dst_task))
+                    TASK_DIR.parent.mkdir(parents=True, exist_ok=True)
+                    # 创建 symlink 从 TASK_DIR 指向 archive，存根保兼容
+                    TASK_DIR.symlink_to(_dst_task, target_is_directory=True)
+                    print(_green(f"✅ Task dir moved: {TASK_DIR} → {_dst_task}"))
+                except Exception as e:
+                    print(_yellow(f"⚠  Task dir mv failed: {e}"))
+            else:
+                print(_yellow("⚠  Archive target exists, skipping task dir mv"))
 
     _write_audit("archive", {"task_id": token["session"]["id"], "result": "ARCHIVED"})
     _write_handoff(token)
@@ -2377,6 +2432,8 @@ def main(argv=None):
         feature = None
         auto_mode = False
         mode = None
+        target = None
+        task_mode = None
         i = 0
         while i < len(args):
             if args[i] == "--task-id" and i + 1 < len(args):
@@ -2422,11 +2479,14 @@ def main(argv=None):
             elif args[i] == "--target" and i + 1 < len(args):
                 target = args[i + 1]
                 i += 2
+            elif args[i] == "--task-mode" and i + 1 < len(args):
+                task_mode = args[i + 1].lower()
+                i += 2
             else:
                 i += 1
         if auto_mode:
             return cmd_auto_init(steps=steps, target=target)
-        return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature)
+        return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode)
 
     elif command == "verify":
         step_id = None

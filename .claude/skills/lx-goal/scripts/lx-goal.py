@@ -11,6 +11,7 @@ lx-goal.py — 目标模式（目标驱动自主执行）
 import json
 import os
 import re
+import shutil
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -141,6 +142,27 @@ def _get_plan_dir(mode_data: dict):
     return Path(p) if p and Path(p).exists() else None
 
 
+def cmd_assert_plan_dir():
+    """assert-plan-dir 子命令: 输出 plan_dir 路径给 AI 捕获, 验证目录存在。
+
+    goal 模式激活后,AI 必须调用此命令获取唯一计划目录路径,不得自行创建或猜测。
+
+    成功 → 输出 plan_dir 绝对路径到 stdout, exit 0
+    失败(未激活/目录不存在) → exit 2
+    """
+    if not is_mode_active():
+        print("❌ 目标模式未激活,无法获取 plan_dir", file=sys.stderr)
+        sys.exit(2)
+    mode_data, _ = _read_mode_file()
+    plan_dir = _get_plan_dir(mode_data)
+    if not plan_dir or not plan_dir.exists():
+        print("❌ plan_dir 不存在或已被删除, 请重新激活目标模式", file=sys.stderr)
+        sys.exit(2)
+    # 输出 plan_dir 绝对路径（AI 在 Phase 1 捕获此输出作为 I/O 锚定）
+    print(str(plan_dir.resolve()))
+    sys.exit(0)
+
+
 def _update_lock_counter(plan_dir: Path, field: str, inc: int = 1):
     """更新物理锁内的计数器字段"""
     from_plan = str(plan_dir)
@@ -205,17 +227,56 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     # 创建 autonomous.active 信号
     AUTONOMOUS_SIGNAL.touch()
 
-    # 创建计划目录 + 物理锁(日期统一 %Y%m%d,与 carros_base token 目录格式一致)
-    plan_dir = PLANS_DIR / date_str / slug
-    plan_dir.mkdir(parents=True, exist_ok=True)
-    (plan_dir / "state").mkdir(exist_ok=True)
+    # ── 委托 carros_base.py 创建任务目录 + 结构化模板 ──
+    # 不再自建 research/plan/executor 骨架模板
+    carros_base = PROJECT_ROOT / ".claude" / "scripts" / "carros_base.py"
+    user_request = f"goal: {goal}"
+    plan_dir = None
+    import subprocess
+    try:
+        result = subprocess.run(
+            [sys.executable, str(carros_base), "init",
+             "--task-id", slug,
+             "--level", "L2",
+             "--user-request", user_request,
+             "--task-mode", "goal"],
+            capture_output=True, text=True, timeout=15,
+        )
+        if result.returncode != 0:
+            print(f"❌ carros_base.py init 失败 (exit={result.returncode})", file=sys.stderr)
+            print(result.stderr, file=sys.stderr)
+            sys.exit(2)
 
-    # 创建扁平文档文件
-    (plan_dir / "research.md").write_text(f"# {goal}\n\n> goal模式自动创建 @ {get_now()}\n", encoding="utf-8")
-    (plan_dir / "plan.md").write_text("# Plan\n\n## Steps\n\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("# Executor Log\n\n", encoding="utf-8")
+        # 解析最后一行 CARROROS_TASK_DIR=xxx
+        task_dir_line = ""
+        for line in reversed(result.stdout.splitlines()):
+            if line.startswith("CARROROS_TASK_DIR="):
+                task_dir_line = line
+                break
+        if not task_dir_line:
+            print("❌ 未找到 CARROROS_TASK_DIR= 输出", file=sys.stderr)
+            print(result.stdout, file=sys.stderr)
+            sys.exit(2)
+        plan_dir_str = task_dir_line.split("=", 1)[1].strip()
+        plan_dir = Path(plan_dir_str)
+        if not plan_dir.exists():
+            print(f"❌ carros_base 创建的 task dir 不存在: {plan_dir}", file=sys.stderr)
+            sys.exit(2)
 
-    # 创建物理锁（"钥匙"）— token.json 是唯一状态真相源— 独立于 tasks，compact 恢复时扫描 .omc/tokens/ 即可定位活跃任务
+        # 输出 carros_base 的 stdout（过滤掉 CARROROS_TASK_DIR 行）
+        for line in result.stdout.splitlines():
+            if not line.startswith("CARROROS_TASK_DIR="):
+                print(line)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+    except FileNotFoundError:
+        print(f"❌ carros_base.py 脚本不存在: {carros_base}", file=sys.stderr)
+        sys.exit(2)
+    except subprocess.TimeoutExpired:
+        print("❌ carros_base.py init 超时 (15s)", file=sys.stderr)
+        sys.exit(2)
+
+    # ── 创建 goal 模式专用物理锁（覆盖基础 token，补充 goal 字段）──
     lock_file = TOKENS_DIR / date_str / f"{slug}.json"
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     lock_data = {
@@ -306,6 +367,15 @@ def cmd_off():
                 lock["phase"] = "completed"
                 lock["updated_at"] = get_now()
                 lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
+                # 将已完成 token 移入 archive/tokens/ 作为墓碑，避免 .omc/tokens/ 堆积
+                archive_tokens_dir = PROJECT_ROOT / ".omc" / "archive" / "tokens"
+                archive_tokens_dir.mkdir(parents=True, exist_ok=True)
+                tombstone = archive_tokens_dir / f"{lock_file.parent.name}_{lock_file.name}.tombstone"
+                try:
+                    shutil.copy2(str(lock_file), str(tombstone))
+                    print(f"📦 Token 归档: {tombstone}")
+                except Exception as e:
+                    print(f"⚠️ Token 归档失败(不阻断 off): {e}", file=sys.stderr)
             print(f"RPE退出报告: {checklist}")
 
         # 关闭前自动生成完整退出报告（确保需人类介入项必反馈，不被遗漏）
@@ -807,6 +877,7 @@ KNOWN_SUBCOMMANDS = {
     "set": cmd_set,
     "phase0-done": cmd_phase0_done,
     "checklist-verify": cmd_checklist_verify,
+    "assert-plan-dir": cmd_assert_plan_dir,
     "report": cmd_report,
     "poll": cmd_poll,
     "is-active": cmd_is_active,

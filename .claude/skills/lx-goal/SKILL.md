@@ -51,7 +51,10 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 6. 输出执行计划（子任务列表 + AC + 依赖 + 风险 + Q 项）
 7. **🔴 自审计划** — 硬规则。检查执行计划是否有占位符、矛盾、模糊项，修正后再提交。不自审=违反铁律#2
 8. 人类确认后激活：`python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"`
-9. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
+    - 激活时 lx-goal.py 委托 **carros_base.py init --task-mode goal** 创建任务文档目录 + 结构化模板
+    - carros_base.py 负责 research/plan/executor 模板生成，不再由 lx-goal.py 自建骨架
+9. **🔴 绑定 plan_dir** — 激活后必须调用 `lx-goal.py assert-plan-dir` 获取 carros_base 创建的 unique plan_dir 路径并 `cd` 到该目录。**禁止自行 mkdir、猜测或创建新目录作为 plan_dir**。后续所有文档 I/O（research/plan/executor）必须锁定此路径。
+10. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
 
 > ⚠️ Anti-Pattern: "这任务太简单不需要澄清" — 简单的任务恰恰是未检视假设导致最多返工的地方。澄清可以短（几句话），但不能跳过。
 
@@ -65,6 +68,7 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 | **不提问** | 歧义按决策框架判断 |
 | **不中断** | 卡点处理后继续 |
 | **只记录** | 风险和阻断写入 skipped_risks |
+| **只锚定** | 调用 `assert-plan-dir` 绑定 plan_dir，禁止另建目录 [已验证: SKILL.md §Phase 0 step 9](/Users/lucas.liang/Desktop/Sylph/Carror_Base_OS/.claude/skills/lx-goal/SKILL.md) |
 
 **卡点处理**：
 
