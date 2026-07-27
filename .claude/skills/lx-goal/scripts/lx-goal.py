@@ -3,7 +3,7 @@
 lx-goal.py — 目标模式（目标驱动自主执行）
 跨平台（macOS/Linux/Windows）
 
-用法: lx-goal.py on|off|status|set|report|poll|task-done|skip-risk|hard-boundary-hit|blocked-human|retry|phase0-done|subagent-log|done|_update-lock
+用法: lx-goal <目标描述> [小时]  或  lx-goal 子命令 [参数]
 
 与 lx-ghost 的区别: goal = 目标驱动（具体任务），ghost = 方向驱动（开放探索）
 """
@@ -215,11 +215,7 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     (plan_dir / "plan.md").write_text("# Plan\n\n## Steps\n\n", encoding="utf-8")
     (plan_dir / "executor.md").write_text("# Executor Log\n\n", encoding="utf-8")
 
-    # 创建 state.json
-    with open(plan_dir / "state.json", "w", encoding="utf-8") as f:
-        json.dump({"phase": "draft", "created_at": now}, f, indent=2, ensure_ascii=False)
-
-    # 创建物理锁（"钥匙"）— 独立于 tasks，compact 恢复时扫描 .omc/tokens/ 即可定位活跃任务
+    # 创建物理锁（"钥匙"）— token.json 是唯一状态真相源— 独立于 tasks，compact 恢复时扫描 .omc/tokens/ 即可定位活跃任务
     lock_file = TOKENS_DIR / date_str / f"{slug}.json"
     lock_file.parent.mkdir(parents=True, exist_ok=True)
     lock_data = {
@@ -304,15 +300,12 @@ def cmd_off():
                 f"\n> 自动生成 @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n",
                 encoding="utf-8",
             )
-            # update state.json
-            sf = plan_dir / "state.json"
-            if sf.exists():
-                with open(sf, encoding="utf-8") as f:
-                    sd = json.load(f)
-                sd["phase"] = "completed"
-                sd["completed_at"] = get_now()
-                with open(sf, "w", encoding="utf-8") as f:
-                    json.dump(sd, f, indent=2, ensure_ascii=False)
+            # 更新 token.json phase=completed
+            if lock_file.exists():
+                lock = json.loads(lock_file.read_text(encoding="utf-8"))
+                lock["phase"] = "completed"
+                lock["updated_at"] = get_now()
+                lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
             print(f"RPE退出报告: {checklist}")
 
         # 关闭前自动生成完整退出报告（确保需人类介入项必反馈，不被遗漏）
@@ -407,21 +400,19 @@ def cmd_phase0_done():
         print("   AI 必须写入: 子任务列表、验收标准、风险点")
         sys.exit(1)
 
-    # 更新 state.json
-    sf = plan_dir / "state.json"
-    if sf.exists():
-        with open(sf, encoding="utf-8") as f:
-            sd = json.load(f)
-    else:
-        sd = {"phase": "draft", "created_at": get_now()}
-    sd["phase"] = "executing"
-    sd["executing_since"] = get_now()
-    with open(sf, "w", encoding="utf-8") as f:
-        json.dump(sd, f, indent=2, ensure_ascii=False)
-
     # 写 phase0_passed_at 到 mode file
     mode_data["phase0_passed_at"] = get_now()
     _write_mode_file(mode_data, path)
+
+    # 同步更新 token.json phase
+    slug = plan_dir.name
+    date_dir = plan_dir.parent.name
+    lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
+    if lock_file.exists():
+        lock = json.loads(lock_file.read_text(encoding="utf-8"))
+        lock["phase"] = "executing"
+        lock["updated_at"] = get_now()
+        lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # 追加到 plan.md
     plan_md = plan_dir / "plan.md"
@@ -735,8 +726,33 @@ def cmd_subagent_log(action: str, agent_name: str = "", subtask: str = "", detai
     print(f"📝 subagent 日志已更新: {executor_md}")
 
 
+def cmd_checklist_verify():
+    """检测 executor.md 的 Checklist 是否全部 [x]。未达标 → exit=1"""
+    mode_data, _ = _read_mode_file()
+    plan_dir = _get_plan_dir(mode_data)
+    if not plan_dir:
+        return 0  # 无计划目录时不阻断（向后兼容）
+    executor_md = plan_dir / "executor.md"
+    if not executor_md.exists():
+        return 0
+
+    text = executor_md.read_text(encoding="utf-8")
+    import re
+    checked = len(re.findall(r'- \[x\]', text, re.IGNORECASE))
+    unchecked = len(re.findall(r'- \[ \]', text))
+    if unchecked > 0:
+        print(f"❌ Checklist 未达标: {checked}/{checked + unchecked} 项通过，还有 {unchecked} 项未完成", file=sys.stderr)
+        for line in text.splitlines():
+            l = line.strip()
+            if l.startswith("- [ ]"):
+                print(f"   ⬜ {l[5:].strip()}", file=sys.stderr)
+        print(f"\n   完成所有 [ ] 项后重试: lx-goal.py done", file=sys.stderr)
+        sys.exit(1)
+    return 0
+
+
 def cmd_done():
-    """验收通过后删除物理锁"""
+    """验收通过后删除物理锁（先检查 checklist）"""
     if not MODE_FILE.exists():
         print("❌ 目标模式未开启")
         sys.exit(1)
@@ -746,6 +762,14 @@ def cmd_done():
         print("❌ 计划目录不存在，无法完成验收")
         sys.exit(1)
 
+    # 门禁：先跑 checklist-verify
+    try:
+        cmd_checklist_verify()
+    except SystemExit as e:
+        if e.code != 0:
+            print("❌ checklist 未全部通过，不得关闭任务", file=sys.stderr)
+            sys.exit(1)
+
     slug = plan_dir.name
     date_dir = plan_dir.parent.name
     lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
@@ -754,15 +778,6 @@ def cmd_done():
         lock_file.unlink()
         print(f"🔓 物理锁已删除: {lock_file}")
         print("✅ 任务验收完成，锁已移除")
-        # 更新 state.json
-        sf = plan_dir / "state.json"
-        if sf.exists():
-            with open(sf, encoding="utf-8") as f:
-                sd = json.load(f)
-            sd["phase"] = "accepted"
-            sd["accepted_at"] = get_now()
-            with open(sf, "w", encoding="utf-8") as f:
-                json.dump(sd, f, indent=2, ensure_ascii=False)
     else:
         print("⚠️ 锁文件不存在，可能已被删除")
 
@@ -791,6 +806,7 @@ KNOWN_SUBCOMMANDS = {
     "status": cmd_status,
     "set": cmd_set,
     "phase0-done": cmd_phase0_done,
+    "checklist-verify": cmd_checklist_verify,
     "report": cmd_report,
     "poll": cmd_poll,
     "is-active": cmd_is_active,
@@ -830,7 +846,13 @@ def main():
 
     if sys.argv[1] not in KNOWN_SUBCOMMANDS:
         # 非子命令文本 → 当作目标描述自动激活
-        cmd_on(" ".join(sys.argv[1:]))
+        raw = sys.argv[1:]
+        goal = " ".join(raw)
+        expiry = 6
+        if raw and raw[-1].isdigit():
+            expiry = int(raw[-1])
+            goal = " ".join(raw[:-1])
+        cmd_on(goal, expiry)
         return
 
     cmd_name = sys.argv[1]

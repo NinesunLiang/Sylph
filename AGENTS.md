@@ -23,14 +23,30 @@
 
 ## L1 工作流
 
-1. **Plan** → `python3 .claude/scripts/carros_base.py init --task-id <ID> --steps "S1:调研|S2:实现"`
-2. **Research** — 先调研，写 research.md（背景、约束、已知信息）
-3. **Execute** → 按 plan.md 执行。每完成一步：
+> **先看全貌再动手，依赖先行，TDD 双保险**
+
+1. **Plan**（全貌梳理）→ `python3 .claude/scripts/carros_base.py init --task-id <ID> --steps "S1:调研|S2:实现"`
+   - 先充分了解项目现状、相关模块、历史上下文
+   - 构建**依赖树**：本任务涉及哪些文件？依赖什么模块？被什么依赖？
+   - 输出影响范围清单（涉及文件 / 依赖关系 / 预估风险）
+
+2. **Research** — 写 research.md（背景、约束、已知信息、影响范围清单）
+
+3. **Dependency TDD**（依赖先行）
+   - 依赖树中处于被依赖位置的文件/模块，**必须先写 TDD 测试**
+   - 测试通过（全绿）后，才算该依赖项准备就绪
+   - 依赖项未全绿不得进入实现阶段
+
+4. **Execute** → 按 plan.md 执行。每完成一步：
    - 写 executor.md 证据块（模板见下）
    - 更新 research.md（如有新发现）
    - `python3 .claude/scripts/carros_base.py tick`
-4. **Verify** → `python3 .claude/scripts/carros_base.py verify`
-5. **Archive** → `python3 .claude/scripts/carros_base.py archive`
+
+5. **Verify**（回归 TDD）→ `python3 .claude/scripts/carros_base.py verify`
+   - 实现完成后**必须跑 TDD 回归**，确认改动非破坏性
+   - 全部通过才算 step 完成
+
+6. **Archive** → `python3 .claude/scripts/carros_base.py archive`
 
 **executor.md 证据块模板：**
 每步完成后，在 executor.md 末尾追加：
