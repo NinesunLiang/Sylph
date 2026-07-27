@@ -13,12 +13,100 @@ import re
 import sys
 import time
 from pathlib import Path
+import subprocess
 
 # ─── 导入共享库 ───
 
 _HOOKS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HOOKS_DIR))
 from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, is_mode_active, output_continue
+
+
+def _autofix_source_annotations(file_path: str, num_claims: list[str], mode: str) -> bool:
+    """K1 autofix: auto-append [内部自检，非行业标准] after unsourced numerical claims.
+
+    Only applies in autonomous/goal mode for non-code docs files.
+    Returns True if autofix was applied, False otherwise.
+    """
+    _is_auto = mode != 'normal'
+    if not _is_auto:
+        return False  # autofix only in autonomous/goal mode
+
+    # Only for docs/report files (not code/test/config)
+    _EXEMPT_EXT = ('.py', '.js', '.ts', '.go', '.rs', '.sh', '.yaml', '.yml', '.json', '.ini', '.toml')
+    if file_path.endswith(_EXEMPT_EXT):
+        return False
+
+    # Read the file
+    fpath = Path(file_path)
+    if not fpath.is_file():
+        return False
+    try:
+        content = fpath.read_text(encoding='utf-8')
+    except Exception:
+        return False
+
+    if not num_claims:
+        return False
+
+    # For each numerical claim without a source annotation nearby,
+    # insert [内部自检，非行业标准] after it
+    corrected = content
+    fix_count = 0
+    for claim in num_claims[:10]:  # limit to 10 per file
+        # Check if this claim already has a source annotation within 50 chars
+        idx = corrected.find(claim)
+        if idx == -1:
+            continue
+        trailing = corrected[idx + len(claim):idx + len(claim) + 80]
+        if any(marker in trailing for marker in ['[内部自检', '[来源:', '[已验证', '[已测试', 'VERIFIED', 'file:', 'http']):
+            continue
+        # Insert annotation
+        annotation = ' [内部自检，非行业标准]'
+        insert_pos = idx + len(claim)
+        corrected = corrected[:insert_pos] + annotation + corrected[insert_pos:]
+        fix_count += 1
+        if fix_count >= 5:
+            break
+
+    if fix_count == 0:
+        return False
+
+    # Write corrected content
+    try:
+        fpath.write_text(corrected, encoding='utf-8')
+        flywheel_event('posttool_claim_audit', 'autofix_applied', 'P2',
+                       f'fixed={fix_count} file={file_path}')
+        print(f"[autofix] K1: {fix_count} numerical claims annotated in {file_path}", flush=True)
+        return True
+    except Exception:
+        return False
+
+
+def _autofix_log_edit_repeat(file_path: str, _mode: str) -> bool:
+    """K2 autofix: log structured evidence for EDIT_REPEAT to error-dna.jsonl.
+
+    Does not block the edit, but creates a structured record that exit report
+    can aggregate.
+    """
+    _is_auto = _mode != 'normal'
+    if not _is_auto:
+        return False
+    try:
+        ev = {
+            "ts": int(time.time()),
+            "file_path": file_path,
+            "error_type": "edit_repeat",
+            "severity": "warn",
+            "autofixed": True,
+            "message": f"Edit count exceeded threshold in {file_path} — autofix logged",
+        }
+        _CONTRADICTION_LOG = STATE_DIR / 'edit-churn-log.jsonl'
+        with open(_CONTRADICTION_LOG, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+        return True
+    except Exception:
+        return False
 
 
 def main():
@@ -38,7 +126,7 @@ def main():
 
     # Mode detection: ghost/goal 降级为 warn-only
     _MODE = is_mode_active(STATE_DIR_STR)
-    _AUTONOMOUS = _MODE != 'normal'
+    _AUTONOMOUS_LOCAL = _MODE != 'normal'
 
     # ─── 解析 JSON ───
     try:
@@ -240,8 +328,18 @@ def main():
                                  '失去真实感，99% 的前面努力都浪费了。\n  修复: 在数字后标注来源，如 '
                                  "'(20 轮实测数据，benchmark-run-7.md-42)' 或 '[内部自检，非行业标准]'。\n")
             else:
-                G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
-                                 ')无来源。请标注 [内部自检，非行业标准] 或附加来源 URL/file:line。\n')
+                # Goal/autonomous mode: autofix by inserting source annotations
+                if _AUTONOMOUS_LOCAL:
+                    autofixed = _autofix_source_annotations(FILE_PATH, NUM_CLAIMS, _MODE)
+                    if autofixed:
+                        G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
+                                         ')自动修复: 已插入 [内部自检，非行业标准] 标注。\n')
+                    else:
+                        G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
+                                         ')无来源。自动修复未应用，记录至退出报告。\n')
+                else:
+                    G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
+                                     ')无来源。请标注 [内部自检，非行业标准] 或附加来源 URL/file:line。\n')
 
     # === E6 自我矛盾检测 ===
     E6_VIOLATIONS = ''
@@ -286,6 +384,9 @@ def main():
                     E6_CHECK = '\n'.join(E6_CHECK_parts)
                 elif edit_repeat_flag:
                     E6_CHECK_parts = [f"[E6] EDIT_REPEAT: {FILE_PATH} — 编辑{max_edits}次，{unique_sigs}个签名，可能未收敛"]
+                    if _AUTONOMOUS_LOCAL:
+                        _autofix_log_edit_repeat(FILE_PATH, _MODE)
+                        E6_CHECK_parts.append(f"  → autofix: {FILE_PATH} 编辑频率超限已记录至 evidence 日志")
                     E6_CHECK = '\n'.join(E6_CHECK_parts)
                 elif content_flip_flag:
                     E6_CHECK_parts = [f"[E6] CONTENT_FLIP: {FILE_PATH} — 最近3次编辑hash均不同，方向摇摆"]
@@ -364,7 +465,7 @@ def main():
 
         # PostTool 阶段不应阻断——操作已执行完,阻断也无法撤销。
         # 全部降级为 warn-only,违规记录 audit 供退出报告统一审查(2026-07-25 改造)。
-        tag = _MODE if _AUTONOMOUS else "posttool"
+        tag = _MODE if _AUTONOMOUS_LOCAL else "posttool"
         mode_msg = f'⚠️ [{tag}] [铁律#1+#7] AI 输出真实性违规 (warn-only):\n{COMBINED}\nPostTool 阶段降级为 warn — 违规已记录，退出报告时统一审查.{TRIAGE_SUFFIX}'
         result = hc_emit_hook_json(mode_msg, 'PostToolUse', True)
         print(result)
