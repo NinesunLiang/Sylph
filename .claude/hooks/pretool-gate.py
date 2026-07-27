@@ -57,6 +57,7 @@ CRITICAL_STATE = OMC / "state" / "context-critical.json"
 FALLBACK_REQUIRED = OMC / "state" / "fallback-blocked-required"
 FALLBACK_APPROVED = OMC / "state" / "fallback-blocked-approved"
 TEMP_BYPASS = OMC / "state" / "temp-bypass.json"
+REDIRECT_STREAK = OMC / "state" / "redirect-streak.json"
 GOAL_SIGNAL = OMC / "state" / "tokens" / "autonomous.active"
 GOAL_MODE_FILE = OMC / "state" / "tokens" / "lx-goal.json"
 GOAL_MODE_LEGACY = OMC / "state" / "unattended-mode.json"
@@ -1737,18 +1738,129 @@ def _check_numeric_claim(payload: dict) -> str | None:
                 hits.append(text)
     if hits:
         _append_audit({
-            "event_type": "numeric_claim_warning",
+            "event_type": "numeric_claim_interrupt",
             "actor": "hook:pretool-gate",
-            "decision": "WARN",
+            "decision": "REDIRECT",
             "reason": "unverified_numeric_claim",
             "path": path,
             "claims": hits[:5],
+            "sha_before_operation": hashlib.sha256(
+                content.encode()
+            ).hexdigest()[:16],
         })
         sample = " | ".join(hits[:3])
-        return (f"WARN unverified_numeric_claim path={path}|"
-                f"检测到无来源的数值断言（{sample}）。"
-                f"建议: 在数字后标注来源引用（file:line/reference/benchmark）。此为建议,不阻断操作。")
+        return (f"REDIRECT unverified_numeric_claim path={path}|"
+                f"⛔ 原因: 写入内容包含无来源的数值断言: {sample}\n"
+                f"    铁律#1(不编造)要求: 每项数值必须有可验证来源引用。\n\n"
+                f"✅ 选项 A —— 补充来源标注后重试（推荐）:\n"
+                f"    • 引用 Read 过的文件: 在数值后标注 `[[已验证:文件名:行号]]`\n"
+                f"    • 引用实测数据: 在数值后标注 `[来源:命令 exit_code]`\n"
+                f"    • 内部估算: 在数值后标注 `[内部自检，非行业标准]` 并附推算依据\n"
+                f"    → 结果: 操作通过, 内容进入文件\n\n"
+                f"⏭️  选项 B —— 直接移除无来源的数值断言:\n"
+                f"    → 结果: 操作通过, 不写入数值断言\n\n"
+                f"⏹️  选项 C —— 维持原内容重试:\n"
+                f"    → 结果: 操作被重复拦截（直到选择 A 或 B）")
     return None
+
+# ── Gate10: 文件引用溯源（写前检查 file:line 是否在本会话被 Read）──
+_READ_TRACKER = OMC / "state" / "read-tracker.txt"
+
+def _check_claim_source(payload: dict) -> str | None:
+    """Gate 10: 写入内容中检测 file:line 引用,反查 read-tracker。
+
+    铁律#1(不编造) + #4(验证): 引用未读过的文件=编造。
+    本门在写入前拦截,避免无读依据的文件引用进入文档。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS:
+        return None
+    path = _extract_path(payload)
+    if not path:
+        return None
+    # 豁免: 引用文档、示例、测试中的 file:line 是模式说明而非断言
+    if any(exempt in path.replace("\\", "/") for exempt in [
+        ".claude/references/",
+        "/test-",
+        "/tests/test-",
+    ]):
+        return None
+    ti = _extract_input(payload)
+    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
+    if not content:
+        return None
+
+    # 提取所有 file:line 引用：
+    #   1) backtick-enclosed: `file.py:42` (精确引用)
+    #   2) 裸引用: file.py:42 (无backtick, 需前后非\w避免误伤URL/版本号)
+    #   3) 大写扩展名支持: Config.JSON:42
+    _FILE_REF_RE = re.compile(
+        r'`([a-zA-Z0-9_./-]+\.[a-zA-Z]+:\d+(?:-\d+)?)`|'
+        r'(?<!\w)([a-zA-Z0-9_./-]+\.[a-zA-Z]+:\d+)(?!\w)'
+    )
+    refs = [m.group(1) or m.group(2) for m in _FILE_REF_RE.finditer(content)]
+    refs = [r for r in refs if r]  # 去None
+    if not refs:
+        return None
+
+    # 读取 read-tracker
+    if not _READ_TRACKER.is_file():
+        # read-tracker 不存在=冷启动,提示但不阻断
+        _append_audit({
+            "event_type": "claim_source_cold",
+            "actor": "hook:pretool-gate",
+            "reason": "read-tracker_not_found",
+            "path": path,
+            "refs": refs[:5],
+        })
+        return None
+
+    tracked = _READ_TRACKER.read_text(encoding="utf-8", errors="replace").splitlines()
+    tracked_resolved = set()
+    for t in tracked:
+        t = t.strip()
+        if t:
+            tracked_resolved.add(os.path.realpath(t))
+            tracked_resolved.add(os.path.basename(t))
+
+    unread = []
+    for ref in refs:
+        ref_path = ref.split(":")[0]
+        ref_basename = os.path.basename(ref_path)
+        # 检查: 完整路径 / basename 是否在 read-tracker 中
+        try:
+            ref_resolved = os.path.realpath(ref_path)
+        except Exception:
+            ref_resolved = ref_path
+        if ref_resolved not in tracked_resolved and ref_basename not in tracked_resolved:
+            unread.append(ref)
+
+    if unread:
+        _append_audit({
+            "event_type": "claim_source_interrupt",
+            "actor": "hook:pretool-gate",
+            "decision": "REDIRECT",
+            "reason": "unverified_claim_source",
+            "path": path,
+            "unread_refs": unread[:5],
+            "sha_before_operation": hashlib.sha256(content.encode()).hexdigest()[:16],
+        })
+        sample = ", ".join(unread[:3])
+        return (f"REDIRECT unverified_claim_source path={path}|"
+                f"⛔ 原因: 写入内容引用了未在本会话 Read 过的文件: {sample}\n"
+                f"    铁律#1(不编造)要求: 引用 file:line 前必须先读取该文件。\n\n"
+                f"✅ 选项 A —— 先 Read 再重试（推荐）:\n"
+                f"    Read 工具读取 `{unread[0].split(':')[0]}` 后，\n"
+                f"    该文件自动进入 read-tracker，重试当前操作即可通过。\n"
+                f"    → 结果: 操作通过，引用有据可查\n\n"
+                f"⏭️  选项 B —— 移除未读取的文件引用:\n"
+                f"    删除内容中这 {len(unread)} 处引用后重试。\n"
+                f"    → 结果: 操作通过，无不可追溯的引用\n\n"
+                f"⏹️  选项 C —— 维持原内容重试:\n"
+                f"    → 结果: 操作被重复拦截（直到选择 A 或 B）")
+
+    return None
+
 
 def _check_action_loop(payload: dict) -> str | None:
     """Detects repetitive same-action calls (E4 inertial execution guard).
@@ -2039,6 +2151,7 @@ L1_GATES = [
     ("action", _check_action_gate),
     ("edit-scope", _check_edit_scope),
     ("stall", _check_stall),
+    ("claim-source", _check_claim_source),       # L1: 引用溯源（铁律#1）
 ]
 
 GATES = [
@@ -2060,7 +2173,8 @@ GATES = [
     ("g6-budget", _check_g6_budget),
     ("action-loop", _check_action_loop),
     ("stall", _check_stall),
-    ("numeric-claim", _check_numeric_claim),
+    ("numeric-claim", _check_numeric_claim),     # L1+: 数值断言溯源（2026-07-27 升级REDIRECT）
+    ("claim-source", _check_claim_source),       # L1+: 引用溯源（铁律#1, 2026-07-27 新增）
 ]
 
 
@@ -2094,7 +2208,46 @@ def main() -> int:
             continue
         if result:
             if result.startswith("REDIRECT"):
-                # ADR-0012: REDIRECT = 阻止 + 指引 + AI 自行修正重试
+                # ── 三次上限: 同一 gate 连续 REDIRECT → 升级 BLOCK ──
+                # TTL: 计数器每次更新时检查新鲜度，超过6h重置（防跨会话锁死）
+                _REDIRECT_TTL_S = 21600  # 6小时
+                _REDIRECTS: dict[str, dict] = {}
+                try:
+                    if REDIRECT_STREAK.is_file():
+                        raw = json.loads(REDIRECT_STREAK.read_text(encoding="utf-8"))
+                        # v1 格式: {"gate": count} → 迁移到 v2
+                        # v2 格式: {"gate": {"c": count, "t": timestamp}}
+                        now_s = int(time.time())
+                        _REDIRECTS = {}
+                        for k, v in raw.items():
+                            if isinstance(v, dict) and "c" in v and "t" in v:
+                                if now_s - v["t"] < _REDIRECT_TTL_S:
+                                    _REDIRECTS[k] = v
+                            elif isinstance(v, (int, float)):
+                                # v1 迁移: v1格式仅可能来自旧会话，安全重置
+                                pass
+                except Exception:
+                    _REDIRECTS = {}
+                now_s = int(time.time())
+                prev = _REDIRECTS.get(gate_name, {}).get("c", 0)
+                _REDIRECTS[gate_name] = {"c": prev + 1, "t": now_s}
+                try:
+                    REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
+                    REDIRECT_STREAK.write_text(json.dumps(_REDIRECTS), encoding="utf-8")
+                except Exception:
+                    pass
+                if _REDIRECTS[gate_name]["c"] >= 3:
+                    # 三次拦截 → 升级 BLOCK
+                    _append_audit({
+                        "event_type": "redirect_escalated_to_block",
+                        "actor": "hook:pretool-gate",
+                        "gate": gate_name,
+                        "redirect_count": _REDIRECTS[gate_name]["c"],
+                        "reason": "exceeded_3_redirect_limit",
+                    })
+                    return _block(
+                        f"该操作已被 REDIRECT 拦截 {_REDIRECTS[gate_name]['c']} 次仍未修正",
+                        "放弃当前操作方向，不要重复被拒的操作。")
                 parts = result.split("|", 1)
                 reason = parts[0].replace("REDIRECT ", "").strip()
                 guidance = parts[1].strip() if len(parts) > 1 else ""

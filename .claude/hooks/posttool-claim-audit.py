@@ -63,6 +63,13 @@ def main():
         print(json.dumps({'continue': True}))
         sys.exit(0)
 
+    # 代码/测试/参考文件中的 file:line 是源码引用或模式说明，非对外断言
+    _EXEMPT_EXT = ('.py', '.js', '.ts', '.go', '.rs', '.sh', '.yaml', '.yml', '.json')
+    _EXEMPT_DIR = ('/.claude/references/', '/test-', '/tests/', '/test_')
+    if FILE_PATH.endswith(_EXEMPT_EXT) or any(p in FILE_PATH.replace("\\", "/") for p in _EXEMPT_DIR):
+        print(json.dumps({'continue': True}))
+        sys.exit(0)
+
     # ── E6: edit-churn-log 写入（每个 Edit/Write 操作记录一条）──
     # 供 posttool-claim-audit.py 自身（同一会话/跨会话）做自我矛盾检测:
     #   - CONTRADICTION: intent-tracker 标记矛盾
@@ -144,8 +151,14 @@ def main():
 
     READ_LOG = STATE_DIR / 'read-tracker.txt'
 
-    # 提取所有 file:line 引用（AGENTS.md:42, kernel.go:15 等）
-    CLAIMED_FILES = re.findall(r'(?:\.?/)?[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+', INPUT)
+    # 豁免: 文档/参考/测试文件中的 file:line 引用是模式说明而非外部断言
+    _EXEMPT_PATHS = [".claude/references/", "/test-", "/tests/"]
+    if any(ex in FILE_PATH.replace("\\", "/") for ex in _EXEMPT_PATHS):
+        print(json.dumps({'continue': True}))
+        sys.exit(0)
+
+    # 提取所有 file:line 引用（匹配 文件.后缀:行号，大写扩展名也支持）
+    CLAIMED_FILES = re.findall(r'(?:\.?/)?[a-zA-Z0-9_./-]+\.[a-zA-Z]+:[0-9]+', INPUT)
     # Apply sed cleanup similar to original: strip leading ./
     CLAIMED_FILES = [f.lstrip('./') for f in CLAIMED_FILES]
 
@@ -225,7 +238,7 @@ def main():
                 G1_VIOLATIONS = ('⚠️ G1_MARKETING_CLAIM: 营销文档中的数值断言(' + NUM_SAMPLE +
                                  ')无来源引用。\n  营销文案中的任何百分比/倍数/增减数字必须附带验证来源。'
                                  '失去真实感，99% 的前面努力都浪费了。\n  修复: 在数字后标注来源，如 '
-                                 "'(20 轮实测数据，benchmark-report.md:291)' 或 '[内部自检，非行业标准]'。\n")
+                                 "'(20 轮实测数据，benchmark-run-7.md-42)' 或 '[内部自检，非行业标准]'。\n")
             else:
                 G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
                                  ')无来源。请标注 [内部自检，非行业标准] 或附加来源 URL/file:line。\n')

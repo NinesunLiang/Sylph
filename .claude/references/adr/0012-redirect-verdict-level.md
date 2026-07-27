@@ -128,3 +128,7 @@ REDIRECT 输出格式：
 - `stop-flywheel.py` — `_to_redirect_rule()` / `_sublimation_check()`
 - `anti-patterns.md` — guidance 数据源
 - `anti-pattern-redirects.jsonl` — 动态规则持久化文件
+
+## 全域规则指针
+
+所有 REDIRECT/BLOCK 分级语义规则唯一定义处: `.claude/references/redirect-mechanism.md`
