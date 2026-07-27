@@ -1080,6 +1080,44 @@ def _check_edit_scope(payload: dict) -> str | None:
     token = _active_token()
     if not token:
         return None
+
+    def _bump_scope_streak() -> str | None:
+        """递增 edit-scope 逃逸惯性计数，≥3 次后 BLOCK。
+
+        autonomous 模式下 scope 越界已获用户 Phase 0 批准，不触发 BLOCK。
+        """
+        if GOAL_SIGNAL.exists():
+            return None
+        _REDIRECT_TTL_S = 21600
+        _streak: dict[str, dict] = {}
+        now_s = int(time.time())
+        try:
+            if REDIRECT_STREAK.is_file():
+                raw = json.loads(REDIRECT_STREAK.read_text(encoding="utf-8"))
+                for k, v in raw.items():
+                    if isinstance(v, dict) and "c" in v and "t" in v:
+                        if now_s - v["t"] < _REDIRECT_TTL_S:
+                            _streak[k] = v
+        except Exception:
+            _streak = {}
+        prev = _streak.get("edit-scope", {}).get("c", 0)
+        _streak["edit-scope"] = {"c": prev + 1, "t": now_s}
+        try:
+            REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
+            REDIRECT_STREAK.write_text(json.dumps(_streak), encoding="utf-8")
+        except Exception:
+            pass
+        if _streak["edit-scope"]["c"] >= 3:
+            _append_audit({
+                "event_type": "edit_scope_escalated_to_block",
+                "actor": "hook:pretool-gate",
+                "reason": f"scope_violation_streak_{_streak['edit-scope']['c']}",
+            })
+            count = _streak["edit-scope"]["c"]
+            return (f"BLOCK edit-scope: 已连续 {count} 次越界(逃逸惯性)，"
+                    "放弃当前操作方向。请先调整 scope 再重试。")
+        return None
+
     # ── 权威 scope 来源: harness.yaml project.scope ──
     # 由用户/安装脚本写入，AI 不可修改（治理文件受保护）
     # 优先于 token.json scope
@@ -1104,7 +1142,7 @@ def _check_edit_scope(payload: dict) -> str | None:
         if in_scope:
             return None
         # ai_self_decision.md 原则第2条: 非不可逆/风险/越权/架构调整行为 → 不打断，AI自决
-        # scope 越界属于"其他行为"——记录 audit + stderr 告知，不放行但不阻断
+        # scope 越界属于"其他行为"—前2次WARN，≥3次逃逸惯性→BLOCK
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
@@ -1116,7 +1154,7 @@ def _check_edit_scope(payload: dict) -> str | None:
         print(f"⚠️ [edit-scope] 路径不在 project scope 内: {path}", file=sys.stderr, flush=True)
         print(f"  scope: {harness_scope[:10]}", file=sys.stderr, flush=True)
         print(f"  请评估是否确实需要编辑此路径，或调整任务 scope。", file=sys.stderr, flush=True)
-        return None
+        return _bump_scope_streak()
 
     # 检查 token scope
     token_scope = token.get("scope") or []
@@ -1124,7 +1162,7 @@ def _check_edit_scope(payload: dict) -> str | None:
         in_scope = _in_scope(path, token_scope)
         if in_scope:
             return None
-        # ai_self_decision.md 原则第2条: scope 越界属"其他行为"——记录告知，不阻断
+        # ai_self_decision.md 原则第2条: scope 越界属"其他行为"—前2次WARN，≥3次→BLOCK
         _append_audit({
             "event_type": "scope_violation",
             "actor": "hook:pretool-gate",
@@ -1136,8 +1174,25 @@ def _check_edit_scope(payload: dict) -> str | None:
         print(f"⚠️ [edit-scope] 路径不在 token scope 内: {path}", file=sys.stderr, flush=True)
         print(f"  scope: {token_scope[:10]}", file=sys.stderr, flush=True)
         print(f"  请评估后继续，或调整任务 scope。", file=sys.stderr, flush=True)
-        return None
-    # 无 scope 来源 → 放行（无法判定边界）
+        return _bump_scope_streak()
+    # 无 scope 来源 → 用 task_dir 做默认 scope（#3守护：总比无边界好）
+    # 从 token 的任务目录派生：至少限制在任务活动范围内写操作
+    _task_dir = _task_dir(token)
+    if _task_dir and _task_dir.exists():
+        in_scope = _in_scope(path, [_task_dir])
+        if not in_scope:
+            _append_audit({
+                "event_type": "scope_violation",
+                "actor": "hook:pretool-gate",
+                "decision": "WARN",
+                "reason": "default_scope_fallback",
+                "path": path,
+                "scope": [str(_task_dir)],
+            })
+            print(f"⚠️ [edit-scope] 路径不在默认 task scope 内: {path}", file=sys.stderr, flush=True)
+            print(f"  默认 scope: {_task_dir}", file=sys.stderr, flush=True)
+            return _bump_scope_streak()
+    # 无 scope 且无 task_dir → 真正无法判定，放行
     return None
 
 def _check_verify_gate(payload: dict) -> str | None:
@@ -1666,7 +1721,8 @@ def _check_watermark_gate(payload: dict) -> str | None:
 # ── E4: Action-loop detection — same tool+cmd repeated >=3 times in last 20 audit events ──
 _ACTION_LOOP_STREAK_FILE = OMC / "state" / "action-loop-streak"
 _ACTION_LOOP_REDIRECT_THRESHOLD = 10  # 连续NARROW次数 → 升级为REDIRECT（拦截+引导）
-_ACTION_LOOP_ESCALATE_THRESHOLD = 15  # 进一步升级（不再BLOCK，仅REDIRECT）
+_ACTION_LOOP_ESCALATE_THRESHOLD = 15   # 进一步升级（REDIRECT）
+_ACTION_LOOP_BLOCK_THRESHOLD = 25      # 硬阻断（25次后升级BLOCK，#3守护）
 # 惯性执行检测只关注写工具和 Bash（读工具的自然重复是正常行为）
 _ACTION_LOOP_MUTATING_TOOLS = {"write", "edit", "multiedit", "notebookedit", "bash"}
 
@@ -1930,11 +1986,25 @@ def _check_action_loop(payload: dict) -> str | None:
                 "streak": _streak_count,
             })
 
-            # E4增强(规则修正2026-07-25): 连续同签名NARROW最多到REDIRECT,
-            # 不升级到BLOCK——AI惯性执行不是安全风险,引导即可。
-            # 4次后清理 streak 防无限重复,但始终返回 REDIRECT(允许AI修正后继续)。
+            # E4增强: ESCALATE(15+ REDIRECT) → BLOCK(25+ 硬阻断)
+            if _streak_count >= _ACTION_LOOP_BLOCK_THRESHOLD:
+                try:
+                    _ACTION_LOOP_STREAK_FILE.unlink(missing_ok=True)
+                except OSError:
+                    pass
+                _append_audit({
+                    "event_type": "action_loop_block",
+                    "actor": "hook:pretool-gate",
+                    "decision": "BLOCK",
+                    "pattern": top_sig,
+                    "count": top_n,
+                    "window": len(recent_tools),
+                    "streak": _streak_count,
+                })
+                return (f"BLOCK action-loop-block: {top_sig} 重复 {top_n}/{len(recent_tools)} 次|"
+                        f"同一模式已重复 {_streak_count} 次仍未修正——放弃当前操作方向。"
+                        f"惯性执行已被硬阻断，#3守护原则。请换不同方法重试。")
             if _streak_count >= _ACTION_LOOP_ESCALATE_THRESHOLD:
-                # ≥4次: 清理 streak 防无限循环,仍返回 REDIRECT
                 try:
                     _ACTION_LOOP_STREAK_FILE.unlink(missing_ok=True)
                 except OSError:
@@ -2137,9 +2207,10 @@ L1_GATES = [
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
     ("action", _check_action_gate),
+    ("secret-scan", _check_secret_scan),            # L1: 密钥扫描（#3守护）
     ("edit-scope", _check_edit_scope),
     ("stall", _check_stall),
-    ("claim-source", _check_claim_source),       # L1: 引用溯源（铁律#1）
+    ("claim-source", _check_claim_source),           # L1: 引用溯源（铁律#1）
 ]
 
 GATES = [

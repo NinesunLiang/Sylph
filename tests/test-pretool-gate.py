@@ -30,12 +30,12 @@ spec.loader.exec_module(pg)
 
 
 class TestGateRoutingL1(unittest.TestCase):
-    """Test 1: L1 mode selects the correct 7 gates."""
+    """Test 1: L1 mode selects the correct 9 gates."""
 
     def test_l1_gate_count(self):
-        """L1_GATES must contain exactly 7 entries."""
-        self.assertEqual(len(pg.L1_GATES), 7,
-                         f"L1_GATES has {len(pg.L1_GATES)} gates, expected 7")
+        """L1_GATES must contain exactly 9 entries."""
+        self.assertEqual(len(pg.L1_GATES), 9,
+                         f"L1_GATES has {len(pg.L1_GATES)} gates, expected 9")
 
     def test_l1_gate_names(self):
         """L1 gate names must match the spec exactly."""
@@ -45,8 +45,10 @@ class TestGateRoutingL1(unittest.TestCase):
             "sensitive-edit",
             "fallback",
             "action",
+            "secret-scan",
             "edit-scope",
             "stall",
+            "claim-source",
         ]
         actual = [name for name, _ in pg.L1_GATES]
         self.assertEqual(actual, expected,
@@ -69,8 +71,10 @@ class TestGateRoutingL1(unittest.TestCase):
             "sensitive-edit": "_check_sensitive_edit",
             "fallback": "_check_fallback",
             "action": "_check_action_gate",
+            "secret-scan": "_check_secret_scan",
             "edit-scope": "_check_edit_scope",
             "stall": "_check_stall",
+            "claim-source": "_check_claim_source",
         }
         for name, fn in pg.L1_GATES:
             self.assertEqual(fn.__name__, expected_fns[name],
@@ -102,6 +106,7 @@ class TestGateRoutingL2(unittest.TestCase):
             "action-loop",
             "stall",
             "numeric-claim",
+            "claim-source",
         ]
         actual = [name for name, _ in pg.GATES]
         self.assertEqual(actual, expected,
@@ -124,7 +129,6 @@ class TestGateRoutingL2(unittest.TestCase):
         l2_names = {name for name, _ in pg.GATES}
         extra = l2_names - l1_names
         expected_extra = {
-            "secret-scan",
             "plan",
             "verify",
             "oracle",
@@ -162,6 +166,7 @@ class TestGateRoutingL2(unittest.TestCase):
             "action-loop": "_check_action_loop",
             "stall": "_check_stall",
             "numeric-claim": "_check_numeric_claim",
+            "claim-source": "_check_claim_source",
         }
         for name, fn in pg.GATES:
             self.assertEqual(fn.__name__, expected_fns[name],
@@ -384,6 +389,87 @@ class TestOrderingFunctional(unittest.TestCase):
         self.assertLess(l2_names.index("sensitive-edit"),
                         l2_names.index("edit-scope"),
                         "sensitive-edit should run before edit-scope")
+
+
+class TestScopeStreakBlock(unittest.TestCase):
+    """Test edit-scope 逃逸惯性计数: 前2次WARN, ≥3次→BLOCK."""
+
+    def setUp(self):
+        # 备份原始 REDIRECT_STREAK / GOAL_SIGNAL 路径
+        self._orig_rs = pg.REDIRECT_STREAK
+        self._orig_gs = pg.GOAL_SIGNAL
+        # 指向临时文件
+        self._tmpdir = Path(tempfile.mkdtemp())
+        pg.REDIRECT_STREAK = self._tmpdir / "redirect-streak.json"
+        pg.GOAL_SIGNAL = self._tmpdir / "autonomous.active"
+
+    def tearDown(self):
+        pg.REDIRECT_STREAK = self._orig_rs
+        pg.GOAL_SIGNAL = self._orig_gs
+        import shutil
+        shutil.rmtree(str(self._tmpdir), ignore_errors=True)
+
+    def _write_streak(self, count: int, now_s: int | None = None):
+        """Helper: 写入指定次数的 scope 逃逸惯性计数到 REDIRECT_STREAK"""
+        import time
+        t = now_s if now_s is not None else int(time.time())
+        data = {"edit-scope": {"c": count, "t": t}}
+        pg.REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
+        pg.REDIRECT_STREAK.write_text(json.dumps(data), encoding="utf-8")
+
+    def _build_payload(self, path: str = "test/out-of-scope.txt") -> dict:
+        """构造最小 edit-scope payload"""
+        return {"tool": "Write", "tool_name": "Write",
+                "tool_input": {"file_path": path},
+                "paths": [path], "action_type": "write_file",
+                "intent": "test scope streak"}
+
+    def test_first_two_strikes_return_none(self):
+        """前2次越界应返回 None (WARN 不阻断)."""
+        self._write_streak(0)
+        # _check_edit_scope 返回 str=BLOCK or None=放行
+        # 用 patch 让 token scope 触发越界
+        token_scope = {"scope": ["in-scope/"]}
+        payload = self._build_payload("out-of-scope/file.txt")
+        with patch.object(pg, '_active_token', return_value=token_scope):
+            for i in range(2):
+                result = pg._check_edit_scope(payload)
+                self.assertIsNone(result,
+                                  f"第{i+1}次越界应返回None(WARN)，实际={result}")
+
+    def test_third_strike_blocks(self):
+        """≥3次越界应返回 BLOCK 字符串."""
+        self._write_streak(2)  # 伪装已有2次
+        token_scope = {"scope": ["in-scope/"]}
+        payload = self._build_payload("out-of-scope/file.txt")
+        with patch.object(pg, '_active_token', return_value=token_scope):
+            result = pg._check_edit_scope(payload)
+            self.assertIsNotNone(result, "第3次应 BLOCK")
+            self.assertIn("BLOCK", str(result).upper(),
+                          f"返回值应包含 BLOCK, 实际={result}")
+
+    def test_autonomous_mode_skips_streak(self):
+        """autonomous.active 存在时不应触发 BLOCK (即使已有3次)."""
+        self._write_streak(3)
+        pg.GOAL_SIGNAL.touch()  # 创建 autonomous 信号
+        token_scope = {"scope": ["in-scope/"]}
+        payload = self._build_payload("out-of-scope/file.txt")
+        with patch.object(pg, '_active_token', return_value=token_scope):
+            result = pg._check_edit_scope(payload)
+            self.assertIsNone(result,
+                              "autonomous 模式应跳过 streak BLOCK")
+        pg.GOAL_SIGNAL.unlink(missing_ok=True)
+
+    def test_ttl_expiry_resets_streak(self):
+        """超过 21600s TTL 后 streak 应重置."""
+        old_time = int(__import__('time').time()) - 22000  # 超过 TTL
+        self._write_streak(3, now_s=old_time)  # 旧 streak 已过期
+        token_scope = {"scope": ["in-scope/"]}
+        payload = self._build_payload("out-of-scope/file.txt")
+        with patch.object(pg, '_active_token', return_value=token_scope):
+            result = pg._check_edit_scope(payload)
+            self.assertIsNone(result,
+                              "TTL 过期后首次越界应为 WARN 不 BLOCK")
 
 
 if __name__ == "__main__":
