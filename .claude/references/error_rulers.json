@@ -1,0 +1,341 @@
+{
+  "schema_version": 1,
+  "description": "CarrorOS 错误分类规则库 — error-dna 消费该文件将 exit_code + stderr 模式映射为具体错误类型",
+  "last_updated": "2026-07-27T20:00+08:00",
+  "rules": [
+    {
+      "type": "bash_command_not_found",
+      "priority": 100,
+      "exit_code": [
+        127
+      ],
+      "stderr_patterns": [
+        "command not found",
+        "not found"
+      ],
+      "severity": "error",
+      "action": "install_dependency",
+      "suggested_fix": "安装缺失的命令或检查 PATH"
+    },
+    {
+      "type": "bash_permission_denied",
+      "priority": 99,
+      "exit_code": [
+        1,
+        126
+      ],
+      "stderr_patterns": [
+        "permission denied",
+        "Operation not permitted"
+      ],
+      "severity": "error",
+      "action": "check_permissions",
+      "suggested_fix": "检查文件权限或使用 sudo"
+    },
+    {
+      "type": "bash_path_not_found",
+      "priority": 98,
+      "exit_code": [
+        1,
+        2
+      ],
+      "stderr_patterns": [
+        "No such file",
+        "cannot access",
+        "does not exist",
+        "No such directory"
+      ],
+      "severity": "error",
+      "action": "create_path",
+      "suggested_fix": "创建缺失的路径或文件"
+    },
+    {
+      "type": "build_compile_error",
+      "priority": 97,
+      "exit_code": [
+        1,
+        2
+      ],
+      "stderr_patterns": [
+        "error:",
+        "Error:",
+        "compile error",
+        "undefined reference",
+        "cannot find"
+      ],
+      "cmd_patterns": [
+        "go build",
+        "go test",
+        "npm run build",
+        "npm build",
+        "tsc",
+        "cargo build",
+        "make",
+        "cmake",
+        "mvn",
+        "gradle"
+      ],
+      "severity": "error",
+      "action": "fix_code",
+      "suggested_fix": "修复编译错误后重试"
+    },
+    {
+      "type": "test_failure",
+      "priority": 96,
+      "exit_code": [
+        1
+      ],
+      "stderr_patterns": [
+        "FAIL",
+        "FAILED",
+        "failed",
+        "Test failed"
+      ],
+      "cmd_patterns": [
+        "go test",
+        "npm test",
+        "pytest",
+        "jest"
+      ],
+      "severity": "warn",
+      "action": "fix_test",
+      "suggested_fix": "修复测试失败项"
+    },
+    {
+      "type": "test_timeout",
+      "priority": 95,
+      "exit_code": [
+        124,
+        137
+      ],
+      "stderr_patterns": [
+        "timeout",
+        "timed out",
+        "killed"
+      ],
+      "cmd_patterns": [
+        "go test",
+        "npm test",
+        "pytest",
+        "jest"
+      ],
+      "severity": "warn",
+      "action": "increase_timeout",
+      "suggested_fix": "增加超时时间或拆分测试"
+    },
+    {
+      "type": "syntax_error",
+      "priority": 94,
+      "exit_code": [
+        1,
+        2
+      ],
+      "stderr_patterns": [
+        "SyntaxError",
+        "syntax error",
+        "Syntax error",
+        "unexpected token",
+        "unexpected EOF"
+      ],
+      "severity": "error",
+      "action": "fix_syntax",
+      "suggested_fix": "修复语法错误"
+    },
+    {
+      "type": "import_error",
+      "priority": 93,
+      "exit_code": [
+        1
+      ],
+      "stderr_patterns": [
+        "ImportError",
+        "ModuleNotFoundError",
+        "cannot import",
+        "No module named"
+      ],
+      "severity": "error",
+      "action": "install_dependency",
+      "suggested_fix": "安装缺失的 Python 包"
+    },
+    {
+      "type": "network_error",
+      "priority": 92,
+      "exit_code": [
+        1,
+        6,
+        7,
+        28,
+        35,
+        60
+      ],
+      "stderr_patterns": [
+        "Connection refused",
+        "connection refused",
+        "connection reset",
+        "timeout",
+        "network unreachable",
+        "Name or service not known",
+        "Could not resolve",
+        "TLS handshake"
+      ],
+      "cmd_patterns": [
+        "curl",
+        "wget",
+        "http",
+        "ssh",
+        "api",
+        "fetch"
+      ],
+      "severity": "warn",
+      "action": "retry_network",
+      "suggested_fix": "检查网络连接后重试"
+    },
+    {
+      "type": "process_killed_oom",
+      "priority": 91,
+      "exit_code": [
+        137
+      ],
+      "stderr_patterns": [
+        "Killed",
+        "killed",
+        "out of memory",
+        "OOM"
+      ],
+      "severity": "error",
+      "action": "reduce_memory",
+      "suggested_fix": "减少内存使用或增加资源限制"
+    },
+    {
+      "type": "docker_error",
+      "priority": 90,
+      "exit_code": [
+        1,
+        125
+      ],
+      "stderr_patterns": [
+        "docker:",
+        "Cannot connect to the Docker daemon",
+        "docker daemon"
+      ],
+      "cmd_patterns": [
+        "docker"
+      ],
+      "severity": "error",
+      "action": "check_docker",
+      "suggested_fix": "检查 Docker daemon 是否运行"
+    },
+    {
+      "type": "git_error",
+      "priority": 89,
+      "exit_code": [
+        1,
+        128
+      ],
+      "stderr_patterns": [
+        "fatal:",
+        "error: failed to",
+        "not a git repository",
+        "conflict"
+      ],
+      "cmd_patterns": [
+        "git"
+      ],
+      "severity": "warn",
+      "action": "fix_git",
+      "suggested_fix": "修复 git 问题后重试"
+    },
+    {
+      "type": "dependency_already_installed",
+      "priority": 88,
+      "exit_code": [
+        0
+      ],
+      "stderr_patterns": [
+        "already installed",
+        "up to date",
+        "already satisfied"
+      ],
+      "severity": "info",
+      "action": "ignore",
+      "suggested_fix": "无需处理"
+    },
+    {
+      "type": "process_signaled",
+      "priority": 87,
+      "exit_code": [
+        130,
+        131,
+        132,
+        133,
+        134,
+        135,
+        136,
+        137,
+        138,
+        139,
+        140,
+        141,
+        142,
+        143,
+        144,
+        145,
+        146,
+        147,
+        148,
+        149,
+        150,
+        151,
+        152,
+        153,
+        154,
+        155,
+        156,
+        157,
+        158,
+        159
+      ],
+      "stderr_patterns": [],
+      "severity": "error",
+      "action": "investigate_signal",
+      "suggested_fix": "检查进程信号原因（128+signal_no）"
+    },
+    {
+      "type": "stderr_warning_only",
+      "priority": 86,
+      "exit_code": [
+        0
+      ],
+      "stderr_patterns": [
+        "warning:",
+        "Warning:",
+        "WARN",
+        "deprecated",
+        "DeprecationWarning"
+      ],
+      "severity": "info",
+      "action": "log_only",
+      "suggested_fix": "仅记录，不影响执行"
+    },
+    {
+      "type": "timeout_explicit",
+      "priority": 85,
+      "exit_code": [
+        124
+      ],
+      "stderr_patterns": [],
+      "severity": "warn",
+      "action": "increase_timeout",
+      "suggested_fix": "增加超时限制"
+    },
+    {
+      "type": "unknown",
+      "priority": 0,
+      "exit_code": [],
+      "stderr_patterns": [],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "无法分类，需要人工审查"
+    }
+  ]
+}

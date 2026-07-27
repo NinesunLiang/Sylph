@@ -20,6 +20,56 @@ _HOOKS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HOOKS_DIR))
 from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, output_continue
 
+# ─── 规则库分类器（引用 .claude/references/error_rulers.json） ───
+_RULES_CACHE: list[dict] | None = None
+_RULES_CACHE_AT: float = 0.0
+_RULES_CACHE_TTL: float = 300.0
+
+def _load_error_rules() -> list[dict]:
+    """加载 error_rulers.json，带缓存，无文件时返回空列表。"""
+    global _RULES_CACHE, _RULES_CACHE_AT
+    now = time.time()
+    if _RULES_CACHE is not None and now - _RULES_CACHE_AT < _RULES_CACHE_TTL:
+        return _RULES_CACHE
+    _HOOKS_DIR = Path(__file__).resolve().parent
+    _ROOT = _HOOKS_DIR.parents[1]
+    _rules_path = _ROOT / '.claude' / 'references' / 'error_rulers.json'
+    if not _rules_path.exists():
+        return []
+    try:
+        data = json.loads(_rules_path.read_text(encoding='utf-8'))
+        _RULES_CACHE = data.get('rules', [])
+        _RULES_CACHE_AT = time.time()
+        return _RULES_CACHE
+    except Exception:
+        return []
+
+def _classify_with_rules(cmd_lower: str, cmd_clean: str, exit_code: int, stderr: str, stdout: str) -> str | None:
+    """按 error_rulers.json 规则匹配错误类型。返回 str | None(None=无匹配)。"""
+    rules = _load_error_rules()
+    if not rules:
+        return None
+    for rule in rules:
+        if rule.get('type') == 'unknown':
+            continue
+        # exit_code 匹配
+        ec_match = rule['exit_code']
+        if ec_match and exit_code not in ec_match:
+            continue
+        # stderr 模式匹配
+        stderr_lower = stderr.lower()
+        stderr_patterns = rule.get('stderr_patterns', [])
+        if stderr_patterns and not any(p.lower() in stderr_lower for p in stderr_patterns):
+            continue
+        # cmd 模式匹配
+        cmd_patterns = rule.get('cmd_patterns', [])
+        if cmd_patterns and not any(p.lower() in cmd_lower for p in cmd_patterns):
+            continue
+        return rule['type']
+    return None
+
+
+
 
 def main():
     # ─── hc_enabled 门禁 ───
@@ -250,25 +300,29 @@ def main():
     )
     cmd_lower = cmd_clean.lower()
 
-    if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc',
-                                     'python3 -c', 'python3 -', 'node ', 'deno ', 'make ', 'cmake ', 'mvn ', 'gradle ']):
-        error_type = 'build'
-    elif any(x in cmd_lower for x in ['go test', 'npm test', 'pytest', 'jest']):
-        error_type = 'test'
-    elif any(x in cmd_lower for x in ['git']):
-        error_type = 'git'
-    elif any(x in cmd_lower for x in ['npm install', 'go get', 'pip install', 'brew ', 'gem install', 'cargo install']):
-        error_type = 'dependency'
-    elif any(x in cmd_lower for x in ['lint', 'eslint', 'golangci-lint', 'shellcheck', 'bash -n']):
-        error_type = 'lint'
-    elif any(x in cmd_lower for x in ['docker']):
-        error_type = 'docker'
-    elif any(x in cmd_lower for x in ['curl', 'wget', 'http', 'ssh ', 'api.', 'fetch']):
-        error_type = 'network'
-    elif any(x in cmd_lower for x in ['find', 'grep', 'sed', 'awk']):
-        error_type = 'file_ops'
-    else:
-        error_type = 'runtime'
+    # === C10: 规则库分类（优先） ===
+    error_type = _classify_with_rules(cmd_lower, cmd_clean, exit_code, stderr, stdout)
+    if error_type is None:
+        # Fallback: 规则库无匹配时走命令关键词分类
+        if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc',
+                                         'python3 -c', 'python3 -', 'node ', 'deno ', 'make ', 'cmake ', 'mvn ', 'gradle ']):
+            error_type = 'build'
+        elif any(x in cmd_lower for x in ['go test', 'npm test', 'pytest', 'jest']):
+            error_type = 'test'
+        elif any(x in cmd_lower for x in ['git']):
+            error_type = 'git'
+        elif any(x in cmd_lower for x in ['npm install', 'go get', 'pip install', 'brew ', 'gem install', 'cargo install']):
+            error_type = 'dependency'
+        elif any(x in cmd_lower for x in ['lint', 'eslint', 'golangci-lint', 'shellcheck', 'bash -n']):
+            error_type = 'lint'
+        elif any(x in cmd_lower for x in ['docker']):
+            error_type = 'docker'
+        elif any(x in cmd_lower for x in ['curl', 'wget', 'http', 'ssh ', 'api.', 'fetch']):
+            error_type = 'network'
+        elif any(x in cmd_lower for x in ['find', 'grep', 'sed', 'awk']):
+            error_type = 'file_ops'
+        else:
+            error_type = 'runtime'
 
     # === B3: 复合指纹签名 (error_type + exit_code + cmd + message摘要) ===
     # message 在 line 288 才赋值,这里用 stderr/stdout/cmd_clean 提前构造签名摘要

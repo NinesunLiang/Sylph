@@ -25,6 +25,7 @@
 | nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12个，按功能/频率分类） |
 | schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/input/output） |
 | references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates/race） |
+| error_rulers/ | `@.claude/references/error_rulers.json` | 错误分类规则库（exit_code+stderr模式→error_type映射） |
 | scripts/ | `@.claude/scripts/index.md` | 治理工具脚本（40+，按功能分 6 组 + lib/ 子模块） |
 | rules/ | `@.claude/rules/index.md` | 语言与工具行为规则（2个） |
 | profiles/ | `@.claude/profiles/index.md` | 项目语言 profile（6种语言，各含独立 harness.yaml） |
