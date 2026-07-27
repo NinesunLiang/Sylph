@@ -41,6 +41,10 @@ from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, o
 PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
 STATE_DIR = PROJECT_ROOT / ".omc" / "state"
 
+# ── GateKeeper 协议B集成 ──
+sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "scripts"))
+from gatekeeper import GateKeeper, make_context
+
 # ─── C8 可维护性: 模块级常量（单点维护，消除散落魔数） ───
 _DEFAULT_SOFT_COMPLETION_WORDS = (
     "应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|"
@@ -152,8 +156,24 @@ def _auto_soft_block(message, autonomous):
     except OSError:
         pass
     flywheel_event("completion_gate", "redirected", "P2")
-    # REDIRECT: continue=True + additionalContext with guidance
-    guidance = f"🔄 [completion-gate] {message}\n💡 正确做法: 先运行实际验证命令,在证据中确保包含 VERIFIED 标记和 file:line 引用后重试 completed。"
+    # REDIRECT: GateKeeper protocol B format
+    try:
+        ctx = make_context(
+            action=message,
+            target="",
+            risk="low",
+            fixable_issue=True,
+            positive_roi=True,
+        )
+        result = GateKeeper.evaluate(ctx)
+        gk_output = GateKeeper.format_output(result)
+        if gk_output:
+            guidance = gk_output
+        else:
+            guidance = f"🔄 [completion-gate] {message}\n💡 正确做法: 先运行实际验证命令,在证据中确保包含 VERIFIED 标记和 file:line 引用后重试 completed。"
+    except Exception:
+        guidance = f"🔄 [completion-gate] {message}\n💡 正确做法: 先运行实际验证命令,在证据中确保包含 VERIFIED 标记和 file:line 引用后重试 completed。"
+
     print(json.dumps({
         "continue": True,
         "hookSpecificOutput": {

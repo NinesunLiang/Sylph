@@ -202,10 +202,31 @@ def _allow(msg: str = "OK") -> int:
 
 
 def _block(reason: str) -> int:
-    full = (f"⛔ 夜跑信任边界阻断: {reason}\n"
-            f"💡 夜间 Bash 为无条件默认拒绝（GPT §17a P0-SOL-1）；合法形态见 night-loop.md。\n"
-            f"💡 被拦后禁止用拼接/变量/glob/cwd 等价改写绕过——记 BLOCKED_CONTROL_PLANE 并停手。\n"
-            f"💡 晨收前人类先执行 rm .omc/state/night-session.active 摘除标记。")
+    # GateKeeper protocol A: trust boundary block
+    try:
+        _hook_dir = Path(__file__).resolve().parent
+        _root = (_hook_dir / "../..").resolve()
+        sys.path.insert(0, str(_root / ".claude" / "scripts"))
+        from gatekeeper import GateKeeper, make_context
+        ctx = make_context(
+            action=f"night-deny: {reason}",
+            target="",
+            risk="high",
+            destructive=True,
+            unattended=True,
+        )
+        result = GateKeeper.evaluate(ctx)
+        gk_msg = GateKeeper.format_output(result)
+        if gk_msg:
+            full = gk_msg
+        else:
+            full = f"⛔ 夜跑信任边界阻断: {reason}"
+    except Exception:
+        full = f"⛔ 夜跑信任边界阻断: {reason}"
+
+    full += (f"\n💡 夜间 Bash 为无条件默认拒绝（GPT §17a P0-SOL-1）；合法形态见 night-loop.md。\n"
+             f"💡 被拦后禁止用拼接/变量/glob/cwd 等价改写绕过——记 BLOCKED_CONTROL_PLANE 并停手。\n"
+             f"💡 晨收前人类先执行 rm .omc/state/night-session.active 摘除标记。")
     print(json.dumps({
         "continue": True,
         "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": full},
