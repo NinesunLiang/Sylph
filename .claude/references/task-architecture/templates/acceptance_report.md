@@ -1,9 +1,3 @@
-# acceptance_report.md 模板
-
-```markdo
-w
-n
-
 # Acceptance Report: {task_name}
 
 ## 验收结果
@@ -20,4 +14,3 @@ n
 ## 未通过项分析
 
 - AC#: 根因 + 修复建议
-```

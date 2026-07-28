@@ -159,6 +159,9 @@ class GateKeeper:
       step2 _detect_protocol()     → 分流 A/B/C
       step3 _evaluate_philosophy() → 哲学加权评分
       step4 _apply_adjustments()   → 现状/ROI 调节 → 最终裁决
+
+    Rule 分治激活:
+      每个 GateDomain 只加载相关的铁律+哲学，减少 Flash 模型规则漂移。
     """
 
     _STATE_DIR: Path | None = None
@@ -167,6 +170,80 @@ class GateKeeper:
         "verify_first", "zero_trust", "guard_first",
         "doc_first", "human_first", "gain_first", "less_is_more"
     ]
+
+    # ── Rule 分治激活：每个 Gate 只加载相关的规则 ──
+    # iron_law_keys: _check_iron_rules() 中检查的 metadata key
+    # philosophy_keys: _evaluate_philosophy() 中检查的 metadata key
+    VALID_GATE_TYPES: frozenset[str] = frozenset({
+        "pretool", "completion", "verify", "claim_audit", "execute",
+    })
+    _RULE_PACKAGES: dict[str, dict[str, set[str]]] = {
+        "pretool": {
+            "iron_law_keys": {
+                "bypass_attempt",
+                "scope_violation",
+                "governance_violation",
+                "privacy_violation",
+                "missing_init",
+            },
+            "philosophy_keys": {
+                "guard_first",
+                "zero_trust",
+                "less_is_more",
+            },
+        },
+        "completion": {
+            "iron_law_keys": {
+                "lacks_evidence",
+                "unverifiable",
+                "untrusted_value",
+            },
+            "philosophy_keys": {
+                "verify_first",
+                "doc_first",
+            },
+        },
+        "verify": {
+            "iron_law_keys": {
+                "lacks_evidence",
+                "unverifiable",
+            },
+            "philosophy_keys": {
+                "verify_first",
+            },
+        },
+        "claim_audit": {
+            "iron_law_keys": {
+                "untrusted_value",
+                "lacks_evidence",
+            },
+            "philosophy_keys": {
+                "doc_first",
+                "human_first",
+            },
+        },
+        "execute": {
+            "iron_law_keys": {
+                "bypass_attempt",
+                "scope_violation",
+                "governance_violation",
+                "privacy_violation",
+                "missing_init",
+                "lacks_evidence",
+                "unverifiable",
+                "untrusted_value",
+            },
+            "philosophy_keys": {
+                "verify_first",
+                "zero_trust",
+                "guard_first",
+                "doc_first",
+                "human_first",
+                "gain_first",
+                "less_is_more",
+            },
+        },
+    }
 
     @classmethod
     def set_state_dir(cls, path: Path) -> None:
@@ -177,10 +254,13 @@ class GateKeeper:
     # ════════════════════════════════════════════
 
     @classmethod
-    def evaluate(cls, context: GateContext) -> GateDecisionResult:
+    def evaluate(cls, context: GateContext, gate_type: str | None = None) -> GateDecisionResult:
         """分层裁决链主入口
 
         环境变量 GATEKEEPER_DISABLED=true 时熔断——返回 ALLOW 绕过裁决。
+
+        gate_type: 可选（pretool/completion/verify/claim_audit/execute）。
+                   None 或 unknown 时使用全部规则（向后兼容）。
         """
         # 熔断开关: env GATEKEEPER_DISABLED=true → bypass all logic
         import os as _os
@@ -191,8 +271,21 @@ class GateKeeper:
                 protocol="C",
             )
 
-        # Step 1: 铁律检查 — 一票否决
-        iron_violations = cls._check_iron_rules(context)
+        # 解析 gate_type：未知或 None 用 execute（全量规则）
+        if gate_type is not None and gate_type not in cls.VALID_GATE_TYPES:
+            # 未知 gate_type → WARN + 使用全量规则
+            import sys as _sys
+            _sys.stderr.write(
+                f"GateKeeper: WARN unknown gate_type={gate_type!r}, "
+                f"falling back to full rule set (execute)\n"
+            )
+            domain = "execute"
+        else:
+            domain = gate_type if isinstance(gate_type, str) else "execute"
+        rule_pkg = cls._RULE_PACKAGES[domain]
+
+        # Step 1: 铁律检查 — 一票否决（只检查该 domain 相关的铁律）
+        iron_violations = cls._check_iron_rules(context, rule_pkg["iron_law_keys"])
         if iron_violations:
             result = GateDecisionResult(
                 decision=GateDecision.BLOCK,
@@ -225,8 +318,8 @@ class GateKeeper:
         # Step 2: 协议分流
         protocol, _ = cls._detect_protocol(context)
 
-        # Step 3: 哲学授权评分
-        philosophy_score, philosophy_hits = cls._evaluate_philosophy(context)
+        # Step 3: 哲学授权评分（只检查该 domain 相关的哲学）
+        philosophy_score, philosophy_hits = cls._evaluate_philosophy(context, rule_pkg["philosophy_keys"])
         # Step 4: 现状/ROI调节
         final_decision, reason, extra = cls._apply_adjustments(context, protocol, philosophy_score, philosophy_hits)
 
@@ -250,27 +343,30 @@ class GateKeeper:
     # ════════════════════════════════════════════
 
     @classmethod
-    def _check_iron_rules(cls, ctx: GateContext) -> list[str]:
-        """铁律检查：任何一条违反 → 直接 BLOCK"""
+    def _check_iron_rules(cls, ctx: GateContext, active_keys: set[str] | None = None) -> list[str]:
+        """铁律检查：只检查 active_keys 范围内的铁律
+
+        active_keys: None 或空集时检查所有铁律（向后兼容）
+        """
         violations: list[str] = []
         md = ctx.metadata
 
-        if md.get("lacks_evidence"):
-            violations.append("不编造 — 操作依据不足")
-        if md.get("unverifiable"):
-            violations.append("证据门禁 — 结果不可验证")
-        if md.get("scope_violation"):
-            violations.append("范围冻结 — 超出已声明范围")
-        if md.get("privacy_violation"):
-            violations.append("隐私防线 — 涉及敏感数据")
-        if md.get("missing_init"):
-            violations.append("先init后动手 — 未初始化")
-        if md.get("untrusted_value"):
-            violations.append("数值断言溯源 — 无来源")
-        if md.get("governance_violation"):
-            violations.append("治理文件不可改 — 试图修改治理文件")
-        if md.get("bypass_attempt"):
-            violations.append("不可绕过gate — 尝试绕过门禁")
+        checks = [
+            ("lacks_evidence", "不编造 — 操作依据不足"),
+            ("unverifiable", "证据门禁 — 结果不可验证"),
+            ("scope_violation", "范围冻结 — 超出已声明范围"),
+            ("privacy_violation", "隐私防线 — 涉及敏感数据"),
+            ("missing_init", "先init后动手 — 未初始化"),
+            ("untrusted_value", "数值断言溯源 — 无来源"),
+            ("governance_violation", "治理文件不可改 — 试图修改治理文件"),
+            ("bypass_attempt", "不可绕过gate — 尝试绕过门禁"),
+        ]
+
+        for key, label in checks:
+            if active_keys is not None and key not in active_keys:
+                continue  # 分治：跳过非本 gate 相关的铁律
+            if md.get(key):
+                violations.append(label)
 
         return violations
 
@@ -293,51 +389,57 @@ class GateKeeper:
 
     @classmethod
     def _evaluate_philosophy(
-        cls, ctx: GateContext
+        cls, ctx: GateContext, active_keys: set[str] | None = None
     ) -> tuple[float, list[tuple[str, float]]]:
-        """哲学授权评分: 命中数正向加权
+        """哲学授权评分: 只统计 active_keys 范围内的哲学
 
-        每命中一条哲学 → 累加其权重(priority-based)
-        命中越多 → 得分越高 → 倾向前通过
+        active_keys: None 或空集时检查所有哲学（向后兼容）
         """
         hits: list[tuple[str, float]] = []
         total = 0.0
         md = ctx.metadata
 
         # 验证优先 → weight=10
-        if md.get("has_verification"):
-            hits.append(("verify_first", 10.0))
-            total += 10.0
+        if active_keys is None or "verify_first" in active_keys:
+            if md.get("has_verification"):
+                hits.append(("verify_first", 10.0))
+                total += 10.0
 
         # 零信任 → weight=9
-        if md.get("minimal_privilege"):
-            hits.append(("zero_trust", 9.0))
-            total += 9.0
+        if active_keys is None or "zero_trust" in active_keys:
+            if md.get("minimal_privilege"):
+                hits.append(("zero_trust", 9.0))
+                total += 9.0
 
         # 守护优先 → weight=8
-        if md.get("has_safeguards"):
-            hits.append(("guard_first", 8.0))
-            total += 8.0
+        if active_keys is None or "guard_first" in active_keys:
+            if md.get("has_safeguards"):
+                hits.append(("guard_first", 8.0))
+                total += 8.0
 
         # 文档优先 → weight=7
-        if md.get("generates_documentation"):
-            hits.append(("doc_first", 7.0))
-            total += 7.0
+        if active_keys is None or "doc_first" in active_keys:
+            if md.get("generates_documentation"):
+                hits.append(("doc_first", 7.0))
+                total += 7.0
 
         # 人本优先 → weight=6
-        if md.get("user_requested") or ctx.risk_level != "high":
-            hits.append(("human_first", 6.0))
-            total += 6.0
+        if active_keys is None or "human_first" in active_keys:
+            if md.get("user_requested") or ctx.risk_level != "high":
+                hits.append(("human_first", 6.0))
+                total += 6.0
 
         # 增益优先 → weight=5
-        if md.get("positive_roi"):
-            hits.append(("gain_first", 5.0))
-            total += 5.0
+        if active_keys is None or "gain_first" in active_keys:
+            if md.get("positive_roi"):
+                hits.append(("gain_first", 5.0))
+                total += 5.0
 
         # 少即是多 → weight=4
-        if md.get("simplifies_system") or ctx.risk_level == "low":
-            hits.append(("less_is_more", 4.0))
-            total += 4.0
+        if active_keys is None or "less_is_more" in active_keys:
+            if md.get("simplifies_system") or ctx.risk_level == "low":
+                hits.append(("less_is_more", 4.0))
+                total += 4.0
 
         return (total, hits)
 

@@ -1,6 +1,10 @@
-# Loading Matrix - 渐进式披露加载映射表
+# Loading Matrix - 渐进式披露加载映射表 [ARCHIVED]
 
-> >
+> 状态: ARCHIVED — 被当前任务架构基线取代
+> 最后对齐: 2026-07-28
+> 原因: 加载路由已在 kernel.md + carros_base.py 中直接实现，无需独立的节点路由矩阵
+> 替代: `@.claude/references/current-task-architecture.md` + `kernel.md`
+>
 > 定义"什么阶段加载什么文件"，确保按需加载，避免上下文膨胀
 > 版本：v5.1.0
 

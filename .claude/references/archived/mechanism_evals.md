@@ -1,6 +1,10 @@
-# Mechanism Evaluations - 机制验收用例
+# Mechanism Evaluations - 机制验收用例 [ARCHIVED]
 
-> >
+> 状态: ARCHIVED — 不再维护
+> 最后对齐: 2026-07-28
+> 原因: M1-M4 用例从未实际运行。验收通过 verify_gate + claim-audit 执行
+> 替代: 无 — 按 carros_base.py tick/verify/archive 流程验收
+>
 > ⚠️ **仅在回归测试时加载**（修改 CLAUDE.md 或 task-architecture 文件后）
 > 正常任务流不需要加载此文件
 > 用于验证 Harness 任务系统是否正常工作

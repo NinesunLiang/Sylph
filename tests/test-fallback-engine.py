@@ -300,6 +300,49 @@ try:
 except Exception as e:
     ok("C3 unknown_failure CLI (no crash)", False, f"exception={e}")
 
+# ─────────────────────────────────────────────────────────────────
+# CO: Context Overflow 感知截断
+# ─────────────────────────────────────────────────────────────────
+CO_TOKEN = {"session": {"id": "co-test", "level": "L1_BASE"}, "task": {"current_step": "S1", "status": "active"}}
+
+# CO1: context 72% → 强制 BLOCKED (context_overflow)
+d = fe.decide("python_script_failed", CO_TOKEN, "low", context_usage_pct=72.0)
+ok("CO1 context 72% → BLOCKED", d.decision == "BLOCKED", f"got={d.decision}")
+ok("CO1 failure_type=context_overflow", d.failure_type == "context_overflow", f"got={d.failure_type}")
+ok("CO1 reason 含 72%", "72%" in d.reason, f"reason={d.reason}")
+
+# CO2: context 40% → 正常走原逻辑 (不触发 context_overflow)
+d2 = fe.decide("cli_hook_failed", CO_TOKEN, context_usage_pct=40.0)
+ok("CO2 context 40% → CONTINUE (原逻辑)", d2.decision == "CONTINUE", f"got={d2.decision}")
+ok("CO2 不走 overflow", d2.failure_type == "cli_hook_failed", f"got={d2.failure_type}")
+
+# CO3: context None → 正常走原逻辑 (不触发)
+d3 = fe.decide("python_script_failed", CO_TOKEN, "high", context_usage_pct=None)
+ok("CO3 context=None → 原逻辑 (BLOCKED)", d3.decision == "BLOCKED", f"got={d3.decision}")
+
+# CO4: 通过 decide() 直通 context_overflow failure_type
+d4 = fe.decide("context_overflow", CO_TOKEN, context_usage_pct=50.0)
+ok("CO4 context_overflow 直通 → BLOCKED", d4.decision == "BLOCKED", f"got={d4.decision}")
+
+# CO5: retry 历史截断(夹心饼干) — 5次 Fallback → 保留首条+最后1条=2条
+with tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8") as ef:
+    ef.write("# Executor\n\n初始内容\n")
+    ef_path = ef.name
+try:
+    for _ in range(5):
+        fe.append_executor_note(Path(ef_path), CO_TOKEN,
+                                fe.FallbackDecision("BLOCKED", "python_script_failed",
+                                                    "test:retry", "L1_BASE", "L1_BASE", "high", False))
+    final = Path(ef_path).read_text(encoding="utf-8")
+    fallback_count = final.count("## Fallback")
+    ok(f"CO5 5次重试后保留{fallback_count}条 (夹心:首条+末条)", fallback_count <= 2, f"got={fallback_count}条")
+    # 初始内容不应丢失
+    ok("CO5 初始内容保留", "初始内容" in final, "丢失")
+    # 首条错误保留(assertion: test:retry 1)
+    ok("CO5 首条保留", "test:retry" in final, "首条丢失")
+finally:
+    Path(ef_path).unlink(missing_ok=True)
+
 sys.argv = old_argv
 
 print()
@@ -308,4 +351,4 @@ print(f"结果: {PASS}/{PASS + FAIL} PASS, {FAIL} FAIL")
 if FAIL:
     print("❌ FALLBACK-ENGINE 存在失败项")
     sys.exit(1)
-print("✅ ALL PASS — fallback engine 15 failure types × risk × IO 全成立")
+print("✅ ALL PASS — fallback engine 15 failure types × risk × IO + context_overflow 全成立")

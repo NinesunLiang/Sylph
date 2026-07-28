@@ -1,34 +1,32 @@
-# Task Filesystem - 任务文件系统规范
+# Task Filesystem - 任务文件系统规范 [SUPERSEDED]
 
-> >
-> `.omc/tasks/` 目录/文件规范
-> 版本：v2.0.0（模板已外置到 templates/）
+> 状态: SUPERSEDED — 请参考 `@.claude/references/current-task-architecture.md`
+> 最后对齐: 2026-07-28
+>
+> 此文件为历史设计文档。实际路径格式已调整：
+> - 日期格式: YYYY-MM-DD → **YYYYMMDD**（`strftime("%Y%m%d")`）
+> - task_name → **task_id**（kebab-case slug，自动生成或手动指定）
+> - 无 context/ 子目录（已合并到 TASK_DIR/state/）
 
 ---
 
-## 目录结构
+## 实际路径
 
 ```
-.omc/tasks/
-└── {YYYY-MM-DD}/
-    └── {task_name}/
-        │   ├── research.md       #  澄清产出\研究方案、资源 
-        │   ├── plan.md           # 计划（见 templates/plan.md）
-        │   ├── criteria.md       # 验收标准（见 templates/criteria.md）
-        │   ├── executor.md       # 执行记录（见 templates/executor.md）
-        │   ├── acceptance_report.md  # 验收报告（见 templates/acceptance_report.md）
-        │   └── summary.md        # 任务总结（见 templates/summary.md）
-        └── context/
-            ├── research.md       # 调研笔记
-            └── lessons.md        # 本轮教训（可选）
+.omc/tasks/{YYYYMMDD}/{task_id}/
+├── plan.md           # 计划（步骤清单）
+├── executor.md       # 执行证据账簿（schema_version: v2）
+├── research.md       # 调研笔记 / Phase 0 前置澄清
+├── sub_task/         # 子任务目录
+├── state/            # 运行时状态
+│   └── audit/        # 审计日志
+└── final-report.md   # 归档报告
 ```
 
-## 命名约定
-| 元素 | 规则 | 示例|
-|------|------|------|
-|`{date}` | `YYYY-MM-DD` | `2026-04-03`|
-|`{task_name}` | kebab-case，≤50 字符 | `add-user-auth`|
-|文件扩展名 | `.md` / `.yaml` | `plan.md` |\|
+**Token**: `.omc/tokens/{YYYYMMDD}/{task_id}.json`
 
-## 清理策略
-- 已完成任务（state=done）：保留 30 天- 被阻断任务（state=blocked）：保留 7 天，超时归档- 手动清理：用户可删除 `.omc/state/` 下任意目录
+## 关键代码
+
+- `carros_base.py L101-103`: `_get_date_str()` 返回 `datetime.now(timezone.utc).strftime("%Y%m%d")`
+- `carros_base.py L105-122`: `_init_task_paths()` — 按 task_id + 日期初始化所有路径
+- `carros_base.py L148-175`: `_default_token()` — token 结构定义

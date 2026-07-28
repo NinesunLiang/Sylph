@@ -34,6 +34,7 @@ VALID_FAILURE_TYPES = {
     "oracle_unavailable",
     "meta_oracle_unavailable",
     "context_watermark_unobservable",
+    "context_overflow",       # context 窗口超 70%，跳过重试
     "cli_hook_failed",
     "python_script_failed",
     "audit_write_failed",
@@ -194,9 +195,21 @@ def risk_from_token(token: dict[str, Any] | None, explicit_risk: str | None = No
     return "low"
 
 
-def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None = None) -> FallbackDecision:
+def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None = None, context_usage_pct: float | None = None) -> FallbackDecision:
     if failure_type not in VALID_FAILURE_TYPES:
         failure_type = "unknown_failure"
+
+    # Context 溢出检测：超过 70% 窗口，强制 SKIP 不重试
+    if context_usage_pct is not None and context_usage_pct > 70.0:
+        return FallbackDecision(
+            "BLOCKED",
+            "context_overflow",
+            f"context_overflow:{context_usage_pct:.0f}%_exceeds_70%_threshold",
+            level_from_token(token),
+            level_from_token(token),
+            "high",
+            False,  # 不阻塞用户，自动跳过
+        )
 
     level = level_from_token(token)
     risk = risk_from_token(token, explicit_risk)
@@ -211,6 +224,18 @@ def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None =
         "python_script_failed",
         "unknown_failure",
     }
+
+    # context_overflow 直通 SKIP（已在入口检测，这里兜底）
+    if failure_type == "context_overflow":
+        return FallbackDecision(
+            "BLOCKED",
+            "context_overflow",
+            f"context_overflow:throttled_by_context_window",
+            level,
+            level,
+            "high",
+            False,
+        )
 
     if failure_type in non_downgradeable:
         return FallbackDecision(
@@ -393,6 +418,36 @@ def append_executor_note(path: Path, token: dict[str, Any], decision: FallbackDe
     )
     append_text(path, text)
 
+    # 重试历史截断：只保留最近 2 次失败上下文
+    _truncate_retry_history(path)
+
+
+def _truncate_retry_history(path: Path, max_entries: int = 2) -> None:
+    """截断 executor.md 中的 Fallback 记录，采用夹心饼干策略
+
+    保留: 首条错误(First Error) + 最后 N 条重试
+    防止: 丢失关键初始错误上下文
+
+    DeepSeek V4 Flash 在长 context 下重试越多越失败。
+    截断早期失败历史，避免衰退循环，同时保留根因。
+    """
+    if not path.exists():
+        return
+    content = path.read_text(encoding="utf-8", errors="replace")
+    # 按 ## Fallback 分割
+    parts = content.split("\n## Fallback\n\n")
+    if len(parts) <= max_entries + 1:
+        return  # 不需要截断
+    # 夹心饼干策略: 首条(parts[1]) + 最后 max_entries-1 条
+    first = parts[1]
+    kept = parts[0] + "\n## Fallback\n\n" + first
+    # 如果 max_entries > 1，再加最后 (max_entries-1) 条
+    if max_entries > 1:
+        kept += "".join(
+            "\n## Fallback\n\n" + p for p in parts[-(max_entries - 1):]
+        )
+    path.write_text(kept, encoding="utf-8")
+
 
 def write_audit(token: dict[str, Any], decision: FallbackDecision, paths: list[str]) -> None:
     audit_dir = Path(".omc/audit")
@@ -451,8 +506,18 @@ def main() -> int:
     explicit_risk = sys.argv[2] if len(sys.argv) >= 3 else None
     token_path = Path(sys.argv[3]) if len(sys.argv) >= 4 else Path(".omc/state/token.json")
 
+    # 读取 context watermark 判断是否进入 context 溢出模式
+    context_pct = None
+    try:
+        wm_path = Path(".omc/state/context-watermark.json")
+        if wm_path.exists():
+            wm = json.loads(wm_path.read_text())
+            context_pct = float(wm.get("pct", wm.get("level_pct", 0)))
+    except (json.JSONDecodeError, OSError, ValueError):
+        pass
+
     token = read_json(token_path, {})
-    decision = decide(failure_type, token, explicit_risk)
+    decision = decide(failure_type, token, explicit_risk, context_pct)
 
     try:
         handoff_path, executor_path, audit_paths = task_paths(token)

@@ -137,5 +137,104 @@ ok("C8: BLOCK事件有记录", len(block_events) > 0, f"count={len(block_events)
 ask_user_events = [e for e in events if e.get("decision") == "ask_user"]
 ok("C8: ASK_USER事件有记录", len(ask_user_events) > 0, f"count={len(ask_user_events)}")
 
+# ═══════════════════════════════════════════════════
+# R: Rule 分治激活
+# ═══════════════════════════════════════════════════
+
+# R1: pretool gate_type → 只检查 governance_violation（命中→BLOCK）
+r_ctx = GateContext(action="编辑治理文件", target=".claude/hooks/x.py",
+                    metadata={"governance_violation": True, "untrusted_value": True})
+rr = GateKeeper.evaluate(r_ctx, gate_type="pretool")
+ok("R1 pretool governance违反→BLOCK", rr.decision == GateDecision.BLOCK, f"got={rr.decision.value}")
+ok("R1 pretool protocol=NONE", rr.protocol == "NONE", f"got={rr.protocol}")
+
+# pretool 不检查 untrusted_value → 添加 untrusted_value 但无 governance 时不触发铁律
+# 但需给足够哲学得分通过协议C (guard_first 8 + zero_trust 9 + less_is_more 4 = 21 >= 15)
+r_ctx2 = GateContext(action="写报告", target="report.md",
+                     metadata={"untrusted_value": True, "has_safeguards": True,
+                               "minimal_privilege": True, "simplifies_system": True})
+rr2 = GateKeeper.evaluate(r_ctx2, gate_type="pretool")
+ok("R1 pretool 不查untrusted_value→非铁律阻断", rr2.protocol != "NONE", f"got={rr2.protocol}")
+
+# R2: completion gate_type → 只检查 lacks_evidence（命中→BLOCK）
+r_ctx3 = GateContext(action="提交完成", target="task1",
+                     metadata={"lacks_evidence": True, "bypass_attempt": True})
+rr3 = GateKeeper.evaluate(r_ctx3, gate_type="completion")
+ok("R2 completion 证据缺失→BLOCK", rr3.decision == GateDecision.BLOCK, f"got={rr3.decision.value}")
+
+# completion 不检查 bypass_attempt → 不命中，需给足够哲学得分(verify_first 10 + doc_first 7 = 17 >= 15)
+r_ctx4 = GateContext(action="提交完成", target="task1",
+                     metadata={"bypass_attempt": True, "has_verification": True,
+                               "generates_documentation": True})
+rr4 = GateKeeper.evaluate(r_ctx4, gate_type="completion")
+ok("R2 completion 不查bypass→非铁律阻断", rr4.protocol != "NONE", f"got={rr4.protocol}")
+
+# R3: verify gate_type → 只查 lacks_evidence + unverifiable
+r_ctx5 = GateContext(action="verify step1", target=".",
+                     metadata={"unverifiable": True, "untrusted_value": True})
+rr5 = GateKeeper.evaluate(r_ctx5, gate_type="verify")
+ok("R3 verify unverifiable→BLOCK", rr5.decision == GateDecision.BLOCK, f"got={rr5.decision.value}")
+# verify 不查 untrusted_value
+r_ctx6 = GateContext(action="verify step1", target=".",
+                     metadata={"untrusted_value": True, "has_verification": True,
+                               "governance_violation": False})
+rr6 = GateKeeper.evaluate(r_ctx6, gate_type="verify")
+# verify_first=10 < 15 low threshold → BLOCK by min_score, protocol=C
+ok("R3 verify 不查untrusted→非NONE协议", rr6.protocol != "NONE", f"got={rr6.protocol}")
+
+# R4: claim_audit gate_type → 只查 untrusted_value + lacks_evidence
+r_ctx7 = GateContext(action="claim audit", target="evidence.jsonl",
+                     metadata={"untrusted_value": True, "privacy_violation": True})
+rr7 = GateKeeper.evaluate(r_ctx7, gate_type="claim_audit")
+ok("R4 claim_audit untrusted→BLOCK", rr7.decision == GateDecision.BLOCK, f"got={rr7.decision.value}")
+# claim_audit 不查 privacy_violation
+r_ctx8 = GateContext(action="claim audit", target="data",
+                     metadata={"privacy_violation": True, "generates_documentation": True,
+                               "user_requested": True})
+# 哲学: doc_first 7 + human_first 6 = 13 < 15 → BLOCK by low_score, protocol=C
+rr8 = GateKeeper.evaluate(r_ctx8, gate_type="claim_audit")
+ok("R4 claim_audit 不查privacy→非NONE协议", rr8.protocol != "NONE", f"got={rr8.protocol}")
+
+# R5: unknown gate_type → 使用全量规则(execute)
+r_ctx9 = GateContext(action="全量测试", target=".",
+                     metadata={"governance_violation": True, "bypass_attempt": True})
+rr9 = GateKeeper.evaluate(r_ctx9, gate_type="unknown")
+ok("R5 unknown→全量规则(BLOCK)", rr9.decision == GateDecision.BLOCK, f"got={rr9.decision.value}")
+
+# R6: None gate_type → 向后兼容（全量规则）
+r_ctx10 = GateContext(action="None测试", target=".",
+                      metadata={"bypass_attempt": True})
+rr10 = GateKeeper.evaluate(r_ctx10, gate_type=None)
+ok("R6 gate_type=None→全量规则(BLOCK)", rr10.decision == GateDecision.BLOCK, f"got={rr10.decision.value}")
+
+# R7: gate_type 不影响协议A分流
+r_ctx11 = make_context(action="rm -rf /", destructive=True, risk="high")
+rr11 = GateKeeper.evaluate(r_ctx11, gate_type="pretool")
+ok("R7 pretool协议A→ASK_USER", rr11.decision == GateDecision.ASK_USER, f"got={rr11.decision.value}")
+ok("R7 pretool协议A=A", rr11.protocol == "A", f"got={rr11.protocol}")
+
+# R8: _RULE_PACKAGES 定义完整性 — 5个domain都有定义
+expected_domains = {"pretool", "completion", "verify", "claim_audit", "execute"}
+actual_domains = set(GateKeeper._RULE_PACKAGES.keys())
+ok("R8 _RULE_PACKAGES 5个domain", actual_domains == expected_domains,
+   f"expected={expected_domains} actual={actual_domains}")
+# 每个domain都有 iron_law_keys + philosophy_keys
+for d in actual_domains:
+    pkg = GateKeeper._RULE_PACKAGES[d]
+    ok(f"R8 {d} iron_law_keys存在", bool(pkg.get("iron_law_keys")), f"keys={pkg.get('iron_law_keys')}")
+    ok(f"R8 {d} philosophy_keys存在", bool(pkg.get("philosophy_keys")), f"keys={pkg.get('philosophy_keys')}")
+
+# R9: pretool 哲学只检查 guard_first/zero_trust/less_is_more
+# 模拟只有 verify_first 命中的场景 — pretool 不应计分
+r_ctx12 = GateContext(action="pretool哲学测试", target=".",
+                      metadata={"has_verification": True, "has_safeguards": False,
+                                "minimal_privilege": False, "simplifies_system": False},
+                      risk_level="high")
+# 不加置信度哲学不命中，用 evaluate 验证得分
+rr12 = GateKeeper.evaluate(r_ctx12, gate_type="pretool")
+# pretool 不查 verify_first → score=0 → BLOCK (低于阈值)
+ok("R9 pretool不查verify_first→BLOCK", rr12.decision == GateDecision.BLOCK,
+   f"got={rr12.decision.value}")
+
 print(f"\n结果: {PASS}/{PASS + FAIL} PASS, {FAIL} FAIL")
 sys.exit(1 if FAIL else 0)

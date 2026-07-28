@@ -8,8 +8,9 @@
 | 目录 | 用途 | 入口 |
 |------|------|------|
 | `adr/` | 架构决策记录 | `INDEX.md` |
+| `archived/` | 已归档旧文档 | `loading_matrix.md`, `mechanism_evals.md` |
 | `design-docs/` | 设计文档（分阶段编号） | `1.md` ~ `11.md` 按主题阅读 |
-| `task-architecture/` | 任务架构参考 | `orchestrator.md`, `loading_matrix.md` 等 |
+| `task-architecture/` | 任务架构参考（SUPERSEDED） | `@current-task-architecture.md` — 实际基线 |
 | `templates/` | 模板（handoff-capsule, stepwise-cards 等） | 直接引用 |
 | `race/` | Race 编排模式文档 | `state-machine.md` |
 
@@ -20,6 +21,7 @@
 | `SOUL.md` | CarrorOS 哲学（铁律/优先级/设计原则） |
 | `SUBAGENT.md` | SubAgent 契约 |
 | `anti-patterns.md` | 已知反模式库（飞轮自动补充） |
+| `current-task-architecture.md` | 任务架构基线（2026-07-28） |
 | `context-watermark.md` | 三段式水位规格 |
 | `evaluation-framework.md` | 评分框架（C1-C9/E1-E8/治理/UX） |
 | `fallback-matrix.md` | 降级矩阵 |
