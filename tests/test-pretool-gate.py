@@ -44,9 +44,9 @@ class TestGateRoutingL1(unittest.TestCase):
             "context-critical",
             "sensitive-edit",
             "fallback",
+            "edit-scope",
             "action",
             "secret-scan",
-            "edit-scope",
             "stall",
             "claim-source",
         ]
