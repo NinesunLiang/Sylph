@@ -11,7 +11,7 @@
   - [ ] `tests/e2e/helpers/assertions.ts`：实现 `scripts/carroros-gates/assertion-catalog.yaml` 全部 17 个 helper，**以 catalog id 为键导出 registry**（preflight 4b 会逐个 grep id 字符串，缺一个 = NO-GO）
   - [ ] playwright.config.ts（1440 视口、trace/video 开、artifacts 输出到 manifest 约定路径）
 - [ ] **A2 夜跑 hook 挂载**：`python3 scripts/carroros-gates/install_night_hook.py`（幂等）
-- [ ] **A3 模型路由探针**：对代理（http://127.0.0.1:9998）用 `claude-opus`/`claude-haiku` 别名各发一个最小请求，记录上游真实模型 → 写 `.omc/night/{date}/model-routing-proof.yaml`（opus→v4-pro、haiku→v4-flash 才算真身；误连高阶 = No-Go）
+- [ ] **A3 模型路由探针**：对 adapter（http://127.0.0.1:8765）用 `gemini-3-flash` 发一个多模态测试请求 + 健康检查，记录真实可用模型列表 → 写 `.omc/night/{date}/model-routing-proof.yaml`（8765 可用 + session_valid=true 才算身。线上模型接入后自动生效：Gemini-3-Flash 负责视觉、GPT-5.5/Opus-4.8 负责审计）
 - [ ] **A4 §17a**：把落盘 diff 发 Opus 4.8 / Grok 4.5 / GPT-5.6 Sol 审计，无新阻断性 P0
   - [ ] 附**独立复跑日志**（Grok P0-2）：rsync 仓库到 /tmp 干净目录 → `SMOKE_RUNNER=independent python3 scripts/carroros-gates/smoke/run_all.py ...` 全绿 → 日志落 `UI/round5/logs/`（self 自陈不得作为首夜放行证据）
   - [ ] 独立复跑结果 yaml 必须落 **`$NIGHT_DIR/smoke-results-independent.yaml`**（Opus P1-10：preflight 9b 硬拦——runner=independent + all_green + tamper_suite_passed + control_plane_digest 与当前一致，缺一 = NO-GO；改完任何控制面脚本后必须重跑本步，否则 digest 不符）

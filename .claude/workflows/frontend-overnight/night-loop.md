@@ -1,6 +1,6 @@
 # night-loop — 夜循环执行手册（执行模型读本）
 
-> 读者：夜间执行模型（DeepSeek V4 Pro；修复 subagent = V4 Flash）。
+> 读者：夜间执行模型（DeepSeek V4 Flash；修复 subagent = V4 Flash）。视觉识别通过 adapter(:8765) 走 Gemini-3-Flash。审计/评审走 GPT-5.5 / Opus-4.8。
 > 你在这个会话里无人值守。**本手册是你的全部行动空间；手册外没有"灵活发挥"。**
 
 ## 四条元规则（违反 = 当夜作废）

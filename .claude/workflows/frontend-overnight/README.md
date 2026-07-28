@@ -50,7 +50,7 @@ python3 scripts/carroros-gates/preflight.py --manifest .omc/night/$(date +%F)/ni
 # preflight GO 后：
 /lx-goal "执行 .omc/night/$(date +%F)/night-manifest.yaml 夜循环：严格按 .claude/workflows/frontend-overnight/night-loop.md 的 13 步；验收=C1–C7 机器门禁（无人类验收）；J0 出口；禁止写结论/手写 summary；禁止碰控制面" 12
 ```
-夜间执行模型：DeepSeek V4 Pro（主）+ V4 Flash（修复 subagent）。K3 首夜 0 配额。
+夜间执行模型：DeepSeek V4 Flash（主执行 + 修复 subagent）。视觉识别/审计 = 线上模型（Gemini-3-Flash / GPT-5.5 / Opus-4.8）通过 adapter（:8765）接入。
 
 ### ⑤ 晨收（你回来）
 ```bash

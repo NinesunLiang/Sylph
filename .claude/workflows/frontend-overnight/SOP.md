@@ -19,7 +19,7 @@
 - [ ] **目标 repo 位置**：选 `apps/{产品名}/`（monorepo 子目录；C1 越界检测/门禁执行/PR 三道边界都锚在这里）
 - [ ] **A1 骨架**（按 `phase0-checklist.md` §A1 逐项）：Vite8+React19+TS6 strict、tokens、`src/app/router/` **全量预注册路由+stub 页**、mock 层、ESLint 禁 antd、`tests/e2e/helpers/assertions.ts` 按 catalog 实现全部 17 个 helper、playwright.config
 - [ ] **A2 夜跑 hook**：`python3 scripts/carroros-gates/install_night_hook.py`（幂等）
-- [ ] **A3 模型路由探针**：对 `http://127.0.0.1:9998` 用 opus/haiku 别名各发最小请求，验真身=v4-pro/v4-flash → `model-routing-proof.yaml`
+- [ ] **A3 模型路由探针**：对 `http://127.0.0.1:8765` 用 `gemini-3-flash` 发多模态测试 + 健康检查 → `model-routing-proof.yaml`（视觉=线上Gemini，执行=DeepSeek V4 Flash，审计=GPT/Opus）
 - [ ] **A4 独立 smoke**：rsync 到 /tmp 干净目录 → `SMOKE_RUNNER=independent python3 scripts/carroros-gates/smoke/run_all.py --manifest <模板> --night-dir <临时> --target-repo <真仓> --out $NIGHT_DIR/smoke-results-independent.yaml` 全绿
   - ⚠️ **改完任何控制面脚本（hooks/scripts/carroros-gates）后必须重跑本步**，否则 preflight 9b 因 digest 过期硬拦
 
@@ -49,7 +49,7 @@
     --target-repo apps/{产品名}
   ```
   任何红项 → 修完重跑，**不许跳项**。GO 后它会自动创建夜会话标记（别手动 touch）。
-- [ ] **③ 启动**（在 DeepSeek 代理会话里，即 `ANTHROPIC_BASE_URL=http://127.0.0.1:9998` 的会话）：
+- [ ] **③ 启动**（在 adapter 会话里，即 `ANTHROPIC_BASE_URL=http://127.0.0.1:8765` 的会话）：
   ```
   /lx-goal "执行 .omc/night/<日期>/night-manifest.yaml 夜循环：严格按 .claude/workflows/frontend-overnight/night-loop.md 的 13 步；验收=C1–C7 机器门禁（无人类验收）；J0 出口；禁止写结论/手写 summary；禁止碰控制面" 12
   ```
