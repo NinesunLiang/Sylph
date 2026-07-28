@@ -32,7 +32,7 @@ ANTI_PATTERN_REDIRECTS = ROOT / ".omc" / "state" / "anti-pattern-redirects.jsonl
 ERROR_DNA = ROOT / ".omc" / "state" / "error-dna.jsonl"
 KERNEL_CANDIDATES = KNOWLEDGE / "kernel-candidates.md"
 
-SUBLIMATION_HITS = 5
+SUBLIMATION_HITS = 3  # 降低阈值，让种子数据更快进入管道（R8收敛）
 
 
 # ── ADR-0012: 反模式→REDIRECT 规则转译 ──

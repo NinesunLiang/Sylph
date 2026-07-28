@@ -30,7 +30,7 @@ from unittest.mock import MagicMock, patch
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 FIXTURE_HANDOFF = """# Session Handoff
-compact-write 于 2026-07-27T10:00:00+00:00 更新
+compact-write 于 2026-07-28T10:00:00+00:00 更新
 
 当前任务: test-task, 状态: active
 """

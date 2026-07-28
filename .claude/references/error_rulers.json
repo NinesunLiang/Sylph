@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "description": "CarrorOS 错误分类规则库 — error-dna 消费该文件将 exit_code + stderr 模式映射为具体错误类型",
-  "last_updated": "2026-07-27T20:00+08:00",
+  "last_updated": "2026-07-28T17:52+0800",
   "rules": [
     {
       "type": "bash_command_not_found",
@@ -336,6 +336,139 @@
       "severity": "warn",
       "action": "investigate",
       "suggested_fix": "无法分类，需要人工审查"
+    },
+    {
+      "type": "build_compile_undefined",
+      "priority": 82,
+      "exit_code": [
+        1,
+        2
+      ],
+      "stderr_patterns": [
+        "undefined",
+        "undeclared",
+        "not declared"
+      ],
+      "cmd_patterns": [
+        "go build",
+        "go test",
+        "tsc ",
+        "gcc ",
+        "clang "
+      ],
+      "severity": "error",
+      "action": "fix_compile_error",
+      "suggested_fix": "检查未定义的变量或类型引用"
+    },
+    {
+      "type": "network_404",
+      "priority": 72,
+      "exit_code": [
+        1
+      ],
+      "stderr_patterns": [
+        "404",
+        "not found",
+        "ENOTFOUND",
+        "ECONNREFUSED",
+        "getaddrinfo"
+      ],
+      "cmd_patterns": [
+        "npm install",
+        "pip install",
+        "go get",
+        "curl ",
+        "wget "
+      ],
+      "severity": "error",
+      "action": "check_network",
+      "suggested_fix": "检查网络连接或包源配置"
+    },
+    {
+      "type": "signal_exit",
+      "priority": 60,
+      "exit_code": [
+        128,
+        129,
+        130,
+        131,
+        132,
+        133,
+        134,
+        137,
+        139,
+        143
+      ],
+      "stderr_patterns": [],
+      "cmd_patterns": [],
+      "severity": "error",
+      "action": "check_signal",
+      "suggested_fix": "进程被信号终止，检查资源限制或外部干预"
+    },
+    {
+      "type": "auto_plan_scope_violation",
+      "priority": 50,
+      "exit_code": [],
+      "stderr_patterns": [
+        "token_scope_violation",
+        "plan_scope_violation"
+      ],
+      "cmd_patterns": [
+        "/users/lucas.liang/.claude/proje",
+        "/users/lucas.liang/desktop/carro"
+      ],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "检查 /users/lucas.liang/desktop/carro 相关错误",
+      "auto_generated": true,
+      "first_seen": 1784273853,
+      "last_seen": 1784539772,
+      "frequency": 62
+    },
+    {
+      "type": "auto_harvester",
+      "priority": 50,
+      "exit_code": [],
+      "stderr_patterns": [
+        "context_watermark_force",
+        "edit_out_of_scope",
+        "compact",
+        "bypass",
+        "block",
+        "users",
+        "scope",
+        "token"
+      ],
+      "cmd_patterns": [
+        "block"
+      ],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "检查 block 相关错误",
+      "auto_generated": true,
+      "first_seen": 1784486688,
+      "last_seen": 1784532493,
+      "frequency": 40
+    },
+    {
+      "type": "auto_token_scope_violation",
+      "priority": 50,
+      "exit_code": [],
+      "stderr_patterns": [
+        "token_scope_violation"
+      ],
+      "cmd_patterns": [
+        "/users/lucas.liang/.claude/proje",
+        "/users/lucas.liang/desktop/carro",
+        "/users/lucas.liang/desktop/sylph"
+      ],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "检查 /users/lucas.liang/desktop/carro 相关错误",
+      "auto_generated": true,
+      "first_seen": 1784559157,
+      "last_seen": 1784616685,
+      "frequency": 68
     }
   ]
 }

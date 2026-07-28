@@ -44,11 +44,14 @@ def _load_error_rules() -> list[dict]:
     except Exception:
         return []
 
-def _classify_with_rules(cmd_lower: str, cmd_clean: str, exit_code: int, stderr: str, stdout: str) -> str | None:
-    """按 error_rulers.json 规则匹配错误类型。返回 str | None(None=无匹配)。"""
+def _classify_with_rules(cmd_lower: str, cmd_clean: str, exit_code: int, stderr: str, stdout: str) -> tuple[str | None, str]:
+    """按 error_rulers.json 规则匹配错误类型。
+    
+    返回 (type_or_None, suggested_fix_or_empty)。
+    """
     rules = _load_error_rules()
     if not rules:
-        return None
+        return None, ''
     for rule in rules:
         if rule.get('type') == 'unknown':
             continue
@@ -65,8 +68,9 @@ def _classify_with_rules(cmd_lower: str, cmd_clean: str, exit_code: int, stderr:
         cmd_patterns = rule.get('cmd_patterns', [])
         if cmd_patterns and not any(p.lower() in cmd_lower for p in cmd_patterns):
             continue
-        return rule['type']
-    return None
+        fix = rule.get('suggested_fix', '')
+        return rule['type'], fix
+    return None, ''
 
 
 
@@ -301,7 +305,7 @@ def main():
     cmd_lower = cmd_clean.lower()
 
     # === C10: 规则库分类（优先） ===
-    error_type = _classify_with_rules(cmd_lower, cmd_clean, exit_code, stderr, stdout)
+    error_type, _suggested_fix = _classify_with_rules(cmd_lower, cmd_clean, exit_code, stderr, stdout)
     if error_type is None:
         # Fallback: 规则库无匹配时走命令关键词分类
         if any(x in cmd_lower for x in ['go build', 'go test', 'npm run build', 'npm build', 'cargo build', 'tsc',
@@ -637,8 +641,37 @@ def main():
             except Exception:
                 pass
 
+    # === 沉淀自动触发：count >= 90 时后台运行 precip ===
+    try:
+        _precip_threshold = int(os.environ.get('PRECIP_THRESHOLD', '90'))
+        _precip_cd = int(os.environ.get('PRECIP_COOLDOWN', '3600'))
+        if _line_count >= _precip_threshold:
+            _marker = STATE_DIR / '.precipitated'
+            _should_run = True
+            if _marker.exists():
+                try:
+                    _last = float(_marker.read_text().strip())
+                    if time.time() - _last < _precip_cd:
+                        _should_run = False
+                except (ValueError, OSError):
+                    pass
+            if _should_run:
+                _precip_script = _HOOKS_DIR.parent / 'scripts' / 'error-dna-precipitate.py'
+                if _precip_script.exists():
+                    import subprocess
+                    subprocess.Popen(
+                        [sys.executable, str(_precip_script)],
+                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                    )
+    except Exception:
+        pass
+
     # === Output JSON ===
     combined = PY_OUTPUT
+    # 渐进式披露：有匹配规则时注入 suggested_fix（只消耗命中时的上下文预算）
+    if _suggested_fix:
+        _fix_line = f'[错误修复建议] 已知修复方案: {_suggested_fix}'
+        combined = combined + '\n' + _fix_line if combined else _fix_line
     if TRIAGE_MSG:
         combined += '\n' + TRIAGE_MSG if combined else TRIAGE_MSG
 

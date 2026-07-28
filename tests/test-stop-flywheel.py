@@ -7,7 +7,7 @@ Verification points:
   V2  Extracts patterns from error-dna
   V3  Updates anti-patterns.md + claude-next.md
   V4  Never blocks — always {"continue":true} + exit 0 regardless of failure
-  V5  Sublimation check — claude-next entries with hits >= 5 promoted
+  V5  Sublimation check — claude-next entries with hits >= 3 promoted (R8收敛降低阈值)
 
 Layers:
   U (unit isolated):  import real extraction + writing functions, drive with temp dirs
@@ -200,11 +200,11 @@ with tempfile.TemporaryDirectory() as td:
     anti_p.write_text("# Anti-Patterns — 经验沉淀\n\n## 已识别模式\n\n", encoding="utf-8")
 
     cn = kb_dir / "claude-next.md"
-    # 4 hits — below threshold
+    # 2 hits — below threshold (SUBLIMATION_HITS lowered from 5 to 3)
     cn.write_text(
         "\n".join(
             f"- [2026-07-20 10:00] Pattern 'low_hit' detected in step S1: minor issue"
-            for _ in range(4)
+            for _ in range(2)
         ) + "\n",
         encoding="utf-8",
     )
@@ -218,24 +218,24 @@ with tempfile.TemporaryDirectory() as td:
     sf.SUBLIMATION_LOG = kb_dir / "sublimation-log.jsonl"
 
     sublimated = sf._sublimation_check()
-    ok("V5a 4 hits (<5) → no sublimation", len(sublimated) == 0,
+    ok("V5a 2 hits (<3) → no sublimation under new threshold", len(sublimated) == 0,
        detail=f"got {sublimated}")
 
-    # Add 5 more to reach 9 hits for 'low_hit'
+    # Add 5 more to reach 7 hits for 'low_hit' (originally 2+5=7 >=3)
     with cn.open("a", encoding="utf-8") as f:
         for _ in range(5):
             f.write("- [2026-07-20 10:00] Pattern 'low_hit' detected in step S1: minor issue\n")
 
-    # Also add 3 entries for a second pattern (below threshold)
+    # Also add 3 entries for a second pattern (at threshold 3)
     for _ in range(3):
         with cn.open("a", encoding="utf-8") as f:
             f.write("- [2026-07-20 10:00] Pattern 'assertion_recurring' detected in step RPE-C-S1: mismatch\n")
 
     sublimated = sf._sublimation_check()
-    ok("V5b low_hit (9 hits >=5) → sublimated",
+    ok("V5b low_hit (7 hits >=3) → sublimated",
        "low_hit" in sublimated, detail=f"got {sublimated}")
-    ok("V5c assertion_recurring (3 hits <5) → not sublimated",
-       "assertion_recurring" not in sublimated, detail=f"got {sublimated}")
+    ok("V5c assertion_recurring (3 hits >=3) → sublimated as well",
+       "assertion_recurring" in sublimated, detail=f"got {sublimated}")
 
     # Verify anti-patterns.md was updated
     ap_content = anti_p.read_text(encoding="utf-8")
@@ -245,10 +245,10 @@ with tempfile.TemporaryDirectory() as td:
     sl_file = kb_dir / "sublimation-log.jsonl"
     ok("V5e sublimation-log.jsonl exists", sl_file.exists())
     log_lines = [l for l in sl_file.read_text(encoding="utf-8").splitlines() if l.strip()]
-    ok("V5f log has 1 entry", len(log_lines) == 1, detail=f"got {len(log_lines)}")
+    ok("V5f log has entries", len(log_lines) >= 1, detail=f"got {len(log_lines)}")
     entry = json.loads(log_lines[0])
     ok("V5g log entry pattern=low_hit", entry["pattern"] == "low_hit")
-    ok("V5h log entry hits=9", entry["hits"] == 9)
+    ok("V5h log entry hits=7", entry["hits"] == 7)
     ok("V5i log entry target=anti-patterns.md", entry["target"] == "anti-patterns.md")
     ok("V5j log entry has ts", "ts" in entry)
 

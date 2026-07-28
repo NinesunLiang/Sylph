@@ -1144,6 +1144,16 @@ def _check_edit_scope(payload: dict) -> str | None:
     path = _extract_path(payload)
     if not path:
         return None
+    # #6零信任: 治理文件路径直接 BLOCK，不依赖 scope 设定
+    if _is_governance(path):
+        _append_audit({
+            "event_type": "governance_scope_block",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": "governance_file_out_of_scope",
+            "path": path,
+        })
+        return "BLOCK governance_path: 治理文件路径不可越界编辑，请确认后在 plan.md Scope 中声明。"
     token = _active_token()
     if not token:
         return None
@@ -2353,9 +2363,9 @@ L1_GATES = [
     ("context-critical", _check_context_critical_pause),
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
+    ("edit-scope", _check_edit_scope),               # 越界先检查（scope>action优先级）
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),            # L1: 密钥扫描（#3守护）
-    ("edit-scope", _check_edit_scope),
     ("stall", _check_stall),
     ("claim-source", _check_claim_source),           # L1: 引用溯源（铁律#1）
 ]
