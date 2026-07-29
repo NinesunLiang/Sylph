@@ -2,14 +2,14 @@
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:9998",
     "ANTHROPIC_AUTH_TOKEN": "test",
-    "ANTHROPIC_MODEL": "deepseek-v4-flash(1m)"
+    "ANTHROPIC_MODEL": "deepseek-v4-pro(1m)"
   },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
   "skipWorkflowUsageWarning": true,
-  "model": "deepseek-v4-flash(1m)",
+  "model": "deepseek-v4-pro(1m)",
   "apiUrl": "http://127.0.0.1:9998",
   "authToken": "test",
   "hooks": {
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-gate.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"pretool-gate.py\""
           }
         ]
       },
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-scorecard-gate.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"pretool-scorecard-gate.py\""
           }
         ]
       },
@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"pre-completion-gate.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"pre-completion-gate.py\""
           }
         ]
       },
@@ -46,7 +46,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"carroros-night-deny.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"carroros-night-deny.py\""
           }
         ]
       }
@@ -57,7 +57,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-sensitive-filter.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"posttool-sensitive-filter.py\""
           }
         ]
       },
@@ -66,7 +66,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-claim-audit.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"posttool-claim-audit.py\""
           }
         ]
       },
@@ -75,7 +75,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"read-tracker.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"read-tracker.py\""
           }
         ]
       },
@@ -84,7 +84,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"posttool-output-schema.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"posttool-output-schema.py\""
           }
         ]
       },
@@ -93,7 +93,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"completion-gate.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"completion-gate.py\""
           }
         ]
       },
@@ -102,7 +102,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"error-dna.py\"",
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"error-dna.py\"",
             "timeout": 5000
           }
         ]
@@ -113,7 +113,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/hook-launcher.py\" \"pretool-user-approve.py\"",
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/hook-launcher.py\" \"pretool-user-approve.py\"",
             "timeout": 3000
           }
         ]
@@ -124,7 +124,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 \".claude/hooks/session-start.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; python3 \".claude/hooks/session-start.py\""
           }
         ]
       }
@@ -134,11 +134,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "/usr/bin/python3 \".claude/hooks/precompact-lifecycle.py\""
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; /usr/bin/python3 \".claude/hooks/precompact-lifecycle.py\""
           },
           {
             "type": "command",
-            "command": "/usr/bin/python3 \".claude/hooks/hook-launcher.py\" \"stop-flywheel.py\"",
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; /usr/bin/python3 \".claude/hooks/hook-launcher.py\" \"stop-flywheel.py\"",
             "timeout": 15000
           }
         ]
