@@ -46,7 +46,6 @@ MECHANISMS: list[tuple[str, str, list[str], str | None]] = [
     ("lifecycle-ssot", "hook", [".claude/hooks/lib/lifecycle_ssot.py"], "test_pkg_c_lifecycle.py"),
     ("stop-flywheel", "hook", [".claude/hooks/stop-flywheel.py"], None),
     ("error-dna", "hook", [".claude/hooks/error-dna.py"], None),
-    ("error-dna-auto-fix", "hook", [".claude/hooks/error-dna-auto-fix.py"], "test-error-dna-auto-fix.py"),
     ("turn-counter", "hook", [".claude/hooks/turn-counter.py"], None),
     ("token-writer", "hook", [".claude/hooks/token_writer.py"], None),
     ("carroros-night-deny", "hook", [".claude/hooks/carroros-night-deny.py"], "test-night-deny.py"),

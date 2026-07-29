@@ -112,9 +112,9 @@ check("C4 claimed-preserved-in-production", 'data["claimed"] = written' not in l
       "lifecycle_ssot 应保留 claimed 值而非强制 writer=claimed(ADR-0013 reconcile修复)")
 
 # ── C5 E2 变形对抗: 危险命令层(Gate 3 action-gate)对 rm 变形必须 BLOCK ──
-pg_src = pretool.read_text(encoding="utf-8")
-check("C5 oracle-scans-raw", "_ORACLE_QUOTED_RE" in pg_src,
-      "oracle 原文扫描正则不在")
+oracle_src = (pretool.parent / "pretool_gates" / "oracle.py").read_text(encoding="utf-8")
+check("C5 oracle-scans-raw", "_ORACLE_QUOTED_RE" in oracle_src,
+      "oracle 原文扫描正则不在（搬家到 pretool_gates/oracle.py）")
 # 生产 action-gate 分类: 裸 rm -rf / 与引号嵌套都必须命中 DANGEROUS 层
 pg = _load("pretool_gate", pretool)
 for label, cmd in (
