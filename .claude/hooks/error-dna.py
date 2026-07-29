@@ -643,7 +643,7 @@ def main():
 
     # === 沉淀自动触发：count >= 90 时后台运行 precip ===
     try:
-        _precip_threshold = int(os.environ.get('PRECIP_THRESHOLD', '90'))
+        _precip_threshold = int(os.environ.get('PRECIP_THRESHOLD', '30'))
         _precip_cd = int(os.environ.get('PRECIP_COOLDOWN', '3600'))
         if _line_count >= _precip_threshold:
             _marker = STATE_DIR / '.precipitated'
