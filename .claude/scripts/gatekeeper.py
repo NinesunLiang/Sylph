@@ -695,16 +695,6 @@ class GateKeeper:
         }
         cls._EVENT_LOG.append(event)
 
-        # 磁盘持久化
-        if cls._STATE_DIR:
-            log_file = cls._STATE_DIR / "gatekeeper-events.jsonl"
-            try:
-                log_file.parent.mkdir(parents=True, exist_ok=True)
-                with open(log_file, "a", encoding="utf-8") as f:
-                    f.write(json.dumps(event, ensure_ascii=False) + "\n")
-            except OSError:
-                pass
-
         # 跳过记录单独记录
         if is_skip and cls._STATE_DIR:
             skipped_file = cls._STATE_DIR / "skipped-risks.jsonl"
