@@ -247,6 +247,11 @@ def _check_edit_scope(payload: dict) -> str | None:
         _append_audit({"event_type": "governance_scope_block", "actor": "hook:pretool-gate",
                         "decision": "BLOCK", "reason": "governance_file_out_of_scope", "path": path})
         return "BLOCK governance_path: 治理文件路径不可越界编辑。"
+    # `.claude/` 下非治理文件（如 workflows/ references/ UI_README.md）是项目基建，
+    # 不属于 scope 越界，放行。
+    _p = path.replace("\\", "/")
+    if _p.startswith(".claude/") or _p.startswith("./.claude/"):
+        return None
     token = _active_token()
     if not token:
         return None
