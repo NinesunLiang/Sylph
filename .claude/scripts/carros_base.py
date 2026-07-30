@@ -338,6 +338,8 @@ def now_iso():
 
 def _write_handoff(token, plan_summary=None):
     """写入 Resume Capsule — 7 段结构化 handoff（R2 Compact Storm）"""
+    import sys
+    print(f"DEBUG: token type={type(token)}, repr={token!r}", file=sys.stderr)
     try:
         import lib.handoff_writer as hw
         tid = token.get("session", {}).get("id", "unknown")
@@ -349,7 +351,7 @@ def _write_handoff(token, plan_summary=None):
     done = token.get("stats", {}).get("done", 0)
     total = token.get("stats", {}).get("total", 0)
     current = token.get("task", {}).get("current_step", "?")
-    task_desc = token.get("description", token.get("goal", "未知"))[:200]
+    task_desc = (token.get("description") or (token.get("goal") or {}).get("description") or "未知")[:200]
     level = token.get("level", token.get("session", {}).get("level", "L1"))
     # 读取 error-dna（最近 3 条）
     errors = ""

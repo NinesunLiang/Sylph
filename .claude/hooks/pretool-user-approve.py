@@ -65,7 +65,7 @@ def _read_json(path: Path, default):
 def _latest_token() -> Path | None:
     """Latest ACTIVE carros task token — 委托 task_ssot(单一真相源)。
 
-    保 stats 要求(水位回写目标必须有 stats dict);SSOT 不可用 → None(降级跳过)。
+    保 stats 要求(SSOT 写入目标必须有 stats dict);SSOT 不可用 → None(降级跳过)。
     根因(2026-07-20 幻影 token 事件):mtime 取最新 + 本文件每轮回写 → 陈旧任务自我续命。
     """
     if _ssot_latest_active_token is None:

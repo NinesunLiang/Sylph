@@ -199,6 +199,39 @@ class TestPostCompactNoCapsule(TestPostCompactM6):
         self.assertFalse((self.state_dir / "resume-note.md").exists(),
                          "Corrupted capsule should not write resume-note")
 
+    def test_missing_required_field_returns_bare_continue(self):
+        """Capsule missing task_id field -> bare continue:true, no resume-note."""
+        _write_capsule(self.state_dir,
+                       active_token=str(self.token),
+                       plan_dir=str(self.task_dir),
+                       task_id=None)  # Force task_id to be None
+        result = self._run_postcompact()
+        self.assertEqual(result, {"continue": True})
+        self.assertFalse((self.state_dir / "resume-note.md").exists(),
+                         "Missing required field should not write resume-note")
+
+    def test_nonexistent_token_path_returns_bare_continue(self):
+        """Capsule points to non-existent token path -> bare continue:true, no resume-note."""
+        fake_token = str(self.tokens_dir / "2099" / "nonexistent.json")
+        _write_capsule(self.state_dir,
+                       active_token=fake_token,
+                       plan_dir=str(self.task_dir))
+        result = self._run_postcompact()
+        self.assertEqual(result, {"continue": True})
+        self.assertFalse((self.state_dir / "resume-note.md").exists(),
+                         "Non-existent token path should not write resume-note")
+
+    def test_nonexistent_plan_dir_returns_bare_continue(self):
+        """Capsule points to non-existent plan_dir -> bare continue:true, no resume-note."""
+        fake_plan = str(self.tasks_dir / "2099" / "nonexistent")
+        _write_capsule(self.state_dir,
+                       active_token=str(self.token),
+                       plan_dir=fake_plan)
+        result = self._run_postcompact()
+        self.assertEqual(result, {"continue": True})
+        self.assertFalse((self.state_dir / "resume-note.md").exists(),
+                         "Non-existent plan_dir should not write resume-note")
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

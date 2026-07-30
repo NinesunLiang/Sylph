@@ -23,6 +23,7 @@ Usage:
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from error_dna_logger import log_error
 
 # ─── Gate contracts (optional — enables ResearchGate / PlanGate validation) ───
 try:
@@ -158,6 +159,12 @@ class GoalMachine:
             try:
                 ResearchGate.validate(research_path)
             except ResearchGateError as e:
+                log_error(
+                    "ResearchGateError",
+                    str(e),
+                    fix="填写 research.md 的 8 个必需 section（背景/约束/已知信息/不确定性/全貌/依赖树/方案/Dependency TDD），依赖树至少 1 条",
+                    context={"research_path": str(research_path), "target_state": "PLANNING"}
+                )
                 raise GoalError(
                     f"ResearchGate blocked transition to PLANNING: {e}"
                 ) from e
@@ -166,6 +173,12 @@ class GoalMachine:
             try:
                 PlanGate.validate(plan_path)
             except PlanGateError as e:
+                log_error(
+                    "PlanGateError",
+                    str(e),
+                    fix="在 plan.md 添加 ## Phase N 声明（N=1,2,3...），Steps 中每项需包含 acceptance 字段",
+                    context={"plan_path": str(plan_path), "target_state": "EXECUTING"}
+                )
                 raise GoalError(
                     f"PlanGate blocked transition to EXECUTING: {e}"
                 ) from e
