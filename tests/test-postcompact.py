@@ -122,17 +122,20 @@ class TestPostCompactCapsule(TestPostCompactM6):
     """Test capsule-based recovery context injection."""
 
     def test_valid_capsule_produces_context(self):
-        """Valid capsule with matching token/task dir -> context in output."""
+        """Valid capsule -> resume-note.md written to disk."""
         _write_capsule(self.state_dir,
                        active_token=str(self.token),
                        plan_dir=str(self.task_dir))
         result = self._run_postcompact()
-        self.assertIn("hookSpecificOutput", result)
-        ctx = result["hookSpecificOutput"].get("additionalContext", "")
-        self.assertIn("[AUTO-RESUME]", ctx)
+        self.assertEqual(result, {"continue": True})
+        note_path = self.state_dir / "resume-note.md"
+        self.assertTrue(note_path.exists(), "resume-note.md should be written")
+        content = note_path.read_text(encoding="utf-8")
+        self.assertIn("[AUTO-RESUME]", content)
+        self.assertIn("立即继续", content)
 
     def test_archived_token_returns_bare_continue(self):
-        """Capsule token is archived (SSOT returns None) -> bare continue:true."""
+        """Capsule token is archived -> bare continue:true, no resume-note."""
         # Archive the token by adding terminal status
         archived_data = json.loads(self.token.read_text(encoding="utf-8"))
         archived_data["status"] = "archived"
@@ -141,39 +144,39 @@ class TestPostCompactCapsule(TestPostCompactM6):
                        active_token=str(self.token),
                        plan_dir=str(self.task_dir))
         result = self._run_postcompact()
-        self.assertIn("continue", result)
-        self.assertTrue(result["continue"])
-        self.assertNotIn("hookSpecificOutput", result,
-                         "Archived token should not inject capsule context")
+        self.assertEqual(result, {"continue": True})
+        self.assertFalse((self.state_dir / "resume-note.md").exists(),
+                         "Archived token should not write resume-note")
 
-    def test_token_sot_mismatch_returns_bare_continue(self):
-        """Different token is SSOT active -> bare continue:true.
+    def test_token_sot_mismatch_still_writes_resume(self):
+        """Multiple tokens exist (capsule points to valid active one) -> resume-note written.
 
-        Note: hook-level validation checks file existence and archived status.
+        PostCompact validates capsule's internal consistency, not SSOT cross-check.
         Full SSOT cross-check is done by SessionStart on next startup.
         """
         _write_mock_token(self.tokens_dir, "other-task")
         _write_mock_task(self.tasks_dir, "other-task")
-        # Capsule still points to original test-task, which is still active
+        # Capsule points to valid active test-task -> capsule is internally consistent
         _write_capsule(self.state_dir,
                        active_token=str(self.token),
                        plan_dir=str(self.task_dir))
         result = self._run_postcompact()
-        self.assertIn("continue", result)
-        self.assertTrue(result["continue"])
+        self.assertEqual(result, {"continue": True})
+        note_path = self.state_dir / "resume-note.md"
+        self.assertTrue(note_path.exists(),
+                        "Valid capsule should write resume-note regardless of SSOT state")
 
     def test_stale_state_mismatch_returns_bare_continue(self):
-        """plan_dir files missing (stale capsule) -> bare continue:true."""
+        """plan_dir files missing (stale capsule) -> bare continue:true, no resume-note."""
         # Remove research.md to simulate stale task state
         (self.task_dir / "research.md").unlink()
         _write_capsule(self.state_dir,
                        active_token=str(self.token),
                        plan_dir=str(self.task_dir))
         result = self._run_postcompact()
-        self.assertIn("continue", result)
-        self.assertTrue(result["continue"])
-        self.assertNotIn("hookSpecificOutput", result,
-                         "Stale capsule should not inject context")
+        self.assertEqual(result, {"continue": True})
+        self.assertFalse((self.state_dir / "resume-note.md").exists(),
+                         "Stale capsule should not write resume-note")
 
 
 class TestPostCompactNoCapsule(TestPostCompactM6):
@@ -187,14 +190,14 @@ class TestPostCompactNoCapsule(TestPostCompactM6):
         self.assertEqual(len(result), 1, "Only continue key expected")
 
     def test_corrupted_capsule_returns_bare_continue(self):
-        """Corrupted capsule JSON -> bare continue:true."""
+        """Corrupted capsule JSON -> bare continue:true, no resume-note."""
         cp = self.state_dir / "resume-capsule.json"
         cp.parent.mkdir(parents=True, exist_ok=True)
         cp.write_text("not-json", encoding="utf-8")
         result = self._run_postcompact()
-        self.assertIn("continue", result)
-        self.assertTrue(result["continue"])
-        self.assertNotIn("hookSpecificOutput", result)
+        self.assertEqual(result, {"continue": True})
+        self.assertFalse((self.state_dir / "resume-note.md").exists(),
+                         "Corrupted capsule should not write resume-note")
 
 
 if __name__ == "__main__":

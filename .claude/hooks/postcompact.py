@@ -55,17 +55,14 @@ def main() -> None:
     context = _validate_and_read_capsule(capsule_path)
 
     if context:
-        result = {
-            "continue": True,
-            "hookSpecificOutput": {
-                "hookEventName": "PostCompact",
-                "additionalContext": context,
-            },
-        }
-    else:
-        result = {"continue": True}
+        note_path = ROOT / ".omc" / "state" / "resume-note.md"
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        note_path.write_text(context, encoding="utf-8")
 
-    json.dump(result, sys.stdout, ensure_ascii=False)
+    # PostCompact hook schema 不支持 hookSpecificOutput.additionalContext,
+    # 因此 AUTO-RESUME 上下文写入 resume-note.md,
+    # 由 session-start.py 在 SessionStart 事件中读取并注入。
+    json.dump({"continue": True}, sys.stdout, ensure_ascii=False)
     sys.stdout.write("\n")
     sys.exit(0)
 

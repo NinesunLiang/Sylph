@@ -103,12 +103,15 @@ class TestPostCompactSoleResumeInjector(unittest.TestCase):
                 "task_id": "native-compact-task",
             }), encoding="utf-8")
             result = self.run_postcompact(root)
-            context = result["hookSpecificOutput"]["additionalContext"]
-            self.assertIn("[AUTO-RESUME]", context)
-            self.assertIn("native-compact-task", context)
-            self.assertIn("S2:continue", context)
-            self.assertIn("立即继续", context)
-            self.assertLessEqual(len(context), 2500)
+            self.assertEqual(result, {"continue": True})
+            note_path = state / "resume-note.md"
+            self.assertTrue(note_path.exists(), "resume-note.md should be written")
+            content = note_path.read_text(encoding="utf-8")
+            self.assertIn("[AUTO-RESUME]", content)
+            self.assertIn("native-compact-task", content)
+            self.assertIn("S2:continue", content)
+            self.assertIn("立即继续", content)
+            self.assertLessEqual(len(content), 2500)
 
     def test_stale_capsule_never_replaces_active_task(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -127,6 +130,8 @@ class TestPostCompactSoleResumeInjector(unittest.TestCase):
             }), encoding="utf-8")
             result = self.run_postcompact(root)
             self.assertEqual(result, {"continue": True})
+            self.assertFalse((state / "resume-note.md").exists(),
+                             "Stale capsule must not write resume-note.md")
 
 
 class TestNativeHookRegistration(unittest.TestCase):

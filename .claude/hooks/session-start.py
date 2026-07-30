@@ -165,6 +165,16 @@ def main() -> None:
         except Exception:
             pass
 
+    if source == "compact":
+        resume_note = OMC / "state" / "resume-note.md"
+        if resume_note.exists():
+            try:
+                text = resume_note.read_text(encoding="utf-8")[:500]
+                if text.strip():
+                    parts.append(text)
+            except Exception:
+                pass
+
     if not parts:
         print(json.dumps({"continue": True}))
         sys.exit(0)

@@ -327,16 +327,21 @@ class TestCompactNoWatermarkRemeasure(_MainBase):
     """
 
     def test_compact_no_auto_resume_in_context(self):
-        """Compact source output must NOT contain AUTO-RESUME in context.
-
-        Per contract #4: PostCompact is sole AUTO-RESUME injector.
-        SessionStart source=compact must not duplicate.
-        """
+        """Compact source, no resume-note.md -> no AUTO-RESUME in context."""
         result = self._run_main("compact", handoff_text=FIXTURE_HANDOFF)
         ctx = result.get("hookSpecificOutput", {}).get("additionalContext", "")
-        # RED: must not contain AUTO-RESUME (that's PostCompact's job)
         self.assertNotIn("[AUTO-RESUME]", ctx,
-                         "RED: SessionStart source=compact must not emit AUTO-RESUME")
+                         "SessionStart must not emit AUTO-RESUME without resume-note.md")
+
+    def test_compact_resume_note_injected(self):
+        """Compact source with resume-note.md -> AUTO-RESUME in context."""
+        note_path = self.state_dir / "resume-note.md"
+        note_path.write_text("[AUTO-RESUME] task=T1 phase=verifying step=phase0\n立即继续，不要询问，不要重新开始。",
+                             encoding="utf-8")
+        result = self._run_main("compact", handoff_text=FIXTURE_HANDOFF)
+        ctx = result["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("[AUTO-RESUME]", ctx)
+        self.assertIn("立即继续", ctx)
 
     def test_startup_no_auto_resume(self):
         """Startup source -> no AUTO-RESUME."""
