@@ -144,6 +144,14 @@ def test_check_injection_clean():
     }})
     assert result is None
 
+# ── Watermark removal (Contract #1) ──
+
+def test_check_watermark_removed():
+    """_check_watermark_gate must NOT exist in pretool_gates.checks (watermark removed)."""
+    from pretool_gates import checks
+    fn = getattr(checks, "_check_watermark_gate", None)
+    assert fn is None, f"RED: _check_watermark_gate still exists (got {fn})"
+
 # ── Runner ──
 
 if __name__ == "__main__":

@@ -3,19 +3,18 @@
 Test: Verify gate routing table accuracy, NOT individual sub-gate logic.
 
 Covers:
-1. L1 mode gate list (watermark, context-critical, sensitive-edit, fallback, action, edit-scope, stall)
+1. L1 mode gate list (context-critical, sensitive-edit, fallback, edit-scope, action, secret-scan, stall, claim-source)
 2. L2 mode gate list (adds secret-scan, plan, verify, oracle, document-quality, g2/g3/g5/g6, action-loop, stall, numeric-claim)
 3. Goal mode detection (_goal_mode: autonomous.active + lx-goal.json + not expired)
 4. Temp bypass (bypass_active skips all gates)
 """
 
 import json
-import os
 import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 # ---------------------------------------------------------------------------
 # Import the module under test
@@ -25,23 +24,30 @@ sys.path.insert(0, str(HOOK_PATH.parent))
 
 import importlib.util as iu
 spec = iu.spec_from_file_location("pretool_gate", HOOK_PATH)
+if spec is None or spec.loader is None:
+    raise RuntimeError(f"Cannot load {HOOK_PATH}")
 pg = iu.module_from_spec(spec)
+sys.modules[spec.name] = pg
 spec.loader.exec_module(pg)
+
+# Constants are now in pretool_gates.helpers / pretool_gates.constants
+# We patch helpers module-level vars (where _goal_mode reads from)
+from pretool_gates import helpers as _helpers
+from pretool_gates import checks as _checks
 
 
 class TestGateRoutingL1(unittest.TestCase):
     """Test 1: L1 mode selects the correct 9 gates."""
 
     def test_l1_gate_count(self):
-        """L1_GATES must contain exactly 9 entries."""
-        self.assertEqual(len(pg.L1_GATES), 9,
-                         f"L1_GATES has {len(pg.L1_GATES)} gates, expected 9")
+        """L1_GATES must contain exactly 8 entries (source-marker, no watermark/ctx-crit)."""
+        self.assertEqual(len(pg.L1_GATES), 8,
+                         f"L1_GATES has {len(pg.L1_GATES)} gates, expected 8")
 
     def test_l1_gate_names(self):
-        """L1 gate names must match the spec exactly."""
+        """L1 gate names must match the spec exactly (source-marker, no watermark/ctx-crit)."""
         expected = [
-            "watermark",
-            "context-critical",
+            "source-marker",
             "sensitive-edit",
             "fallback",
             "edit-scope",
@@ -66,8 +72,7 @@ class TestGateRoutingL1(unittest.TestCase):
     def test_l1_function_names_correct(self):
         """Verify each L1 gate maps to the expected function name."""
         expected_fns = {
-            "watermark": "_check_watermark_gate",
-            "context-critical": "_check_context_critical_pause",
+            "source-marker": "_check_source_marker",
             "sensitive-edit": "_check_sensitive_edit",
             "fallback": "_check_fallback",
             "action": "_check_action_gate",
@@ -76,20 +81,17 @@ class TestGateRoutingL1(unittest.TestCase):
             "stall": "_check_stall",
             "claim-source": "_check_claim_source",
         }
-        for name, fn in pg.L1_GATES:
-            self.assertEqual(fn.__name__, expected_fns[name],
-                             f"L1 gate '{name}' maps to {fn.__name__}, "
-                             f"expected {expected_fns[name]}")
+        actual_fns = {name: fn.__name__ for name, fn in pg.L1_GATES}
+        self.assertEqual(actual_fns, expected_fns)
 
 
 class TestGateRoutingL2(unittest.TestCase):
     """Test 2: L2 mode includes all L1 gates plus additional gates."""
 
     def test_l2_gate_names(self):
-        """Full GATES list must match the spec sequence exactly."""
+        """Full GATES list must match the spec (source-marker replaces watermark; ctx-crit removed)."""
         expected = [
-            "watermark",
-            "context-critical",
+            "source-marker",
             "sensitive-edit",
             "fallback",
             "action",
@@ -116,7 +118,7 @@ class TestGateRoutingL2(unittest.TestCase):
                          f"  actual:   {actual}")
 
     def test_l2_contains_all_l1_gates(self):
-        """L2 must include every L1 gate name in order."""
+        """L2 must include every L1 gate name in order (watermark + ctx-crit removed from both)."""
         l1_names = {name for name, _ in pg.L1_GATES}
         l2_names = {name for name, _ in pg.GATES}
         self.assertTrue(
@@ -150,8 +152,7 @@ class TestGateRoutingL2(unittest.TestCase):
     def test_l2_function_names_correct(self):
         """Verify each L2 gate maps to its expected function name."""
         expected_fns = {
-            "watermark": "_check_watermark_gate",
-            "context-critical": "_check_context_critical_pause",
+            "source-marker": "_check_source_marker",
             "sensitive-edit": "_check_sensitive_edit",
             "fallback": "_check_fallback",
             "action": "_check_action_gate",
@@ -171,10 +172,8 @@ class TestGateRoutingL2(unittest.TestCase):
             "claim-source": "_check_claim_source",
             "injection-guard": "_check_injection",
         }
-        for name, fn in pg.GATES:
-            self.assertEqual(fn.__name__, expected_fns[name],
-                             f"Gate '{name}' maps to {fn.__name__}, "
-                             f"expected {expected_fns[name]}")
+        actual_fns = {name: fn.__name__ for name, fn in pg.GATES}
+        self.assertEqual(actual_fns, expected_fns)
 
     def test_l2_function_references_match_l1(self):
         """L1 and L2 must share the same function object for shared gates."""
@@ -190,33 +189,34 @@ class TestGoalModeDetection(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp(prefix="test_goal_"))
-        self.original_omc = pg.OMC
-        self.original_signal = pg.GOAL_SIGNAL
-        self.original_mode = pg.GOAL_MODE_FILE
-        self.original_legacy = pg.GOAL_MODE_LEGACY
-        pg.OMC = self.tmpdir / ".omc"
-        pg.GOAL_SIGNAL = pg.OMC / "state" / "tokens" / "autonomous.active"
-        pg.GOAL_MODE_FILE = pg.OMC / "state" / "tokens" / "lx-goal.json"
-        pg.GOAL_MODE_LEGACY = pg.OMC / "state" / "unattended-mode.json"
+        # Patch helpers module-level vars (where _goal_mode reads from)
+        self._orig_omc = _helpers.OMC
+        self._orig_signal = _helpers.GOAL_SIGNAL
+        self._orig_mode = _helpers.GOAL_MODE_FILE
+        self._orig_legacy = _helpers.GOAL_MODE_LEGACY
+        _helpers.OMC = self.tmpdir / ".omc"
+        _helpers.GOAL_SIGNAL = _helpers.OMC / "state" / "tokens" / "autonomous.active"
+        _helpers.GOAL_MODE_FILE = _helpers.OMC / "state" / "tokens" / "lx-goal.json"
+        _helpers.GOAL_MODE_LEGACY = _helpers.OMC / "state" / "unattended-mode.json"
 
     def tearDown(self):
-        pg.OMC = self.original_omc
-        pg.GOAL_SIGNAL = self.original_signal
-        pg.GOAL_MODE_FILE = self.original_mode
-        pg.GOAL_MODE_LEGACY = self.original_legacy
+        _helpers.OMC = self._orig_omc
+        _helpers.GOAL_SIGNAL = self._orig_signal
+        _helpers.GOAL_MODE_FILE = self._orig_mode
+        _helpers.GOAL_MODE_LEGACY = self._orig_legacy
         import shutil
         shutil.rmtree(str(self.tmpdir), ignore_errors=True)
 
     def _write_signal(self):
-        pg.GOAL_SIGNAL.parent.mkdir(parents=True, exist_ok=True)
-        pg.GOAL_SIGNAL.write_text("1")
+        _helpers.GOAL_SIGNAL.parent.mkdir(parents=True, exist_ok=True)
+        _helpers.GOAL_SIGNAL.write_text("1")
 
     def _write_mode(self, active=True, expires_at=None):
-        pg.GOAL_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        _helpers.GOAL_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
         data = {"active": active}
         if expires_at:
             data["expires_at"] = expires_at
-        pg.GOAL_MODE_FILE.write_text(json.dumps(data), encoding="utf-8")
+        _helpers.GOAL_MODE_FILE.write_text(json.dumps(data), encoding="utf-8")
 
     def test_no_signal_returns_false(self):
         """No autonomous.active file -> _goal_mode() returns False."""
@@ -254,7 +254,7 @@ class TestGoalModeDetection(unittest.TestCase):
     def test_corrupted_mode_file_returns_false(self):
         """Corrupted JSON -> False."""
         self._write_signal()
-        mode_path = pg.GOAL_MODE_FILE
+        mode_path = _helpers.GOAL_MODE_FILE
         mode_path.parent.mkdir(parents=True, exist_ok=True)
         mode_path.write_text("not-json")
         self.assertFalse(pg._goal_mode())
@@ -263,9 +263,9 @@ class TestGoalModeDetection(unittest.TestCase):
         """lx-goal.json missing, legacy unattended-mode.json present -> uses legacy."""
         self._write_signal()
         # Write legacy file instead
-        pg.GOAL_MODE_LEGACY.parent.mkdir(parents=True, exist_ok=True)
+        _helpers.GOAL_MODE_LEGACY.parent.mkdir(parents=True, exist_ok=True)
         data = {"active": True, "expires_at": "2099-12-31T23:59:59+00:00"}
-        pg.GOAL_MODE_LEGACY.write_text(json.dumps(data), encoding="utf-8")
+        _helpers.GOAL_MODE_LEGACY.write_text(json.dumps(data), encoding="utf-8")
         self.assertTrue(pg._goal_mode())
 
 
@@ -274,67 +274,72 @@ class TestTempBypass(unittest.TestCase):
 
     def setUp(self):
         self.tmpdir = Path(tempfile.mkdtemp(prefix="test_bypass_"))
-        self.original_omc = pg.OMC
-        self.original_bypass = pg.TEMP_BYPASS
-        pg.OMC = self.tmpdir / ".omc"
-        pg.TEMP_BYPASS = pg.OMC / "state" / "temp-bypass.json"
+        self._orig_omc = _helpers.OMC
+        self._orig_bypass = _helpers.TEMP_BYPASS
+        _helpers.OMC = self.tmpdir / ".omc"
+        _helpers.TEMP_BYPASS = _helpers.OMC / "state" / "temp-bypass.json"
 
     def tearDown(self):
-        pg.OMC = self.original_omc
-        pg.TEMP_BYPASS = self.original_bypass
+        _helpers.OMC = self._orig_omc
+        _helpers.TEMP_BYPASS = self._orig_bypass
         import shutil
         shutil.rmtree(str(self.tmpdir), ignore_errors=True)
 
     def _write_bypass(self, expires_at=None):
-        pg.TEMP_BYPASS.parent.mkdir(parents=True, exist_ok=True)
+        _helpers.TEMP_BYPASS.parent.mkdir(parents=True, exist_ok=True)
         data = {"reason": "test bypass"}
         if expires_at:
             data["expires_at"] = expires_at
-        pg.TEMP_BYPASS.write_text(json.dumps(data), encoding="utf-8")
+        _helpers.TEMP_BYPASS.write_text(json.dumps(data), encoding="utf-8")
 
     def test_no_file_returns_false(self):
         """No bypass file -> False."""
-        self.assertFalse(pg._check_temp_bypass())
+        self.assertFalse(_helpers._check_temp_bypass())
 
     def test_valid_bypass_returns_true(self):
-        """Active bypass with future expiry -> True."""
-        self._write_bypass(expires_at="2099-12-31T23:59:59+00:00")
-        self.assertTrue(pg._check_temp_bypass())
+        """Active bypass with future expiry within 24h -> True."""
+        import datetime
+        expires = (datetime.datetime.now(datetime.timezone.utc)
+                   + datetime.timedelta(hours=1)).isoformat()
+        self._write_bypass(expires_at=expires)
+        self.assertTrue(_helpers._check_temp_bypass())
 
     def test_expired_bypass_returns_false(self):
         """Expired bypass -> False (file auto-deleted)."""
         self._write_bypass(expires_at="2020-01-01T00:00:00+00:00")
-        self.assertFalse(pg._check_temp_bypass())
-        self.assertFalse(pg.TEMP_BYPASS.exists(),
+        self.assertFalse(_helpers._check_temp_bypass())
+        self.assertFalse(_helpers.TEMP_BYPASS.exists(),
                          "Expired bypass file should be auto-deleted")
 
-    def test_bypass_no_expiry_returns_true(self):
-        """Bypass without expires_at -> True (no-expiry = permanent)."""
+    def test_bypass_no_expiry_returns_false(self):
+        """Bypass without expires_at -> False (fail closed)."""
         self._write_bypass()
-        self.assertTrue(pg._check_temp_bypass())
+        self.assertFalse(_helpers._check_temp_bypass())
+        self.assertFalse(_helpers.TEMP_BYPASS.exists(),
+                         "No-expiry bypass file should be deleted (fail closed)")
 
     def test_corrupted_bypass_file_returns_false(self):
         """Corrupted bypass JSON -> False, file deleted."""
-        pg.TEMP_BYPASS.parent.mkdir(parents=True, exist_ok=True)
-        pg.TEMP_BYPASS.write_text("not-json")
-        self.assertFalse(pg._check_temp_bypass())
+        _helpers.TEMP_BYPASS.parent.mkdir(parents=True, exist_ok=True)
+        _helpers.TEMP_BYPASS.write_text("not-json")
+        self.assertFalse(_helpers._check_temp_bypass())
 
 
 class TestModeSelection(unittest.TestCase):
     """Test that mode selection routes to correct gate list."""
 
-    @patch.object(pg, "_is_ci_environment", return_value=False)
-    @patch.object(pg, "_get_gate_mode", return_value="l1")
+    @patch.object(_helpers, "_is_ci_environment", return_value=False)
+    @patch.object(_helpers, "_get_gate_mode", return_value="l1")
     def test_l1_mode_uses_l1_gates(self, mock_mode, mock_ci):
         """_get_gate_mode returns 'l1', L1_GATES should be active."""
-        mode = pg._get_gate_mode()
+        mode = _helpers._get_gate_mode()
         self.assertEqual(mode, "l1")
 
-    @patch.object(pg, "_is_ci_environment", return_value=False)
-    @patch.object(pg, "_get_gate_mode", return_value="l2")
+    @patch.object(_helpers, "_is_ci_environment", return_value=False)
+    @patch.object(_helpers, "_get_gate_mode", return_value="l2")
     def test_l2_mode_uses_gates(self, mock_mode, mock_ci):
         """_get_gate_mode returns 'l2', full GATES should be active."""
-        mode = pg._get_gate_mode()
+        mode = _helpers._get_gate_mode()
         self.assertEqual(mode, "l2")
 
 
@@ -344,13 +349,13 @@ class TestGateContractCompliance(unittest.TestCase):
     def test_contract_without_file_returns_none(self):
         """No gate-contract.yaml -> _verify_contract_compliance returns None."""
         root = Path(tempfile.mkdtemp(prefix="test_contract_"))
-        original_root = pg.ROOT
-        pg.ROOT = root
+        original_root = _helpers.ROOT
+        _helpers.ROOT = root
         try:
             result = pg._verify_contract_compliance("L1", {"watermark"})
             self.assertIsNone(result)
         finally:
-            pg.ROOT = original_root
+            _helpers.ROOT = original_root
             import shutil
             shutil.rmtree(str(root), ignore_errors=True)
 
@@ -370,15 +375,31 @@ class TestNoDuplicateNames(unittest.TestCase):
 
 
 class TestOrderingFunctional(unittest.TestCase):
-    """L1 and L2 order must be meaningful — earlier gates must short-circuit later ones."""
+    """Watermark + context-critical gates must NOT appear in routing tables."""
 
-    def test_l1_watermark_first(self):
-        """watermark (context pressure) must be first gate in L1 mode."""
-        self.assertEqual(pg.L1_GATES[0][0], "watermark")
+    def test_l1_watermark_not_in_gates(self):
+        """watermark gate must NOT be in L1_GATES."""
+        names = [n for n, _ in pg.L1_GATES]
+        self.assertNotIn("watermark", names,
+                         "RED: watermark gate still present in L1_GATES")
 
-    def test_l2_watermark_first(self):
-        """watermark must be first gate in full L2 mode."""
-        self.assertEqual(pg.GATES[0][0], "watermark")
+    def test_l2_watermark_not_in_gates(self):
+        """watermark gate must NOT be in full GATES."""
+        names = [n for n, _ in pg.GATES]
+        self.assertNotIn("watermark", names,
+                         "RED: watermark gate still present in GATES")
+
+    def test_l1_context_critical_not_in_gates(self):
+        """context-critical gate must NOT be in L1_GATES."""
+        names = [n for n, _ in pg.L1_GATES]
+        self.assertNotIn("context-critical", names,
+                         "RED: context-critical gate still present in L1_GATES")
+
+    def test_l2_context_critical_not_in_gates(self):
+        """context-critical gate must NOT be in full GATES."""
+        names = [n for n, _ in pg.GATES]
+        self.assertNotIn("context-critical", names,
+                         "RED: context-critical gate still present in GATES")
 
     def test_action_before_plan(self):
         """action gate must precede plan gate (dangerous cmd before task state)."""
@@ -393,22 +414,101 @@ class TestOrderingFunctional(unittest.TestCase):
                         l2_names.index("edit-scope"),
                         "sensitive-edit should run before edit-scope")
 
+    def test_no_context_gates_left_in_l1(self):
+        """No context-* gate names remain in L1_GATES."""
+        names = [n for n, _ in pg.L1_GATES]
+        context_names = [n for n in names if n.startswith("context-")]
+        self.assertEqual(len(context_names), 0,
+                         f"RED: context-* gates still in L1: {context_names}")
+
+    def test_no_context_gates_left_in_l2(self):
+        """No context-* gate names remain in GATES."""
+        names = [n for n, _ in pg.GATES]
+        context_names = [n for n in names if n.startswith("context-")]
+        self.assertEqual(len(context_names), 0,
+                         f"RED: context-* gates still in GATES: {context_names}")
+
+
+# ── RED Contract 1: Custom context-watermark gate and functions must be REMOVED ────
+# Contract #1: custom context-watermark measurement, READONLY/FORCE gate,
+# custom compact_decision are removed. Source-file CarrorOS marker check
+# may remain but not called "context-watermark".
+
+class TestWatermarkRemovedRED(unittest.TestCase):
+    """RED TDD: Custom context-watermark + context-critical gates must be REMOVED.
+
+    Contract #1: custom context-watermark measurement, READONLY/FORCE gate,
+    custom compact_decision, and context-critical pause gate are removed.
+    Source-file CarrorOS marker check may remain but not called context-watermark.
+    """
+
+    def test_watermark_gate_removed_from_checks(self):
+        """_check_watermark_gate must NOT exist in pretool_gates.checks."""
+        from pretool_gates import checks
+        fn = getattr(checks, "_check_watermark_gate", None)
+        self.assertIsNone(fn,
+                          "RED: _check_watermark_gate still exported from checks")
+
+    def test_watermark_gate_removed_from_l1(self):
+        """'watermark' must NOT appear in L1_GATES."""
+        names = [n for n, _ in pg.L1_GATES]
+        self.assertNotIn("watermark", names,
+                         "RED: 'watermark' still registered in L1_GATES")
+
+    def test_watermark_gate_removed_from_l2(self):
+        """'watermark' must NOT appear in full GATES."""
+        names = [n for n, _ in pg.GATES]
+        self.assertNotIn("watermark", names,
+                         "RED: 'watermark' still registered in full GATES")
+
+    def test_context_critical_removed_from_l1(self):
+        """'context-critical' must NOT appear in L1_GATES."""
+        names = [n for n, _ in pg.L1_GATES]
+        self.assertNotIn("context-critical", names,
+                         "RED: 'context-critical' still registered in L1_GATES")
+
+    def test_context_critical_removed_from_l2(self):
+        """'context-critical' must NOT appear in full GATES."""
+        names = [n for n, _ in pg.GATES]
+        self.assertNotIn("context-critical", names,
+                         "RED: 'context-critical' still registered in full GATES")
+
+    def test_context_critical_fn_removed_from_checks(self):
+        """_check_context_critical_pause must NOT exist in pretool_gates.checks."""
+        from pretool_gates import checks
+        fn = getattr(checks, "_check_context_critical_pause", None)
+        self.assertIsNone(fn,
+                          "RED: _check_context_critical_pause still in checks")
+
+    def test_context_watermark_level_removed(self):
+        """_watermark_level helper must NOT exist in pretool_gates."""
+        from pretool_gates import checks
+        fn = getattr(checks, "_watermark_level", None)
+        self.assertIsNone(fn,
+                          "RED: _watermark_level still exported from checks")
+
 
 class TestScopeStreakBlock(unittest.TestCase):
-    """Test edit-scope 逃逸惯性计数: 前2次WARN, ≥3次→BLOCK."""
+    """Test edit-scope 逃逸惯性计数: 前3次WARN, ≥4次→BLOCK."""
 
     def setUp(self):
         # 备份原始 REDIRECT_STREAK / GOAL_SIGNAL 路径
-        self._orig_rs = pg.REDIRECT_STREAK
-        self._orig_gs = pg.GOAL_SIGNAL
+        self._orig_rs = _helpers.REDIRECT_STREAK
+        self._orig_gs = _helpers.GOAL_SIGNAL
+        self._orig_checks_rs = _checks.REDIRECT_STREAK
+        self._orig_checks_gs = _checks.GOAL_SIGNAL
         # 指向临时文件
         self._tmpdir = Path(tempfile.mkdtemp())
-        pg.REDIRECT_STREAK = self._tmpdir / "redirect-streak.json"
-        pg.GOAL_SIGNAL = self._tmpdir / "autonomous.active"
+        _helpers.REDIRECT_STREAK = self._tmpdir / "redirect-streak.json"
+        _helpers.GOAL_SIGNAL = self._tmpdir / "autonomous.active"
+        _checks.REDIRECT_STREAK = self._tmpdir / "redirect-streak.json"
+        _checks.GOAL_SIGNAL = self._tmpdir / "autonomous.active"
 
     def tearDown(self):
-        pg.REDIRECT_STREAK = self._orig_rs
-        pg.GOAL_SIGNAL = self._orig_gs
+        _helpers.REDIRECT_STREAK = self._orig_rs
+        _helpers.GOAL_SIGNAL = self._orig_gs
+        _checks.REDIRECT_STREAK = self._orig_checks_rs
+        _checks.GOAL_SIGNAL = self._orig_checks_gs
         import shutil
         shutil.rmtree(str(self._tmpdir), ignore_errors=True)
 
@@ -417,8 +517,8 @@ class TestScopeStreakBlock(unittest.TestCase):
         import time
         t = now_s if now_s is not None else int(time.time())
         data = {"edit-scope": {"c": count, "t": t}}
-        pg.REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
-        pg.REDIRECT_STREAK.write_text(json.dumps(data), encoding="utf-8")
+        _helpers.REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
+        _helpers.REDIRECT_STREAK.write_text(json.dumps(data), encoding="utf-8")
 
     def _build_payload(self, path: str = "test/out-of-scope.txt") -> dict:
         """构造最小 edit-scope payload"""
@@ -427,49 +527,49 @@ class TestScopeStreakBlock(unittest.TestCase):
                 "paths": [path], "action_type": "write_file",
                 "intent": "test scope streak"}
 
-    def test_first_two_strikes_return_none(self):
-        """前2次越界应返回 None (WARN 不阻断)."""
+    def test_first_three_strikes_return_none(self):
+        """前3次越界应返回 None (WARN 不阻断)."""
         self._write_streak(0)
         # _check_edit_scope 返回 str=BLOCK or None=放行
         # 用 patch 让 token scope 触发越界
         token_scope = {"scope": ["in-scope/"]}
         payload = self._build_payload("out-of-scope/file.txt")
-        with patch.object(pg, '_active_token', return_value=token_scope):
-            for i in range(2):
+        with patch.object(_checks, '_active_token', return_value=token_scope):
+            for i in range(3):
                 result = pg._check_edit_scope(payload)
                 self.assertIsNone(result,
                                   f"第{i+1}次越界应返回None(WARN)，实际={result}")
 
-    def test_third_strike_blocks(self):
-        """≥3次越界应返回 BLOCK 字符串."""
-        self._write_streak(2)  # 伪装已有2次
+    def test_fourth_strike_blocks(self):
+        """≥4次越界应返回 BLOCK 字符串."""
+        self._write_streak(3)  # 伪装已有3次
         token_scope = {"scope": ["in-scope/"]}
         payload = self._build_payload("out-of-scope/file.txt")
-        with patch.object(pg, '_active_token', return_value=token_scope):
+        with patch.object(_checks, '_active_token', return_value=token_scope):
             result = pg._check_edit_scope(payload)
-            self.assertIsNotNone(result, "第3次应 BLOCK")
+            self.assertIsNotNone(result, "第4次应 BLOCK")
             self.assertIn("BLOCK", str(result).upper(),
                           f"返回值应包含 BLOCK, 实际={result}")
 
     def test_autonomous_mode_skips_streak(self):
-        """autonomous.active 存在时不应触发 BLOCK (即使已有3次)."""
-        self._write_streak(3)
-        pg.GOAL_SIGNAL.touch()  # 创建 autonomous 信号
+        """autonomous.active 存在时不应触发 BLOCK (即使已有4次)."""
+        self._write_streak(4)
+        _helpers.GOAL_SIGNAL.touch()  # 创建 autonomous 信号
         token_scope = {"scope": ["in-scope/"]}
         payload = self._build_payload("out-of-scope/file.txt")
-        with patch.object(pg, '_active_token', return_value=token_scope):
+        with patch.object(_checks, '_active_token', return_value=token_scope):
             result = pg._check_edit_scope(payload)
             self.assertIsNone(result,
                               "autonomous 模式应跳过 streak BLOCK")
-        pg.GOAL_SIGNAL.unlink(missing_ok=True)
+        _helpers.GOAL_SIGNAL.unlink(missing_ok=True)
 
     def test_ttl_expiry_resets_streak(self):
         """超过 21600s TTL 后 streak 应重置."""
         old_time = int(__import__('time').time()) - 22000  # 超过 TTL
-        self._write_streak(3, now_s=old_time)  # 旧 streak 已过期
+        self._write_streak(4, now_s=old_time)  # 旧 streak 已过期
         token_scope = {"scope": ["in-scope/"]}
         payload = self._build_payload("out-of-scope/file.txt")
-        with patch.object(pg, '_active_token', return_value=token_scope):
+        with patch.object(_checks, '_active_token', return_value=token_scope):
             result = pg._check_edit_scope(payload)
             self.assertIsNone(result,
                               "TTL 过期后首次越界应为 WARN 不 BLOCK")

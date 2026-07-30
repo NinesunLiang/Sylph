@@ -7,17 +7,10 @@ session-start.py — CarrorOS SessionStart hook（compact 恢复 / 新会话导�
   2. .omc/state/last-user-prompt.md — 最近用户请求
   3. 活跃 token 状态（task/step/progress）
 
-副作用（唯一）:source=compact/resume 时 boundary-aware 重测水位快照——
-  pua 常规测量读 transcript 最后一条 usage,compact 刚完成时该记录仍是压缩前的
-  (2026-07-20 实测: 84.3% 陈旧快照 FORCE 误拦 compact 后续跑)。owner 裁决:
-  SessionStart 触发重测,最后锚点为 boundary 且无 post-usage 时按
-  used = postTokens + overhead(上一 boundary 实测,fallback 30k) 刷新。
-
-设计：快速（<200ms，尾读 512KB）、永不阻断。无活跃任务时静默退出。
+设计：快速（<200ms）、永不阻断。无活跃任务时静默退出。
 """
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import re
@@ -46,21 +39,6 @@ try:
     from task_ssot import latest_active_token as _ssot_latest_active_token
 except Exception:  # SSOT 不可用 → 跳过 token brief(注入类 hook,永不阻断)
     _ssot_latest_active_token = None
-
-# Round7 Task#14: 水位重测复用 pua 写口(_write_watermark_state 唯一写口,禁第二实现)
-_pua = None
-try:
-    _spec = importlib.util.spec_from_file_location(
-        "pretool_user_approve", HOOK_DIR / "pretool-user-approve.py")
-    if _spec is not None and _spec.loader is not None:
-        _pua = importlib.util.module_from_spec(_spec)
-        sys.modules["pretool_user_approve"] = _pua  # dataclass 反查需先注册(本项目教训)
-        _spec.loader.exec_module(_pua)  # 模块级仅常量/导入,main 有 __name__ 守卫
-except Exception:  # pua 不可用 → 跳过重测(注入类 hook,永不阻断)
-    _pua = None
-
-WM_TAIL_BYTES = 512 * 1024  # 与 pua._measure_used_tokens 尾读口径一致
-WM_OVERHEAD_FALLBACK = 30000  # 固定开销(系统提示+工具 schema+记忆)实测区间 26.4k-31.6k
 
 
 def _age_str(ts: float) -> str:
@@ -120,78 +98,6 @@ def _active_token_brief() -> str:
     return brief
 
 
-def _usage_total(line: str) -> int | None:
-    """与 pua._measure_used_tokens 同口径: input+cache_read+cache_creation。"""
-    if '"usage"' not in line:
-        return None
-    try:
-        rec = json.loads(line)
-    except json.JSONDecodeError:
-        return None
-    msg = rec.get("message")
-    usage = msg.get("usage") if isinstance(msg, dict) else None
-    if not isinstance(usage, dict):
-        return None
-    return (int(usage.get("input_tokens", 0))
-            + int(usage.get("cache_read_input_tokens", 0))
-            + int(usage.get("cache_creation_input_tokens", 0)))
-
-
-def _remeasure_watermark(transcript: Path | None) -> None:
-    """compact/resume 后第一轮刷新水位快照(boundary-aware)。
-
-    常规测量(pua._update_watermark)取 transcript 最后一条 usage——compact 刚完成时
-    该记录仍是压缩前的(2026-07-20 实测: 84.3% 陈旧快照 FORCE 误拦 compact 后续跑,
-    下一轮才自愈为 27.8%)。本函数仅在「最后锚点 = compact_boundary 且其后无 usage」
-    时走估算: used = postTokens + overhead(上一 boundary 实测,fallback 30k);
-    其余情形委托 pua 常规路径。任何异常静默跳过(注入 hook 永不阻断)。
-    """
-    if transcript is None or _pua is None:
-        return
-    try:
-        if not transcript.exists():
-            return
-        size = transcript.stat().st_size
-        with transcript.open("rb") as f:
-            f.seek(max(0, size - WM_TAIL_BYTES))
-            lines = f.read().decode("utf-8", errors="replace").splitlines()
-    except OSError:
-        return
-    last_post: int | None = None         # 最后一条 boundary 的 postTokens
-    usage_after_last: int | None = None  # 最后 boundary 之后的第一条 usage
-    overhead: int | None = None          # 上一 boundary 实测固定开销
-    prev_post: int | None = None
-    prev_usage: int | None = None
-    for line in lines:
-        if '"compact_boundary"' in line:
-            try:
-                meta = json.loads(line).get("compactMetadata") or {}
-                post = meta.get("postTokens")
-            except json.JSONDecodeError:
-                continue
-            if isinstance(post, int) and post > 0:
-                if prev_post is not None and prev_usage is not None and prev_usage > prev_post:
-                    overhead = prev_usage - prev_post
-                prev_post, prev_usage = post, None
-                last_post, usage_after_last = post, None
-            continue
-        u = _usage_total(line)
-        if u is not None and u > 0:
-            if prev_post is not None and prev_usage is None:
-                prev_usage = u
-            if last_post is not None and usage_after_last is None:
-                usage_after_last = u
-    try:
-        if last_post is not None and usage_after_last is None:
-            # 最后锚点是 boundary: compact 后尚无 usage,陈旧快照必须刷新
-            _pua._write_watermark_state(last_post + (overhead or WM_OVERHEAD_FALLBACK))
-        else:
-            # 常规: 最后锚点是 usage(或无 boundary)——pua 原路径
-            _pua._update_watermark(transcript)
-    except Exception:
-        pass
-
-
 def _stepwise_brief() -> str:
     """lx-stepwise 任务恢复入口(抗 compact): 磁盘状态是唯一真相,会话摘要不可依赖。"""
     try:
@@ -222,10 +128,6 @@ def main() -> None:
     except Exception:
         payload = {}
     source = str(payload.get("source") or "startup")
-
-    if source in ("compact", "resume"):
-        _tp = payload.get("transcript_path")
-        _remeasure_watermark(Path(_tp) if isinstance(_tp, str) and _tp.strip() else None)
 
     parts: list[str] = []
 

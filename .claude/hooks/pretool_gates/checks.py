@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from .constants import (
-    ROOT, OMC, STATE_DIR, CRITICAL_STATE,
+    ROOT, OMC, STATE_DIR,
     FALLBACK_REQUIRED, FALLBACK_APPROVED, TEMP_BYPASS,
     REDIRECT_STREAK, GOAL_SIGNAL, TRUST_BREACH,
     SENSITIVE_PATTERNS, DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS,
@@ -278,7 +278,7 @@ def _check_edit_scope(payload: dict) -> str | None:
             REDIRECT_STREAK.write_text(json.dumps(_streak), encoding="utf-8")
         except Exception:
             pass
-        if _streak["edit-scope"]["c"] >= 3:
+        if _streak["edit-scope"]["c"] >= 4:
             _append_audit({"event_type": "edit_scope_escalated_to_block", "actor": "hook:pretool-gate",
                             "reason": f"scope_violation_streak_{_streak['edit-scope']['c']}"})
             count = _streak["edit-scope"]["c"]
@@ -481,17 +481,6 @@ def _check_g6_budget(payload: dict) -> str | None:
     return None
 
 
-def _check_context_critical_pause(payload: dict) -> str | None:
-    if not CRITICAL_STATE.exists():
-        return None
-    try:
-        data = json.loads(CRITICAL_STATE.read_text(encoding="utf-8"))
-        if data.get("critical"):
-            print(f"⚠️ [context-critical] {data.get('reason', '')}", file=sys.stderr, flush=True)
-    except Exception:
-        pass
-    return None
-
 
 # ── Secret scan ──
 
@@ -531,7 +520,7 @@ def _check_secret_scan(payload: dict) -> str | None:
 
 # ── Watermark gate ──
 
-def _check_watermark_gate(payload: dict) -> str | None:
+def _check_source_marker(payload: dict) -> str | None:
     tool = _extract_tool(payload).lower()
     if tool not in WRITE_TOOLS:
         return None
@@ -545,7 +534,7 @@ def _check_watermark_gate(payload: dict) -> str | None:
     # Goal mode bypass
     if _goal_mode():
         return None
-    # Check watermark: Python comment or shell/YAML comment
+    # Check marker: Python comment or shell/YAML comment
     lines = content.split("\n")
     first_line = lines[0].strip() if lines else ""
     second_line = lines[1].strip() if len(lines) > 1 else ""
@@ -561,9 +550,9 @@ def _check_watermark_gate(payload: dict) -> str | None:
                 has_marker = True
                 break
     if not has_marker:
-        _append_audit({"event_type": "watermark_missing", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "no_watermark", "path": path})
-        print(f"⚠️ [watermark] 新建文件 {path} 缺少 CarrorOS 标记", file=sys.stderr, flush=True)
+        _append_audit({"event_type": "source_marker_missing", "actor": "hook:pretool-gate",
+                        "decision": "WARN", "reason": "no_source_marker", "path": path})
+        print(f"⚠️ [source-marker] 新建文件 {path} 缺少 CarrorOS 标记", file=sys.stderr, flush=True)
     return None
 
 

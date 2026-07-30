@@ -96,7 +96,9 @@ def main() -> int:
             f"precompact:{session_id}:"
             f"{hook_input.get('transcript_path') or hook_input.get('transcriptPath') or ''}"
         )
-        event_id = "pc-" + hashlib.sha256(basis.encode("utf-8")).hexdigest()[:16]
+        import time
+        ns = str(time.time_ns())
+        event_id = "pc-" + ns[-12:] + "-" + hashlib.sha256(basis.encode("utf-8")).hexdigest()[:8]
         path, digest, hb = write_precompact_snapshot(hook_input, event_id=event_id)
         stdout_json(
             {
@@ -113,6 +115,16 @@ def main() -> int:
         return 0
     except Exception as exc:
         stderr(f"PRECOMPACT_FAIL:{exc}")
+        try:
+            from lib.lifecycle_ssot import load_lifecycle, save_lifecycle
+            lc = load_lifecycle()
+            compact = lc.setdefault("compact", {})
+            compact["failed_attempts"] = compact.get("failed_attempts", 0) + 1
+            from datetime import datetime, timezone
+            compact["last_failure_at"] = datetime.now(timezone.utc).isoformat()
+            save_lifecycle(lc)
+        except Exception:
+            pass
         return 2
 
 

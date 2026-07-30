@@ -2,16 +2,18 @@
   "env": {
     "ANTHROPIC_BASE_URL": "http://127.0.0.1:9998",
     "ANTHROPIC_AUTH_TOKEN": "test",
-    "ANTHROPIC_MODEL": "deepseek-v4-pro(1m)"
+    "ANTHROPIC_MODEL": "claude-sonnet-4-6",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "80"
   },
   "enabledPlugins": {
     "pyright-lsp@claude-plugins-official": true
   },
   "effortLevel": "xhigh",
   "skipWorkflowUsageWarning": true,
-  "model": "deepseek-v4-pro(1m)",
+  "model": "claude-sonnet-4-6",
   "apiUrl": "http://127.0.0.1:9998",
   "authToken": "test",
+  "autoCompactEnabled": true,
   "hooks": {
     "PreToolUse": [
       {
@@ -131,6 +133,7 @@
     ],
     "PreCompact": [
       {
+        "matcher": "manual|auto",
         "hooks": [
           {
             "type": "command",
@@ -140,6 +143,17 @@
             "type": "command",
             "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; /usr/bin/python3 \".claude/hooks/hook-launcher.py\" \"stop-flywheel.py\"",
             "timeout": 15000
+          }
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "matcher": "manual|auto",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \".claude/hooks/postcompact.py\""
           }
         ]
       }

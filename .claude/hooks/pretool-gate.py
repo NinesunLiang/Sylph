@@ -34,7 +34,7 @@ from pretool_gates.checks import (
     _check_plan_gate, _check_edit_scope, _check_verify_gate,
     _check_oracle_gate, _check_document_quality,
     _check_g2_large_file, _check_g3_reviews, _check_g5_wide_glob, _check_g6_budget,
-    _check_context_critical_pause, _check_secret_scan, _check_watermark_gate,
+    _check_secret_scan, _check_source_marker,
     _check_numeric_claim, _check_claim_source, _check_action_loop,
     _check_stall, _check_injection,
 )
@@ -43,8 +43,7 @@ from pretool_gates.checks import (
 # L1: 轻量模式（日常任务），仅核心安全门
 # L2: 完整模式（复杂/危险任务），全量 Gate
 L1_GATES = [
-    ("watermark", _check_watermark_gate),
-    ("context-critical", _check_context_critical_pause),
+    ("source-marker", _check_source_marker),
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
     ("edit-scope", _check_edit_scope),
@@ -55,8 +54,7 @@ L1_GATES = [
 ]
 
 GATES = [
-    ("watermark", _check_watermark_gate),
-    ("context-critical", _check_context_critical_pause),
+    ("source-marker", _check_source_marker),
     ("sensitive-edit", _check_sensitive_edit),
     ("fallback", _check_fallback),
     ("action", _check_action_gate),
@@ -77,11 +75,11 @@ GATES = [
     ("injection-guard", _check_injection),
 ]
 from pretool_gates.helpers import (
-    _read_stdin, _extract_tool, _ok, _block, _redirect,
+    _read_stdin, _extract_tool, _ok, _block, _redirect, _hard_stop,
     _check_temp_bypass, _check_trust_breach, _clean_stale_state_token,
     _goal_mode, _append_audit, _get_gate_mode,
     _record_gate_decision, _verify_contract_compliance,
-    _is_trust_breach_reason, _record_trust_breach,
+    _is_trust_breach_reason, _record_trust_breach, _increment_streak,
 )
 
 # ── State paths used by main ──
@@ -117,38 +115,18 @@ def main() -> int:
             continue
         if result:
             if result.startswith("REDIRECT"):
-                # ── Three-strike limit ──
-                _REDIRECT_TTL_S = 21600  # 6 hours
-                _REDIRECTS: dict[str, dict] = {}
-                try:
-                    if REDIRECT_STREAK.is_file():
-                        raw = json.loads(REDIRECT_STREAK.read_text(encoding="utf-8"))
-                        now_s = int(time.time())
-                        _REDIRECTS = {}
-                        for k, v in raw.items():
-                            if isinstance(v, dict) and "c" in v and "t" in v:
-                                if now_s - v["t"] < _REDIRECT_TTL_S:
-                                    _REDIRECTS[k] = v
-                except Exception:
-                    _REDIRECTS = {}
-                now_s = int(time.time())
-                prev = _REDIRECTS.get(gate_name, {}).get("c", 0)
-                _REDIRECTS[gate_name] = {"c": prev + 1, "t": now_s}
-                try:
-                    REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
-                    REDIRECT_STREAK.write_text(json.dumps(_REDIRECTS), encoding="utf-8")
-                except Exception:
-                    pass
-                if _REDIRECTS[gate_name]["c"] >= 3:
+                # ── 1-3 REDIRECT: recoverable via _redirect; >=4: hard_stop ──
+                cnt = _increment_streak(gate_name)
+                if cnt >= 4:
                     _append_audit({
-                        "event_type": "redirect_escalated_to_block",
+                        "event_type": "redirect_escalated_to_hard_stop",
                         "actor": "hook:pretool-gate",
                         "gate": gate_name,
-                        "redirect_count": _REDIRECTS[gate_name]["c"],
-                        "reason": "exceeded_3_redirect_limit",
+                        "redirect_count": cnt,
+                        "reason": f"exceeded_{cnt}_redirect_limit",
                     })
-                    return _block(
-                        f"该操作已被 REDIRECT 拦截 {_REDIRECTS[gate_name]['c']} 次仍未修正",
+                    return _hard_stop(
+                        f"该操作已被 REDIRECT 拦截 {cnt} 次仍未修正。"
                         "放弃当前操作方向，不要重复被拒的操作。")
                 parts = result.split("|", 1)
                 reason = parts[0].replace("REDIRECT ", "").strip()
@@ -170,7 +148,7 @@ def main() -> int:
                     _record_trust_breach(reason)
                 return _block(reason, suggestion)
             if result == "HARD_BLOCK":
-                return 0
+                return _hard_stop("Gate returned HARD_BLOCK")
             elif result.startswith("ASK_USER"):
                 parts = result.split("|", 1)
                 reason = parts[0].replace("ASK_USER ", "").strip()
@@ -188,10 +166,10 @@ def main() -> int:
                     print(f"⚠️ [{gate_name}] {result}", file=sys.stderr, flush=True)
                 continue
 
-    # ── Gate Contract Compliance ──
+    # ── Gate Contract Compliance (output as int, not string) ──
     contract_result = _verify_contract_compliance(gate_mode, executed_gates)
     if contract_result and contract_result.startswith("BLOCK"):
-        return contract_result
+        return _hard_stop(f"contract-violation: {contract_result}")
 
     return _ok(f"ALLOW tool={tool_name}")
 

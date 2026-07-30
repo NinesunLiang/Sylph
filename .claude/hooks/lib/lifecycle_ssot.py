@@ -76,6 +76,8 @@ def default_lifecycle() -> Dict[str, Any]:
             "last_snapshot_path": None,
             "last_sha256": None,
             "last_event_id": None,
+            "failed_attempts": 0,
+            "last_failure_at": None,
         },
         "end": {
             "last_session_end_at": None,
@@ -318,9 +320,10 @@ def write_precompact_snapshot(
             "written": hb.get("written"),
             "claimed": hb.get("claimed"),
             "reconciled": hb.get("reconciled"),
-            "items": hb.get("items"),
+            "items": (hb.get("items") or [])[:20],
             "md_progress_note": hb.get("md_progress_note"),
             "md_vs_json_mismatch": hb.get("md_vs_json_mismatch", False),
+            "items_count": len(hb.get("items") or []),
         },
     }
     payload = json.dumps(snapshot, ensure_ascii=False, indent=2, sort_keys=True) + "\n"

@@ -30,7 +30,6 @@ from unittest.mock import MagicMock, patch
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
 FIXTURE_HANDOFF = """# Session Handoff
-compact-write 于 2026-07-28T10:00:00+00:00 更新
 
 当前任务: test-task, 状态: active
 """
@@ -58,11 +57,6 @@ FIXTURE_BOUNDARY_LINE_1 = json.dumps({
 FIXTURE_BOUNDARY_LINE_2 = json.dumps({
     "compact_boundary": True,
     "compactMetadata": {"postTokens": 15000}
-})
-
-FIXTURE_BOUNDARY_LINE_3 = json.dumps({
-    "compact_boundary": True,
-    "compactMetadata": {"postTokens": 8000}
 })
 
 TOKEN_JSON = json.dumps({
@@ -125,138 +119,6 @@ class _Base(unittest.TestCase):
         self.td.cleanup()
 
 
-# ── Pure function tests (_remeasure_watermark) ───────────────────────────────
-# These don't need full module import — test the logic directly.
-
-class TestRemeasureWatermark(_Base):
-    """Direct tests of _remeasure_watermark() logic by calling it on a loaded module.
-
-    Key decision tree (lines 184-192 of session-start.py):
-      - Last anchor is boundary AND no usage after it →
-          _write_watermark_state(last_post + overhead)
-      - Otherwise (usage after last boundary, or no boundary at all) →
-          _update_watermark (PUA normal path)
-    """
-
-    def _transcript_tail(self, *entries):
-        """Write NDJSON transcript and return its absolute path."""
-        text = "\n".join(entries) + "\n" if entries else "\n"
-        self.transcript_path.write_text(text, encoding="utf-8")
-        # size must be within WM_TAIL_BYTES so the _remeasure_watermark reads all lines
-        return self.transcript_path
-
-    def _call_remeasure(self, transcript_entries, pua=None):
-        """Import module, set pua, call _remeasure_watermark directly."""
-        mod = _mod()
-        mod._pua = pua or _make_pua_mock()
-        tp = self._transcript_tail(*transcript_entries)
-        mod._remeasure_watermark(tp)
-        return mod._pua
-
-    def test_boundary_no_post_usage_estimates(self):
-        """Last anchor is boundary, no usage after -> estimate via post+overhead.
-        prev boundary post=5000, usage=17000 -> overhead=12000.
-        last boundary post=15000 -> estimate = 15000+12000 = 27000.
-        """
-        pua = self._call_remeasure([
-            FIXTURE_BOUNDARY_LINE_1,
-            FIXTURE_USAGE_LINE,
-            FIXTURE_BOUNDARY_LINE_2,
-        ])
-        pua._write_watermark_state.assert_called_once_with(27000)
-        pua._update_watermark.assert_not_called()
-
-    def test_boundary_with_post_usage_delegates(self):
-        """Boundary with usage after -> delegate to _update_watermark."""
-        pua = self._call_remeasure([
-            FIXTURE_BOUNDARY_LINE_2,
-            FIXTURE_USAGE_LINE,
-        ])
-        pua._update_watermark.assert_called_once()
-        pua._write_watermark_state.assert_not_called()
-
-    def test_no_boundary_delegates(self):
-        """No compact_boundary lines -> delegate to _update_watermark."""
-        pua = self._call_remeasure([FIXTURE_USAGE_LINE])
-        pua._update_watermark.assert_called_once()
-        pua._write_watermark_state.assert_not_called()
-
-    def test_fallback_overhead_single_boundary(self):
-        """Single boundary with no prior usage -> fallback overhead=30000."""
-        pua = self._call_remeasure([FIXTURE_BOUNDARY_LINE_2])
-        pua._write_watermark_state.assert_called_once_with(15000 + 30000)
-
-    def test_multiple_boundaries_last_wins(self):
-        """Multiple boundaries, last wins and overhead carries forward."""
-        pua = self._call_remeasure([
-            FIXTURE_BOUNDARY_LINE_1,    # post=5000
-            FIXTURE_USAGE_LINE,          # overhead=12000
-            FIXTURE_BOUNDARY_LINE_3,     # post=8000
-            FIXTURE_BOUNDARY_LINE_2,     # post=15000 last, no usage after
-        ])
-        # last_post=15000, overhead=12000
-        pua._write_watermark_state.assert_called_once_with(27000)
-
-    def test_empty_transcript_delegates(self):
-        """Empty transcript (no boundary info) -> delegates to _update_watermark."""
-        pua = self._call_remeasure([])
-        pua._update_watermark.assert_called_once()
-        pua._write_watermark_state.assert_not_called()
-
-    def test_nonexistent_transcript_noop(self):
-        """Path doesn't exist -> no watermark calls."""
-        mod = _mod()
-        mod._pua = _make_pua_mock()
-        mod._remeasure_watermark(self.tdp / "nope.ndjson")
-        mod._pua._write_watermark_state.assert_not_called()
-        mod._pua._update_watermark.assert_not_called()
-
-    def test_boundary_usage_boundary_usage_delegates(self):
-        """Boundary -> usage -> boundary -> usage -> delegate to _update_watermark."""
-        pua = self._call_remeasure([
-            FIXTURE_BOUNDARY_LINE_1,
-            FIXTURE_USAGE_LINE,
-            FIXTURE_BOUNDARY_LINE_2,
-            FIXTURE_USAGE_LINE,  # usage after last boundary
-        ])
-        pua._update_watermark.assert_called_once()
-        pua._write_watermark_state.assert_not_called()
-
-    def test_no_pua_noop(self):
-        """_pua is None -> skip entirely."""
-        mod = _mod()
-        mod._pua = None
-        self.transcript_path.write_text(FIXTURE_USAGE_LINE, encoding="utf-8")
-        # Should not raise
-        mod._remeasure_watermark(self.transcript_path)
-
-    def test_overhead_from_latest_computed_pair(self):
-        """Overhead is computed from the latest boundary+usage pair that formed one."""
-        pua = self._call_remeasure([
-            FIXTURE_BOUNDARY_LINE_1,    # post=5000
-            FIXTURE_USAGE_LINE,          # usage=17000 -> overhead=12000
-            json.dumps({                 # boundary post=2000
-                "compact_boundary": True,
-                "compactMetadata": {"postTokens": 2000}
-            }),
-            json.dumps({                 # usage=22000 (14000+5000+3000)
-                "message": {"usage": {"input_tokens": 14000, "cache_read_input_tokens": 5000, "cache_creation_input_tokens": 3000}}
-            }),
-            FIXTURE_BOUNDARY_LINE_2,     # post=15000 last, no usage after
-        ])
-        # overhead from last pair = 22000 - 2000 = 20000
-        # last_post=15000 -> 15000 + 20000 = 35000
-        pua._write_watermark_state.assert_called_once_with(35000)
-
-    def test_usage_before_first_boundary_ignored(self):
-        """Usage before first boundary does not set prev_usage for overhead -> fallback."""
-        pua = self._call_remeasure([
-            FIXTURE_USAGE_LINE,           # before first boundary, no prev_boundary
-            FIXTURE_BOUNDARY_LINE_2,      # post=15000, no usage after -> fallback overhead
-        ])
-        pua._write_watermark_state.assert_called_once_with(15000 + 30000)
-
-
 # ── main() integration tests ─────────────────────────────────────────────────
 # These import the module, override constants to temp dirs, and run main()
 # via patched sys.stdin/stdout/exit.
@@ -283,10 +145,6 @@ class _MainBase(_Base):
             mod._ssot_latest_active_token = ssot_mock
         else:
             mod._ssot_latest_active_token = None
-        if pua is not None:
-            mod._pua = pua
-        else:
-            mod._pua = None
         if handoff_text is not None:
             self.handoff_path.write_text(handoff_text, encoding="utf-8")
         if write_token:
@@ -343,16 +201,12 @@ class TestNeverBlocks(_MainBase):
                                 pua=_make_pua_mock())
         self.assertTrue(result["continue"])
 
-    def test_compact_remeasure_error_still_continues(self):
-        """Watermark remeasurement throws -> still returns continue."""
-        pua = _make_pua_mock()
-        pua._write_watermark_state.side_effect = RuntimeError("boom")
-        self.transcript_path.write_text(
-            "\n".join([FIXTURE_BOUNDARY_LINE_1, FIXTURE_USAGE_LINE, FIXTURE_BOUNDARY_LINE_2]),
-            encoding="utf-8",
-        )
-        result = self._run_main("compact", transcript_path=self.transcript_path, pua=pua)
+    def test_compact_continues_with_handoff(self):
+        """Compact source with handoff -> continue: true with context."""
+        result = self._run_main("compact", handoff_text=FIXTURE_HANDOFF)
         self.assertTrue(result["continue"])
+        self.assertIn("hookSpecificOutput", result)
+        self.assertIn("Session Handoff", result["hookSpecificOutput"]["additionalContext"])
 
     def test_invalid_stdin_continues(self):
         """Garbage stdin -> continue: true, no crash."""
@@ -465,40 +319,35 @@ class TestInjectHandoff(_MainBase):
         self.assertIn("Session Handoff", ctx)
 
 
-class TestCompactWatermarkIntegration(_MainBase):
-    """Verifies main() calls _remeasure_watermark for compact/resume source."""
+class TestCompactNoWatermarkRemeasure(_MainBase):
+    """RED: SessionStart compact/resume must NOT trigger watermark remeasurement.
 
-    def test_compact_triggers_remeasure(self):
-        """Compact source -> remeasure called with transcript path."""
-        pua = _make_pua_mock()
-        self.transcript_path.write_text(
-            "\n".join([FIXTURE_BOUNDARY_LINE_1, FIXTURE_USAGE_LINE, FIXTURE_BOUNDARY_LINE_2]),
-            encoding="utf-8",
-        )
-        result = self._run_main("compact", transcript_path=self.transcript_path, pua=pua)
-        self.assertTrue(result["continue"])
+    Contract #1 removes custom context-watermark measurement.
+    Contract #4 removes SessionStart source=compact from AUTO-RESUME duty.
+    """
 
-    def test_resume_triggers_remeasure(self):
-        """Resume source -> remeasure called with transcript path."""
-        pua = _make_pua_mock()
-        self.transcript_path.write_text(
-            "\n".join([FIXTURE_BOUNDARY_LINE_1, FIXTURE_USAGE_LINE, FIXTURE_BOUNDARY_LINE_2]),
-            encoding="utf-8",
-        )
-        result = self._run_main("resume", transcript_path=self.transcript_path, pua=pua)
-        self.assertTrue(result["continue"])
+    def test_compact_no_auto_resume_in_context(self):
+        """Compact source output must NOT contain AUTO-RESUME in context.
 
-    def test_startup_skips_remeasure(self):
-        """Startup source -> no remeasurement (no pua used)."""
+        Per contract #4: PostCompact is sole AUTO-RESUME injector.
+        SessionStart source=compact must not duplicate.
+        """
+        result = self._run_main("compact", handoff_text=FIXTURE_HANDOFF)
+        ctx = result.get("hookSpecificOutput", {}).get("additionalContext", "")
+        # RED: must not contain AUTO-RESUME (that's PostCompact's job)
+        self.assertNotIn("[AUTO-RESUME]", ctx,
+                         "RED: SessionStart source=compact must not emit AUTO-RESUME")
+
+    def test_startup_no_auto_resume(self):
+        """Startup source -> no AUTO-RESUME."""
         result = self._run_main("startup", handoff_text=FIXTURE_HANDOFF)
-        # Should still produce normal output
         self.assertTrue(result["continue"])
-        self.assertIn("hookSpecificOutput", result)
+        ctx = result.get("hookSpecificOutput", {}).get("additionalContext", "")
+        self.assertNotIn("[AUTO-RESUME]", ctx)
 
-    def test_missing_transcript_path_skips_remeasure(self):
-        """Compact source but no transcript_path -> remeasure skipped, clean exit."""
-        pua = _make_pua_mock()
-        result = self._run_main("compact", pua=pua)
+    def test_compact_bare_continue(self):
+        """Compact source, no handoff -> bare continue: true."""
+        result = self._run_main("compact")
         self.assertTrue(result["continue"])
 
 

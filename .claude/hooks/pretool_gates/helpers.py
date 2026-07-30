@@ -108,15 +108,25 @@ def _check_temp_bypass() -> bool:
     try:
         data = json.loads(TEMP_BYPASS.read_text(encoding="utf-8"))
         expires = data.get("expires_at", "")
-        if expires:
-            try:
-                from datetime import datetime, timezone
-                exp = datetime.fromisoformat(expires)
-                if datetime.now(timezone.utc) >= exp:
-                    TEMP_BYPASS.unlink(missing_ok=True)
-                    return False
-            except Exception:
-                pass
+        if not expires:
+            # No expires_at — fail closed, delete and return False
+            TEMP_BYPASS.unlink(missing_ok=True)
+            return False
+        try:
+            from datetime import datetime, timezone
+            exp = datetime.fromisoformat(expires)
+            now = datetime.now(timezone.utc)
+            if now >= exp:
+                TEMP_BYPASS.unlink(missing_ok=True)
+                return False
+            # Enforce max 24h validity
+            max_valid = now.timestamp() + 86400
+            if exp.timestamp() > max_valid:
+                TEMP_BYPASS.unlink(missing_ok=True)
+                return False
+        except Exception:
+            TEMP_BYPASS.unlink(missing_ok=True)
+            return False
         return True
     except Exception:
         TEMP_BYPASS.unlink(missing_ok=True)
@@ -172,6 +182,12 @@ def _block(reason: str, suggestion: str = "") -> int:
     unattended = _goal_mode()
     is_high_risk = any(k in safe_reason.lower() for k in _REASON_TO_HAZARD)
 
+    hs: dict[str, Any] = {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "deny",
+        "permissionDecisionReason": safe_reason,
+    }
+
     if is_high_risk:
         hazard_flags = []
         for key, flags in _REASON_TO_HAZARD.items():
@@ -189,23 +205,42 @@ def _block(reason: str, suggestion: str = "") -> int:
         result = GateKeeper.evaluate(ctx)
         full_msg = GateKeeper.format_output(result)
         if result.decision.value == "skip":
+            hs["additionalContext"] = (
+                f"blocked-human: {safe_reason}\n\n"
+                f"原因: 高风险操作在goal模式下被跳过。\n"
+                f"建议: continue other work, skip this risk.\n"
+                f"详情已记录至 skipped-risks.jsonl, 退出报告将汇总。"
+            )
             print(json.dumps({
                 "continue": True,
-                "hookSpecificOutput": {"hookEventName": "PreToolUse", "additionalContext": full_msg}
+                "hookSpecificOutput": hs,
             }, ensure_ascii=False))
-            sys.stderr.write(f"PreToolGate: SKIPPED - {safe_reason}\n")
+            sys.stderr.write(f"PreToolGate: SKIPPED (goal) - {safe_reason}\n")
             return 0
+        # Interactive high-risk: use GateKeeper output + AskUserQuestion instruction
+        hs["additionalContext"] = (
+            f"{full_msg}\n\n"
+            f"---\n"
+            f"请使用 AskUserQuestion 与用户交互，提供选项供用户选择。"
+        )
         print(json.dumps({
-            "continue": False,
-            "message": full_msg,
+            "continue": True,
+            "hookSpecificOutput": hs,
         }, ensure_ascii=False))
-        sys.stderr.write(f"PreToolGate: BLOCKED - {safe_reason}\n")
-        return 1
+        sys.stderr.write(f"PreToolGate: BLOCKED (ask_user) - {safe_reason}\n")
+        return 0
+
+    # Non-high-risk: recoverable denial
+    hs["additionalContext"] = (
+        f"🔄 {safe_reason}\n\n可选方案:\n  {suggestion}"
+        if suggestion else f"🔄 {safe_reason}"
+    )
     print(json.dumps({
-        "continue": False,
-        "message": f"⛔ {safe_reason}\n\n可选方案:\n  {suggestion}" if suggestion else f"⛔ {safe_reason}",
+        "continue": True,
+        "hookSpecificOutput": hs,
     }, ensure_ascii=False))
-    return 1
+    sys.stderr.write(f"PreToolGate: DENIED - {safe_reason}\n")
+    return 0
 
 
 def _redirect(reason: str, guidance: str = "") -> int:
@@ -220,6 +255,8 @@ def _redirect(reason: str, guidance: str = "") -> int:
         "continue": True,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
             "additionalContext": f"REDIRECT: {reason}\n\n{guidance}\n\n{full_output}",
         }
     }, ensure_ascii=False))
@@ -227,6 +264,45 @@ def _redirect(reason: str, guidance: str = "") -> int:
     if guidance:
         sys.stderr.write(f"  {guidance}\n")
     return 0
+
+
+def _hard_stop(reason: str) -> int:
+    """Hard stop: exit the tool with continue:false + stopReason, return 0."""
+    print(json.dumps({
+        "continue": False,
+        "stopReason": f"HARD_BLOCK: {reason[:300]}",
+    }, ensure_ascii=False))
+    sys.stderr.write(f"PreToolGate: HARD_STOP - {reason}\n")
+    return 0
+
+
+def _increment_streak(key: str, path: Path | None = None) -> int:
+    """Atomic increment for redirect streak with 6h TTL.
+
+    Reads existing streak data, cleans expired entries (6h TTL),
+    increments count for *key*, writes back, returns new count.
+    """
+    _TTL = 21600  # 6 hours
+    now_s = int(time.time())
+    store: dict[str, dict] = {}
+    p = path or REDIRECT_STREAK
+    try:
+        if p.is_file():
+            raw = json.loads(p.read_text(encoding="utf-8"))
+            for k, v in raw.items():
+                if isinstance(v, dict) and "c" in v and "t" in v:
+                    if now_s - v["t"] < _TTL:
+                        store[k] = v
+    except Exception:
+        store = {}
+    prev = store.get(key, {}).get("c", 0)
+    store[key] = {"c": prev + 1, "t": now_s}
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(store), encoding="utf-8")
+    except Exception:
+        pass
+    return prev + 1
 
 
 # ═══════════════════════════════════
@@ -255,7 +331,9 @@ def _record_trust_breach(reason: str) -> None:
 
 
 def _is_trust_breach_reason(detail: str) -> bool:
-    return any(kw in detail.lower() for kw in ["env_bypass", "bypass_attempt", "governance"])
+    # Only env_bypass / bypass_attempt / trust_broken trigger permanent trust breach.
+    # Normal governance_path deny does NOT write permanent trust breach.
+    return any(kw in detail.lower() for kw in ["env_bypass", "bypass_attempt", "trust_broken"])
 
 
 def _clear_trust_breach() -> bool:

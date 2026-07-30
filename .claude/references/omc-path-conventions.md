@@ -33,6 +33,22 @@
 5. audit JSONL 按日分片：`YYYYMMDD.jsonl`。
 6. 归档文件放在 `.omc/archive/` 中。
 
+## 日期格式约定（Task7 Phase2 GREEN）
+
+所有路径/文件名使用 `YYYYMMDD`（无分隔符），所有人类可读时间戳使用 `YYYY-MM-DD` (ISO 显示)。
+
+| 场景 | 格式 | 示例 | 说明 |
+|------|------|------|------|
+| .omc/tasks/{date}/ | YYYYMMDD | 20260729 | 任务文档目录 |
+| .omc/tokens/{date}/ | YYYYMMDD | 20260729 | token 存储目录 |
+| audit *.jsonl | YYYYMMDD.jsonl | 20260729.jsonl | 审计日志文件名 |
+| handoff 显示 | YYYY-MM-DD | 2026-07-29 | 人类可读时间戳 |
+| Reader 兼容 | YYYY-MM-DD (legacy) | 2026-07-29 | 只读，不创建新目录 |
+
+Reader API (lib/task_paths.py) 兼容 legacy `YYYY-MM-DD` 目录但不创建；
+同 slug 跨格式冲突时报告且拒绝覆盖。
+所有路径 Creator 仅使用 `YYYYMMDD`。
+
 ## 五源真相
 
 | 源 | 路径 | 谁写 | 作用 |

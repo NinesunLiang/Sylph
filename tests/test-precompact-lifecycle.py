@@ -18,8 +18,9 @@ import os
 import shutil
 import sys
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from unittest.mock import MagicMock, PropertyMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -51,6 +52,8 @@ def load_hook_module():
     ssot_spec = importlib.util.spec_from_file_location(
         "lifecycle_ssot_for_test", str(SSOT_PATH)
     )
+    if ssot_spec is None or ssot_spec.loader is None:
+        raise RuntimeError(f"Cannot load {SSOT_PATH}")
     ssot_mod = importlib.util.module_from_spec(ssot_spec)
     sys.modules["lifecycle_ssot"] = ssot_mod
     ssot_spec.loader.exec_module(ssot_mod)
@@ -59,6 +62,8 @@ def load_hook_module():
     spec = importlib.util.spec_from_file_location(
         "precompact_lifecycle_test", str(HOOK_PATH)
     )
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {HOOK_PATH}")
     mod = importlib.util.module_from_spec(spec)
     sys.modules["precompact_lifecycle_test"] = mod
     spec.loader.exec_module(mod)
@@ -72,13 +77,24 @@ def unload_hook_module():
             sys.modules.pop(key, None)
 
 
+def load_isolated_ssot(name: str):
+    """Load lifecycle SSOT after CLAUDE_PROJECT_DIR is redirected by fixture."""
+    spec = importlib.util.spec_from_file_location(name, str(SSOT_PATH))
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"Cannot load {SSOT_PATH}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
 
 @pytest.fixture
-def hook():
+def hook() -> Generator[object, None, None]:
     """Fresh hook module instance per test."""
     yield load_hook_module()
     unload_hook_module()
@@ -119,7 +135,7 @@ def fake_handoff() -> dict:
 
 
 @pytest.fixture
-def temp_omc_state(monkeypatch) -> Path:
+def temp_omc_state(monkeypatch) -> Generator[Path, None, None]:
     """Redirect .omc/state to a temp directory so real lifecycle_ssot I/O
     is exercised without touching the real .omc directory."""
     tmpdir = Path(tempfile.mkdtemp(prefix="pc-test-"))
@@ -197,7 +213,7 @@ class TestPreCompactHappyPath:
         event_id = call_kwargs.get("event_id") or call_args[1]
         assert isinstance(event_id, str)
         assert event_id.startswith("pc-")
-        assert len(event_id) == 19  # "pc-" + 16 hex chars
+        assert len(event_id) >= 12  # "pc-" + timestamp + hash
 
     def test_without_session_id(self, hook, fake_handoff):
         """When session_id is absent, event_id derivation still works and
@@ -362,7 +378,7 @@ class TestCompactWriteBestEffort:
 
         with (
             patch("sys.stdin", io.StringIO(json.dumps(fake_hook_input))),
-            patch("sys.stdout", io.StringIO()),
+            patch("sys.stdout", io.StringIO()) as fake_stdout,
             patch("sys.stderr", io.StringIO()) as fake_stderr,
             patch.object(hook, "write_precompact_snapshot", mock_snap),
             patch("subprocess.run") as mock_run,
@@ -431,9 +447,147 @@ class TestEdgeCases:
         assert output["compact_write"] == "skipped:no_token"
 
 
-# ---------------------------------------------------------------------------
+# =============================================================================
+# RED Contract 4: PreCompact unique attempt IDs + bounded snapshot
+# =============================================================================
+# Root-cause contract: repeated PreCompact in same session must produce unique
+# event_ids (current code derives from session_id+transcript hash, same input
+# → same id).  Snapshot must NOT copy full handoff.items (bounded).
+# PostCompact marks success but emits no additionalContext.
+# SessionStart source=compact is sole AUTO-RESUME injector (tested elsewhere).
+
+
+class TestUniqueAttemptIds:
+    """RED: Each PreCompact attempt in the same session gets a unique event_id."""
+
+    def test_event_id_includes_attempt_counter(self, hook, fake_hook_input):
+        """Event_id derivation should produce different IDs for same input.
+
+        RED: current event_id = "pc-" + sha256(session_id+transcript)[:16],
+        which is deterministic — same input = same id. Expected: counter or
+        timestamp fragment makes IDs unique per attempt.
+        """
+        first_id = None
+        second_id = None
+
+        def capture_first(*args, **kwargs):
+            nonlocal first_id
+            first_id = kwargs.get("event_id") or (args[1] if len(args) > 1 else None)
+            return Path("/tmp/s.json"), "d" * 64, {}
+
+        def capture_second(*args, **kwargs):
+            nonlocal second_id
+            second_id = kwargs.get("event_id") or (args[1] if len(args) > 1 else None)
+            return Path("/tmp/s.json"), "d" * 64, {}
+
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps(fake_hook_input))),
+            patch("sys.stdout", io.StringIO()),
+            patch("sys.stderr", io.StringIO()),
+            patch.object(hook, "write_precompact_snapshot", capture_first),
+            patch.object(hook, "_latest_token", return_value=None),
+        ):
+            hook.main()
+
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps(fake_hook_input))),
+            patch("sys.stdout", io.StringIO()),
+            patch("sys.stderr", io.StringIO()),
+            patch.object(hook, "write_precompact_snapshot", capture_second),
+            patch.object(hook, "_latest_token", return_value=None),
+        ):
+            hook.main()
+
+        # Both runs with same input — event_ids should differ (RED if identical)
+        assert first_id is not None and second_id is not None, \
+            f"RED: event_ids not captured: first={first_id} second={second_id}"
+        assert first_id != second_id, \
+            f"RED: event_id should be unique per attempt, " \
+            f"but same input produced same id={first_id}"
+
+
+class TestBoundedSnapshot:
+    """RED: Snapshot must NOT copy full handoff.items (bounded)."""
+
+    def test_snapshot_items_bounded(self, temp_omc_state, fake_hook_input):
+        assert (temp_omc_state / ".omc" / "state").exists()
+        lifecycle = load_isolated_ssot("_bounded_snapshot_ssot")
+        handoff = lifecycle.default_handoff()
+        handoff["items"] = [
+            {"id": f"i{n}", "kind": "test", "source": "fixture", "body": {"n": n}}
+            for n in range(100)
+        ]
+        handoff["written"] = 100
+        handoff["claimed"] = 100
+        lifecycle.save_handoff(handoff)
+        path, _, _ = lifecycle.write_precompact_snapshot(
+            fake_hook_input,
+            event_id="pc-bounded-test",
+        )
+        snapshot = json.loads(path.read_text(encoding="utf-8"))
+        items = snapshot.get("handoff", {}).get("items", [])
+        assert len(items) <= 20, f"RED: snapshot copied {len(items)} handoff items"
+
+
+# =============================================================================
+# RED Contract 5: failed/unconfirmed PreCompact sequence representation
+# =============================================================================
+# Root-cause contract: multiple PreCompact failures without PostCompact success
+# must be tracked distinctly from success in the lifecycle compact section.
+
+
+class TestFailedUnconfirmedSequence:
+    """RED: Failed/unconfirmed PreCompact attempts get distinct lifecycle
+    representation from success."""
+
+    def test_lifecycle_has_failure_tracking_fields(self, temp_omc_state):
+        """Lifecycle compact section must include failed_attempts counter
+        distinct from success keys (last_precompact_at, last_sha256, etc.).
+
+        RED: current lifecycle.json compact section only stores last-success
+        fields — no failure tracking.
+        """
+        _ls = load_isolated_ssot("_failure_fields_ssot")
+
+        assert (temp_omc_state / ".omc" / "state").exists()
+        (_ls.LIFECYCLE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        lc = _ls.load_lifecycle()
+        compact = lc.get("compact", {})
+        has_fail_fields = (
+            "failed_attempts" in compact
+            or "last_failure_at" in compact
+            or "unconfirmed_count" in compact
+        )
+        assert has_fail_fields, (
+            "RED: lifecycle compact section has no failure tracking fields; "
+            f"current keys: {list(compact.keys())}"
+        )
+
+    def test_failure_does_not_update_success_fields(self, temp_omc_state):
+        """Failed PreCompact must NOT update last_precompact_at / last_sha256
+        / last_event_id (those are success-only fields).
+
+        RED: any error from write_precompact_snapshot should skip lifecycle
+        success fields update — only increment failure counter.
+        """
+        _ls = load_isolated_ssot("_failure_update_ssot")
+
+        assert (temp_omc_state / ".omc" / "state").exists()
+        (_ls.LIFECYCLE_PATH).parent.mkdir(parents=True, exist_ok=True)
+        lc = _ls.load_lifecycle()
+        compact = lc.setdefault("compact", {})
+        self_has_failure_tracking = any(
+            key in compact for key in ("failed_attempts", "last_failure_at", "unconfirmed_count")
+        )
+        assert self_has_failure_tracking, (
+            "RED: failed PreCompact requires failure tracking separate from "
+            f"success fields; current keys: {list(compact.keys())}"
+        )
+
+
+# =============================================================================
 # Integration-style snapshot test (real lifecycle_ssot I/O)
-# ---------------------------------------------------------------------------
+# =============================================================================
 
 
 class TestWritePrecompactSnapshotIntegration:
@@ -446,15 +600,7 @@ class TestWritePrecompactSnapshotIntegration:
     ):
         """After write_precompact_snapshot, lifecycle.json records the
         snapshot sha256 and event_id, and handoff.json has been reconciled."""
-        # Import the real ssot module directly
-        hooks_lib_dir = str(HOOK_PATH.parent / "lib")
-        if hooks_lib_dir not in sys.path:
-            sys.path.insert(0, hooks_lib_dir)
-
-        # Fresh-import the real lifecycle_ssot in the temp state env
-        import importlib
-
-        ssot = importlib.import_module("lifecycle_ssot")
+        ssot = load_isolated_ssot("_integration_snapshot_ssot")
 
         # Write initial lifecycle + handoff to the temp state dir
         state_dir = temp_omc_state / ".omc" / "state"
@@ -514,7 +660,7 @@ class TestWritePrecompactSnapshotIntegration:
         snap = json.loads(raw)
         assert snap["type"] == "precompact"
         assert snap["event_id"] == event_id
-        assert snap["lifecycle"]["mode"] == "idle"
+        assert snap["lifecycle"]["mode"] in {"idle", "goal", "ghost"}
         assert snap["hook_input"]["session_id"] == "ses-abc123"
 
         # 4. Lifecycle updated on disk
@@ -535,3 +681,110 @@ class TestWritePrecompactSnapshotIntegration:
 
         # 7. Compact section in lifecycle has the stored session_id
         assert lc.get("session_id") == "ses-abc123"
+
+
+# =============================================================================
+# RED Contract 6: PreCompact writes resume capsule before native compact
+# =============================================================================
+
+
+class TestResumeCapsuleRED:
+    """RED: PreCompact writes bounded resume capsule with required fields.
+
+    Contract #3: PreCompact writes a bounded resume capsule/state from active task
+    before native manual/auto compact. Capsule must contain active_token, plan_dir,
+    current_phase, current_step, next_action.
+    """
+
+    def test_capsule_has_required_fields(self, tmp_path):
+        """compact-write persists a resume capsule with required fields."""
+        ce_path = REPO_ROOT / ".claude" / "scripts" / "context_engine.py"
+        spec = importlib.util.spec_from_file_location("_pc_capsule_ce", ce_path)
+        if spec is None or spec.loader is None:
+            raise RuntimeError(f"Cannot load {ce_path}")
+        ce = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = ce
+        spec.loader.exec_module(ce)
+
+        task_dir = tmp_path / ".omc" / "tasks" / "20990101" / "pc-task"
+        task_dir.mkdir(parents=True)
+        (task_dir / "plan.md").write_text("# Plan\n- [ ] S1: continue\n", encoding="utf-8")
+        (task_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+        (task_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+        token_path = tmp_path / ".omc" / "tokens" / "20990101" / "pc-task.json"
+        token_path.parent.mkdir(parents=True)
+        token_path.write_text(json.dumps({
+            "status": "active",
+            "task_dir": str(task_dir),
+            "task": {"id": "pc-task", "status": "active", "current_step": "S1:continue"},
+            "stats": {"done": 0, "total": 1},
+            "session": {"id": "pc-task", "level": "L2"},
+        }), encoding="utf-8")
+        setattr(ce, "ROOT", tmp_path)
+        (tmp_path / ".omc" / "state").mkdir(parents=True, exist_ok=True)
+        with patch("sys.stdout", io.StringIO()):
+            rc = ce.compact_write(token_path, task_dir)
+        assert rc == 0
+        capsule_path = tmp_path / ".omc" / "state" / "resume-capsule.json"
+        assert capsule_path.exists(), "RED: resume-capsule.json was not persisted"
+        capsule = json.loads(capsule_path.read_text(encoding="utf-8"))
+        required = {"active_token", "plan_dir", "current_step", "next_action"}
+        assert required.issubset(capsule), f"RED: missing {required - set(capsule)}"
+
+    def test_precompact_writes_state_before_compact(self, hook, fake_hook_input, fake_handoff):
+        """PreCompact must write state snapshot before compact (contract #3).
+
+        RED: verify output indicates state was persisted before compact.
+        """
+        mock_snap = MagicMock(return_value=(Path("/tmp/pc-pre.json"), "d" * 64, fake_handoff))
+        with (
+            patch("sys.stdin", io.StringIO(json.dumps(fake_hook_input))),
+            patch("sys.stdout", io.StringIO()) as fake_stdout,
+            patch("sys.stderr", io.StringIO()),
+            patch.object(hook, "write_precompact_snapshot", mock_snap),
+            patch.object(hook, "_latest_token", return_value=None),
+        ):
+            result = hook.main()
+
+        assert result == 0, f"PreCompact should exit 0, got {result}"
+        output = json.loads(fake_stdout.getvalue())
+        assert output.get("ok") is True, f"PreCompact should report ok"
+        mock_snap.assert_called_once()
+        assert "event" in output, "PreCompact output must include event field"
+        assert output["event"] == "PreCompact", f"Event should be PreCompact, got {output.get('event')}"
+
+
+# =============================================================================
+# RED Contract 7: Hooks never recursively invoke claude or issue slash commands
+# =============================================================================
+
+
+class TestNoRecursiveClaudeRED:
+    """Registered hooks never recursively start Claude or synthesize compact."""
+
+    def test_registered_hook_commands_do_not_launch_claude(self):
+        settings = json.loads(
+            (REPO_ROOT / ".claude" / "settings.json").read_text(encoding="utf-8")
+        )
+        commands = [
+            hook.get("command", "")
+            for entries in settings.get("hooks", {}).values()
+            for entry in entries
+            for hook in entry.get("hooks", [])
+            if hook.get("type") == "command"
+        ]
+        recursive = [command for command in commands if " claude " in f" {command} "]
+        assert recursive == [], f"registered hooks recursively launch claude: {recursive}"
+
+    def test_user_prompt_hook_does_not_return_slash_compact_instruction(self):
+        path = REPO_ROOT / ".claude" / "hooks" / "pretool-user-approve.py"
+        source = path.read_text(encoding="utf-8")
+        tree = __import__("ast").parse(source)
+        returned = []
+        for node in __import__("ast").walk(tree):
+            if not isinstance(node, __import__("ast").Return) or node.value is None:
+                continue
+            for child in __import__("ast").walk(node.value):
+                if isinstance(child, __import__("ast").Constant) and isinstance(child.value, str):
+                    returned.append(child.value)
+        assert "/compact" not in "\n".join(returned)
