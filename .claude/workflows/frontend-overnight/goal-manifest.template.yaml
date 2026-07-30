@@ -1,0 +1,158 @@
+# goal-manifest.template.yaml — UI Autopilot v2 Machine Contract
+#
+# This is the SINGLE source of truth for a UI restoration run.
+# It replaces the old approach of scattering parameters across
+# night-manifest.yaml, night-loop.md, and natural-language goals.
+#
+# All fields except those marked [OPTIONAL] are REQUIRED for the
+# 6-hour autonomous run to start (preflight will block otherwise).
+
+schema_version: 2
+
+# ── Run Identity ───────────────────────────────────────────────────────────
+run:
+  id: ""                    # e.g., "dashboard-restoration-20260729"
+  task_name: ""             # Human-readable name
+  mode: goal                # "goal" | "ghost"
+  unattended: true          # true: autonomous, false: interactive
+
+# ── Budget ────────────────────────────────────────────────────────────────
+budget:
+  wall_clock_seconds: 21600        # 6 hours
+  graceful_shutdown_seconds: 300   # 5 min reserve for final audit
+  max_total_iterations: 120
+  max_target_attempts: 8
+  max_consecutive_no_progress: 4
+  checkpoint_every_seconds: 60
+
+# ── Target Repository ──────────────────────────────────────────────────────
+target_repo: "packages/carroros-base"    # Path relative to project root
+
+# ── Prototype Configuration ────────────────────────────────────────────────
+prototype:
+  base_url: ""                        # Prototype URL (REQUIRED — C0 NO-GO if empty)
+  authentication:
+    required: false
+    strategy: existing_browser_session   # "existing_browser_session" | "login_form" | "storage_state"
+    storage_state_path: ""               # Path to Playwright storage state JSON [OPTIONAL]
+    on_missing_session: block_and_notify # "block_and_notify" | "skip_auth_required_pages"
+  routes:
+    # [REQUIRED] At least one route must be defined
+    # - id: "dashboard"
+    #   prototype_path: "/dashboard"
+    #   implementation_path: "/dashboard"
+
+# ── Viewports ──────────────────────────────────────────────────────────────
+viewports:
+  - id: desktop-1440
+    width: 1440
+    height: 900
+    device_scale_factor: 1
+    required: true
+  - id: desktop-1920
+    width: 1920
+    height: 1080
+    device_scale_factor: 1
+    required: true
+
+# ── Screenshot Document References ─────────────────────────────────────────
+# Points to the user's module screenshots and documentation
+screenshot_document: ""          # e.g., ".claude/UI_README.md" or "inputs/prototype/modules/index.md"
+additional_screenshots: []       # e.g., [".omc/doc/dashboard/header.png"]
+
+# ── Discovery Configuration ────────────────────────────────────────────────
+discovery:
+  scroll:
+    enabled: true
+    capture_full_page: true
+    step_ratio: 0.75              # Scroll step as fraction of viewport height
+    settle_ms: 400                # Wait after scroll for layout to stabilize
+    positions: [0, 0.5, 1.0]     # Normalized scroll positions to capture
+  hover:
+    enabled: true
+    candidate_selectors:
+      - button
+      - a
+      - "[role=button]"
+      - "[aria-haspopup]"
+      - "[data-tooltip]"
+  click:
+    enabled: true
+    destructive_actions: deny      # "deny" | "confirm" — click on delete/danger buttons
+  overlays:
+    required: true                 # Must discover all overlay types
+  sidebar_states:
+    - expanded
+    - collapsed
+
+# ── Acceptance Criteria (UIF-99) ───────────────────────────────────────────
+acceptance:
+  route_coverage: 1.0
+  interaction_coverage: 1.0
+  state_coverage: 1.0
+  scroll_coverage: 1.0
+
+  global_similarity: 0.99
+  minimum_region_similarity: 0.985
+  critical_region_similarity: 0.995
+
+  geometry_score: 0.995
+  typography_score: 0.99
+  color_score: 0.99
+
+  token_compliance: 1.0
+  console_errors: 0
+  runtime_errors: 0
+
+  required_gates:
+    - C1       # Scope check
+    - C2       # TypeScript + ESLint + Build
+    - C3       # Style constraints (no raw colors/px/!important/antd)
+    - C4       # Playwright functional tests
+    - C5       # Overlay closure matrix
+    - C6       # Visual regression
+    - C7       # Evidence chain completeness
+    - C8a      # Finalize (machine-computed final_status)
+
+# ── Model Routing ──────────────────────────────────────────────────────────
+model_routing:
+  default:
+    model: deepseek-v4-flash
+  visual_diagnosis:
+    model: kimi-k3
+    invocation_policy:
+      only_when:
+        - stagnation_count_gte: 2
+        - ambiguous_visual_root_cause: true
+        - critical_region_score_lt: 0.97
+      max_calls_per_run: 40
+  orchestration:
+    model: deepseek-v4-pro
+
+# ── Safety Constraints ─────────────────────────────────────────────────────
+safety:
+  allowed_paths:
+    # [REQUIRED] Define allowed write paths per page
+    # - src/pages/dashboard/**
+    # - src/components/**
+    # - src/styles/tokens/**
+  denied_paths:
+    - src/auth/**
+    - src/router/**
+    - .env*
+    - package-lock.json
+    - pnpm-lock.yaml
+  max_files_per_patch: 8
+  max_changed_lines_per_patch: 400
+  rollback_on_regression: true
+
+# ── Token Configuration [OPTIONAL with defaults] ───────────────────────────
+tokens:
+  bootstrap:
+    enabled: true
+    max_base_colors: 24
+    max_spacing_steps: 16
+    spacing_quantum: 2
+    color_delta_e_merge: 2.0
+  output_dir: "src/styles/tokens/"
+  mutable_during_night: false     # Tokens are read-only during autonomous run
