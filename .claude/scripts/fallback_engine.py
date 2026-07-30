@@ -33,7 +33,6 @@ VALID_FAILURE_TYPES = {
     "enhance_model_unavailable",
     "oracle_unavailable",
     "meta_oracle_unavailable",
-    "context_watermark_unobservable",
     "context_overflow",       # context 窗口超 70%，跳过重试
     "cli_hook_failed",
     "python_script_failed",
@@ -83,7 +82,7 @@ def now_iso() -> str:
 
 
 def today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
 
 
 def read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -259,16 +258,6 @@ def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None =
             False,
         )
 
-    if failure_type == "context_watermark_unobservable":
-        return FallbackDecision(
-            "DOWNGRADE_TO_BASE",
-            failure_type,
-            "context_watermark_unobservable:base_fallback",
-            level,
-            "L1_BASE",
-            "low",
-            False,
-        )
 
     if failure_type in {
         "enhance_model_unavailable",
@@ -506,18 +495,8 @@ def main() -> int:
     explicit_risk = sys.argv[2] if len(sys.argv) >= 3 else None
     token_path = Path(sys.argv[3]) if len(sys.argv) >= 4 else Path(".omc/state/token.json")
 
-    # 读取 context watermark 判断是否进入 context 溢出模式
-    context_pct = None
-    try:
-        wm_path = Path(".omc/state/context-watermark.json")
-        if wm_path.exists():
-            wm = json.loads(wm_path.read_text())
-            context_pct = float(wm.get("pct", wm.get("level_pct", 0)))
-    except (json.JSONDecodeError, OSError, ValueError):
-        pass
-
     token = read_json(token_path, {})
-    decision = decide(failure_type, token, explicit_risk, context_pct)
+    decision = decide(failure_type, token, explicit_risk)
 
     try:
         handoff_path, executor_path, audit_paths = task_paths(token)

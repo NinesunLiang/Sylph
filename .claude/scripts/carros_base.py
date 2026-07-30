@@ -58,6 +58,16 @@ except ImportError:
     GoalError = Exception
 
 try:
+    import goal_contracts
+    from goal_contracts import ResearchGate, ResearchGateError, PlanGate, PlanGateError
+except ImportError:
+    goal_contracts = None
+    ResearchGate = None
+    ResearchGateError = Exception
+    PlanGate = None
+    PlanGateError = Exception
+
+try:
     import task_planner
 except ImportError:
     task_planner = None
@@ -66,6 +76,98 @@ try:
     import sub_agent_manager as sam
 except ImportError:
     sam = None
+
+try:
+    import step_contracts
+except ImportError:
+    step_contracts = None
+
+
+# ─── Optional-import guard helper ─────────────────────────────
+# Task75: Use at call sites where an optional import is required.
+# Raises RuntimeError with context on missing module instead
+# of silent AttributeError or type confusion.
+
+def _require_import(obj: Any, name: str, ctx: str = "") -> None:
+    """Assert that an optional import is available.
+
+    Args:
+        obj: The imported module/object (may be None).
+        name: Human-readable module name for error message.
+        ctx: Calling context description (e.g. function name).
+
+    Raises:
+        RuntimeError: If obj is None (import failed).
+    """
+    if obj is None:
+        hint = f" [{ctx}]" if ctx else ""
+        raise RuntimeError(
+            f"Required module '{name}' is unavailable{hint}. "
+            "Install or restore the module and retry."
+        )
+
+
+# ============================================================
+# Shared Goal Lifecycle Functions (Task74+)
+# ============================================================
+
+def advance_goal_phase(token_path, target_state, research_path=None, plan_path=None,
+                       executor_path=None, verify_results=None, reason=""):
+    """推进 Goal 状态机到目标状态，途经 gate 验证。
+
+    供 Task76 lx-goal 调用，确保 lifecycle wrapper 必须传文档路径。
+
+    Task75: 新增 executor_path + verify_results 参数，支持 EXECUTING→VERIFYING
+    和 VERIFYING→ARCHIVING 的全程证据验证。
+
+    goal 模式：import 失败时 raise RuntimeError（fail-closed）
+    非 goal 模式：静默降级返回 None
+
+    Args:
+        token_path: token.json 路径
+        target_state: 目标状态名
+        research_path: research.md 路径（用于 ResearchGate）
+        plan_path: plan.md 路径（用于 PlanGate）
+        executor_path: executor.md 路径（用于 evidence 验证）
+        verify_results: VerifyGate 裁决结果 dict（用于 ARCHIVING 门禁）
+        reason: 转换原因
+
+    Returns:
+        str: 转换后的状态名
+        None: 非 goal 模式且 GoalMachine 不可用时
+
+    Raises:
+        RuntimeError: goal 模式下 GoalMachine 不可用
+        GoalMachine.GoalError: 转换非法或 gate 拒绝
+    """
+    if GoalMachine is None:
+        raise RuntimeError(
+            "GoalMachine import failed -- goal lifecycle unavailable"
+        )
+
+    # Task75: EXECUTING→VERIFYING 前校验 plan/executor 存在
+    if target_state == "VERIFYING" and plan_path and executor_path:
+        _plan_p = Path(plan_path) if isinstance(plan_path, (str, Path)) else None
+        _exec_p = Path(executor_path) if isinstance(executor_path, (str, Path)) else None
+        if _plan_p and not _plan_p.exists():
+            raise GoalError(f"advance_goal_phase: plan.md not found at {plan_path}")
+        if _exec_p and not _exec_p.exists():
+            raise GoalError(f"advance_goal_phase: executor.md not found at {executor_path}")
+
+    # Task75: VERIFYING→ARCHIVING 前校验 verify_results 全部 green
+    if target_state == "ARCHIVING" and verify_results is not None:
+        if isinstance(verify_results, dict):
+            decisions = verify_results.get("decisions", []) if isinstance(verify_results.get("decisions"), list) else []
+            has_failure = any(d not in ("VERIFIED", "WARN") for d in decisions)
+            if has_failure:
+                raise GoalError(f"advance_goal_phase: VerifyGate has failures, cannot archive")
+            if verify_results.get("all_passed") is False:
+                raise GoalError(f"advance_goal_phase: not all steps verified, cannot archive")
+
+    gm = GoalMachine(str(token_path) if token_path else None)
+    gm.transition(target_state, reason=reason,
+                  research_path=research_path, plan_path=plan_path)
+    return gm.current_state
 
 # ─── Paths (cross-platform: pathlib) ───
 # .claude/        → 可复用资产（hooks, scripts, reference）
@@ -249,16 +351,6 @@ def _write_handoff(token, plan_summary=None):
     current = token.get("task", {}).get("current_step", "?")
     task_desc = token.get("description", token.get("goal", "未知"))[:200]
     level = token.get("level", token.get("session", {}).get("level", "L1"))
-    # 读取 water_level
-    wl_str = "? (unknown)"
-    try:
-        wf = OMC_ROOT/ "state" / "context-watermark.json"
-        if wf.exists():
-            import json as _json
-            wl_data = _json.loads(wf.read_text())
-            wl_str = f"{wl_data.get('level_pct', wl_data.get('usage_pct', '?'))}%"
-    except Exception:
-        pass
     # 读取 error-dna（最近 3 条）
     errors = ""
     try:
@@ -303,7 +395,6 @@ def _write_handoff(token, plan_summary=None):
         f"- task_id: {token.get('session', {}).get('id', 'unknown')}\n"
         f"- level: {level}\n"
         f"- step: {current} ({done}/{total})\n"
-        f"- water_level: {wl_str}\n"
         f"{('- errors: ' + errors) if errors else ''}\n"
         f"\n"
         f"## Active Files / Scope\n"
@@ -330,30 +421,43 @@ def _write_handoff(token, plan_summary=None):
 # ═══════════════════════════════════════════
 
 def _write_default_plan(steps=None):
-    """创建默认 plan.md 模板"""
+    """创建默认 plan.md 模板 — RPE 标准（Task7 Phase2 GREEN）"""
     if steps is None:
         steps = ["S1"]
     PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
     lines = ["# Plan\n", "", "## Goal\n\n", "## Scope\n\n"]
-    lines.append("## Steps\n")
-    for s in steps:
+    for i, s in enumerate(steps):
+        phase_num = i + 1
+        lines.append(f"## Phase {phase_num}\n")
         lines.append(f"- [ ] {s}: \n")
-    lines.append("\n## Verify\n")
-    for s in steps:
-        lines.append(f"- {s}: \n")
-    lines.append("\n---\n")
+        lines.append(f"  - status: pending\n")
+        lines.append(f"  - depends_on: none\n")
+        lines.append(f"  - acceptance: \n")
+        lines.append(f"  - verify: \n")
+        lines.append("\n")
+    lines.append("---\n")
     lines.append("> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。\n")
     PLAN_PATH.write_text("".join(lines))
 
 
 def _write_default_executor():
-    """创建空 executor.md 证据账簿（格式对齐 AGENTS.md:51-62 + verify_gate 解析器）"""
+    """创建 executor.md 证据账簿 — RPE 标准（Task7 Phase2 GREEN）"""
     EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
     content = """# Executor Evidence Ledger
 
 > schema_version: v2
 > 格式对齐 AGENTS.md §executor.md 证据块模板 — 每步对应一个 ### EV-<step_id> 块
 > verify_gate 和 oracle 通过解析 ### EV-xxx / step: / assertion: 字段验证完成状态。
+
+## Conditions
+
+## Key Changes
+
+## Decisions
+
+## Acceptance Checklist
+
+## TDD Evidence
 
 ## S1
 
@@ -387,6 +491,16 @@ def _write_default_research():
 ## 约束
 
 ## 已知信息
+
+## 不确定性
+
+## 全貌
+
+## 依赖树
+
+## 方案
+
+## Dependency TDD
 """
     if is_goal:
         content += """
@@ -418,6 +532,8 @@ def _init_task_dirs():
             ws_template = PROJECT_ROOT / ".claude/references/working-set-template.yaml"
             if ws_template.exists():
                 ws_path.write_text(ws_template.read_text(encoding="utf-8"))
+            else:
+                ws_path.write_text("# working-set.yaml — auto-generated by carros_base.py\n")
 
 
 def _inject_plan_step(step_id):
@@ -483,6 +599,96 @@ def _write_audit(event_type, data, fallback=False):
     }
     with open(audit_file, "a") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def _dry_run_migration() -> list[dict]:
+    """Dry-run migration report: scan legacy YYYY-MM-DD dirs, print source/target/collision.
+
+    0 writes, re-entrant. 返回 list of {source, target, slug, collision}.
+    """
+    results: list[dict] = []
+    OMC_TASKS.mkdir(parents=True, exist_ok=True)
+    if not OMC_TASKS.exists():
+        return results
+
+    try:
+        from lib.task_paths import scan_task_dirs, find_conflicts
+        entries = scan_task_dirs(OMC_TASKS, include_legacy=True)
+        conflicts = find_conflicts(entries)
+        conflict_slugs = {c["slug"] for c in conflicts}
+        legacy_entries = [e for e in entries if e.is_legacy]
+
+        for e in legacy_entries:
+            target_date = e.date
+            target = str(OMC_TASKS / target_date / e.slug)
+            results.append({
+                "source": str(e.path),
+                "target": target,
+                "slug": e.slug,
+                "collision": e.slug in conflict_slugs,
+            })
+    except ImportError:
+        pass
+
+    if results:
+        print(f"{'Source':<60} {'Target':<60} {'Collision':<10}")
+        print("-" * 130)
+        for r in results:
+            print(f"{r['source']:<60} {r['target']:<60} {str(r['collision']):<10}")
+    else:
+        print("No legacy YYYY-MM-DD directories found.")
+
+    return results
+
+
+def cmd_migrate():
+    """Dry-run migration: 扫描 legacy YYYY-MM-DD → YYYYMMDD 报告.
+
+    用法:
+        carros_base.py migrate [--dry-run]
+
+    当前仅支持 dry-run (零写入), 可安全重入。
+    """
+    _dry_run_migration()
+    return 0
+
+
+def cmd_resolve_conflict():
+    """显示 slug 跨格式冲突 (YYYYMMDD + YYYY-MM-DD 并存).
+
+    用法:
+        carros_base.py resolve-conflict [--slug <slug>]
+
+    Dry-run only, 零写入。
+    """
+    OMC_TASKS.mkdir(parents=True, exist_ok=True)
+    try:
+        from lib.task_paths import scan_task_dirs, find_conflicts
+        entries = scan_task_dirs(OMC_TASKS, include_legacy=True)
+        conflicts = find_conflicts(entries)
+        if not conflicts:
+            print("No conflicts found.")
+            return 0
+
+        argv = sys.argv[sys.argv.index("resolve-conflict") + 1:]
+        slug_filter = None
+        i = 0
+        while i < len(argv):
+            if argv[i] == "--slug" and i + 1 < len(argv):
+                slug_filter = argv[i + 1]; i += 2
+            else:
+                i += 1
+
+        print(f"{'Slug':<40} {'Canonical Path':<60} {'Legacy Path':<60}")
+        print("-" * 160)
+        for c in conflicts:
+            if slug_filter and c["slug"] != slug_filter:
+                continue
+            print(f"{c['slug']:<40} {c['canonical_path']:<60} {c['legacy_path']:<60}")
+    except ImportError:
+        print("lib/task_paths.py not available")
+        return 2
+    return 0
 
 
 # ═══════════════════════════════════════════
@@ -781,7 +987,7 @@ def cmd_status(hot_mode=True):
 
 
 def cmd_tick():
-    """递增 tick 计数器 + 水位检查 + 自动追踪当前步骤状态"""
+    """递增 tick 计数器 + 自动追踪当前步骤状态"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -794,24 +1000,17 @@ def cmd_tick():
         print(_red("❌ No active task"))
         return 2
 
-    # 水位检查
-    try:
-        from lib.water_level import run_water_gate
-        gate = run_water_gate(action="tick")
-        if not gate["continue"]:
-            print(_yellow(f"⚠  {gate['message']}"))
-            # Pause: write handoff, request compact
-            from lib.handoff_writer import write_handoff
-            write_handoff(TASK_DIR, token.get("session",{}).get("id",""), token, PLAN_PATH, executor_path=EXECUTOR_PATH)
-            return 0  # soft pause, not error
-        elif gate["water"]["level"] == "warn":
-            print(_yellow(f"⚠  {gate['message']}"))
-    except ImportError:
-        pass  # water_level.py not available — continue without
 
-    # 找当前 pending 步骤 — 从 plan.md 读取
+    # 找当前 activatable pending 步骤 — dependency-aware
     current_step = None
-    if PLAN_PATH and PLAN_PATH.exists():
+    if PLAN_PATH and PLAN_PATH.exists() and step_contracts:
+        plan_content = PLAN_PATH.read_text()
+        steps = step_contracts.parse_plan_steps(plan_content)
+        activatable = step_contracts.find_first_activatable_step(steps)
+        if activatable:
+            current_step = activatable
+    elif PLAN_PATH and PLAN_PATH.exists():
+        # fallback: simple regex
         plan_content = PLAN_PATH.read_text()
         pending_steps = re.findall(r"^- \[ \] (\S+?):", plan_content, re.MULTILINE)
         if pending_steps:
@@ -825,12 +1024,21 @@ def cmd_tick():
     else:
         token["stats"]["turns"] = token["stats"].get("turns", 0) + 1
         print(f"   Turn: {token['stats']['turns']}")
-    _save_token(token)
 
-    # task-state: 记录步骤开始追踪
-    if current_step and tst:
-        tst.mark_step_started(TOKEN_PATH, current_step)
-        print(f"   ◷ Tracking {current_step} (use 'verify' to complete)")
+    # Task75: atomic step activation via step_contracts
+    if current_step and step_contracts and PLAN_PATH and EXECUTOR_PATH and TOKEN_PATH:
+        try:
+            step_contracts.start_step_atomic(TOKEN_PATH, PLAN_PATH, EXECUTOR_PATH, current_step)
+            print(f"   ◷ Activated step: {current_step} (atomic)")
+        except ValueError as e:
+            print(_yellow(f"   ⚠ Step activation skipped: {e}"))
+        except Exception as e:
+            print(_yellow(f"   ⚠ Step activation error: {e}"))
+    elif current_step:
+        # legacy task-state tracking
+        if tst:
+            tst.mark_step_started(TOKEN_PATH, current_step)
+            print(f"   ◷ Tracking {current_step} (use 'verify' to complete)")
     return 0
 
 
@@ -988,35 +1196,58 @@ def cmd_verify(step_id=None, all_steps=False):
             if required:
                 print(_yellow(f"   需要: {required}"))
             return 2
-        pattern = re.compile(r"^- \[ \] " + re.escape(target) + r":", re.MULTILINE)
-        replacement = f"- [x] {target}:"
-        new_plan, count = pattern.subn(replacement, plan)
-        if count > 0:
-            plan = new_plan
-            # 更新 token — 统一新格式（递增 done 计数器）
-            token["stats"]["done"] = token["stats"].get("done", 0) + 1
-            if token["stats"]["done"] >= token["stats"]["total"]:
-                token["task"]["status"] = "completed"
-            if degraded:
-                _write_audit("verify_degraded", {"step": target, "reason": reason})
-                print(_yellow(f"⚠  {target}: {reason} — 降级标记并留痕（非 VERIFIED）"))
+
+        # ── Task75 Atomic Evidence Gate (non-degraded) ──
+        # complete_step_atomic validates evidence, updates plan [x], token done++
+        if step_contracts and not degraded:
+            try:
+                step_contracts.complete_step_atomic(
+                    TOKEN_PATH, PLAN_PATH, EXECUTOR_PATH, target
+                )
+                # reload after atomic write
+                plan = PLAN_PATH.read_text()
+                token = _load_token()
+            except ValueError as e:
+                _write_audit("verify", {"step": target, "result": "REJECTED", "reason": str(e)})
+                print(_red(f"❌ {target}: evidence incomplete — {e}"))
+                return 2
+
+        # Legacy/downgraded: manual plan+token update
+        legacy_update = not step_contracts or degraded
+        if legacy_update:
+            pattern = re.compile(r"^- \[ \] " + re.escape(target) + r":", re.MULTILINE)
+            replacement = f"- [x] {target}:"
+            new_plan, count = pattern.subn(replacement, plan)
+            if count > 0:
+                plan = new_plan
+                token["stats"]["done"] = token["stats"].get("done", 0) + 1
+                if token["stats"]["done"] >= token["stats"]["total"]:
+                    token["task"]["status"] = "completed"
             else:
-                _write_audit("verify", {
-                    "step": target, "result": "VERIFIED", "gate": decision,
-                    "warnings": gate_payload.get("warnings", []),
-                })
-                print(_green(f"✅ {target}: VERIFIED"))
-            # task-state: 标记完成
-            if tst:
-                tst.mark_step_completed(TOKEN_PATH, target)
-                verdict = tst.format_tick_verdict(TOKEN_PATH, target)
-                if verdict:
-                    print(verdict)
-            verified_any = True
+                print(_yellow(f"⚠  {target}: not found in plan.md"))
+                continue
+
+        # ── Audit + feedback ──
+        if degraded:
+            _write_audit("verify_degraded", {"step": target, "reason": reason})
+            print(_yellow(f"⚠  {target}: {reason} — 降级标记并留痕（非 VERIFIED）"))
         else:
-            print(_yellow(f"⚠  {target}: not found in plan.md"))
+            _write_audit("verify", {
+                "step": target, "result": "VERIFIED", "gate": decision,
+                "warnings": gate_payload.get("warnings", []),
+            })
+            print(_green(f"✅ {target}: VERIFIED"))
+
+        # task-state: 标记完成
+        if tst:
+            tst.mark_step_completed(TOKEN_PATH, target)
+            verdict = tst.format_tick_verdict(TOKEN_PATH, target)
+            if verdict:
+                print(verdict)
+        verified_any = True
 
     if verified_any:
+        # When step_contracts was used, plan/token already written; this is a safe re-write
         PLAN_PATH.write_text(plan)
         _save_token(token)
         _write_handoff(token)
@@ -2405,6 +2636,8 @@ COMMANDS = {
     "manifest-json": cmd_manifest_json,
     "token-write": cmd_token_write,
     "gate-results-init": cmd_gate_results_init,
+    "migrate": cmd_migrate,
+    "resolve-conflict": cmd_resolve_conflict,
     "help": cmd_help,
 }
 
