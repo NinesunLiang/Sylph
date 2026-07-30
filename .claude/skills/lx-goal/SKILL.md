@@ -54,7 +54,9 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
     - 激活时 lx-goal.py 委托 **carros_base.py init --task-mode goal** 创建任务文档目录 + 结构化模板
     - carros_base.py 负责 research/plan/executor 模板生成，不再由 lx-goal.py 自建骨架
 9. **🔴 绑定 plan_dir** — 激活后必须调用 `lx-goal.py assert-plan-dir` 获取 carros_base 创建的 unique plan_dir 路径并 `cd` 到该目录。**禁止自行 mkdir、猜测或创建新目录作为 plan_dir**。后续所有文档 I/O（research/plan/executor）必须锁定此路径。
-10. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
+10. **🔴 填写 research.md** — 硬规则。必须填写 research.md 的所有 8 个 section（背景/约束/已知信息/不确定性/全貌/依赖树/方案/Dependency TDD），每个 section 至少 1 行非占位内容。依赖树必须至少 1 条。
+11. **🔴 Phase 0 门禁** — 硬规则。填写完成后必须调用 `lx-goal.py phase0-done`，触发 ResearchGate 验证 + GoalMachine 状态转换。验证失败会阻断进入 Phase 1。**不调用此命令 = 跳过 Phase 0 = 违反铁律**。
+12. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
 
 > ⚠️ Anti-Pattern: "这任务太简单不需要澄清" — 简单的任务恰恰是未检视假设导致最多返工的地方。澄清可以短（几句话），但不能跳过。
 

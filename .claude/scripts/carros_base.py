@@ -478,13 +478,15 @@ def _write_default_executor():
 def _write_default_research():
     """创建 research.md — 子任务也可引用 src.md
 
-    goal 模式时写入 Phase 0 前置要求，防止 AI 声称 Phase 0 完成但文档为空。
+    所有任务都写入 ResearchGate 门禁要求（L1/L2 均适用），防止 AI 声称 Phase 0 完成但文档为空。
     """
     RESEARCH_PATH.parent.mkdir(parents=True, exist_ok=True)
     is_goal = os.environ.get("CARROROS_TASK_MODE") == "goal"
     content = """# Research
 
 > 事实层：技术决策、架构边界、参考来源
+
+<!-- ⚠️ ResearchGate 门禁：所有 8 个 section 必须有非占位内容 + 依赖树至少 1 条 -->
 
 ## 背景
 
@@ -506,7 +508,6 @@ def _write_default_research():
         content += """
 ## Phase 0（goal 模式前置澄清）
 <!-- ⓪ 以下内容由 AI 在 Phase 0 完成后写入 -->
-<!-- ⚠️ phase0-done 门禁：research.md 必须 >4 行非空内容才放行 -->
 
 """
     RESEARCH_PATH.write_text(content)
