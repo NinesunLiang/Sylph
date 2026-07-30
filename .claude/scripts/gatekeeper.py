@@ -650,13 +650,21 @@ class GateKeeper:
 
     @classmethod
     def _format_redirect(cls, result: GateDecisionResult) -> str:
-        """协议B格式: 拦截+引导"""
+        """协议B格式: 拦截+引导 — 强调必须改变策略"""
         lines = [
             f"🔄 操作重定向: {result.reason}",
+            "",
         ]
         if result.guidance:
-            lines.append(f"💡 {result.guidance}")
-        lines.append("继续...")
+            lines.append(f"💡 建议操作:")
+            lines.append(f"   {result.guidance}")
+        else:
+            lines.append("💡 当前操作不可行，需改变策略")
+
+        lines.extend([
+            "",
+            "⚠️ 重复相同操作将触发 HARD_BLOCK",
+        ])
         return "\n".join(lines)
 
     @classmethod

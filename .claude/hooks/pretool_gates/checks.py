@@ -699,5 +699,5 @@ def _check_injection(payload: dict) -> str | None:
                     f"⛔ 写入内容检测到提示注入模式: '{m.group()[:60]}'")
     if len(content) > _EXTERNAL_DATA_MAX_LEN:
         return (f"REDIRECT content_truncated tool={tool}|"
-                f"🔄 写入内容过大 ({len(content)} 字符),建议分段写入。")
+                f"内容长度 {len(content)} 字符超过 8000 限制。使用 Write 写入前 6000 字符+续写标记，再用 Edit 替换标记追加剩余内容")
     return None
