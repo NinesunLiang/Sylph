@@ -18,6 +18,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock, mock_open
 
+import pytest
+
 
 # ── Fixture helpers ──────────────────────────────────────────────
 
@@ -214,6 +216,7 @@ def test_known_subcommands_keys(tmp_path):
         "poll", "is-active", "task-done", "skip-risk",
         "hard-boundary-hit", "blocked-human", "retry",
         "subagent-log", "done", "_update-lock",
+        "assert-plan-dir", "checklist-verify",
     }
     assert expected == set(mod.KNOWN_SUBCOMMANDS)
 
@@ -230,7 +233,7 @@ def test_known_subcommands_has_no_unexpected(tmp_path):
     """Only the 16 known commands are registered (no drift)."""
     root = _fake_project_root(tmp_path)
     mod = _import_goal(root)
-    assert len(mod.KNOWN_SUBCOMMANDS) == 16
+    assert len(mod.KNOWN_SUBCOMMANDS) == 18
 
 
 # ── Test 5: Usage output format ──────────────────────────────────
@@ -290,3 +293,165 @@ def test_cmd_is_active_inactive_message(tmp_path, capsys):
     assert rc == 1
     captured = capsys.readouterr()
     assert "未激活" in captured.out
+
+
+# ── Goal lifecycle behavior contracts ───────────────────────────
+
+def _valid_research() -> str:
+    return (
+        "# Research\n\n"
+        "## 背景\nReal background.\n\n"
+        "## 约束\nReal constraints.\n\n"
+        "## 已知信息\nReal facts.\n\n"
+        "## 不确定性\nReal uncertainty.\n\n"
+        "## 全貌\nReal overview.\n\n"
+        "## 依赖树\n- Foundation before integration.\n\n"
+        "## 方案\nImplement serially.\n\n"
+        "## Dependency TDD\nTest dependencies first.\n"
+    )
+
+
+def _valid_plan() -> str:
+    return (
+        "# Plan\n\n## Phase 1\n"
+        "- [ ] S1: implement\n"
+        "  - status: pending\n"
+        "  - depends_on: none\n"
+        "  - scope: src/main.py\n"
+        "  - acceptance: behavior passes\n"
+        "  - verify: command:pytest tests/\n"
+    )
+
+
+def _write_goal_state(mod, task_dir: Path, token: dict) -> Path:
+    date_dir = task_dir.parent.name
+    token_path = mod.TOKENS_DIR / date_dir / f"{task_dir.name}.json"
+    token_path.parent.mkdir(parents=True, exist_ok=True)
+    token_path.write_text(json.dumps(token), encoding="utf-8")
+    mode_data = {
+        "active": True,
+        "goal": "test goal",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=6)).isoformat(),
+        "rpe_plan_dir": str(task_dir),
+        "completed_tasks": [],
+        "skipped_risks": [],
+        "hard_boundary_hits": [],
+        "blocked_human": [],
+    }
+    mod.MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    mod.MODE_FILE.write_text(json.dumps(mode_data), encoding="utf-8")
+    return token_path
+
+
+def test_cmd_on_merges_goal_fields_into_carros_token(tmp_path):
+    root = _fake_project_root(tmp_path)
+    mod = _import_goal(root)
+    mod._lc_set_mode = MagicMock()
+    task_dir = mod.TASKS_DIR / datetime.now().strftime("%Y%m%d") / "demo"
+    task_dir.mkdir(parents=True)
+    carros_token = mod.TOKENS_DIR / task_dir.parent.name / "demo.json"
+
+    def fake_init(*args, **kwargs):
+        carros_token.parent.mkdir(parents=True, exist_ok=True)
+        carros_token.write_text(json.dumps({
+            "schema_version": "v1.0",
+            "revision": 2,
+            "session": {"id": "demo", "level": "L2"},
+            "task_dir": str(task_dir),
+            "status": "active",
+            "task": {"current_step": "S1", "status": "active"},
+            "stats": {"done": 0, "total": 1},
+            "mode": "goal",
+        }), encoding="utf-8")
+        return MagicMock(returncode=0, stdout=f"CARROROS_TASK_DIR={task_dir}\n", stderr="")
+
+    with patch("subprocess.run", side_effect=fake_init):
+        mod.cmd_on("demo", 6)
+
+    token = json.loads(carros_token.read_text(encoding="utf-8"))
+    assert token["schema_version"] == "v1.0"
+    assert token["session"]["id"] == "demo"
+    assert token["status"] == "active"
+    assert token["stats"] == {"done": 0, "total": 1}
+    assert token["goal"]["state"] == "CLARIFY"
+    assert token["goal"]["description"] == "demo"
+
+
+def test_phase0_done_advances_clarify_to_executing(tmp_path):
+    root = _fake_project_root(tmp_path)
+    mod = _import_goal(root)
+    task_dir = mod.TASKS_DIR / "20990101" / "phase0"
+    task_dir.mkdir(parents=True)
+    (task_dir / "research.md").write_text(_valid_research(), encoding="utf-8")
+    (task_dir / "plan.md").write_text(_valid_plan(), encoding="utf-8")
+    (task_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    token_path = _write_goal_state(mod, task_dir, {
+        "schema_version": "v1.0",
+        "revision": 1,
+        "session": {"id": "phase0", "level": "L2"},
+        "task_dir": str(task_dir),
+        "status": "active",
+        "task": {"current_step": "S1", "status": "planning"},
+        "stats": {"done": 0, "total": 1},
+        "goal": {"state": "CLARIFY", "description": "phase0"},
+    })
+
+    mod.cmd_phase0_done()
+
+    token = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token["goal"]["state"] == "EXECUTING"
+    assert token["phase"] == "executing"
+    mode = json.loads(mod.MODE_FILE.read_text(encoding="utf-8"))
+    assert mode.get("phase0_passed_at")
+
+
+def test_done_invalid_state_keeps_token_and_fails_closed(tmp_path):
+    root = _fake_project_root(tmp_path)
+    mod = _import_goal(root)
+    task_dir = mod.TASKS_DIR / "20990101" / "not-verified"
+    task_dir.mkdir(parents=True)
+    (task_dir / "executor.md").write_text(
+        "# Executor\n## Acceptance Checklist\n- [x] checked\n",
+        encoding="utf-8",
+    )
+    (task_dir / "plan.md").write_text(_valid_plan(), encoding="utf-8")
+    token_path = _write_goal_state(mod, task_dir, {
+        "schema_version": "v1.0",
+        "revision": 1,
+        "session": {"id": "not-verified", "level": "L2"},
+        "task_dir": str(task_dir),
+        "status": "active",
+        "task": {"current_step": "S1", "status": "active"},
+        "stats": {"done": 0, "total": 1},
+        "goal": {"state": "EXECUTING", "description": "not verified"},
+    })
+
+    with pytest.raises(SystemExit) as exc:
+        mod.cmd_done()
+    assert exc.value.code == 1
+    assert token_path.exists(), "failed done must not delete the active token"
+    token = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token["goal"]["state"] == "EXECUTING"
+
+
+def test_poll_reports_first_incomplete_step(tmp_path, capsys):
+    root = _fake_project_root(tmp_path)
+    mod = _import_goal(root)
+    task_dir = mod.TASKS_DIR / "20990101" / "resume"
+    task_dir.mkdir(parents=True)
+    (task_dir / "plan.md").write_text(
+        "# Plan\n- [x] S1: done\n- [ ] S2: continue\n",
+        encoding="utf-8",
+    )
+    _write_goal_state(mod, task_dir, {
+        "session": {"id": "resume", "level": "L2"},
+        "task_dir": str(task_dir),
+        "status": "active",
+        "task": {"current_step": "S1", "status": "active"},
+        "stats": {"done": 1, "total": 2},
+        "goal": {"state": "EXECUTING"},
+    })
+
+    mod.cmd_poll()
+    captured = capsys.readouterr()
+    assert "S2" in captured.out

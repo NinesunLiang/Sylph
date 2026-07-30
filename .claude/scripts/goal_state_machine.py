@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """
-goal_state_machine.py — Goal 自闭环状态机
+goal_state_machine.py — Goal 严格向前状态机
 
 Pipeline: CLARIFY → PLANNING → EXECUTING → VERIFYING → ARCHIVING → ARCHIVED
 
-每个状态可前/后向转换。自动推进规则：
-  - intent/goal 缺失时自动回退 CLARIFY
-  - 全部 AC verified → 自动推 ARCHIVING
-  - archive 成功 → ARCHIVED
+严格向前（Task74）：所有倒退转换非法。需要 recovery 时使用专门的
+API（普通 transition 不提供倒退能力）。
+
+Gate 集成：
+  - transition 到 PLANNING 时可选传入 research_path 触发 ResearchGate 验证
+  - transition 到 EXECUTING 时可选传入 plan_path 触发 PlanGate 验证
+  - 不传文档路径时保持纯状态后退兼容（低层 state-only 测试可用）
 
 Usage:
     from goal_state_machine import GoalMachine, GoalStatus
 
-Usage:
     gm = GoalMachine(token_path)
     gm.transition("VERIFYING")
     print(gm.current_state)
@@ -21,6 +23,15 @@ Usage:
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+
+# ─── Gate contracts (optional — enables ResearchGate / PlanGate validation) ───
+try:
+    from goal_contracts import ResearchGate, ResearchGateError, PlanGate, PlanGateError
+except ImportError:
+    ResearchGate = None
+    ResearchGateError = Exception
+    PlanGate = None
+    PlanGateError = Exception
 
 # ─── State Constants ───
 CLARIFY = "CLARIFY"
@@ -32,14 +43,16 @@ ARCHIVED = "ARCHIVED"
 
 ALL_STATES = [CLARIFY, PLANNING, EXECUTING, VERIFYING, ARCHIVING, ARCHIVED]
 
-# ─── Valid Transitions ───
+# ─── Valid Transitions (strict forward-only) ───
+# Task74: All backward transitions are illegal. Recovery requires
+# dedicated API (not through ordinary transition).
 _VALID_TRANSITIONS = {
     None: [CLARIFY],                  # 初始状态 -> CLARIFY
-    CLARIFY: [PLANNING, CLARIFY],     # 澄清后可进 PLANNING，或继续澄清
-    PLANNING: [EXECUTING, CLARIFY],   # 计划后执行，或回 CLARIFY（需求变更）
-    EXECUTING: [VERIFYING, CLARIFY],  # 执行后验证，或回 CLARIFY
-    VERIFYING: [ARCHIVING, EXECUTING, CLARIFY],  # 验证后归档/回执行/回澄清
-    ARCHIVING: [ARCHIVED, VERIFYING], # 归档中 -> 完成或回验证
+    CLARIFY: [PLANNING],              # 澄清后可进 PLANNING
+    PLANNING: [EXECUTING],            # 计划后执行
+    EXECUTING: [VERIFYING],           # 执行后验证
+    VERIFYING: [ARCHIVING],           # 验证后归档
+    ARCHIVING: [ARCHIVED],            # 归档后完成
     ARCHIVED: [],                     # 终态
 }
 
@@ -76,21 +89,86 @@ class GoalMachine:
     def is_terminal(self):
         return self._state == ARCHIVED
 
-    def can_transition(self, target_state):
-        """检查 target_state 是否合法"""
-        return target_state in _VALID_TRANSITIONS.get(self._state, [])
+    def _read_token(self) -> dict | None:
+        """Read token file, return dict or None."""
+        if self.token_path and self.token_path.exists():
+            try:
+                return json.loads(self.token_path.read_text())
+            except (json.JSONDecodeError, OSError):
+                pass
+        return None
 
-    def transition(self, target_state, token=None, reason=""):
-        """尝试状态转换 — 验证合法性 + 更新 token（如有）"""
+    def can_transition(self, target_state):
+        """检查 target_state 是否合法（含 stats 门禁：EXECUTING→VERIFYING 需 done>=total）"""
+        if target_state not in _VALID_TRANSITIONS.get(self._state, []):
+            return False
+
+        # Gate: EXECUTING→VERIFYING 需要所有 step 已完成
+        if self._state == EXECUTING and target_state == VERIFYING:
+            token = self._read_token()
+            if token:
+                stats = token.get("stats", {})
+                done = stats.get("done", 0)
+                total = stats.get("total", 0)
+                if done < total:
+                    return False
+
+        return True
+
+    def transition(self, target_state, token=None, reason="", research_path=None, plan_path=None):
+        """尝试状态转换 — 验证合法性 + gate validation + 更新 token
+
+        Args:
+            target_state: 目标状态
+            token: 可选的 token 字典（用于更新）
+            reason: 转换原因
+            research_path: 如果目标为 PLANNING，在此路径上的 research.md
+                           会被 ResearchGate 验证
+            plan_path: 如果目标为 EXECUTING，在此路径上的 plan.md
+                       会被 PlanGate 验证
+
+        注：gate 验证仅在提供了文档路径时触发。不传路径时保持纯状态后退兼容，
+        供低层 state-only 测试使用。生产 lifecycle wrapper 必须传路径。
+        """
         if target_state not in ALL_STATES:
             raise GoalError(f"Unknown state: {target_state}")
 
         valid = _VALID_TRANSITIONS.get(self._state, [])
         if target_state not in valid:
             raise GoalError(
-                f"Invalid transition: {self._state} → {target_state} "
+                f"Invalid transition: {self._state} -> {target_state} "
                 f"(allowed: {valid})"
             )
+
+        # Stats gate: EXECUTING->VERIFYING requires all steps done
+        if self._state == EXECUTING and target_state == VERIFYING:
+            token = self._read_token()
+            if token:
+                stats = token.get("stats", {})
+                done = stats.get("done", 0)
+                total = stats.get("total", 0)
+                if done < total:
+                    raise GoalError(
+                        f"Cannot transition to VERIFYING: not all steps done "
+                        f"({done}/{total})"
+                    )
+
+        # ── Gate validation ──────────────────────────────────────────
+        if target_state == PLANNING and research_path is not None and ResearchGate is not None:
+            try:
+                ResearchGate.validate(research_path)
+            except ResearchGateError as e:
+                raise GoalError(
+                    f"ResearchGate blocked transition to PLANNING: {e}"
+                ) from e
+
+        if target_state == EXECUTING and plan_path is not None and PlanGate is not None:
+            try:
+                PlanGate.validate(plan_path)
+            except PlanGateError as e:
+                raise GoalError(
+                    f"PlanGate blocked transition to EXECUTING: {e}"
+                ) from e
 
         old_state = self._state
         self._state = target_state
@@ -121,7 +199,7 @@ class GoalMachine:
         return True
 
     def auto_progress(self, token=None):
-        """根据 token 状态自动推进（executing→verifying→archiving→archived）"""
+        """根据 token 状态自动推进（executing -> verifying -> archiving）"""
         token_data = token
         if token_data is None and self.token_path and self.token_path.exists():
             try:
@@ -144,12 +222,10 @@ class GoalMachine:
                             reason=f"auto: all {done}/{total} steps completed")
             transitions_made.append(("auto", EXECUTING, VERIFYING))
 
-        if goal_state == VERIFYING and done >= total:
-            self.transition(ARCHIVING, token_data,
-                            reason="auto: all steps verified")
-            transitions_made.append(("auto", VERIFYING, ARCHIVING))
+        # VERIFYING -> ARCHIVING requires external verify results
+        # auto_progress() intentionally stops at VERIFYING
 
-        # ARCHIVING → ARCHIVED 需要外部调用 archive 命令后自动触发
+        # ARCHIVING -> ARCHIVED 需要外部调用 archive 命令后自动触发
         return transitions_made
 
     def reset(self, token=None):
@@ -169,11 +245,11 @@ class GoalMachine:
 def get_state_header(state, color=True):
     """获取带颜色的状态头"""
     icons = {
-        CLARIFY: "📋",
-        PLANNING: "📐",
+        CLARIFY: "\U0001f4cb",
+        PLANNING: "\U0001f4d0",
         EXECUTING: "⚡",
-        VERIFYING: "🔍",
-        ARCHIVING: "📦",
+        VERIFYING: "\U0001f50d",
+        ARCHIVING: "\U0001f4e6",
         ARCHIVED: "✅",
     }
     icon = icons.get(state, "❓")
@@ -200,5 +276,25 @@ if __name__ == "__main__":
     gm.transition(PLANNING)
     print("After PLANNING:", gm.current_state)
     print("Summary:", gm.get_summary())
+
+    # Test forward-only: backward should raise
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f2:
+        f2.write(json.dumps({
+            "stats": {"done": 0, "total": 3},
+            "goal": {"state": None}
+        }))
+        tp2 = f2.name
+
+    gm2 = GoalMachine(tp2)
+    gm2.transition(CLARIFY)
+    gm2.transition(PLANNING)
+    gm2.transition(EXECUTING)
+    try:
+        gm2.transition(CLARIFY)  # EXECUTING -> CLARIFY, should raise
+        print("ERROR: backward transition did not raise!")
+    except GoalError:
+        print("OK: backward transition correctly blocked")
+    Path(tp2).unlink(missing_ok=True)
+
     Path(tp).unlink(missing_ok=True)
-    print("\nAll checks passed ✅")
+    print("\nAll checks passed")

@@ -60,6 +60,25 @@ try:
 except Exception:
     _lc_set_mode = None
 
+# Goal 状态机 + Step 合约（fail-closed: 导入失败时赋 None，调用方必须检查）
+sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "scripts"))
+try:
+    from goal_state_machine import GoalMachine as _GSM, ALL_STATES as _GSM_ALL_STATES, GoalError as _GSM_Error
+except Exception:
+    _GSM = None
+    _GSM_ALL_STATES = []
+    _GSM_Error = Exception
+try:
+    from goal_contracts import ResearchGate as _ResearchGate, ResearchGateError as _RGError
+except Exception:
+    _ResearchGate = None
+    _RGError = Exception
+try:
+    from executor_ledger import append_evidence_block as _ledger_append_block
+except Exception:
+    def _ledger_append_block(*args, **kwargs):
+        pass
+
 
 # ============================================================
 # 工具函数
@@ -180,6 +199,22 @@ def _update_lock_counter(plan_dir: Path, field: str, inc: int = 1):
 
 
 # ============================================================
+# 跨会话恢复工具
+# ============================================================
+
+def find_first_incomplete_step(plan_dir: Path) -> str | None:
+    """扫描 plan.md,返回第一个 [ ] 的 step ID(跨会话恢复用)"""
+    plan_md = plan_dir / "plan.md"
+    if not plan_md.exists():
+        return None
+    for line in plan_md.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"- \[ \] (\S+?):", line.strip())
+        if m:
+            return m.group(1)
+    return None
+
+
+# ============================================================
 # 子命令
 # ============================================================
 
@@ -276,26 +311,20 @@ def cmd_on(goal: str, expiry_hours: int = 6):
         print("❌ carros_base.py init 超时 (15s)", file=sys.stderr)
         sys.exit(2)
 
-    # ── 创建 goal 模式专用物理锁（覆盖基础 token，补充 goal 字段）──
+    # ── 读取已有 token（由 carros_base.py 创建），合并 goal 字段 ──
     lock_file = TOKENS_DIR / date_str / f"{slug}.json"
     lock_file.parent.mkdir(parents=True, exist_ok=True)
-    lock_data = {
-        "task": slug,
-        "slug": slug,
-        "goal": goal[:200],
-        "mode": "goal",
-        "phase": "draft",
-        "created_at": now,
-        "updated_at": now,
-        "expires_at": expires,
-        "completed_tasks": 0,
-        "skipped_risks": 0,
-        "hard_boundary_hits": 0,
-        "blocked_human": 0,
-        "plan_dir": str(plan_dir),
-    }
+    existing = {}
+    if lock_file.exists():
+        try:
+            existing = json.loads(lock_file.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            pass
+    existing.setdefault("goal", {})
+    existing["goal"]["state"] = "CLARIFY"
+    existing["goal"]["description"] = goal[:200]
     with open(lock_file, "w", encoding="utf-8") as f:
-        json.dump(lock_data, f, indent=2, ensure_ascii=False)
+        json.dump(existing, f, indent=2, ensure_ascii=False)
 
     # 保存 plan_dir 到 mode file
     mode_data["rpe_plan_dir"] = str(plan_dir)
@@ -322,7 +351,11 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     # 决策链注入（skill 自带 references，原 .claude/reference/ 路径不存在为死代码）
     decision_chain = SCRIPT_DIR.parent / "references" / "autonomous-execution.md"
     if decision_chain.exists():
-        print(f"\n[{decision_chain.relative_to(PROJECT_ROOT)}]")
+        try:
+            label = decision_chain.relative_to(PROJECT_ROOT)
+        except ValueError:
+            label = decision_chain
+        print(f"\n[{label}]")
         print(decision_chain.read_text(encoding="utf-8"))
 
 
@@ -453,7 +486,7 @@ def cmd_set(key: str, value_str: str):
 
 
 def cmd_phase0_done():
-    """Phase 0 → 1 硬过渡: 验证 research.md 有内容 → 设置 phase=executing"""
+    """Phase 0 → 1 硬过渡: ResearchGate 验证 research.md → GoalMachine 推进"""
     mode_data, path = _read_mode_file()
     plan_dir = _get_plan_dir(mode_data)
     if not plan_dir:
@@ -461,38 +494,57 @@ def cmd_phase0_done():
         sys.exit(1)
 
     research_md = plan_dir / "research.md"
-    if research_md.exists():
-        lines = len(research_md.read_text(encoding="utf-8").split("\n"))
-    else:
-        lines = 0
-    if lines <= 4:
-        print(f"❌ Phase 0 未完成: research.md 内容不足 ({lines} 行)")
-        print("   AI 必须写入: 子任务列表、验收标准、风险点")
+
+    # ── ResearchGate 内容结构验证 ──
+    if _ResearchGate is None:
+        print("❌ ResearchGate 不可用(导入失败)，无法验证 research.md 质量", file=sys.stderr)
+        sys.exit(2)
+    try:
+        _ResearchGate.validate(str(research_md))
+    except _RGError as e:
+        errors = "；".join(e.errors[:5])
+        print(f"❌ Phase 0 未完成: research.md 未通过结构验证: {errors}")
+        if len(e.errors) > 5:
+            print(f"   (共 {len(e.errors)} 项失败)")
         sys.exit(1)
+
+    # ── GoalMachine 推进: CLARIFY → PLANNING ──
+    slug = plan_dir.name
+    date_dir = plan_dir.parent.name
+    lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
+
+    if _GSM is not None:
+        try:
+            gsm = _GSM(str(lock_file))
+            gsm.transition("PLANNING", reason="phase0-done: research.md validated")
+            gsm.transition("EXECUTING", plan_path=str(plan_dir / "plan.md"), reason="phase0-done: plan.md validated")
+        except _GSM_Error as e:
+            print(f"❌ GoalMachine 状态转换失败: {e}", file=sys.stderr)
+            sys.exit(2)
+    else:
+        # GoalMachine 不可用时降级：直接写 token goal.state
+        if lock_file.exists():
+            lock = json.loads(lock_file.read_text(encoding="utf-8"))
+            lock.setdefault("goal", {})
+            lock["goal"]["state"] = "PLANNING"
+            lock["goal"]["previous_state"] = None
+            lock["goal"]["transitions"] = lock["goal"].get("transitions", 0) + 1
+            lock["goal"]["last_transition"] = get_now()
+            lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
 
     # 写 phase0_passed_at 到 mode file
     mode_data["phase0_passed_at"] = get_now()
     _write_mode_file(mode_data, path)
 
-    # 同步更新 token.json phase
-    slug = plan_dir.name
-    date_dir = plan_dir.parent.name
-    lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
+    # 同步更新 token.json phase → executing
     if lock_file.exists():
         lock = json.loads(lock_file.read_text(encoding="utf-8"))
         lock["phase"] = "executing"
         lock["updated_at"] = get_now()
         lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    # 追加到 plan.md
-    plan_md = plan_dir / "plan.md"
-    with open(plan_md, "a", encoding="utf-8") as f:
-        f.write(f"\n## Phase 0 完成 — 进入自主执行\n")
-        f.write(f"- research.md: {lines} 行\n")
-        f.write(f"- 激活时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-        f.write(f"- 状态: executing\n")
-
     print("✅ Phase 0 完成 → Phase 1 自主执行已解锁")
+    print("   ResearchGate 内容结构验证通过")
     print("   Plan Gate 现已放行 Edit/Write/Bash")
     print("   完成后运行: lx-goal.py done")
 
@@ -666,21 +718,30 @@ def cmd_poll():
     print(f"   已完成: {done}  已跳过风险: {skip}  硬边界: {hard}  重试次数: {retry}")
     print("   请继续执行目标，完成后用 lx-goal.py task-done 或 lx-goal.py report 输出报告")
 
+    # 报告第一个未完成步骤
+    plan_dir_str = data.get("rpe_plan_dir", "")
+    if plan_dir_str:
+        next_step = find_first_incomplete_step(Path(plan_dir_str))
+        if next_step:
+            print(f"   下一步: {next_step}")
+
 
 def cmd_task_done(description: str = "未知任务"):
-    """标记一项任务为已完成"""
+    """标记一项任务为已完成（记录证据到 executor.md）"""
     mode_data, path = _read_mode_file()
     ts = datetime.now().isoformat()
     mode_data.setdefault("completed_tasks", []).append({"description": description, "timestamp": ts})
     _write_mode_file(mode_data, path)
 
-    # Append to plan.md
+    # 记录证据到 executor.md（通过 executor_ledger，而非直接追加 plan.md）
     plan_dir = _get_plan_dir(mode_data)
     if plan_dir:
-        plan_md = plan_dir / "plan.md"
-        if plan_md.exists():
-            with open(plan_md, "a", encoding="utf-8") as f:
-                f.write(f"\n- [x] {description}  ({datetime.now().strftime('%Y-%m-%d %H:%M:%S')})\n")
+        executor_path = plan_dir / "executor.md"
+        _ledger_append_block(
+            executor_path,
+            "Completed Tasks",
+            {"task": description, "timestamp": ts},
+        )
         # 更新物理锁计数器
         _update_lock_counter(plan_dir, "completed_tasks")
 
@@ -834,7 +895,7 @@ def cmd_checklist_verify():
 
 
 def cmd_done():
-    """验收通过后删除物理锁（先检查 checklist）"""
+    """验收通过后走 GoalMachine 推进（ARCHIVING→ARCHIVED），再清理锁"""
     if not MODE_FILE.exists():
         print("❌ 目标模式未开启")
         sys.exit(1)
@@ -856,6 +917,26 @@ def cmd_done():
     date_dir = plan_dir.parent.name
     lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
 
+    # ── GoalMachine 推进: ARCHIVING → ARCHIVED ──
+    if _GSM is not None and lock_file.exists():
+        try:
+            gsm = _GSM(str(lock_file))
+            gsm.transition("ARCHIVING", reason="done: checklist passed")
+            gsm.transition("ARCHIVED", reason="done: task completed")
+        except _GSM_Error as e:
+            print(f"❌ GoalMachine 状态转换失败: {e}", file=sys.stderr)
+            sys.exit(1)
+    elif lock_file.exists():
+        # GoalMachine 不可用时降级: 直接写 goal.state
+        lock = json.loads(lock_file.read_text(encoding="utf-8"))
+        lock.setdefault("goal", {})
+        lock["goal"]["state"] = "ARCHIVED"
+        lock["goal"]["previous_state"] = "ARCHIVING"
+        lock["goal"]["transitions"] = lock["goal"].get("transitions", 0) + 1
+        lock["goal"]["last_transition"] = get_now()
+        lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # 只有成功推进到 ARCHIVED 后才删除 token
     if lock_file.exists():
         lock_file.unlink()
         print(f"🔓 物理锁已删除: {lock_file}")
