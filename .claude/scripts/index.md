@@ -46,7 +46,6 @@
 | 脚本 | 用途 |
 |------|------|
 | `context_engine.py` | 上下文引擎（handoff/prompt-ring/决策） |
-| `context_watermark.py` | 离线水位计算器 |
 | `capture_evidence.py` | 证据捕获 |
 | `intake_gate.py` | 准入门禁 |
 | `output_compress.py` | 输出压缩 |
@@ -76,7 +75,6 @@
 | `tool_store.py` | 工具结果落盘 |
 | `error_dna.py` | Error DNA 自动生成与 Retry Gate |
 | `oracle_gate_light.py` | Oracle 条件接入 |
-| `water_level.py` | 三段式水位运行时 |
 | `phase3_oracle.py` | 双审判官独立 Context 裁决 |
 | `flywheel.py` | 飞轮引擎 |
 | `handoff_writer.py` | Resume Capsule 生成器 |

@@ -48,25 +48,12 @@ def compact_label(token: dict[str, Any]) -> str:
     session = token.get("session", {})
     strategy = session.get("compact_strategy")
 
-    if strategy == "watermark":
-        watermark = session.get("context_watermark")
-        if isinstance(watermark, (int, float)):
-            return f"wm={int(watermark)}%"
-        return "wm=unknown"
-
     if strategy == "rounds":
         turn = session.get("turn", "?")
         threshold = session.get("compact_threshold", [15, 20])
         if isinstance(threshold, list) and len(threshold) == 2:
             return f"turn={turn}/{threshold[1]}"
         return f"turn={turn}"
-
-    # R7 修复(compact=unknown 根因):token 无 compact_strategy 字段时,
-    # 回退到水位系统每轮实写的 context_watermark/compact_status——数据一直在,只是没认。
-    watermark = session.get("context_watermark")
-    if isinstance(watermark, (int, float)):
-        level = session.get("compact_status", "")
-        return f"wm={int(watermark)}%{('/' + str(level)) if level else ''}"
 
     return "compact=unknown"
 

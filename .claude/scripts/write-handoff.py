@@ -5,7 +5,7 @@
 用于 compact 后恢复任务状态，不依赖模型记忆。
 
 触发时机:
-- water_level yellow/red
+- compact 前/关键节点
 - tick 结束时
 - verify 前
 - archive 前
@@ -60,16 +60,6 @@ def main():
     except Exception:
         pass
 
-    # 4. 读取水位
-    water_level = "? (unknown)"
-    try:
-        wf = STATE_DIR / "context-watermark.json"
-        if wf.exists():
-            wl = json.loads(wf.read_text())
-            level_pct = wl.get("level_pct", wl.get("usage_pct", "?"))
-            water_level = f"{level_pct}%"
-    except Exception:
-        pass
 
     # 5. 生成 handoff（schema v2）
     ts = time.strftime("%Y-%m-%dT%H:%M:%S%z")
@@ -106,7 +96,6 @@ def main():
 - task_id: {task_id}
 - level: {level}
 - step: {step}
-- water_level: {water_level}
 
 ## Active Files / Scope
 {scope_info if scope_info else "  (未设定 scope)"}

@@ -22,7 +22,6 @@
 | `SUBAGENT.md` | SubAgent 契约 |
 | `anti-patterns.md` | 已知反模式库（飞轮自动补充） |
 | `current-task-architecture.md` | 任务架构基线（2026-07-28） |
-| `context-watermark.md` | 三段式水位规格 |
 | `evaluation-framework.md` | 评分框架（C1-C9/E1-E8/治理/UX） |
 | `fallback-matrix.md` | 降级矩阵 |
 | `feature-registry.yaml` | 功能注册表 |

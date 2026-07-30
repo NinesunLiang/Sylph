@@ -19,7 +19,6 @@
 | task.blocked | object|null | 阻塞原因 | |
 | stats.done | int | 已完成 step 数 | ✅ |
 | stats.total | int | 总 step 数 | ✅ |
-| context.watermark_level | string | low/medium/high/unknown | |
 | audit[] | object[] | 关键状态变更审计链 | |
 
 ## 生命周期

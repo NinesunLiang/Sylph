@@ -111,7 +111,6 @@ FEATURES = {
         "check": lambda: file_exists(".claude/hooks/pretool-gate.py") and "verify" in open(BASE/".claude/hooks/pretool-gate.py").read().lower()},
     # ── 6.md Context Engine ──
     "6.md-01": {"desc": "三段式水位管理 (SAFE/WARNING/CRITICAL)",
-        "check": lambda: all(k in open(BASE/".claude/scripts/context_watermark.py").read() for k in
                 ["SAFE", "WARNING", "CRITICAL"])},
     "6.md-02": {"desc": "session-handoff.md 写入 (handoff 生成)",
         "check": lambda: "handoff" in open(BASE/".claude/scripts/carros_base.py").read().lower()},
@@ -120,9 +119,7 @@ FEATURES = {
     "6.md-04": {"desc": "State Injection 注入",
         "check": lambda: file_exists(".claude/scripts/context_engine.py")},
     "6.md-05": {"desc": "水位分级: SAFE <40%, WARNING 40-70%, CRITICAL >70%",
-        "check": lambda: all(p in open(BASE/".claude/scripts/context_watermark.py").read() for p in ["40", "70"])},
     "6.md-06": {"desc": "CRITICAL 水位触发 block_complex",
-        "check": lambda: "block_complex" in open(BASE/".claude/scripts/context_watermark.py").read()},
     # ── 7.md Oracle ──
     "7.md-01": {"desc": "L2 pass-curve 7 维度评分",
         "check": lambda: "7" in open(BASE/".claude/scripts/oracle_engine.py").read() or 
@@ -222,7 +219,6 @@ def _test_oracle_l2():
 def _test_fallback_types():
     """运行时验证: fallback_engine.py 15 failure types"""
     for ft in ["oracle_unavailable", "audit_write_failed", "state_conflict", "verify_not_completed",
-               "context_watermark_unobservable", "cli_hook_failed", "unknown_failure"]:
         cmd = [sys.executable, ".claude/scripts/fallback_engine.py", ft]
         r = subprocess.run(cmd, cwd=BASE, capture_output=True, text=True, timeout=10)
         try:

@@ -51,8 +51,7 @@ def main() -> int:
         "R1-WATER-BOUNDS",
         [
             "python3", "-c",
-            "import sys; sys.path.insert(0,'.claude/scripts'); from lib.water_level import get_water_detail; print(get_water_detail(controllable_tokens=4800)['level'], get_water_detail(controllable_tokens=8400)['level'])",
-        ],
+            ],
         lambda rc, out, _err: rc == 0 and out.strip() == "warn crit",
     )
     run(

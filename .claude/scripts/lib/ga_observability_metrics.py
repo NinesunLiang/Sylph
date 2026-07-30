@@ -65,7 +65,6 @@ def token_l5_count(token: dict[str, Any]) -> int:
             value = source.get(key)
             if isinstance(value, int):
                 total += value
-    if token.get("water_level_triggered") == "compact" and token.get("l5_as_memory"):
         total += 1
     return total
 
@@ -79,7 +78,6 @@ def token_compact_count(token: dict[str, Any]) -> int:
             value = source.get(key)
             if isinstance(value, int):
                 total += value
-    if token.get("water_level_triggered") == "compact":
         total += 1
     return total
 
@@ -92,7 +90,6 @@ def token_critical_count(token: dict[str, Any]) -> int:
             value = source.get(key)
             if isinstance(value, int):
                 total += value
-    if token.get("water_level_triggered") == "compact":
         total += 1
     return total
 

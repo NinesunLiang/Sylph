@@ -194,7 +194,6 @@ def test_fallback_engine_callable() -> None:
 def test_fallback_decisions() -> None:
     """Test key fallback decisions from 8.md matrix."""
     cases = [
-        ("context_watermark_unobservable", None, "DOWNGRADE_TO_BASE"),
         ("oracle_unavailable", "high", "BLOCKED"),
         ("oracle_unavailable", "medium", "ASK_USER"),
         ("oracle_unavailable", "low", "DOWNGRADE_TO_BASE"),

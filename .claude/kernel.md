@@ -50,7 +50,7 @@ AI 不可自改 AGENTS.md / kernel.md / index.md 及 `.claude/hooks/*` / `script
 每个错误都是养分。自动记录 → 分类 → 根因 → 预防。
 
 ## Gate 模式
-- **L1 轻量**（默认）：13 注册 hook（watermark/completion/claim-audit/bash-audit/sensitive-filter/等）
+- **L1 轻量**（默认）：12 注册 hook（completion/claim-audit/bash-audit/sensitive-filter/等）
 - **L2 完整**：13 注册 hook + 条件激活 Oracle
 - 切换：`carros_base.py init --mode L2` 或 harness.yaml `gate_mode: l2`
 

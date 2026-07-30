@@ -33,8 +33,7 @@ Carror_Base_OS/
 │   │
 │   ├── scripts/                   # [子模块] 治理工具脚本（40+）
 │   │   ├── carros_base.py         # [入口] 主入口（init/status/tick/verify/archive）
-│   │   ├── context_engine.py      # [核心] 上下文引擎（compact/watermark）
-│   │   ├── context_watermark.py   # [门禁] 三段式水位运行时
+│   │   ├── context_engine.py      # [核心] 上下文引擎（compact 恢复）
 │   │   ├── verify_gate.py         # [门禁] VerifyGate 证据等级校验
 │   │   ├── oracle_agent.py        # [门禁] Oracle 双模型对抗审核
 │   │   ├── meta_oracle.py         # [审计] G1-G4 独立审计框架

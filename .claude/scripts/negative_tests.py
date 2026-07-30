@@ -312,54 +312,6 @@ def run():
             shutil.rmtree(str(task_dir), ignore_errors=True)
     results["H-L5-RECOVERY: L5 summary not SOOT"] = test("", h_l5_recovery)
 
-    # ── H-WATER critical hard pause + whitelist ──
-    def h_water_critical_hard_pause():
-        import lib.water_level as wl
-        state = PROJECT / ".omc" / "state" / "context-critical.json"
-        state.unlink(missing_ok=True)
-        original_detail = wl.get_water_detail
-        original_active = wl._is_task_active
-        try:
-            wl.get_water_detail = lambda controllable_tokens=None: {"level": "crit", "ratio": 0.75, "controllable_tokens": 9000, "max_tokens": 12000, "suggestion": "test"}
-            wl._is_task_active = lambda: False
-            gate = wl.run_water_gate(action="tick")
-            persisted = state.exists() and json.loads(state.read_text()).get("status") == "PAUSED_CONTEXT_CRITICAL"
-            evidence = {
-                "test_id": "H-WATER-CRITICAL-HARD-PAUSE",
-                "gate_continue": gate.get("continue"),
-                "pause_state_path": str(state),
-                "pause_state_persisted": persisted,
-                "status": "PASS" if persisted else "FAIL",
-            }
-            write_evidence("h-water-critical-hard-pause.json", evidence)
-            return evidence["status"] == "PASS"
-        finally:
-            wl.get_water_detail = original_detail
-            wl._is_task_active = original_active
-            state.unlink(missing_ok=True)
-    results["H-WATER-CRITICAL-HARD-PAUSE: critical pause persisted"] = test("", h_water_critical_hard_pause)
-
-    def h_water_pretool_whitelist():
-        state = PROJECT / ".omc" / "state" / "context-critical.json"
-        state.parent.mkdir(parents=True, exist_ok=True)
-        state.write_text(json.dumps({"status": "PAUSED_CONTEXT_CRITICAL", "allowed_actions": ["status", "checkpoint", "compact", "resume", "archive"]}, indent=2) + "\n")
-        try:
-            blocked_payload = json.dumps({"tool_name": "Read", "tool_input": {"file_path": "AGENTS.md"}})
-            allowed_payload = json.dumps({"tool_name": "Bash", "tool_input": {"command": "python3 .claude/scripts/carros_base.py status"}})
-            blocked = subprocess.run([sys.executable, ".claude/hooks/pretool-gate.py"], cwd=str(PROJECT), input=blocked_payload, capture_output=True, text=True, timeout=5)
-            allowed = subprocess.run([sys.executable, ".claude/hooks/pretool-gate.py"], cwd=str(PROJECT), input=allowed_payload, capture_output=True, text=True, timeout=5)
-            evidence = {
-                "test_id": "H-WATER-PRETOOL-WHITELIST",
-                "blocked_payload_continue_false": '"continue": false' in blocked.stdout,
-                "allowed_payload_continue_true": '"continue": true' in allowed.stdout,
-                "status": "PASS" if '"continue": false' in blocked.stdout and '"continue": true' in allowed.stdout else "FAIL",
-            }
-            write_evidence("h-water-pretool-whitelist.json", evidence)
-            return evidence["status"] == "PASS"
-        finally:
-            state.unlink(missing_ok=True)
-    results["H-WATER-PRETOOL-WHITELIST: critical whitelist enforced"] = test("", h_water_pretool_whitelist)
-
     # ── Report ──
     passed = sum(1 for v in results.values() if v[0] == "PASS")
     total = len(results)
