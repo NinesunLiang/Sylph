@@ -1,0 +1,27 @@
+{
+  "name": "carror_base_os",
+  "version": "1.0.0",
+  "description": "> *\"DeepSeek V4 Flash + CarrorOS 用出了以前 Opus-4.6 的感觉。而 Opus-4.6 贵到没法日常用。\"*",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/NinesunLiang/Sylph.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/NinesunLiang/Sylph/issues"
+  },
+  "homepage": "https://github.com/NinesunLiang/Sylph#readme",
+  "dependencies": {
+    "playwright": "^1.62.0"
+  }
+}
