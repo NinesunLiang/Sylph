@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# run-regression.sh — CarrorOS 全量一键回归（14 注册 + N 自动发现）
+# run-regression.sh — CarrorOS 全量一键回归（13 注册 + N 自动发现）
 #
 # 为什么需要 stash: 活体 state 会污染门禁测试——
 #   1. .omc/state/temp-bypass.json 存在时全部门禁降级 BYPASS_ALLOW,期望 BLOCK 的用例假失败
-#   2. .omc/state/context-watermark.json >=70% 时水位门真实拦截测试工具调用
-#   3. .omc/state/tokens/autonomous.active 存在时 goal 模式门禁降级 warn-only,期望 exit2 的用例假失败
+#   2. .omc/state/tokens/autonomous.active 存在时 goal 模式门禁降级 warn-only,期望 exit2 的用例假失败
 # 本脚本临时移出这些文件,trap EXIT 无条件还原(含 Ctrl-C/报错路径)。
 #
 # 用法: bash scripts/run-regression.sh
@@ -16,25 +15,19 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 STATE="$PROJECT_ROOT/.omc/state"
 TOKENS="$STATE/tokens"
 BYPASS="$STATE/temp-bypass.json"
-WM="$STATE/context-watermark.json"
 GOAL_SIGNAL="$TOKENS/autonomous.active"
 GOAL_MODE="$TOKENS/lx-goal.json"
 FEATURE_TEST="$PROJECT_ROOT/tests"
 S1="/tmp/carros-regression.temp-bypass.stash"
-S2="/tmp/carros-regression.watermark.stash"
 S3="/tmp/carros-regression.goal-signal.stash"
 S4="/tmp/carros-regression.goal-mode.stash"
 S5="/tmp/carros-regression.active-tokens.stash"
-M1=0; M2=0; M3=0; M4=0; M5=0
+M1=0; M3=0; M4=0; M5=0
 
 restore() {
   if [ "$M1" = "1" ] && [ -f "$S1" ]; then
     mv "$S1" "$BYPASS"
     echo "[restore] temp-bypass 已还原"
-  fi
-  if [ "$M2" = "1" ] && [ -f "$S2" ]; then
-    mv "$S2" "$WM"
-    echo "[restore] context-watermark 活体态已还原"
   fi
   if [ "$M3" = "1" ] && [ -f "$S3" ]; then
     mv "$S3" "$GOAL_SIGNAL"
@@ -64,8 +57,8 @@ restore() {
 }
 trap restore EXIT
 
-if [ -f "$S1" ] || [ -f "$S2" ] || [ -f "$S3" ] || [ -f "$S4" ] || [ -f "$S5" ]; then
-  echo "ERROR: 发现上次异常退出的 stash 残留($S1 $S2 $S3 $S4 $S5)" >&2
+if [ -f "$S1" ] || [ -f "$S3" ] || [ -f "$S4" ] || [ -f "$S5" ]; then
+  echo "ERROR: 发现上次异常退出的 stash 残留($S1 $S3 $S4 $S5)" >&2
   exit 1
 fi
 
@@ -73,11 +66,6 @@ if [ -f "$BYPASS" ]; then
   mv "$BYPASS" "$S1"
   M1=1
   echo "[stash] temp-bypass 移出(测试后自动还原)"
-fi
-if [ -f "$WM" ]; then
-  mv "$WM" "$S2"
-  M2=1
-  echo "[stash] context-watermark 活体态移出(测试后自动还原)"
 fi
 if [ -f "$GOAL_SIGNAL" ]; then
   mv "$GOAL_SIGNAL" "$S3"
@@ -128,7 +116,6 @@ run_suite() {
   fi
 }
 
-run_suite "context-watermark" "watermark" python3 tests/test-context-watermark.py
 run_suite "oracle-gate"       "oracle"    python3 tests/test-oracle-gate.py
 run_suite "verify-gate"       "verify"    python3 tests/test-verify-gate.py
 run_suite "goal-mode-gate"    "goalmode"  python3 tests/test-goal-mode-gate.py
@@ -144,7 +131,7 @@ run_suite "lx-stepwise"       "stepwise"  python3 tests/test-lx-stepwise.py
 run_suite "lifecycle-mutex"   "mutex"     python3 tests/test-lifecycle-mutex.py
 
 # ── 全覆盖套件: 自动发现所有 scripts/test-*.py(排除已注册的独立套件) ──
-EXCLUDED="test-context-watermark|test-oracle-gate|test-verify-gate|test-goal-mode-gate|test-hook-launcher|test_pkg_c|test-task-ssot|test-e4-inertia|test-fallback-engine|test-coverage-gate|test-audit-schema|test-nine-challenge|test-lx-stepwise|test-lifecycle-mutex"
+EXCLUDED="test-oracle-gate|test-verify-gate|test-goal-mode-gate|test-hook-launcher|test_pkg_c|test-task-ssot|test-e4-inertia|test-fallback-engine|test-coverage-gate|test-audit-schema|test-nine-challenge|test-lx-stepwise|test-lifecycle-mutex"
 for f in "$FEATURE_TEST"/test-*.py "$FEATURE_TEST"/test-*.sh; do
   base=$(basename "$f" | sed 's/\.py$//;s/\.sh$//')
   if echo "$base" | grep -qE "^($EXCLUDED)\$"; then

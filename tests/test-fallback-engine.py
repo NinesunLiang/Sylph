@@ -91,10 +91,9 @@ d = fe.decide("cli_hook_failed", make_token())
 ok("D7 cli_hook_failed → CONTINUE", d.decision == "CONTINUE", f"got={d.decision}")
 ok("D7 requires_user=False", not d.requires_user)
 
-# D8: context_watermark_unobservable → DOWNGRADE_TO_BASE
-d = fe.decide("context_watermark_unobservable", make_token())
-ok("D8 watermark → DOWNGRADE_TO_BASE", d.decision == "DOWNGRADE_TO_BASE", f"got={d.decision}")
-ok("D8 level_after=L1_BASE", d.level_after == "L1_BASE")
+# D8: REMOVED — context_watermark_unobservable signal no longer handled
+# (Watermark system deleted in commits eddb373/9d45549/235bffd/869107f.
+#  Unrecognized signals now return BLOCKED via default path.)
 
 # D9-D11: Enhance/oracle/meta_oracle unavailable (risk-dependent)
 for ft in ("enhance_model_unavailable", "oracle_unavailable", "meta_oracle_unavailable"):

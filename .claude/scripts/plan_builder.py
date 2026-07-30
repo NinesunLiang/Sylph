@@ -54,7 +54,7 @@ def now_iso() -> str:
 
 
 def today() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    return datetime.now(timezone.utc).strftime("%Y%m%d")
 
 
 def read_json(path: Path) -> dict[str, Any]:
@@ -476,7 +476,6 @@ def update_token(token_path: Path, plan: Plan) -> None:
 
     token["context"].setdefault("token_used", None)
     token["context"].setdefault("token_limit", None)
-    token["context"].setdefault("watermark_source", "unknown")
 
     write_json(token_path, token)
 
@@ -554,7 +553,7 @@ def main() -> int:
         token_path = Path(token_path_env)
         token_path.parent.mkdir(parents=True, exist_ok=True)
     else:
-        d = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        d = datetime.now(timezone.utc).strftime("%Y%m%d")
         token_path = Path(f".omc/tokens/{d}/{safe_slug(plan.task_id)}.json")
     update_token(token_path, plan)
 

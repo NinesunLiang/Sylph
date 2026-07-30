@@ -47,9 +47,9 @@ PASS → REDIRECT → FORCE/TRIGGER → ESCALATE → BLOCK
 ### REDIRECT 与现有机制的关系
 
 ```
-BLOCK → 仅拦截，无指引。保留给高危操作（rm -rf /、git push --force 等）
-REDIRECT → 拦截 + 指引。适用于反模式、行为错误、常见踩坑
-ESCALATE → 上报人类。保留给不确定/权限外
+BLOCK → 仅拦截，无指引。保留给高危操作（rm -rf /、git push --force 等）// CarrorOS不能有这种
+REDIRECT → 拦截 + 指引。适用于反模式、行为错误、常见踩坑// L1任务CarrorOS推荐这种
+ESCALATE → 上报人类。保留给不确定/权限外 // L2任务推荐这种
 PASS    → 无条件放行
 ```
 

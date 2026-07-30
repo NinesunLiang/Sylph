@@ -168,12 +168,31 @@ def main() -> None:
     if source == "compact":
         resume_note = OMC / "state" / "resume-note.md"
         if resume_note.exists():
+            _stale = False
             try:
-                text = resume_note.read_text(encoding="utf-8")[:500]
-                if text.strip():
-                    parts.append(text)
-            except Exception:
+                _age_h = (datetime.now(timezone.utc).timestamp() - resume_note.stat().st_mtime) / 3600
+                if _age_h > STALE_HOURS:
+                    _stale = True
+            except OSError:
                 pass
+            if _stale:
+                try:
+                    resume_note.unlink()
+                except OSError:
+                    pass
+            else:
+                try:
+                    text = resume_note.read_text(encoding="utf-8")
+                    if len(text) > 500:
+                        _cut = text[:500]
+                        _nl = _cut.rfind("\n")
+                        if _nl > 0:
+                            _cut = _cut[:_nl]
+                        text = _cut
+                    if text.strip():
+                        parts.append(text)
+                except Exception:
+                    pass
 
     if not parts:
         print(json.dumps({"continue": True}))

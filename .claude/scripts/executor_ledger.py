@@ -421,6 +421,53 @@ def record_user_confirmation(payload: dict[str, Any], executor_path: Path) -> in
     return 0
 
 
+# ─── Structured Evidence Block API (Task75) ──────────────────────────
+
+
+def append_evidence_block(executor_path: Path, block_key: str,
+                          block_data: dict[str, Any]) -> None:
+    """Write a structured evidence section block to executor.md.
+
+    block_key is a ##-level heading like 'Conditions', 'Key Changes',
+    'Decisions', 'Acceptance Checklist', 'TDD Evidence'.
+
+    block_data is flattened into bullet lines under the heading.
+
+    If the section already exists, data is appended under it (idempotent).
+
+    Example:
+        append_evidence_block(exec_path, "Conditions", {
+            "step": "S1",
+            "status": "active",
+            "depends_on": "none",
+        })
+        # Writes:
+        # ## Conditions
+        # - step: S1
+        # - status: active
+        # - depends_on: none
+    """
+    ensure_executor_sections(executor_path)
+    existing = executor_path.read_text(encoding="utf-8")
+
+    marker = f"## {block_key}"
+    if marker in existing:
+        # Append under existing section (before next ## or EOF)
+        section_end = existing.find("\n## ", existing.find(marker) + len(marker) + 1)
+        if section_end < 0:
+            section_end = len(existing)
+        insert_before = existing[section_end:]
+        new_lines = "\n" + "\n".join(f"- {k}: {v}" for k, v in block_data.items())
+        new_content = existing[:section_end] + new_lines + insert_before
+    else:
+        # Create new section at end
+        new_lines = f"\n## {block_key}\n"
+        new_lines += "\n".join(f"- {k}: {v}" for k, v in block_data.items())
+        new_content = existing.rstrip() + "\n" + new_lines + "\n"
+
+    executor_path.write_text(new_content, encoding="utf-8")
+
+
 def main() -> int:
     if len(sys.argv) < 3:
         print(

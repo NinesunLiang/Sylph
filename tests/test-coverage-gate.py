@@ -54,7 +54,7 @@ MECHANISMS: list[tuple[str, str, list[str], str | None]] = [
     ("fallback-engine", "script", [".claude/scripts/fallback_engine.py"], "test-fallback-engine.py"),
     ("oracle-agent", "script", [".claude/scripts/oracle_agent.py"], "test-oracle-gate.py"),
     ("meta-oracle", "script", [".claude/scripts/meta_oracle.py"], None),
-    ("context-watermark", "script", [".claude/scripts/context_watermark.py"], "test-context-watermark.py"),
+    # ("context-watermark", "script", [".claude/scripts/context_watermark.py"], "test-context-watermark.py"),  # REMOVED: eddb373
     ("lx-goal", "skill", [".claude/skills/lx-goal/scripts/lx-goal.py"], None),
     # ── 生命周期/互斥 ──
     ("goal-mode-gate", "gate", [".claude/hooks/pretool-gate.py"], "test-goal-mode-gate.py"),

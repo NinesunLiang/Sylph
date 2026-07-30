@@ -205,16 +205,18 @@ def main() -> int:
     )
 
     print(json.dumps({
-        "continue": False,
+        "continue": True,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": f"scorecard: {len(violations)} 项提分缺证据引用",
             "additionalContext": guidance,
         },
     }, ensure_ascii=False))
-    sys.stderr.write(f"pretool-scorecard-gate: REDIRECTED - {len(violations)} 项缺证据\n")
+    sys.stderr.write(f"pretool-scorecard-gate: DENIED - {len(violations)} 项缺证据\n")
     flywheel_event("pretool_scorecard_gate", "redirected", "P1",
                    f"scorecard:{len(violations)}_violations")
-    return 2
+    return 0
 
 
 if __name__ == "__main__":

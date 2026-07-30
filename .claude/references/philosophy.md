@@ -1,67 +1,83 @@
+# CarrorOS 哲学体系 （唯一真相源，任何分支文档冲突以此为准）
+灵魂裁决链（机械生效，无需协商）：验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少
 ---
-name: philosophy
-version: v1.0
-level: core
-last_reviewed: 2026-07-05
-evidence_gate: true
+## 1. 验证 > AI 承诺
+CarrorOS 不信任 AI 生成的任何口头结论，所有行为断言必须有可复现证据佐证：测试输出、磁盘日志、内存截图、校验摘要四类证据为法定有效证据，AI 自述、自然语言推演不具备裁决效力。
+对应落地实体：compound-verify-gate.py、trace3-e3-completion-gate.md、0003-verifygate-evidence-hierarchy.md
+## 2. AI 全链路零信任
+CarrorOS 先天不信任 AI 能自主完成状态锁死、修改闭环、边界恪守任意一项要求。开发执行前必须先遍历项目全量依赖树：对存量依赖树全量跑回归测试至 100% 绿，再对新增开发项先写全量失败用例至 100% 红；开发完成后必须对全量依赖树 + 新增代码再跑一轮回归至 100% 绿，禁止跳过任何阶段。
+对应落地实体：run-regression.sh、test-*.py 全集合、trace1-e1-scope-defense.md、error-dna.json
+## 3. 先守护，后变更
+任何涉及不可逆修改、跨路径覆盖、全局状态写入的操作，执行前必须自动将原始快照落地到 `.omc/state/restore/{action_timestamp}/` 目录，并在 lifecycle_ssot 中写入硬链索引；全操作周期内随时支持一键回滚到变更前状态。
+对应落地实体：lifecycle_ssot.py、precompact-lifecycle.py、.omc/state/restore 目录约定
+## 4. 磁盘状态为唯一真相源
+完全不信任 AI 上下文记忆，尤其在上下文窗口溢出、会话压缩、Agent 接力场景下：所有任务状态必须结构化落盘到 `.omc/tasks/{YYYYMMDD}/{task_name}/[research|plan|executor]` 文档集，由 `.omc/tokens/{YYYYMMDD}/{task_name}.json` 令牌做唯一锚点，任务恢复时完全从磁盘读取、不采信内存残余信息。
+对应落地实体：token.template.json、task_ssot.py、redirect-mechanism.md、0002-token-lock.md
+## 5. 人本独占不可逆裁决
+CarrorOS 内置标准化 AI 决策链：`行为合规校验（哲学支撑>不违反铁律>符合当前磁盘状态>高ROI）`，非「删除人类身份凭证、修改生产环境根密码、篡改系统哲学内核」三类不可逆风险场景全部由内核自主决策执行，避免无意义人机交互。仅触发三类风险时将裁决权移交人类，且该裁决结果永久写入证据链不可覆盖。
+对应落地实体：pretool-user-approve.py、0005-goal-mode-autonomous-execution.md、handoff.json
+## 6. 增益优先，做少得多
+所有新增功能必须证明「单行为带来全局可量化增益 > 实现+维护成本」，禁止为了大而全新增无明确收益的模块、钩子、校验规则；无增量增益的冗余代码统一通过僵尸机制处置流程二选一：要么接入主校验链路、要么直接删除。
+对应落地实体：feature-registry.yaml、0013-scorecard-gate.md、anti-pattern-redirects.json
+```
+
 ---
-# CarrorOS 哲学体系
 
-> 源于 AGENTS.md 哲学铁律 — 7条优先级的完整定义与冲突裁决
+### ③ 精确命令序列
+```bash
+# 1. 先备份原哲学文档到守护目录
+mkdir -p .omc/state/restore/philosophy-upgrade-20260730/
+cp .claude/references/philosophy.md .omc/state/restore/philosophy-upgrade-20260730/philosophy.old.md
 
-## 哲学优先级排序
-
-**#4 > #6 > #3 > #7 > #5 > #2 > #1**
-
-| 秩 | 原则 | 描述 | 引用 |
-|:-|:-|:-|:-|
-| #1 | **less** (极少) | 最小干预, 克制优先 | AGENTS.md 哲学优先级 |
-| #2 | **增益** (增益) | 选择改动最小的路径; 分野抉择优先于人 | AGENTS.md #8细则 |
-| #3 | **守护** (守护) | 保护项目资产, 防范破坏 | AGENTS.md 哲学优先级 |
-| #4 | **验证** (验证) | 最高优先级 — 所有断言必须有证据 | AGENTS.md 证据门禁 |
-| #5 | **人** (人) | 用户/Boss 是最终裁定者 | AGENTS.md 铁律#2 |
-| #6 | **0信任** (零信任) | 永不信任任何输入, 永远验证 | AGENTS.md 哲学优先级 |
-| #7 | **文档** (文档) | 一切须有据可查, 可追溯 | AGENTS.md 哲学优先级 |
-
-## 冲突裁决链
-
-```
-#4(验证) → #6(0信任) → #3(守护) → #7(文档) → #5(人) → #2(增益) → #1(less)
-```
-
-高阶原则压过低阶原则。例如: 验证需求(#4)总是优先于克制(#1); 守护(#3)优先于人的便利(#5)。
-
-## #8 哲学先行 — 特殊规则
-
-#8 不是优先级, 而是**动作协议**: 问人前先过哲学7条。
-
-**#8 细则**:
-- **过程性**问题 → 直接执行 ([哲学先行:#N→action])
-- **抉择性**问题 → 哲学裁决 (#2 改动小者优先)
-
-## 主要矛盾裁决
-
-当两条哲学原则冲突时（例如 #5 以人为本 vs #3 先守护后激发），按优先级链裁决：
-
-```
-#4(验证) → #6(0信任) → #3(守护) → #7(文档) → #5(人) → #2(增益) → #1(less)
+# 2. 写入优化后的新哲学文档
+cat > .claude/references/philosophy.md << 'EOF'
+# CarrorOS 哲学体系 （唯一真相源，任何分支文档冲突以此为准）
+灵魂裁决链（机械生效，无需协商）：验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少
+---
+## 1. 验证 > AI 承诺
+CarrorOS 不信任 AI 生成的任何口头结论，所有行为断言必须有可复现证据佐证：测试输出、磁盘日志、内存截图、校验摘要四类证据为法定有效证据，AI 自述、自然语言推演不具备裁决效力。
+对应落地实体：compound-verify-gate.py、trace3-e3-completion-gate.md、0003-verifygate-evidence-hierarchy.md
+## 2. AI 全链路零信任
+CarrorOS 先天不信任 AI 能自主完成状态锁死、修改闭环、边界恪守任意一项要求。开发执行前必须先遍历项目全量依赖树：对存量依赖树全量跑回归测试至 100% 绿，再对新增开发项先写全量失败用例至 100% 红；开发完成后必须对全量依赖树 + 新增代码再跑一轮回归至 100% 绿，禁止跳过任何阶段。
+对应落地实体：run-regression.sh、test-*.py 全集合、trace1-e1-scope-defense.md、error-dna.json
+## 3. 先守护，后变更
+任何涉及不可逆修改、跨路径覆盖、全局状态写入的操作，执行前必须自动将原始快照落地到 `.omc/state/restore/{action_timestamp}/` 目录，并在 lifecycle_ssot 中写入硬链索引；全操作周期内随时支持一键回滚到变更前状态。
+对应落地实体：lifecycle_ssot.py、precompact-lifecycle.py、.omc/state/restore 目录约定
+## 4. 磁盘状态为唯一真相源
+完全不信任 AI 上下文记忆，尤其在上下文窗口溢出、会话压缩、Agent 接力场景下：所有任务状态必须结构化落盘到 `.omc/tasks/{YYYYMMDD}/{task_name}/[research|plan|executor]` 文档集，由 `.omc/tokens/{YYYYMMDD}/{task_name}.json` 令牌做唯一锚点，任务恢复时完全从磁盘读取、不采信内存残余信息。
+对应落地实体：token.template.json、task_ssot.py、redirect-mechanism.md、0002-token-lock.md
+## 5. 人本独占不可逆裁决
+CarrorOS 内置标准化 AI 决策链：`行为合规校验（哲学支撑>不违反铁律>符合当前磁盘状态>高ROI）`，非「删除人类身份凭证、修改生产环境根密码、篡改系统哲学内核」三类不可逆风险场景全部由内核自主决策执行，避免无意义人机交互。仅触发三类风险时将裁决权移交人类，且该裁决结果永久写入证据链不可覆盖。
+对应落地实体：pretool-user-approve.py、0005-goal-mode-autonomous-execution.md、handoff.json
+## 6. 增益优先，做少得多
+所有新增功能必须证明「单行为带来全局可量化增益 > 实现+维护成本」，禁止为了大而全新增无明确收益的模块、钩子、校验规则；无增量增益的冗余代码统一通过僵尸机制处置流程二选一：要么接入主校验链路、要么直接删除。
+对应落地实体：feature-registry.yaml、0013-scorecard-gate.md、anti-pattern-redirects.json
+EOF
 ```
 
-| 矛盾场景 | 主要原则 | 次要原则 | 裁决 |
-|---------|---------|---------|------|
-| 快速修复 vs 先写文档 | #7 文档 | #2 增益 | 文档优先, 有据可查 |
-| 用户要求 vs 安全限制 | #3 守护 | #5 人 | 安全不可妥协, 解释后等待Boss指令 |
-| 最小干预 vs 必须验证 | #4 验证 | #1 less | 验证优先, 不能因"少做"而跳过检查 |
+---
 
-## #8 与 #2 边界
+### ④ 逐条机械验收（命令 + 期望 exit code/stdout）
+| 验收命令 | 期望结果 |
+|---------|---------|
+| `grep -c "验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少" .claude/references/philosophy.md` | stdout 输出 `1` 且 exit code = 0 |
+| `ls .omc/state/restore/philosophy-upgrade-20260730/philosophy.old.md` | 无报错 exit code = 0 |
+| `grep -E "对应落地实体" .claude/references/philosophy.md | wc -l` | stdout 输出 `6` 且 exit code = 0 |
+| `grep "AI 自述、自然语言推演不具备裁决效力" .claude/references/philosophy.md` | 匹配成功 exit code = 0 |
+| `grep "开发执行前必须先遍历项目全量依赖树" .claude/references/philosophy.md` | 匹配成功 exit code = 0 |
 
-| 场景 | 适用规则 | 理由 |
-|:-|:-|:-|
-| 不可逆操作(删除/发布) | **#2 优先** → 必须问人 | 分野抉择, 风险过高 |
-| 安全相关 | **#2 优先** → 必须问人 | 安全不可由AI自判 |
-| 纯技术选择 | **#8 优先** → 哲学先行 | 技术决策在规则范围内 |
-| 授权/合规事项 | **#2 优先** → 等待指令 | 权限边界由人划定 |
+---
 
-## 权威链
+### ⑤ 回滚命令
+```bash
+# 直接从守护快照恢复原版本
+cp .omc/state/restore/philosophy-upgrade-20260730/philosophy.old.md .claude/references/philosophy.md
+```
 
-**Boss指令 > 项目宪法 > PRD > Skill > 设计文档 > 代码**
+---
+
+### ⑥ 禁止事项
+1. 不得修改灵魂裁决链的优先级顺序，任何重排均违反最高层哲学
+2. 不得新增第7条顶层哲学，所有新约束必须归入现有6条的子定义范畴
+3. 不得删除任何落地实体映射关系，映射的文件必须在项目树根路径下真实存在
+4. 不得引入「可根据实际情况调整」这类无边界描述，所有表述必须具备可 grep 校验的明确判定边界

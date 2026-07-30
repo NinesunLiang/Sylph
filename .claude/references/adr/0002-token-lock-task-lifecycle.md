@@ -16,13 +16,13 @@ AI 在执行长任务时需要跨会话跟踪任务的生命周期。会话可�
 
 实施两层架构：
 
-**Token 层**（`.omc/tokens/YYYYMMDD/{task_name}.json`）：
+**Token 层**（`.omc/tokens/YYYYMMDD/{task_name}.json`）：// todo:{task_name}.json至少包含模式、周期、task_dir等
 - 轻量 JSON 文件，存储任务元数据：`status`、`phase`、`session`、`task`、`scope`
 - 按日期分目录存储（`tokens/20260721/`），每日一个子目录
-- 生命周期阶段：`active`（执行中）、`off`（已关闭）、`goal`/`ghost`/`idle`（模式）
-- 锁文件：同目录 `{task_name}.json.lock`，与 token 文件并列
+- 生命周期阶段：`active`（执行中）、`off`（已关闭）、`goal`/`ghost`/`idle`（模式）// todo:`goal`/`ghost`/`idle`是模式不是生命周期，需要调整；
+- 锁文件：同目录 `{task_name}.json.lock`，与 token 文件并列 // todo:删除{task_name}.json.lock，{task_name}.json就是锁文件
 - token 选择器（SSOT）：`task_ssot.latest_active_token()` 按日期+状态筛选活跃 token
-- 紧凑事件后通过 token 恢复任务状态（session、step、scope）
+- 紧凑事件后通过 token 恢复任务状态（session、step、scope）// compact之后，扫描当天的.omc/tokens/YYYYMMDD/ 下的任务为active的任务为进行中任务
 
 **Lock 层**（`.omc/tokens/YYYYMMDD/{task_name}.json.lock`）：
 - 纯锁文件，包含当前 PID 和启动时间戳

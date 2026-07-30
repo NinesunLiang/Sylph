@@ -50,14 +50,52 @@ def _validate_and_read_capsule(capsule_path: Path) -> str | None:
         return None
 
 
+def _safe_write_resume_note(context: str, note_path: Path) -> bool:
+    """Atomic write of resume-note.md via tmp file + os.replace.
+
+    Prevents partial files when SessionStart hook reads concurrently.
+    Returns True on success, False on any I/O error.
+    """
+    import os
+    tmp_path = note_path.with_suffix(note_path.suffix + f".{os.getpid()}.tmp")
+    try:
+        note_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_text(context, encoding="utf-8")
+        os.replace(str(tmp_path), str(note_path))
+        return True
+    except OSError:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return False
+    finally:
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+
+
+def _validate_capsule_or_fail_silent(capsule_path: Path) -> str | None:
+    """Wrap _validate_and_read_capsule with broad exception handling.
+
+    PostCompact hook MUST NOT raise — fail-closed with None.
+    """
+    try:
+        return _validate_and_read_capsule(capsule_path)
+    except Exception:
+        return None
+
+
 def main() -> None:
     capsule_path = ROOT / ".omc" / "state" / "resume-capsule.json"
-    context = _validate_and_read_capsule(capsule_path)
+    context = _validate_capsule_or_fail_silent(capsule_path)
 
     if context:
         note_path = ROOT / ".omc" / "state" / "resume-note.md"
-        note_path.parent.mkdir(parents=True, exist_ok=True)
-        note_path.write_text(context, encoding="utf-8")
+        _safe_write_resume_note(context, note_path)
 
     # PostCompact hook schema 不支持 hookSpecificOutput.additionalContext,
     # 因此 AUTO-RESUME 上下文写入 resume-note.md,

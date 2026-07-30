@@ -23,14 +23,38 @@ Constraints:
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+def _load_step_evidence_validator():
+    """Load validate_step_evidence via importlib from sibling step_contracts.py.
+    Fail-closed: returns no-op function on any import failure."""
+    try:
+        _script_dir = Path(__file__).resolve().parent
+        _spec = importlib.util.spec_from_file_location(
+            "_verify_gate_step_contracts",
+            str(_script_dir / "step_contracts.py"),
+        )
+        if _spec is None or _spec.loader is None:
+            raise ImportError("spec_from_file_location failed")
+        _mod = importlib.util.module_from_spec(_spec)
+        sys.modules["_verify_gate_step_contracts"] = _mod
+        _spec.loader.exec_module(_mod)
+        return _mod.validate_step_evidence
+    except Exception:
+        def _noop(*args, **kwargs):
+            return []
+        return _noop
+
+
+validate_step_evidence = _load_step_evidence_validator()
 
 SOFT_COMPLETION_PHRASES = [
     "应该好了", "看起来可以", "基本完成", "大概没问题",
@@ -318,6 +342,13 @@ def verify_step(step: str, plan_path: Path, executor_path: Path, token_path: Pat
         if not covered:
             return VerifyDecision("BLOCKED", f"unresolved_failure:{fail.get('id', 'unknown')}",
                                   step, [], verify_rules, [])
+
+    # Task75: Validate evidence section completeness (Conditions, Key Changes, Decisions, AC, TDD)
+    ev_structure_errors = validate_step_evidence(executor_text, step)
+    if ev_structure_errors:
+        return VerifyDecision("BLOCKED",
+                              f"evidence_structure_incomplete: {'; '.join(ev_structure_errors[:3])}",
+                              step, [], verify_rules, ev_structure_errors)
 
     # Match each verify rule
     matched_rules: list[str] = []

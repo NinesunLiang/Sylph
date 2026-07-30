@@ -265,7 +265,7 @@ def start_step_atomic(token_path: str | Path,
         r"^- \[ \] " + re.escape(step_id) + r":",
         f"- [a] {step_id}:",
         plan_text,
-        1,  # only first occurrence
+        count=1,
         flags=re.MULTILINE,
     )
     # Also mark status as active
@@ -275,7 +275,7 @@ def start_step_atomic(token_path: str | Path,
             rf"(- \[a\] {re.escape(step_id)}:.*)(\n)",
             r"\1" + "\n" + "  - status: active" + r"\2",
             new_plan,
-            1,
+            count=1,
         )
 
     # Update token
@@ -412,12 +412,12 @@ def complete_step_atomic(token_path: str | Path,
     new_plan = re.sub(
         rf"- \[a\] {re.escape(step_id)}:",
         f"- [x] {step_id}:",
-        new_plan, 1,
+        new_plan, count=1,
     )
     new_plan = re.sub(
         rf"(\s+- status:) active",
         r"\1 completed",
-        new_plan, 1,
+        new_plan, count=1,
     )
 
     # Update token

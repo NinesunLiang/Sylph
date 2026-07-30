@@ -7,6 +7,8 @@ node_modules/
 *.bak
 .claude/.prompt-ring.json
 .claude/settings.json
+.claude/settings.local.json
+.claude/settings_rt.json
 .claude/settings_ds.json
 .claude/settings_k3.json
 benchmark/ci-*.log

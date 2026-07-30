@@ -1,37 +1,27 @@
 # Session Handoff
 
-> 由 carros_base.py 于 2026-07-27 15:14 UTC 更新
-> 紧凑后自动读取本文件可恢复会话
+> 由 context_engine compact-write 于 2026-07-30T05:43:40+00:00 更新
+> 由 SessionStart hook(session-start.py, source=compact/resume)注入 compact 后上下文尾部
 
-## Current Goal
-未知
-用户最后意图: > 由 context_engine compact-write 于 2026-07-25T03:31:53+00:00 更新
-> 记录 compact 前的最近 20 轮用户请求，帮助恢复上下文
+## Task
+- id: compact-hardening--token-rotate--commit
+- level: L2
+- status: active
+- current_step: A.1
 
-## 最近用户请求（共 20 条）
+## Progress
+- verified: 0/5
+- pending: S1: postcompact.py atomic write + error recovery + session-start.py 容错读取
+- compact_strategy: rounds
+- failed_verifications: 0
 
-[1] (2026-07-24T13:39:43+00:00) 在试试呢
-[2] (2026-07-24T14:04:50+00:00) 提交改动吧，记得删除无用
+## Scope
+  - (none)
 
-## Current State
-- task_id: test-l1-flow-1785165246
-- level: L1
-- step: S1 (1/1)
-- water_level: ?%
-- errors: ?, ?, ?
+## Oracle
+- last_verdict: none
 
-## Active Files / Scope
-  (未设定 scope)
-
-## Decisions Made
-由 kernel.md 的哲学铁律指导，具体决策见 audit 日志。
-
-## Next Action
-- 继续当前 step (S1)
-- carros_base.py status 查看进度
-- carros_base.py verify 验证
-
-## Risks
-- 治理文件不可修改（hooks/ harness.yaml settings.json）
-- token scope 不可越界写入
-
+## Resume Rules
+- 磁盘状态文件是最终真相源（token / plan / executor）
+- session-handoff 只是恢复摘要，不是完成证据
+- 不要标记任何 step 完成不经过 VerifyGate
