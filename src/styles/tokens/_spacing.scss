@@ -1,0 +1,43 @@
+// ============================================================
+// Design Tokens — Spacing & Breakpoints
+// ============================================================
+
+// ── Spacing Scale ──
+// 多分辨率铁律（用户 2026-07-31）：几何尺寸必须是固定 px 整数，禁用 rem/em——
+// rem 随 root font-size 浮动，间距/圆角/宽高不能被字体缩放间接拖动。
+// 只有 font-size 允许 rem（见 _typography.scss），且 html root 必须锁死 16px。
+$spacing-0: 0;
+$spacing-1: 4px;
+$spacing-2: 8px;
+$spacing-3: 12px;
+$spacing-4: 16px;
+$spacing-5: 20px;
+$spacing-6: 24px;
+$spacing-8: 32px;
+$spacing-10: 40px;
+$spacing-12: 48px;
+$spacing-16: 64px;
+
+// ── Border Radius ──（同为几何：固定 px 整数）
+$radius-sm: 4px;
+$radius-md: 6px;
+$radius-lg: 8px;
+$radius-xl: 12px;
+$radius-full: 9999px;
+
+// ── Breakpoints ──
+$breakpoint-md: 1024px;
+$breakpoint-lg: 1280px;
+$breakpoint-xl: 1440px;
+
+// ── Shadows ──
+$shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+$shadow-md: 0 4px 10px -1px rgba(0, 0, 0, 0.1);
+$shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+
+// ── Z-Index ──
+$z-dropdown: 100;
+$z-sticky: 200;
+$z-modal-backdrop: 300;
+$z-modal: 400;
+$z-tooltip: 500;

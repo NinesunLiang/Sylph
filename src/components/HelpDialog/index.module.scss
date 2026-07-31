@@ -1,0 +1,147 @@
+// gold: states/help-dialog.delta.json（遮罩/720x618/头56/tabs/内容字号逐字段对齐）
+.mask {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.44); // gold: 全屏遮罩真值
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dialog {
+  width: 720px;
+  height: 618px; // gold: (395,121) 720x618，垂直居中 (860-618)/2=121
+  background: rgb(255, 255, 255);
+  border: 1px solid rgba(0, 0, 0, 0.11); // gold: shell border 真值（内容内缩 1px 的来源）
+  border-radius: 8px;
+  box-shadow: rgba(0, 0, 0, 0.08) 0 6px 16px 0,
+    rgba(0, 0, 0, 0.12) 0 3px 6px -4px,
+    rgba(0, 0, 0, 0.05) 0 9px 28px 8px; // gold: shell shadow 真值
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.header {
+  position: relative;
+  height: 56px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 24px;
+  color: rgb(8, 8, 8);
+}
+
+.close {
+  position: absolute;
+  top: 19px;   // gold: X @(1076,140) → 距弹窗顶 19、距右 19
+  right: 19px;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: rgb(153, 153, 153);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.body {
+  flex: 1;
+  display: flex;
+  gap: 0;
+  padding: 16px; // gold: body 四边 16（含顶部——tab 列 y194 = body 178 + 16）
+  overflow: hidden;
+}
+
+.tabs {
+  width: 132px; // gold: 内容区 x568 - 正文起点 412 - tabs 内边距 24 = 132
+  flex: none;
+  padding-left: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 32px; // gold: tab 行距 256-202-22 = 32
+  padding-top: 8px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 12px; // gold: 文本 x464 - (icon x436+16) = 12
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 14px;
+  line-height: 16px; // gold: tab 文本 span h16，flex 居中于 h22 行 → y205 = 202+3
+  color: rgb(8, 8, 8);
+  cursor: pointer;
+  text-align: left;
+
+  &--active { color: rgb(34, 34, 34); } // gold: 激活 tab 文本色真值
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding-left: 24px;
+  font-size: 15px;
+  line-height: 27px; // gold: li/p 行高 27
+  color: rgb(51, 51, 51);
+
+  h1 {
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 43px;
+    color: rgb(0, 0, 0);
+    margin: 0 0 16px; // gold: notice tab h1 底 261 → p 277 = 16
+  }
+
+  h2 {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 36px;
+    color: rgb(0, 0, 0);
+    margin: 20px 0 12px; // gold: h2→ul 恒 12；ul→h2 恒 20（contact 全文节奏）
+  }
+
+  // gold: 首个 h2 y263 = h1 底 243 + max(16,20) 折叠 = 20
+  h1 + h2 { margin-top: 20px; }
+
+  p { margin: 0; }
+
+  // gold: li>p 结构行距 = h + 12（p.mb12 与 li.mb6 折叠取大；单行 39 / 两行 66）
+  li > p { margin: 0 0 12px; }
+
+  ul {
+    margin: 0;
+    padding-left: 24px; // gold: ul pad 真值
+  }
+
+  // gold: 嵌套 ul 顶距 12（contact tab 嵌套列表 y350 = 父 li 文本底 338 + 12）
+  ul ul { margin-top: 12px; }
+
+  // gold: li 逐项间距 6（5 项列表高 159 = 5x27 + 4x6 反推真值）
+  li { margin: 0 0 6px; }
+
+  strong { font-weight: 700; }
+}
+
+.link {
+  color: rgb(24, 144, 255); // gold: 链接色真值
+  text-decoration: none;
+}
+
+// gold: pane 顶距真值——联系客服 6 / 系统公告 24
+.pane_contact { padding-top: 6px; }
+.pane_notice { padding-top: 24px; }

@@ -1,0 +1,142 @@
+// ============================================================
+// Global Styles — Reset + Utility Classes
+// ============================================================
+
+@use 'tokens' as *;
+@use 'fonts'; // gold: proto webfont 真值（extract-fonts.mjs 生成，HarmonyOS Sans/SC + Hack + KaTeX）
+
+// ── CSS Reset ──
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: $font-family-sans;
+  font-size: $font-size-base;
+  line-height: $line-height-normal;
+  color: $color-text-primary;
+  background-color: $color-bg-primary;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  font-family: inherit;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+// ── 全局滚动条基类（gold 真值: macOS overlay 风格）──
+// 静止隐藏 / 滚动显示（.is-scrolling 由 src/lib/scrollbars.ts 切换）/ 细条 6px / 导轨透明
+* {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+*.is-scrolling {
+  scrollbar-color: rgba(0, 0, 0, 0.25) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+.is-scrolling::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.25);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+// ── 布局铁律：禁止页面级滚动，只允许局部区域滚动 ──
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+// ── Tooltip（gold: states/tooltip-new-assistant.delta.json）──
+// 黑底 rgb(8,8,8) 文本 rgb(248,248,248) fs14 lh22 pad 4px 8px r3，三层 antd 阴影
+// 用法: <span className="has-tip">触发器<span className="tip">文案</span></span>
+// 注意必须用真实 DOM 元素（不用 ::after 伪元素）——gold 的 tooltip 是真实 div，
+// 伪元素对 DOM 提取不可见，measure 采集不到会导致 delta=0 无法闭环
+.has-tip {
+  position: relative;
+}
+.tip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 4px); // gold: 按钮底 48 → 气泡顶 52 = 4
+  transform: translateX(-50%); // gold: 气泡中心 = 按钮中心
+  background: rgb(8, 8, 8);
+  color: rgb(248, 248, 248);
+  font-size: 14px;
+  font-weight: 400; // gold: states/tooltip-new-assistant.delta.json fw=400（否则继承 header 的 900）
+  line-height: 22px;
+  padding: 4px 8px;
+  border-radius: 3px;
+  white-space: nowrap;
+  box-shadow: rgba(0, 0, 0, 0.08) 0 6px 16px 0,
+    rgba(0, 0, 0, 0.12) 0 3px 6px -4px,
+    rgba(0, 0, 0, 0.05) 0 9px 28px 8px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+  z-index: 500;
+}
+.has-tip:hover .tip {
+  opacity: 1;
+}
+// 上方展示变体（gold: tooltip-将当前会话保存为话题——底部条图标气泡在图标上 4px）
+.tip--top {
+  top: auto;
+  bottom: calc(100% + 4px);
+}
+// 右侧展示变体（gold: 侧边栏 tooltip-会话/翻译/AI PPT/发现/会员——气泡在图标右 4px，垂直居中）
+.tip--right {
+  left: calc(100% + 4px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+// 视口碰撞钳位由 Tip 组件运行时 marginLeft 实现（gold: tooltip-联系客服 x0 / tooltip-会话设置 x=vw-w）
+// 气泡内布局：文本 + 可选快捷键簇（gold: tooltip-将当前会话保存为话题 w227 = 文本 + kbd 组）
+.tip { display: inline-flex; align-items: center; }
+.tip_text { white-space: nowrap; }
+.tip_keys {
+  display: inline-flex;
+  gap: 4px; // gold: kbd ⌘ 右缘 1165 → kbd N 左缘 1169
+  margin-left: 16px; // gold: keys 簇 x1137 - 文本 div x981 = 156，文本 w140 → 净 16
+  kbd {
+    display: inline-flex;
+    align-items: center;
+    height: 22px; // gold: kbd y778 h22，内层文本 span y782 h14（居中偏 4）
+    font-size: 12px;
+    font-family: inherit;
+    color: rgb(153, 153, 153); // gold: states/tooltip-将当前会话保存为话题.delta.json
+    background: rgba(153, 153, 153, 0.15); // gold: 同上真值
+    border-radius: 5px;
+    padding: 0 8px; // gold: kbd N w23 = 文本 7 + 16
+    span { line-height: 14px; } // gold: 内层 span h14（文本节点 ownText 父级，x = kbd x + 8）
+  }
+}

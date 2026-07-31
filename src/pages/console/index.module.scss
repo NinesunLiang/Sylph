@@ -1,0 +1,78 @@
+.console { display: flex; flex-direction: column; height: 100%; }
+
+// Topbar 已上移至 AppLayout（全宽横跨聊天+右面板）；此处仅保留 greeting/卡片/输入区样式
+
+// Greeting（gold chevron-right delta：内容包装 w800 居中，晚上好 y71 → pad-top 19；左右对称 20 → 网格 x247）
+.greeting { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 19px 20px 24px; }
+.greeting_row { display: flex; align-items: center; gap: 8px; margin-bottom: 17px; } // gold: desc y124 = 行底 107 + 17
+.greeting_wave { width: 40px; height: 40px; }
+.greeting_text { font-size: 32px; font-weight: 700; color: #080808; margin: 0; line-height: 1; }
+.greeting_desc { font-size: 14px; color: #080808; line-height: 1.6; margin: 0 0 21px; text-align: center; }
+.greeting_plus { background: #f0f0f0; border: 1px solid #e0e0e0; border-radius: 3px; padding: 0 6px; font-size: 12.25px; display: inline-flex; align-items: center; height: 19px; } // gold: chevron-right delta fs 12.25px 真值
+.greeting_label_row { width: 100%; max-width: 800px; margin: 0 auto 8px; display: flex; align-items: center; justify-content: space-between; } // gold: 卡片标题 y237 = 标签行底212 + mb8 + 卡pad16（chevron-right delta 真值）
+.greeting_label { font-size: 14px; color: #999; line-height: 22px; }
+.greeting_refresh { color: #999; cursor: pointer; margin-right: 9px; }
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 800px; margin: 0 auto; } // gold: 网格 w800 gap8（卡片 396+396+8=800）
+
+// 卡片（gold 真值：396x110 固定高 r5 pad16，图标 32px 左 gap16，标题 lh25 mb8，描述 lh22）
+.card {
+  display: flex; gap: 16px; padding: 16px; border: 1px solid #f0f0f0; border-radius: 5px;
+  cursor: pointer; background: #fff; text-align: left; align-items: flex-start; height: 110px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.03);
+  &:hover { border-color: #e0e0e0; }
+}
+.card_icon { width: 32px; height: 32px; flex-shrink: 0; }
+.card_right { flex: 1; min-width: 0; }
+.card_title { font-size: 16px; font-weight: 700; color: #080808; margin-bottom: 8px; line-height: 25px; }
+.card_desc { font-size: 14px; color: #999; line-height: 22px; }
+
+// 消息区
+.msgs { flex: 1; overflow-y: auto; padding: 24px; max-width: 800px; margin: 0 auto; width: 100%; }
+.msg { display: flex; gap: 12px; margin-bottom: 16px; }
+.msg_avatar { width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; flex-shrink: 0; }
+.msg_avatar_ai { background: #0072f5; color: #fff; }
+.msg_avatar_user { background: #f0f0f0; color: #080808; }
+.msg_bubble { padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; background: #fff; border: 1px solid #e8e8e8; }
+
+// 输入区（gold 真值：面板 pad 12px 0 16px；工具行 h36 pad 0 16px 磁贴 36x36 gap4；输入框 h84 pad 0 24px；底部行 h36 pad 0 24px 整体右对齐簇）
+.input_area { flex-shrink: 0; padding: 12px 0 16px; border-top: 1px solid #f0f0f0; position: relative; }
+.input_collapse {
+  position: absolute; top: -10px; left: 50%; transform: translateX(-50%);
+  width: 38px; height: 18px; padding: 0; display: flex; align-items: center; justify-content: center;
+  background: #f0f0f0; border: 1px solid #e0e0e0; border-radius: 9px; color: #999;
+  cursor: pointer; z-index: 5;
+}
+.input_box { padding: 0; }
+.input_toolbar { display: flex; align-items: center; gap: 4px; height: 36px; padding: 0 16px; margin-bottom: 8px; }
+.input_model {
+  position: relative; // 模型下拉锚点（gold: 面板左对齐 pill，向上打开）
+  cursor: pointer;
+  display: inline-flex; align-items: center; gap: 3px; height: 36px; padding: 0 4px;
+  border-radius: 20px; background: rgba(0,0,0,0.03); font-size: 12px; font-weight: 400; color: #080808;
+  img { width: 22px; height: 22px; border-radius: 50%; }
+}
+.input_tool {
+  position: relative; // 上传菜单/气泡锚点
+  width: 36px; height: 36px; border-radius: 5px; color: #666; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  &:hover { color: #080808; background: rgba(0,0,0,0.04); }
+}
+.input_tool_spacer { flex: 1; }
+.input {
+  // display:block 消除 inline 元素基线下沉间隙（gold: proto-styles.json 面板 y659 h201 / textarea y716 h84；
+  // inline 渲染会多出 ~5px descender，导致整个输入区上移 5px）
+  display: block;
+  width: 100%; height: 84px; padding: 0 24px; border: none; font-size: 14px;
+  outline: none; resize: none; font-family: inherit; background: transparent; margin-bottom: 8px;
+  &::placeholder { color: #999; }
+}
+.input_bottom { display: flex; align-items: center; justify-content: flex-end; gap: 8px; height: 36px; padding: 0 24px; }
+.input_hint { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #999; margin-right: 12px; }
+.input_right { display: flex; align-items: center; gap: 8px; }
+.input_attach {
+  width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center;
+  background: #fff; border: 1px solid #e8e8e8; border-radius: 5px; color: #666; cursor: pointer;
+}
+.input_btn { height: 36px; padding: 0 15px; background: #222; color: #fff; border: none; border-radius: 5px 0 0 5px; font-size: 14px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.input_btn span { line-height: 22px; }
+.input_arrow { width: 28px; height: 36px; padding: 0; background: #222; color: #fff; border: none; border-radius: 0 5px 5px 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; margin-left: -9px; }

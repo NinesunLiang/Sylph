@@ -1,0 +1,137 @@
+[
+ {
+  "name": "OpenAI基础模型",
+  "logo": "/assets/models/gpt.svg",
+  "flame": true
+ },
+ {
+  "name": "GPT-5.6 Luna",
+  "logo": "/assets/models/gpt.svg",
+  "flame": true
+ },
+ {
+  "name": "GPT-5.4 mini",
+  "logo": "/assets/models/gpt.svg",
+  "flame": false
+ },
+ {
+  "name": "GPT-5 mini",
+  "logo": "/assets/models/gpt.svg",
+  "flame": false
+ },
+ {
+  "name": "Gemini 3 Flash",
+  "logo": "/assets/models/gemini.svg",
+  "flame": true
+ },
+ {
+  "name": "Deepseek V3",
+  "logo": "/assets/models/deepseek.svg",
+  "flame": false
+ },
+ {
+  "name": "OpenAI增强模型🔥",
+  "logo": "/assets/models/gpt.svg",
+  "flame": true
+ },
+ {
+  "name": "GPT-5.6 Terra",
+  "logo": "/assets/models/gpt.svg",
+  "flame": true
+ },
+ {
+  "name": "GPT-5.6 Sol",
+  "logo": "/assets/models/gpt.svg",
+  "flame": true
+ },
+ {
+  "name": "GPT-5.5",
+  "logo": "/assets/models/gpt.svg",
+  "flame": false
+ },
+ {
+  "name": "Gemini 3.6 Flash",
+  "logo": "/assets/models/gemini.svg",
+  "flame": true
+ },
+ {
+  "name": "Gemini 3.1 Pro",
+  "logo": "/assets/models/gemini.svg",
+  "flame": false
+ },
+ {
+  "name": "Claude 5 Sonnet",
+  "logo": "/assets/models/claude.svg",
+  "flame": true
+ },
+ {
+  "name": "Claude 5 Opus（10次/3h）",
+  "logo": "/assets/models/claude.svg",
+  "flame": true
+ },
+ {
+  "name": "Grok-4.5",
+  "logo": "/assets/models/grok.svg",
+  "flame": true
+ },
+ {
+  "name": "GPT-Image-2 画图",
+  "logo": "/assets/models/gpt.svg",
+  "flame": true
+ },
+ {
+  "name": "Grok Imagine 画图",
+  "logo": "/assets/models/grok.svg",
+  "flame": true
+ },
+ {
+  "name": "Nano Banana 2 画图",
+  "logo": "/assets/models/gemini.svg",
+  "flame": true
+ },
+ {
+  "name": "Nano Banana Pro 画图（10次/3h）",
+  "logo": "/assets/models/gemini.svg",
+  "flame": false
+ },
+ {
+  "name": "Claude 4.7 Opus（10次/3h）",
+  "logo": "/assets/models/claude.svg",
+  "flame": false
+ },
+ {
+  "name": "Claude 4.8 Opus（10次/3h）",
+  "logo": "/assets/models/claude.svg",
+  "flame": true
+ },
+ {
+  "name": "Claude 4.6 Sonnet",
+  "logo": "/assets/models/claude.svg",
+  "flame": false
+ },
+ {
+  "name": "GPT-5.3 Codex",
+  "logo": "/assets/models/gpt.svg",
+  "flame": false
+ },
+ {
+  "name": "GPT-5.4",
+  "logo": "/assets/models/gpt.svg",
+  "flame": false
+ },
+ {
+  "name": "Gemini 3.5 Flash",
+  "logo": "/assets/models/gemini.svg",
+  "flame": true
+ },
+ {
+  "name": "Grok-4.1",
+  "logo": "/assets/models/grok.svg",
+  "flame": false
+ },
+ {
+  "name": "Grok-3",
+  "logo": "/assets/models/grok.svg",
+  "flame": false
+ }
+]

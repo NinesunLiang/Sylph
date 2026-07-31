@@ -1,0 +1,71 @@
+// gold: states/popover-folder-closed.delta.json（坐标逐字段对齐，勿估）
+.launcher {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgb(255, 255, 255); // gold: 启动屏为整页路由（delta 容器透明，页面底色白）
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+}
+
+.brand {
+  margin-top: 372px; // gold: logo/h1 y372
+  display: flex;
+  align-items: center;
+  gap: 12px; // gold: logo 右缘 702 → h1 x726（h1 含自身字距，净 gap 12）
+}
+
+.logo {
+  width: 48px;
+  height: 48px; // gold: img (654,372) 48x48
+}
+
+.title {
+  width: 143px; // gold: 标题容器 div x714 w143（品牌行总宽 203 = 48+12+143，居中后 logo x654）
+  padding-left: 12px; // gold: h1 x726 = 容器 x714 + 12（右缘 857 与容器齐平）
+}
+
+.name {
+  font-size: 32px;
+  font-weight: 900; // gold: h1 fw900 真值
+  line-height: 50px; // gold: h1 h50
+  color: rgb(0, 0, 0);
+}
+
+.track {
+  margin-top: 24px; // gold: 进度轨 y444 = brand 底 420 + 24（轨容器 y436 + 内偏移 8）
+  width: 180px;
+  height: 8px;
+  border-radius: 100px; // gold: r100 真值
+  background: rgba(0, 0, 0, 0.06);
+  overflow: hidden;
+}
+
+.fill {
+  width: 45px; // gold: 采集时刻加载 25%（180*0.25=45）
+  height: 8px;
+  border-radius: 100px;
+  background: rgb(34, 34, 34); // gold: 填充色真值
+}
+
+.status {
+  margin-top: 14px; // gold: 文本 y466 = 轨底 452 + 14
+  display: flex;
+  align-items: center;
+  gap: 3px; // gold: svg x704 → 文本 x723（svg16 + gap3）
+  font-size: 14px;
+  line-height: 22px;
+  color: rgb(153, 153, 153); // gold: 文本色真值
+}
+
+.spin {
+  width: 16px; // gold: svg x704 y469 w16 h16
+  height: 16px;
+  animation: launcher-spin 1s linear infinite;
+}
+
+@keyframes launcher-spin {
+  to { transform: rotate(360deg); }
+}

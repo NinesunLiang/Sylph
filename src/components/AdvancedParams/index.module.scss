@@ -1,0 +1,163 @@
+// gold: states/popover-sliders-horizontal.delta.json（坐标逐字段对齐，勿估）
+.panel {
+  position: absolute;
+  bottom: calc(100% + 4px); // gold: 面板底 668 = 触发磁贴顶 672 - 4
+  left: 50%;
+  transform: translateX(-50%); // gold: 面板中心 = 触发器中心（x411 = 611 - 200）
+  width: 400px;
+  height: 136px;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(227, 227, 227); // gold: shell border 真值
+  border-radius: 8px;
+  box-shadow: rgba(0, 0, 0, 0.08) 0 6px 16px 0,
+    rgba(0, 0, 0, 0.12) 0 3px 6px -4px,
+    rgba(0, 0, 0, 0.05) 0 9px 28px 8px; // gold: shell shadow 真值（antd 三层）
+  padding: 13px; // gold: 标题 x424 = 壳 x411 + 13，y545 = 壳 y532 + 13
+  z-index: 500;
+  cursor: default;
+  text-align: left;
+}
+
+.title {
+  font-size: 14px;
+  font-weight: 600; // gold: fw600 真值
+  line-height: 22px;
+  color: rgb(8, 8, 8);
+}
+
+.form {
+  margin-top: 8px; // gold: form y575 = 标题底 567 + 8
+  padding-top: 16px; // gold: 行 y591 = form y575 + 16
+}
+
+.row {
+  display: flex;
+  height: 48px; // gold: 行 h48
+}
+
+.labelCol {
+  width: 115px; // gold: label w115
+  padding-top: 5px; // gold: 创意活跃度 y596 = 行 y591 + 5
+}
+
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 4px; // gold: 文本 div w92 = 文本 70 + gap4 + info 14（约）
+  height: 14px;
+}
+
+.label {
+  font-size: 14px;
+  font-weight: 500; // gold: fw500 真值
+  line-height: 14px; // gold: h14
+  color: rgb(8, 8, 8);
+  white-space: nowrap;
+}
+
+.info { color: rgb(153, 153, 153); flex-shrink: 0; }
+
+.tagSmall {
+  display: block;
+  margin-top: 6px; // gold: 签 y616 = 标签底 610 + 6
+  height: 20px;
+}
+
+.tag {
+  display: inline-flex;
+  height: 20px;
+  padding: 0 7px; // gold: 内层文本 x431 = 签 x424 + 7
+  background: rgba(0, 0, 0, 0.06); // gold: 签 bg 真值
+  border-radius: 3px;
+}
+
+.tagIn {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px; // gold: 文本 h20
+  color: rgb(102, 102, 102); // gold: 文本色真值
+}
+
+.sliderCol {
+  position: relative;
+  width: 200px; // gold: x598 w200
+  height: 48px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.track {
+  position: absolute;
+  left: 8px; // gold: 轨 x606 = 列 x598 + 8
+  top: 18px; // gold: 轨 y613 = 列 y591 + 22 - h4 → 顶 18
+  width: 136px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.03); // gold: 轨 bg 真值
+  border-radius: 3px;
+}
+
+.fill {
+  width: 68px; // gold: 采集时 50%（136*0.5=68）
+  height: 4px;
+  background: rgb(170, 170, 170); // gold: 填充色真值
+  border-radius: 3px;
+}
+
+.dot {
+  position: absolute;
+  top: -2px; // gold: 点 y611 = 轨 y613 - 2
+  width: 8px;
+  height: 8px;
+  background: rgb(255, 255, 255);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.08); // antd 刻度点描边（视觉近似，非比对项）
+}
+
+.knob {
+  position: absolute;
+  left: 62px; // gold: 钮 x668 = 轨 x606 + 62（中点，值 0.5）
+  top: -4px; // gold: 钮 y609 = 轨 y613 - 4
+  width: 11px;
+  height: 11px;
+  background: rgb(255, 255, 255);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px rgb(170, 170, 170); // 与填充同色描边（视觉近似，非比对项）
+  cursor: pointer;
+}
+
+.minus, .plus {
+  position: absolute;
+  top: 30px; // gold: 按钮 y621 = 列 y591 + 30
+  width: 14px;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  color: rgb(153, 153, 153);
+  cursor: pointer;
+}
+.minus { left: 1px; } // gold: x599 = 列 x598 + 1
+.plus { left: 137px; } // gold: x735 = 列 x598 + 137
+
+.value {
+  position: absolute;
+  right: 0; // gold: x758..798 右缘齐列右
+  top: 11px; // gold: y602 = 列 y591 + 11
+  width: 40px;
+  height: 27px;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(217, 217, 217); // antd 输入框默认（视觉近似，非比对项）
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  input {
+    width: 38px;
+    height: 25px;
+    border: none;
+    outline: none;
+    text-align: center;
+    font-size: 12px;
+    border-radius: 5px; // gold: input r5
+    background: transparent;
+  }
+}

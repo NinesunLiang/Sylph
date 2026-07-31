@@ -1,0 +1,37 @@
+// gold: states/upload-menu.delta.json（ul @(474,586) 114x82 r5 pad4；li 104x36 r3 pad 7px 12px）
+.menu {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%); // gold: 面板中心 531 = 按钮中心 531
+  bottom: calc(100% + 4px);    // gold: 按钮顶 672 - 面板底 668 = 4
+  z-index: 400;
+  width: 114px;
+  margin: 0;
+  list-style: none;
+  background: rgb(255, 255, 255);
+  border: 1px solid rgb(227, 227, 227); // gold: states/upload-menu.delta.json ul border 真值（li 内缩 5px = border1 + pad4）
+  border-radius: 5px;
+  padding: 4px;
+  box-shadow: rgba(0, 0, 0, 0.08) 0 6px 16px 0,
+    rgba(0, 0, 0, 0.12) 0 3px 6px -4px,
+    rgba(0, 0, 0, 0.05) 0 9px 28px 8px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px; // gold: 文本 x515 - (icon x491+16) = 8
+  width: 104px;
+  height: 36px;
+  box-sizing: border-box;
+  padding: 7px 12px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 22px;
+  color: rgb(8, 8, 8);
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.03); // hover 未采集，沿用 model-dropdown 选中行真值
+  }
+}

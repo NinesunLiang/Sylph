@@ -1,0 +1,145 @@
+@use '@/styles/tokens' as *;
+
+.app_layout {
+  height: 100vh; display: flex; font-size: 14px;
+  color: #080808; background: #f8f8f8;
+}
+
+// Col 1: 64px icon nav（原型：logo 38px 顶部，6 主图标 24px，3 辅助图标 20px 沉底）
+.app_layout_sidebar {
+  width: 64px; display: flex; flex-direction: column; align-items: center;
+  background: #fff; border-right: 1px solid #e8e8e8; flex-shrink: 0;
+  padding-top: 16px; padding-bottom: 16px;
+}
+.app_layout_sidebar_logo {
+  width: 38px; height: 38px; border-radius: 50%; margin-bottom: 18px; // gold: 首图标槽 y72 = pad16 + logo38 + mb18（tooltip-会话 真值反推）
+}
+.app_layout_sidebar_nav { display: flex; flex-direction: column; gap: 8px; }
+.app_layout_sidebar_nav_bottom { margin-top: auto; display: flex; flex-direction: column; gap: 4px; align-items: center; }
+.app_layout_sidebar_nav_bottom .app_layout_sidebar_icon { width: 36px; height: 36px; }
+.app_layout_sidebar_icon {
+  position: relative; // gold: sidebar tooltip 定位锚 = 44px 图标槽（tip--right 相对槽右缘 +4）
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  border-radius: 8px; color: #999; text-decoration: none;
+  border: none; background: transparent; cursor: pointer; padding: 0;
+  &:hover { color: #0072f5; background: rgba(0,114,245,0.06); }
+  &--active { color: #0072f5; background: rgba(0,114,245,0.08); }
+}
+// Tip 内嵌于图标槽时让出定位权（.tip 的包含块 = 图标槽，gold 气泡 x58 = 槽 x10 + 44 + 4）
+.app_layout_sidebar_tip { position: static; display: inline-flex; }
+
+// Col 2: 321px assistants panel
+.app_layout_assistants {
+  width: 321px; display: flex; flex-direction: column;
+  background: #fff; border-right: 1px solid #e8e8e8; flex-shrink: 0;
+}
+.app_layout_assistants_header {
+  padding: 16px 20px; font-size: 24px; font-weight: 900; color: #000;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.app_layout_assistants_header_new { color: #666; cursor: pointer; }
+// gold: states/tooltip-new-assistant.delta.json — hover 圆底 32x32 r32 bg rgba(0,0,0,0.06)，margin -6 保持 20px 布局占位
+.app_layout_assistants_header_new_wrap {
+  width: 32px; height: 32px; margin: -6px;
+  border-radius: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  &:hover { background: rgba(0, 0, 0, 0.06); }
+}
+.app_layout_assistants_search { padding: 0 16px 12px; }
+.app_layout_assistants_search_box {
+  display: flex; align-items: center; gap: 8px;
+  background: #fff; border: 1px solid #d9d9d9; border-radius: 5px; height: 36px; padding: 0 8px 0 12px; box-sizing: border-box; color: #999;
+  input {
+    flex: 1; min-width: 0; border: none; background: transparent;
+    font-size: 14px; outline: none;
+    &::placeholder { color: #999; }
+  }
+}
+.app_layout_assistants_search_hint { color: #999; font-size: 12px; flex-shrink: 0; background: rgb(251,251,251); border-radius: 3px; height: 22px; padding: 0 7px; display: inline-flex; align-items: center; }
+.app_layout_assistants_list { flex: 1; overflow-y: auto; padding: 14px 8px 0; }
+.app_layout_assistants_item {
+  padding: 12px 16px 12px 8px; border-radius: 5px; display: flex; align-items: center; gap: 8px; min-height: 70px; box-sizing: border-box;
+  &--active { background: rgba(0,0,0,0.06); }
+}
+.app_layout_assistants_item_avatar { width: 44px; height: 44px; border-radius: 0; flex-shrink: 0; }
+.app_layout_assistants_item_name { font-size: 14px; font-weight: 500; color: #080808; line-height: 16px; }
+.app_layout_assistants_group > span { flex: 1; margin-right: 16px; }
+.app_layout_assistants_group { padding: 8px 10px 8px 16px; margin-top: 4px; border-radius: 5px; display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: #999; }
+.app_layout_assistants_new {
+  width: 272px; height: 36px; margin: 12px auto 4px; padding: 0; border: 1px solid #e8e8e8; border-radius: 5px;
+  text-align: center; color: #080808; font-size: 14px; background: #fff;
+  display: flex; align-items: center; justify-content: center; gap: 4px; cursor: pointer;
+  span { line-height: 22px; }
+}
+
+// Col 3: Chat
+.app_layout_chat { flex: 1; display: flex; flex-direction: column; min-width: 0; background: #f8f8f8; }
+
+// 主列容器（topbar 全宽在上，content 行在下）
+.app_layout_main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.app_layout_content { flex: 1; display: flex; min-height: 0; }
+
+// Topbar 48px 全宽（原型真值：联系客服 x≈1186 @1440vw，横跨聊天+右面板）
+// gold chevron-right delta: 左簇 x72（pad-left 8）w248 = 图标盒32 + logo32 + 名称徽标簇176，gap 4
+.app_layout_topbar { display: flex; align-items: center; justify-content: space-between; height: 48px; padding: 0 8px; border-bottom: 1px solid #f0f0f0; background: #fff; flex-shrink: 0; }
+.app_layout_topbar_left { display: flex; align-items: center; gap: 4px; }
+.app_layout_topbar_collapse { color: #666; cursor: pointer; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; } // gold: 图标盒 32x32（svg 20 内居中 x78=盒72+6）
+.app_layout_topbar_logo { width: 30px; height: 30px; border-radius: 50%; margin: 1px; } // gold: logo 盒 32（img30 + margin1 → x109=盒108+1, y9=盒8+1）
+.app_layout_topbar_name { font-size: 14px; font-weight: 700; color: #080808; line-height: 1; }
+.app_layout_topbar_badge { display: inline-flex; align-items: center; padding: 0 7px; height: 20px; margin-left: 4px; background: rgba(0,0,0,0.06); color: #666; border-radius: 3px; font-size: 12px; font-weight: 400; } // gold: 徽标 x208 = 名称右缘 200 + 8（gap4 + ml4）
+.app_layout_topbar_badge_inner { display: inline-flex; align-items: center; gap: 3px; }
+.app_layout_topbar_badge_avatar { width: 14px; height: 14px; }
+.app_layout_topbar_right { display: flex; align-items: center; gap: 4px; }
+.app_layout_topbar_kefu {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px;
+  border: none; border-radius: 32px; background: linear-gradient(90deg, rgb(200,91,202), rgb(137,68,223));
+  color: #fff; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.app_layout_topbar_install {
+  display: inline-flex; align-items: center; gap: 6px; padding: 6px 4px; border-radius: 32px;
+  border: none; background: transparent; color: #000; font-size: 14px; font-weight: 700; cursor: pointer;
+}
+.app_layout_topbar_icon { color: #666; cursor: pointer; display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; }
+
+// Col 4: ~300px right panel
+.app_layout_right { width: 281px; display: flex; flex-direction: column; background: #f8f8f8; border-left: 1px solid #e8e8e8; flex-shrink: 0; }
+.app_layout_right_header { display: flex; align-items: center; justify-content: space-between; padding: 15px 16px 8px; }
+.app_layout_right_header_title { font-size: 14px; font-weight: 400; color: #080808; flex: 1; }
+.app_layout_right_header_actions { display: flex; gap: 12px; color: #666; align-items: center; justify-content: flex-end; width: 50px; height: 24px; }
+.app_layout_right_content { flex: 1; overflow-y: auto; padding: 8px 9px 16px; }
+.app_layout_right_card {
+  position: relative; border: 1px solid #e3e3e3; border-radius: 5px; background: #fff;
+  margin-bottom: 15px; overflow: hidden;
+}
+.app_layout_right_card_illus {
+  display: flex; justify-content: center;
+  img { width: 200px; height: 120px; object-fit: contain; display: block; }
+}
+.app_layout_right_card_close {
+  position: absolute; top: 8px; right: 8px; border: none; background: transparent;
+  color: #999; cursor: pointer; padding: 2px; display: flex; z-index: 2;
+}
+.app_layout_right_card_body { padding: 0 17px 31px; }
+.app_layout_right_section_title { font-size: 16px; font-weight: 500; color: #080808; margin-bottom: 8px; }
+.app_layout_right_empty { color: #999; font-size: 14px; line-height: 1.6; margin-bottom: 0; }
+.app_layout_right_topic { padding: 8px; height: 40px; box-sizing: border-box; border-radius: 5px; background: rgba(0,0,0,0.03); display: flex; align-items: center; gap: 8px; color: #666; }
+.app_layout_right_topic_name { font-size: 14px; font-weight: 400; color: #080808; flex: none; margin-right: auto; }
+.app_layout_right_topic_badge { font-size: 12px; color: #666; background: rgba(0,0,0,0.06); padding: 0 7px; border-radius: 3px; height: 20px; display: inline-flex; align-items: center; }
+
+// Drag handle
+.drag_handle {
+  width: 0; cursor: col-resize; flex-shrink: 0; position: relative;
+  &:hover { background: #0072f5; }
+  &::after { content: ''; position: absolute; left: -3px; right: -3px; top: 0; bottom: 0; }
+}
+
+// 分隔线中点胶囊折叠钮（原型真值：chevron 位于分隔线垂直中点）
+.drag_handle_toggle {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: 16px; height: 48px; display: flex; align-items: center; justify-content: center;
+  background: #fff; border: 1px solid #e8e8e8; border-radius: 8px; color: #999;
+  cursor: pointer; z-index: 5; padding: 0; opacity: 0; transition: opacity 0.15s;
+  &:hover { color: #080808; }
+}
+.drag_handle:hover .drag_handle_toggle { opacity: 1; }

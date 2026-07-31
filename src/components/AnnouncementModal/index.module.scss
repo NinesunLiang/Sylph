@@ -1,0 +1,18 @@
+@use '@/styles/tokens' as *;
+.overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: $z-modal-backdrop; }
+.modal { width: 600px; max-height: 85vh; background: #fff; border-radius: 14px; box-shadow: 0 8px 40px rgba(0,0,0,0.12); display: flex; flex-direction: column; }
+.header { display: flex; align-items: center; justify-content: center; padding: 20px 24px 16px; border-bottom: 1px solid $color-border; position: relative; flex-shrink: 0; }
+.header_title { font-size: 15px; font-weight: 600; color: $color-text-primary; }
+.header_close { position: absolute; right: 20px; top: 16px; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border: none; background: transparent; font-size: 18px; color: $color-text-disabled; cursor: pointer; border-radius: 6px; &:hover { background: $color-bg-tertiary; color: $color-text-primary; } }
+.body { padding: 24px 32px; flex: 1; min-height: 0; overflow-y: auto; font-family: $font-family-sans; }
+.section_title { font-size: 22px; font-weight: 600; color: #000; margin-bottom: 10px; }
+.section_emoji_title { font-size: 18px; font-weight: 600; color: #000; margin-top: 16px; margin-bottom: 8px; }
+.body_text { font-size: 14px; color: #333; line-height: 1.6; margin-bottom: 6px; }
+.link_row { margin-bottom: 6px; font-size: 14px; line-height: 1.8; }
+.link_label { font-weight: 700; color: #333; }
+.link_url { color: #1890ff; text-decoration: none; margin-right: 6px; }
+.model_list { margin-bottom: 6px; }
+.model_item { font-size: 14px; font-weight: 500; color: #333; margin-bottom: 2px; line-height: 1.7; }
+.footer { display: flex; justify-content: flex-end; gap: 8px; padding: 12px 24px; flex-shrink: 0; }
+.btn_cancel { padding: 8px 24px; border: 1px solid $color-border; border-radius: 8px; background: #fff; font-size: 14px; cursor: pointer; }
+.btn_confirm { padding: 8px 24px; border: none; border-radius: 8px; background: #1c1c1e; color: #fff; font-size: 14px; cursor: pointer; &:hover { background: #000; } }
