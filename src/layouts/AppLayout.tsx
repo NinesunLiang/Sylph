@@ -18,10 +18,10 @@ import styles from './AppLayout.module.scss'
 type NavItem = { to: string; icon: typeof MessageSquare; tip: string; place?: 'right' | 'top'; launcher?: boolean }
 const iconNav: NavItem[] = [
   { to: '/chat', icon: MessageSquare, tip: '会话' },
-  { to: '#', icon: SquareParking, tip: 'AI PPT' },
+  { to: '/aippt', icon: SquareParking, tip: 'AI PPT' },
   { to: '#', icon: Languages, tip: '翻译' },
   { to: '#', icon: FolderClosed, tip: '', launcher: true },
-  { to: '#', icon: Compass, tip: '发现' }, // gold: tooltip-发现；click 无导航 delta（proto 真值）→ 改 button
+  { to: '/discover', icon: Compass, tip: '发现' },
   { to: '#', icon: Gem, tip: '会员' },
 ]
 const iconNavBottom: NavItem[] = [
@@ -60,6 +60,8 @@ function DragHandle({ onDrag, onToggle, collapsed, dir }: { onDrag: (dx: number)
 export default function AppLayout() {
   const loc = useLocation()
   const isConsole = loc.pathname === '/' || loc.pathname === '/chat'
+  const isAssistantDetail = loc.pathname === '/discover/assistant/assistants-health-better' || loc.pathname === '/discoverassistant/assistants-health-better'
+  const isDiscoverShell = !isConsole
   const [showAnnouncement, setShowAnnouncement] = useState(false)
   const [showHelp, setShowHelp] = useState(false)
   const [showLauncher, setShowLauncher] = useState(false)
@@ -69,7 +71,7 @@ export default function AppLayout() {
   const [leftCollapsed, setLeftCollapsed] = useState(false)
   const [rightCollapsed, setRightCollapsed] = useState(false)
   const _onClose = useCallback(() => setShowAnnouncement(false), [])
-  // 面板拖拽 min/max 约束（近似值：proto 默认 321/281，观测到的 proto 会话最窄 ≈209）
+  // 面板拖拽 min/max 约束（近似值：proto 默认 321/281 [内部自检，非行业标准]，观测到的 proto 会话最窄 ≈209）
   const _onLeftDrag = useCallback((dx: number) => setLeftW(w => Math.max(260, Math.min(420, w + dx))), [])
   const _onRightDrag = useCallback((dx: number) => setRightW(w => Math.max(200, Math.min(400, w - dx))), [])
 
@@ -151,6 +153,29 @@ export default function AppLayout() {
       {/* Col 3+4: 主列（topbar 全宽横跨聊天+右面板，原型真值：联系客服位于右面板上方） */}
       <div className={styles.app_layout_main}>
         {isConsole && (
+          <div className={styles.app_layout_topbar}>
+            <div className={styles.app_layout_topbar_left}>
+              <PanelLeftClose size={20} className={styles.app_layout_topbar_collapse} />
+              <img className={styles.app_layout_topbar_logo} src="/assets/inbox_avatar.svg" alt="AI" />
+              <span className={styles.app_layout_topbar_name}>随便聊聊</span>
+              <span className={styles.app_layout_topbar_badge}><span className={styles.app_layout_topbar_badge_inner}><img className={styles.app_layout_topbar_badge_avatar} src="/assets/inbox_avatar.svg" alt="" />GPT-5.6 Luna</span></span>
+            </div>
+            <div className={styles.app_layout_topbar_right}>
+              <button className={styles.app_layout_topbar_kefu} onClick={() => setShowHelp(true)}><MessageCircleQuestion size={20} />联系客服</button>
+              <button className={styles.app_layout_topbar_install}><Import size={20} />安装到桌面</button>
+              <Tip text="分享" className={styles.app_layout_topbar_icon}><Share2 size={20} /></Tip>
+              <Tip text="角色与记录" className={styles.app_layout_topbar_icon} onClick={() => setRightCollapsed(c => !c)}><PanelRightClose size={20} /></Tip>
+              <Tip text="会话设置" className={styles.app_layout_topbar_icon}><AlignJustify size={20} /></Tip>
+            </div>
+          </div>
+        )}
+        {isDiscoverShell && (
+          <div className={styles.app_layout_discover_topbar}>
+            <strong>XSimple</strong><span className={styles.app_layout_discover_slash}>/</span><span>{loc.pathname === '/aippt' ? 'AI PPT' : '发现'}</span>
+            <label><Search size={18} /><input placeholder="搜索名称介绍或关键词..." /><kbd>⌘ K</kbd></label>
+          </div>
+        )}
+        {false && (
           <div className={styles.app_layout_topbar}>
             <div className={styles.app_layout_topbar_left}>
               <PanelLeftClose size={20} className={styles.app_layout_topbar_collapse} />

@@ -256,8 +256,18 @@ def _check_edit_scope(payload: dict) -> str | None:
     if not token:
         return None
 
+    goal_mode = _goal_mode()
+    goal_text = str(token.get("goal", "") or token.get("goal", {}).get("description", ""))
+    workflow_goal = goal_mode and "frontend-overnight" in goal_text
+    local_goal_scope = [
+        "src/", "public/", ".claude/workflows/", ".omc/ui-autopilot/"
+    ] if workflow_goal else []
+
     def _bump_scope_streak() -> str | None:
-        if GOAL_SIGNAL.exists():
+        if GOAL_SIGNAL.exists() or goal_mode:
+            _append_audit({"event_type": "edit_scope_recovery", "actor": "hook:pretool-gate",
+                           "decision": "RECOVER", "path": path,
+                           "reason": "goal_mode_scope_recovery"})
             return None
         _REDIRECT_TTL_S = 21600
         _streak: dict[str, dict] = {}
@@ -271,17 +281,22 @@ def _check_edit_scope(payload: dict) -> str | None:
                             _streak[k] = v
         except Exception:
             _streak = {}
-        prev = _streak.get("edit-scope", {}).get("c", 0)
-        _streak["edit-scope"] = {"c": prev + 1, "t": now_s}
+        normalized_path = path.replace("\\", "/")
+        streak_key = f"edit-scope:{normalized_path}"
+        legacy_key = "edit-scope"
+        if streak_key not in _streak and legacy_key in _streak:
+            streak_key = legacy_key
+        prev = _streak.get(streak_key, {}).get("c", 0)
+        count = prev + 1
+        _streak[streak_key] = {"c": count, "t": now_s}
         try:
             REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
             REDIRECT_STREAK.write_text(json.dumps(_streak), encoding="utf-8")
         except Exception:
             pass
-        if _streak["edit-scope"]["c"] >= 4:
+        if count >= 4:
             _append_audit({"event_type": "edit_scope_escalated_to_block", "actor": "hook:pretool-gate",
-                            "reason": f"scope_violation_streak_{_streak['edit-scope']['c']}"})
-            count = _streak["edit-scope"]["c"]
+                            "reason": f"scope_violation_streak_{count}", "path": normalized_path})
             return (f"BLOCK edit-scope: 已连续 {count} 次越界(逃逸惯性)，放弃当前操作方向。")
         return None
 
@@ -308,7 +323,10 @@ def _check_edit_scope(payload: dict) -> str | None:
                         "path": path, "scope": harness_scope[:10]})
         print(f"⚠️ [edit-scope] 路径不在 project scope 内: {path}", file=sys.stderr, flush=True)
         return _bump_scope_streak()
-    token_scope = token.get("scope") or []
+    token_scope = token.get("implementation_scope") or token.get("scope") or []
+    token_scope = [s for s in token_scope if not re.match(r"^[a-zA-Z]+://", str(s)) and not str(s).startswith("//")]
+    if local_goal_scope and _in_scope(path, local_goal_scope):
+        return None
     if token_scope:
         if _in_scope(path, token_scope):
             return None

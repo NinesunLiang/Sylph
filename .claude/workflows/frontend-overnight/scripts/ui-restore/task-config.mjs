@@ -50,6 +50,7 @@ export function loadTask(task) {
     typecheck: raw.typecheck || 'pnpm run typecheck',
     srcDirs: raw.srcDirs || ['src/', 'public/'],
     wait: raw.wait ?? 2500,
+    domMin: raw.domMin ?? 100,
     states: raw.states || [],
   };
   if (!cfg.viewports[0].zones.length) {

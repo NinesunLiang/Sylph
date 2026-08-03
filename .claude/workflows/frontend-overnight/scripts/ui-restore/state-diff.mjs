@@ -27,7 +27,7 @@ const TEXT_STYLE = ['fs', 'fw', 'color']; // 文本: w/h 是字体度量噪声�
 // 零宽边框颜色无意义：0px none rgb(8,8,8) ≡ 0px none rgb(0,0,0)
 const normBorder = v => String(v ?? '').replace(/^(0px\s+\S+)\s+.*$/, '$1');
 
-function load(p) { try { return JSON.parse(readFileSync(p, 'utf8')).rows; } catch { return null; } }
+function load(p) { try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return null; } }
 
 // 特征锚容器：面板 ul / 白底 dialog 壳 / 全屏遮罩 / 深色 tooltip 气泡（alpha≥0.5 排除 hover 底砖）
 const isDarkSolid = r => {
@@ -39,7 +39,10 @@ const isDarkSolid = r => {
 // bubble 锚仅用于 tooltip 态——dialog 里的深色元素（关闭图标等）不是气泡
 function anchors(rows, stateName) {
   const out = [];
-  const ul = rows.filter(r => r.tag === 'ul').sort((a, b) => b.w - a.w)[0];
+  const ulCandidates = rows.filter(r => r.tag === 'ul');
+  const ul = (stateName || '').startsWith('category-')
+    ? ulCandidates.filter(r => r.x < 300).sort((a, b) => a.x - b.x || a.y - b.y)[0]
+    : ulCandidates.sort((a, b) => b.w - a.w)[0];
   if (ul) out.push(['container<ul>', ul]);
   const shell = rows.find(r => r.w >= 400 && r.bg === 'rgb(255, 255, 255)' && r.h >= 200);
   if (shell) out.push(['dialog-shell', shell]);
@@ -83,13 +86,33 @@ if (orphan.length) console.log(`orphan gold 文件（task.json 已移除，跳�
 for (const st of cfg.states || []) {
   const name = st.name;
   const f = `${name}.delta.json`;
-  const g = load(join(GOLD, f));
-  const i = existsSync(join(IMPL, f)) ? load(join(IMPL, f)) : null;
-  if (!g) { results.push({ state: name, error: 'gold 未采集（先跑 capture-states）' }); totalDiffs++; continue; }
-  if (!i) { results.push({ state: name, error: 'impl 未采集（先跑 capture-states）' }); totalDiffs++; continue; }
+  const gd = load(join(GOLD, f));
+  const id = existsSync(join(IMPL, f)) ? load(join(IMPL, f)) : null;
+  if (!gd) { results.push({ state: name, error: 'gold 未采集（先跑 capture-states）' }); totalDiffs++; continue; }
+  if (!id) { results.push({ state: name, error: 'impl 未采集（先跑 capture-states）' }); totalDiffs++; continue; }
+  const g = gd.rows || [];
+  const i = id.rows || [];
+  const fullState = gd.capture === 'full' || id.capture === 'full';
   const diffs = [];
-  // 容器锚比对
-  for (const [label, gr] of anchors(g, name)) {
+  const goldRouteChanged = gd.routeBefore && gd.routeAfter && new URL(gd.routeBefore).pathname !== new URL(gd.routeAfter).pathname;
+  const implRouteChanged = id.routeBefore && id.routeAfter && new URL(id.routeBefore).pathname !== new URL(id.routeAfter).pathname;
+  if (goldRouteChanged || implRouteChanged) {
+    const goldPath = new URL(gd.routeAfter || gd.url).pathname;
+    const implPath = new URL(id.routeAfter || id.url).pathname;
+    const samePathState = goldPath === implPath;
+    if (goldRouteChanged && implRouteChanged && samePathState && !name.startsWith('category-')) {
+      results.push({ state: name, routeGold: gd.routeAfter, routeImpl: id.routeAfter, routeChanged: true, routeMatched: true, goldNodes: g.length, implNodes: i.length, diffs: [], diffCount: 0 });
+      console.log(`${name}: 路由转换已匹配 ${goldPath}`);
+      continue;
+    }
+    if (goldPath !== implPath) {
+      results.push({ state: name, routeGold: gd.routeAfter, routeImpl: id.routeAfter, routeChanged: true, routeMatched: false, goldNodes: g.length, implNodes: i.length, diffs: [{ node: 'route', field: 'pathname', impl: implPath, gold: goldPath }], diffCount: 1 });
+      totalDiffs++;
+      continue;
+    }
+  }
+  // 容器锚比对：full 快照包含整页基线，不使用 delta 专用 dialog/tooltip 锚
+  for (const [label, gr] of (fullState ? [] : anchors(g, name))) {
     const ir = label.startsWith('container')
       ? i.filter(r => r.tag === 'ul').sort((a, b) => b.w - a.w)[0]
       : anchors(i, name).find(([l]) => l === label)?.[1];

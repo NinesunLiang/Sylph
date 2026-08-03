@@ -10,17 +10,30 @@ if (!url || !out) { console.error('usage: extract-styles.mjs <url> <out.json> [-
 const fopt = (n, d) => { const i = flags.indexOf(n); return i > -1 ? +flags[i + 1] : d; };
 const VW = fopt('--vw', 1510), VH = fopt('--vh', 860);
 const WAIT = fopt('--wait', 3000); // proto RSC 慢流式 → gold-refresh 传 40000
+const clickText = (() => { const i = flags.indexOf('--click-text'); return i > -1 ? flags[i + 1] : ''; })();
 
 const b = await chromium.launch({ headless: true });
 const p = await b.newPage({ viewport: { width: VW, height: VH } });
 await p.goto(url, { timeout: 90000, waitUntil: 'domcontentloaded' });
-await p.waitForTimeout(WAIT);
 
 if (flags.includes('--dismiss-modal')) {
-  for (const label of ['确 定', '确定', '×']) {
-    try { await p.click(`button:has-text("${label}")`, { timeout: 3000 }); break; } catch {}
-  }
-  await p.waitForTimeout(800);
+  await p.waitForTimeout(Math.min(WAIT, 12000));
+  const closed = await p.evaluate(() => {
+    const visible = el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; };
+    const button = [...document.querySelectorAll('button[aria-label="Close"], .ant-modal-close, button')].find(el => visible(el) && (el.getAttribute('aria-label') === 'Close' || el.classList.contains('ant-modal-close') || /确\s*定|确定|×/.test(el.textContent || '')));
+    if (!button) return false;
+    button.click();
+    return true;
+  });
+  if (!closed) console.warn('dismiss-modal: visible close control not found');
+  await p.waitForFunction(() => ![...document.querySelectorAll('.ant-modal-mask, [role="dialog"]')].some(el => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(el).visibility !== 'hidden'; }), null, { timeout: 10000 }).catch(() => {});
+  await p.waitForTimeout(Math.max(800, WAIT - 12000));
+} else {
+  await p.waitForTimeout(WAIT);
+}
+if (clickText) {
+  await p.getByText(clickText, { exact: true }).last().click({ timeout: 10000 });
+  await p.waitForTimeout(1500);
 }
 
 const rows = await p.evaluate(() => {

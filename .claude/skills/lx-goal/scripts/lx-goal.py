@@ -12,6 +12,7 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta, timezone
@@ -208,10 +209,23 @@ def find_first_incomplete_step(plan_dir: Path) -> str | None:
     if not plan_md.exists():
         return None
     for line in plan_md.read_text(encoding="utf-8").splitlines():
-        m = re.match(r"- \[ \] (\S+?):", line.strip())
+        m = re.match(r"- \[(?: |a|A)\] (\S+?):", line.strip())
         if m:
             return m.group(1)
     return None
+
+
+def incomplete_plan_steps(plan_dir: Path) -> list[str]:
+    """Return every unchecked plan step so phase results cannot masquerade as completion."""
+    plan_md = plan_dir / "plan.md"
+    if not plan_md.exists():
+        return []
+    steps = []
+    for line in plan_md.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"- \[(?: |a|A)\] (\S+?):", line.strip())
+        if m:
+            steps.append(m.group(1))
+    return steps
 
 
 # ============================================================
@@ -323,6 +337,14 @@ def cmd_on(goal: str, expiry_hours: int = 6):
     existing.setdefault("goal", {})
     existing["goal"]["state"] = "CLARIFY"
     existing["goal"]["description"] = goal[:200]
+    if "frontend-overnight" in goal:
+        task = existing.setdefault("task", {})
+        prototype_scope = task.get("scope", []) or []
+        task["prototype_scope"] = prototype_scope
+        task["implementation_scope"] = [
+            "src/", "public/", ".claude/workflows/", ".omc/ui-autopilot/"
+        ]
+        task["scope"] = task["implementation_scope"]
     with open(lock_file, "w", encoding="utf-8") as f:
         json.dump(existing, f, indent=2, ensure_ascii=False)
 
@@ -516,8 +538,11 @@ def cmd_phase0_done():
     if _GSM is not None:
         try:
             gsm = _GSM(str(lock_file))
-            gsm.transition("PLANNING", reason="phase0-done: research.md validated")
-            gsm.transition("EXECUTING", plan_path=str(plan_dir / "plan.md"), reason="phase0-done: plan.md validated")
+            # 幂等：中途失败后重跑 phase0-done 时，已在目标状态的转换跳过
+            if gsm.current_state != "PLANNING":
+                gsm.transition("PLANNING", reason="phase0-done: research.md validated")
+            if gsm.current_state != "EXECUTING":
+                gsm.transition("EXECUTING", plan_path=str(plan_dir / "plan.md"), reason="phase0-done: plan.md validated")
         except _GSM_Error as e:
             print(f"❌ GoalMachine 状态转换失败: {e}", file=sys.stderr)
             sys.exit(2)
@@ -553,6 +578,8 @@ def cmd_report():
     """生成结构化执行报告"""
     mode_data, path = _read_mode_file()
     report_file = STATE_DIR / "goal-report.md"
+    plan_dir = _get_plan_dir(mode_data)
+    incomplete_steps = incomplete_plan_steps(plan_dir) if plan_dir else []
 
     goal = mode_data.get("goal", "?")
     done = len(mode_data.get("completed_tasks", []))
@@ -669,7 +696,7 @@ def cmd_report():
 
 {_gk_section}## 验证状态
 
-VERIFIED: 报告生成完毕（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）
+{f"IN_PROGRESS: 未完成计划步骤 {', '.join(incomplete_steps)}；goal 保持执行态，不得视为验收完成。" if incomplete_steps else f"VERIFIED: 所有计划步骤已完成（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）"}
 """
     report_file.write_text(report_content, encoding="utf-8")
     print(f"✅ 报告已生成: {report_file}")
@@ -726,26 +753,81 @@ def cmd_poll():
             print(f"   下一步: {next_step}")
 
 
+def _verify_goal_step(step_id: str) -> int:
+    """Activate the goal step through tick, then run canonical verification."""
+    script = PROJECT_ROOT / ".claude" / "scripts" / "carros_base.py"
+    if not script.exists():
+        print("❌ VerifyGate runner missing: .claude/scripts/carros_base.py", file=sys.stderr)
+        return 2
+    activate = subprocess.run(
+        [sys.executable, str(script), "tick", "--step", step_id],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    if activate.returncode != 0:
+        print((activate.stdout or "") + (activate.stderr or ""), file=sys.stderr)
+        return activate.returncode
+    result = subprocess.run(
+        [sys.executable, str(script), "verify", "--step", step_id],
+        cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+    )
+    output = (result.stdout or "") + (result.stderr or "")
+    if output:
+        print(output.rstrip())
+    return result.returncode
+
+
+def _resolve_current_step(plan_dir: Path) -> str | None:
+    """Resolve the active step or first dependency-ready pending step."""
+    plan_md = plan_dir / "plan.md"
+    if not plan_md.exists():
+        return None
+    try:
+        import step_contracts
+        steps = step_contracts.parse_plan_steps(plan_md.read_text(encoding="utf-8"))
+        for step in steps:
+            if step["status"] == "active":
+                return step["id"]
+        return step_contracts.find_first_activatable_step(steps)
+    except Exception:
+        return find_first_incomplete_step(plan_dir)
+
+
+def cmd_verify_step(step_id: str = ""):
+    """Verify one goal step; only canonical VerifyGate may mark plan.md [x]."""
+    mode_data, _ = _read_mode_file()
+    plan_dir = _get_plan_dir(mode_data)
+    if not step_id or not plan_dir:
+        print("❌ 用法: lx-goal.py verify-step <step_id>", file=sys.stderr)
+        return 2
+    return _verify_goal_step(step_id)
+
+
 def cmd_task_done(description: str = "未知任务"):
-    """标记一项任务为已完成（记录证据到 executor.md）"""
+    """Verify the current step before recording a goal task completion."""
     mode_data, path = _read_mode_file()
+    plan_dir = _get_plan_dir(mode_data)
+    step_id = _resolve_current_step(plan_dir) if plan_dir else None
+    if plan_dir and step_id:
+        rc = _verify_goal_step(step_id)
+        if rc != 0:
+            print(f"❌ 未记录完成：{step_id} 未通过 VerifyGate", file=sys.stderr)
+            return rc
+    elif plan_dir:
+        print("❌ 未记录完成：当前 goal 没有 current_step", file=sys.stderr)
+        return 2
+
     ts = datetime.now().isoformat()
     mode_data.setdefault("completed_tasks", []).append({"description": description, "timestamp": ts})
     _write_mode_file(mode_data, path)
-
-    # 记录证据到 executor.md（通过 executor_ledger，而非直接追加 plan.md）
-    plan_dir = _get_plan_dir(mode_data)
     if plan_dir:
-        executor_path = plan_dir / "executor.md"
-        _ledger_append_block(
-            executor_path,
-            "Completed Tasks",
-            {"task": description, "timestamp": ts},
-        )
-        # 更新物理锁计数器
+        _ledger_append_block(plan_dir / "executor.md", "Completed Tasks", {"task": description, "timestamp": ts})
         _update_lock_counter(plan_dir, "completed_tasks")
-
-    print(f"✅ 已标记任务完成: {_sanitize(description)}")
+    print(f"✅ 已验证并标记任务完成: {_sanitize(description)}")
+    return 0
 
 
 def cmd_skip_risk(description: str = "未知风险", risk_level: str = "low", reason: str = "", impact: str = ""):
@@ -905,6 +987,12 @@ def cmd_done():
         print("❌ 计划目录不存在，无法完成验收")
         sys.exit(1)
 
+    # 门禁：计划步骤未全部勾选时不得关闭 goal，即使阶段性 checklist 通过。
+    incomplete_steps = incomplete_plan_steps(plan_dir)
+    if incomplete_steps:
+        print(f"❌ 计划仍有未完成步骤: {', '.join(incomplete_steps)}；继续执行，不得关闭 goal", file=sys.stderr)
+        sys.exit(1)
+
     # 门禁：先跑 checklist-verify
     try:
         cmd_checklist_verify()
@@ -975,6 +1063,7 @@ KNOWN_SUBCOMMANDS = {
     "poll": cmd_poll,
     "is-active": cmd_is_active,
     "task-done": cmd_task_done,
+    "verify-step": cmd_verify_step,
     "skip-risk": cmd_skip_risk,
     "hard-boundary-hit": cmd_hard_boundary_hit,
     "blocked-human": cmd_blocked_human,
@@ -1047,13 +1136,16 @@ def main():
     elif cmd_name == "skip-risk":
         # skip-risk "描述" [risk_level] [reason] [impact]
         cmd_skip_risk(*(args[:4]))
-    elif cmd_name in ("task-done", "hard-boundary-hit", "blocked-human"):
+    elif cmd_name in ("task-done", "verify-step", "hard-boundary-hit", "blocked-human"):
         handlers = {
             "task-done": cmd_task_done,
+            "verify-step": cmd_verify_step,
             "hard-boundary-hit": cmd_hard_boundary_hit,
             "blocked-human": cmd_blocked_human,
         }
-        handlers[cmd_name](*(args[:3]))
+        rc = handlers[cmd_name](*(args[:3]))
+        if isinstance(rc, int):
+            sys.exit(rc)
     else:
         # off, status, phase0-done, report, poll, retry, done — 无参数
         rc = KNOWN_SUBCOMMANDS[cmd_name]()

@@ -65,6 +65,18 @@ async function measureVp(vp) {
   await b.close();
   writeFileSync(`${OUT}/impl-styles${SUF}.json`, JSON.stringify({ url: IMPL, count: implRows.length, rows: implRows }, null, 1));
 
+  // 空壳/未挂载页面不能生成可消费的分数，否则 loop 会把失效测量误判为收敛。
+  const goldRows = JSON.parse(readFileSync(G.styles, 'utf8')).rows || [];
+  if (goldRows.length < cfg.domMin) {
+    console.error(`GOLD_INCOMPLETE: gold rows ${goldRows.length} < domMin ${cfg.domMin} — 重采 gold 后再测量`);
+    process.exit(2);
+  }
+  const minRows = Math.max(20, Math.ceil(goldRows.length * 0.2));
+  if (implRows.length < minRows) {
+    console.error(`BLOCKED_CONTENT_NOT_MOUNTED: impl rows ${implRows.length} < minimum ${minRows} (gold ${goldRows.length})`);
+    process.exit(3);
+  }
+
   // ── 2. 加载 gold ──
   const protoPng = PNG.sync.read(readFileSync(G.png));
   const protoStyles = JSON.parse(readFileSync(G.styles, 'utf8'));

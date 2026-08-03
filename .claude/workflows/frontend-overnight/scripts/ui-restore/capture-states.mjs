@@ -13,11 +13,12 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { loadTask } from './task-config.mjs';
 
 const [url, outDir, ...flags] = process.argv.slice(2);
-const opt = (n, d) => { const i = flags.indexOf(n); return i > -1 ? +flags[i + 1] : d; };
+const opt = (n, d) => { const i = flags.indexOf(n); return i > -1 ? flags[i + 1] : d; };
+const numOpt = (n, d) => { const value = opt(n, d); const parsed = Number(value); return Number.isFinite(parsed) ? parsed : d; };
 if (!url || !outDir) { console.error('usage: capture-states.mjs <url> <outDir> --task X [--dismiss-modal] [--wait ms]'); process.exit(1); }
-const TASK = opt('--task', 0) || 'home_page';
+const TASK = opt('--task', 'home_page') || 'home_page';
 const cfg = loadTask(TASK);
-const WAIT = opt('--wait', 3000);
+const WAIT = numOpt('--wait', 3000);
 const ONLY = (() => { const i = flags.indexOf('--only'); return i > -1 ? flags[i + 1].split(',') : null; })();
 const DISMISS = flags.includes('--dismiss-modal');
 mkdirSync(outDir, { recursive: true });
@@ -62,14 +63,20 @@ async function resolveAnchor(page, action) {
       const m = a.y.match(/^([><])(\d+)$/);
       return m ? (m[1] === '>' ? o.r.y > +m[2] : o.r.y < +m[2]) : true;
     };
+    const xOk = o => a.xMax === undefined || o.r.x <= a.xMax;
     let hit = null;
     // 图标匹配：精确 lucide-<icon>；lucide 版本改名（align-justify→text-align-justify，
     // message-circle-question→message-circle-question-mark）→ 长名（≥6）允许子串，短名后缀防误配
+    const aliases = {
+      'message-circle-question-mark': ['message-circle-question', 'message-circle-question-mark'],
+      'message-circle-question': ['message-circle-question', 'message-circle-question-mark'],
+    };
+    const iconNames = aliases[a.icon] || [a.icon];
     const iconHit = o => o.cls.split(/\s+/).some(c =>
-      c === `lucide-${a.icon}` || c.endsWith(`-${a.icon}`) || (a.icon.length >= 6 && c.includes(`-${a.icon}`)));
+      iconNames.some(name => c === `lucide-${name}` || c.endsWith(`-${name}`) || (name.length >= 6 && c.includes(`-${name}`))));
     if (a.icon) hit = rows.find(o => iconHit(o) && yOk(o));
     if (!hit && a.text) {
-      const cands = rows.filter(o => o.ownText === a.text && yOk(o));
+      const cands = rows.filter(o => o.ownText === a.text && yOk(o) && xOk(o));
       hit = cands[cands.length - 1] || null; // 多个同名取最后（DOM 序后者通常为主区域）
     }
     if (!hit) return null;
@@ -99,7 +106,7 @@ async function clearModal(page) {
 
 for (const st of STATES) {
   const page = await b.newPage({ viewport: { width: cfg.vw, height: cfg.vh }, deviceScaleFactor: cfg.dsf });
-  // 站点限流/网络抖动重试（与 discover-states 同策略：3 次，3s/8s 退避）
+  // 站点限流/网络抖动重试（与 discover-states 同策略：3 次 [内部自检，非行业标准]，3s/8s 退避）
   for (let attempt = 0; attempt < 3; attempt++) {
     try { await page.goto(url, { timeout: 90000, waitUntil: 'domcontentloaded' }); break; }
     catch (e) {
@@ -116,8 +123,17 @@ for (const st of STATES) {
     await page.waitForTimeout(800);
   }
   await clearModal(page); // 晚渲染遮罩兜底（DISMISS 未开时也执行——impl 无遮罩秒过）
-  const actions = st.actions || [st.action];
   let lastAnchor = null, failed = false, before = null;
+  const preactions = st.preactions || [];
+  for (const act of preactions) {
+    const anchor = await resolveAnchor(page, act);
+    if (!anchor) { console.error(`SKIP ${st.name}: preaction 锚点未找到 ${JSON.stringify(act)}`); failed = true; break; }
+    await page.mouse.click(anchor.x, anchor.y);
+    await page.waitForTimeout(act.settle ?? st.settle ?? 800);
+  }
+  if (failed) { await page.close(); continue; }
+  const actions = st.actions || [st.action];
+  const routeBefore = page.url();
   for (const act of actions) {
     // 锚点就绪轮询：慢站/异步渲染下固定 wait 不可靠（铁律：无人值守必须自适应）
     let anchor = null;
@@ -148,14 +164,16 @@ for (const st of STATES) {
   }
   if (failed) { await page.close(); continue; }
   const after = await page.evaluate(EXTRACT);
+  const routeAfter = page.url();
   const beforeSet = new Set(before.map(sig));
   const delta = after.filter(r => !beforeSet.has(sig(r)));
+  const rows = st.capture === 'full' ? after : delta;
   await page.screenshot({ path: `${outDir}/${st.name}.png` });
   writeFileSync(`${outDir}/${st.name}.delta.json`, JSON.stringify({
-    state: st.name, actions, anchor: lastAnchor, url, viewport: [cfg.vw, cfg.vh],
-    beforeCount: before.length, afterCount: after.length, deltaCount: delta.length, rows: delta,
+    state: st.name, actions, preactions, capture: st.capture || 'delta', anchor: lastAnchor, url, routeBefore, routeAfter, viewport: [cfg.vw, cfg.vh],
+    beforeCount: before.length, afterCount: after.length, deltaCount: delta.length, rows,
   }, null, 1));
-  console.log(`${st.name}: anchor=(${lastAnchor.x},${lastAnchor.y}) "${lastAnchor.found}" delta=${delta.length} → ${outDir}/${st.name}.{png,delta.json}`);
+  console.log(`${st.name}: anchor=(${lastAnchor.x},${lastAnchor.y}) "${lastAnchor.found}" route=${routeBefore}→${routeAfter} delta=${delta.length} → ${outDir}/${st.name}.{png,delta.json}`);
   await page.close();
 }
 await b.close();

@@ -6,6 +6,8 @@ import { PATHS } from './paths'
 const AppLayout = lazy(() => import('@/layouts/AppLayout'))
 const ConsolePage = lazy(() => import('@/pages/console'))
 const DiscoverPage = lazy(() => import('@/pages/discover'))
+const AssistantDetailPage = lazy(() => import('@/pages/assistant-detail'))
+const AipptPage = lazy(() => import('@/pages/aippt'))
 const EcosystemPage = lazy(() => import('@/pages/ecosystem'))
 const LoginPage = lazy(() => import('@/pages/login'))
 const ReportsPage = lazy(() => import('@/pages/reports'))
@@ -20,6 +22,9 @@ export const router = createBrowserRouter([
       { index: true, element: <ConsolePage /> },
       { path: '/chat', element: <ConsolePage /> },
       { path: PATHS.DISCOVER, element: <DiscoverPage /> },
+      { path: PATHS.ASSISTANT_DETAIL, element: <AssistantDetailPage /> },
+      { path: PATHS.ASSISTANT_DETAIL_LEGACY, element: <AssistantDetailPage /> },
+      { path: '/aippt', element: <AipptPage /> },
       { path: PATHS.ECOSYSTEM, element: <EcosystemPage /> },
       { path: PATHS.LOGIN, element: <LoginPage /> },
       { path: PATHS.REPORTS, element: <ReportsPage /> },

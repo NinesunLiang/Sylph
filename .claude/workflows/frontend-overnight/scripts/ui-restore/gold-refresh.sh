@@ -17,6 +17,7 @@ fi
 
 # 从 task.json 读 proto/viewport/dsf（jq 不一定装 → node 兜底）
 # 多断点（§十二）：viewports[] 存在时逐断点采集，文件名加 -<w>x<h> 后缀；单断点保持 legacy 命名
+GOLD_CLICK_TEXT="$(node -e "const c=require('./$CFG'); console.log(c.goldClickText || '')")"
 read -r PROTO_URL DSF <<< "$(node -e "
 const c = require('./$CFG');
 console.log([c.proto || '', c.dsf ?? 2].join(' '));
@@ -40,7 +41,9 @@ mkdir -p "$GOLD"
 
 echo "$VPS" | while read -r VW VH SUF; do
   echo "[1/2] extracting computed styles → $GOLD/proto-styles${SUF}.json (${VW}x${VH}, proto 慢流式 wait 40s)"
-  node "$DIR/extract-styles.mjs" "$PROTO_URL" "$GOLD/proto-styles${SUF}.json" --dismiss-modal --vw "$VW" --vh "$VH" --wait 40000
+  EXTRA=()
+  if [ -n "$GOLD_CLICK_TEXT" ]; then EXTRA+=(--click-text "$GOLD_CLICK_TEXT"); fi
+  node "$DIR/extract-styles.mjs" "$PROTO_URL" "$GOLD/proto-styles${SUF}.json" --dismiss-modal --vw "$VW" --vh "$VH" --wait 40000 "${EXTRA[@]}"
 
   echo "[2/2] capturing screenshot → $GOLD/proto${SUF}.png"
   node "$DIR/capture-impl.mjs" "$PROTO_URL" "$GOLD/proto${SUF}.png" --wait 40000 --dismiss-modal --vw "$VW" --vh "$VH" --dsf "$DSF"
