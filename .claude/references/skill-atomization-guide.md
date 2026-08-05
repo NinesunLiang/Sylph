@@ -36,8 +36,8 @@ skills/lx-{name}/
 
 - 步骤固定、无需 AI 判断 → 放入 scripts/
 - 纯 Python 实现，不允许 Node.js/Go 等运行时依赖
-- 遵守 stdin JSON / stdout JSON / exit code 2 协议
-- 退出码 `0` = 正常放行，`2` = 阻断/失败，`1` = 系统错误
+- 遵守 stdin JSON / stdout JSON continuation 协议
+- gate 决策统一通过 JSON：`continue: true` 配合 `permissionDecision: deny` 表示阻断；`continue: false` 表示 hard stop；进程 exit code `0` 表示协议结果已成功输出，非零仅用于 launcher/系统错误
 
 ### 第三层：按需知识层（references/）
 

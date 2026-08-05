@@ -38,13 +38,10 @@ def ok(name, cond, detail=""):
         print(f"  ❌ {name} {detail}")
 
 
-# ── import 真实 _check_verified（pretool-gate 顶层仅常量定义 + os.chdir(ROOT)，安全） ──
-_spec = importlib.util.spec_from_file_location("pretool_gate", ROOT / ".claude/hooks/pretool-gate.py")
-assert _spec is not None and _spec.loader is not None, "cannot load pretool-gate.py"
-pg = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(pg)
+# ── import the modular helper used by the router ──
+sys.path.insert(0, str(ROOT / ".claude" / "hooks"))
+from pretool_gates.helpers import _check_verified as check_verified
 os.chdir(ROOT)
-check_verified = pg._check_verified
 
 
 def write_event(audit_dir, event):
@@ -124,8 +121,19 @@ PLAN_RULE = """# Plan
   - verify: command:echo ok
 """
 EV_GOOD = """# Executor
+## Conditions
+- test fixture is isolated
+## Key Changes
+- no production files changed
+## Decisions
+- rationale: use the canonical verify command
+## Acceptance Checklist
+- [x] fixture is complete
+## TDD Evidence
+- dependency TDD command: echo dependency TDD → exit 0
+- regression TDD command: echo regression TDD → exit 0
 ## S1
-### EV-001
+### EV-S1
 - step: S1
 - type: command
 - source: echo ok
@@ -174,18 +182,27 @@ print("=" * 64)
 print("E: carros_base.py verify 端到端")
 print("=" * 64)
 
-CARROS = ROOT / ".claude/scripts/carros_base.py"
+_E2E_TMP = tempfile.TemporaryDirectory(prefix="carros-verify-e2e-")
+E2E_ROOT = Path(_E2E_TMP.name)
+(E2E_ROOT / ".omc").mkdir(parents=True, exist_ok=True)
+shutil.copytree(ROOT / ".claude" / "scripts", E2E_ROOT / ".claude" / "scripts")
+shutil.copytree(ROOT / ".claude" / "hooks", E2E_ROOT / ".claude" / "hooks")
+CARROS = E2E_ROOT / ".claude/scripts/carros_base.py"
 DATE = datetime.now(timezone.utc).strftime("%Y%m%d")
 E2E_TIDS = ["tt-e2e-pass", "tt-e2e-block", "tt-e2e-degrade"]
+CURRENT_TOKEN = None
 
 
 def run_cb(*args):
+    env = os.environ.copy()
+    if CURRENT_TOKEN is not None:
+        env["CARROROS_TOKEN_PATH"] = str(CURRENT_TOKEN)
     return subprocess.run([sys.executable, str(CARROS), *args],
-                          capture_output=True, text=True, cwd=str(ROOT), timeout=60)
+                          capture_output=True, text=True, cwd=str(E2E_ROOT), timeout=60, env=env)
 
 
 def task_paths(tid):
-    return (ROOT / ".omc/tokens" / DATE / f"{tid}.json", ROOT / ".omc/tasks" / DATE / tid)
+    return (E2E_ROOT / ".omc/tokens" / DATE / f"{tid}.json", E2E_ROOT / ".omc/tasks" / DATE / tid)
 
 
 def read_events(tdir):
@@ -219,17 +236,19 @@ def cleanup():
             pass
 
 
-# cmd_verify 成功会重写 .omc/session-handoff.md — E 层前后快照/恢复,保持测试密闭
-HANDOFF = ROOT / ".omc/session-handoff.md"
-_handoff_backup = HANDOFF.read_bytes() if HANDOFF.exists() else None
+# E2E 状态全部在临时 sandbox，避免当前 goal token 污染或被测试覆盖。
+HANDOFF = E2E_ROOT / ".omc/session-handoff.md"
 
 try:
     # E1/E2: 有规则+有证据 → exit 0 + [x] + task-bound VERIFIED
     tid = "tt-e2e-pass"
+    CURRENT_TOKEN = None
     run_cb("init", "--task-id", tid, "--step", "S1")
-    _, tdir = task_paths(tid)
+    token_path, tdir = task_paths(tid)
+    CURRENT_TOKEN = token_path
     (tdir / "plan.md").write_text(PLAN_RULE, encoding="utf-8")
     (tdir / "executor.md").write_text(EV_GOOD, encoding="utf-8")
+    run_cb("tick", "--step", "S1")
     r = run_cb("verify", "--step", "S1")
     plan_after = (tdir / "plan.md").read_text(encoding="utf-8")
     ver = verified_events(read_events(tdir))
@@ -244,20 +263,26 @@ try:
 
     # E3/E4: 有规则无证据 → exit 2 + 不标记 [x] + Gate 不放行
     tid = "tt-e2e-block"
+    CURRENT_TOKEN = None
     run_cb("init", "--task-id", tid, "--step", "S1")
-    _, tdir = task_paths(tid)
+    token_path, tdir = task_paths(tid)
+    CURRENT_TOKEN = token_path
     (tdir / "plan.md").write_text(PLAN_RULE, encoding="utf-8")
+    run_cb("tick", "--step", "S1")
     r = run_cb("verify", "--step", "S1")
     plan_after = (tdir / "plan.md").read_text(encoding="utf-8")
     ok("E3 有规则无证据 → exit 2 + 不标记 [x]",
-       r.returncode == 2 and "- [ ] S1:" in plan_after,
+       r.returncode == 2 and "- [x] S1:" not in plan_after,
        f"rc={r.returncode} out={r.stdout[-200:]}")
     ok("E4 Gate 回读： 被阻 step 不放行", check_verified("S1", tid, tdir) is False)
 
     # E5/E6: L1 无验证规则 → 降级标记 + verify_degraded 留痕（非 VERIFIED）
     tid = "tt-e2e-degrade"
+    CURRENT_TOKEN = None
     run_cb("init", "--task-id", tid, "--step", "S1")
-    _, tdir = task_paths(tid)
+    token_path, tdir = task_paths(tid)
+    CURRENT_TOKEN = token_path
+    (tdir / "plan.md").write_text("# Plan\n\n## Steps\n- [ ] S1: degrade\n", encoding="utf-8")
     r = run_cb("verify", "--step", "S1")
     plan_after = (tdir / "plan.md").read_text(encoding="utf-8")
     events = read_events(tdir)
@@ -269,9 +294,9 @@ try:
     ok("E6 降级不产生 VERIFIED → Gate 不放行",
        len(ver) == 0 and check_verified("S1", tid, tdir) is False)
 finally:
+    CURRENT_TOKEN = None
     cleanup()
-    if _handoff_backup is not None:
-        HANDOFF.write_bytes(_handoff_backup)
+    _E2E_TMP.cleanup()
 
 print("=" * 64)
 total = PASS + FAIL

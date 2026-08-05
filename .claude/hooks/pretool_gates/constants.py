@@ -37,7 +37,6 @@ SENSITIVE_PATTERNS = [
     r"cookie",
     # ── 治理文件保护域 ──
     r"(^|/)\.claude/hooks/",
-    r"(^|/)\.claude/scripts/",
     r"(^|/)\.claude/settings\.json",
     r"(^|/)scripts/carroros-gates/",
     r"(^|/)\.harness-evidence/",

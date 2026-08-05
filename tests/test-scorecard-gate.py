@@ -61,9 +61,12 @@ proc = run_hook({"tool_name": "Write", "tool_input": {
     "file_path": "improve_plan/something/scorecard.md",
     "content": "## Scores\n| Item | Name | Before | External | Current | Verdict |\n|------|------|--------|---------|---------|--------|\n| C1 | 代码质量 | 10 | 7 | **8** | **6** |\n"
 }})
+result = out(proc) or {}
 check("T3 scorecard-no-evidence",
-      proc.returncode != 0 or (out(proc) or {}).get("continue") is False,
-      f"rc={proc.returncode} out={proc.stdout[:100] if proc.stdout else '(empty)'}")
+      proc.returncode == 0
+      and result.get("continue") is True
+      and (result.get("hookSpecificOutput") or {}).get("permissionDecision") == "deny",
+      f"rc={proc.returncode} out={proc.stdout[:160] if proc.stdout else '(empty)'}")
 
 # ── T4: Scorecard write WITH evidence → pass ──
 proc = run_hook({"tool_name": "Write", "tool_input": {

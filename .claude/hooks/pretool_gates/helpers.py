@@ -74,6 +74,7 @@ def _is_governance(path: str) -> bool:
     p = path.replace("\\", "/")
     gov_patterns = [
         r"(^|/)\.claude/hooks/",
+        r"(^|/)\.claude/scripts/",
         r"(^|/)\.claude/settings\.json",
         r"(^|/)scripts/carroros-gates/",
         r"(^|/)\.claude/kernel\.md$",
@@ -414,8 +415,13 @@ def _active_token() -> dict[str, Any] | None:
 def _task_dir(token: dict) -> Path | None:
     task = token.get("task", {})
     if not isinstance(task, dict):
-        return None
-    explicit = task.get("dir") or token.get("task_dir")
+        task = {}
+    explicit = (
+        task.get("dir")
+        or token.get("task_dir")
+        or token.get("rpe_plan_dir")
+        or token.get("plan_dir")
+    )
     if explicit:
         p = ROOT / explicit if not Path(explicit).is_absolute() else Path(explicit)
         if p.exists():

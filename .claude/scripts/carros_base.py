@@ -905,6 +905,17 @@ def _find_latest_token(require_active=True):
 
     排序规则：按文件 mtime 倒序（最新写的优先），而非文件名排序
     """
+    override = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if override:
+        explicit = Path(override).expanduser()
+        try:
+            token = json.loads(explicit.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None, None
+        if isinstance(token, dict) and token.get("status") == "active":
+            return token, explicit
+        return None, None
+
     OMC_TOKENS.mkdir(parents=True, exist_ok=True)
     if not OMC_TOKENS.exists():
         return None, None
@@ -989,8 +1000,8 @@ def cmd_status(hot_mode=True):
     return 0
 
 
-def cmd_tick():
-    """递增 tick 计数器 + 自动追踪当前步骤状态"""
+def cmd_tick(step_id=None):
+    """递增 tick 计数器并原子激活可执行步骤。"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -1004,21 +1015,21 @@ def cmd_tick():
         return 2
 
 
-    # 找当前 activatable pending 步骤 — dependency-aware
-    current_step = None
-    if PLAN_PATH and PLAN_PATH.exists() and step_contracts:
+    # Use an explicit step when requested; otherwise find the first activatable step.
+    current_step = step_id
+    if current_step is None and PLAN_PATH and PLAN_PATH.exists() and step_contracts:
         plan_content = PLAN_PATH.read_text()
         steps = step_contracts.parse_plan_steps(plan_content)
         activatable = step_contracts.find_first_activatable_step(steps)
         if activatable:
             current_step = activatable
-    elif PLAN_PATH and PLAN_PATH.exists():
+    elif current_step is None and PLAN_PATH and PLAN_PATH.exists():
         # fallback: simple regex
         plan_content = PLAN_PATH.read_text()
         pending_steps = re.findall(r"^- \[ \] (\S+?):", plan_content, re.MULTILINE)
         if pending_steps:
             current_step = pending_steps[0]
-    else:
+    elif current_step is None:
         current_step = token.get("task", {}).get("current_step")
 
     if "tick" in token.get("stats", {}):
@@ -2724,6 +2735,12 @@ def main(argv=None):
         if auto_mode:
             return cmd_auto_init(steps=steps, target=target)
         return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode)
+
+    elif command == "tick":
+        step_id = None
+        if args and args[0] == "--step" and len(args) >= 2:
+            step_id = args[1]
+        return cmd_tick(step_id=step_id)
 
     elif command == "verify":
         step_id = None

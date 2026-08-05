@@ -45,12 +45,11 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 def _load_gate():
-    spec = importlib.util.spec_from_file_location(
-        "pretool_gate", ROOT / ".claude" / "hooks" / "pretool-gate.py"
-    )
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod
+    sys.path.insert(0, str(ROOT / ".claude" / "hooks"))
+    from pretool_gates import checks
+    from pretool_gates import helpers
+    checks._helpers_module = helpers
+    return checks
 
 
 def _write_token(tokens: Path, day: str, name: str, obj: dict | str, mtime_offset: float = 0.0) -> Path:
@@ -80,9 +79,12 @@ def _write_payload(path: str = "/tmp/x.md") -> dict:
 
 
 gate = _load_gate()
+from pretool_gates import helpers as gate_helpers
 
-# ── 每个场景独立沙盒: monkeypatch gate.TOKENS / gate.AUDIT / gate._auto_init ──
-orig_tokens, orig_audit, orig_auto_init = gate.TOKENS, gate.AUDIT, gate._auto_init
+# ── 每个场景独立沙盒: monkeypatch checks/helpers state and _auto_init ──
+orig_tokens, orig_audit, orig_active, orig_auto_init = (
+    gate_helpers.TOKENS, gate_helpers.AUDIT, gate._active_token, gate._auto_init
+)
 
 
 def run_scenario(name: str, setup, expect):
@@ -96,13 +98,22 @@ def run_scenario(name: str, setup, expect):
         auto_init_calls: list[str | None] = []
         gate.TOKENS = tokens
         gate.AUDIT = audit
+        gate_helpers.TOKENS = tokens
+        gate_helpers.AUDIT = audit
+        gate._active_token = lambda: (
+            gate_helpers._read_json(gate_helpers._latest_token())
+            if gate_helpers._latest_token() else None
+        )
         gate._auto_init = lambda p=None: auto_init_calls.append(p)
         try:
             setup(tokens, audit)
             result = gate._check_plan_gate(_write_payload())
             expect(result, auto_init_calls)
         finally:
-            gate.TOKENS, gate.AUDIT, gate._auto_init = orig_tokens, orig_audit, orig_auto_init
+            gate.TOKENS, gate.AUDIT = orig_tokens, orig_audit
+            gate_helpers.TOKENS, gate_helpers.AUDIT, gate._active_token, gate._auto_init = (
+                orig_tokens, orig_audit, orig_active, orig_auto_init
+            )
 
 
 # ── P1 全新仓库: 无任何 token → auto-init 放行 ──

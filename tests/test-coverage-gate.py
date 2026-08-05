@@ -49,6 +49,7 @@ MECHANISMS: list[tuple[str, str, list[str], str | None]] = [
     ("turn-counter", "hook", [".claude/hooks/turn-counter.py"], None),
     ("token-writer", "hook", [".claude/hooks/token_writer.py"], None),
     ("carroros-night-deny", "hook", [".claude/hooks/carroros-night-deny.py"], "test-night-deny.py"),
+    ("pretool-scorecard-gate", "hook", [".claude/hooks/pretool-scorecard-gate.py"], "test-scorecard-gate.py"),
     # ── scripts 层 ──
     ("verify-gate", "script", [".claude/scripts/verify_gate.py"], "test-verify-gate.py"),
     ("fallback-engine", "script", [".claude/scripts/fallback_engine.py"], "test-fallback-engine.py"),

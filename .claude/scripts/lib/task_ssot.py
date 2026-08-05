@@ -52,14 +52,17 @@ def is_task_token(data: dict[str, Any]) -> bool:
 
 
 def latest_active_token(tokens_dir: Path, *, require_stats: bool = False) -> Path | None:
-    """mtime 降序扫描,返回第一个活跃任务 token;无 → None。
+    """Return the current goal token before falling back to legacy task tokens.
 
-    require_stats=True: 额外要求 stats 为 dict(pretool-user-approve 水位回写需要)。
+    lx-goal stores its active execution token beside the legacy task-token tree;
+    selecting by mtime alone can resurrect an unrelated historical task.
     """
     if not tokens_dir.exists():
         return None
-    candidates = sorted(
-        [p for p in tokens_dir.glob("*/*.json") if p.is_file()],
+    state_goal = tokens_dir.parent / "state" / "tokens" / "lx-goal.json"
+    prioritized = [state_goal] if state_goal.is_file() else []
+    candidates = prioritized + sorted(
+        [p for p in tokens_dir.glob("*/*.json") if p.is_file() and p != state_goal],
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )
@@ -69,9 +72,10 @@ def latest_active_token(tokens_dir: Path, *, require_stats: bool = False) -> Pat
             continue
         if is_terminal(data):
             continue
-        if not is_task_token(data):
+        is_active_goal = path.name == "lx-goal.json" and bool(data.get("active")) and data.get("mode") == "goal"
+        if not is_active_goal and not is_task_token(data):
             continue
-        if require_stats and not isinstance(data.get("stats"), dict):
+        if require_stats and not is_active_goal and not isinstance(data.get("stats"), dict):
             continue
         return path
     return None

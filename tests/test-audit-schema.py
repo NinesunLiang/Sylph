@@ -49,7 +49,9 @@ def _load(name: str, path: Path):
     return mod
 
 
-pg = _load("pretool_gate", ROOT / ".claude" / "hooks" / "pretool-gate.py")
+sys.path.insert(0, str(ROOT / ".claude" / "hooks"))
+from pretool_gates import checks as pg
+from pretool_gates import helpers as pg_helpers
 vg = _load("verify_gate", ROOT / ".claude" / "scripts" / "verify_gate.py")
 cu = _load("carros_utils", ROOT / ".claude" / "scripts" / "carros_utils.py")
 
@@ -73,7 +75,7 @@ def _read_events(audit_dir: Path) -> list[dict]:
     return events
 
 
-orig_pg_tokens, orig_pg_audit = pg.TOKENS, pg.AUDIT
+orig_pg_tokens, orig_pg_audit = pg_helpers.TOKENS, pg_helpers.AUDIT
 
 # ── P1/P2/P3: pretool-gate._append_audit task_id/step_id 注入 ──
 with tempfile.TemporaryDirectory() as tmp:
@@ -85,7 +87,7 @@ with tempfile.TemporaryDirectory() as tmp:
         "task": {"id": "t-joint", "status": "active", "current_step": "S4b"},
         "stats": {"done": 3, "total": 4},
     })
-    pg.TOKENS, pg.AUDIT = tokens, audit
+    pg_helpers.TOKENS, pg_helpers.AUDIT = tokens, audit
     try:
         pg._append_audit({"event_type": "scope_violation", "actor": "hook:pretool-gate",
                           "decision": "BLOCK", "reason": "token_scope_violation", "path": "/x"})
@@ -100,13 +102,13 @@ with tempfile.TemporaryDirectory() as tmp:
         check("P2 explicit-not-overridden", ev.get("task_id") == "explicit-task" and ev.get("step_id") == "S9",
               f"got task_id={ev.get('task_id')} step_id={ev.get('step_id')}")
     finally:
-        pg.TOKENS, pg.AUDIT = orig_pg_tokens, orig_pg_audit
+        pg_helpers.TOKENS, pg_helpers.AUDIT = orig_pg_tokens, orig_pg_audit
 
 with tempfile.TemporaryDirectory() as tmp:
     tmp_path = Path(tmp)
     tokens, audit = tmp_path / "tokens", tmp_path / "audit"
     tokens.mkdir(); audit.mkdir()
-    pg.TOKENS, pg.AUDIT = tokens, audit
+    pg_helpers.TOKENS, pg_helpers.AUDIT = tokens, audit
     try:
         pg._append_audit({"event_type": "scope_violation", "actor": "hook:pretool-gate",
                           "decision": "BLOCK", "reason": "x", "path": "/y"})
@@ -116,7 +118,7 @@ with tempfile.TemporaryDirectory() as tmp:
         check("P3 no-token-no-fake-id", "task_id" not in events[0] or events[0].get("task_id") in (None, "unknown"),
               f"task_id={events[0].get('task_id')}")
     finally:
-        pg.TOKENS, pg.AUDIT = orig_pg_tokens, orig_pg_audit
+        pg_helpers.TOKENS, pg_helpers.AUDIT = orig_pg_tokens, orig_pg_audit
 
 # ── A1/A2: verify_gate.write_audit claim 字段 ──
 with tempfile.TemporaryDirectory() as tmp:

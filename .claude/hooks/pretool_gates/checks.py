@@ -29,7 +29,7 @@ from .helpers import (
     _check_trust_breach, _record_trust_breach, _is_trust_breach_reason,
     _match_any, _append_audit,
     _active_token, _task_dir,
-    _in_scope, _check_verified,
+    _in_scope, _parse_scope, _check_verified,
     _auto_init, _safe_unlink, _auto_archive_token,
     _failure_escalate, _clean_stale_state_token,
     _read_json, _latest_token,
@@ -244,6 +244,20 @@ def _check_edit_scope(payload: dict) -> str | None:
     if not path:
         return None
     if _is_governance(path):
+        token = _active_token()
+        task_dir = _task_dir(token) if token else None
+        declared_scope = []
+        if task_dir:
+            plan_path = task_dir / "plan.md"
+            try:
+                if plan_path.exists():
+                    declared_scope = _parse_scope(plan_path.read_text(encoding="utf-8"))
+            except OSError:
+                declared_scope = []
+        if _goal_mode() and declared_scope and _in_scope(path, declared_scope):
+            _append_audit({"event_type": "governance_scope_allow", "actor": "hook:pretool-gate",
+                           "decision": "ALLOW", "reason": "human-approved-plan-scope", "path": path})
+            return None
         _append_audit({"event_type": "governance_scope_block", "actor": "hook:pretool-gate",
                         "decision": "BLOCK", "reason": "governance_file_out_of_scope", "path": path})
         return "BLOCK governance_path: 治理文件路径不可越界编辑。"

@@ -37,7 +37,7 @@ restore() {
     mv "$S4" "$GOAL_MODE"
     echo "[restore] lx-goal.json 已还原"
   fi
-  if [ "$M5" = "1" ] && [ -f "$S5" ]; then
+  if [ "$M5" = "1" ]; then
     STASH_DIR="/tmp/carros-regression.active-tokens"
     if [ -d "$STASH_DIR" ]; then
       for f in "$STASH_DIR"/*.json; do
@@ -124,7 +124,7 @@ run_suite "pkg-c-lifecycle"   "pkgc"      python3 tests/test_pkg_c_lifecycle.py
 run_suite "task-ssot"         "ssot"      python3 tests/test-task-ssot.py
 run_suite "e4-inertia"        "e4"        python3 tests/test-e4-inertia.py
 run_suite "fallback-engine"   "fallback"  python3 tests/test-fallback-engine.py
-run_suite "coverage-gate"     "coverage"  bash -c 'python3 tests/test-coverage-gate.py; exit 0'
+run_suite "coverage-gate"     "coverage"  python3 tests/test-coverage-gate.py --block
 run_suite "audit-schema"      "audit"     python3 tests/test-audit-schema.py
 run_suite "nine-challenge"    "nine"      python3 tests/test-nine-challenge.py
 run_suite "lx-stepwise"       "stepwise"  python3 tests/test-lx-stepwise.py

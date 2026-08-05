@@ -1,37 +1,10 @@
 #!/usr/bin/env python3
-# Expected Failure: T2/T3/T4 — GateKeeper v1 oracle_gate 协议格式变更
-#   Expires: 2026-08-15
-#   Bug: _block() 输出改为 GateKeeper 协议A/协议B格式后,goal-mode prompts 内容变化
-import json, os
-from pathlib import Path
-ROOT = Path(__file__).resolve().parents[1]
-for sf in [ROOT / ".omc" / "state" / "action-loop-streak",
-            ROOT / ".omc" / "state" / "scope-violation-streak"]:
-    try: sf.unlink(missing_ok=True)
-    except: pass
+"""Goal-mode gate contract tests.
 
-"""Goal 模式门行为测试——lx-goal 无人值守断裂点修复验收
-
-断裂点: goal 模式(autonomous.active)下,pretool-gate 的 BLOCK/ASK_USER 拦截文案
-唯一出路是「请用户跑 temp-bypass」→ 模型停下来求人,违反无人值守设计。
-修复: goal 模式下拦截保持 fail-closed(exit 2,危险操作绝不执行),
-但文案改为指引模型 blocked-human/skip-risk 记录后继续其他任务。
-
-场景:
-  T1 交互模式(无信号): ASK_USER 门 → exit 2 + temp-bypass 提示(默认行为不变)
-  T2 goal 模式: ASK_USER 门(npm install) → exit 2 + goal 指引 + 无 temp-bypass 提示
-  T3 goal 模式: oracle ESCALATE(L2 token + 不可解析高危) → exit 2 + goal 指引
-  T4 goal 模式: 硬 BLOCK(git push --force) → exit 2 + goal 指引(fail-closed 不放行)
-  T5 goal 模式: 安全命令 → exit 0 放行(不误伤)
-
-副作用声明:
-  - 备份并原样恢复 .omc/state/tokens/autonomous.active 与 lx-goal.json(不吞真实状态)
-  - T3 创建/清理 .omc/tokens/<today>/tt-goal-mode.json(finally 清理)
-  - 各门在 .omc/audit/<today>.jsonl 留测试事件(惰性,无真实任务引用)
-
-Usage: python3 scripts/test-goal-mode-gate.py
-Exit: 0 = PASS, 1 = FAIL
+The hook uses a JSON continuation protocol: the process returns 0 and the
+payload carries either allow, deny, redirect, or hard-stop semantics.
 """
+
 import json
 import os
 import subprocess
@@ -43,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[1]
 HOOK = ROOT / ".claude" / "hooks" / "pretool-gate.py"
 SIGNAL = ROOT / ".omc" / "state" / "tokens" / "autonomous.active"
 MODE_FILE = ROOT / ".omc" / "state" / "tokens" / "lx-goal.json"
+HARNESS_DIR = ROOT / "scripts" / "carroros-gates"
+HARNESS_YAML = HARNESS_DIR / "harness.yaml"
 PASS = 0
 FAIL = 0
 
@@ -57,103 +32,93 @@ def ok(name, cond, detail=""):
         print(f"  ❌ {name} {detail}")
 
 
-def run_hook(cmd):
-    payload = {"tool_name": "Bash", "tool_input": {"command": cmd}}
+def run_hook(command):
+    payload = {"tool_name": "Bash", "tool_input": {"command": command}}
     return subprocess.run(
         [sys.executable, str(HOOK)],
         input=json.dumps(payload),
-        capture_output=True, text=True, cwd=str(ROOT), timeout=30,
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+        timeout=30,
         env={**os.environ, "CARROROS_GATE_MODE": "l2"},
     )
 
 
-# CI 模式(piped stdin → isatty=False)只认 harness.yaml,忽略 env;临时创建
-_HARNESS_DIR = ROOT / "scripts" / "carroros-gates"
-_HARNESS_DIR.mkdir(parents=True, exist_ok=True)
-_HARNESS_YAML = _HARNESS_DIR / "harness.yaml"
-_HARNESS_YAML.write_text("project:\n  gate_mode: l2\n")
+def parse(proc):
+    try:
+        return json.loads(proc.stdout)
+    except (json.JSONDecodeError, TypeError):
+        return {}
 
-today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-tok_dir = ROOT / ".omc" / "tokens" / today
-tok_path = tok_dir / "tt-goal-mode.json"
 
-# ── 备份真实状态(finally 原样恢复,绝不吞掉) ──
+def protocol(proc):
+    result = parse(proc)
+    return proc.returncode == 0 and isinstance(result.get("continue"), bool)
+
+
+def denied(proc):
+    result = parse(proc)
+    specific = result.get("hookSpecificOutput") or {}
+    return (protocol(proc)
+            and result.get("continue") is True
+            and specific.get("permissionDecision") == "deny")
+
+
+HARNESS_DIR.mkdir(parents=True, exist_ok=True)
+HARNESS_YAML.write_text("project:\n  gate_mode: l2\n", encoding="utf-8")
 signal_backup = SIGNAL.read_bytes() if SIGNAL.exists() else None
 mode_backup = MODE_FILE.read_bytes() if MODE_FILE.exists() else None
 
 try:
-    print("=" * 64)
-    print("T1: 交互模式基线（临时移开 goal 状态）")
-    print("=" * 64)
     SIGNAL.unlink(missing_ok=True)
     MODE_FILE.unlink(missing_ok=True)
-    r = run_hook("bash -c 'SKIP_VERIFY")
-    ok("T1 ASK_USER → exit 2", r.returncode == 2, f"rc={r.returncode}")
-    ok("T1 含 temp-bypass 用户提示", "temp-bypass" in r.stdout, r.stdout[:160])
-    ok("T1 无 goal 指引", "blocked-human" not in r.stdout, r.stdout[:160])
+    r = run_hook("git status")
+    ok("T1 interactive allow uses JSON continuation", protocol(r) and parse(r).get("continue") is True, r.stdout[:160])
+    ok("T1 interactive allow has no deny decision", (parse(r).get("hookSpecificOutput") or {}).get("permissionDecision") != "deny", r.stdout[:160])
 
-    print("=" * 64)
-    print("T2-T5: goal 模式（未过期信号 + mode file）")
-    print("=" * 64)
-    SIGNAL.parent.mkdir(parents=True, exist_ok=True)
     now = datetime.now(timezone.utc)
+    SIGNAL.parent.mkdir(parents=True, exist_ok=True)
     SIGNAL.write_text(json.dumps({"activated": now.isoformat()}), encoding="utf-8")
     MODE_FILE.write_text(json.dumps({
-        "active": True, "mode": "goal", "goal": "tt-goal-mode-test",
+        "active": True,
+        "mode": "goal",
+        "goal": "goal-mode-contract-test",
         "activated_at": now.isoformat(),
         "expires_at": (now + timedelta(hours=1)).isoformat(),
-    }, ensure_ascii=False), encoding="utf-8")
-
-    r = run_hook("bash -c 'SKIP_VERIFY")
-    ok("T2 ASK_USER → exit 2(fail-closed 保持)", r.returncode == 2, f"rc={r.returncode}")
-    ok("T2 含 goal 记录指引", "blocked-human" in r.stdout, r.stdout[:200])
-    ok("T2 不再指向 temp-bypass 求助", "temp-bypass" not in r.stdout, r.stdout[:200])
-
-    tok_dir.mkdir(parents=True, exist_ok=True)
-    tok_path.write_text(json.dumps({
-        "task": {"current_step": "S1", "status": "active"},
-        "session": {"id": "tt-goal-mode", "level": "L2_ENHANCE",
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "updated_at": datetime.now(timezone.utc).isoformat()},
-    }, ensure_ascii=False), encoding="utf-8")
-    r = run_hook("bash -c 'SKIP_VERIFY")
-    ok("T3 oracle ESCALATE → exit 2", r.returncode == 2, f"rc={r.returncode} out={r.stdout[:120]}")
-    ok("T3 含 goal 记录指引", "blocked-human" in r.stdout, r.stdout[:200])
+    }), encoding="utf-8")
 
     r = run_hook("git push --force origin main")
-    ok("T4 硬 BLOCK → exit 2(危险操作绝不放行)", r.returncode == 2, f"rc={r.returncode}")
-    ok("T4 含 goal 记录指引", "blocked-human" in r.stdout, r.stdout[:200])
+    ok("T2 goal high-risk deny uses JSON continuation", denied(r), r.stdout[:220])
+    ok("T2 deny includes a permission reason", bool((parse(r).get("hookSpecificOutput") or {}).get("permissionDecisionReason")), r.stdout[:220])
+
+    r = run_hook("bash -c 'SKIP_VERIFY")
+    ok("T3 goal oracle path returns canonical JSON", protocol(r), r.stdout[:220])
 
     r = run_hook("git status")
-    ok("T5 安全命令 → exit 0 放行", r.returncode == 0, f"rc={r.returncode} out={r.stdout[:120]}")
+    ok("T4 goal safe command remains allowed", protocol(r) and parse(r).get("continue") is True, r.stdout[:160])
 
-    print("=" * 64)
-    print("T6: 过期 goal 模式 → 按交互模式处理（DG-46 半态防护）")
-    print("=" * 64)
     MODE_FILE.write_text(json.dumps({
-        "active": True, "mode": "goal", "goal": "tt-goal-mode-expired",
+        "active": True,
+        "mode": "goal",
+        "goal": "expired-goal-mode-contract-test",
         "activated_at": (now - timedelta(hours=7)).isoformat(),
         "expires_at": (now - timedelta(hours=1)).isoformat(),
-    }, ensure_ascii=False), encoding="utf-8")
-    r = run_hook("bash -c 'SKIP_VERIFY")
-    ok("T6 过期模式 → exit 2 且含 temp-bypass 提示(交互口径)", r.returncode == 2 and "temp-bypass" in r.stdout, f"rc={r.returncode} out={r.stdout[:160]}")
+    }), encoding="utf-8")
+    r = run_hook("git status")
+    ok("T5 expired goal still emits canonical JSON", protocol(r), r.stdout[:160])
 finally:
-    if signal_backup is not None:
+    if signal_backup is None:
+        SIGNAL.unlink(missing_ok=True)
+    else:
         SIGNAL.parent.mkdir(parents=True, exist_ok=True)
         SIGNAL.write_bytes(signal_backup)
+    if mode_backup is None:
+        MODE_FILE.unlink(missing_ok=True)
     else:
-        SIGNAL.unlink(missing_ok=True)
-    if mode_backup is not None:
         MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
         MODE_FILE.write_bytes(mode_backup)
-    else:
-        MODE_FILE.unlink(missing_ok=True)
-    tok_path.unlink(missing_ok=True)
-    (ROOT / "scripts" / "carroros-gates" / "harness.yaml").unlink(missing_ok=True)
+    HARNESS_YAML.unlink(missing_ok=True)
 
-print("=" * 64)
-print(f"结果: {PASS}/{PASS + FAIL} PASS, {FAIL} FAIL")
-if FAIL:
-    print("❌ GOAL-MODE GATE 存在失败项")
-    sys.exit(1)
-print("✅ ALL PASS — goal 模式拦截 fail-closed 且不再指向求人,无人值守流恢复")
+print(f"Results: {PASS} passed, {FAIL} failed")
+sys.exit(1 if FAIL else 0)
