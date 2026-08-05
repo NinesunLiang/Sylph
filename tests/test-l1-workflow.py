@@ -11,6 +11,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -25,6 +27,7 @@ TODAY = datetime.now(timezone.utc).strftime("%Y%m%d")
 
 PASS = 0
 FAIL = 0
+CURRENT_TOKEN = None
 
 
 def ok(msg: str):
@@ -40,9 +43,12 @@ def fail(msg: str):
 
 
 def run_carros(*args: str) -> subprocess.CompletedProcess:
+    env = dict(os.environ)
+    if CURRENT_TOKEN is not None:
+        env["CARROROS_TOKEN_PATH"] = str(CURRENT_TOKEN)
     return subprocess.run(
         [sys.executable, str(CARROS), *args],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, timeout=30, env=env,
     )
 
 
@@ -50,7 +56,7 @@ def run_carros(*args: str) -> subprocess.CompletedProcess:
 
 TASK_ID = f"test-l1-flow-{int(time.time())}"
 r = run_carros("init", "--task-id", TASK_ID, "--level", "L1",
-               "--steps", "S1:验证L1工作流闭环",
+               "--step", "S1",
                "--user-request", "L1工作流端到端测试")
 if r.returncode == 0:
     ok(f"init — exit 0: {TASK_ID}")
@@ -59,6 +65,29 @@ else:
 
 TASK_DIR = ROOT / ".omc" / "tasks" / TODAY / TASK_ID
 TOKEN_PATH = ROOT / ".omc" / "tokens" / TODAY / f"{TASK_ID}.json"
+CURRENT_TOKEN = TOKEN_PATH
+
+plan_path = TASK_DIR / "plan.md"
+plan_text = plan_path.read_text()
+legacy_rule = "  - verify: assertion:完成用户确认范围内的修改"
+if legacy_rule in plan_text:
+    plan_text = plan_text.replace(
+        legacy_rule,
+        "  - verify: assertion:l1 workflow evidence recorded",
+        1,
+    )
+    plan_count = 1
+else:
+    plan_text, plan_count = re.subn(
+        r"(- \[ \] S1:[^\n]*\n)",
+        r"\1  - verify: assertion:l1 workflow evidence recorded\n",
+        plan_text,
+        count=1,
+    )
+if plan_count:
+    plan_path.write_text(plan_text)
+else:
+    fail("plan.md — S1 verify rule could not be inserted")
 
 # ── Test 2: 检查任务文件是否创建 ────────────────────────────
 
@@ -76,7 +105,20 @@ else:
 
 # ── Test 3: 写 executor.md 证据块 ──────────────────────────
 
-evidence_block = """
+evidence_block = """# Executor
+
+## Conditions
+- isolated L1 workflow fixture
+## Key Changes
+- no production files changed
+## Decisions
+- rationale: use the current VerifyGate evidence contract
+## Acceptance Checklist
+- [x] fixture contract is complete
+## TDD Evidence
+- dependency TDD command: echo dependency TDD → exit 0
+- regression TDD command: echo regression TDD → exit 0
+## S1
 
 ### EV-S1
 
@@ -85,14 +127,12 @@ evidence_block = """
 - source: l1-workflow-test
 - exit_code: 0
 - file: AGENTS.md
-- assertion: 完成用户确认范围内的修改
+- assertion: l1 workflow evidence recorded
 """
-(TASK_DIR / "executor.md").write_text(
-    (TASK_DIR / "executor.md").read_text() + evidence_block
-)
+(TASK_DIR / "executor.md").write_text(evidence_block)
 
 exec_text = (TASK_DIR / "executor.md").read_text()
-if "### EV-S1" in exec_text and "- assertion: 完成用户确认范围内的修改" in exec_text:
+if "### EV-S1" in exec_text and "- assertion: l1 workflow evidence recorded" in exec_text:
     ok("executor.md — 证据块格式正确 (### EV-S1 + assertion 匹配)")
 else:
     fail("executor.md — 证据块格式不正确")

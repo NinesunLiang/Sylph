@@ -92,13 +92,18 @@ def main() -> int:
         hook_input = read_stdin_json()
         refresh = _refresh_compact_write()
         session_id = hook_input.get("session_id") or hook_input.get("sessionId") or ""
-        basis = (
-            f"precompact:{session_id}:"
-            f"{hook_input.get('transcript_path') or hook_input.get('transcriptPath') or ''}"
-        )
-        import time
-        ns = str(time.time_ns())
-        event_id = "pc-" + ns[-12:] + "-" + hashlib.sha256(basis.encode("utf-8")).hexdigest()[:8]
+        transcript_path = hook_input.get("transcript_path") or hook_input.get("transcriptPath") or ""
+        supplied_event_id = hook_input.get("event_id") or hook_input.get("eventId")
+        if supplied_event_id:
+            event_id = str(supplied_event_id)
+        else:
+            basis = (
+                f"precompact:{session_id}:"
+                f"{transcript_path}"
+            )
+            import time
+            ns = str(time.time_ns())
+            event_id = "pc-" + ns + "-" + hashlib.sha256(basis.encode("utf-8")).hexdigest()[:8]
         path, digest, hb = write_precompact_snapshot(hook_input, event_id=event_id)
         stdout_json(
             {

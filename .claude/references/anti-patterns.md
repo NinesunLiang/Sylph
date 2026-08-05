@@ -1,6 +1,6 @@
 # Anti-Patterns — 经验沉淀
 
-_Updated: 2026-07-27T17:30+00:00 (Phase0-A baseline recovery complete)_
+_Updated: 2026-07-27T17:30+00:00 (timeout, unknown, unknown_recurring) [来源：.omc/knowledge/sublimation-log.jsonl] (Phase0-A baseline recovery complete)_
 
 **Phase0-A 状态更新 (2026-07-27)**:
 - K1/K2: 已确认在 posttool-claim-audit.py 中实现 (G1_PSEUDO_INTEGRITY + E6_EDIT_REPEAT), 测试 7/7 PASS

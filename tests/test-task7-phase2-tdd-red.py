@@ -239,7 +239,7 @@ def run_g1():
     # G1j: context_engine audit paths use YYYYMMDD (dynamic check)
     _ce_today_val = ce.today()
     _ce_today_yyyymmdd = len(_ce_today_val) == 8 and _ce_today_val.isdigit()
-    all_ce_src = _py_source(ce.compact_check) + _py_source(ce.compact_write)
+    all_ce_src = _py_source(ce.resume_check) + _py_source(ce.compact_write)
     ok("G1j context_engine audit/state paths use YYYYMMDD",
        _ce_today_yyyymmdd and "today()" in all_ce_src,
        f"today()='{_ce_today_val}' expected %Y%mdd format for audit paths")
