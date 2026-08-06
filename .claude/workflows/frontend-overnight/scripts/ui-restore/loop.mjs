@@ -13,7 +13,7 @@ const TASK = opt('--task', 'home_page');
 const cfg = loadTask(TASK);
 const ROOT = REPO_ROOT;
 const OUT = `${ROOT}/.omc/ui-autopilot/${TASK}/measurements`;
-const K3 = 'sk-Xrwon2jxfgUlOlYCM2wLVcaMlT2ZkMnOjUZtivyuaFvP5r4F';
+const K3 = process.env.K3_API_KEY || '';
 mkdirSync(OUT, { recursive: true });
 mkdirSync(`${OUT}/latest`, { recursive: true }); // base.json 落地目录
 

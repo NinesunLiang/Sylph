@@ -117,9 +117,9 @@ acceptance:
 # ── Model Routing ──────────────────────────────────────────────────────────
 model_routing:
   default:
-    model: deepseek-v4-flash
+    role: haiku
   visual_diagnosis:
-    model: kimi-k3
+    role: sonnet
     invocation_policy:
       only_when:
         - stagnation_count_gte: 2
@@ -127,7 +127,7 @@ model_routing:
         - critical_region_score_lt: 0.97
       max_calls_per_run: 40
   orchestration:
-    model: deepseek-v4-pro
+    role: opus
 
 # ── Safety Constraints ─────────────────────────────────────────────────────
 safety:

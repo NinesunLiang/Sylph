@@ -12,12 +12,13 @@ import { join } from 'path';
 import { loadTask, REPO_ROOT } from './task-config.mjs';
 
 const [url, ...flags] = process.argv.slice(2);
-const opt = (n, d) => { const i = flags.indexOf(n); return i > -1 ? +flags[i + 1] : d; };
+const opt = (n, d) => { const i = flags.indexOf(n); return i > -1 ? flags[i + 1] : d; };
+const numOpt = (n, d) => { const value = opt(n, d); const parsed = Number(value); return Number.isFinite(parsed) ? parsed : d; };
 if (!url) { console.error('usage: discover-states.mjs <url> --task X [--dismiss-modal] [--wait ms] [--max N]'); process.exit(1); }
-const TASK = opt('--task', 0) || 'home_page';
+const TASK = opt('--task', 'home_page') || 'home_page';
 const cfg = loadTask(TASK);
-const WAIT = opt('--wait', 3000);
-const MAX = opt('--max', 60);
+const WAIT = numOpt('--wait', 3000);
+const MAX = numOpt('--max', 60);
 const DISMISS = flags.includes('--dismiss-modal');
 
 const EXTRACT = () => {
@@ -115,7 +116,9 @@ function classify(delta) {
 
 function anchorOf(c, used) {
   const a = {};
-  if (c.icon) a.icon = c.icon;
+  const tabText = ['首页', '助手', '插件'].find(label => c.text.includes(label));
+  if (tabText) a.text = c.text;
+  else if (c.icon) a.icon = c.icon;
   else if (c.text) a.text = c.text;
   else return null;
   // 同名/同图标消歧：记录 y 过滤
@@ -180,15 +183,36 @@ function saveCheckpoint(stage) {
       const before = await page.evaluate(EXTRACT);
       await page.mouse.click(c.x, c.y);
       await page.waitForTimeout(1000);
-      const delta = diff(before, await page.evaluate(EXTRACT));
-      const kind = classify(delta);
+      const after = await page.evaluate(EXTRACT);
+      const delta = diff(before, after);
+      const replacementRatio = before.length ? delta.length / before.length : 0;
+      const tabLabel = ['首页', '助手', '插件'].find(label => c.text.includes(label));
+      const isTab = Boolean(tabLabel) || (replacementRatio > 0.35 && delta.length > 20);
+      const kind = isTab ? 'tab' : classify(delta);
       if (kind && kind !== 'tooltip') {
         const anchor = anchorOf(c, usedAnchors);
         if (anchor) {
           const base = `${kind}-${c.text || c.icon || 'x'}`.slice(0, 30);
           let name = base; let i = 2;
           while (found.has(name)) name = `${base}-${i++}`;
-          found.set(name, { name, auto: true, action: { type: 'click', ...anchor }, settle: 1000 });
+          const tabAction = { type: 'click', ...anchor };
+          found.set(name, { name, auto: true, action: tabAction, settle: 1000, kind, parent: 'discover-base' });
+          if (kind === 'tab' && tabLabel === '助手') {
+            const categoryLabels = ['全部', '学术', '职业', '文案', '设计', '教育', '情感', '娱乐', '游戏', '通用'];
+            const childCandidates = (await page.evaluate(CANDIDATES)).filter(child => categoryLabels.includes(child.text) && child.x < 400);
+            for (const child of childCandidates) {
+              const childAnchor = anchorOf(child, usedAnchors);
+              if (!childAnchor) continue;
+              const childName = `category-${child.text}`;
+              found.set(childName, {
+                name: childName,
+                auto: true,
+                parent: name,
+                actions: [tabAction, { type: 'click', ...childAnchor, xMax: 300 }],
+                settle: 1000,
+              });
+            }
+          }
           saveCheckpoint(`click:${name}`);
         }
       }

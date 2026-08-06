@@ -6,6 +6,7 @@ source of truth. Compatible with CarrorOS .omc/ path conventions.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 # ── Project Root Resolution ────────────────────────────────────────────────────
@@ -86,10 +87,15 @@ MAX_TARGET_ATTEMPTS = 8
 MAX_CONSECUTIVE_NO_PROGRESS = 4
 
 # ── Model Routing ──────────────────────────────────────────────────────────────
+def _model_from_env(role: str) -> str:
+    """Resolve a Claude model role from the session environment."""
+    role_var = f"ANTHROPIC_DEFAULT_{role.upper()}_MODEL"
+    return os.environ.get(role_var) or os.environ.get("ANTHROPIC_MODEL", role.lower())
 
-DEFAULT_MODEL = "deepseek-v4-flash"
-VISUAL_MODEL = "kimi-k3"
-ORCHESTRATOR_MODEL = "deepseek-v4-pro"
+
+DEFAULT_MODEL = _model_from_env("haiku")
+VISUAL_MODEL = _model_from_env("sonnet")
+ORCHESTRATOR_MODEL = _model_from_env("opus")
 MAX_VISUAL_CALLS = 40
 
 

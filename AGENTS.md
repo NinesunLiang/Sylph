@@ -4,6 +4,7 @@
 @.claude/index.md
 @.claude/anti-patterns.md
 <!-- @方法引入项目相关配置，如：@README.md -->
+@README.md
 
 > 本文件继承自 CarrorOS 哲学传统。变更须人类裁决。<!-- 冻结态：模型不自改 -->
 

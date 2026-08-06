@@ -149,9 +149,13 @@ class PlanGate:
         content = path.read_text(encoding="utf-8")
         errors: list[str] = []
 
-        # ── Parse Phases ──
+        # ── Parse level from Gate section ──
+        level_match = re.search(r"^- level:\s*(L\d+)", content, re.MULTILINE)
+        level = level_match.group(1) if level_match else None
+
+        # ── Parse Phases (L2+ required, L1 optional) ──
         phases = re.findall(r"^## Phase\s+\d+\s*$", content, re.MULTILINE)
-        if len(phases) < 1:
+        if level != "L1" and len(phases) < 1:
             errors.append("Plan must have at least 1 Phase (format: ## Phase N)")
 
         # ── Parse Steps ──

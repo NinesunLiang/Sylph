@@ -103,6 +103,10 @@ goal 模式下卡点 1-11 BLOCK → skip-risk 直接记录+继续；卡点 12-14
 
 ## Phase 1→N 全自动执行
 
+### Goal 模式交互边界
+
+进入 goal 的 Phase 1→N 后，AI 不得向用户重复询问已确认范围、方案或执行许可。所有普通歧义、验证失败和中低风险阻断必须依照本文件的 Philosophy → Iron Rules → AGENTS → Oracle → blocked/skip-risk 决策链自主处理并留证；只有决策链明确要求 Level 3 人类裁决时，才记录 `blocked-human`，不暂停其他可执行步骤。
+
 ### 核心铁律
 
 1. **不暂停** — 不等待人类输入

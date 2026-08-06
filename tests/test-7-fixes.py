@@ -348,14 +348,19 @@ def test_trust_breach():
 # 运行全部
 # ──────────────────────────────────────────────
 
-test_p1_multi_step()
-test_p2_research_md()
-test_p3_numbers()
-test_p4_session_resume()
-test_p5_verify_all()
-test_p6_sha256()
-test_p7_token_stash()
-test_trust_breach()
+def main():
+    test_p1_multi_step()
+    test_p2_research_md()
+    test_p3_numbers()
+    test_p4_session_resume()
+    test_p5_verify_all()
+    test_p6_sha256()
+    test_p7_token_stash()
+    test_trust_breach()
 
-print(f"\n结果: {PASS} 过 / {FAIL} 败 (共 {PASS + FAIL} 项)")
-sys.exit(1 if FAIL else 0)
+    print(f"\n结果: {PASS} 过 / {FAIL} 败 (共 {PASS + FAIL} 项)")
+    return 1 if FAIL else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

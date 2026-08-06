@@ -107,7 +107,7 @@ def parse_verify_rules(plan_text: str, step: str) -> list[str]:
     """Extract verify rules for a given step from plan.md."""
     rules: list[str] = []
     in_step = False
-    step_prefixes = [f"- [ ] {step}:", f"- [x] {step}:", f"- [X] {step}:"]
+    step_prefixes = [f"- [ ] {step}:", f"- [x] {step}:", f"- [X] {step}:", f"- [a] {step}:", f"- [A] {step}:"]
 
     for line in plan_text.splitlines():
         stripped = line.strip()

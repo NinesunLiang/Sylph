@@ -20,6 +20,8 @@ from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any
 
+from .config import _model_from_env
+
 
 # ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -311,6 +313,9 @@ class RunState:
     # Convergence state (GAP 7 fix)
     convergence_state: dict[str, Any] | None = None
 
+    # Gates tracking (used by orchestrator for convergence decisions)
+    _gates_passed: bool = True
+
     # Candidate workspace (P0-2 fix)
     candidate_workspace: dict[str, Any] | None = None
 
@@ -356,6 +361,7 @@ class RunState:
                 for r in self.regions
             ],
             "convergence_state": self.convergence_state,
+            "_gates_passed": self._gates_passed,
             "candidate_workspace": self.candidate_workspace,
         }
 
@@ -413,6 +419,7 @@ class RunState:
             current_page=d.get("current_page", ""),
             regions=[RegionGold(**r) for r in d.get("regions", [])],
             convergence_state=d.get("convergence_state"),
+            _gates_passed=d.get("_gates_passed", True),
             candidate_workspace=d.get("candidate_workspace"),
         )
         return state
@@ -486,10 +493,10 @@ class GoalManifestAcceptance:
 
 @dataclass(slots=True)
 class GoalManifestModelRouting:
-    default_model: str = "deepseek-v4-flash"
-    visual_model: str = "kimi-k3"
+    default_model: str = field(default_factory=lambda: _model_from_env("haiku"))
+    visual_model: str = field(default_factory=lambda: _model_from_env("sonnet"))
     max_visual_calls: int = 40
-    orchestration_model: str = "deepseek-v4-pro"
+    orchestration_model: str = field(default_factory=lambda: _model_from_env("opus"))
 
 
 @dataclass(slots=True)

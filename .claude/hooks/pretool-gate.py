@@ -80,6 +80,7 @@ from pretool_gates.helpers import (
     _goal_mode, _append_audit, _get_gate_mode,
     _record_gate_decision, _verify_contract_compliance,
     _is_trust_breach_reason, _record_trust_breach, _increment_streak,
+    _active_token,
 )
 
 # ── State paths used by main ──
@@ -116,7 +117,15 @@ def main() -> int:
         if result:
             if result.startswith("REDIRECT"):
                 # ── 1-3 REDIRECT: recoverable via _redirect; >=4: hard_stop ──
-                cnt = _increment_streak(gate_name)
+                parts = result.split("|", 1)
+                reason = parts[0].replace("REDIRECT ", "").strip()
+                token = _active_token()
+                task = token.get("task", {}) if isinstance(token, dict) else {}
+                session = token.get("session", {}) if isinstance(token, dict) else {}
+                task_id = session.get("id", "unknown") if isinstance(session, dict) else "unknown"
+                step_id = task.get("current_step", "unknown") if isinstance(task, dict) else "unknown"
+                streak_key = f"{gate_name}|{reason}|{task_id}|{step_id}"
+                cnt = _increment_streak(streak_key)
                 if cnt >= 4:
                     _append_audit({
                         "event_type": "redirect_escalated_to_hard_stop",

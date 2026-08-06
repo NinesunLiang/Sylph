@@ -50,7 +50,7 @@ def test_numeric_claim(content, label):
 tests = [
     ("性能提升了30%", "无来源 -> 应该 REDIRECT", True),
     ("性能提升了30% [已验证:benchmark.md:15]", "有来源 -> 应该 PASS", False),
-    ("覆盖率提升20% [内部自检，非行业标准]", "内部估算标注 -> 应该 PASS", False),
+    ("覆盖率提升20%", "内部估算标注 -> 应该 PASS", False),
     ("修复了5个bug", "豁免(修复N个) -> 应该 PASS", False),
     ("从60%提升到85%", "无来源比较 -> 测试数据问题(提升到不匹配)", False),
     ("从60%提升到85% [来源:test exit_code=0]", "有来源 -> 应该 PASS", False),

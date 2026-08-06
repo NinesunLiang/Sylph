@@ -1,14 +1,14 @@
 """model_router.py — Model routing decisions with budget guardrails.
 
 Routes tasks between:
-  - deepseek-v4-flash (default): 95%+ of calls, fast+cheap
-  - kimi-k3 (visual): key-frame visual diagnosis only, ≤40 calls/6h
+  - haiku (default): 95%+ of calls, fast+cheap
+  - sonnet (visual): key-frame visual diagnosis only, ≤40 calls/6h
 
 Routing logic:
-  1. Default: flash for all routine patches and SCSS changes
-  2. Escalate to kimi when: consecutive stagnation ≥ 2, ambiguous visual
+  1. Default: haiku for all routine patches and SCSS changes
+  2. Escalate to sonnet when: consecutive stagnation ≥ 2, ambiguous visual
      root cause, or critical region score < 0.97
-  3. Budget guard: kimi calls capped, with escalation reason logging
+  3. Budget guard: sonnet calls capped, with escalation reason logging
 
 Design: Grok dual-model strategy + Opus budget discipline.
 """
@@ -22,16 +22,18 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
+from .config import _model_from_env
+
 
 class ModelTarget(StrEnum):
-    """Available model targets."""
-    FLASH = "deepseek-v4-flash"
-    KIMI = "kimi-k3"
-    PRO = "deepseek-v4-pro"  # orchestrator
+    """Environment-resolved Claude model roles."""
+    HAIKU = "haiku"
+    SONNET = "sonnet"
+    OPUS = "opus"
 
 
 class EscalationReason(StrEnum):
-    """Reasons for escalating from flash to kimi."""
+    """Reasons for escalating from haiku to sonnet."""
     STAGNATION_COUNT = "stagnation_count_ge_2"
     AMBIGUOUS_VISUAL = "ambiguous_visual_root_cause"
     CRITICAL_REGION_LOW = "critical_region_score_lt_0.97"
@@ -50,15 +52,15 @@ class ModelRouter:
     """Model routing with budget guardrails.
 
     Usage:
-        router = ModelRouter(kimi_budget=40)
+        router = ModelRouter(escalation_budget=40)
         target, reason = router.route(call_context)
         router.record_call(target, reason)
     """
 
-    kimi_budget: int = 40
-    flash_calls: int = field(default=0)
-    kimi_calls: int = field(default=0)
-    pro_calls: int = field(default=0)
+    escalation_budget: int = 40
+    haiku_calls: int = field(default=0)
+    sonnet_calls: int = field(default=0)
+    opus_calls: int = field(default=0)
     escalation_log: list[dict[str, Any]] = field(default_factory=list)
 
     def route(
@@ -68,7 +70,7 @@ class ModelRouter:
         """Determine which model should handle a call.
 
         Decision tree:
-          1. If kimi budget exhausted → FLASH (with reason)
+          1. If sonnet budget exhausted → FLASH (with reason)
           2. If critical escalation condition → KIMI
           3. Default → FLASH
 
@@ -127,8 +129,8 @@ class ModelRouter:
                 f"target_type={target_type}",
             )
 
-        # Default: use flash
-        return ModelTarget.FLASH, "default"
+        # Default: use haiku
+        return ModelTarget.HAIKU, "default"
 
     def record_call(
         self,
@@ -143,38 +145,38 @@ class ModelRouter:
             reason: Why this model was chosen
             context: Optional call context for audit
         """
-        self.flash_calls += 1 if target == ModelTarget.FLASH else 0
-        self.kimi_calls += 1 if target == ModelTarget.KIMI else 0
-        self.pro_calls += 1 if target == ModelTarget.PRO else 0
+        self.haiku_calls += 1 if target == ModelTarget.HAIKU else 0
+        self.sonnet_calls += 1 if target == ModelTarget.SONNET else 0
+        self.opus_calls += 1 if target == ModelTarget.OPUS else 0
 
-        if target == ModelTarget.KIMI:
+        if target == ModelTarget.SONNET:
             self.escalation_log.append({
                 "timestamp": time.time(),
                 "reason": str(reason),
                 "context": context or {},
-                "kimi_count": self.kimi_calls,
+                "sonnet_count": self.sonnet_calls,
             })
 
     @property
     def total_calls(self) -> int:
-        return self.flash_calls + self.kimi_calls + self.pro_calls
+        return self.haiku_calls + self.sonnet_calls + self.opus_calls
 
     @property
-    def kimi_budget_remaining(self) -> int:
-        return max(0, self.kimi_budget - self.kimi_calls)
+    def escalation_budget_remaining(self) -> int:
+        return max(0, self.escalation_budget - self.sonnet_calls)
 
     @property
-    def kimi_budget_exhausted(self) -> bool:
-        return self.kimi_calls >= self.kimi_budget
+    def escalation_budget_exhausted(self) -> bool:
+        return self.sonnet_calls >= self.escalation_budget
 
     def budget_report(self) -> dict[str, Any]:
         """Generate a budget usage report."""
         return {
-            "flash_calls": self.flash_calls,
-            "kimi_calls": self.kimi_calls,
-            "kimi_budget": self.kimi_budget,
-            "kimi_remaining": self.kimi_budget_remaining,
-            "pro_calls": self.pro_calls,
+            "haiku_calls": self.haiku_calls,
+            "sonnet_calls": self.sonnet_calls,
+            "escalation_budget": self.escalation_budget,
+            "sonnet_remaining": self.escalation_budget_remaining,
+            "opus_calls": self.opus_calls,
             "total_calls": self.total_calls,
             "escalation_count": len(self.escalation_log),
             "escalations": self.escalation_log[-5:],
@@ -187,10 +189,10 @@ class ModelRouter:
         reason: EscalationReason,
         detail: str,
     ) -> tuple[ModelTarget, EscalationReason | str]:
-        """Try to escalate to kimi, falling back to flash if budget exhausted."""
-        if self.kimi_budget_exhausted:
-            return ModelTarget.FLASH, f"kimi_budget_exhausted: {reason.value}"
-        return ModelTarget.KIMI, f"{reason.value}: {detail}"
+        """Try to escalate to sonnet, falling back to haiku if budget exhausted."""
+        if self.escalation_budget_exhausted:
+            return ModelTarget.HAIKU, f"escalation_budget_exhausted: {reason.value}"
+        return ModelTarget.SONNET, f"{reason.value}: {detail}"
 
 
 # ── Routing helpers for orchestrator integration ───────────────────────────────
@@ -200,7 +202,7 @@ def build_call_context(
     stagnation_count: int = 0,
     critical_region_score: float = 1.0,
     root_cause_category: str = "unknown",
-    convergence_status: str = "progressing",
+    convergence_status: str = "opusgressing",
     phase: str = "",
     target_type: str = "region",
 ) -> dict[str, Any]:

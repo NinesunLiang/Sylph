@@ -99,7 +99,7 @@ class Orchestrator:
         # Subsystems
         self.gate = PhaseGate()
         self.scorer = ScoringEngine()
-        self.router = ModelRouter(kimi_budget=MAX_VISUAL_CALLS)
+        self.router = ModelRouter(escalation_budget=MAX_VISUAL_CALLS)
 
         # Load or init state
         self.state = load_run_state(self.run_dir)
@@ -1016,7 +1016,7 @@ class Orchestrator:
                 "completed_count": len(self.state.completed_tasks),
             },
             "model_routing": {
-                "target": str(model_target or ModelTarget.FLASH),
+                "target": str(model_target or ModelTarget.HAIKU),
                 "reason": model_reason or "default",
                 "budget": self.router.budget_report(),
             },

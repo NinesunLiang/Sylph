@@ -213,7 +213,7 @@ def test_known_subcommands_keys(tmp_path):
     mod = _import_goal(root)
     expected = {
         "on", "off", "status", "set", "phase0-done", "report",
-        "poll", "is-active", "task-done", "skip-risk",
+        "poll", "is-active", "task-done", "verify-step", "skip-risk",
         "hard-boundary-hit", "blocked-human", "retry",
         "subagent-log", "done", "_update-lock",
         "assert-plan-dir", "checklist-verify",
@@ -230,10 +230,10 @@ def test_known_subcommands_all_callable(tmp_path):
 
 
 def test_known_subcommands_has_no_unexpected(tmp_path):
-    """Only the 16 known commands are registered (no drift)."""
+    """Only the registered commands are exposed."""
     root = _fake_project_root(tmp_path)
     mod = _import_goal(root)
-    assert len(mod.KNOWN_SUBCOMMANDS) == 18
+    assert len(mod.KNOWN_SUBCOMMANDS) == 19
 
 
 # ── Test 5: Usage output format ──────────────────────────────────

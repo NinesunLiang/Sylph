@@ -12,11 +12,16 @@ def ok(name, cond, detail=""):
         PASS += 1; print(f"  ✅ {name}")
     else:
         FAIL += 1; print(f"  ❌ {name}  {detail}")
-ok("exists", HOOK.exists())
-r = subprocess.run([sys.executable, str(HOOK)], input="{}", capture_output=True, text=True, timeout=10, cwd=str(ROOT))
-try: d = json.loads(r.stdout); ok("accepts empty input", "continue" in d, f"got={r.stdout[:100]}")
-except: ok("accepts empty input", False, f"rc={r.returncode}")
-r2 = subprocess.run([sys.executable, "-c", f"import py_compile; py_compile.compile('{HOOK}', doraise=True)"], capture_output=True, text=True, timeout=10)
-ok("compiles", r2.returncode == 0, f"err={r2.stderr[:200]}")
-print(f"\n结果: {PASS}/{PASS + FAIL} PASS, {FAIL} FAIL")
-sys.exit(1 if FAIL else 0)
+
+def main():
+    ok("exists", HOOK.exists())
+    r = subprocess.run([sys.executable, str(HOOK)], input="{}", capture_output=True, text=True, timeout=10, cwd=str(ROOT))
+    try: d = json.loads(r.stdout); ok("accepts empty input", "continue" in d, f"got={r.stdout[:100]}")
+    except: ok("accepts empty input", False, f"rc={r.returncode}")
+    r2 = subprocess.run([sys.executable, "-c", f"import py_compile; py_compile.compile('{HOOK}', doraise=True)"], capture_output=True, text=True, timeout=10)
+    ok("compiles", r2.returncode == 0, f"err={r2.stderr[:200]}")
+    print(f"\n结果: {PASS}/{PASS + FAIL} PASS, {FAIL} FAIL")
+    return 1 if FAIL else 0
+
+if __name__ == "__main__":
+    sys.exit(main())
