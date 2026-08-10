@@ -5,7 +5,7 @@
 
 ## AI 使用守则
 
-> **按需加载** — 先确定任务日期和名称，再 `@.omc/tasks/{date}/{task}/plan.md`。
+> **按需加载** — 先确定任务日期和名称，再 `@.omc/tasks/{date}/{task_name}/plan.md`。
 > 不需要一次性加载 `executor.md` + `handoff.md` + `research.md`，
 > 根据当前阶段选择加载。
 >
