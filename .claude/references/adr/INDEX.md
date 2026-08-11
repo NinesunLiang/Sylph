@@ -13,3 +13,4 @@
 | 0006 | CarrorOS是什么 | 2026-07-24 | AGENTS.md, OMC 架构设计 |
 | 0012 | REDIRECT oracle 判决级别+E6 writer+anti-pattern 注入管线 | 2026-07-25 | B+C 提分 |
 | 0013 | Scorecard 自评度审计门禁 | 2026-07-25 | Grill-me scorecard 9.0+ 路径 |
+| 0014 | 少即是多作为最高哲学优先级 | 2026-08-11 | CarrorOS-philosophy-priority-20260811 |

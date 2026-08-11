@@ -125,7 +125,7 @@ goal 模式下卡点 1-11 BLOCK → skip-risk 直接记录+继续；卡点 12-14
 | Context Guard 阻断 | #2 fallback-check | 更新 token 恢复标记 |
 | Permission Gate 拦截 | #1 sensitive-edit / #3 dangerous | 走三级裁决链 |
 | 发现无关问题 | #7 edit-scope | 记入附带发现，不偏离主线 |
-| 子任务冲突 | — | Philosophy #2 选择更高价值路径 |
+| 子任务冲突 | — | Philosophy #7 选择更高价值路径 |
 | 硬边界触发 | #3 dangerous-command | 立即跳过 → hard-boundary-hit → 继续其他 |
 | 触及 L2 风险 | #9 oracle-gate(BLOCK) | 走三级裁决链 → Oracle Level2 审核 → 记录 verdict → 继续 |
 | REDIRECT 三次上限 | #6 plan-gate/#8 verify-gate | 同 gate 连续 3 次 REDIRECT → 升级 BLOCK，放弃当前方向 (6h TTL) |

@@ -78,7 +78,7 @@ GateContext → Step1 铁律检查 → Step2 协议A/B分流
 不可编造、证据门禁、范围冻结、隐私防御、先初始化后操作、值断溯源、治理不可改、不许绕过 gate。
 
 ### 7 条哲学（权重优先级）
-`verify_first > zero_trust > guard_first > doc_first > human_first > gain_first > less_is_more`
+`less_is_more > verify_first > zero_trust > guard_first > doc_first > human_first > gain_first`
 
 ### GateKeeper 接入点（5 个 gate）
 

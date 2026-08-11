@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """CarrorOS PKG-C lifecycle SSOT.
 
-Philosophy chain: 验证 > 零信任 > 守护 > 文档 > 人本 > 增益 > 少
+Philosophy chain: 少即是多 > 验证 > 零信任 > 守护 > 文档 > 人本 > 增益
 Disk is the only truth. Counters are derived from items length.
 """
 from __future__ import annotations

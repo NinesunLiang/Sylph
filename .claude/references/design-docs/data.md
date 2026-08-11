@@ -191,7 +191,7 @@ Role: 检测 stat 和 sed 的跨平台兼容性，永不阻断 |
 | distinct-concept-richner.py | python | 3.3KB | 97L | ⚠ | detect_concept_overlap, inject_distinction, write_signal, main | distinct-concept-richner.py — Richner hook: distinct概念丰富化
 
 在AI生成内容中检测概念混淆/重叠, 自动注入区分策略。
-哲学归属: #7(文档) → 确保概念边界清晰, 引用准确。
+哲学归属: #5(文档) → 确保概念边界清晰, 引用准确。
 
 工作流:
   1. 检测输出中概念混用 (同义反复/范畴错误/层级混淆)
@@ -274,8 +274,8 @@ Role: 检查 oracle-verdicts.md 24h 内是否有 ACCEPT → phase2_approved
 | posttool-anti-pattern-detect.py | python | 5.5KB | 150L | ⚠ | extract_result, log_violation, main | posttool-anti-pattern-detect.py — PostToolUse:TaskUpdate|Edit|Write — 反模式自动检测
 
 Role: 根据 .claude/anti-patterns.md 自动检测 A2/F1/H1 反模式输出
-哲学 #6：先天对 AI 0 信任 — 自动化检测语义层面的反模式
-哲学 #4：没通过验证等于没做 — A2 虚假完成硬阻断
+哲学 #3：先天对 AI 0 信任 — 自动化检测语义层面的反模式
+哲学 #2：没通过验证等于没做 — A2 虚假完成硬阻断
 
 阻断策 |
 | posttool-bash-audit.py | python | 13.6KB | 332L | ⚠ | main | posttool-bash-audit.py — PostToolUse:Bash / PostToolUseFailure:Bash — Bash 执行后审计权限上下文，只提醒不阻断
@@ -304,7 +304,7 @@ Role: 编辑后自查代码风格、文档同步、方案复用检测
 
 Periodically splits error-dna.jsonl by date into daily/{date}.jsonl.
 Runs every 50th PostToolUse to avoid per-call overhead. |
-| posttool-format-gate.py | python | 2.4KB | 81L | ⚠ | main | posttool-format-gate.py — PostToolUse:TaskUpdate — 以人为本输出格式门禁（哲学 #5 物化）
+| posttool-format-gate.py | python | 2.4KB | 81L | ⚠ | main | posttool-format-gate.py — PostToolUse:TaskUpdate — 以人为本输出格式门禁（哲学 #6 物化）
 检查任务输出是否符合"以人为本"原则：有方向感、结构化、认知负担低 |
 | posttool-handoff-writer.py | python | 7.2KB | 218L |  | main | posttool-handoff-writer.py — PostToolUse:TaskUpdate — 每次 Task 完成后写 handoff
 
@@ -396,13 +396,13 @@ Turn 0: L1+L2+L3 全量上车
 Turn 1+: 自适应频率 (L1每轮, L2自适应, L3每10轮) |
 | pretool-scope-gate.py | python | 5.1KB | 156L | ⚠ | read_scope_patterns, is_in_scope, main | pretool-scope-gate.py — PreToolUse:Edit|Write — 检测 Edit/Write 是否超出 current-scope.txt 声明的文件范围
 
-哲学 #5(范围冻结): 一次一 Step，非核心 → TODO，越界 → 撤销
+铁律（范围冻结）: 一次一 Step，非核心 → TODO，越界 → 撤销
 无 current-scope.txt 时透传。支持 glob 模式匹配。自主模式降级为记录。 |
-| pretool-sensitive-edit.py | python | 8.8KB | 304L | ⚠ | extract_file_path, check_bash_tool, is_sensitive_file, check_captcha_approval, output_captcha_block | pretool-sensitive-edit.py — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #6 物化）
+| pretool-sensitive-edit.py | python | 8.8KB | 304L | ⚠ | extract_file_path, check_bash_tool, is_sensitive_file, check_captcha_approval, output_captcha_block | pretool-sensitive-edit.py — PreToolUse:Edit|Write|Bash — 治理文件编辑验证码门禁（哲学 #3 物化）
 
 Role: 对 CLAUDE.md/AGENTS.md/harness.yaml/settings.json 等治理文件的 Edit/Write/Bash
       要求用户 CAPTCHA 确认
-哲学 #6：先天对 AI 0 信任 —  |
+哲学 #3：先天对 AI 0 信任 —  |
 | pretool-sensitive-file-guard.py | python | 3.2KB | 105L | ⚠ | _is_mode_active, main | pretool-sensitive-file-guard.py — PreToolUse:Edit|Write — 保护门禁文件不被 AI 直接写入
 Role: 拦截 AI 通过 Edit/Write 工具直接写 permission-approved / permission-required 等门禁文件 |
 | pretool-skill-body-enforce.py | python | 3.1KB | 106L | ⚠ | main | pretool-skill-body-enforce.py — PreToolUse:Skill — 强制执行合约注入

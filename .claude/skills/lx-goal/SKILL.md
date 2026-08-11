@@ -11,7 +11,7 @@ execution_mode: stepwise
 triggers: ["/lx-goal", "/executor"]
 auto_detect: "Clear goals with defined ACs, 'do X for me' requests, well-specified tasks"
 nodes:
-  - behavior_rules          # 铁律#7(文档优先)#8(哲学先行)+自洽检查
+  - behavior_rules          # 铁律（文档约束）+#1（哲学先行）+自洽检查
   - interactive_prompt      # Phase 0 引导式问答
   - execute_node            # 全自动执行(降级触发+3轮上限)
   - a_terminal              # AC 验收方案生成
@@ -25,7 +25,7 @@ schemas:
 
 本质：人类回答所有问题后离开，AI 不再请求交互。卡点按决策链处理，硬边界跳过记录。
 
-**⚠️ 文档强约束**：每执行一步前，必须先更新 progress.md + 写 evidence，再执行。跳过文档直接执行=违反哲学 #7（文档优先）。
+**⚠️ 文档强约束**：每执行一步前，必须先更新 progress.md + 写 evidence，再执行。跳过文档直接执行=违反哲学 #5（文档优先）。
 
 ## 一句话定位
 

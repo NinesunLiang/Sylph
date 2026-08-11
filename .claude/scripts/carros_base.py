@@ -1226,7 +1226,7 @@ def cmd_verify(step_id=None, all_steps=False):
         # Legacy/downgraded: manual plan+token update
         legacy_update = not step_contracts or degraded
         if legacy_update:
-            pattern = re.compile(r"^- \[ \] " + re.escape(target) + r":", re.MULTILINE)
+            pattern = re.compile(r"^- \[[ aA]\] " + re.escape(target) + r":", re.MULTILINE)
             replacement = f"- [x] {target}:"
             new_plan, count = pattern.subn(replacement, plan)
             if count > 0:

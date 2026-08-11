@@ -337,7 +337,7 @@ def render_four_factors(plan: Plan) -> list[str]:
     if plan.level == "L1":
         return [
             "## Four Factors",
-            "- Philosophy: 验证优先 + 最小改动",
+            "- Philosophy: 少即是多优先 + 验证 + 最小改动",
             "- Iron Rules: 范围冻结 + 不假完成",
             f"- ROI: {roi}",
             "- Current State: optional for L1",
@@ -346,7 +346,7 @@ def render_four_factors(plan: Plan) -> list[str]:
 
     return [
         "## Four Factors",
-        "- Philosophy: 验证优先 + 零信任 + 守护优先",
+        "- Philosophy: 少即是多优先 + 验证 + 零信任 + 守护优先",
         "- Iron Rules: 范围冻结；证据门禁；危险操作审批",
         f"- ROI: {roi}",
         "- Current State: must be supported by research.md evidence",

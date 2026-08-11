@@ -1,10 +1,10 @@
 # CarrorOS Gate Rules — pre_action_gate 数据驱动配置
-# 哲学映射：sensitive_paths→#3守护(隐私防线) | dangerous_commands→#3守护(不可逆) | safe_commands→#2增益(验证类放行)
+# 哲学映射：sensitive_paths→#4守护(隐私防线) | dangerous_commands→#4守护(不可逆) | safe_commands→#7增益(验证类放行)
 # 加载：pre_action_gate.py 启动时读取；解析失败回退内置默认（守护优先，永不放行未知）
 # 修改规则 = 改本文件，无需改代码。新增条目请标注哲学依据。
 
 sensitive_paths:
-  # 哲学 #3 守护：密钥/凭证/生产配置，读取即越权
+  # 哲学 #4 守护：密钥/凭证/生产配置，读取即越权
   - .env
   - .env.*
   - "*.pem"
@@ -25,7 +25,7 @@ sensitive_paths:
   - ".azure/*"
 
 dangerous_commands:
-  # 哲学 #3 守护：不可逆/破坏性/发布类，必须人工裁决
+  # 哲学 #4 守护：不可逆/破坏性/发布类，必须人工裁决
   - rm -rf
   - sudo
   - chmod -R
@@ -48,7 +48,7 @@ dangerous_commands:
   - twine upload
 
 safe_commands:
-  # 哲学 #2 增益 + #4 验证：验证/只读类，直接放行
+  # 哲学 #7 增益 + #2 验证：验证/只读类，直接放行
   - npm test
   - pnpm test
   - yarn test

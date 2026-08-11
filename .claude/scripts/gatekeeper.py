@@ -52,13 +52,13 @@ class Philosophy(Enum):
     """7条哲学（降序优先级）
     优先数越低 → 权重越高
     """
-    VERIFY_FIRST = ("verify_first", 1, "验证优先")
-    ZERO_TRUST = ("zero_trust", 2, "零信任")
-    GUARD_FIRST = ("guard_first", 3, "守护优先")
-    DOC_FIRST = ("doc_first", 4, "文档优先")
-    HUMAN_FIRST = ("human_first", 5, "人本优先")
-    GAIN_FIRST = ("gain_first", 6, "增益优先")
-    LESS_IS_MORE = ("less_is_more", 7, "少即是多")
+    LESS_IS_MORE = ("less_is_more", 1, "少即是多")
+    VERIFY_FIRST = ("verify_first", 2, "验证优先")
+    ZERO_TRUST = ("zero_trust", 3, "零信任")
+    GUARD_FIRST = ("guard_first", 4, "守护优先")
+    DOC_FIRST = ("doc_first", 5, "文档优先")
+    HUMAN_FIRST = ("human_first", 6, "人本优先")
+    GAIN_FIRST = ("gain_first", 7, "增益优先")
 
     def __init__(self, key: str, priority: int, label: str):
         self.key = key
@@ -167,8 +167,8 @@ class GateKeeper:
     _STATE_DIR: Path | None = None
     _EVENT_LOG: list[dict] = []
     _PHILOSOPHY_ORDER: list[str] = [
-        "verify_first", "zero_trust", "guard_first",
-        "doc_first", "human_first", "gain_first", "less_is_more"
+        "less_is_more", "verify_first", "zero_trust",
+        "guard_first", "doc_first", "human_first", "gain_first"
     ]
 
     # ── Rule 分治激活：每个 Gate 只加载相关的规则 ──
@@ -399,46 +399,46 @@ class GateKeeper:
         total = 0.0
         md = ctx.metadata
 
-        # 验证优先 → weight=10
-        if active_keys is None or "verify_first" in active_keys:
-            if md.get("has_verification"):
-                hits.append(("verify_first", 10.0))
-                total += 10.0
-
-        # 零信任 → weight=9
-        if active_keys is None or "zero_trust" in active_keys:
-            if md.get("minimal_privilege"):
-                hits.append(("zero_trust", 9.0))
-                total += 9.0
-
-        # 守护优先 → weight=8
-        if active_keys is None or "guard_first" in active_keys:
-            if md.get("has_safeguards"):
-                hits.append(("guard_first", 8.0))
-                total += 8.0
-
-        # 文档优先 → weight=7
-        if active_keys is None or "doc_first" in active_keys:
-            if md.get("generates_documentation"):
-                hits.append(("doc_first", 7.0))
-                total += 7.0
-
-        # 人本优先 → weight=6
-        if active_keys is None or "human_first" in active_keys:
-            if md.get("user_requested") or ctx.risk_level != "high":
-                hits.append(("human_first", 6.0))
-                total += 6.0
-
-        # 增益优先 → weight=5
-        if active_keys is None or "gain_first" in active_keys:
-            if md.get("positive_roi"):
-                hits.append(("gain_first", 5.0))
-                total += 5.0
-
-        # 少即是多 → weight=4
+        # 少即是多 → weight=10
         if active_keys is None or "less_is_more" in active_keys:
             if md.get("simplifies_system") or ctx.risk_level == "low":
-                hits.append(("less_is_more", 4.0))
+                hits.append(("less_is_more", 10.0))
+                total += 10.0
+
+        # 验证优先 → weight=9
+        if active_keys is None or "verify_first" in active_keys:
+            if md.get("has_verification"):
+                hits.append(("verify_first", 9.0))
+                total += 9.0
+
+        # 零信任 → weight=8
+        if active_keys is None or "zero_trust" in active_keys:
+            if md.get("minimal_privilege"):
+                hits.append(("zero_trust", 8.0))
+                total += 8.0
+
+        # 守护优先 → weight=7
+        if active_keys is None or "guard_first" in active_keys:
+            if md.get("has_safeguards"):
+                hits.append(("guard_first", 7.0))
+                total += 7.0
+
+        # 文档优先 → weight=6
+        if active_keys is None or "doc_first" in active_keys:
+            if md.get("generates_documentation"):
+                hits.append(("doc_first", 6.0))
+                total += 6.0
+
+        # 人本优先 → weight=5
+        if active_keys is None or "human_first" in active_keys:
+            if md.get("user_requested") or ctx.risk_level != "high":
+                hits.append(("human_first", 5.0))
+                total += 5.0
+
+        # 增益优先 → weight=4
+        if active_keys is None or "gain_first" in active_keys:
+            if md.get("positive_roi"):
+                hits.append(("gain_first", 4.0))
                 total += 4.0
 
         return (total, hits)
