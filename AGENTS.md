@@ -12,17 +12,35 @@
 
 ## 灵魂(按权重排序)： 
 1. the less, the more（少即是多）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；
-2. 验证大于承诺：执行前tdd，执行后tdd，每个任务需要完整的闭环； 
+2. 验证大于承诺：执行前tdd，执行后tdd，每个任务需要完整的闭环；
 3. 零信任：断言和前置条件必须独立验证，不采信未经证据支持的结论；
 4. 守护：高危、不可逆、越权、架构路线调整等，需要向人类先申请执行，执行前先保留回滚资料和方案；
 5. 文档：执行ai任务或者goal 是在 .omc/tasks/{date}/{task_name} 创建 文档系统（research[全局探索|依赖树｜前置澄清｜执行方案]|plan[L1任务：step列表｜L2任务：phase一级列表&step二级列表]|executor[记录执行情况｜任务通过的checklist]） 和 在.omc/tokens/{date}/{task_name}.json 创建任务系统任务同名的令牌文件（令牌记录任务的执行状态）和在.omc/tokens/{date}/{task_name}.json.lock锁（锁存在，任务还在，持续进行不准结束，锁不在，任务完成；任务完成时，销毁锁）
-6. 人本：任务执行期间，通过ai决策链（CarrorOS哲学&铁律&现状&ROI）能决定的事绝不烦人，在高风险、不可逆、越权、架构调整时，则一定要向人申请权限；ogentic-ui是CarrorOS 推崇的UI交互方式；
+6. 人本：任务执行期间，通过ai决策链（CarrorOS哲学&铁律&现状&ROI）能决定的事绝不烦人，在高风险、不可逆、越权、架构调整时，则一定要向人申请权限；agentic-ui是CarrorOS 推崇的UI交互方式；
 
 ## 核心铁律（违反必须回退）
 1. **不编造** — 断言带 `[已验证:file:line]`
 2. **证据门禁** — 每步改完贴命令输出或 diff
 3. **先 init 后动手** — 任务必须先 `carros_base.py init` 再改代码
 
+## 错误闭环
+
+- 遇到报错先做证据化归因：保留复现命令、实际输出、调用链或状态与排除项；禁止用重复重试替代归因。
+- 根因确认后修复产生错误的机制边界（入口、契约、状态、门禁或上下文），并补充回归测试；先红后绿，执行后再验证。
+- 只有现有规则、代码和证据不足以作出安全决定时才询问人类；提问必须同时给出已知事实、候选分支和需要裁决的最小问题。
+
+## 临时 Python 过程脚本（不纳入 CarrorOS 治理）
+
+- 任务过程中主动发起的临时 Python 指令，包括测试、验证、编译和一次性处理，必须先用 `Write`/`Edit` 落盘；禁止在终端直接使用 `python3 -c`、`python3 -`、Python heredoc 或 `python3 -m ...` 执行临时逻辑。
+- 独立终端调用的临时脚本平铺在 `.omc/scripts/<name>.py`；从任务流程调用的脚本放在 `.omc/tasks/{date}/{task_name}/scripts/<name>.py`，按调用位置判定，不按脚本内容猜测。
+- 文件创建完成后，终端只执行一行命令，并从仓库根目录运行：
+  ```bash
+  python3 ".omc/scripts/<name>.py" [参数]
+  ```
+  任务脚本使用对应的 `.omc/tasks/{date}/{task_name}/scripts/<name>.py` 路径。
+- 临时脚本不要求 `init`、token、plan、tick、VerifyGate 或 `archive`；不自动删除，人为删除不会产生负面影响。
+- 可复用、被 CarrorOS 引用的稳定资产放在 `.claude/scripts/`；稳定资产不得依赖 `.omc/scripts/**` 或任务临时脚本。现有 hook 和稳定 `.claude/scripts/**` 入口不需要重新包装。
+- 发现未落盘的临时 Python 指令时，优先 REDIRECT 到上述文件流程；只有无法自决时才 ASK_USER，不使用 BLOCK 门禁。
 
 ## L1 工作流
 

@@ -123,40 +123,36 @@ def parse_verify_rules(plan_text: str, step: str) -> list[str]:
             m = re.match(r"- verify:\s*(.+)$", stripped)
             if m:
                 rules.append(m.group(1).strip())
-    if not rules:
-        # Fallback: search globally
-        for line in plan_text.splitlines():
-            m = re.match(r"- verify:\s*(.+)$", line.strip())
-            if m:
-                rules.append(m.group(1).strip())
     return rules
 
 
 def parse_evidence(executor_text: str, step: str) -> list[dict[str, Any]]:
-    """Extract evidence entries for a given step from executor.md."""
+    """Extract only exact step evidence entries from executor.md."""
     evidence: list[dict[str, Any]] = []
     current: dict[str, Any] = {}
+    include_current = False
     in_entry = False
+    target_headers = {f"EV-{step}", f"FAIL-{step}"}
+
+    def flush() -> None:
+        if include_current and current.get("step") == step:
+            evidence.append(dict(current))
 
     for line in executor_text.splitlines():
         stripped = line.strip()
-        m = re.match(r"^###\s+(EV-\S+)", stripped)
+        m = re.match(r"^###\s+(EV-\S+|FAIL-\S+)\s*$", stripped)
         if m:
-            if current and current.get("step") == step:
-                evidence.append(current)
-            current = {"id": m.group(1)}
-            in_entry = True
-            continue
-        m = re.match(r"^###\s+(FAIL-\S+)", stripped)
-        if m:
-            if current and current.get("step") == step:
-                evidence.append(current)
-            current = {"id": m.group(1), "type": "failure"}
+            flush()
+            header = m.group(1)
+            current = {"id": header}
+            include_current = header in target_headers
+            if header.startswith("FAIL-"):
+                current["type"] = "failure"
             in_entry = True
             continue
         if in_entry:
             for key in ("step", "type", "source", "exit_code", "file", "assertion",
-                        "evidence_level", "confirmation", "change_summary"):
+                        "evidence_level", "confirmation", "change_summary", "output_tail"):
                 kv = re.match(rf"- {key}:\s*(.+)$", stripped)
                 if kv:
                     val = kv.group(1).strip()
@@ -167,14 +163,12 @@ def parse_evidence(executor_text: str, step: str) -> list[dict[str, Any]]:
                             pass
                     current[key] = val
             if stripped.startswith("## "):
-                if current and current.get("step") == step:
-                    evidence.append(current)
+                flush()
                 current = {}
+                include_current = False
                 in_entry = False
 
-    if current and current.get("step") == step:
-        evidence.append(current)
-
+    flush()
     return evidence
 
 

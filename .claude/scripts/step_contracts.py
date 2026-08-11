@@ -154,8 +154,8 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
     errors: list[str] = []
 
     # 1. EV block for this step
-    ev_pattern = rf"### EV-{re.escape(step_id)}\b"
-    if not re.search(ev_pattern, executor_text):
+    ev_pattern = rf"^### EV-{re.escape(step_id)}\s*$"
+    if not re.search(ev_pattern, executor_text, flags=re.MULTILINE):
         errors.append(f"missing_step_evidence_block: EV-{step_id}")
         return errors  # can't validate further without evidence block
 
@@ -278,9 +278,15 @@ def start_step_atomic(token_path: str | Path,
         count=1,
         flags=re.MULTILINE,
     )
-    # Also mark status as active
-    if f"status: active" not in new_plan:
-        # Add status: active line after the step marker line
+    # Also mark only this step's status as active.
+    new_plan, status_replaced = re.subn(
+        rf"(- \[a\] {re.escape(step_id)}:.*?\n\s+- status:)\s+pending",
+        r"\1 active",
+        new_plan,
+        count=1,
+        flags=re.DOTALL,
+    )
+    if status_replaced == 0:
         new_plan = re.sub(
             rf"(- \[a\] {re.escape(step_id)}:.*)(\n)",
             r"\1" + "\n" + "  - status: active" + r"\2",
@@ -408,6 +414,8 @@ def complete_step_atomic(token_path: str | Path,
     step_info = next((s for s in steps if s["id"] == step_id), None)
     if not step_info:
         raise ValueError(f"Step {step_id} not found in plan")
+    if step_info["status"] == "completed":
+        return
     if step_info["status"] != "active":
         raise ValueError(f"Step {step_id} status={step_info['status']}, expected active")
 

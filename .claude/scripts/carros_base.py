@@ -27,6 +27,7 @@ import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 # ─── Dependencies: sibling modules ───
 _hook_dir = Path(__file__).parent
@@ -38,6 +39,12 @@ try:
     import omc_lint
 except ImportError:
     omc_lint = None
+
+try:
+    from sub_agent_result import TERMINAL_STATUSES, update_result_locked
+except ImportError:
+    TERMINAL_STATUSES = frozenset({"completed", "failed", "timeout", "cancelled"})
+    update_result_locked = None
 
 try:
     import carros_utils
@@ -265,8 +272,8 @@ def _default_token(task_id=None, level="L1", steps=None):
         "task_dir": str(TASK_DIR) if TASK_DIR else "",
         "status": "active",
         "task": {
-            "current_step": steps[0] if steps else "S1",
-            "status": "active",
+            "current_step": None,
+            "status": "planning",
             "blocked": None,
         },
         "stats": {
@@ -434,8 +441,9 @@ def _write_default_plan(steps=None):
         lines.append(f"- [ ] {s}: \n")
         lines.append(f"  - status: pending\n")
         lines.append(f"  - depends_on: none\n")
-        lines.append(f"  - acceptance: \n")
-        lines.append(f"  - verify: \n")
+        lines.append(f"  - scope: task directory\n")
+        lines.append(f"  - acceptance: step evidence is recorded\n")
+        lines.append(f"  - verify: assertion: step {s} evidence is recorded\n")
         lines.append("\n")
     lines.append("---\n")
     lines.append("> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。\n")
@@ -453,13 +461,24 @@ def _write_default_executor():
 
 ## Conditions
 
+- 记录本 step 的范围、依赖和安全边界。
+
 ## Key Changes
+
+- 记录本 step 的实际改动或明确 no-op。
 
 ## Decisions
 
+- Rationale: 记录选择该执行路径的原因。
+
 ## Acceptance Checklist
 
+- [ ] 在 VerifyGate 前完成本 step 的验收项。
+
 ## TDD Evidence
+
+- Dependency TDD command: pending -> exit 0
+- Regression TDD command: pending -> exit 0
 
 ## S1
 
@@ -467,10 +486,11 @@ def _write_default_executor():
 
 - step: S1
 - type: test/review/change
-- source: 执行来源
+- evidence_level: E2
+- source: step execution
 - exit_code: 0
-- file: 改了什么文件
-- assertion: 验证了什么
+- file: pending
+- assertion: step evidence pending
 
 ---
 """
@@ -896,7 +916,9 @@ def _find_latest_token(require_active=True):
             return False
         if task_dir:
             token_dir = token.get("task_dir", "")
-            if token_dir and Path(token_dir).expanduser().resolve() != Path(task_dir).expanduser().resolve():
+            if not token_dir:
+                return False
+            if Path(token_dir).expanduser().resolve() != Path(task_dir).expanduser().resolve():
                 return False
         return True
 
@@ -909,6 +931,20 @@ def _find_latest_token(require_active=True):
         if not isinstance(token, dict) or not matches(token, explicit):
             return None, None
         return token, explicit
+
+    goal_mode_path = OMC_ROOT / "state" / "tokens" / "lx-goal.json"
+    try:
+        mode = json.loads(goal_mode_path.read_text(encoding="utf-8"))
+        plan_dir_value = mode.get("rpe_plan_dir")
+        if mode.get("active") and plan_dir_value:
+            plan_dir = Path(plan_dir_value).expanduser().resolve()
+            goal_token_path = OMC_TOKENS / plan_dir.parent.name / f"{plan_dir.name}.json"
+            if goal_token_path.exists():
+                goal_token = json.loads(goal_token_path.read_text(encoding="utf-8"))
+                if isinstance(goal_token, dict) and matches(goal_token, goal_token_path):
+                    return goal_token, goal_token_path
+    except (OSError, json.JSONDecodeError, ValueError):
+        pass
 
     OMC_TOKENS.mkdir(parents=True, exist_ok=True)
     candidates = []
@@ -930,6 +966,32 @@ def _find_latest_token(require_active=True):
         _, path, token = candidates[0]
         return token, path
     return None, None
+
+
+def _sync_token_scope_from_plan(token: dict, plan_path: Path | None = None) -> dict:
+    """Copy the frozen plan scope into the top-level hook scope before execution."""
+    plan_path = plan_path or PLAN_PATH
+    if not plan_path or not plan_path.exists():
+        return token
+    lines = plan_path.read_text(encoding="utf-8").splitlines()
+    in_scope = False
+    scope: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "## Scope":
+            in_scope = True
+            continue
+        if in_scope and stripped.startswith("## "):
+            break
+        if in_scope and stripped.startswith("-"):
+            value = stripped[1:].strip()
+            if value and value not in scope:
+                scope.append(value)
+    if scope and token.get("scope") != scope:
+        token["scope"] = scope
+        token.setdefault("task", {})["scope"] = scope
+        _save_token(token)
+    return token
 
 
 def cmd_status(hot_mode=True):
@@ -996,7 +1058,7 @@ def cmd_tick(step_id=None):
     if not token:
         print(_red("❌ No active task"))
         return 2
-
+    token = _sync_token_scope_from_plan(token)
 
     # Use an explicit step when requested; otherwise find the first activatable step.
     current_step = step_id
@@ -1014,6 +1076,16 @@ def cmd_tick(step_id=None):
             current_step = pending_steps[0]
     elif current_step is None:
         current_step = token.get("task", {}).get("current_step")
+
+    if current_step and step_contracts and PLAN_PATH and PLAN_PATH.exists():
+        step_info = next(
+            (step for step in step_contracts.parse_plan_steps(PLAN_PATH.read_text())
+             if step["id"] == current_step),
+            None,
+        )
+        if step_info and step_info["status"] in ("active", "completed"):
+            print(f"   ◷ Step {current_step} already {step_info['status']}; tick is idempotent")
+            return 0
 
     if "tick" in token.get("stats", {}):
         token["stats"]["tick"] += 1
@@ -1147,6 +1219,7 @@ def cmd_verify(step_id=None, all_steps=False):
     if not token:
         print(_red("❌ No active task"))
         return 2
+    token = _sync_token_scope_from_plan(token)
     if step_contracts is None:
         print(_red("❌ VerifyGate dependency unavailable: step_contracts.py"))
         return 2
@@ -1191,7 +1264,13 @@ def cmd_verify(step_id=None, all_steps=False):
     # Base 不做深度审查（属 Enhance 域），仅做流程验证
     # 如需深度审查：在 Enhance 层调用 lib.phase3_oracle.spawn_oracle()
     verified_any = False
+    plan_steps = step_contracts.parse_plan_steps(plan) if step_contracts else []
     for target in targets:
+        target_info = next((step for step in plan_steps if step["id"] == target), None)
+        if target_info and target_info["status"] == "completed":
+            print(f"✅ {target}: already completed; verify is idempotent")
+            verified_any = True
+            continue
         # ── VerifyGate 接线（PKG-A）：无证据不 [x]，fail-closed ──
         decision, reason, gate_payload = _run_verify_gate(target)
         degraded = False
@@ -1332,8 +1411,10 @@ def cmd_report(use_stdout=True, archive_mode=False):
 
     # 输出到 task_dir/final-report.md
     if TASK_DIR:
+        from content_writer import write_chunked
+
         report_path = TASK_DIR / "final-report.md"
-        report_path.write_text(report_text)
+        write_chunked(report_path, report_text)
         print(_green(f"✅ Report saved: {report_path}"))
 
     return 0
@@ -2126,19 +2207,19 @@ def cmd_cancel():
         return 0
 
     result_path = sub_dir / "result.json"
-    if result_path.exists():
-        try:
-            result = json.loads(result_path.read_text())
-            result["status"] = "cancelled"
-            result["failure"] = reason
-            result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2))
-        except Exception:
-            result_path.write_text(json.dumps({
-                "status": "cancelled",
-                "failure": reason,
-                "started_at": "",
-                "completed_at": datetime.now(timezone.utc).isoformat(),
-            }))
+    if result_path.exists() and update_result_locked is not None:
+        def mark_cancelled(current: dict) -> dict | None:
+            if current.get("status") in TERMINAL_STATUSES:
+                return None
+            current["status"] = "cancelled"
+            current["failure"] = reason
+            current["completed_at"] = datetime.now(timezone.utc).isoformat()
+            return current
+
+        current, changed = update_result_locked(result_path, mark_cancelled)
+        if not changed and current.get("status") != "cancelled":
+            print(_red(f"❌ {step_id}: already terminal ({current.get('status', 'unknown')})"))
+            return 1
 
     # 更新 main token
     main_token = _load_token()
@@ -2444,7 +2525,11 @@ def cmd_auto():
         print("   Tasks dispatched. Run 'poll' to check status.")
         return 0
 
-    # Step 3: verify 每个完成的 step
+    # Step 3: only a fully completed manager result can enter Verify/Archive.
+    if result.get("status") != "completed":
+        print(_red(f"❌ Auto pipeline stopped: {result.get('status', 'unknown')}"))
+        return 1
+
     verified_count = 0
     if result.get("collect_result"):
         for sid in result["collect_result"].get("collected", []):
@@ -2464,7 +2549,7 @@ def cmd_auto():
     print(f"   Result: {result.get('summary', '?')}")
     print(f"   Verified: {verified_count}/{len(plan['steps'])}")
     print(f"{'=' * 50}")
-    return 0 if result.get("failed", 1) == 0 else 1
+    return 0 if result.get("status") == "completed" else 1
 
 
 # ═══════════════════════════════════════════

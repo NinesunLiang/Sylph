@@ -464,8 +464,9 @@ def update_token(token_path: Path, plan: Plan) -> None:
     token["task"]["id"] = plan.task_id
     token["task"]["status"] = status
     token["task"]["phase"] = "B" if plan.level == "L2" else "A"
-    token["task"]["current_step"] = plan.steps[0].step_id if plan.steps else None
+    token["task"]["current_step"] = None
     token["task"]["scope"] = plan.scope
+    token["scope"] = plan.scope
     token["task"]["blocked"] = plan.blocked_reason
     token["task"]["failed_verifications"] = token["task"].get("failed_verifications", 0)
     token["task"]["risk_level"] = plan.risk_level

@@ -249,17 +249,23 @@ def incomplete_plan_steps(plan_dir: Path) -> list[str]:
 # 子命令
 # ============================================================
 
-def cmd_on(goal: str, expiry_hours: int = 6):
+def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None):
     """激活目标模式 — 创建 mode file + 计划目录 + 物理锁"""
     goal = goal or "目标任务未指定"
+    if not 1 <= expiry_hours <= 168:
+        raise ValueError("expiry hours must be between 1 and 168")
+    if task_id is not None:
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,63}", task_id):
+            raise ValueError("task_id must contain only letters, digits, '.', '_' or '-'")
+        slug = task_id
+    else:
+        slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50])
+        slug = slug.strip("-_") or f"goal-{datetime.now().strftime('%H%M%S')}"
     expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
     now = get_now()
 
     # Round7 PKG-6: 生命周期互斥(fail-closed)——ghost 激活中拒绝进入 goal,先于任何落盘
     date_str = datetime.now().strftime("%Y%m%d")
-    slug = re.sub(r"[^a-zA-Z0-9\-_]", "", goal.replace(" ", "-")[:50])
-    # 纯中文/纯符号名(all non-ASCII)→slug被掏空只剩"-",回退到时间戳
-    slug = slug.strip("-_") or f"goal-{datetime.now().strftime('%H%M%S')}"
     if _lc_set_mode is None:
         print("❌ lifecycle SSOT 不可用(lifecycle_ssot 导入失败),拒绝进入 goal 模式", file=sys.stderr)
         sys.exit(2)
@@ -1156,12 +1162,52 @@ KNOWN_SUBCOMMANDS = {
 }
 
 
+def parse_on_args(args: list[str]) -> tuple[str, int, str | None]:
+    """Parse `on` arguments without touching lifecycle or task state."""
+    goal_parts: list[str] = []
+    expiry = 6
+    expiry_set = False
+    task_id = None
+    i = 0
+    while i < len(args):
+        arg = args[i]
+        if arg == "--task-id":
+            if i + 1 >= len(args) or args[i + 1].startswith("-"):
+                raise ValueError("--task-id requires a value")
+            task_id = args[i + 1]
+            i += 2
+            continue
+        if arg in ("--expiry", "--hours"):
+            if expiry_set or i + 1 >= len(args):
+                raise ValueError(f"{arg} requires one integer value")
+            raw_expiry = args[i + 1]
+            i += 2
+            try:
+                expiry = int(raw_expiry, 10)
+            except ValueError as exc:
+                raise ValueError("expiry must be an integer") from exc
+            expiry_set = True
+            continue
+        if arg.startswith("--"):
+            raise ValueError(f"unknown option: {arg}")
+        goal_parts.append(arg)
+        i += 1
+
+    if not expiry_set and len(goal_parts) > 1 and goal_parts[-1].isdigit():
+        expiry = int(goal_parts.pop(), 10)
+    if not goal_parts:
+        goal_parts = ["目标任务未指定"]
+    if not 1 <= expiry <= 168:
+        raise ValueError("expiry hours must be between 1 and 168")
+    return " ".join(goal_parts), expiry, task_id
+
+
 def _usage() -> str:
     cmds = "、".join(sorted(k for k in KNOWN_SUBCOMMANDS if k != "_update-lock"))
     return (
-        "用法: lx-goal.py <子命令> [参数]  或  lx-goal.py on \"<目标描述>\" [小时]\n"
+        "用法: lx-goal.py <子命令> [参数]  或  lx-goal.py on \"<目标描述>\" [小时|--expiry N] [--task-id ID]\n"
         f"子命令: {cmds}\n"
-        "说明: 无参数=status; 非子命令文本=当作目标激活(等价 on); 以 - 开头的未知参数报错不激活"
+        "说明: 参数先完整校验，未知 option/非法小时数不会创建 mode、token 或 lock。"
     )
 
 
@@ -1194,9 +1240,18 @@ def main():
     args = sys.argv[2:]
 
     if cmd_name == "on":
-        goal = args[0] if args else "目标任务未指定"
-        expiry = int(args[1]) if len(args) > 1 else 6
-        cmd_on(goal, expiry)
+        try:
+            goal, expiry, task_id = parse_on_args(args)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            print(_usage(), file=sys.stderr)
+            sys.exit(2)
+        try:
+            cmd_on(goal, expiry, task_id)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            print(_usage(), file=sys.stderr)
+            sys.exit(2)
     elif cmd_name == "set":
         if len(args) < 2:
             print("用法: lx-goal.py set <key> <value>")

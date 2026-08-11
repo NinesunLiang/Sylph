@@ -14,7 +14,7 @@ import json
 import os
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 LOCK_DIR: Path | None = None
 
@@ -80,3 +80,56 @@ def write_with_lock(
             except OSError:
                 pass
     return False
+
+
+def update_json_with_lock(
+    target: Path,
+    updater: Callable[[dict[str, Any]], dict[str, Any] | None],
+    timeout: float = 5.0,
+) -> tuple[dict[str, Any], bool]:
+    """Read, transform, and atomically publish JSON under the shared lock."""
+    lock_path = _get_lock_path(target)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    deadline = time.monotonic() + timeout
+
+    while time.monotonic() < deadline:
+        try:
+            fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+        except FileExistsError:
+            try:
+                age = time.monotonic() - lock_path.stat().st_mtime
+                if age > 10.0:
+                    lock_path.unlink(missing_ok=True)
+                    continue
+            except OSError:
+                pass
+            time.sleep(0.3)
+            continue
+
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            try:
+                current = json.loads(target.read_text(encoding="utf-8")) if target.exists() else {}
+            except (OSError, json.JSONDecodeError):
+                current = {}
+            if not isinstance(current, dict):
+                current = {}
+            updated = updater(dict(current))
+            if updated is None:
+                return current, False
+            target.parent.mkdir(parents=True, exist_ok=True)
+            tmp = target.with_suffix(target.suffix + ".tmp")
+            with tmp.open("w", encoding="utf-8") as output:
+                output.write(json.dumps(updated, ensure_ascii=False, indent=2, sort_keys=True) + "\n")
+                output.flush()
+                os.fsync(output.fileno())
+            tmp.replace(target)
+            return updated, True
+        finally:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_UN)
+                os.close(fd)
+                lock_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+    return {}, False

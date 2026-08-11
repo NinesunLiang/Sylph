@@ -28,6 +28,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from sub_agent_result import TERMINAL_STATUSES, read_result, update_result_locked
+
 
 DEFAULT_TIMEOUT = 180
 DEFAULT_AGENT_URL = "http://127.0.0.1:9998"
@@ -59,17 +61,14 @@ class SubAgentExecutor:
         self.timeout = int(os.environ.get("SUBAGENT_TIMEOUT", DEFAULT_TIMEOUT))
 
         self.step_id = ""
+        self.generation: int | None = None
 
     def check_resume(self) -> bool:
-        """跳过已完成的 task"""
-        if self.result_path.exists():
-            try:
-                result = json.loads(self.result_path.read_text())
-                if result.get("status") == "completed":
-                    return True
-            except Exception:
-                pass
-        return False
+        """跳过已完成或已取消的 task。"""
+        if not self.result_path.exists():
+            return False
+        result = read_result(self.result_path)
+        return result.get("status") in TERMINAL_STATUSES
 
     def _read_instruction(self) -> str:
         """读 instruction.md，如果没有就 fallback 读 token.json 的 goal"""
@@ -145,13 +144,16 @@ class SubAgentExecutor:
 
     def run(self) -> dict:
         if self.check_resume():
-            result = json.loads(self.result_path.read_text())
+            result = read_result(self.result_path)
+            current_status = result.get("status", "failed")
+            if current_status == "completed":
+                current_status = "skipped"
             return {
-                "status": "skipped",
-                "summary": result.get("summary", "already completed"),
+                "status": current_status,
+                "summary": result.get("summary", "already terminal"),
                 "evidence_count": 0,
                 "files_changed": [],
-                "failure": None,
+                "failure": result.get("failure"),
                 "elapsed": 0,
             }
 
@@ -170,7 +172,22 @@ class SubAgentExecutor:
         # 保存 instruction 到 _instruction_sent.txt 用于调试
         (self.sub_dir / "_instruction_sent.txt").write_text(instruction)
 
-        self._update_result("running")
+        current = read_result(self.result_path)
+        self.generation = int(current.get("generation", 0))
+        if not self._update_result(
+            "running",
+            expected_generation=self.generation,
+            allowed_statuses={"pending"},
+        ):
+            current = read_result(self.result_path)
+            return {
+                "status": current.get("status", "failed"),
+                "failure": current.get("failure", "terminal result"),
+                "elapsed": 0,
+                "summary": current.get("summary", ""),
+                "evidence_count": 0,
+                "files_changed": [],
+            }
 
         start = time.time()
         try:
@@ -183,7 +200,23 @@ class SubAgentExecutor:
             self._write_output(ai_output)
 
             short = ai_output[:500] if len(ai_output) > 500 else ai_output
-            self._update_result("completed", summary=short, full_output=ai_output)
+            if not self._update_result(
+                "completed",
+                summary=short,
+                full_output=ai_output,
+                expected_generation=self.generation,
+                allowed_statuses={"running"},
+            ):
+                current = read_result(self.result_path)
+                return {
+                    "status": current.get("status", "failed"),
+                    "summary": current.get("summary", ""),
+                    "output_len": len(ai_output),
+                    "evidence_count": 0,
+                    "files_changed": [],
+                    "failure": current.get("failure"),
+                    "elapsed": elapsed,
+                }
             return {
                 "status": "completed",
                 "summary": short,
@@ -197,9 +230,20 @@ class SubAgentExecutor:
         except Exception as e:
             elapsed = time.time() - start
             err_msg = str(e)[:200]
-            self._update_result("failed", failure=err_msg)
+            committed = self._update_result(
+                "failed",
+                failure=err_msg,
+                expected_generation=self.generation,
+                allowed_statuses={"running"},
+            )
+            if not committed:
+                current = read_result(self.result_path)
+                err_msg = current.get("failure", err_msg)
+                result_status = current.get("status", "failed")
+            else:
+                result_status = "failed"
             return {
-                "status": "failed",
+                "status": result_status,
                 "failure": err_msg,
                 "elapsed": elapsed,
                 "summary": "",
@@ -207,32 +251,51 @@ class SubAgentExecutor:
                 "files_changed": [],
             }
 
-    def _update_result(self, status: str, failure: str = None, summary: str = "", full_output: str = ""):
-        result_data = {
-            "status": status,
-            "step_id": self.step_id,
-            "summary": summary,
-            "output_len": len(full_output),
-            "evidence": [],
-            "files_changed": [],
-            "failure": failure,
-            "retry_count": 0,
-            "max_retries": 3,
-            "started_at": datetime.now(timezone.utc).isoformat() if status == "running" else None,
-            "completed_at": datetime.now(timezone.utc).isoformat() if status in ("completed", "failed") else None,
-        }
+    def _update_result(
+        self,
+        status: str,
+        failure: str | None = None,
+        summary: str = "",
+        full_output: str = "",
+        expected_generation: int | None = None,
+        allowed_statuses: set[str] | None = None,
+    ) -> bool:
+        def publish(current: dict) -> dict | None:
+            current_status = current.get("status", "pending")
+            current_generation = int(current.get("generation", 0))
+            if expected_generation is not None and current_generation != expected_generation:
+                return None
+            if current_status in TERMINAL_STATUSES:
+                return None
+            if allowed_statuses is not None and current_status not in allowed_statuses:
+                return None
 
-        if self.result_path.exists():
-            try:
-                existing = json.loads(self.result_path.read_text())
-                if status == "failed":
-                    result_data["retry_count"] = existing.get("retry_count", 0) + 1
-            except Exception:
-                pass
+            result_data = {
+                **current,
+                "status": status,
+                "step_id": self.step_id or current.get("step_id", ""),
+                "summary": summary,
+                "output_len": len(full_output),
+                "evidence": [],
+                "files_changed": [],
+                "failure": failure,
+                "retry_count": current.get("retry_count", 0),
+                "generation": current_generation,
+                "max_retries": 3,
+                "started_at": current.get("started_at"),
+                "completed_at": current.get("completed_at"),
+            }
+            if status == "running":
+                result_data["started_at"] = datetime.now(timezone.utc).isoformat()
+                result_data["completed_at"] = None
+            elif status in ("completed", "failed"):
+                result_data["completed_at"] = datetime.now(timezone.utc).isoformat()
+            if status == "failed":
+                result_data["retry_count"] = current.get("retry_count", 0) + 1
+            return result_data
 
-        self.result_path.write_text(
-            json.dumps(result_data, indent=2, ensure_ascii=False) + "\n"
-        )
+        _, committed = update_result_locked(self.result_path, publish)
+        return committed
 
     def _write_output(self, text: str):
         marker = f"# SubAgent: {self.step_id}\n\n## 产出\n\n"

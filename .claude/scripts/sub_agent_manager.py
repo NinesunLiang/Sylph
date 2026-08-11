@@ -49,6 +49,8 @@ try:
 except ImportError:
     recovery = None
 
+from sub_agent_result import TERMINAL_STATUSES, update_result_locked
+
 
 # ═══════════════════════════════════════════
 # SubAgent Manager
@@ -195,6 +197,7 @@ class SubAgentManager:
             "files_changed": [],
             "failure": None,
             "retry_count": 0,
+            "generation": 0,
             "max_retries": plan.get("max_retries", DEFAULT_MAX_RETRIES),
             "parent": {
                 "task_dir": str(self.task_dir),
@@ -226,11 +229,14 @@ class SubAgentManager:
 
         completed = sum(1 for s in steps_info if s["status"] == "completed")
         failed = sum(1 for s in steps_info if s["status"] in ("failed", "timeout"))
-        pending = len(steps_info) - completed - failed
+        cancelled = sum(1 for s in steps_info if s["status"] == "cancelled")
+        pending = len(steps_info) - completed - failed - cancelled
 
         # 判断整体状态
         if failed > 0:
             status = "has_failed"
+        elif cancelled > 0:
+            status = "cancelled"
         elif pending == 0:
             status = "completed"
         else:
@@ -241,9 +247,10 @@ class SubAgentManager:
             "steps": steps_info,
             "completed": completed,
             "failed": failed,
+            "cancelled": cancelled,
             "pending": pending,
             "total": len(steps_info),
-            "summary": f"{completed}/{len(steps_info)} done, {failed} failed",
+            "summary": f"{completed}/{len(steps_info)} done, {failed} failed, {cancelled} cancelled",
         }
 
     def _get_sub_dirs(self) -> list:
@@ -288,8 +295,10 @@ class SubAgentManager:
                             elapsed = (datetime.now(timezone.utc) -
                                        datetime.fromisoformat(started)).total_seconds()
                             if elapsed > self.config["timeout"]:
-                                info["status"] = "timeout"
-                                info["failure"] = f"timeout after {elapsed:.0f}s"
+                                timeout_failure = f"timeout after {elapsed:.0f}s"
+                                current, _ = self._mark_timeout(sub_dir, timeout_failure)
+                                info["status"] = current.get("status", "timeout")
+                                info["failure"] = current.get("failure") or timeout_failure
             except (json.JSONDecodeError, OSError):
                 info["status"] = "failed"
                 info["failure"] = "malformed result.json"
@@ -319,42 +328,42 @@ class SubAgentManager:
         if not result_path.exists():
             return False
 
-        try:
-            r = json.loads(result_path.read_text())
-        except (json.JSONDecodeError, OSError):
+        def reset_for_retry(current_result: dict) -> dict | None:
+            status = current_result.get("status")
+            if status not in ("failed", "timeout"):
+                return None
+            max_retries = current_result.get("max_retries", self.config["max_retries"])
+            retry_count = current_result.get("retry_count", 0)
+            if retry_count >= max_retries:
+                current_result["status"] = "failed"
+                current_result["failure"] = f"max retries ({max_retries}) exceeded"
+                current_result["completed_at"] = datetime.now(timezone.utc).isoformat()
+                return current_result
+
+            current_result["status"] = "pending"
+            current_result["failure"] = None
+            current_result["retry_count"] = retry_count + 1
+            current_result["generation"] = current_result.get("generation", 0) + 1
+            current_result["summary"] = ""
+            current_result["evidence"] = []
+            current_result["files_changed"] = []
+            current_result["started_at"] = datetime.now(timezone.utc).isoformat()
+            current_result["completed_at"] = None
+            return current_result
+
+        updated, changed = update_result_locked(result_path, reset_for_retry)
+        if not changed or updated.get("status") != "pending":
             return False
 
-        max_retries = r.get("max_retries", self.config["max_retries"])
-        current = r.get("retry_count", 0)
-
-        if current >= max_retries:
-            r["status"] = "failed"
-            r["failure"] = f"max retries ({max_retries}) exceeded"
-            result_path.write_text(json.dumps(r, indent=2, ensure_ascii=False) + "\n")
-            return False
-
-        # 重置
-        r["status"] = "pending"  # 设为 pending 让 _wait_all 能重新 spawn
-        r["failure"] = None
-        r["retry_count"] = current + 1
-        r["summary"] = ""
-        r["evidence"] = []
-        r["files_changed"] = []
-        r["started_at"] = datetime.now(timezone.utc).isoformat()
-        r["completed_at"] = None
-
-        # 清空 executor.md
+        retry_count = updated.get("retry_count", 0)
         exec_path = sub_dir / "executor.md"
         exec_path.write_text(
-            f"# Executor: sub-{step_id} (retry {current + 1})\n\n"
+            f"# Executor: sub-{step_id} (retry {retry_count})\n\n"
             f"## Evidence\n\n---\n"
         )
 
-        # 从 spawned 移除，允许重新 spawn
         self._spawned.discard(step_id)
-
-        result_path.write_text(json.dumps(r, indent=2, ensure_ascii=False) + "\n")
-        print(f"   🔄 {step_id}: retry #{current + 1}")
+        print(f"   🔄 {step_id}: retry #{retry_count}")
         return True
 
     def retry_failed(self) -> list:
@@ -427,9 +436,9 @@ class SubAgentManager:
             return {"success": False, "error": str(e)}
 
         status = result.get("status", "unknown")
-        if status == "failed":
-            return {"success": False, "error": result.get("failure", "unknown failure")}
-        if status not in ("completed", "cancelled"):
+        if status in ("failed", "timeout", "cancelled"):
+            return {"success": False, "error": result.get("failure") or status}
+        if status != "completed":
             return {"success": False, "error": f"not completed: {status}"}
 
         # 追加到 main executor.md
@@ -466,46 +475,63 @@ class SubAgentManager:
         results = self.poll()
         collected = []
         failed = []
+        cancelled = []
         skipped = []
 
         for step in results["steps"]:
-            if step["status"] == "completed":
-                cr = self.collect(step["id"])
+            step_id = step["id"]
+            status = step["status"]
+            if status == "completed":
+                cr = self.collect(step_id)
                 if cr["success"]:
-                    collected.append(step["id"])
+                    collected.append(step_id)
                 else:
-                    failed.append((step["id"], cr.get("error", "?")))
+                    failed.append((step_id, cr.get("error", "?")))
+            elif status in ("failed", "timeout"):
+                failed.append((step_id, step.get("failure") or status))
+            elif status == "cancelled":
+                cancelled.append((step_id, step.get("failure") or status))
             else:
-                skipped.append((step["id"], step["status"]))
+                skipped.append((step_id, status))
 
         return {
             "collected": collected,
             "failed": failed,
+            "cancelled": cancelled,
             "skipped": skipped,
         }
 
     # ─── 取消 ───
 
     def cancel(self, step_id: str, reason: str = "cancelled by main agent") -> bool:
-        """取消一个 sub_task
-
-        Returns: True if cancelled
-        """
+        """取消一个 sub_task，并把 cancelled 作为不可覆盖的终态。"""
         sub_dir = self.sub_task_dir / f"sub-{step_id}"
         result_path = sub_dir / "result.json"
 
         if not result_path.exists():
             return False
 
-        try:
-            r = json.loads(result_path.read_text())
-        except (json.JSONDecodeError, OSError):
-            r = {}
+        def mark_cancelled(current: dict) -> dict | None:
+            if current.get("status") in TERMINAL_STATUSES:
+                return None
+            current["status"] = "cancelled"
+            current["failure"] = reason
+            current["completed_at"] = datetime.now(timezone.utc).isoformat()
+            return current
 
-        r["status"] = "cancelled"
-        r["failure"] = reason
-        r["completed_at"] = datetime.now(timezone.utc).isoformat()
-        result_path.write_text(json.dumps(r, indent=2, ensure_ascii=False) + "\n")
+        current, changed = update_result_locked(result_path, mark_cancelled)
+        if not changed:
+            return current.get("status") == "cancelled"
+
+        proc = self._spawned_procs.pop(step_id, None)
+        self._spawned.discard(step_id)
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=1)
+            except sb.TimeoutExpired:
+                proc.kill()
+                proc.wait()
 
         # 更新 token
         token_path = sub_dir / "token.json"
@@ -547,33 +573,41 @@ class SubAgentManager:
 
         # 第2步: 等待所有 sub_task 完成（带超时）
         print(f"\n⏳ Auto-run: {len(sub_dirs)} sub-tasks (timeout={self.config['timeout']}s)...")
-        overall_status = self._wait_all()
+        self._wait_all()
 
-        # 第3步: 回收
-        print(f"\n📦 Collecting results...")
-        collect_result = self.collect_all()
-
-        # 第4步: 重试失败项
+        # 第3步: 重试失败项
         retried = self.retry_failed()
         if retried:
             print(f"\n🔄 Retrying {len(retried)} failed tasks...")
-            # 重试后再等一轮
             time.sleep(2)
             self._wait_all()
-            # 再回收
-            extra = self.collect_all()
-            collect_result["collected"].extend(extra["collected"])
-            collect_result["failed"].extend(extra["failed"])
 
-        completed = len(collect_result["collected"])
+        # 第4步: 只回收最终快照，避免旧 skipped/failed 污染结果
+        print(f"\n📦 Collecting results...")
+        collect_result = self.collect_all()
+        final = self.poll()
         failed = len(collect_result["failed"])
+        cancelled = len(collect_result["cancelled"])
+        skipped = len(collect_result["skipped"])
+        completed = len(collect_result["collected"])
+        pending = final["pending"]
+        if failed > 0:
+            status = "has_failures"
+        elif cancelled > 0:
+            status = "cancelled"
+        elif skipped > 0 or pending > 0:
+            status = "incomplete"
+        else:
+            status = "completed"
 
         return {
-            "status": "completed" if failed == 0 else "has_failures",
+            "status": status,
             "completed": completed,
             "failed": failed,
+            "cancelled": cancelled,
+            "pending": pending,
             "total": len(sub_dirs),
-            "summary": f"{completed} completed, {failed} failed",
+            "summary": f"{completed} completed, {failed} failed, {cancelled} cancelled",
             "collect_result": collect_result,
         }
 
@@ -602,12 +636,12 @@ class SubAgentManager:
                     sub_dir = Path(step["dir"])
                     self._spawn_subagent(sub_dir, step["id"])
 
-            done = result["completed"] + result["failed"]
+            done = result["completed"] + result["failed"] + result["cancelled"]
             total = result["total"]
 
             # 进度汇报（每 30s 一次，不下于上次）
             if elapsed - last_report >= 30:
-                print(f"   {done}/{total} done ({result['failed']} failed, {result['pending']} pending) ...")
+                print(f"   {done}/{total} done ({result['failed']} failed, {result['cancelled']} cancelled, {result['pending']} pending) ...")
                 last_report = elapsed
 
             if done >= total:
@@ -698,18 +732,19 @@ class SubAgentManager:
             except Exception:
                 pass
 
-    def _mark_timeout(self, sub_dir: Path):
-        """标记 sub_task 为超时"""
+    def _mark_timeout(self, sub_dir: Path, failure: str = "timeout"):
+        """在共享锁内把非终态 sub_task 标记为超时。"""
         result_path = sub_dir / "result.json"
-        try:
-            r = json.loads(result_path.read_text())
-            if r.get("status") == "running":
-                r["status"] = "timeout"
-                r["failure"] = "timeout"
-                r["completed_at"] = datetime.now(timezone.utc).isoformat()
-                result_path.write_text(json.dumps(r, indent=2, ensure_ascii=False) + "\n")
-        except Exception:
-            pass
+
+        def mark_timeout(current: dict) -> dict | None:
+            if current.get("status") in TERMINAL_STATUSES:
+                return None
+            current["status"] = "timeout"
+            current["failure"] = failure
+            current["completed_at"] = datetime.now(timezone.utc).isoformat()
+            return current
+
+        return update_result_locked(result_path, mark_timeout)
 
 
 # ═══════════════════════════════════════════
@@ -830,9 +865,11 @@ def cmd_collect(args):
             print(f"   ✅ {sid}")
         for sid, err in result["failed"]:
             print(f"   ❌ {sid}: {err}")
+        for sid, reason in result["cancelled"]:
+            print(f"   ⏹ {sid}: {reason}")
         for sid, status in result["skipped"]:
             print(f"   ◷ {sid}: {status}")
-        return 1 if result["failed"] else 0
+        return 0 if not result["failed"] and not result["cancelled"] else 1
 
 
 def cmd_cancel(args):
@@ -850,7 +887,7 @@ def cmd_cancel(args):
         return 0
     else:
         print(f"⚠  {args.step}: not found or already done")
-        return 0
+        return 1
 
 
 def cmd_auto(args):
@@ -884,7 +921,7 @@ def cmd_auto(args):
     print(f"   Status: {result['status']}")
     print(f"   {result['summary']}")
     print(f"{'=' * 50}")
-    return 0 if result["failed"] == 0 else 1
+    return 0 if result["status"] == "completed" else 1
 
 
 def main(argv=None):
