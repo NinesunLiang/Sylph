@@ -9,12 +9,14 @@ HOOK_DIR = Path(__file__).resolve().parent
 ROOT = HOOK_DIR.parents[1]
 
 
-def _validate_and_read_capsule(capsule_path: Path) -> str | None:
-    """Read resume-capsule.json, validate token/task, return AUTO-RESUME context."""
+def _validate_and_read_capsule(capsule_path: Path, session_id: str) -> str | None:
+    """Read resume-capsule.json for the matching session."""
     try:
         if not capsule_path.exists():
             return None
         capsule = json.loads(capsule_path.read_text(encoding="utf-8"))
+        if not session_id or capsule.get("session_id") != session_id:
+            return None
         active_token = capsule.get("active_token")
         plan_dir = capsule.get("plan_dir")
         step = capsule.get("current_step")
@@ -40,6 +42,7 @@ def _validate_and_read_capsule(capsule_path: Path) -> str | None:
                 return None
         lines = []
         lines.append("[AUTO-RESUME] 原生 compact 已完成，继续任务。")
+        lines.append(f"session_id={session_id}")
         lines.append(f"task={task_id} phase={phase} step={step}")
         lines.append("立即继续，不要询问，不要重新开始。")
         context = "\n".join(lines)
@@ -78,24 +81,30 @@ def _safe_write_resume_note(context: str, note_path: Path) -> bool:
             pass
 
 
-def _validate_capsule_or_fail_silent(capsule_path: Path) -> str | None:
-    """Wrap _validate_and_read_capsule with broad exception handling.
-
-    PostCompact hook MUST NOT raise — fail-closed with None.
-    """
+def _validate_capsule_or_fail_silent(capsule_path: Path, session_id: str) -> str | None:
+    """Wrap capsule validation with broad exception handling."""
     try:
-        return _validate_and_read_capsule(capsule_path)
+        return _validate_and_read_capsule(capsule_path, session_id)
     except Exception:
         return None
 
 
 def main() -> None:
+    try:
+        payload = json.loads(sys.stdin.read() or "{}")
+    except Exception:
+        payload = {}
+    session_id = str(payload.get("session_id") or payload.get("sessionId") or "")
     capsule_path = ROOT / ".omc" / "state" / "resume-capsule.json"
-    context = _validate_capsule_or_fail_silent(capsule_path)
+    context = _validate_capsule_or_fail_silent(capsule_path, session_id)
 
     if context:
         note_path = ROOT / ".omc" / "state" / "resume-note.md"
-        _safe_write_resume_note(context, note_path)
+        if _safe_write_resume_note(context, note_path):
+            try:
+                capsule_path.unlink()
+            except OSError:
+                pass
 
     # PostCompact hook schema 不支持 hookSpecificOutput.additionalContext,
     # 因此 AUTO-RESUME 上下文写入 resume-note.md,

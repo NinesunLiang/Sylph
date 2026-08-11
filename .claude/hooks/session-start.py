@@ -128,61 +128,16 @@ def main() -> None:
     except Exception:
         payload = {}
     source = str(payload.get("source") or "startup")
+    session_id = str(payload.get("session_id") or payload.get("sessionId") or "")
 
     parts: list[str] = []
-
-    token_brief = _active_token_brief()
-    if token_brief:
-        parts.append(token_brief)
-
-    stepwise_brief = _stepwise_brief()
-    if stepwise_brief:
-        parts.append(stepwise_brief)
-
-    if HANDOFF.exists():
-        try:
-            raw = HANDOFF.read_text(encoding="utf-8")
-            ts = _handoff_ts(raw, HANDOFF)
-            banner = ""
-            if ts:
-                age_h = (datetime.now(timezone.utc).timestamp() - ts) / 3600
-                if age_h > STALE_HOURS:
-                    banner = (
-                        f"⚠️ [STALE handoff — 更新于 {_age_str(ts)}前,超 {STALE_HOURS}h] "
-                        "内容可能过期;以 token/plan 磁盘态为准,勿直接按其恢复旧任务\n"
-                    )
-            text = raw[:MAX_HANDOFF]
-            if text.strip():
-                parts.append(f"[Session Handoff — {source} 恢复导航]\n{banner}{text}")
-        except Exception:
-            pass
-
-    if source in ("compact", "resume") and LAST_PROMPTS.exists():
-        try:
-            text = LAST_PROMPTS.read_text(encoding="utf-8")[:MAX_PROMPTS]
-            if text.strip():
-                parts.append(f"[Last User Prompts]\n{text}")
-        except Exception:
-            pass
-
-    if source == "compact":
+    if source in ("compact", "resume") and session_id:
         resume_note = OMC / "state" / "resume-note.md"
         if resume_note.exists():
-            _stale = False
             try:
-                _age_h = (datetime.now(timezone.utc).timestamp() - resume_note.stat().st_mtime) / 3600
-                if _age_h > STALE_HOURS:
-                    _stale = True
-            except OSError:
-                pass
-            if _stale:
-                try:
-                    resume_note.unlink()
-                except OSError:
-                    pass
-            else:
-                try:
-                    text = resume_note.read_text(encoding="utf-8")
+                text = resume_note.read_text(encoding="utf-8")
+                match = re.search(r"^session_id=(\S+)$", text, flags=re.M)
+                if match and match.group(1) == session_id:
                     if len(text) > 500:
                         _cut = text[:500]
                         _nl = _cut.rfind("\n")
@@ -191,8 +146,12 @@ def main() -> None:
                         text = _cut
                     if text.strip():
                         parts.append(text)
-                except Exception:
-                    pass
+                        try:
+                            resume_note.unlink()
+                        except OSError:
+                            pass
+            except Exception:
+                pass
 
     if not parts:
         print(json.dumps({"continue": True}))

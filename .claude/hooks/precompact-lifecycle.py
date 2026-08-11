@@ -67,12 +67,22 @@ def _resolve_task_dir(token_path: Path) -> Path | None:
     return candidate if candidate.exists() else None
 
 
-def _refresh_compact_write() -> str:
+def _refresh_compact_write(session_id: str) -> str:
     """compact 前同步刷新 handoff.md + last-user-prompt.md(best-effort)。"""
+    if not session_id:
+        return "skipped:no_session_id"
     token = _latest_token()
     if token is None:
         return "skipped:no_token"
-    cmd = [sys.executable, str(CONTEXT_ENGINE), "compact-write", "--token", str(token)]
+    cmd = [
+        sys.executable,
+        str(CONTEXT_ENGINE),
+        "compact-write",
+        "--token",
+        str(token),
+        "--session-id",
+        session_id,
+    ]
     task_dir = _resolve_task_dir(token)
     if task_dir:
         cmd += ["--task", str(task_dir)]
@@ -90,8 +100,8 @@ def _refresh_compact_write() -> str:
 def main() -> int:
     try:
         hook_input = read_stdin_json()
-        refresh = _refresh_compact_write()
         session_id = hook_input.get("session_id") or hook_input.get("sessionId") or ""
+        refresh = _refresh_compact_write(str(session_id))
         transcript_path = hook_input.get("transcript_path") or hook_input.get("transcriptPath") or ""
         supplied_event_id = hook_input.get("event_id") or hook_input.get("eventId")
         if supplied_event_id:

@@ -8,7 +8,7 @@ Purpose:
 Commands:
   resume-check    --token <path> --task <path>
   state-injection --token <path>
-  compact-write   --token <path> [--task <path>]
+  compact-write   --token <path> [--task <path>] [--session-id <id>]
 
 Constraints:
   - Python 3.10+ standard library only
@@ -299,6 +299,7 @@ def _build_resume_capsule(
     token: dict[str, Any],
     token_path: Path,
     task_path: Path,
+    session_id: str,
 ) -> dict[str, Any]:
     """构建 resume-capsule.json 供 PostCompact hook 注入恢复指令。"""
     plan_text = read_text(task_path / "plan.md")
@@ -330,10 +331,16 @@ def _build_resume_capsule(
         "next_action": next_action,
         "source": "compact",
         "task_id": task_id(token, token_path.stem),
+        "session_id": session_id,
     }
 
 
-def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> int:
+def compact_write(
+    token_path: Path,
+    task_path: Path,
+    user_prompt: str = "",
+    session_id: str | None = None,
+) -> int:
     """写入 .omc/session-handoff.md 和 .omc/state/last-user-prompt.md
     供 SessionStart hook(session-start.py, source=compact/resume)注入到
     compact 后的上下文尾部,恢复任务状态。
@@ -432,14 +439,20 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
 
 ---
 """
+    prompt_path.parent.mkdir(parents=True, exist_ok=True)
     prompt_path.write_text(prompt_content, encoding="utf-8")
 
-    # 写入 resume-capsule.json (供 PostCompact hook 注入 [AUTO-RESUME])
-    capsule = _build_resume_capsule(token, token_path, task_path)
-    capsule_path.parent.mkdir(parents=True, exist_ok=True)
-    capsule_path.write_text(json.dumps(capsule, ensure_ascii=False, indent=2), encoding="utf-8")
+    capsule_written = False
+    if session_id:
+        capsule = _build_resume_capsule(token, token_path, task_path, session_id)
+        capsule_path.parent.mkdir(parents=True, exist_ok=True)
+        capsule_path.write_text(json.dumps(capsule, ensure_ascii=False, indent=2), encoding="utf-8")
+        capsule_written = True
 
     # audit
+    audit_paths = [str(handoff_path), str(prompt_path)]
+    if capsule_written:
+        audit_paths.append(str(capsule_path))
     append_jsonl(
         ROOT / ".omc" / "audit" / f"{today()}.jsonl",
         {
@@ -449,7 +462,8 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
             "level": level_str,
             "phase": "context",
             "actor": "context_engine",
-            "paths": [str(handoff_path), str(prompt_path), str(capsule_path)],
+            "paths": audit_paths,
+            "session_id": session_id,
         },
     )
 
@@ -461,7 +475,7 @@ def compact_write(token_path: Path, task_path: Path, user_prompt: str = "") -> i
     print(json.dumps({
         "handoff_path": str(handoff_path),
         "prompt_path": str(prompt_path),
-        "capsule_path": str(capsule_path),
+        "capsule_path": str(capsule_path) if capsule_written else None,
         "prompt_written": bool(user_prompt),
         "status": "OK",
     }, ensure_ascii=False, indent=2))
@@ -474,6 +488,7 @@ def main() -> int:
     parser.add_argument("--token", required=True)
     parser.add_argument("--task", required=False)
     parser.add_argument("--prompt", required=False, default="")
+    parser.add_argument("--session-id", required=False, default="")
     args = parser.parse_args()
 
     token_path = Path(args.token)
@@ -490,7 +505,7 @@ def main() -> int:
             return 0
 
         if args.command == "compact-write":
-            return compact_write(token_path, task_path, args.prompt)
+            return compact_write(token_path, task_path, args.prompt, args.session_id or None)
 
     except OSError as exc:
         result = ContextDecision(
