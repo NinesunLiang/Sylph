@@ -157,9 +157,26 @@ def cmd_is_active():
 
 
 def _get_plan_dir(mode_data: dict):
-    """从 mode file 中提取计划目录路径"""
+    """从 mode file 中提取完整计划目录，不猜测其他任务。"""
     p = mode_data.get("rpe_plan_dir", "")
-    return Path(p) if p and Path(p).exists() else None
+    if not p:
+        return None
+    plan_dir = Path(p).expanduser()
+    required = ("plan.md", "research.md", "executor.md")
+    if not plan_dir.is_dir() or any(not (plan_dir / name).is_file() for name in required):
+        return None
+    return plan_dir.resolve()
+
+
+def _rollback_activation() -> None:
+    """清理 init 失败留下的半成品 goal 运行态。"""
+    MODE_FILE.unlink(missing_ok=True)
+    AUTONOMOUS_SIGNAL.unlink(missing_ok=True)
+    if _lc_set_mode is not None:
+        try:
+            _lc_set_mode("idle")
+        except Exception:
+            pass
 
 
 def cmd_assert_plan_dir():
@@ -294,6 +311,7 @@ def cmd_on(goal: str, expiry_hours: int = 6):
         if result.returncode != 0:
             print(f"❌ carros_base.py init 失败 (exit={result.returncode})", file=sys.stderr)
             print(result.stderr, file=sys.stderr)
+            _rollback_activation()
             sys.exit(2)
 
         # 解析最后一行 CARROROS_TASK_DIR=xxx
@@ -305,11 +323,14 @@ def cmd_on(goal: str, expiry_hours: int = 6):
         if not task_dir_line:
             print("❌ 未找到 CARROROS_TASK_DIR= 输出", file=sys.stderr)
             print(result.stdout, file=sys.stderr)
+            _rollback_activation()
             sys.exit(2)
         plan_dir_str = task_dir_line.split("=", 1)[1].strip()
         plan_dir = Path(plan_dir_str)
-        if not plan_dir.exists():
-            print(f"❌ carros_base 创建的 task dir 不存在: {plan_dir}", file=sys.stderr)
+        required = ("plan.md", "research.md", "executor.md")
+        if not plan_dir.is_dir() or any(not (plan_dir / name).is_file() for name in required):
+            print(f"❌ carros_base 创建的 task dir 不完整: {plan_dir}", file=sys.stderr)
+            _rollback_activation()
             sys.exit(2)
 
         # 输出 carros_base 的 stdout（过滤掉 CARROROS_TASK_DIR 行）
@@ -320,9 +341,11 @@ def cmd_on(goal: str, expiry_hours: int = 6):
             print(result.stderr, file=sys.stderr)
     except FileNotFoundError:
         print(f"❌ carros_base.py 脚本不存在: {carros_base}", file=sys.stderr)
+        _rollback_activation()
         sys.exit(2)
     except subprocess.TimeoutExpired:
         print("❌ carros_base.py init 超时 (15s)", file=sys.stderr)
+        _rollback_activation()
         sys.exit(2)
 
     # ── 读取已有 token（由 carros_base.py 创建），合并 goal 字段 ──
@@ -335,6 +358,7 @@ def cmd_on(goal: str, expiry_hours: int = 6):
         except (json.JSONDecodeError, OSError):
             pass
     existing.setdefault("goal", {})
+    existing["task_dir"] = str(plan_dir.resolve())
     existing["goal"]["state"] = "CLARIFY"
     existing["goal"]["description"] = goal[:200]
     if "frontend-overnight" in goal:
@@ -580,6 +604,16 @@ def cmd_report():
     report_file = STATE_DIR / "goal-report.md"
     plan_dir = _get_plan_dir(mode_data)
     incomplete_steps = incomplete_plan_steps(plan_dir) if plan_dir else []
+    uncertified_items = []
+    if not plan_dir:
+        uncertified_items.append("goal.plan_dir.missing: plan/research/executor context is unavailable")
+    uncertified_items.extend(f"plan.step.{step}.incomplete" for step in incomplete_steps)
+    uncertified_items.extend(
+        f"skip-risk.{item.get('risk_level', 'low')}: {item.get('description', '?')}"
+        for item in mode_data.get("skipped_risks", [])
+        if isinstance(item, dict) and item.get("risk_level") in ("medium", "high", "critical")
+    )
+    uncertified_items.extend(f"blocked-human: {item.get('description', '?')}" for item in mode_data.get("blocked_human", []))
 
     goal = mode_data.get("goal", "?")
     done = len(mode_data.get("completed_tasks", []))
@@ -694,10 +728,15 @@ def cmd_report():
 
 {blocked_list}
 
+## 未认证项（自动派生）
+
+{chr(10).join(f"- `{item}`" for item in uncertified_items) or "- 无"}
+
 {_gk_section}## 验证状态
 
-{f"IN_PROGRESS: 未完成计划步骤 {', '.join(incomplete_steps)}；goal 保持执行态，不得视为验收完成。" if incomplete_steps else f"VERIFIED: 所有计划步骤已完成（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）"}
+{f"BLOCKED: 当前 Goal plan_dir 不完整，不能生成 VERIFIED 报告。" if not plan_dir else f"IN_PROGRESS: 未完成计划步骤 {', '.join(incomplete_steps)}；goal 保持执行态，不得视为验收完成。" if incomplete_steps else f"VERIFIED: 所有计划步骤已完成（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）"}
 """
+    report_file.parent.mkdir(parents=True, exist_ok=True)
     report_file.write_text(report_content, encoding="utf-8")
     print(f"✅ 报告已生成: {report_file}")
     print(report_content)
@@ -735,6 +774,11 @@ def cmd_poll():
         except ValueError:
             pass
 
+    plan_dir = _get_plan_dir(data)
+    if not plan_dir:
+        print("❌ 目标模式 plan_dir 不完整，停止轮询；不会猜测其他任务", file=sys.stderr)
+        return 2
+
     goal = data.get("goal", "?")
     done = len(data.get("completed_tasks", []))
     skip = len(data.get("skipped_risks", []))
@@ -753,15 +797,47 @@ def cmd_poll():
             print(f"   下一步: {next_step}")
 
 
+def _goal_context(plan_dir: Path) -> tuple[Path, dict[str, str]]:
+    token_path = TOKENS_DIR / plan_dir.parent.name / f"{plan_dir.name}.json"
+    if not token_path.is_file():
+        raise RuntimeError(f"goal token missing for task_id={plan_dir.name}: {token_path}")
+    try:
+        token = json.loads(token_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise RuntimeError(f"goal token unreadable: {token_path}") from exc
+    task_id = token.get("session", {}).get("id")
+    if task_id != plan_dir.name:
+        raise RuntimeError(f"goal token task_id mismatch: expected={plan_dir.name}, actual={task_id}")
+    token_dir = token.get("task_dir")
+    if token_dir and Path(token_dir).expanduser().resolve() != plan_dir.resolve():
+        raise RuntimeError(f"goal token task_dir mismatch: {token_dir}")
+    env = os.environ.copy()
+    env["CARROROS_TOKEN_PATH"] = str(token_path)
+    env["CARROROS_TASK_ID"] = plan_dir.name
+    env["CARROROS_TASK_DIR"] = str(plan_dir.resolve())
+    return token_path, env
+
+
 def _verify_goal_step(step_id: str) -> int:
     """Activate the goal step through tick, then run canonical verification."""
     script = PROJECT_ROOT / ".claude" / "scripts" / "carros_base.py"
     if not script.exists():
         print("❌ VerifyGate runner missing: .claude/scripts/carros_base.py", file=sys.stderr)
         return 2
+    plan_dir = _get_plan_dir(_read_mode_file()[0])
+    if not plan_dir:
+        print("❌ 当前 goal 的 plan_dir 不存在或不完整", file=sys.stderr)
+        return 2
+    try:
+        _, goal_env = _goal_context(plan_dir)
+    except RuntimeError as exc:
+        print(f"❌ 当前 goal 上下文无效: {exc}", file=sys.stderr)
+        return 2
+
     activate = subprocess.run(
         [sys.executable, str(script), "tick", "--step", step_id],
         cwd=PROJECT_ROOT,
+        env=goal_env,
         capture_output=True,
         text=True,
     )
@@ -771,6 +847,7 @@ def _verify_goal_step(step_id: str) -> int:
     result = subprocess.run(
         [sys.executable, str(script), "verify", "--step", step_id],
         cwd=PROJECT_ROOT,
+        env=goal_env,
         capture_output=True,
         text=True,
     )
@@ -810,15 +887,20 @@ def cmd_task_done(description: str = "未知任务"):
     """Verify the current step before recording a goal task completion."""
     mode_data, path = _read_mode_file()
     plan_dir = _get_plan_dir(mode_data)
-    step_id = _resolve_current_step(plan_dir) if plan_dir else None
+    if not plan_dir:
+        print("❌ 未记录完成：当前 goal 的 plan_dir 不存在或不完整", file=sys.stderr)
+        return 2
+    step_id = _resolve_current_step(plan_dir)
     if plan_dir and step_id:
         rc = _verify_goal_step(step_id)
         if rc != 0:
             print(f"❌ 未记录完成：{step_id} 未通过 VerifyGate", file=sys.stderr)
             return rc
     elif plan_dir:
-        print("❌ 未记录完成：当前 goal 没有 current_step", file=sys.stderr)
-        return 2
+        plan_path = plan_dir / "plan.md"
+        if not plan_path.exists() or incomplete_plan_steps(plan_dir):
+            print("❌ 未记录完成：当前 goal 没有可验证的 current_step", file=sys.stderr)
+            return 2
 
     ts = datetime.now().isoformat()
     mode_data.setdefault("completed_tasks", []).append({"description": description, "timestamp": ts})

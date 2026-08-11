@@ -97,7 +97,7 @@ class ResearchGate:
             clean_lines = [
                 l.strip()
                 for l in after_header.split("\n")
-                if l.strip() and not l.strip().startswith("<!--") and not l.strip().startswith(">")
+                if l.strip() and not l.strip().startswith("<!--") and not l.strip().startswith(">") and not is_placeholder(l.strip())
             ]
             if len(clean_lines) < 1:
                 errors.append(f"Section '{section}' has no real content (placeholder or empty)")
@@ -122,6 +122,21 @@ class ResearchGate:
 # ─── PlanGate ─────────────────────────────────────────────────────────
 
 VALID_STEP_STATUSES = {"pending", "active", "running", "completed", "done", "verified", "blocked", "cancelled", "failed"}
+PLACEHOLDER_MARKERS = (
+    "todo", "tbd", "n/a", "待填写", "待确认", "暂无", "expected update",
+    "project test command", "pending-user-confirmation", "discovery-required",
+)
+
+
+def is_placeholder(value: str) -> bool:
+    normalized = str(value or "").strip().lower()
+    if not normalized or normalized in PLACEHOLDER_MARKERS:
+        return True
+    if normalized in {"...", "…"}:
+        return True
+    if normalized.startswith("<") and normalized.endswith(">"):
+        return True
+    return any(marker in normalized for marker in PLACEHOLDER_MARKERS)
 
 
 class PlanGate:
@@ -281,7 +296,7 @@ class PlanGate:
         for s in steps_raw:
             for field in ("scope", "acceptance", "verify"):
                 val = s.get(field, "")
-                if not val or val == field or val.startswith("<!--") or val.startswith(">"):
+                if is_placeholder(val) or val == field or val.startswith("<!--") or val.startswith(">"):
                     placeholder_fields.append(f"step '{s['id']}': '{field}' is empty or placeholder")
         if placeholder_fields:
             errors.append("Steps with empty/placeholder fields: " + "; ".join(placeholder_fields))

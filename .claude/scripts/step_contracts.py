@@ -22,6 +22,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    from goal_contracts import is_placeholder
+except ImportError:
+    def is_placeholder(value: str) -> bool:
+        normalized = str(value or "").strip().lower()
+        return not normalized or normalized in {"todo", "tbd", "n/a", "待填写", "待确认", "暂无", "...", "…"}
+
 STEP_STATUSES = {"pending", "active", "completed", "blocked"}
 
 EVIDENCE_REQUIRED_SECTIONS = [
@@ -158,7 +165,7 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
         errors.append("conditions_section_empty_or_missing")
     else:
         cond_lines = [l for l in cond_content.split("\n") if l.strip()
-                      and not l.strip().startswith("<!--")]
+                      and not l.strip().startswith("<!--") and not is_placeholder(l)]
         if not cond_lines:
             errors.append("conditions_section_no_content")
 
@@ -168,7 +175,7 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
         errors.append("key_changes_section_empty_or_missing")
     else:
         kc_lines = [l for l in kc_content.split("\n") if l.strip()
-                    and not l.strip().startswith("<!--")]
+                    and not l.strip().startswith("<!--") and not is_placeholder(l)]
         if not kc_lines:
             errors.append("key_changes_section_no_content")
 
@@ -177,9 +184,9 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
     if not dec_content:
         errors.append("decisions_section_empty_or_missing")
     else:
+        dec_lines = [line for line in dec_content.split("\n") if line.strip() and not is_placeholder(line)]
         dec_lower = dec_content.lower()
-        has_rationale = ("rationale" in dec_lower or "reason" in dec_lower
-                         or "none" in dec_lower)
+        has_rationale = any("rationale:" in line.lower() or "reason:" in line.lower() for line in dec_lines)
         if not has_rationale:
             errors.append("decisions_missing_rationale")
 
@@ -188,7 +195,10 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
     if not ac_content:
         errors.append("acceptance_checklist_empty_or_missing")
     else:
+        checked = len(re.findall(r"- \[[xX]\]", ac_content))
         unchecked = len(re.findall(r"- \[ \]", ac_content))
+        if checked == 0:
+            errors.append("acceptance_checklist_has_no_checked_items")
         if unchecked > 0:
             errors.append(f"acceptance_checklist_has_{unchecked}_unchecked_items")
 

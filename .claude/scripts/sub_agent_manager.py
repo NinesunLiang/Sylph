@@ -273,21 +273,26 @@ class SubAgentManager:
         if result_path.exists():
             try:
                 r = json.loads(result_path.read_text())
-                info["status"] = r.get("status", "unknown")
-                info["summary"] = r.get("summary", "")[:80] or ""
-                info["files_changed"] = r.get("files_changed", [])
-                info["failure"] = r.get("failure")
-                # 超时检测
-                if info["status"] == "running":
-                    started = r.get("started_at")
-                    if started:
-                        elapsed = (datetime.now(timezone.utc) -
-                                   datetime.fromisoformat(started)).total_seconds()
-                        if elapsed > self.config["timeout"]:
-                            info["status"] = "timeout"
-                            info["failure"] = f"timeout after {elapsed:.0f}s"
+                if not isinstance(r, dict) or not r or not r.get("status"):
+                    info["status"] = "failed"
+                    info["failure"] = "empty result.json status"
+                else:
+                    info["status"] = r.get("status")
+                    info["summary"] = r.get("summary", "")[:80] or ""
+                    info["files_changed"] = r.get("files_changed", [])
+                    info["failure"] = r.get("failure")
+                    # 超时检测
+                    if info["status"] == "running":
+                        started = r.get("started_at")
+                        if started:
+                            elapsed = (datetime.now(timezone.utc) -
+                                       datetime.fromisoformat(started)).total_seconds()
+                            if elapsed > self.config["timeout"]:
+                                info["status"] = "timeout"
+                                info["failure"] = f"timeout after {elapsed:.0f}s"
             except (json.JSONDecodeError, OSError):
-                pass
+                info["status"] = "failed"
+                info["failure"] = "malformed result.json"
 
         # 如果 result.json 不存在但 token.json 存在 → pending
         if not result_path.exists() and token_path.exists():

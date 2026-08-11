@@ -247,6 +247,7 @@ class RecoveryCheckpoint:
             lines.extend([
                 f"## Step: {status.get('step_id', '?')}",
                 f"Status: {status['status']}",
+                f"Retry count: {status.get('retry_count', 0)}",
                 "",
             ])
             if status.get("summary"):

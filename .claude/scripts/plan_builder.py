@@ -426,7 +426,10 @@ def render_plan_md(plan: Plan) -> str:
                     current_phase = phase
 
             lines.append(f"- [ ] {step.step_id}: {step.title}")
+            lines.append(f"  - status: pending")
+            lines.append(f"  - depends_on: none")
             lines.append(f"  - scope: {', '.join(step.scope)}")
+            lines.append(f"  - acceptance: {step.title} has verified evidence")
             for rule in step.verify:
                 lines.append(f"  - verify: {rule}")
             if step.risk:

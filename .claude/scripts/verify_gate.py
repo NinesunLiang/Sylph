@@ -49,9 +49,9 @@ def _load_step_evidence_validator():
         _spec.loader.exec_module(_mod)
         return _mod.validate_step_evidence
     except Exception:
-        def _noop(*args, **kwargs):
-            return []
-        return _noop
+        def _unavailable(*args, **kwargs):
+            return ["evidence_validator_unavailable"]
+        return _unavailable
 
 
 validate_step_evidence = _load_step_evidence_validator()

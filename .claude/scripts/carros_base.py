@@ -820,20 +820,6 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
         except Exception:
             pass
 
-    # 将其他 active token 标记为 archived（避免多 token 冲突）
-    archived_count = 0
-    for f in sorted(OMC_TOKENS.rglob("*.json")):
-        try:
-            t = json.loads(f.read_text())
-            if t.get("status") == "active":
-                t["status"] = "archived"
-                f.write_text(json.dumps(t, indent=2, ensure_ascii=False) + "\n")
-                archived_count += 1
-        except (json.JSONDecodeError, OSError):
-            continue
-    if archived_count > 0:
-        print(f"   Archived previous tokens: {archived_count} total")
-
     # ── PlanBuilder 生成冻结计划 ──
     if steps and len(steps) > 1:
         # 显式多步骤：绕过 PlanBuilder，按步骤列表生成
@@ -898,54 +884,51 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
 
 
 def _find_latest_token(require_active=True):
-    """扫描 tokens 目录，找到日期最新且活跃的 token
-
-    require_active=True: 只返回 status=active 的 token（首选）
-    require_active=False: 返回任何一个有效的 token（作为回退）
-
-    排序规则：按文件 mtime 倒序（最新写的优先），而非文件名排序
-    """
+    """按显式上下文读取 token；无上下文时仅允许唯一 active token。"""
     override = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    task_id = os.environ.get("CARROROS_TASK_ID", "").strip()
+    task_dir = os.environ.get("CARROROS_TASK_DIR", "").strip()
+
+    def matches(token, path):
+        if require_active and token.get("status") != "active":
+            return False
+        if task_id and token.get("session", {}).get("id") != task_id:
+            return False
+        if task_dir:
+            token_dir = token.get("task_dir", "")
+            if token_dir and Path(token_dir).expanduser().resolve() != Path(task_dir).expanduser().resolve():
+                return False
+        return True
+
     if override:
         explicit = Path(override).expanduser()
         try:
             token = json.loads(explicit.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return None, None
-        if isinstance(token, dict) and token.get("status") == "active":
-            return token, explicit
-        return None, None
+        if not isinstance(token, dict) or not matches(token, explicit):
+            return None, None
+        return token, explicit
 
     OMC_TOKENS.mkdir(parents=True, exist_ok=True)
-    if not OMC_TOKENS.exists():
-        return None, None
-
-    # 收集所有 token 文件，按 mtime 排序
     candidates = []
-    for dd in sorted(OMC_TOKENS.iterdir(), reverse=True):
-        if dd.is_dir():
-            for jf in dd.glob("*.json"):
-                try:
-                    candidates.append((jf.stat().st_mtime, jf))
-                except OSError:
-                    continue
-
-    # 按 mtime 倒序
-    candidates.sort(key=lambda x: x[0], reverse=True)
-
-    fallback = None
-    for _, jf in candidates:
+    for jf in OMC_TOKENS.glob("*/*.json"):
         try:
-            token = json.loads(jf.read_text())
-            if token.get("status") == "active":
-                return token, jf
-            if fallback is None:
-                fallback = (token, jf)
-        except (json.JSONDecodeError, OSError):
+            token = json.loads(jf.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
             continue
+        if isinstance(token, dict) and matches(token, jf):
+            candidates.append((jf.stat().st_mtime, jf, token))
 
-    if fallback and not require_active:
-        return fallback
+    if task_id or task_dir:
+        if len(candidates) != 1:
+            return None, None
+        _, path, token = candidates[0]
+        return token, path
+
+    if require_active and len(candidates) == 1:
+        _, path, token = candidates[0]
+        return token, path
     return None, None
 
 
@@ -1164,6 +1147,9 @@ def cmd_verify(step_id=None, all_steps=False):
     if not token:
         print(_red("❌ No active task"))
         return 2
+    if step_contracts is None:
+        print(_red("❌ VerifyGate dependency unavailable: step_contracts.py"))
+        return 2
 
     if not PLAN_PATH.exists():
         print(_red("❌ plan.md not found"))
@@ -1183,11 +1169,22 @@ def cmd_verify(step_id=None, all_steps=False):
     else:
         targets = []
         current = token.get("task", {}).get("current_step")
+        if not current and PLAN_PATH:
+            steps = step_contracts.parse_plan_steps(plan)
+            current = step_contracts.find_first_activatable_step(steps)
+            if not current:
+                pending = [step["id"] for step in steps if step["status"] in ("pending", "active")]
+                if pending:
+                    print(_red(f"❌ Cannot resolve current step; pending steps remain: {', '.join(pending)}"))
+                    return 2
         if current:
             targets.append(current)
-        if not targets:
+        elif not re.search(r"^- \[ \] ", plan, re.MULTILINE):
             print(_yellow("⚠  All steps already completed"))
             return 0
+        else:
+            print(_red("❌ Cannot resolve current step from plan.md"))
+            return 2
 
     level = token.get("session", {}).get("level", "L1_BASE")
     # ── Oracle 审查 ──
@@ -1901,6 +1898,7 @@ def cmd_poll():
 
     total_done = 0
     total_failed = 0
+    total_cancelled = 0
     for sd in sub_dirs:
         name = sd.name
         result_path = sd / "result.json"
@@ -1912,14 +1910,21 @@ def cmd_poll():
 
         try:
             result = json.loads(result_path.read_text())
-            status = result.get("status", "unknown")
+            if not isinstance(result, dict) or not result.get("status"):
+                status = "failed"
+                result = {"status": status, "failure": "empty result.json status"}
+            else:
+                status = result.get("status", "unknown")
 
             if status == "completed":
                 icon = _green("✔")
                 total_done += 1
-            elif status == "failed":
+            elif status in ("failed", "timeout"):
                 icon = _red("✘")
                 total_failed += 1
+            elif status == "cancelled":
+                icon = _yellow("⊘")
+                total_cancelled += 1
             elif status == "running":
                 icon = _yellow("◷")
             else:
@@ -1940,8 +1945,8 @@ def cmd_poll():
             print(f"   ⚠ {name}: read error ({e})")
 
     print(f"{'─' * 50}")
-    print(f"   {total_done} completed, {total_failed} failed, "
-          f"{len(sub_dirs) - total_done - total_failed} running/pending")
+    print(f"   {total_done} completed, {total_failed} failed, {total_cancelled} cancelled, "
+          f"{len(sub_dirs) - total_done - total_failed - total_cancelled} running/pending")
 
     # 更新 main token 的 step 状态
     main_token = _load_token()
@@ -1957,8 +1962,8 @@ def cmd_poll():
                         if r.get("status") == "completed":
                             s["status"] = "completed"
                             updated = True
-                        elif r.get("status") == "failed":
-                            s["status"] = "failed"
+                        elif r.get("status") in ("failed", "timeout", "cancelled"):
+                            s["status"] = r.get("status")
                             updated = True
                     except Exception:
                         pass
@@ -2027,7 +2032,8 @@ def cmd_collect():
         print(f"   failure: {result.get('failure', 'unknown')}")
         return 2 if "--force" not in sys.argv else 0
     elif status != "completed":
-        print(_yellow(f"⚠  {step_id} is still {status}"))
+        print(_red(f"❌ {step_id} cannot be collected: terminal status={status}"))
+        return 2
 
     # 证据追加到 main executor.md
     if EXECUTOR_PATH:

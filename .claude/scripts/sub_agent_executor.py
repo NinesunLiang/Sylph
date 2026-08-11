@@ -176,6 +176,8 @@ class SubAgentExecutor:
         try:
             ai_output = self._call_api(instruction)
             elapsed = time.time() - start
+            if not ai_output or not ai_output.strip():
+                raise RuntimeError("empty agent output")
 
             # 写产出到 executor.md
             self._write_output(ai_output)
