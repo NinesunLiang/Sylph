@@ -1037,3 +1037,33 @@ def test_report_accepts_verifygate_marker_for_red_test_step(monkeypatch, tmp_pat
     report = (plan_dir / "state" / "goal-report.md").read_text(encoding="utf-8")
     assert "verified_evidence_missing" not in report
     assert "VERIFIED: 所有计划步骤已完成" in report
+
+def test_goal_scaffold_executor_predeclares_terminal_artifacts(monkeypatch, tmp_path):
+    """TDD 红：goal 模式 scaffold 生成的 executor.md 必须预声明终态门禁(phase contract)要求的全部工件节。
+
+    缺陷：_write_goal_scaffolds 只写 sealed 占位，不含 Conditions/Key Changes/Decisions/
+    Acceptance Checklist/TDD Evidence，导致 done 在终态才要求补信息（先过门禁后补信息）。
+    正确工作流：模板预声明 → 执行期填充 → 门禁通过（补充信息在前，门禁在后）。
+    """
+    base_spec = importlib.util.spec_from_file_location(
+        "carros_base_under_test", ROOT / ".claude/scripts/carros_base.py"
+    )
+    assert base_spec is not None and base_spec.loader is not None
+    base = importlib.util.module_from_spec(base_spec)
+    base_spec.loader.exec_module(base)
+
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    for name in ("plan.md", "research.md", "executor.md"):
+        (task_dir / name).write_text("", encoding="utf-8")
+    monkeypatch.setattr(base, "TASK_DIR", task_dir)
+    monkeypatch.setattr(base, "PLAN_PATH", task_dir / "plan.md")
+    monkeypatch.setattr(base, "RESEARCH_PATH", task_dir / "research.md")
+    monkeypatch.setattr(base, "EXECUTOR_PATH", task_dir / "executor.md")
+
+    base._write_goal_scaffolds()
+
+    executor = (task_dir / "executor.md").read_text(encoding="utf-8")
+    required = ["## Conditions", "## Key Changes", "## Decisions", "## Acceptance Checklist", "## TDD Evidence"]
+    missing = [h for h in required if h not in executor]
+    assert not missing, f"goal executor scaffold 缺少终态工件节: {missing}"

@@ -53,7 +53,7 @@ def parse_item_manifest(text: str) -> tuple[list[dict], dict]:
             "task": meta_match.group(3),
         }
     for row in re.finditer(
-        r"^\|\s*(C\d+|E\d+|G\d+)\s*\|\s*(\d+)\s*\|\s*([\d.]+)\s*\|",
+        r"^\|\s*(C\d+|E\d+|G\d+|U\d+)\s*\|\s*(\d+)\s*\|\s*([\d.]+)\s*\|",
         section,
         re.MULTILINE,
     ):
@@ -119,6 +119,15 @@ def validate_item_manifest(items: list[dict], scores: dict) -> list[dict]:
                 "scorecard.arithmetic_mismatch", "evidence", "blocker",
                 f"G mean recomputed={g_mean:.2f} declared={scores['g_weighted']}",
             ))
+    # UX（U1-U7）算术：独立 proxy，校验但绝不成为认证 blocker（index13 S6）
+    u_items = [it for it in items if it["id"].startswith("U")]
+    if u_items and "ux_weighted" in scores:
+        u_mean = sum(it["score"] for it in u_items) / len(u_items)
+        if abs(u_mean - scores["ux_weighted"]) > ARITH_TOLERANCE:
+            blockers.append(_item(
+                "scorecard.ux_arithmetic_mismatch", "evidence", "informational",
+                f"UX mean recomputed={u_mean:.2f} declared={scores['ux_weighted']}",
+            ))
     return blockers
 
 
@@ -131,12 +140,32 @@ def parse_scorecard(path: Path) -> dict:
         "c_weighted": r"C1-C9.*加权.*?([\d.]+)",
         "e_weighted": r"E1-E8.*加权.*?([\d.]+)",
         "total_weighted": r"24 ?项总加权.*?([\d.]+)",
-        "g_weighted": r"(?s)长期治理.*?平均.*?([\d.]+)",
     }
     for key, pattern in patterns.items():
         match = re.search(pattern, text)
         if match:
             result[key] = float(match.group(1))
+    # g_weighted (E13-003, index13 S6): anchor on the 平均 ROW (table cell or inline
+    # value) rather than the heading "长期治理能力（7 项算术平均）". The old
+    # `(?s)长期治理.*?平均.*?([\d.]+)` captured the first numeric cell (抗衰减防线)
+    # because the heading itself contains "平均".
+    g_match = (
+        re.search(
+            r"\|\s*\*?\*?平均\*?\*?\s*\|\s*(?:[^|\n]*\|\s*)?\*?\*?([\d.]+)\*?\*?\s*\|",
+            text,
+        )
+        or re.search(r"长期治理[^\n]*平均\s*([\d.]+)", text)
+    )
+    if g_match:
+        result["g_weighted"] = float(g_match.group(1))
+    # UX (index13 S6): independent proxy mean. Supports table row
+    # `| UX 独立 proxy | **7.00 / 10** |` and inline `UX 独立 proxy 平均 7.00`.
+    ux_match = (
+        re.search(r"\|\s*UX[^\n]*proxy[^\n]*\|\s*\*?\*?([\d.]+)\s*/\s*10\*?\*?\s*\|", text)
+        or re.search(r"UX[^\n]*平均\s*([\d.]+)", text)
+    )
+    if ux_match:
+        result["ux_weighted"] = float(ux_match.group(1))
     return result
 
 

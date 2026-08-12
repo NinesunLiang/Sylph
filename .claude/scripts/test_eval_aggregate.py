@@ -217,6 +217,40 @@ def test_manifest_g_arithmetic_match_adds_no_blocker(tmp_path):
     assert not any("G mean" in i["reason"] for i in items)
 
 
+def test_parse_scorecard_g_weighted_from_table_format():
+    # E13-003 (index13 S6): the g_weighted regex `(?s)长期治理.*?平均.*?([\d.]+)`
+    # anchored on the heading "长期治理能力（7 项算术平均）" and captured the FIRST
+    # numeric cell in the table (抗衰减防线 score) instead of the 平均 row value.
+    # Real scorecards are Markdown tables, so this must parse the `| 平均 | 7.57 |` row.
+    text = (
+        "# Scorecard\n"
+        "## 长期治理能力（7 项算术平均）\n"
+        "| 维度 | 得分 |\n"
+        "|---|---:|\n"
+        "| 抗衰减防线 | 8 |\n"
+        "| AI 赋能的全流程自动化 | 7 |\n"
+        "| 学习笔记积累 | 8 |\n"
+        "| 长期目标一致性 | 7 |\n"
+        "| 功能标志分明 | 7 |\n"
+        "| 内置安全与洞察 | 8 |\n"
+        "| Evaluation 评测框架 | 8 |\n"
+        "| **平均** | **7.57** |\n"
+        "# real-world 3-col (index13): 平均 row with an empty 评估依据 column\n"
+        "| **平均** | | **7.57** | 独立 proxy |\n"
+    )
+    scores = module.parse_scorecard(Path("/dev/null"))
+    # inject via a real path
+    import tempfile
+    with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as fh:
+        fh.write(text)
+        path = Path(fh.name)
+    try:
+        scores = module.parse_scorecard(path)
+        assert abs(scores["g_weighted"] - 7.57) < 0.01, f"g_weighted={scores.get('g_weighted')}"
+    finally:
+        path.unlink(missing_ok=True)
+
+
 def test_manifest_unbound_is_blocker(tmp_path):
     scorecard = tmp_path / "scorecard.md"
     scorecard.write_text(manifest_scorecard(manifest_text(bound=False)))
@@ -234,3 +268,84 @@ def test_valid_manifest_adds_no_item_blocker(tmp_path):
     items = module.collect_readiness(scorecard, tmp_path / "oracle", tmp_path)
 
     assert not any(i["id"].startswith("scorecard.item_") for i in items)
+
+
+UX_SCORECARD = (
+    "## UX 独立 proxy（7 项算术平均，非人类研究）\n"
+    "| 维度 | 得分 |\n"
+    "|---|---:|\n"
+    "| 长期目标一致性 | 7 |\n"
+    "| 用户心智负担减轻 | 6 |\n"
+    "| 交互现代化 | 6 |\n"
+    "| 用户掌控感 | 8 |\n"
+    "| ai 智能感 | 7 |\n"
+    "| 行为可预测 | 7 |\n"
+    "| 人机权限分明 | 8 |\n"
+    "| **平均** | **7.00** |\n"
+    "## Item Manifest\n\n"
+    "> freshness: 2026-08-12 | commit: abc123 | task: t-1\n\n"
+    "| id | weight | score |\n"
+    "|----|--------|-------|\n"
+    + "\n".join([f"| U{i} | 0 | {v} |" for i, v in enumerate([7, 6, 6, 8, 7, 7, 8], start=1)])
+    + "\n"
+)
+
+
+def test_parse_item_manifest_reads_ux_items():
+    # index13 S6: UX items (U1-U7) should be parseable when a scorecard includes them.
+    items, meta = module.parse_item_manifest(UX_SCORECARD)
+
+    u_items = [it for it in items if it["id"].startswith("U")]
+    assert len(u_items) == 7, f"expected 7 UX items, got {len(u_items)}"
+    assert [it["score"] for it in u_items] == [7, 6, 6, 8, 7, 7, 8]
+
+
+def test_ux_mean_validation_informational_not_blocker(tmp_path):
+    # UX is an independent proxy; its arithmetic mean must be checked but must NOT
+    # become a certification blocker (UX does not gate the 24-item C/E/G threshold).
+    scorecard = tmp_path / "scorecard.md"
+    scorecard.write_text(UX_SCORECARD + "C1-C9 加权 8.0\nE1-E8 加权 8.0\n24 项总加权 8.0\nUX 独立 proxy 平均 7.00\n")
+
+    items = module.collect_readiness(scorecard, tmp_path / "oracle", tmp_path)
+
+    # UX mean is validated as informational, never a blocker
+    assert not any(i["severity"] == "blocker" and "UX" in i.get("reason", "") for i in items)
+    assert not any(i["id"] == "scorecard.ux_arithmetic_mismatch" and i["severity"] == "blocker" for i in items)
+
+
+def test_ux_mean_mismatch_is_informational_not_blocker(tmp_path):
+    # A UX arithmetic mismatch (mean 7.00 declared, items average 7.14) must surface
+    # as informational only — it must not flip certification status.
+    scorecard = tmp_path / "scorecard.md"
+    scorecard.write_text(
+        "## UX 独立 proxy（7 项算术平均，非人类研究）\n"
+        "| 维度 | 得分 |\n"
+        "|---|---:|\n"
+        "| 长期目标一致性 | 7 |\n"
+        "| 用户心智负担减轻 | 6 |\n"
+        "| 交互现代化 | 6 |\n"
+        "| 用户掌控感 | 8 |\n"
+        "| ai 智能感 | 7 |\n"
+        "| 行为可预测 | 8 |\n"
+        "| 人机权限分明 | 8 |\n"
+        "| **平均** | **7.00** |\n"
+        "## Item Manifest\n\n"
+        "> freshness: 2026-08-12 | commit: abc123 | task: t-1\n\n"
+        "| id | weight | score |\n"
+        "|----|--------|-------|\n"
+        "| U1 | 0 | 7 |\n"
+        "| U2 | 0 | 6 |\n"
+        "| U3 | 0 | 6 |\n"
+        "| U4 | 0 | 8 |\n"
+        "| U5 | 0 | 7 |\n"
+        "| U6 | 0 | 8 |\n"
+        "| U7 | 0 | 8 |\n"
+        "C1-C9 加权 8.0\nE1-E8 加权 8.0\n24 项总加权 8.0\nUX 独立 proxy 平均 7.00\n"
+    )
+
+    items = module.collect_readiness(scorecard, tmp_path / "oracle", tmp_path)
+
+    mismatch = [i for i in items if i["id"] == "scorecard.ux_arithmetic_mismatch"]
+    assert mismatch, "UX arithmetic mismatch should be reported"
+    assert mismatch[0]["severity"] == "informational"
+    assert all(i["severity"] != "blocker" for i in items if "UX" in i.get("reason", ""))

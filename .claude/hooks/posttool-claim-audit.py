@@ -367,14 +367,20 @@ def main():
 
                 # E6-1: CONTRADICTION — intent-tracker 显式标记矛盾
                 # E6-2: REVERT_DETECTED — 内容回退（revert_of 非空）
-                # E6-3: EDIT_REPEAT — 同一文件高频编辑 ≥4 次，可能未收敛
+                # E6-3: EDIT_REPEAT — 同一文件高频编辑（精专化：门槛 4→8，豁免证据类文件）
                 # E6-4: CONTENT_FLIP — 连续 3+ 次编辑 hash 均不同，方向摇摆
 
-                # EDIT_REPEAT: edit_count >= 4 且不同 sig >= 2
-                edit_repeat_flag = max_edits >= 4 and unique_sigs >= 2
-                # CONTENT_FLIP: 最近 3 条记录 hash 各不相同
+                # 精专化（治理精专化 S3）：证据/治理产物文件合法追加（executor.md / evidence.jsonl /
+                # state/** / *.json.lock）不应触发 EDIT_REPEAT；门槛从 4 提到 8（降合法编辑误报）。
+                _is_evidence_file = any(
+                    seg in FILE_PATH for seg in ('executor.md', 'evidence.jsonl', '.omc/state', '.json.lock')
+                )
+                _edit_threshold = 8 if _is_evidence_file else 4
+                # EDIT_REPEAT: edit_count >= 阈值 且不同 sig >= 2
+                edit_repeat_flag = max_edits >= _edit_threshold and unique_sigs >= 2
+                # CONTENT_FLIP: 最近 3 条记录 hash 各不相同（证据类文件豁免——收敛编辑非方向摇摆）
                 recent_hashes = [r.get('content_hash', '') for r in matching[-3:]]
-                content_flip_flag = len(recent_hashes) >= 3 and len(set(recent_hashes)) == len(recent_hashes)
+                content_flip_flag = not _is_evidence_file and len(recent_hashes) >= 3 and len(set(recent_hashes)) == len(recent_hashes)
 
                 if contradicted:
                     E6_CHECK_parts = [f"[E6] CONTRADICTION: {FILE_PATH} — {len(contradicted)} 条标记为 contradiction=true"]

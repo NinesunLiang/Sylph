@@ -94,6 +94,13 @@ L2（跨模块/架构/不可逆/安全权限/release/长期无人）→ 自动�
 
 恢复路径：新会话读 token.json → handoff.md 导航 → Resume Preflight 验证 → 继续工作。
 
+## 任务中断恢复
+
+- **唯一合法入口**：任务文档路径 `.omc/tasks/{date}/{task_name}`。检查到任务文档系统（active-resume 指针或中断任务）时，AI **主动**尝试恢复，不要求用户记忆或提供命令。
+- **恢复动作**：AI 执行 `python3 .claude/scripts/carros_base.py resume <任务文档路径>`。
+- **续跑**：resume 写活跃任务指针（`.omc/state/active-resume.json`），后续 `tick`/`verify` 无需 env 直接定位；任务归档时指针自动清除。
+- **校验**：任务名支持 CJK/ASCII/. _ -（≤200字符），拒绝 `..`/绝对路径逃逸。
+
 ## 完成标准
 - plan.md 声明文件全部改完
 - VerifyGate 输出 VERIFIED

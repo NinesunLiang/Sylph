@@ -29,6 +29,7 @@
 | `ai_self_decision.md` | AI 自决边界：BLOCK/REDIRECT/WARN 三门决策说明 | `pretool-gate.py` |
 | `gate-rules.yaml` | Gate 规则汇总 | `harness.yaml` (注册) |
 | `oracle-spec.md` | Oracle 三层对抗审核 | `pretool-gate.py _check_oracle_gate()` |
+| `design-docs/13-headless-lightweight-actions.md` | Headless 治理轻量化（安全的轻量化行动）：联合审判否决 headless 降级，改同构提速三件套（REVISED 待授权） | `hook-launcher.py`（runpy 同进程） |
 
 **关键演进**: 2026-07-27 数值断言从 `WARN` 升级为 `REDIRECT`，新增文件引用溯源 Gate 10。三次同一违规自动升级为 `BLOCK`。（详见 `redirect-mechanism.md`）
 
