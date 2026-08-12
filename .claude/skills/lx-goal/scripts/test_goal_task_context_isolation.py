@@ -18,7 +18,7 @@ def _task_fixture(root: Path, name: str) -> tuple[Path, Path]:
     plan_dir.mkdir(parents=True)
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
     (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n## Acceptance Checklist\n- [x] S1 complete\n", encoding="utf-8")
     token_path = root / ".omc" / "tokens" / "20260811" / f"{name}.json"
     token_path.parent.mkdir(parents=True, exist_ok=True)
     token_path.write_text(

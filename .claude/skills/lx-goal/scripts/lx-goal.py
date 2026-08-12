@@ -456,13 +456,7 @@ def cmd_off(plan_dir: Path | str | None = None):
         print("❌ task_dir 不完整，无法关闭 Goal", file=sys.stderr)
         raise SystemExit(2)
 
-    step_count = plan_step_count(plan_dir)
-    incomplete_steps = incomplete_plan_steps(plan_dir)
-    missing_evidence = missing_verified_evidence(plan_dir)
-    if step_count == 0 or incomplete_steps or missing_evidence:
-        cmd_report()
-        print("❌ Goal 仍有未完成步骤或缺少 EV evidence，保留运行态", file=sys.stderr)
-        raise SystemExit(1)
+    cmd_checklist_verify(plan_dir)
 
     lock_file = _token_path_for_plan(plan_dir)
     if not lock_file.exists():
@@ -1189,28 +1183,44 @@ def cmd_subagent_log(action: str, agent_name: str = "", subtask: str = "", detai
     print(f"📝 subagent 日志已更新: {executor_md}")
 
 
-def cmd_checklist_verify():
-    """检测 executor.md 的 Checklist 是否全部 [x]。未达标 → exit=1"""
-    mode_data, _ = _read_mode_file()
-    plan_dir = _get_plan_dir(mode_data)
-    if not plan_dir:
-        return 0  # 无计划目录时不阻断（向后兼容）
+def _verify_executor_checklist(plan_dir: Path) -> None:
+    """Require the selected task's executor checklist to exist and be complete."""
     executor_md = plan_dir / "executor.md"
     if not executor_md.exists():
-        return 0
+        raise ValueError(f"executor.md missing: {executor_md}")
 
     text = executor_md.read_text(encoding="utf-8")
-    import re
-    checked = len(re.findall(r'- \[x\]', text, re.IGNORECASE))
-    unchecked = len(re.findall(r'- \[ \]', text))
-    if unchecked > 0:
-        print(f"❌ Checklist 未达标: {checked}/{checked + unchecked} 项通过，还有 {unchecked} 项未完成", file=sys.stderr)
-        for line in text.splitlines():
-            l = line.strip()
-            if l.startswith("- [ ]"):
-                print(f"   ⬜ {l[5:].strip()}", file=sys.stderr)
-        print(f"\n   完成所有 [ ] 项后重试: lx-goal.py done", file=sys.stderr)
-        sys.exit(1)
+    checklist = re.search(
+        r"^## Acceptance Checklist\s*$([\s\S]*?)(?=^## |\Z)",
+        text,
+        flags=re.MULTILINE,
+    )
+    if not checklist:
+        raise ValueError("executor Acceptance Checklist missing")
+
+    items = re.findall(r"^- \[([ xX])\] (.+)$", checklist.group(1), flags=re.MULTILINE)
+    if not items:
+        raise ValueError("executor Acceptance Checklist has no items")
+    unchecked = [label.strip() for mark, label in items if mark == " "]
+    if unchecked:
+        detail = "; ".join(unchecked)
+        raise ValueError(
+            f"executor checklist incomplete: {len(unchecked)} unchecked item(s): {detail}"
+        )
+
+
+def cmd_checklist_verify(plan_dir: Path | str | None = None):
+    """Validate only the selected task's executor checklist."""
+    if plan_dir is None:
+        mode_data, _ = _read_mode_file()
+        plan_dir = _get_plan_dir(mode_data)
+    if not plan_dir:
+        raise ValueError("task_dir missing for executor checklist")
+    try:
+        _verify_executor_checklist(Path(plan_dir))
+    except ValueError as exc:
+        print(f"❌ {exc}", file=sys.stderr)
+        raise SystemExit(1) from exc
     return 0
 
 
@@ -1222,27 +1232,8 @@ def cmd_done(plan_dir: Path | str | None = None):
         print("❌ 计划目录不存在，无法完成验收")
         sys.exit(1)
 
-    # 门禁：计划步骤未全部勾选时不得关闭 goal，即使阶段性 checklist 通过。
-    step_count = plan_step_count(plan_dir)
-    if step_count == 0:
-        print("❌ plan.md 未解析出任何步骤，不得关闭 goal", file=sys.stderr)
-        sys.exit(1)
-    incomplete_steps = incomplete_plan_steps(plan_dir)
-    if incomplete_steps:
-        print(f"❌ 计划仍有未完成步骤: {', '.join(incomplete_steps)}；继续执行，不得关闭 goal", file=sys.stderr)
-        sys.exit(1)
-    missing_evidence = missing_verified_evidence(plan_dir)
-    if missing_evidence:
-        print(f"❌ 缺少成功 EV evidence: {', '.join(missing_evidence)}；不得关闭 goal", file=sys.stderr)
-        sys.exit(1)
-
-    # 门禁：先跑 checklist-verify
-    try:
-        cmd_checklist_verify()
-    except SystemExit as e:
-        if e.code != 0:
-            print("❌ checklist 未全部通过，不得关闭任务", file=sys.stderr)
-            sys.exit(1)
+    # 当前任务唯一闭环条件：绑定 task_dir 的 executor checklist 全部完成。
+    cmd_checklist_verify(plan_dir)
 
     lock_file = _token_path_for_plan(plan_dir)
 

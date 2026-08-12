@@ -545,7 +545,7 @@ def test_goal_done_does_not_archive_without_goal_machine(monkeypatch, tmp_path):
     plan_dir = tmp_path / "20260811" / "goal"
     plan_dir.mkdir(parents=True)
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n## Acceptance Checklist\n- [x] S1 complete\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
     (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
     token_path = tmp_path / "tokens" / "20260811" / "goal.json"
     token_path.parent.mkdir(parents=True)
@@ -579,7 +579,7 @@ def test_goal_done_retains_archived_token_and_removes_sidecar(monkeypatch, tmp_p
     plan_dir = tmp_path / "20260811" / "goal"
     plan_dir.mkdir(parents=True)
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n## Acceptance Checklist\n- [x] S1 complete\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
     (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
     token_path = tmp_path / "tokens" / "20260811" / "goal.json"
     token_path.parent.mkdir(parents=True)
@@ -616,7 +616,7 @@ def test_goal_off_retains_completed_token_and_removes_sidecar(monkeypatch, tmp_p
     plan_dir.mkdir(parents=True)
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
     (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n## Acceptance Checklist\n- [x] S1 complete\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
     token_root = project / ".omc" / "tokens"
     token_path = token_root / "20260811" / "goal.json"
     token_path.parent.mkdir(parents=True)
@@ -655,7 +655,7 @@ def test_goal_off_preserves_archived_token(monkeypatch, tmp_path):
     plan_dir.mkdir(parents=True)
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
     (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("## Acceptance Checklist\n- [x] S1 complete\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
     token_root = project / ".omc" / "tokens"
     token_path = token_root / "20260811" / "goal.json"
     token_path.parent.mkdir(parents=True)
