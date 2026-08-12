@@ -200,7 +200,17 @@ def test_done_transitions_through_verifying(monkeypatch, tmp_path):
     plan_dir = tmp_path / "task"
     plan_dir.mkdir()
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("### EV-S1\n- step: S1\n- type: test\n- evidence_level: E3\n- source: test\n- exit_code: 0\n- assertion: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text(
+        "## Conditions\nfocused tests\n\n"
+        "## Key Changes\ncanonical handoff\n\n"
+        "## Decisions\nnone: bounded scope\n\n"
+        "## Acceptance Checklist\n- [x] tests pass\n\n"
+        "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
+        "### EV-S1\n- step: S1\n- type: test\n- evidence_level: E3\n- source: test\n- exit_code: 0\n- assertion: done\n",
+        encoding="utf-8",
+    )
+    module._start_phase(plan_dir, "EXECUTING")
     token_dir = tmp_path / "tokens" / tmp_path.name
     token_dir.mkdir(parents=True)
     token_path = token_dir / f"{plan_dir.name}.json"
@@ -218,6 +228,83 @@ def test_done_transitions_through_verifying(monkeypatch, tmp_path):
 
     module.cmd_done(plan_dir)
     assert transitions == ["VERIFYING", "ARCHIVING", "ARCHIVED"]
+
+
+def test_done_from_canonical_plan_reconciles_stats_and_completes_handoffs(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text(
+        "## Conditions\nfocused tests\n\n"
+        "## Key Changes\ncanonical handoff\n\n"
+        "## Decisions\nnone: bounded scope\n\n"
+        "## Acceptance Checklist\n- [x] tests pass\n\n"
+        "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
+        "### EV-S1\n- step: S1\n- type: test\n- evidence_level: E3\n- source: test\n- exit_code: 0\n- assertion: done\n",
+        encoding="utf-8",
+    )
+    token_dir = tmp_path / "tokens" / tmp_path.name
+    token_dir.mkdir(parents=True)
+    token_path = token_dir / f"{plan_dir.name}.json"
+    token_path.write_text(json.dumps({
+        "mode": "goal",
+        "task_dir": str(plan_dir),
+        "stats": {"done": 0, "total": 1},
+        "task": {"current_step": "S1"},
+        "goal": {"state": "EXECUTING"},
+        "revision": 0,
+    }), encoding="utf-8")
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+
+    module.cmd_done(plan_dir)
+
+    token = json.loads(token_path.read_text())
+    assert token["status"] == "archived"
+    assert token["stats"]["done"] == 1
+    assert token["stats"]["total"] == 1
+    exec_handoff = json.loads((plan_dir / "state" / "phase-handoff-EXECUTING.json").read_text())
+    assert exec_handoff["status"] == "ready"
+    verify_handoff = json.loads((plan_dir / "state" / "phase-handoff-VERIFYING.json").read_text())
+    assert verify_handoff["status"] == "ready"
+    assert not token_path.with_suffix(token_path.suffix + ".lock").exists()
+
+
+def test_done_rejects_incomplete_plan_without_archiving(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("- [ ] S1: pending\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text(
+        "## Conditions\nfocused tests\n\n"
+        "## Key Changes\nchange\n\n"
+        "## Decisions\nnone: scope\n\n"
+        "## Acceptance Checklist\n- [x] tests\n\n"
+        "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
+        "### EV-S1\n- exit_code: 0\n- assertion: passed\n",
+        encoding="utf-8",
+    )
+    token_dir = tmp_path / "tokens" / tmp_path.name
+    token_dir.mkdir(parents=True)
+    token_path = token_dir / f"{plan_dir.name}.json"
+    token_path.write_text(json.dumps({
+        "mode": "goal",
+        "task_dir": str(plan_dir),
+        "stats": {"done": 0, "total": 1},
+        "task": {"current_step": "S1"},
+        "goal": {"state": "EXECUTING"},
+        "revision": 0,
+    }), encoding="utf-8")
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_done(plan_dir)
+
+    assert exc.value.code == 1
+    token = json.loads(token_path.read_text())
+    assert token.get("status") != "archived"
+    assert token.get("terminal_at") is None
+    assert token["goal"]["state"] == "EXECUTING"
 
 
 def test_update_lock_counter_ignores_list_fields(tmp_path, monkeypatch):
@@ -649,7 +736,15 @@ def test_goal_done_retains_archived_token_and_removes_sidecar(monkeypatch, tmp_p
     plan_dir = tmp_path / "20260811" / "goal"
     plan_dir.mkdir(parents=True)
     (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
-    (plan_dir / "executor.md").write_text("# Executor\n\n## Acceptance Checklist\n- [x] S1 complete\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text(
+        "## Conditions\nfocused tests\n\n"
+        "## Key Changes\ncanonical handoff\n\n"
+        "## Decisions\nnone: bounded scope\n\n"
+        "## Acceptance Checklist\n- [x] S1 complete\n\n"
+        "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
+        "### EV-S1\n\n- step: S1\n- exit_code: 0\n",
+        encoding="utf-8",
+    )
     (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
     token_path = tmp_path / "tokens" / "20260811" / "goal.json"
     token_path.parent.mkdir(parents=True)

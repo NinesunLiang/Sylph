@@ -565,3 +565,6 @@ def complete_step_atomic(token_path: str | Path,
     finally:
         if lock_path.exists():
             lock_path.unlink(missing_ok=True)
+
+    if phase_contracts is not None and (plan_path.parent / "state" / f"step-handoff-{step_id}.json").exists():
+        phase_contracts.complete_step_from_artifacts(plan_path.parent, step_id)

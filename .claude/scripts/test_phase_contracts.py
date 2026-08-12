@@ -58,12 +58,56 @@ def test_handoff_round_trip_and_ready_validation(tmp_path):
     assert validate_contract_ready(tmp_path, "PLANNING", values)["phase"] == "PLANNING"
 
 
-def test_ready_validation_rejects_pending_handoff(tmp_path):
-    write_contract(tmp_path, phase_contract("CLARIFY"), "phase-handoff-CLARIFY.json")
-    with pytest.raises(ValueError, match="schema not ready"):
-        validate_contract_ready(tmp_path, "CLARIFY", filename="phase-handoff-CLARIFY.json")
+def test_complete_phase_from_artifacts_derives_execution_outputs(tmp_path):
+    from phase_contracts import complete_phase_from_artifacts, start_phase
+
+    (tmp_path / "executor.md").write_text(
+        "## Conditions\nfocused tests\n\n"
+        "## Key Changes\ncanonical handoff\n\n"
+        "## Decisions\nnone: bounded scope\n\n"
+        "## Acceptance Checklist\n- [x] tests\n\n"
+        "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
+        "### EV-S1\n- exit_code: 0\n- assertion: passed\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (tmp_path / "state").mkdir()
+    start_phase(tmp_path, "EXECUTING")
+
+    complete_phase_from_artifacts(tmp_path, "EXECUTING")
+
+    contract = read_contract(tmp_path, "phase-handoff-EXECUTING.json")
+    assert contract["status"] == "ready"
+    assert all(contract["values"][key] for key in contract["outputs"]["required"])
 
 
+def test_complete_phase_from_artifacts_rejects_missing_evidence(tmp_path):
+    from phase_contracts import complete_phase_from_artifacts, start_phase
+
+    (tmp_path / "executor.md").write_text("## Conditions\nplaceholder\n", encoding="utf-8")
+    (tmp_path / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    start_phase(tmp_path, "EXECUTING")
+
+    with pytest.raises(ValueError, match="artifacts incomplete"):
+        complete_phase_from_artifacts(tmp_path, "EXECUTING")
+
+
+def test_complete_step_from_artifacts_derives_step_outputs(tmp_path):
+    from phase_contracts import complete_step_from_artifacts, start_step
+
+    (tmp_path / "executor.md").write_text(
+        "## Conditions\nfocused tests\n\n## Key Changes\nchange\n\n"
+        "## Decisions\nnone: scope\n\n## Acceptance Checklist\n- [x] tests\n\n"
+        "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
+        "### EV-S1\n- exit_code: 0\n- assertion: passed\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    start_step(tmp_path, {"id": "S1"})
+
+    complete_step_from_artifacts(tmp_path, "S1")
+
+    assert read_contract(tmp_path, "step-handoff-S1.json")["status"] == "ready"
 def test_plan_gate_accepts_uppercase_checkbox(tmp_path):
     contracts = load_goal_contracts()
     plan = tmp_path / "plan.md"

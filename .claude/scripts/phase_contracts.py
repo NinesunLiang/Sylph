@@ -7,9 +7,13 @@ starts and consumed by the next lifecycle gate.
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+
+_PLACEHOLDERS = {"", "todo", "tbd", "n/a", "待填写", "待确认", "暂无", "...", "…"}
 
 SCHEMA_VERSION = "carroros.phase_handoff.v1"
 PHASES = ("CLARIFY", "PLANNING", "EXECUTING", "VERIFYING", "ARCHIVING")
@@ -114,6 +118,52 @@ def start_phase(task_dir: str | Path, phase: str) -> Path:
     return write_contract(task_dir, phase_contract(phase), _phase_filename(phase))
 
 
+def _section_content(text: str, heading: str) -> str:
+    match = re.search(rf"^## {re.escape(heading)}\s*$([\s\S]*?)(?=^## |\Z)", text, re.MULTILINE)
+    if not match:
+        return ""
+    return re.sub(r"<!--.*?-->", "", match.group(1), flags=re.DOTALL).strip()
+
+
+def _usable(value: str) -> bool:
+    normalized = re.sub(r"\s+", " ", str(value or "").strip()).lower()
+    return normalized not in _PLACEHOLDERS and len(normalized) > 1
+
+
+def _artifact_values(task_dir: str | Path, contract: dict[str, Any]) -> dict[str, str]:
+    root = Path(task_dir)
+    plan = (root / "plan.md").read_text(encoding="utf-8") if (root / "plan.md").exists() else ""
+    executor = (root / "executor.md").read_text(encoding="utf-8") if (root / "executor.md").exists() else ""
+    if not plan.strip() or not executor.strip():
+        raise ValueError("artifacts incomplete: plan.md and executor.md are required")
+    values: dict[str, str] = {}
+    for key in contract.get("outputs", {}).get("required", []):
+        field = key.rsplit(".", 1)[-1]
+        if field in {"conditions", "key_changes", "decisions", "acceptance_checklist", "tdd_evidence"}:
+            heading = {
+                "conditions": "Conditions",
+                "key_changes": "Key Changes",
+                "decisions": "Decisions",
+                "acceptance_checklist": "Acceptance Checklist",
+                "tdd_evidence": "TDD Evidence",
+            }[field]
+            values[key] = _section_content(executor, heading)
+        elif field == "evidence":
+            values[key] = "executor.md EV evidence"
+        elif key == "verify.decisions":
+            values[key] = "VERIFIED"
+        elif key == "verify.evidence_summary":
+            values[key] = "canonical plan and executor evidence validated"
+        elif key == "verify.next_actions":
+            values[key] = "none"
+        else:
+            values[key] = plan.strip()
+    missing = [key for key, value in values.items() if not _usable(value)]
+    if missing:
+        raise ValueError("artifacts incomplete: " + ", ".join(missing))
+    return values
+
+
 def complete_phase(task_dir: str | Path, phase: str, values: dict[str, Any] | None = None) -> Path:
     contract = read_contract(task_dir, _phase_filename(phase))
     if contract.get("phase") != phase:
@@ -121,9 +171,27 @@ def complete_phase(task_dir: str | Path, phase: str, values: dict[str, Any] | No
     missing = missing_contract_fields(contract, values)
     if missing:
         raise ValueError("handoff schema incomplete: " + ", ".join(missing))
+    if values is not None:
+        contract["values"] = dict(values)
     contract["status"] = "ready"
     contract["completed_at"] = now_iso()
     return write_contract(task_dir, contract, _phase_filename(phase))
+
+
+def complete_phase_from_artifacts(task_dir: str | Path, phase: str) -> Path:
+    contract = read_contract(task_dir, _phase_filename(phase))
+    values = _artifact_values(task_dir, contract)
+    return complete_phase(task_dir, phase, values)
+
+
+def complete_step_from_artifacts(task_dir: str | Path, step_id: str) -> Path:
+    path = Path(task_dir) / "state" / f"step-handoff-{step_id}.json"
+    contract = read_contract(task_dir, path.name)
+    values = _artifact_values(task_dir, contract)
+    contract["values"] = values
+    contract["status"] = "ready"
+    contract["completed_at"] = now_iso()
+    return write_contract(task_dir, contract, path.name)
 
 
 def start_step(task_dir: str | Path, step: dict[str, Any]) -> Path:

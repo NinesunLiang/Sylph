@@ -103,10 +103,15 @@ except Exception:
     def _ledger_append_block(*args, **kwargs):
         pass
 try:
-    from phase_contracts import start_phase as _start_phase, complete_phase as _complete_phase
+    from phase_contracts import (
+        start_phase as _start_phase,
+        complete_phase as _complete_phase,
+        complete_phase_from_artifacts as _complete_phase_from_artifacts,
+    )
 except Exception:
     _start_phase = None
     _complete_phase = None
+    _complete_phase_from_artifacts = None
 
 from token_lifecycle import finalize_token, lock_path_for
 
@@ -1252,6 +1257,10 @@ def cmd_done(plan_dir: Path | str | None = None):
         print("❌ Goal token 不存在，拒绝归档", file=sys.stderr)
         sys.exit(1)
     try:
+        # 1) canonical reconciliation：plan.md 已 [x] 时先同步 token.stats，
+        #    避免 stats 0/1 与 plan 全完成不一致导致 EXECUTING→VERIFYING 门禁拒绝。
+        _sync_canonical_step_stats(plan_dir)
+
         gsm = _GSM(str(lock_file))
         token = json.loads(lock_file.read_text(encoding="utf-8"))
         token["task_dir"] = str(plan_dir.resolve())
@@ -1263,17 +1272,26 @@ def cmd_done(plan_dir: Path | str | None = None):
         token = json.loads(lock_file.read_text(encoding="utf-8"))
         current_state = getattr(gsm, "current_state", token.get("goal", {}).get("state"))
         if current_state == "EXECUTING":
+            # 2) 从 canonical plan/executor 生产 EXECUTING handoff，而不是等临时脚本硬填。
+            #    handoff 缺失（未走完整生命周期）时先 start 再 complete，保持自愈。
+            exec_handoff = plan_dir / "state" / "phase-handoff-EXECUTING.json"
+            if _start_phase is not None and not exec_handoff.exists():
+                _start_phase(plan_dir, "EXECUTING")
+            if _complete_phase_from_artifacts is not None:
+                _complete_phase_from_artifacts(plan_dir, "EXECUTING")
             gsm.transition("VERIFYING", token=token, reason="done: checklist verified")
             current_state = "VERIFYING"
         if current_state == "VERIFYING":
             handoff = plan_dir / "state" / "phase-handoff-VERIFYING.json"
             if _start_phase is not None and not handoff.exists():
                 _start_phase(plan_dir, "VERIFYING")
-            if _complete_phase is not None:
+            if _complete_phase_from_artifacts is not None:
+                _complete_phase_from_artifacts(plan_dir, "VERIFYING")
+            elif _complete_phase is not None:
                 _complete_phase(plan_dir, "VERIFYING", {"verify.decisions": "VERIFIED", "verify.evidence_summary": "checklist passed", "verify.next_actions": "none"})
             gsm.transition("ARCHIVING", token=token, reason="done: checklist passed")
         gsm.transition("ARCHIVED", token=token, reason="done: task completed")
-    except _GSM_Error as e:
+    except (_GSM_Error, ValueError, CASConflict) as e:
         print(f"❌ GoalMachine 状态转换失败: {e}", file=sys.stderr)
         sys.exit(1)
 
