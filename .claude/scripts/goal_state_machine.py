@@ -34,6 +34,10 @@ except ImportError:
     ResearchGateError = Exception
     PlanGate = None
     PlanGateError = Exception
+try:
+    from phase_contracts import validate_contract_ready
+except ImportError:
+    validate_contract_ready = None
 
 # ─── State Constants ───
 CLARIFY = "CLARIFY"
@@ -158,6 +162,23 @@ class GoalMachine:
         # ── Gate validation ──────────────────────────────────────────
         token_data = self._read_token() or {}
         is_goal = token_data.get("mode") == "goal"
+        task_dir = token_data.get("task_dir")
+
+        if is_goal and task_dir and target_state in (PLANNING, EXECUTING, VERIFYING, ARCHIVING):
+            if validate_contract_ready is None:
+                raise GoalError("phase handoff validator unavailable; cannot advance Goal")
+            previous_phase = {
+                PLANNING: CLARIFY,
+                EXECUTING: PLANNING,
+                VERIFYING: EXECUTING,
+                ARCHIVING: VERIFYING,
+            }[target_state]
+            try:
+                validate_contract_ready(task_dir, previous_phase)
+            except ValueError as exc:
+                raise GoalError(
+                    f"phase handoff blocked before {target_state}: {exc}"
+                ) from exc
 
         if is_goal and target_state == PLANNING:
             if research_path is None:

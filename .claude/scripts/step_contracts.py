@@ -34,6 +34,10 @@ _SCRIPT_DIR = str(Path(__file__).resolve().parent)
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 from goal_document_gate import GoalDocumentGateError, require_document_write
+try:
+    import phase_contracts
+except ImportError:
+    phase_contracts = None
 
 STEP_STATUSES = {"pending", "active", "completed", "blocked"}
 
@@ -316,7 +320,7 @@ def start_step_atomic(token_path: str | Path,
     token["goal"]["active_step"] = step_id
     token["revision"] = token.get("revision", 0) + 1
 
-    # Prepare executor content
+    # Prepare executor content and submit the full completion schema before execution.
     ts = now_iso()
     exec_conditions = f"""
 ## Conditions
@@ -325,6 +329,27 @@ def start_step_atomic(token_path: str | Path,
 - status: active
 - started_at: {ts}
 - depends_on: {dep}
+"""
+    exec_key_changes = """
+## Key Changes
+
+- pending: record each changed file or explicit no-op before verification.
+"""
+    exec_decisions = """
+## Decisions
+
+- Rationale: record the selected implementation path and why it is safe.
+"""
+    exec_acceptance = """
+## Acceptance Checklist
+
+- [ ] pending: complete the step acceptance criteria before verification.
+"""
+    exec_tdd = """
+## TDD Evidence
+
+- Dependency TDD command: pending -> exit 0
+- Regression TDD command: pending -> exit 0
 """
     exec_start_ev = f"""
 ### EV-{step_id}-START
@@ -337,6 +362,11 @@ def start_step_atomic(token_path: str | Path,
 - exit_code: 0
 - assertion: Step {step_id} activated atomically with dep={dep}
 """
+    if phase_contracts is not None and token.get("task_dir"):
+        try:
+            phase_contracts.start_step(token["task_dir"], step_info)
+        except (OSError, ValueError) as exc:
+            raise ValueError(f"step handoff schema could not be prepared: {exc}") from exc
 
     # ── Atomic multi-file write ──
     lock_path = token_path.with_suffix(token_path.suffix + ".lock")
@@ -375,6 +405,14 @@ def start_step_atomic(token_path: str | Path,
                 new_exec = existing_exec.rstrip() + "\n"
                 if "## Conditions" not in existing_exec:
                     new_exec += exec_conditions
+                if "## Key Changes" not in existing_exec:
+                    new_exec += exec_key_changes
+                if "## Decisions" not in existing_exec:
+                    new_exec += exec_decisions
+                if "## Acceptance Checklist" not in existing_exec:
+                    new_exec += exec_acceptance
+                if "## TDD Evidence" not in existing_exec:
+                    new_exec += exec_tdd
                 new_exec += exec_start_ev
                 tmp_executor.write_text(new_exec, encoding="utf-8")
                 _atomic_replace(tmp_executor, executor_path)

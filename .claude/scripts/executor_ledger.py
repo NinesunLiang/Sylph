@@ -192,7 +192,7 @@ def validate_evidence(evidence: Evidence) -> list[str]:
 
 def render_evidence_md(evidence: Evidence) -> str:
     lines = [
-        f"\n### {evidence.evidence_id}",
+        f"\n### EV-{evidence.step}",
         f"- step: {evidence.step}",
         f"- type: {evidence.type}",
         f"- evidence_level: {evidence.evidence_level}",

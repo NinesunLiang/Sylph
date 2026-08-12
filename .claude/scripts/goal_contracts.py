@@ -122,6 +122,7 @@ class ResearchGate:
 # ─── PlanGate ─────────────────────────────────────────────────────────
 
 VALID_STEP_STATUSES = {"pending", "active", "running", "completed", "done", "verified", "blocked", "cancelled", "failed"}
+VALID_VERIFY_PREFIXES = ("command:", "file:", "assertion:", "user:")
 PLACEHOLDER_MARKERS = (
     "todo", "tbd", "n/a", "待填写", "待确认", "暂无", "expected update",
     "project test command", "pending-user-confirmation", "discovery-required",
@@ -301,13 +302,21 @@ class PlanGate:
 
         # ── Real content check for scope/acceptance/verify ──
         placeholder_fields = []
+        invalid_verify_fields = []
         for s in steps_raw:
             for field in ("scope", "acceptance", "verify"):
                 val = s.get(field, "")
                 if is_placeholder(val) or val == field or val.startswith("<!--") or val.startswith(">"):
                     placeholder_fields.append(f"step '{s['id']}': '{field}' is empty or placeholder")
+            verify = s.get("verify", "").strip()
+            if verify and not verify.startswith(VALID_VERIFY_PREFIXES):
+                invalid_verify_fields.append(
+                    f"step '{s['id']}': verify must start with command:/file:/assertion:/user:"
+                )
         if placeholder_fields:
             errors.append("Steps with empty/placeholder fields: " + "; ".join(placeholder_fields))
+        if invalid_verify_fields:
+            errors.append("Invalid verify rules: " + "; ".join(invalid_verify_fields))
 
         if errors:
             raise PlanGateError(errors)

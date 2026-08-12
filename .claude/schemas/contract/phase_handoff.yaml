@@ -1,0 +1,71 @@
+# Schema: phase_handoff
+# Version: v1
+# Owner: CarrorOS lifecycle
+# Purpose: 阶段交接唯一契约。当前阶段开始时生成骨架，下一阶段门禁消费并验证。
+
+schema_version:
+  type: string
+  required: true
+  const: carroros.phase_handoff.v1
+phase:
+  type: enum
+  values: [CLARIFY, PLANNING, EXECUTING, VERIFYING, ARCHIVING]
+  required: true
+status:
+  type: enum
+  values: [pending, ready, blocked]
+  required: true
+inputs:
+  type: object
+  required: true
+  fields:
+    required:
+      type: array
+      items: {type: string}
+    inherited:
+      type: array
+      items: {type: string}
+outputs:
+  type: object
+  required: true
+  fields:
+    required:
+      type: array
+      items: {type: string}
+    artifacts:
+      type: array
+      items: {type: string}
+evidence:
+  type: object
+  required: true
+  fields:
+    required:
+      type: array
+      items: {type: string}
+next_gate:
+  type: object
+  required: true
+  fields:
+    target_phase:
+      type: enum
+      values: [PLANNING, EXECUTING, VERIFYING, ARCHIVING, ARCHIVED]
+      required: true
+    checks:
+      type: array
+      items: {type: string}
+required_artifacts:
+  type: array
+  required: true
+  items:
+    type: object
+    fields:
+      path: {type: string, required: true}
+      checks: {type: array, items: {type: string}}
+      required: {type: boolean, required: true}
+created_at:
+  type: string
+  required: true
+  format: date-time
+completed_at:
+  type: string
+  required: false

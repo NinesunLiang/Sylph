@@ -102,6 +102,11 @@ try:
 except Exception:
     def _ledger_append_block(*args, **kwargs):
         pass
+try:
+    from phase_contracts import start_phase as _start_phase, complete_phase as _complete_phase
+except Exception:
+    _start_phase = None
+    _complete_phase = None
 
 from token_lifecycle import finalize_token, lock_path_for
 
@@ -549,6 +554,18 @@ def cmd_phase0_done():
     token_snapshot = _snapshot_file(lock_file)
     lock_snapshot = token_snapshot
     try:
+        token_data = json.loads(lock_file.read_text(encoding="utf-8"))
+        if not token_data.get("task_dir"):
+            token_data["task_dir"] = str(plan_dir.resolve())
+            lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        if _start_phase is not None:
+            handoff = plan_dir / "state" / "phase-handoff-CLARIFY.json"
+            if not handoff.exists():
+                _start_phase(plan_dir, "CLARIFY")
+            _complete_phase(plan_dir, "CLARIFY", {
+                "research.sections": "ResearchGate passed",
+                "research.dependency_tree": "ResearchGate passed",
+            })
         gsm = _GSM(str(lock_file))
         if gsm.current_state == "CLARIFY":
             gsm.transition(
@@ -575,8 +592,22 @@ def cmd_phase0_done():
         print(f"❌ Phase 0 状态提交失败，已回滚: {e}", file=sys.stderr)
         sys.exit(2)
 
+    if _start_phase is not None:
+        try:
+            handoff = plan_dir / "state" / "phase-handoff-CLARIFY.json"
+            if not handoff.exists():
+                _start_phase(plan_dir, "CLARIFY")
+            _complete_phase(plan_dir, "CLARIFY", {
+                "research.sections": "ResearchGate passed",
+                "research.dependency_tree": "ResearchGate passed",
+            })
+            _start_phase(plan_dir, "PLANNING")
+        except ValueError as exc:
+            print(f"❌ 阶段交接 schema 未就绪，不能进入 PLANNING: {exc}", file=sys.stderr)
+            sys.exit(1)
     print("✅ Phase 0 完成 → PLANNING 已解锁")
     print("   ResearchGate 内容结构验证通过")
+    print("   已提交 PLANNING 入参 schema：research.md / ResearchGate 结果")
     print("   现在填写并审查 plan.md")
     print("   完成后运行: lx-goal.py plan-done")
 
@@ -613,6 +644,20 @@ def cmd_plan_done():
     physical_lock = lock_file.with_suffix(lock_file.suffix + ".lock")
     physical_lock_snapshot = _snapshot_file(physical_lock)
     try:
+        token_data = json.loads(lock_file.read_text(encoding="utf-8"))
+        if not token_data.get("task_dir"):
+            token_data["task_dir"] = str(plan_dir.resolve())
+            lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        if _start_phase is not None:
+            handoff = plan_dir / "state" / "phase-handoff-PLANNING.json"
+            if not handoff.exists():
+                _start_phase(plan_dir, "PLANNING")
+            _complete_phase(plan_dir, "PLANNING", {
+                "plan.phases": "PlanGate passed",
+                "plan.steps": "PlanGate passed",
+                "step.acceptance": "PlanGate passed",
+                "step.verify": "PlanGate passed",
+            })
         gsm = _GSM(str(lock_file))
         if gsm.current_state != "PLANNING":
             raise _GSM_Error(
@@ -639,7 +684,23 @@ def cmd_plan_done():
         print(f"❌ PlanGate 状态提交失败，已回滚执行解锁: {e}", file=sys.stderr)
         sys.exit(2)
 
+    if _start_phase is not None:
+        try:
+            handoff = plan_dir / "state" / "phase-handoff-PLANNING.json"
+            if not handoff.exists():
+                _start_phase(plan_dir, "PLANNING")
+            _complete_phase(plan_dir, "PLANNING", {
+                "plan.phases": "PlanGate passed",
+                "plan.steps": "PlanGate passed",
+                "step.acceptance": "PlanGate passed",
+                "step.verify": "PlanGate passed",
+            })
+            _start_phase(plan_dir, "EXECUTING")
+        except ValueError as exc:
+            print(f"❌ 阶段交接 schema 未就绪，不能进入 EXECUTING: {exc}", file=sys.stderr)
+            sys.exit(1)
     print("✅ PlanGate 通过 → EXECUTING 已解锁")
+    print("   已提交 EXECUTING 入参 schema：plan.md / current_step.schema / executor sections")
     print("   现在才允许 tick、subagent-log 和 executor 证据写入")
 
 

@@ -13,8 +13,6 @@
 
 ## 当前状态
 
-这些 schema 定义了**期望的输出格式**——skill 文档引用它们作为"应该产出什么"的规范。目前没有 hook 在 runtime 做 schema 验证。这是有意为之——schema 作为文档蓝图，指导 skill 输出格式的统一，而非作为物理门禁。
+这些 schema 定义了**期望的输出格式**——skill 文档引用它们作为"应该产出什么"的规范。阶段交接使用 `.claude/schemas/contract/phase_handoff.yaml`，由 `.claude/scripts/phase_contracts.py` 在任务目录 `state/` 生成阶段/步骤 handoff 骨架，并由下一阶段门禁消费。
 
-## 未来方向
-
-当某个 skill 的输出格式需要被其他 skill 消费时，schema 可升级为 runtime 验证（在 PostToolUse 做结构化检查）。在此之前，它们作为文档规范存在。
+运行时原则：schema 先生成骨架，再由下一门禁检查对应内容是否 ready；VerifyGate 等末端校验保留为兜底，不替代前置交接。

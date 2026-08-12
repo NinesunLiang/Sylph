@@ -148,6 +148,17 @@ def _show_card(state: dict, card: dict) -> None:
     confirmed = state.get("confirmed", {}).get(cid, [])
     print(f"\n## 当前卡片: {cid} {card.get('title', '')}")
     print(f"### 目标\n{card.get('objective', '')}")
+    inputs = card.get("inputs") or {}
+    print("### 开始前必须准备的 schema 入参")
+    for label in ("required", "inherited"):
+        values = inputs.get(label) or []
+        print(f"  - {label}: {', '.join(str(v) for v in values) if values else '无'}")
+    print("### 本卡完成后交接给下一门禁的 schema")
+    outputs = card.get("outputs") or {}
+    required_outputs = outputs.get("required") or []
+    print(f"  - outputs.required: {', '.join(str(v) for v in required_outputs) if required_outputs else '无'}")
+    evidence = card.get("evidence") or []
+    print(f"  - evidence: {', '.join(str(v) for v in evidence) if evidence else '无'}")
     checks = card.get("auto_checks") or []
     if isinstance(checks, dict):  # C08 pre/post 形态
         for k, v in checks.items():

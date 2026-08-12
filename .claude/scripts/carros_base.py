@@ -89,6 +89,11 @@ try:
 except ImportError:
     step_contracts = None
 
+try:
+    import phase_contracts
+except ImportError:
+    phase_contracts = None
+
 from token_lifecycle import finalize_token
 
 
@@ -883,7 +888,9 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
         token = _default_token(task_id=task_id, level=level, steps=steps)
         _save_token(token)
         _write_goal_scaffolds()
-        print(_green("   Goal scaffolds created: research → plan → executor"))
+        if phase_contracts is not None:
+            phase_contracts.start_phase(TASK_DIR, "CLARIFY")
+        print(_green("   Goal scaffolds created: research → plan → executor → phase handoff"))
     elif steps and len(steps) > 1:
         # 显式多步骤：绕过 PlanBuilder，按步骤列表生成
         token = _default_token(task_id=task_id, level=level, steps=steps)
@@ -1384,9 +1391,19 @@ def cmd_verify(step_id=None, all_steps=False):
         _save_token(token)
         _write_handoff(token)
 
-        # Goal 状态自动推进: done >= total → VERIFYING
+        # Goal 状态自动推进: all steps done → EXECUTING ready → VERIFYING
         done = token.get("stats", {}).get("done", 0)
         total = token.get("stats", {}).get("total", 0)
+        if phase_contracts is not None and TASK_DIR and token.get("mode") == "goal" and done >= total:
+            try:
+                phase_contracts.complete_step(TASK_DIR, target)
+                phase_contracts.complete_phase(TASK_DIR, "EXECUTING", {
+                    key: "execution complete" for key in phase_contracts.phase_contract("EXECUTING")["outputs"]["required"]
+                })
+                phase_contracts.start_phase(TASK_DIR, "VERIFYING")
+                print("   已提交 VERIFYING 入参 schema：executor.md / step handoffs / verify rules")
+            except (OSError, ValueError) as exc:
+                print(_yellow(f"   ⚠ VERIFYING handoff 尚未就绪: {exc}"))
         if done >= total and GoalMachine:
             try:
                 gm = GoalMachine(TOKEN_PATH)
@@ -1486,6 +1503,14 @@ def cmd_archive(force=False):
         if GoalMachine is None:
             print(_red("❌ GoalMachine unavailable; archive aborted"), file=sys.stderr)
             return 2
+        if phase_contracts is None or not TASK_DIR:
+            print(_red("❌ phase handoff validator unavailable; archive aborted"), file=sys.stderr)
+            return 2
+        try:
+            phase_contracts.validate_contract_ready(TASK_DIR, "VERIFYING")
+        except ValueError as exc:
+            print(_red(f"❌ VERIFYING handoff 未就绪，不能归档: {exc}"), file=sys.stderr)
+            return 2
         try:
             archive_gate = GoalMachine(TOKEN_PATH)
         except Exception as exc:
@@ -1538,6 +1563,13 @@ def cmd_archive(force=False):
                     f"Goal archive requires VERIFYING, current={gm.current_state}"
                 )
             gm.transition(gsm.ARCHIVING, reason="archive precondition passed")
+            if phase_contracts is not None and TASK_DIR:
+                phase_contracts.start_phase(TASK_DIR, "ARCHIVING")
+                phase_contracts.complete_phase(TASK_DIR, "ARCHIVING", {
+                    "archive.manifest": str(archive_dir),
+                    "archive.verdict": "archive precondition passed",
+                })
+                phase_contracts.validate_contract_ready(TASK_DIR, "ARCHIVING")
             gm.transition(gsm.ARCHIVED, reason="archive completed")
             print(_green(f"   Goal State: {gsm.get_state_header(gm.current_state)}"))
             token = _load_token() or token
