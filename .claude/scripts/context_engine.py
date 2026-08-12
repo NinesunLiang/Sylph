@@ -483,11 +483,6 @@ def compact_write(
         },
     )
 
-    # 同时更新 task_dir 下的 state/session-handoff.md
-    state_handoff = task_path / "state" / "session-handoff.md"
-    state_handoff.parent.mkdir(parents=True, exist_ok=True)
-    state_handoff.write_text(handoff_content, encoding="utf-8")
-
     print(json.dumps({
         "handoff_path": str(handoff_path),
         "prompt_path": str(prompt_path),

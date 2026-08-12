@@ -120,6 +120,7 @@ def test_compact_write_includes_document_pointers_and_checklist(monkeypatch, tmp
     assert "- [ ] S2 pending" in handoff
     prompts = (tmp_path / ".omc/state/last-user-prompt.md").read_text(encoding="utf-8")
     assert "last query" in prompts
+    assert not (task_dir / "state/session-handoff.md").exists()
 
 
 def write_capsule(tmp_path: Path, session_id: str) -> tuple[Path, Path]:
@@ -156,7 +157,8 @@ def test_session_start_injects_bound_handoff_and_recent_prompts(monkeypatch, tmp
     task_dir = tmp_path / "tasks" / "20260811" / "task-a"
     state_dir = task_dir / "state"
     state_dir.mkdir(parents=True)
-    (state_dir / "session-handoff.md").write_text(
+    (tmp_path / ".omc/session-handoff.md").parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / ".omc/session-handoff.md").write_text(
         f"task_dir: {task_dir}\nchecklist: {state_dir / 'checklist.md'}\n",
         encoding="utf-8",
     )

@@ -182,7 +182,7 @@ def main():
             pass
 
         # Session 目标锚定
-        handoff_file = project_root / ".omc" / "state" / "session-handoff.md"
+        handoff_file = project_root / ".omc" / "session-handoff.md"
         if handoff_file.exists():
             for line in handoff_file.read_text(encoding="utf-8", errors="replace").split("\n"):
                 m = re.match(r'^## Feature:\s*(.*)', line)

@@ -126,7 +126,7 @@ def _resume_task_docs(resume_note: str) -> str:
         return ""
     task_dir = Path(match.group(1).strip()).expanduser()
     sources = [
-        task_dir / "state" / "session-handoff.md",
+        HANDOFF,
         OMC / "state" / "last-user-prompt.md",
     ]
     chunks = []
