@@ -104,6 +104,11 @@ def check_path_scope(path, task_dir=None) -> str | None:
     """
     try:
         path_str = str(path).replace("\\", "/")
+        # 豁免治理运行时区（任务文档/治理文件非产物，不适用产物路径契约）
+        if ("/.omc/" in path_str or path_str.startswith(".omc/")
+                or "/.claude/" in path_str or path_str.startswith(".claude/")
+                or "scorecard.md" in path_str):
+            return None
         # 定位活跃任务的 working-set.yaml
         if not task_dir:
             task_dir = _active_task_dir()
@@ -199,11 +204,14 @@ def main() -> int:
 
     path = _extract_path(payload)
     # v2 前置路径预检：写路径须在 working-set.yaml schema 声明范围内
-    # 豁免：scorecard.md 自身（治理文件，非任务产物）与 .claude 治理目录
+    # 豁免（治理运行时区，非任务产物）：scorecard.md / .claude 治理目录 / .omc 任务目录
+    normalized_path = path.replace("\\", "/") if path else ""
     is_governance_file = (
-        "scorecard.md" in path.replace("\\", "/")
-        or "/.claude/" in path.replace("\\", "/")
-        or path.replace("\\", "/").startswith(".claude/")
+        "scorecard.md" in normalized_path
+        or "/.claude/" in normalized_path
+        or normalized_path.startswith(".claude/")
+        or "/.omc/" in normalized_path
+        or normalized_path.startswith(".omc/")
     )
     scope_result = None if is_governance_file else (check_path_scope(path) if path else None)
     if scope_result:
