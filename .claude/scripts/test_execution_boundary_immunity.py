@@ -352,3 +352,96 @@ def test_carros_init_help_does_not_create_unnamed_task(monkeypatch):
     assert help_calls == [True]
     assert init_calls == []
     sys.modules.pop("carros_init_help", None)
+
+
+def test_complete_step_atomic_writes_verifygate_marker(tmp_path):
+    """complete_step_atomic must append a durable EV-S1-VERIFIED marker so a
+    red-TDD step's report gate can confirm canonical VerifyGate acceptance."""
+    plan = tmp_path / "plan.md"
+    executor = tmp_path / "executor.md"
+    token = tmp_path / "token.json"
+    plan.write_text(
+        """- [a] S1: first
+  - status: active
+  - depends_on: none
+  - scope: local
+  - acceptance: red test
+  - verify: assertion:red test failed as expected
+""",
+        encoding="utf-8",
+    )
+    executor.write_text(
+        """## Conditions
+- local
+## Key Changes
+- local
+## Decisions
+- Rationale: test
+## Acceptance Checklist
+- [x] S1 evidence
+## TDD Evidence
+- Dependency TDD command: test -> exit 0
+- Regression TDD command: test -> exit 0
+### EV-S1
+- step: S1
+- type: test
+- source: test
+- evidence_level: E3
+- exit_code: 1
+- file: test
+- assertion: red test failed as expected
+""",
+        encoding="utf-8",
+    )
+    token.write_text(json.dumps({"task": {"status": "active"}, "stats": {"done": 0, "total": 1}}), encoding="utf-8")
+
+    STEP_CONTRACTS.complete_step_atomic(token, plan, executor, "S1")
+
+    executor_text = executor.read_text(encoding="utf-8")
+    assert "### EV-S1-VERIFIED" in executor_text
+    assert "- exit_code: 0" in executor_text.split("### EV-S1-VERIFIED")[1]
+
+
+def test_complete_step_atomic_marker_is_idempotent(tmp_path):
+    """Re-running complete_step_atomic must not duplicate the VERIFIED marker."""
+    plan = tmp_path / "plan.md"
+    executor = tmp_path / "executor.md"
+    token = tmp_path / "token.json"
+    plan.write_text(
+        """- [x] S1: first
+  - status: completed
+  - depends_on: none
+  - scope: local
+  - acceptance: red test
+  - verify: assertion:red test failed as expected
+""",
+        encoding="utf-8",
+    )
+    executor.write_text(
+        "### EV-S1\n\n- step: S1\n- exit_code: 1\n- assertion: red\n\n"
+        "### EV-S1-VERIFIED\n\n- step: S1\n- exit_code: 0\n- source: VerifyGate\n",
+        encoding="utf-8",
+    )
+    token.write_text(json.dumps({"task": {"status": "completed"}, "stats": {"done": 1, "total": 1}}), encoding="utf-8")
+
+    STEP_CONTRACTS.complete_step_atomic(token, plan, executor, "S1")
+
+    assert executor.read_text(encoding="utf-8").count("### EV-S1-VERIFIED") == 1
+
+
+def test_extract_section_content_ignores_backticked_section_mention():
+    """A `## Decisions` mention inside prose must not be treated as the section
+    header; only a real heading on its own line starts the section (E-ISO-001)."""
+    text = (
+        "## Key Changes\n"
+        "- 引用段名 `## Decisions` 不应误判\n"
+        "## Decisions\n"
+        "- 决策: 任务隔离\n"
+        "- rationale: 测试\n"
+        "## Acceptance Checklist\n"
+        "- [x] done\n"
+    )
+    sec = STEP_CONTRACTS._extract_section_content(text, "Decisions")
+    assert "决策: 任务隔离" in sec
+    assert "rationale: 测试" in sec
+    assert "引用段名" not in sec

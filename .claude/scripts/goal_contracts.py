@@ -129,6 +129,13 @@ PLACEHOLDER_MARKERS = (
 )
 
 
+# Common English words are legal prose tokens ("todo" in a decision line is
+# real content, not a stub). Only a short line (<= SHORT_STUB_LEN chars) may be
+# treated as a placeholder for these; distinctive phrases match anywhere.
+_COMMON_EN_MARKERS = {"todo", "tbd", "n/a"}
+_SHORT_STUB_LEN = 30
+
+
 def is_placeholder(value: str) -> bool:
     normalized = str(value or "").strip().lower()
     if not normalized or normalized in PLACEHOLDER_MARKERS:
@@ -142,6 +149,8 @@ def is_placeholder(value: str) -> bool:
             if marker in normalized:
                 return True
             continue
+        if marker in _COMMON_EN_MARKERS and len(normalized) > _SHORT_STUB_LEN:
+            continue  # long prose mentioning "todo"/"n/a" is real content
         boundary = rf"(?<![a-z0-9_]){re.escape(marker)}(?![a-z0-9_])"
         if re.search(boundary, normalized):
             return True

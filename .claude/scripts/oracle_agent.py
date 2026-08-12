@@ -91,11 +91,22 @@ def _read_file_safe(path: str) -> str:
         return ""
 
 
-def _is_autonomous_mode() -> bool:
-    """Check if system is in autonomous/unmanned mode."""
-    tokens_dir = Path(".omc/state/tokens")
-    return (tokens_dir / "autonomous.active").exists() or \
-           (tokens_dir / "lx-goal.json").exists()
+def _is_autonomous_mode(token_path: str | None = None) -> bool:
+    """Autonomous mode is task-bound: only the submitted task's own Goal token
+    may mark it autonomous.
+
+    Task state lives exclusively in the task's own token; the shared global
+    markers (.omc/state/tokens/autonomous.active / lx-goal.json) are never
+    authoritative so one terminal's goal task cannot change another terminal's
+    oracle review (index11 E11-004).
+    """
+    if not token_path:
+        return False
+    try:
+        data = json.loads(Path(token_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return data.get("mode") == "goal" and data.get("status") == "active"
 
 
 def _pattern_hits(text: str, patterns: List[str]) -> List[str]:
@@ -440,13 +451,14 @@ def _compute_complexity_metrics(diff_text: str) -> dict:
 # ---- Shared LLM+fallback pipeline (DRY fix, ref C8 Meta-Oracle eval 2026-07-23) ----
 
 def _review_with_llm_fallback(task_id: str, target_text: str,
-                               fallback_fn, *fallback_args) -> dict:
+                               fallback_fn, *fallback_args,
+                               token_path: str | None = None) -> dict:
     """Shared LLM-first + rule-based fallback pipeline.
 
     Eliminates the ~25-line duplicated LLM-call block that was repeated in
     both review_static and review_runtime.
     """
-    if _is_autonomous_mode():
+    if _is_autonomous_mode(token_path):
         target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
     ok, result = _try_llm_model(task_id, target_text[:8000])
@@ -472,7 +484,8 @@ def _review_with_llm_fallback(task_id: str, target_text: str,
 
 
 def review_static(task_id: str, plan_text: str = "",
-                  executor_text: str = "", diff_text: str = "") -> dict:
+                  executor_text: str = "", diff_text: str = "",
+                  token_path: str | None = None) -> dict:
     """Static analysis: LLM-first, rule-based fallback."""
     target_text = "### Task: {}\n".format(task_id)
     if plan_text:
@@ -481,7 +494,7 @@ def review_static(task_id: str, plan_text: str = "",
         target_text += "### Executor\n{}\n\n".format(executor_text[:5000])
     if diff_text:
         target_text += "### Diff\n{}\n\n".format(diff_text[:5000])
-    if _is_autonomous_mode():
+    if _is_autonomous_mode(token_path):
         target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
     # Try LLM first
@@ -506,14 +519,15 @@ def review_static(task_id: str, plan_text: str = "",
 
 
 def review_runtime(task_id: str, executor_text: str = "",
-                   logs_text: str = "") -> dict:
+                   logs_text: str = "",
+                   token_path: str | None = None) -> dict:
     """Runtime analysis: LLM-first, rule-based fallback."""
     target_text = "### Task: {}\n".format(task_id)
     if executor_text:
         target_text += "### Executor\n{}\n\n".format(executor_text[:5000])
     if logs_text:
         target_text += "### Logs\n{}\n\n".format(logs_text[:5000])
-    if _is_autonomous_mode():
+    if _is_autonomous_mode(token_path):
         target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
     # Try LLM first
@@ -539,10 +553,10 @@ def review_runtime(task_id: str, executor_text: str = "",
 
 def review_duo(task_id: str, plan_text: str = "",
                executor_text: str = "", diff_text: str = "",
-               logs_text: str = "") -> dict:
+               logs_text: str = "", token_path: str | None = None) -> dict:
     """Dual review: static + runtime, combined verdict."""
-    static_result = review_static(task_id, plan_text, executor_text, diff_text)
-    runtime_result = review_runtime(task_id, executor_text, logs_text)
+    static_result = review_static(task_id, plan_text, executor_text, diff_text, token_path)
+    runtime_result = review_runtime(task_id, executor_text, logs_text, token_path)
 
     scores = [static_result.get("score", 5.0),
               runtime_result.get("score", 5.0)]
@@ -579,10 +593,10 @@ def review_duo(task_id: str, plan_text: str = "",
 
 def review_analyze(task_id: str, plan_text: str = "",
                     executor_text: str = "", diff_text: str = "",
-                    logs_text: str = "") -> dict:
+                    logs_text: str = "", token_path: str | None = None) -> dict:
     """Analysis mode: static review + code complexity metrics."""
     # Run static review first
-    static_result = review_static(task_id, plan_text, executor_text, diff_text)
+    static_result = review_static(task_id, plan_text, executor_text, diff_text, token_path)
     
     # Compute complexity metrics from diff
     complexity = _compute_complexity_metrics(diff_text)
@@ -667,15 +681,15 @@ def cmd_review(args: List[str]) -> int:
         return 1
 
     if mode == "static":
-        result = review_static(task_id, plan, executor, diff)
+        result = review_static(task_id, plan, executor, diff, token)
     elif mode == "runtime":
-        result = review_runtime(task_id, executor, logs)
+        result = review_runtime(task_id, executor, logs, token)
     elif mode == "duo":
-        result = review_duo(task_id, plan, executor, diff, logs)
+        result = review_duo(task_id, plan, executor, diff, logs, token)
     elif mode == "analyze":
-        result = review_analyze(task_id, plan, executor, diff, logs)
+        result = review_analyze(task_id, plan, executor, diff, logs, token)
     else:
-        result = review_static(task_id, plan, executor, diff)
+        result = review_static(task_id, plan, executor, diff, token)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
     _save_verdict(task_id, result)

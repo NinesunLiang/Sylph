@@ -132,15 +132,19 @@ def find_first_activatable_step(steps: list[dict[str, Any]]) -> str | None:
 
 
 def _extract_section_content(text: str, section_name: str) -> str:
-    """Extract content under a ## section header, up to next ## or EOF."""
-    marker = f"## {section_name}"
-    parts = text.split(marker)
-    if len(parts) < 2:
+    """Extract content under a `## <section_name>` header, up to next ## or EOF.
+
+    The header must be a heading on its own line; a backticked mention of a
+    section name inside prose (e.g. "`## Decisions` 段") must not be treated as
+    the section start.
+    """
+    header = re.search(rf"^## {re.escape(section_name)}\s*$", text, re.MULTILINE)
+    if not header:
         return ""
-    after = parts[1]
-    nxt = after.find("\n## ")
-    if nxt >= 0:
-        after = after[:nxt]
+    after = text[header.end():]
+    nxt = re.search(r"^## ", after, re.MULTILINE)
+    if nxt:
+        after = after[:nxt.start()]
     # Remove HTML comments
     after = re.sub(r"<!--.*?-->", "", after, flags=re.DOTALL)
     lines = [l.strip() for l in after.split("\n")
@@ -565,6 +569,26 @@ def complete_step_atomic(token_path: str | Path,
     finally:
         if lock_path.exists():
             lock_path.unlink(missing_ok=True)
+
+    # Record a durable VERIFIED evidence marker so report gates can confirm the
+    # step was verified by the canonical VerifyGate. A red-TDD step's own EV
+    # block carries exit_code 1 (the test failed as expected); without this
+    # marker, lx-goal report would wrongly flag such steps as evidence-missing.
+    if executor_path.exists():
+        executor_text = executor_path.read_text(encoding="utf-8")
+        verified_marker = f"### EV-{step_id}-VERIFIED"
+        if verified_marker not in executor_text:
+            entry = (
+                f"\n### EV-{step_id}-VERIFIED\n\n"
+                f"- step: {step_id}\n"
+                f"- type: verify\n"
+                f"- evidence_level: E3\n"
+                f"- source: VerifyGate\n"
+                f"- exit_code: 0\n"
+                f"- assertion: VerifyGate accepted evidence for {step_id}\n"
+            )
+            with executor_path.open("a", encoding="utf-8") as f:
+                f.write(entry)
 
     if phase_contracts is not None and (plan_path.parent / "state" / f"step-handoff-{step_id}.json").exists():
         phase_contracts.complete_step_from_artifacts(plan_path.parent, step_id)

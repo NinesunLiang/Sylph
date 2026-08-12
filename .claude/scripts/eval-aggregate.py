@@ -10,6 +10,116 @@ from pathlib import Path
 REQUIRED_SCORES = ("c_weighted", "e_weighted", "total_weighted")
 VALID_VERDICTS = {"PASS", "WARN", "BLOCKED", "FAIL"}
 CERTIFICATION_THRESHOLD = 8.6
+ITEM_THRESHOLD = 8.0  # per-item certification gate: 24 items all >= 8.0
+ARITH_TOLERANCE = 0.05
+EXPECTED_MANIFEST_ITEMS = (
+    [f"C{i}" for i in range(1, 10)]
+    + [f"E{i}" for i in range(1, 9)]
+    + [f"G{i}" for i in range(1, 8)]
+)
+
+
+def parse_item_manifest(text: str) -> tuple[list[dict], dict]:
+    """Parse the canonical `## Item Manifest` section from a scorecard.
+
+    Expected format:
+
+        ## Item Manifest
+
+        > freshness: <date> | commit: <hash> | task: <task-id>
+
+        | id | weight | score |
+        | C1 | 15 | 9 |
+        | E1 | 20 | 8 |
+        | G1 | 0 | 8 |
+        ...
+
+    Returns (items, meta) where meta carries freshness/commit/task binding.
+    """
+    items: list[dict] = []
+    meta: dict[str, str] = {}
+    match = re.search(r"^## Item Manifest\s*$([\s\S]*?)(?=^## |\Z)", text, re.MULTILINE)
+    if not match:
+        return items, meta
+    section = match.group(1)
+    meta_match = re.search(
+        r">\s*freshness:\s*(\S+)[^\n]*commit:\s*(\S+)[^\n]*task:\s*(\S+)",
+        section,
+    )
+    if meta_match:
+        meta = {
+            "freshness": meta_match.group(1),
+            "commit": meta_match.group(2),
+            "task": meta_match.group(3),
+        }
+    for row in re.finditer(
+        r"^\|\s*(C\d+|E\d+|G\d+)\s*\|\s*(\d+)\s*\|\s*([\d.]+)\s*\|",
+        section,
+        re.MULTILINE,
+    ):
+        items.append({
+            "id": row.group(1),
+            "weight": int(row.group(2)),
+            "score": float(row.group(3)),
+        })
+    return items, meta
+
+
+def validate_item_manifest(items: list[dict], scores: dict) -> list[dict]:
+    """Validate the item manifest against the 24-item >=8.0 gate and arithmetic.
+
+    Returns readiness blocker items.
+    """
+    blockers: list[dict] = []
+    ids = [it["id"] for it in items]
+    missing = [item_id for item_id in EXPECTED_MANIFEST_ITEMS if item_id not in ids]
+    if missing:
+        blockers.append(_item(
+            "scorecard.item_manifest_incomplete", "evidence", "blocker",
+            f"missing: {', '.join(missing)}",
+        ))
+
+    below: list[str] = []
+    out_of_range: list[str] = []
+    for it in items:
+        if not 0 <= it["score"] <= 10:
+            out_of_range.append(f"{it['id']}={it['score']}")
+        elif it["score"] < ITEM_THRESHOLD:
+            below.append(f"{it['id']}={it['score']}")
+    if out_of_range:
+        blockers.append(_item("scorecard.item_manifest_range", "evidence", "blocker", "; ".join(out_of_range)))
+    if below:
+        blockers.append(_item("scorecard.item_below_threshold", "evidence", "blocker", "; ".join(below)))
+
+    def weighted(prefix: str) -> float | None:
+        selected = [it for it in items if it["id"].startswith(prefix) and it["weight"] > 0]
+        if not selected:
+            return None
+        total_w = sum(it["weight"] for it in selected)
+        return sum(it["score"] * it["weight"] for it in selected) / total_w
+
+    c_recomputed = weighted("C")
+    e_recomputed = weighted("E")
+    if c_recomputed is not None and "c_weighted" in scores and abs(c_recomputed - scores["c_weighted"]) > ARITH_TOLERANCE:
+        blockers.append(_item(
+            "scorecard.arithmetic_mismatch", "evidence", "blocker",
+            f"C weighted recomputed={c_recomputed:.2f} declared={scores['c_weighted']}",
+        ))
+    if e_recomputed is not None and "e_weighted" in scores and abs(e_recomputed - scores["e_weighted"]) > ARITH_TOLERANCE:
+        blockers.append(_item(
+            "scorecard.arithmetic_mismatch", "evidence", "blocker",
+            f"E weighted recomputed={e_recomputed:.2f} declared={scores['e_weighted']}",
+        ))
+    # 长期治理（G1-G7）算术：无权重算术平均，与声明的 平均 比对（P2-9, index12 S6）
+    g_items = [it for it in items if it["id"].startswith("G")]
+    if g_items and "g_weighted" in scores:
+        g_mean = sum(it["score"] for it in g_items) / len(g_items)
+        if abs(g_mean - scores["g_weighted"]) > ARITH_TOLERANCE:
+            blockers.append(_item(
+                "scorecard.arithmetic_mismatch", "evidence", "blocker",
+                f"G mean recomputed={g_mean:.2f} declared={scores['g_weighted']}",
+            ))
+    return blockers
 
 
 def parse_scorecard(path: Path) -> dict:
@@ -21,6 +131,7 @@ def parse_scorecard(path: Path) -> dict:
         "c_weighted": r"C1-C9.*加权.*?([\d.]+)",
         "e_weighted": r"E1-E8.*加权.*?([\d.]+)",
         "total_weighted": r"24 ?项总加权.*?([\d.]+)",
+        "g_weighted": r"(?s)长期治理.*?平均.*?([\d.]+)",
     }
     for key, pattern in patterns.items():
         match = re.search(pattern, text)
@@ -79,6 +190,17 @@ def collect_readiness(scorecard_path: Path, oracle_dir: Path, project_root: Path
     below_threshold = [key for key in REQUIRED_SCORES if key in scores and scores[key] < CERTIFICATION_THRESHOLD]
     if below_threshold:
         items.append(_item("scorecard.threshold", "evidence", "blocker", f"below {CERTIFICATION_THRESHOLD}: {', '.join(below_threshold)}"))
+
+    # Item-level 24-dim manifest: the aggregate alone cannot certify the gate
+    # "24 items all >= 8.0"; a machine-parseable manifest is required.
+    manifest_text = scorecard_path.read_text(encoding="utf-8") if scorecard_path.exists() else ""
+    manifest_items, manifest_meta = parse_item_manifest(manifest_text)
+    if not manifest_items:
+        items.append(_item("scorecard.item_manifest_missing", "evidence", "blocker", "no item-level 24-dim manifest"))
+    else:
+        items.extend(validate_item_manifest(manifest_items, scores))
+        if not manifest_meta.get("commit") or not manifest_meta.get("task"):
+            items.append(_item("scorecard.manifest_unbound", "evidence", "blocker", "manifest missing commit/task binding"))
 
     verdict_names = [str(verdict.get("verdict", verdict.get("status", ""))).upper() for verdict in verdicts]
     if not verdicts:

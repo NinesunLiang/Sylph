@@ -377,10 +377,56 @@ def compact_write(
     current = current_step(token) or "(none)"
     compact_strategy = session.get("compact_strategy", "rounds")
 
+    # Lossless handoff fields: goal, explicit next action, decisions. The
+    # handoff must carry enough context to resume without loss on compact.
+    goal_meta = token.get("goal", {})
+    goal_desc = goal_meta.get("description") if isinstance(goal_meta, dict) else ""
+    if not goal_desc:
+        # plan.md `## Goal` section content first, then first non-"# Plan" heading
+        goal_m = re.search(r"^## Goal\s*$([\s\S]*?)(?=^## |\Z)", plan_text, re.MULTILINE)
+        if goal_m:
+            for line in goal_m.group(1).splitlines():
+                s = line.strip()
+                if s and not s.startswith("#"):
+                    goal_desc = s
+                    break
+    if not goal_desc:
+        for line in plan_text.splitlines():
+            if line.startswith("#") and not line.startswith("# Plan"):
+                goal_desc = line.lstrip("# ").strip()
+                break
+    goal_desc = (goal_desc or task_id(token, token_path.stem))[:200]
+    if pending:
+        next_action = f"继续待办步骤: {pending}"
+    elif total and done >= total:
+        next_action = "任务步骤已全部完成，进入 report/done 收口"
+    else:
+        next_action = f"继续 current_step: {current}"
+    decision_lines = []
+    dec_match = re.search(r"^## Decisions\s*$([\s\S]*?)(?=^## |\Z)", executor_text, re.MULTILINE)
+    if dec_match:
+        for line in dec_match.group(1).splitlines():
+            s = line.strip()
+            if s and not s.startswith("#") and not s.startswith("```"):
+                decision_lines.append(f"  {s[:160]}")
+    decisions_summary = "\n".join(decision_lines[:10]) or "  (none)"
+    todo_lines = []
+    for line in plan_text.splitlines():
+        m = re.match(r"^\s*[-*]\s+(\[[ xX]\])\s+(\S+)(?::\s*(.*))?\s*$", line)
+        if m:
+            mark = "✅" if m.group(1).strip() != "[ ]" else "◻"
+            sid = m.group(2)
+            tail = (m.group(3) or "").strip()
+            todo_lines.append(f"  {mark} {sid}{(': ' + tail[:60]) if tail else ''}")
+    todo_summary = "\n".join(todo_lines[:40]) or "  (none)"
+
     handoff_content = f"""# Session Handoff
 
 > 由 context_engine compact-write 于 {now_iso()} 更新
 > 由 SessionStart hook(session-start.py, source=compact/resume)注入 compact 后上下文尾部
+
+## Goal
+{goal_desc}
 
 ## Task
 - id: {task_id(token, token_path.stem)}
@@ -394,6 +440,15 @@ def compact_write(
 - compact_strategy: {compact_strategy}
 - failed_verifications: {failed_verifications}
 
+## Next Action
+{next_action}
+
+## Todo
+{todo_summary}
+
+## Decisions
+{decisions_summary}
+
 ## Scope
 {scope_bullets}
 
@@ -403,6 +458,7 @@ def compact_write(
 - research: {task_path / "research.md"}
 - executor: {task_path / "executor.md"}
 - checklist: {task_path / "state" / "checklist.md"}
+- user_prompts: {prompt_path}
 
 ## Checklist
 {checklist_summary}
@@ -414,6 +470,7 @@ def compact_write(
 - 磁盘状态文件是最终真相源（token / plan / executor）
 - session-handoff 只是恢复摘要，不是完成证据
 - 不要标记任何 step 完成不经过 VerifyGate
+- 最近用户请求见 last-user-prompt.md（最多 20 条）
 """
     handoff_path.parent.mkdir(parents=True, exist_ok=True)
     handoff_path.write_text(handoff_content, encoding="utf-8")

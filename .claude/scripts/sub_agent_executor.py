@@ -28,7 +28,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sub_agent_result import TERMINAL_STATUSES, read_result, update_result_locked
+from sub_agent_result import TERMINAL_STATUSES, is_loopback_url, read_result, remote_agent_authorized, update_result_locked
 from goal_document_gate import GoalDocumentGateError, require_parent_write
 
 
@@ -57,6 +57,9 @@ class SubAgentExecutor:
         self.agent_url = os.environ.get(
             "ANTHROPIC_BASE_URL", DEFAULT_AGENT_URL
         ).rstrip("/")
+        # Enforcement happens at the API call boundary (_call_api): construction
+        # is allowed even for a remote-configured endpoint, but a non-loopback
+        # call fails closed unless CARROROS_ALLOW_REMOTE_AGENT=1 is set.
         self.auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
         self.model = os.environ.get("ANTHROPIC_MODEL", DEFAULT_MODEL)
         self.timeout = int(os.environ.get("SUBAGENT_TIMEOUT", DEFAULT_TIMEOUT))
@@ -94,6 +97,14 @@ class SubAgentExecutor:
         import subprocess
 
         api_url = self.agent_url + "/v1/messages"
+
+        # 端点 fail-closed：仅 loopback 默认可用，远程 endpoint 需显式
+        # CARROROS_ALLOW_REMOTE_AGENT=1（见 sub_agent_result.remote_agent_authorized）
+        if not is_loopback_url(api_url) and not remote_agent_authorized():
+            from urllib.parse import urlparse
+            raise RuntimeError(
+                f"non-loopback endpoint blocked (fail-closed): {urlparse(api_url).hostname}"
+            )
 
         body = json.dumps({
             "model": self.model,

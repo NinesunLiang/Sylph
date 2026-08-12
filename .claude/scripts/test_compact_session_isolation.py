@@ -278,3 +278,68 @@ def test_session_start_injects_live_stepwise_on_compact(monkeypatch, tmp_path, c
 
     output = json.loads(capsys.readouterr().out)
     assert output == {"continue": True}
+
+
+# ── lossless handoff (goal / next action / todo / decisions) ─────────
+
+def test_compact_write_handoff_is_lossless(monkeypatch, tmp_path):
+    """The compact handoff must carry enough context to resume without loss:
+    goal, next action, todo list with checkbox status, decisions, and the
+    task's document-system paths."""
+    module = load_module("context_engine_lossless", ROOT / ".claude/scripts/context_engine.py")
+    task_dir = tmp_path / "task-a"
+    task_dir.mkdir()
+    (task_dir / "plan.md").write_text(
+        "# Plan\n\n## Goal\n修复并发隔离\n\n## Phase 1\n- [x] S1: done\n- [ ] S2: pending work\n",
+        encoding="utf-8",
+    )
+    (task_dir / "executor.md").write_text(
+        "# Executor\n\n## Decisions\n- 决策: 删除全局标记\n- Rationale: 任务隔离\n\n## Acceptance Checklist\n- [x] S1\n",
+        encoding="utf-8",
+    )
+    (task_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    token_path = tmp_path / "token.json"
+    write_json(
+        token_path,
+        {
+            "session": {"id": "task-a", "level": "L1"},
+            "task": {"id": "task-a", "status": "active", "current_step": "S2", "scope": ["oracle_agent.py"]},
+            "status": "active",
+            "stats": {"done": 1, "total": 2},
+        },
+    )
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+
+    assert module.compact_write(token_path, task_dir, user_prompt="last query", session_id="sid-a") == 0
+
+    handoff = (tmp_path / ".omc/session-handoff.md").read_text(encoding="utf-8")
+
+    # 1. goal (from plan ## Goal / token goal)
+    assert "修复并发隔离" in handoff
+    # 2. next action (first pending plan step)
+    assert "S2: pending work" in handoff
+    # 3. todo list with checkbox status
+    assert "✅ S1" in handoff
+    assert "◻ S2" in handoff
+    # 4. decisions
+    assert "删除全局标记" in handoff
+    # 5. task document-system paths
+    assert f"task_dir: {task_dir}" in handoff
+    assert f"plan: {task_dir / 'plan.md'}" in handoff
+    assert "user_prompts:" in handoff
+    # 6. resume rules point to last-user-prompt for recent queries
+    assert "last-user-prompt.md" in handoff
+
+
+def test_compact_write_handoff_never_says_unknown_goal(monkeypatch, tmp_path):
+    """Even when the token has no description, the handoff must not say 未知."""
+    module = load_module("context_engine_goal_fallback", ROOT / ".claude/scripts/context_engine.py")
+    token_path, task_dir = make_task(tmp_path)
+    (task_dir / "plan.md").write_text("# Plan\n\n## Goal\n真实目标描述\n", encoding="utf-8")
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+
+    assert module.compact_write(token_path, task_dir, session_id="sid-a") == 0
+
+    handoff = (tmp_path / ".omc/session-handoff.md").read_text(encoding="utf-8")
+    assert "真实目标描述" in handoff
+    assert "未知" not in handoff

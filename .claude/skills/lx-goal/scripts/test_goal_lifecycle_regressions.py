@@ -985,3 +985,55 @@ def test_goal_verify_step_skips_tick_when_already_verifying(monkeypatch, tmp_pat
     assert module._verify_goal_step("S1") == 0
     assert len(calls) == 1
     assert calls[0][-2:] == ["verify", "--step"] or "verify" in calls[0]
+
+
+# ── missing_verified_evidence: VerifyGate marker for red-TDD steps ──
+
+def _mk_plan_dir(tmp_path, executor_text, plan_text="- [x] S1: done\n"):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text(plan_text, encoding="utf-8")
+    (plan_dir / "executor.md").write_text(executor_text, encoding="utf-8")
+    return plan_dir
+
+
+def test_missing_verified_evidence_accepts_verifygate_marker(tmp_path):
+    """A red-TDD step (EV exit_code 1) with the VerifyGate marker is verified."""
+    plan_dir = _mk_plan_dir(
+        tmp_path,
+        "### EV-S1\n\n- step: S1\n- exit_code: 1\n- assertion: pytest 红测失败于缺失实现\n\n"
+        "### EV-S1-VERIFIED\n\n- step: S1\n- exit_code: 0\n- source: VerifyGate\n",
+    )
+    assert module.missing_verified_evidence(plan_dir) == []
+
+
+def test_missing_verified_evidence_flags_red_test_without_marker(tmp_path):
+    """Without the VerifyGate marker, a red-test EV block alone is not verified."""
+    plan_dir = _mk_plan_dir(
+        tmp_path,
+        "### EV-S1\n\n- step: S1\n- exit_code: 1\n- assertion: pytest 红测失败于缺失实现\n",
+    )
+    assert module.missing_verified_evidence(plan_dir) == ["S1"]
+
+
+def test_report_accepts_verifygate_marker_for_red_test_step(monkeypatch, tmp_path):
+    """cmd_report must emit VERIFIED when a red-TDD step carries the marker."""
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text(
+        "# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 1\n- assertion: pytest 红测失败于缺失实现\n\n"
+        "### EV-S1-VERIFIED\n\n- step: S1\n- exit_code: 0\n- source: VerifyGate\n",
+        encoding="utf-8",
+    )
+    mode_data = {"goal": {"description": "red tdd"}, "task_dir": str(plan_dir), "completed_tasks": []}
+    monkeypatch.setattr(module, "STATE_DIR", tmp_path / "state")
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, str(selected or plan_dir)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_report(plan_dir)
+
+    report = (plan_dir / "state" / "goal-report.md").read_text(encoding="utf-8")
+    assert "verified_evidence_missing" not in report
+    assert "VERIFIED: 所有计划步骤已完成" in report

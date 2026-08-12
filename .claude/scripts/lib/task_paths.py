@@ -122,6 +122,81 @@ def scan_task_dirs(
     return entries
 
 
+# ─── 任务名校验与任务文档路径解析（恢复唯一合法入口） ──────────
+# 语义：任务文档系统的唯一合法身份 = .omc/tasks/YYYYMMDD/{task_name}
+# 任务名支持 CJK + ASCII 字母数字 + `._-`；拒绝路径逃逸与分隔符。
+
+# 首字符必须为字母/数字/CJK（排除 `.`/`-`/`_` 开头），长度 ≤ 200
+_TASK_NAME_RE = re.compile(
+    r"^[A-Za-z0-9一-鿿][A-Za-z0-9一-鿿._\-]{0,199}$"
+)
+
+
+def is_valid_task_name(name: str) -> bool:
+    """任务名合法校验：CJK+ASCII+._-，首字符非符号，长度<=200。
+
+    拒绝：空、`.`、`..`、路径分隔符（/ \\）、点开头（如 .hidden）、越权字符。
+    """
+    if not name or name in (".", ".."):
+        return False
+    return bool(_TASK_NAME_RE.fullmatch(name))
+
+
+def resolve_task_document(
+    input_str: str,
+    tasks_root: Optional[Path] = None,
+    tokens_root: Optional[Path] = None,
+) -> dict:
+    """解析并校验任务文档路径 → {date, slug, task_dir, token_path}。
+
+    唯一合法形态：`.omc/tasks/YYYYMMDD/{task_name}`。
+    支持输入：绝对路径、相对仓库根（`.omc/tasks/...`）、相对 tasks 根（`YYYYMMDD/slug`）。
+    拒绝：任何逃逸出 tasks_root 的路径（绝对路径逃逸/`..`）、非法日期、非法任务名。
+
+    Raises ValueError: 路径不合法时给出明确原因（fail-explicit，不猜测）。
+    """
+    tasks_root = (
+        Path(tasks_root).resolve()
+        if tasks_root is not None
+        else (Path.cwd() / ".omc" / "tasks").resolve()
+    )
+    tokens_root = (
+        Path(tokens_root).resolve()
+        if tokens_root is not None
+        else (Path.cwd() / ".omc" / "tokens").resolve()
+    )
+
+    p = Path(input_str)
+    candidates: list[Path] = []
+    if p.is_absolute():
+        candidates.append(p.resolve())
+    else:
+        candidates.append((tasks_root / p).resolve())       # 相对 tasks 根
+        candidates.append((Path.cwd() / p).resolve())       # 相对仓库根
+
+    in_root = [c for c in candidates if tasks_root in c.parents]
+    if not in_root:
+        raise ValueError(f"任务文档路径必须位于 {tasks_root} 下: {input_str!r}")
+    # 优先真实存在的任务目录；同存在时取层级最浅（避免双重叠加候选误选）
+    existing = [c for c in in_root if c.exists()]
+    cand = min(existing or in_root, key=lambda p: len(p.parts))
+
+    date_dir = cand.parent
+    slug = cand.name
+    date_str = date_dir.name
+    if not is_canonical_dir(date_str):
+        raise ValueError(f"日期目录必须为 YYYYMMDD 格式: {date_str!r}")
+    if not is_valid_task_name(slug):
+        raise ValueError(f"非法任务名: {slug!r}")
+
+    return {
+        "date": date_str,
+        "slug": slug,
+        "task_dir": cand,
+        "token_path": tokens_root / date_str / f"{slug}.json",
+    }
+
+
 def find_conflicts(entries: list[TaskDirEntry]) -> list[dict]:
     """查找同 slug 跨格式冲突（同时存在于 YYYYMMDD 和 YYYY-MM-DD）。
 

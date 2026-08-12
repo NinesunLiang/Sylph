@@ -315,6 +315,12 @@ def missing_verified_evidence(plan_dir: Path) -> list[str]:
     text = executor.read_text(encoding="utf-8")
     missing = []
     for step in completed_plan_steps(plan_dir):
+        # The canonical VerifyGate records a durable EV-{step}-VERIFIED marker
+        # on completion. A red-TDD step's own EV block legitimately carries
+        # exit_code 1 (test failed as expected), so accept the VerifyGate
+        # marker as evidence the step was verified.
+        if re.search(rf"^### EV-{re.escape(step)}-VERIFIED\s*$", text, flags=re.MULTILINE):
+            continue
         match = re.search(
             rf"^### EV-{re.escape(step)}\s*$([\s\S]*?)(?=^### |^## |\Z)",
             text,

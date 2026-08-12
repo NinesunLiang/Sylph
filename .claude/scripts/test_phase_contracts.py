@@ -204,3 +204,24 @@ def test_plan_gate_rejects_unprefixed_verify_before_execution(tmp_path):
     )
     with pytest.raises(contracts.PlanGateError, match="Invalid verify rules"):
         contracts.PlanGate.validate(plan)
+
+
+def test_is_placeholder_does_not_flag_common_word_in_long_prose():
+    """'todo'/'n/a' as a normal word in a long decision line is real content,
+    not a placeholder stub (E-ISO-001 fix for decisions_missing_rationale)."""
+    contracts = load_goal_contracts()
+    long_prose = "- 决策: 删除全局标记；handoff 无损字段 = goal + next_action + todo + decisions + 文档路径"
+    assert contracts.is_placeholder(long_prose) is False
+
+
+def test_is_placeholder_still_flags_short_stub():
+    contracts = load_goal_contracts()
+    assert contracts.is_placeholder("- todo") is True
+    assert contracts.is_placeholder("- n/a") is True
+    assert contracts.is_placeholder("- [ ] tbd") is True
+    assert contracts.is_placeholder("- 待填写") is True
+
+
+def test_is_placeholder_flags_distinctive_phrase_anywhere():
+    contracts = load_goal_contracts()
+    assert contracts.is_placeholder("still needs expected update in this block") is True

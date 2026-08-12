@@ -49,7 +49,7 @@ try:
 except ImportError:
     recovery = None
 
-from sub_agent_result import TERMINAL_STATUSES, update_result_locked
+from sub_agent_result import TERMINAL_STATUSES, is_loopback_url, remote_agent_authorized, update_result_locked
 from goal_document_gate import GoalDocumentGateError, require_parent_write
 
 
@@ -541,12 +541,7 @@ class SubAgentManager:
         proc = self._spawned_procs.pop(step_id, None)
         self._spawned.discard(step_id)
         if proc is not None and proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=1)
-            except sb.TimeoutExpired:
-                proc.kill()
-                proc.wait()
+            self._terminate_process_group(proc)
 
         # 更新 token
         token_path = sub_dir / "token.json"
@@ -695,25 +690,63 @@ class SubAgentManager:
         cmd = [sys.executable, str(executor_script), str(sub_dir),
                "--timeout", str(self.config["timeout"])]
         env = os.environ.copy()
-        env["ANTHROPIC_BASE_URL"] = os.environ.get(
+        agent_url = os.environ.get(
             "ANTHROPIC_BASE_URL", "http://127.0.0.1:9998"
         )
+        if not is_loopback_url(agent_url) and not remote_agent_authorized():
+            print(f"   ❌ {step_id}: non-loopback agent endpoint refused (fail-closed): {agent_url}")
+            self._mark_failed(sub_dir, "non-loopback endpoint rejected (fail-closed)")
+            return
+        env["ANTHROPIC_BASE_URL"] = agent_url
 
-        print(f"   🚀 {step_id}: spawning subagent (claude CLI)...")
+        print(f"   🚀 {step_id}: spawning subagent (sub_agent_executor)...")
+        # 诊断保留：worker 的 stdout/stderr 不再丢弃，落盘到每步日志，便于 crash 归因
+        sub_dir.mkdir(parents=True, exist_ok=True)
         try:
-            proc = sb.Popen(
-                cmd,
-                stdout=sb.DEVNULL,
-                stderr=sb.DEVNULL,
-                env=env,
-                cwd=self.project_root,
-            )
+            with open(sub_dir / "executor.log", "wb") as log_fh:
+                proc = sb.Popen(
+                    cmd,
+                    stdout=log_fh,
+                    stderr=log_fh,
+                    env=env,
+                    cwd=self.project_root,
+                    start_new_session=True,  # P2-8: worker 自成进程组，便于 killpg 群杀
+                )
             self._spawned_procs[step_id] = proc
             # 真正 spawn 成功后才加入 spawned，避免并发阻塞
             self._spawned.add(step_id)
         except Exception as e:
             print(f"   ❌ {step_id}: spawn failed: {e}")
             self._mark_failed(sub_dir, f"spawn error: {e}")
+
+    def _terminate_process_group(self, proc, grace: float = 1.0) -> None:
+        """终止整个进程组（P2-8, index12 S5）：SIGTERM 宽限后 SIGKILL。
+
+        worker 以 start_new_session=True spawn，成为新进程组组长（pgid=pid），
+        curl 等后代同组；cancel/timeout 时 killpg 连后代一起终止，避免孤儿进程。
+        """
+        try:
+            import signal
+            pgid = os.getpgid(proc.pid)
+        except (ProcessLookupError, OSError):
+            return  # 进程已退出
+        try:
+            os.killpg(pgid, signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+        try:
+            proc.wait(timeout=grace)
+            return
+        except sb.TimeoutExpired:
+            pass
+        try:
+            os.killpg(pgid, signal.SIGKILL)
+        except (ProcessLookupError, OSError):
+            pass
+        try:
+            proc.wait(timeout=2)
+        except sb.TimeoutExpired:
+            pass
 
     def _reap_zombies(self):
         """回收已退出的子进程"""
@@ -763,7 +796,15 @@ class SubAgentManager:
             current["completed_at"] = datetime.now(timezone.utc).isoformat()
             return current
 
-        return update_result_locked(result_path, mark_timeout)
+        result = update_result_locked(result_path, mark_timeout)
+        # P2-8 (index12 S5): 超时也终止整个进程组，避免孤儿 worker 残留
+        step_id = sub_dir.name.removeprefix("sub-")
+        proc = self._spawned_procs.get(step_id)
+        if proc is not None and proc.poll() is None:
+            self._terminate_process_group(proc)
+            self._spawned_procs.pop(step_id, None)
+            self._spawned.discard(step_id)
+        return result
 
 
 # ═══════════════════════════════════════════

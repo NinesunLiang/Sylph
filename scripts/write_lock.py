@@ -133,3 +133,85 @@ def update_json_with_lock(
             except OSError:
                 pass
     return {}, False
+
+
+# ─── Advisory cross-session edit lock (P1-5, index12 S3) ──────────────────────
+# 解决并发 agent 会话同时修改共享非冻结脚本的文件竞争（index11 E11-004/005）。
+# 无 hook 强制，是任何遵守 CarrorOS 的 agent 在写共享文件前应检查的 advisory 协议：
+#   ok, info = acquire_edit_lock(Path("x.py"), holder=session_id)
+#   if ok: ... edit ... ; release_edit_lock(target, holder)
+# CAS 语义：O_EXCL 原子创建；仅 holder 可释放；过期可 steal；corrupt 不静默偷锁。
+
+
+def _edit_lock_path(target: Path) -> Path:
+    return Path(str(target) + ".edit.lock")
+
+
+def acquire_edit_lock(
+    target: Path,
+    holder: str,
+    ttl_sec: float = 3600.0,
+) -> tuple[bool, dict[str, Any]]:
+    """Advisory CAS acquire of the edit lock for a shared file.
+
+    Returns (acquired, lock_info). On conflict returns (False, current_info).
+    Never steals a corrupt/unreadable lock (fail-closed).
+    """
+    lock_path = _edit_lock_path(target)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    now = time.time()
+    try:
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o644)
+    except FileExistsError:
+        try:
+            info: dict[str, Any] = json.loads(lock_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False, {"holder": "unknown", "corrupt": True}
+        if time.time() > info.get("expires_at", 0):
+            stolen = {"holder": holder, "acquired_at": now, "expires_at": now + ttl_sec}
+            tmp = lock_path.with_suffix(".lock.tmp")
+            tmp.write_text(json.dumps(stolen, ensure_ascii=False, indent=2), encoding="utf-8")
+            tmp.replace(lock_path)
+            return True, stolen
+        return False, info
+    try:
+        info = {"holder": holder, "acquired_at": now, "expires_at": now + ttl_sec}
+        os.write(fd, json.dumps(info, ensure_ascii=False, indent=2).encode("utf-8"))
+        os.fsync(fd)
+        return True, info
+    finally:
+        os.close(fd)
+
+
+def release_edit_lock(target: Path, holder: str) -> bool:
+    """Release the edit lock only if held by the given holder (CAS)."""
+    lock_path = _edit_lock_path(target)
+    try:
+        info = json.loads(lock_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return True  # absent/unreadable → treated as released
+    if info.get("holder") != holder:
+        return False
+    try:
+        lock_path.unlink(missing_ok=True)
+        return True
+    except OSError:
+        return False
+
+
+def edit_lock_status(target: Path) -> dict[str, Any]:
+    """Return current edit-lock status for a target file."""
+    lock_path = _edit_lock_path(target)
+    if not lock_path.exists():
+        return {"locked": False, "holder": None, "expires_at": None, "expired": False}
+    try:
+        info = json.loads(lock_path.read_text(encoding="utf-8"))
+        expired = time.time() > info.get("expires_at", 0)
+        return {
+            "locked": not expired,
+            "holder": info.get("holder"),
+            "expires_at": info.get("expires_at"),
+            "expired": expired,
+        }
+    except (OSError, json.JSONDecodeError):
+        return {"locked": True, "holder": "unknown", "expired": False, "corrupt": True}

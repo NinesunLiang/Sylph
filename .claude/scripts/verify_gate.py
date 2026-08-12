@@ -224,19 +224,30 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
     # assertion: rule
     am = re.match(r"^assertion:(.+)$", rule)
     if am:
-        expected = am.group(1).strip().lower()
+        expected_raw = am.group(1).strip().lower()
+        # 分段匹配（P1-4, index12 S2）：整段字面子串 OR 全部实质性分段命中。
+        # 容忍子句间插入细节/换序/标点差异，仍要求每个实质性子句都被覆盖，
+        # 不降级为部分覆盖匹配（防止仅命中一个子句即通过）。
+        segments = [s.strip() for s in re.split(r"[;；,，。\n]+", expected_raw) if len(s.strip()) > 3]
         for ev in evidence:
             if ev.get("type") == "failure":
                 continue
-            if is_soft_completion(str(ev.get("assertion", ""))):
-                warnings.append(f"assertion contains soft completion")
+            assertion_text = str(ev.get("assertion", "")).lower()
+            if is_soft_completion(assertion_text):
+                warnings.append("assertion contains soft completion")
                 continue
-            if expected in str(ev.get("assertion", "")).lower():
-                return True, f"assertion match: '{expected}'", []
+            # 1) 整段字面子串（向后兼容）
+            if expected_raw in assertion_text:
+                return True, f"assertion match: '{expected_raw}'", []
+            # 2) 全部实质性分段均命中（容忍插入/换序）
+            if segments and all(s in assertion_text for s in segments):
+                return True, f"assertion segment match: '{'; '.join(segments)}'", []
             txt = str(ev.get("output_tail", "")).lower()
-            if expected in txt and ev.get("exit_code") == 0:
-                return True, f"assertion in command output: '{expected}'", []
-        return False, f"no matching assertion for: {expected}", warnings
+            if expected_raw in txt and ev.get("exit_code") == 0:
+                return True, f"assertion in command output: '{expected_raw}'", []
+            if segments and ev.get("exit_code") == 0 and all(s in txt for s in segments):
+                return True, f"assertion segments in command output: '{'; '.join(segments)}'", []
+        return False, f"no matching assertion for: {expected_raw}", warnings
 
     return False, f"unrecognized verify rule: {rule}", warnings
 

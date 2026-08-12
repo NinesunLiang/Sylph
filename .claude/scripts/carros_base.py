@@ -381,7 +381,18 @@ def _write_handoff(token, plan_summary=None):
     done = token.get("stats", {}).get("done", 0)
     total = token.get("stats", {}).get("total", 0)
     current = token.get("task", {}).get("current_step", "?")
-    task_desc = (token.get("description") or (token.get("goal") or {}).get("description") or "未知")[:200]
+    task_desc = (token.get("description") or (token.get("goal") or {}).get("description") or "")
+    if not task_desc or task_desc == "未知":
+        # Lossless handoff: derive goal from plan.md when the token has none.
+        try:
+            _plan_lines = PLAN_PATH.read_text(encoding="utf-8").splitlines() if PLAN_PATH else []
+            for _l in _plan_lines:
+                if _l.startswith("#") and not _l.startswith("# Plan"):
+                    task_desc = _l.lstrip("# ").strip()
+                    break
+        except Exception:
+            pass
+    task_desc = (task_desc or "未知")[:200]
     level = token.get("level", token.get("session", {}).get("level", "L1"))
     # 读取 error-dna（最近 3 条）
     errors = ""
@@ -834,12 +845,151 @@ def cmd_auto_init(steps=None, target=None):
     return 0
 
 
-def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None, task_mode=None):
+def _task_token_exists(task_id: str) -> "Path | None":
+    """Return the first token path whose session.id equals task_id (any status).
+
+    Used by cmd_init to fail-closed on explicit task-id reuse instead of
+    silently overwriting an existing task (irreversible). Lock sidecar files
+    (.json.lock) are never matched by the *.json glob.
+    """
+    if not OMC_TOKENS:
+        return None
+    OMC_TOKENS.mkdir(parents=True, exist_ok=True)
+    for jf in OMC_TOKENS.glob("*/*.json"):
+        try:
+            token = json.loads(jf.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(token, dict) and token.get("session", {}).get("id") == task_id:
+            return jf
+    return None
+
+
+def cmd_resume(task_doc=None):
+    """从任务文档路径恢复中断任务（中断续传）。
+
+    唯一合法输入: `.omc/tasks/YYYYMMDD/{task_name}`。
+    校验路径 → 读 plan/executor/token/continuation → 恢复报告 + Next Action
+    + 写 state/continuation.json 与 state/resume.md（复用 RecoveryCheckpoint）。
+    """
+    if not task_doc:
+        print(_red("❌ resume 需要任务文档路径: .omc/tasks/YYYYMMDD/{task_name}"), file=sys.stderr)
+        print("   例: carros_base.py resume .omc/tasks/20260812/我的-任务名-abc123", file=sys.stderr)
+        return 2
+    try:
+        from lib.task_paths import resolve_task_document
+    except ImportError:
+        print(_red("❌ lib/task_paths.py 不可用"), file=sys.stderr)
+        return 2
+
+    try:
+        doc = resolve_task_document(task_doc)
+    except ValueError as e:
+        print(_red(f"❌ {e}"), file=sys.stderr)
+        return 2
+
+    task_dir = doc["task_dir"]
+    if not task_dir.exists():
+        print(_red(f"❌ 任务目录不存在: {task_dir}"), file=sys.stderr)
+        return 2
+
+    # ── 读 token（若存在）──
+    token_info: dict[str, Any] = {}
+    if doc["token_path"].exists():
+        try:
+            tok = json.loads(doc["token_path"].read_text(encoding="utf-8"))
+            token_info = {
+                "level": tok.get("session", {}).get("level", "?"),
+                "status": tok.get("status", "?"),
+                "task_status": (tok.get("task") or {}).get("status", "?"),
+                "current_step": (tok.get("task") or {}).get("current_step"),
+                "done": (tok.get("stats") or {}).get("done", 0),
+                "total": (tok.get("stats") or {}).get("total", "?"),
+                "goal_state": (tok.get("goal") or {}).get("state"),
+            }
+        except (OSError, json.JSONDecodeError):
+            pass
+
+    # ── 复用 RecoveryCheckpoint 生成恢复上下文 + 续跑产物 ──
+    status = {"status": "unknown", "type": "task", "completed_steps": [], "pending_steps": []}
+    cont: dict[str, Any] | None = None
+    try:
+        from sub_agent_recovery import RecoveryCheckpoint
+        rc = RecoveryCheckpoint(task_dir)
+        status = rc.check_status()
+        cont = rc.save_continuation()   # 写 state/continuation.json
+        rc.save_resume()                # 写 state/resume.md
+    except Exception:
+        pass
+
+    # ── 恢复报告 ──
+    slug = doc["slug"]
+    print(_green(f"⏩ Resume: {slug} [{token_info.get('level', '?')}]"))
+    print(f"   Date: {doc['date']} | Status: {token_info.get('status') or status.get('status')}")
+    print(f"   文档: {task_dir}")
+    done = token_info.get("done", 0)
+    total = token_info.get("total", "?")
+    print(f"   Progress: {done}/{total}")
+    if token_info.get("task_status"):
+        print(f"   Task status: {token_info['task_status']}")
+    if token_info.get("current_step"):
+        print(f"   Current step: {token_info['current_step']}")
+    if token_info.get("goal_state"):
+        print(f"   Goal state: {token_info['goal_state']}")
+
+    completed = status.get("completed_steps") or []
+    pending = status.get("pending_steps") or []
+    if completed:
+        print(_green(f"   ✅ 已完成: {', '.join(completed)}"))
+    if pending:
+        print(f"   ◷ 待办: {', '.join(pending)}")
+
+    if cont is not None:
+        action = "已标记续跑" if cont.get("continuation_attempted") else "任务处于终态，无需续跑"
+        print(f"   → {action} (state/continuation.json)")
+    print(f"   → 恢复摘要: {task_dir / 'state' / 'resume.md'}")
+
+    print()
+    if pending:
+        print(_yellow(f"   ⏭️  Next Action: 继续执行 {pending[0]}"))
+        print(f"      CARROROS_TASK_DIR='{task_dir}' python3 .claude/scripts/carros_base.py tick --step {pending[0]}")
+    elif token_info.get("goal_state"):
+        print(_yellow(f"   ⏭️  Next Action: 继续推进 Goal 阶段（{token_info['goal_state']}）"))
+    else:
+        print(_green("   ✅ 无待办步骤，任务可能已完成"))
+    return 0
+
+
+def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None, task_mode=None, force=False):
     """初始化任务 — IntakeGate 分级 → PlanBuilder 生成冻结计划
 
     task_mode: "goal" 时写入 token 标记,由 lx-goal.py 委托调用。
+    force=True: 显式覆盖已存在任务（不可逆，须人类授权并记录 audit）。
     """
+    # S3: 任务名合法性校验（防路径逃逸）— 复用 task_paths SSOT
+    if task_id:
+        try:
+            from lib.task_paths import is_valid_task_name
+            if not is_valid_task_name(task_id):
+                print(_red(f"❌ 非法任务名: {task_id!r}"), file=sys.stderr)
+                print("   任务名仅允许 CJK 字母数字 . _ -（首字符非符号），且不得含路径分隔符或 ..", file=sys.stderr)
+                return 2
+        except ImportError:
+            pass  # lib 不可用时回退原行为（不炸）
+
     _init_task_paths(task_id=task_id, task_dir=task_dir)
+    if not force:
+        existing = _task_token_exists(task_id)
+        if existing is not None:
+            print(_red(f"❌ 任务已存在: {task_id} (token: {existing})"), file=sys.stderr)
+            print("   已拒绝覆盖。如确需重建，请显式传 --force（不可逆，将覆盖 token 与任务文档）。", file=sys.stderr)
+            return 2
+        if TASK_DIR and TASK_DIR.exists() and any(TASK_DIR.iterdir()):
+            print(_red(f"❌ 任务目录已存在且非空: {TASK_DIR}"), file=sys.stderr)
+            print("   已拒绝覆盖。如确需重建，请显式传 --force（不可逆）。", file=sys.stderr)
+            return 2
+    else:
+        _write_audit("task.init.force", {"task_id": task_id, "task_dir": str(TASK_DIR or "")})
     if task_mode:
         os.environ.setdefault("CARROROS_TASK_MODE", task_mode)
 
@@ -2878,6 +3028,7 @@ def cmd_gate_results_init():
 
 COMMANDS = {
     "init": cmd_init,
+    "resume": cmd_resume,
     "status": cmd_status,
     "tick": cmd_tick,
     "verify": cmd_verify,
@@ -2930,9 +3081,13 @@ def main(argv=None):
         mode = None
         target = None
         task_mode = None
+        force = False
         i = 0
         while i < len(args):
-            if args[i] == "--task-id" and i + 1 < len(args):
+            if args[i] == "--force":
+                force = True
+                i += 1
+            elif args[i] == "--task-id" and i + 1 < len(args):
                 task_id = args[i + 1]
                 i += 2
             elif args[i] == "--level" and i + 1 < len(args):
@@ -2987,7 +3142,11 @@ def main(argv=None):
         if not task_id:
             print(_red("❌ init 需要 --task-id；自动任务请使用 --auto"), file=sys.stderr)
             return 2
-        return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode)
+        return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode, force=force)
+
+    elif command == "resume":
+        task_doc = args[0] if args else None
+        return cmd_resume(task_doc=task_doc)
 
     elif command == "tick":
         step_id = None
