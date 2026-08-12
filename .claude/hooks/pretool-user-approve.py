@@ -26,6 +26,14 @@ from pathlib import Path
 HOOK_DIR = Path(__file__).resolve().parent
 ROOT = HOOK_DIR.parents[1]
 os.chdir(str(ROOT))
+sys.path.insert(0, str(HOOK_DIR))
+
+# U3 (index18 人类裁决)：agentic-ui 标准化输出；库缺失时回退，不阻断
+try:
+    from lib.agentic_ui import banner as _au_banner
+except Exception:
+    def _au_banner(level, title, message):
+        print(f"\n⚠️ [{title}] {message}\n", file=sys.stderr)
 
 STATE_DIR = ROOT / ".omc" / "state"
 FALLBACK_REQUIRED = STATE_DIR / "fallback-blocked-required"
@@ -186,8 +194,7 @@ def main() -> None:
     if re.search(r'(?:^|[^a-zA-Z0-9_])/deny\b', prompt):
         _safe_unlink(FALLBACK_REQUIRED)
         _safe_unlink(FALLBACK_APPROVED)
-        print("🚫 /deny — 阻塞状态已清除。如需重新启用可输入 /approve <token>。",
-              file=sys.stderr, flush=True)
+        _au_banner("danger", "user-approve", "🚫 /deny — 阻塞状态已清除。如需重新启用可输入 /approve <token>。")
         print(json.dumps({"continue": True}))
         sys.exit(0)
 
@@ -196,18 +203,15 @@ def main() -> None:
     if match:
         token = match.group(1)
         if not FALLBACK_REQUIRED.exists():
-            print("ℹ️ /approve 忽略：当前无待解除的阻塞状态。",
-                  file=sys.stderr, flush=True)
+            _au_banner("info", "user-approve", "ℹ️ /approve 忽略：当前无待解除的阻塞状态。")
             print(json.dumps({"continue": True}))
             sys.exit(0)
         expected = FALLBACK_REQUIRED.read_text().strip()
         if token == expected:
             FALLBACK_APPROVED.write_text(token)
-            print("✅ /approve 已接受！任务阻塞将在下次操作时自动解除。",
-                  file=sys.stderr, flush=True)
+            _au_banner("success", "user-approve", "✅ /approve 已接受！任务阻塞将在下次操作时自动解除。")
         else:
-            print("❌ /approve 失败：验证码不匹配。请检查输入的 token。",
-                  file=sys.stderr, flush=True)
+            _au_banner("warn", "user-approve", "❌ /approve 失败：验证码不匹配。请检查输入的 token。")
         print(json.dumps({"continue": True}))
         sys.exit(0)
 

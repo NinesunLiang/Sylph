@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-agentic-ui.py — 共享库（非 Hook） — Agentic UI 标准化输出函数
+agentic_ui.py — 共享库（U3 index18 改名：连字符不可 import）（非 Hook） — Agentic UI 标准化输出函数
 
 Role: 提供统一的菜单/确认/CAPTCHA/状态输出，替代各 hook 中分散的纯文本 stderr
 

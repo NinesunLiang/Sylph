@@ -251,7 +251,7 @@ Phase 4 (维护期):  Option E — 注册表自检双向同步
 
 - `harness_core.py`（`.py:89`）— 共享库，被所有 hook 间接测试，标注 `# implicitly tested`
 - `meta_oracle`（`.py:71`）— 元治理，集成测试成本极高
-- `agentic-ui.py`（`.py:148`）— 被显式跳过自动发现
+- `agentic_ui.py`（`.py:148`）— 被显式跳过自动发现
 - `lx-goal`（`.py:73`）— skill 脚本，通过 skill 本身的行为验证
 
 **缓解方案**：在注册表的 test_hint 字段使用保留标记：

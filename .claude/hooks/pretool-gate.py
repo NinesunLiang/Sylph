@@ -29,6 +29,17 @@ os.chdir(str(ROOT))
 sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
 sys.path.insert(0, str(_script_path.parent))
 
+# U3 (index18 人类裁决)：agentic-ui 标准化输出；库缺失时回退纯文本，不阻断
+try:
+    from lib.agentic_ui import banner as _au_banner, status as _au_status
+except Exception:
+    def _au_banner(level, title, message):
+        print(f"\n⚠️ [{title}] {message}\n", file=sys.stderr)
+    def _au_status(level, title, message, detail=""):
+        print(f"\n⚠️ [{title}] {message}", file=sys.stderr)
+        if detail:
+            print(f"  {detail}", file=sys.stderr)
+
 from pretool_gates.checks import (
     _check_sensitive_edit, _check_governance_bypass, _check_action_gate,
     _check_verify_gate,
@@ -44,19 +55,14 @@ from pretool_gates.checks import (
 # 降噪·激进砍（index15 后续，人类裁决）：砍 fallback/plan/edit-scope/claim-source/
 # source-marker —— 途中防错与强制格式，由前置 schema 引导（scorecard-gate 升级）
 # + 末端 TDD 校验（verify_gate/completion-gate）替代，避免每工具调用 6+ 道 gate 的开销。
-L1_GATES = [
+# G5 (index18 人类裁决)：L1/L2 门列表单一真源——核心门只写一遍，避免改门时两处漏改。
+_GATE_CORE = [
     ("sensitive-edit", _check_sensitive_edit),
     ("governance-bypass", _check_governance_bypass),
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),
-    ("stall", _check_stall),
 ]
-
-GATES = [
-    ("sensitive-edit", _check_sensitive_edit),
-    ("governance-bypass", _check_governance_bypass),
-    ("action", _check_action_gate),
-    ("secret-scan", _check_secret_scan),
+_GATE_L2_EXTRA = [
     ("verify", _check_verify_gate),
     ("oracle", _check_oracle_gate),
     ("document-quality", _check_document_quality),
@@ -65,10 +71,15 @@ GATES = [
     ("g5-wide-glob", _check_g5_wide_glob),
     ("g6-budget", _check_g6_budget),
     ("action-loop", _check_action_loop),
-    ("stall", _check_stall),
+]
+_GATE_STALL = [("stall", _check_stall)]
+_GATE_L2_TAIL = [
     ("numeric-claim", _check_numeric_claim),
     ("injection-guard", _check_injection),
 ]
+
+L1_GATES = _GATE_CORE + _GATE_STALL
+GATES = _GATE_CORE + _GATE_L2_EXTRA + _GATE_STALL + _GATE_L2_TAIL
 from pretool_gates.helpers import (
     _read_stdin, _extract_tool, _ok, _block, _redirect,
     _check_temp_bypass, _check_trust_breach, _clean_stale_state_token,
@@ -168,7 +179,7 @@ def main() -> int:
                 })
                 goal_mode = _goal_mode()
                 if not goal_mode:
-                    print(f"⚠️ [{gate_name}] {result}", file=sys.stderr, flush=True)
+                    _au_banner("warn", gate_name, result)
                 continue
 
     # ── Gate Contract Compliance (output as int, not string) ──

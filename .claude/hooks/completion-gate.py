@@ -36,6 +36,13 @@ _HOOKS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(_HOOKS_DIR))
 from harness_lib import hc_enabled, hc_get, hc_emit_hook_json, flywheel_event, output_continue
 
+# U3 (index18 人类裁决)：agentic-ui 标准化输出；库缺失时回退，不阻断
+try:
+    from lib.agentic_ui import banner as _au_banner
+except Exception:
+    def _au_banner(level, title, message):
+        print(f"\n⚠️ [{title}] {message}\n", file=sys.stderr)
+
 # ─── 路径常量 ───
 
 PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
@@ -173,6 +180,7 @@ def _auto_soft_block(message, autonomous):
     except Exception:
         guidance = f"🔄 [completion-gate] {message}\n💡 正确做法: 先运行实际验证命令,在证据中确保包含 VERIFIED 标记和 file:line 引用后重试 completed。"
 
+    _au_banner("redirect", "completion-gate", guidance)
     print(json.dumps({
         "continue": True,
         "hookSpecificOutput": {

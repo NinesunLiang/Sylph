@@ -28,6 +28,13 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness_lib import flywheel_event  # noqa: E402
 
+# U3 (index18 人类裁决)：agentic-ui 标准化输出；库缺失时回退，不阻断
+try:
+    from lib.agentic_ui import banner as _au_banner
+except Exception:
+    def _au_banner(level, title, message):
+        print(f"\n⚠️ [{title}] {message}\n", file=sys.stderr)
+
 _HOOK_DIR = Path(__file__).resolve().parent
 ROOT = _HOOK_DIR.parents[1]
 
@@ -215,6 +222,7 @@ def main() -> int:
     )
     scope_result = None if is_governance_file else (check_path_scope(path) if path else None)
     if scope_result:
+        _au_banner("redirect", "scorecard-gate", scope_result)
         print(json.dumps({"continue": False, "reason": scope_result, "message": scope_result}))
         return 2
 
