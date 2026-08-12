@@ -1,0 +1,154 @@
+{
+  "task_id": "修复-goal-生命周期机制-严格-resear-112258",
+  "summary": "修复 Goal 生命周期机制：严格 research→ResearchGate→plan→PlanGate→executor→execution/verify，覆盖 ResearchGate 全貌误判、Read 前置、VerifyGate evidence/checklist、plan-token total 对账和 VERIFYING 多步 tick 恢复",
+  "current_card": "C08",
+  "passed": [
+    "C00",
+    "C01",
+    "C02",
+    "C03",
+    "C04",
+    "C05",
+    "C06",
+    "C07"
+  ],
+  "status": "active",
+  "pending_route": null,
+  "return_card": null,
+  "outputs": {
+    "C00": {
+      "task.summary": "修复 Goal 生命周期前置顺序与门禁误报",
+      "task.repository": "/Users/lucas.liang/Desktop/Sylph/Carror_Base_OS_UI_WORKFLOW",
+      "task.target_area": ".claude/scripts, .claude/skills/lx-goal/scripts, lifecycle tests and gates",
+      "task.user_constraints": "research before plan; plan before executor; Read before edit; no frozen governance changes; no destructive Git/network/credentials",
+      "task.initial_risks": "concurrent uncommitted lifecycle changes; prior external goal state may be stale; multi-file state-machine behavior"
+    },
+    "C01": {
+      "baseline.branch": "release",
+      "baseline.package_manager": "none; Python scripts with pytest",
+      "baseline.dirty_files": "17 pre-existing lifecycle/governance files plus reports/state",
+      "baseline.user_owned_changes": "All dirty files predate this stepwise task; preserve and scope edits explicitly; no reset/checkout/clean",
+      "baseline.commands": "pytest targeted; carros_base.py lint; git diff --check; root run-regression skipped",
+      "baseline.existing_failures": "lint warnings: token missing steps and no verify events; no test failures"
+    },
+    "C02": {
+      "requirement.actor": "Goal lifecycle runner and its state/evidence gates",
+      "requirement.trigger": "phase0-done, plan-done, tick, executor/evidence write, verify and task-done",
+      "requirement.expected_behavior": "research validated before planning; plan validated before execution; executor evidence only after execution starts; verify/task-done only for active executable steps; token total equals parsed plan total",
+      "requirement.visible_result": "Deterministic state transition, persisted evidence, and precise blocking reason",
+      "requirement.failure_behavior": "Fail closed with nonzero exit; do not advance state or write downstream artifacts; preserve reproducible error",
+      "requirement.loading_behavior": "While a step is active, preserve active state and allow only idempotent operations for that step",
+      "requirement.empty_behavior": "Empty/placeholder research, plan, evidence, or checklist is rejected without state advancement",
+      "requirement.out_of_scope": "Frozen governance files, external network/provider, credentials, destructive Git, root full regression that mutates active state",
+      "requirement.unresolved": "none; user supplied the required policy and acceptance direction"
+    },
+    "C03": {
+      "module.route_entry": ".claude/skills/lx-goal/scripts/lx-goal.py",
+      "module.page_entry": "none; CLI lifecycle",
+      "module.primary_component": "GoalMachine + carros_base lifecycle commands",
+      "module.private_components": "ResearchGate/PlanGate, step contracts, VerifyGate evidence parser",
+      "module.shared_components": "token/plan/executor/evidence state and pre-action/lifecycle gates",
+      "module.related_tests": "4 targeted lifecycle/evidence/aggregate test files; 46 baseline tests",
+      "module.related_stories": "none",
+      "module.ownership_boundary": "non-frozen .claude/scripts and lifecycle tests; frozen AGENTS/kernel/index/hooks excluded"
+    },
+    "C04": {
+      "data_flow.reads": "mode lx-goal.json; dated token.json; research.md/plan.md/executor.md; audit JSONL; step parser and VerifyGate",
+      "data_flow.writes": "mode/token state transitions; plan checkbox/status; executor EV blocks; audit/handoff; completed_tasks; archive/off signals",
+      "data_flow.state.readers": "lx-goal.py, GoalMachine, carros_base.py, step_contracts, verify_gate, omc_lint",
+      "data_flow.state.writers": "phase0-done/plan-done, tick, verify, task-done, done/off and evidence ledger",
+      "data_flow.state.defaults": "initial CLARIFY/planning; token stats derived from plan steps; pending step; empty evidence/checklist fail-closed"
+    },
+    "C05": {
+      "impact_table": "ResearchGate/PlanGate↔GoalMachine↔lx-goal; step_contracts↔carros_base verify/tick; VerifyGate↔executor/plan; lint/status↔token/plan; hooks/docs↔tool protocol",
+      "change_boundary.safe_to_change": "non-frozen .claude/scripts goal_contracts/step_contracts/carros_base/verify_gate/omc_lint; lx-goal lifecycle tests; regression tests",
+      "change_boundary.compatibility_required": "CLI phase0-done/plan-done/tick/verify/task-done; token schema and plan markers; existing non-Goal compatibility fixtures; error exit codes",
+      "change_boundary.forbidden_without_approval": "AGENTS.md/kernel.md/index.md/.claude/hooks/settings/harness; destructive Git; network/credentials; broad root full regression"
+    },
+    "C06": {
+      "solution.files_to_change": ".claude/scripts/goal_contracts.py; step_contracts.py; verify_gate.py; carros_base.py; goal_state_machine.py; omc_lint.py; .claude/skills/lx-goal/scripts/lx-goal.py; lifecycle tests",
+      "solution.files_to_add": "only regression fixtures/artifacts if required; no runtime dependency",
+      "solution.public_contract_changes": "add/require explicit plan-done phase between phase0-done and execution; preserve existing CLI names/exit semantics; no token schema break",
+      "solution.benefits": "research cannot be skipped; plan cannot precede research; executor cannot be populated before EXECUTING; step totals derive from plan; evidence/checklist errors become deterministic",
+      "solution.risks": "existing dirty concurrent lifecycle edits; backward compatibility for non-Goal fixtures; stale VERIFYING recovery needs dedicated safe path",
+      "solution.verification": "red tests for each reported failure; full safe targeted lifecycle suite; synthetic fresh Goal phase transition; lint/diff-check"
+    },
+    "C07": {
+      "change_contract.allowed_files": ".claude/scripts/goal_contracts.py; step_contracts.py; verify_gate.py; carros_base.py; goal_state_machine.py; omc_lint.py; .claude/skills/lx-goal/scripts/lx-goal.py; lifecycle regression tests",
+      "change_contract.allowed_new_files": "task-local regression fixtures only; no production dependencies",
+      "change_contract.protected_files": "AGENTS.md; CLAUDE.md; .claude/kernel.md; .claude/index.md; .claude/hooks/*; .claude/settings*.json; scripts/carroros-gates/harness.yaml; package/lock/config/permissions; existing unrelated dirty files not in allowed list",
+      "change_contract.contracts_to_preserve": "CLI names/exit codes; GoalMachine forward states; token JSON identity/scope; plan step markers/dependencies; VerifyGate evidence schema; non-Goal compatibility fixtures",
+      "change_contract.acceptance_criteria": "ResearchGate real-content correctness; phase0→PLANNING only; plan-done→EXECUTING only; executor/tick blocked before EXECUTING; plan/token totals synchronized; VERIFYING only after all parsed steps; checklist/evidence deterministic; all prior regressions green",
+      "change_contract.verification_commands": "pytest targeted lifecycle suite; explicit phase transition fixture; py_compile; carros_base lint; git diff --check",
+      "change_contract.stop_conditions": "do not edit protected files; do not run destructive root full regression; stop on scope conflict or unresolved state-machine ambiguity; no commit/push"
+    }
+  },
+  "allowed_files": [
+    ".claude/scripts/goal_contracts.py; step_contracts.py; verify_gate.py; carros_base.py; goal_state_machine.py; omc_lint.py; .claude/skills/lx-goal/scripts/lx-goal.py; lifecycle regression tests"
+  ],
+  "protected_files": [
+    "AGENTS.md; CLAUDE.md; .claude/kernel.md; .claude/index.md; .claude/hooks/*; .claude/settings*.json; scripts/carroros-gates/harness.yaml; package/lock/config/permissions; existing unrelated dirty files not in allowed list"
+  ],
+  "user_decisions": [],
+  "unresolved_risks": [],
+  "validation_results": [],
+  "created_at": "2026-08-11T11:22:58+00:00",
+  "confirmed": {
+    "C00": [
+      1,
+      2,
+      3
+    ],
+    "C01": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "C02": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "C03": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "C04": [
+      1,
+      2,
+      3
+    ],
+    "C05": [
+      1,
+      2,
+      3
+    ],
+    "C06": [
+      1,
+      2,
+      3
+    ],
+    "C07": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ]
+  },
+  "evidence": {
+    "C00": "git rev-parse=true; branch=release; CLAUDE.md/AGENTS.md/README.md present; package.json absent; user explicitly forbids skipping lifecycle prerequisites and requires mechanism-level fixes; concurrent uncommitted lifecycle changes recorded",
+    "C01": "baseline branch=release; git diff shows 17 pre-existing lifecycle/governance files and no package manager config; safe pytest baseline=46 passed in 0.10s; carros_base lint=0 errors/2 warnings; diff-check exit 0; no files overwritten",
+    "C02": "用户明确要求 research→ResearchGate→plan→PlanGate→executor→execution/verify 严格前置；错误必须机制修复且不再复现；当前代码/测试已定义 failure paths，未定义项可按 fail-closed 处理",
+    "C03": "入口：.claude/skills/lx-goal/scripts/lx-goal.py phase0-done/plan-done/task-done/verify-step; 状态机：.claude/scripts/goal_state_machine.py; Research/Plan：.claude/scripts/goal_contracts.py; step/evidence：.claude/scripts/step_contracts.py/.claude/scripts/verify_gate.py; orchestration：.claude/scripts/carros_base.py; tests：test_execution_boundary_immunity.py, test_goal_lifecycle_regressions.py, test_sub_agent_failure_matrix.py, test_eval_aggregate.py; no UI route/story exists",
+    "C04": "读链：lx-goal mode file→plan_dir→plan.md/research.md/executor.md→GoalMachine/ResearchGate/PlanGate/VerifyGate；写链：phase0/plan-done→mode/token goal state，tick→plan active/executor start/token current step，verify→plan completed/token stats/audit/handoff，task-done→completed_tasks，done/off→archive/lock/signal；safe baseline confirmed 46 tests",
+    "C05": "Reference search found all ResearchGate/is_placeholder/step completion/VerifyGate/lifecycle call sites; shared token/plan/executor/audit state has multiple readers/writers; current tests cover lifecycle and evidence contracts; no UI/shared external API",
+    "C06": "选方案 B：复用现有 GoalMachine/ResearchGate/PlanGate/step_contracts/VerifyGate，补齐严格 phase boundary、统一 plan/token 对账和 evidence contract；不新增依赖、不改冻结文件；方案 C 公共 schema 重构不选，方案 A 仅文档无法消除机制错误",
+    "C07": "change contract frozen before implementation; user explicitly requires strict research→plan→executor order and mechanism-level fixes; no public network/API/type changes; protected files remain untouched"
+  }
+}

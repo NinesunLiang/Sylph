@@ -18,3 +18,4 @@ benchmark/runs/
 .claude/state/snapshots/precompact-*.json
 improve_plan
 .DS_Store
+Benchmarking
