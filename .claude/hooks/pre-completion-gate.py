@@ -53,17 +53,16 @@ def main():
         sys.exit(0)
 
     # ── Autonomous / Ghost mode detection ──
-    # Check these files (all in tokens/):
-    #   .omc/state/tokens/autonomous.active
-    #   .omc/state/tokens/lx-ghost.json
-    #   .omc/state/tokens/lx-goal.json
-    autonomous_active = TOKENS_DIR / "autonomous.active"
     lx_ghost = TOKENS_DIR / "lx-ghost.json"
-    lx_goal = TOKENS_DIR / "lx-goal.json"
+    goal_token = Path(os.environ.get("CARROROS_TOKEN_PATH", "")).expanduser()
+    goal_active = False
+    if goal_token.is_file():
+        try:
+            goal_active = json.loads(goal_token.read_text(encoding="utf-8")).get("mode") == "goal"
+        except (OSError, json.JSONDecodeError):
+            pass
 
-    if (autonomous_active.exists() or
-        lx_ghost.exists() or
-        lx_goal.exists()):
+    if lx_ghost.exists() or goal_active:
         print("[pre-completion-gate] 自主模式: 允许 completed（门禁降级）", file=sys.stderr)
         print(json.dumps({"continue": True}))
         sys.exit(0)

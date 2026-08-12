@@ -9,6 +9,7 @@ from pathlib import Path
 
 REQUIRED_SCORES = ("c_weighted", "e_weighted", "total_weighted")
 VALID_VERDICTS = {"PASS", "WARN", "BLOCKED", "FAIL"}
+CERTIFICATION_THRESHOLD = 8.6
 
 
 def parse_scorecard(path: Path) -> dict:
@@ -75,9 +76,18 @@ def collect_readiness(scorecard_path: Path, oracle_dir: Path, project_root: Path
         if not 0 <= value <= 10:
             items.append(_item("scorecard.range", "evidence", "blocker", f"{key}={value} outside 0..10"))
             break
+    below_threshold = [key for key in REQUIRED_SCORES if key in scores and scores[key] < CERTIFICATION_THRESHOLD]
+    if below_threshold:
+        items.append(_item("scorecard.threshold", "evidence", "blocker", f"below {CERTIFICATION_THRESHOLD}: {', '.join(below_threshold)}"))
 
+    verdict_names = [str(verdict.get("verdict", verdict.get("status", ""))).upper() for verdict in verdicts]
     if not verdicts:
         items.append(_item("oracle.missing", "evidence", "blocker", "no valid fresh Oracle verdict"))
+    elif any(name in {"FAIL", "BLOCKED"} for name in verdict_names):
+        item_id = "oracle.conflict" if "PASS" in verdict_names else "oracle.rejected"
+        items.append(_item(item_id, "evidence", "blocker", "fresh Oracle verdicts contain FAIL/BLOCKED"))
+    elif "PASS" not in verdict_names:
+        items.append(_item("oracle.no_approved_pass", "evidence", "blocker", "no fresh PASS Oracle verdict"))
     if invalid:
         items.append(_item("oracle.invalid", "evidence", "blocker", "; ".join(invalid)))
 

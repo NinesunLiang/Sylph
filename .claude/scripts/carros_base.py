@@ -89,6 +89,8 @@ try:
 except ImportError:
     step_contracts = None
 
+from token_lifecycle import finalize_token
+
 
 # ─── Optional-import guard helper ─────────────────────────────
 # Task75: Use at call sites where an optional import is required.
@@ -175,6 +177,22 @@ def advance_goal_phase(token_path, target_state, research_path=None, plan_path=N
     gm.transition(target_state, reason=reason,
                   research_path=research_path, plan_path=plan_path)
     return gm.current_state
+
+
+def _require_goal_execution_state(token: dict, action: str, allowed: set[str] | None = None) -> bool:
+    """Block Goal execution writes until the plan transition has passed."""
+    if token.get("mode") != "goal":
+        return True
+    allowed_states = allowed or {"EXECUTING"}
+    state = token.get("goal", {}).get("state")
+    if state in allowed_states:
+        return True
+    print(
+        f"❌ {action} blocked: Goal state={state or 'UNKNOWN'}; "
+        "complete research → plan-done → EXECUTING first",
+        file=sys.stderr,
+    )
+    return False
 
 # ─── Paths (cross-platform: pathlib) ───
 # .claude/        → 可复用资产（hooks, scripts, reference）
@@ -535,6 +553,26 @@ def _write_default_research():
     RESEARCH_PATH.write_text(content)
 
 
+def _write_goal_scaffolds() -> None:
+    """Create sealed document skeletons; Goal phases fill them in order."""
+    _write_default_research()
+    PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
+    PLAN_PATH.write_text(
+        "# Plan\n\n"
+        "## Gate\n"
+        "- level: L2\n\n"
+        "## Plan Pending\n"
+        "<!-- Fill only after phase0-done moves Goal to PLANNING. -->\n",
+        encoding="utf-8",
+    )
+    EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
+    EXECUTOR_PATH.write_text(
+        "# Executor Evidence Ledger\n\n"
+        "> sealed: plan-done must pass before executor evidence is written.\n",
+        encoding="utf-8",
+    )
+
+
 def _init_task_dirs():
     """初始化任务子目录：sub_task/ + state/ + state/audit + artifacts/"""
     for d in [SUB_TASK_DIR, STATE_DIR, AUDIT_DIR]:
@@ -841,7 +879,12 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
             pass
 
     # ── PlanBuilder 生成冻结计划 ──
-    if steps and len(steps) > 1:
+    if task_mode == "goal":
+        token = _default_token(task_id=task_id, level=level, steps=steps)
+        _save_token(token)
+        _write_goal_scaffolds()
+        print(_green("   Goal scaffolds created: research → plan → executor"))
+    elif steps and len(steps) > 1:
         # 显式多步骤：绕过 PlanBuilder，按步骤列表生成
         token = _default_token(task_id=task_id, level=level, steps=steps)
         _save_token(token)
@@ -904,7 +947,7 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
 
 
 def _find_latest_token(require_active=True):
-    """按显式上下文读取 token；无上下文时仅允许唯一 active token。"""
+    """按显式上下文读取 token；无上下文时不扫描其他任务。"""
     override = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
     task_id = os.environ.get("CARROROS_TASK_ID", "").strip()
     task_dir = os.environ.get("CARROROS_TASK_DIR", "").strip()
@@ -932,19 +975,8 @@ def _find_latest_token(require_active=True):
             return None, None
         return token, explicit
 
-    goal_mode_path = OMC_ROOT / "state" / "tokens" / "lx-goal.json"
-    try:
-        mode = json.loads(goal_mode_path.read_text(encoding="utf-8"))
-        plan_dir_value = mode.get("rpe_plan_dir")
-        if mode.get("active") and plan_dir_value:
-            plan_dir = Path(plan_dir_value).expanduser().resolve()
-            goal_token_path = OMC_TOKENS / plan_dir.parent.name / f"{plan_dir.name}.json"
-            if goal_token_path.exists():
-                goal_token = json.loads(goal_token_path.read_text(encoding="utf-8"))
-                if isinstance(goal_token, dict) and matches(goal_token, goal_token_path):
-                    return goal_token, goal_token_path
-    except (OSError, json.JSONDecodeError, ValueError):
-        pass
+    if not task_id and not task_dir:
+        return None, None
 
     OMC_TOKENS.mkdir(parents=True, exist_ok=True)
     candidates = []
@@ -1057,6 +1089,8 @@ def cmd_tick(step_id=None):
     token = _load_token()
     if not token:
         print(_red("❌ No active task"))
+        return 2
+    if not _require_goal_execution_state(token, "tick"):
         return 2
     token = _sync_token_scope_from_plan(token)
 
@@ -1219,6 +1253,8 @@ def cmd_verify(step_id=None, all_steps=False):
     if not token:
         print(_red("❌ No active task"))
         return 2
+    if not _require_goal_execution_state(token, "verify", {"EXECUTING", "VERIFYING"}):
+        return 2
     token = _sync_token_scope_from_plan(token)
     if step_contracts is None:
         print(_red("❌ VerifyGate dependency unavailable: step_contracts.py"))
@@ -1287,6 +1323,12 @@ def cmd_verify(step_id=None, all_steps=False):
                 print(_yellow(f"   需要: {required}"))
             return 2
 
+        # Oracle must pass before the completion transaction can persist [x].
+        if level == "L2_ENHANCE" and not degraded:
+            judge_rc = _run_dual_judge(token)
+            if judge_rc == 2:
+                return 2
+
         # ── Task75 Atomic Evidence Gate (non-degraded) ──
         # complete_step_atomic validates evidence, updates plan [x], token done++
         if step_contracts and not degraded:
@@ -1341,13 +1383,6 @@ def cmd_verify(step_id=None, all_steps=False):
         PLAN_PATH.write_text(plan)
         _save_token(token)
         _write_handoff(token)
-
-        # L2 双审判官：verify 自动裁决（REJECT → verify 不通过）
-        level = token.get("session", {}).get("level", "L1_BASE")
-        if level == "L2_ENHANCE":
-            judge_rc = _run_dual_judge(token)
-            if judge_rc == 2:
-                return 2
 
         # Goal 状态自动推进: done >= total → VERIFYING
         done = token.get("stats", {}).get("done", 0)
@@ -1447,6 +1482,24 @@ def cmd_archive(force=False):
         print(_red("❌ No active task"))
         return 2
 
+    if token.get("mode") == "goal":
+        if GoalMachine is None:
+            print(_red("❌ GoalMachine unavailable; archive aborted"), file=sys.stderr)
+            return 2
+        try:
+            archive_gate = GoalMachine(TOKEN_PATH)
+        except Exception as exc:
+            print(_red(f"❌ Goal state unreadable; archive aborted: {exc}"), file=sys.stderr)
+            return 2
+        if archive_gate.current_state != gsm.VERIFYING:
+            print(
+                _red(
+                    f"❌ Goal archive requires VERIFYING, current={archive_gate.current_state}"
+                ),
+                file=sys.stderr,
+            )
+            return 2
+
     # Step 2: check all steps completed — 统一新格式
     if not force:
         pending = []
@@ -1474,12 +1527,28 @@ def cmd_archive(force=False):
     print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
 
     # Step 4: 复制 report 到 archive 目录
-    if GoalMachine:
+    if token.get("mode") == "goal":
+        if GoalMachine is None:
+            print(_red("❌ GoalMachine unavailable; archive aborted"), file=sys.stderr)
+            return 2
+        try:
+            gm = GoalMachine(TOKEN_PATH)
+            if gm.current_state != gsm.VERIFYING:
+                raise GoalError(
+                    f"Goal archive requires VERIFYING, current={gm.current_state}"
+                )
+            gm.transition(gsm.ARCHIVING, reason="archive precondition passed")
+            gm.transition(gsm.ARCHIVED, reason="archive completed")
+            print(_green(f"   Goal State: {gsm.get_state_header(gm.current_state)}"))
+            token = _load_token() or token
+        except GoalError as exc:
+            print(_red(f"❌ Goal state transition failed; archive aborted: {exc}"), file=sys.stderr)
+            return 2
+    elif GoalMachine:
         try:
             gm = GoalMachine(TOKEN_PATH)
             gm.transition(gsm.ARCHIVED, reason="archive completed")
             print(_green(f"   Goal State: {gsm.get_state_header(gm.current_state)}"))
-            # 重新加载 token — GoalMachine 已写入 goal.archived
             token = _load_token() or token
         except GoalError:
             pass
@@ -1535,10 +1604,13 @@ def cmd_archive(force=False):
     _write_audit("archive", {"task_id": token["session"]["id"], "result": "ARCHIVED"})
     _write_handoff(token)
 
-    # Step 6: 删除 active token
-    token_path_str = str(TOKEN_PATH)
-    TOKEN_PATH.unlink(missing_ok=True)
-    print(_green(f"✅ Token 已删除: {token_path_str}"))
+    # Step 6: terminal finalizer — retain the archived token and remove only its sidecar
+    try:
+        finalize_token(TOKEN_PATH, status="archived", reason="archive completed")
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        print(_red(f"❌ Token terminal finalization failed: {exc}"), file=sys.stderr)
+        return 2
+    print(_green(f"✅ Token 保留为 archived，锁已删除: {TOKEN_PATH}"))
 
     # Step X: 清除信任破裂标记（archive = 人工确认任务结束）
     trust_breach = PROJECT_ROOT / ".omc" / "state" / "trust-breach.json"
@@ -1882,6 +1954,11 @@ def cmd_dispatch():
             return 2
         _init_paths_from_token(token, tp)
 
+    token = _load_token()
+    if not token:
+        print(_red("❌ Active token unreadable"))
+        return 2
+
     # 解析参数
     argv = sys.argv[sys.argv.index("dispatch") + 1:]
     step_id = "S1"
@@ -1894,6 +1971,9 @@ def cmd_dispatch():
             plan_text = argv[i + 1]; i += 2
         else:
             i += 1
+
+    if not _require_goal_execution_state(token, "dispatch"):
+        return 2
 
     # 创建 sub_task 目录
     sub_dir = SUB_TASK_DIR / f"sub-{step_id}"
@@ -2114,6 +2194,12 @@ def cmd_collect():
         return 2 if "--force" not in sys.argv else 0
     elif status != "completed":
         print(_red(f"❌ {step_id} cannot be collected: terminal status={status}"))
+        return 2
+
+    main_token = _load_token()
+    if main_token and not _require_goal_execution_state(
+        main_token, "collect", {"EXECUTING", "VERIFYING"}
+    ):
         return 2
 
     # 证据追加到 main executor.md
@@ -2393,6 +2479,19 @@ def cmd_plan():
             print(_red("❌ No active task. Run 'clarify' or 'init' first."))
             return 2
 
+    token = _load_token()
+    if not token:
+        print(_red("❌ Active token unreadable"))
+        return 2
+    if token.get("mode") == "goal" and token.get("goal", {}).get("state") != "PLANNING":
+        print(
+            _red(
+                f"❌ plan blocked: Goal state={token.get('goal', {}).get('state') or 'UNKNOWN'}; "
+                "先完成 research → phase0-done → PLANNING"
+            )
+        )
+        return 2
+
     # 找 spec.md
     spec_file = Path(spec_path) if spec_path else (TASK_DIR / "spec.md")
     if not spec_file.exists():
@@ -2479,6 +2578,13 @@ def cmd_auto():
 
     if not TASK_DIR or not TASK_DIR.exists():
         print(_red("❌ Task directory not found"))
+        return 2
+
+    token = _load_token()
+    if not token:
+        print(_red("❌ Active token unreadable"))
+        return 2
+    if not _require_goal_execution_state(token, "auto"):
         return 2
 
     # 确保 sub_agent_manager 可用
@@ -2823,8 +2929,13 @@ def main(argv=None):
                 i += 2
             else:
                 i += 1
+        if any(arg in ("-h", "--help") for arg in args):
+            return cmd_help()
         if auto_mode:
             return cmd_auto_init(steps=steps, target=target)
+        if not task_id:
+            print(_red("❌ init 需要 --task-id；自动任务请使用 --auto"), file=sys.stderr)
+            return 2
         return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode)
 
     elif command == "tick":

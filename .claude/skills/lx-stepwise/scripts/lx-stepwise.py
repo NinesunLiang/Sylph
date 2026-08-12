@@ -200,6 +200,8 @@ def cmd_pass(args) -> None:
     if args.card != cid:
         _gate(f"禁跳卡: 当前卡是 {cid},不能 pass {args.card}")
     card = _load_card(cid)
+    nxt = card.get("next_card")
+    next_card_data = _load_card(nxt) if nxt else None
     # 门禁 1: exit_criteria 全覆盖
     criteria = card.get("exit_criteria") or []
     confirmed = sorted(set(args.confirm or []))
@@ -218,6 +220,9 @@ def cmd_pass(args) -> None:
     miss_out = [k for k in required if k not in outs]
     if miss_out:
         _gate(f"outputs.required 未全落值,缺: {miss_out}(用 --output k=v 逐项交)")
+    empty_out = [k for k in required if not str(outs.get(k, "")).strip()]
+    if empty_out:
+        _gate(f"outputs.required 不能是空值: {empty_out}")
     # 门禁 3: C07 硬门禁
     passed = state.get("passed", [])
     if cid in MAIN_ORDER and MAIN_ORDER.index(cid) > MAIN_ORDER.index("C07") \
@@ -240,7 +245,6 @@ def cmd_pass(args) -> None:
     if cid not in passed:
         passed.append(cid)
     state["passed"] = passed
-    nxt = card.get("next_card")
     if nxt:
         state["current_card"] = nxt
     task_id = state["task_id"]
@@ -248,7 +252,8 @@ def cmd_pass(args) -> None:
     print(f"✅ {cid} {card.get('title', '')} PASSED(evidence 已落账)")
     if nxt:
         print(f"→ 下一张: {nxt}")
-        _show_card(state, _load_card(nxt))
+        assert next_card_data is not None
+        _show_card(state, next_card_data)
     else:
         print("本卡无 next_card——若交付记录已闭环,执行 off 收官")
 
@@ -326,6 +331,20 @@ def cmd_resolve(args) -> None:
         ti = MAIN_ORDER.index(target)
         state["passed"] = [c for c in state.get("passed", [])
                            if c in MAIN_ORDER and MAIN_ORDER.index(c) < ti]
+        for field in ("outputs", "confirmed", "evidence"):
+            values = state.get(field)
+            if isinstance(values, dict):
+                state[field] = {
+                    card_id: value
+                    for card_id, value in values.items()
+                    if card_id in MAIN_ORDER and MAIN_ORDER.index(card_id) < ti
+                }
+        state["validation_results"] = [
+            item for item in state.get("validation_results", [])
+            if isinstance(item, dict)
+            and item.get("card") in MAIN_ORDER
+            and MAIN_ORDER.index(item["card"]) < ti
+        ]
     state["current_card"] = target
     state["return_card"] = None
     _save(state["task_id"], state)

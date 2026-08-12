@@ -362,6 +362,12 @@ def compact_write(
     scope = task.get("scope", []) or []
     failed_verifications = task.get("failed_verifications", 0)
     oracle_last = session.get("oracle_last_verdict", "none")
+    executor_text = read_text(task_path / "executor.md")
+    checklist_lines = [
+        line.strip() for line in executor_text.splitlines()
+        if line.strip().startswith("- [")
+    ]
+    checklist_summary = "\\n".join(f"  - {line}" for line in checklist_lines[-40:]) or "  - (none)"
 
     # 写入 session-handoff.md
     scope_bullets = "\n".join(f"  - {s}" for s in scope) if scope else "  - (none)"
@@ -390,6 +396,16 @@ def compact_write(
 
 ## Scope
 {scope_bullets}
+
+## Documents
+- task_dir: {task_path.resolve()}
+- plan: {task_path / "plan.md"}
+- research: {task_path / "research.md"}
+- executor: {task_path / "executor.md"}
+- checklist: {task_path / "state" / "checklist.md"}
+
+## Checklist
+{checklist_summary}
 
 ## Oracle
 - last_verdict: {oracle_last}

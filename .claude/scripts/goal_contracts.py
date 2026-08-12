@@ -136,7 +136,15 @@ def is_placeholder(value: str) -> bool:
         return True
     if normalized.startswith("<") and normalized.endswith(">"):
         return True
-    return any(marker in normalized for marker in PLACEHOLDER_MARKERS)
+    for marker in PLACEHOLDER_MARKERS:
+        if marker in {"待填写", "待确认", "暂无"}:
+            if marker in normalized:
+                return True
+            continue
+        boundary = rf"(?<![a-z0-9_]){re.escape(marker)}(?![a-z0-9_])"
+        if re.search(boundary, normalized):
+            return True
+    return False
 
 
 class PlanGate:

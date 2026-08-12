@@ -1,5 +1,8 @@
 import importlib.util
+import json
 from pathlib import Path
+
+import pytest
 
 
 ROOT = Path(__file__).resolve().parents[4]
@@ -15,6 +18,33 @@ assert contract_spec is not None
 contracts = importlib.util.module_from_spec(contract_spec)
 assert contract_spec.loader is not None
 contract_spec.loader.exec_module(contracts)
+state_spec = importlib.util.spec_from_file_location(
+    "goal_state_machine_under_test", ROOT / ".claude/scripts/goal_state_machine.py"
+)
+assert state_spec is not None and state_spec.loader is not None
+state_machine = importlib.util.module_from_spec(state_spec)
+state_spec.loader.exec_module(state_machine)
+
+
+def test_goal_context_requires_explicit_task_dir(monkeypatch):
+    monkeypatch.setattr(module, "CURRENT_PLAN_DIR", None)
+    monkeypatch.delenv("CARROROS_TASK_DIR", raising=False)
+
+    with pytest.raises(SystemExit):
+        module._resolve_plan_dir()
+
+
+def test_task_dir_cli_binding_selects_explicit_context(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    for name in ("plan.md", "research.md", "executor.md"):
+        (plan_dir / name).write_text("# fixture\n", encoding="utf-8")
+    monkeypatch.setattr(module, "CURRENT_PLAN_DIR", None)
+
+    remaining = module._bind_task_dir_arg(["--task-dir", str(plan_dir), "report"])
+
+    assert remaining == ["report"]
+    assert module.CURRENT_PLAN_DIR == plan_dir.resolve()
 
 
 def test_goal_step_verification_binds_token_context():
@@ -61,6 +91,11 @@ def test_placeholder_contract_rejects_template_values():
         assert contracts.is_placeholder(value)
 
 
+def test_placeholder_contract_does_not_match_embedded_marker_text():
+    text = "runtime path segment n/audit is documented in the map"
+    assert not contracts.is_placeholder(text)
+
+
 def test_plan_builder_emits_acceptance_fields():
     plan = ROOT / ".omc/tasks/20260811/CarrorOS--AI--C1-C9E1-E8-UX/plan.md"
     text = plan.read_text(encoding="utf-8")
@@ -76,18 +111,66 @@ def test_research_dependency_tree_requires_bullet():
     assert any(line.startswith("-") for line in section.splitlines())
 
 
-def test_report_missing_plan_dir_is_blocked(monkeypatch, tmp_path):
+def test_default_goal_slug_is_unique_across_activations():
+    first = module._goal_slug("same concurrent evaluation goal")
+    second = module._goal_slug("same concurrent evaluation goal")
+
+    assert first != second
+    assert len(first) <= 64
+    assert first.startswith("same-concurrent-evaluation-goal")
+    assert second.startswith("same-concurrent-evaluation-goal")
+
+
+def test_report_empty_plan_is_not_verified(monkeypatch, tmp_path):
     state_dir = tmp_path / "state"
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("# Plan\n\n## Gate\n- level: L2\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    mode_data = {"goal": {"description": "empty plan"}, "task_dir": str(plan_dir), "completed_tasks": []}
+
     monkeypatch.setattr(module, "STATE_DIR", state_dir)
-    monkeypatch.setattr(module, "_read_mode_file", lambda: ({"goal": "broken"}, "mode.json"))
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(plan_dir or plan_dir)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_report(plan_dir)
+
+    report = (plan_dir / "state" / "goal-report.md").read_text(encoding="utf-8")
+    assert "VERIFIED: 所有计划步骤已完成" not in report
+    assert "IN_PROGRESS" in report or "BLOCKED" in report
+
+
+def test_report_uses_plan_count_and_requires_ev_evidence(monkeypatch, tmp_path):
+    state_dir = tmp_path / "state"
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("- [x] S1: forged\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    mode_data = {"goal": {"description": "forged checkbox"}, "task_dir": str(plan_dir), "completed_tasks": []}
+
+    monkeypatch.setattr(module, "STATE_DIR", state_dir)
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, str(selected or plan_dir)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_report(plan_dir)
+
+    report = (plan_dir / "state" / "goal-report.md").read_text(encoding="utf-8")
+    assert "已完成任务数: 1" in report
+    assert "verified_evidence_missing" in report
+    assert "VERIFIED: 所有计划步骤已完成" not in report
+
+
+def test_report_missing_plan_dir_is_blocked(monkeypatch, tmp_path):
+    mode_data = {"goal": {"description": "broken"}}
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, "mode.json"))
     monkeypatch.setattr(module, "_get_plan_dir", lambda data: None)
 
-    module.cmd_report()
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_report(tmp_path / "missing")
 
-    report = (state_dir / "goal-report.md").read_text(encoding="utf-8")
-    assert "BLOCKED" in report
-    assert "goal.plan_dir.missing" in report
-    assert "VERIFIED: 所有计划步骤已完成" not in report
+    assert exc.value.code == 2
 
 
 def test_task_done_accepts_already_verified_plan(monkeypatch, tmp_path):
@@ -97,7 +180,7 @@ def test_task_done_accepts_already_verified_plan(monkeypatch, tmp_path):
     mode_data = {"completed_tasks": [], "rpe_plan_dir": str(plan_dir)}
     writes = []
 
-    monkeypatch.setattr(module, "_read_mode_file", lambda: (mode_data, "mode.json"))
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, "mode.json"))
     monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
     monkeypatch.setattr(module, "_resolve_current_step", lambda path: None)
     monkeypatch.setattr(module, "_write_mode_file", lambda data, path: writes.append(data.copy()))
@@ -106,3 +189,634 @@ def test_task_done_accepts_already_verified_plan(monkeypatch, tmp_path):
 
     assert module.cmd_task_done("already verified") == 0
     assert writes[-1]["completed_tasks"][0]["description"] == "already verified"
+
+
+def test_goal_set_rejects_lifecycle_mutation(monkeypatch, tmp_path):
+    mode_data = {"mode": "goal", "goal": {"state": "EXECUTING"}}
+    token_path = tmp_path / "goal.json"
+    token_path.write_text(json.dumps(mode_data), encoding="utf-8")
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, str(token_path)))
+
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_set("goal", '{"state":"ARCHIVED"}')
+
+    assert exc.value.code == 2
+    assert json.loads(token_path.read_text())["goal"]["state"] == "EXECUTING"
+
+
+def test_goal_off_rejects_non_verifying_state(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("### EV-S1\n\n- exit_code: 0\n", encoding="utf-8")
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token = {
+        "mode": "goal",
+        "session": {"id": "goal"},
+        "task_dir": str(plan_dir),
+        "status": "active",
+        "goal": {"state": "EXECUTING"},
+    }
+    token_path.write_text(json.dumps(token), encoding="utf-8")
+    mode_data = dict(token)
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, str(token_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "cmd_report", lambda *args, **kwargs: None)
+
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_off(plan_dir)
+
+    assert exc.value.code == 1
+    assert json.loads(token_path.read_text())["status"] == "active"
+
+
+def test_goal_report_blocks_unresolved_high_risk(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("### EV-S1\n\n- exit_code: 0\n", encoding="utf-8")
+    mode_data = {
+        "mode": "goal",
+        "task_dir": str(plan_dir),
+        "status": "active",
+        "goal": {"description": "risk", "state": "VERIFYING"},
+        "skipped_risks": [{"risk_level": "high", "description": "unverified isolation"}],
+    }
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, "mode.json"))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_report(plan_dir)
+
+    report = (plan_dir / "state" / "goal-report.md").read_text(encoding="utf-8")
+    assert "VERIFIED: 所有计划步骤已完成" not in report
+    assert "skip-risk.high" in report
+
+
+def _write_valid_research(path: Path) -> None:
+    path.write_text(
+        "# Research\n\n"
+        "## 背景\n真实背景。\n\n"
+        "## 约束\n本地约束。\n\n"
+        "## 已知信息\n已知事实。\n\n"
+        "## 不确定性\n待验证边界。\n\n"
+        "## 全貌\n完整调用链。\n\n"
+        "## 依赖树\n- research → plan\n\n"
+        "## 方案\n最小修复方案。\n\n"
+        "## Dependency TDD\ncommand: pytest; exit_code: 0\n",
+        encoding="utf-8",
+    )
+
+
+def _write_valid_plan(path: Path) -> None:
+    path.write_text(
+        "# Plan\n\n"
+        "## Gate\n- level: L2\n\n"
+        "## Phase 1\n"
+        "- [ ] S1: lifecycle guard\n"
+        "  - status: pending\n"
+        "  - depends_on: none\n"
+        "  - scope: lifecycle files\n"
+        "  - acceptance: phase order is enforced\n"
+        "  - verify: command:pytest\n",
+        encoding="utf-8",
+    )
+
+
+def test_goal_machine_requires_research_then_plan_for_goal(tmp_path):
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal", "level": "L2"},
+                "status": "active",
+                "goal": {"state": "CLARIFY"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    research = tmp_path / "research.md"
+    plan = tmp_path / "plan.md"
+    _write_valid_research(research)
+    _write_valid_plan(plan)
+
+    gm = state_machine.GoalMachine(token_path)
+    with pytest.raises(state_machine.GoalError, match="research_path"):
+        gm.transition("PLANNING")
+
+    gm.transition("PLANNING", research_path=research)
+    with pytest.raises(state_machine.GoalError, match="research_path and plan_path"):
+        gm.transition("EXECUTING", plan_path=plan)
+
+    gm.transition("EXECUTING", research_path=research, plan_path=plan)
+    assert gm.current_state == "EXECUTING"
+
+
+def test_phase0_and_plan_done_are_separate_transitions(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    research = plan_dir / "research.md"
+    plan = plan_dir / "plan.md"
+    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    _write_valid_research(research)
+    _write_valid_plan(plan)
+
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal", "level": "L2"},
+                "status": "active",
+                "goal": {"state": "CLARIFY"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    mode_data = {"task_dir": str(plan_dir), "goal": {"state": "CLARIFY"}}
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, str(token_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_phase0_done()
+    after_research = json.loads(token_path.read_text(encoding="utf-8"))
+    assert after_research["goal"]["state"] == "PLANNING"
+    assert "plan_passed_at" not in after_research["goal"]
+
+    module.cmd_plan_done()
+    after_plan = json.loads(token_path.read_text(encoding="utf-8"))
+    assert after_plan["goal"]["state"] == "EXECUTING"
+    assert "plan_passed_at" in after_plan["goal"]
+
+
+def test_goal_tick_is_blocked_before_plan_done(monkeypatch, tmp_path):
+    base_spec = importlib.util.spec_from_file_location(
+        "carros_base_under_test", ROOT / ".claude/scripts/carros_base.py"
+    )
+    assert base_spec is not None and base_spec.loader is not None
+    base = importlib.util.module_from_spec(base_spec)
+    base_spec.loader.exec_module(base)
+
+    task_dir = tmp_path / "task"
+    task_dir.mkdir()
+    token_path = task_dir / "token.json"
+    plan_path = task_dir / "plan.md"
+    executor_path = task_dir / "executor.md"
+    _write_valid_plan(plan_path)
+    executor_path.write_text("# Executor\n", encoding="utf-8")
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal", "level": "L2"},
+                "status": "active",
+                "stats": {"done": 0, "total": 1, "tick": 0},
+                "goal": {"state": "PLANNING"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(base, "TOKEN_PATH", token_path)
+    monkeypatch.setattr(base, "PLAN_PATH", plan_path)
+    monkeypatch.setattr(base, "EXECUTOR_PATH", executor_path)
+
+    assert base.cmd_tick("S1") == 2
+    assert "- [ ] S1:" in plan_path.read_text(encoding="utf-8")
+    assert executor_path.read_text(encoding="utf-8") == "# Executor\n"
+
+
+def test_goal_rules_document_read_before_write_and_phase_order():
+    skill = (ROOT / ".claude/skills/lx-goal/SKILL.md").read_text(encoding="utf-8")
+    assert "File must be read first" in skill
+    assert "plan-done" in skill
+    assert "PLANNING" in skill and "EXECUTING" in skill
+
+
+def test_goal_machine_fails_closed_when_research_gate_is_unavailable(monkeypatch, tmp_path):
+    token_path = tmp_path / "goal.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal"},
+                "goal": {"state": "CLARIFY"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    research = tmp_path / "research.md"
+    _write_valid_research(research)
+    monkeypatch.setattr(state_machine, "ResearchGate", None)
+    gm = state_machine.GoalMachine(token_path)
+
+    with pytest.raises(state_machine.GoalError, match="ResearchGate unavailable"):
+        gm.transition("PLANNING", research_path=research)
+
+
+def test_phase0_done_preserves_state_machine_transition(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    research = plan_dir / "research.md"
+    plan = plan_dir / "plan.md"
+    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    _write_valid_research(research)
+    _write_valid_plan(plan)
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal", "level": "L2"},
+                "status": "active",
+                "goal": {"state": "CLARIFY"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    mode_data = json.loads(token_path.read_text(encoding="utf-8"))
+    mode_data["task_dir"] = str(plan_dir)
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(token_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_phase0_done()
+
+    token = json.loads(token_path.read_text(encoding="utf-8"))
+    assert token["goal"]["state"] == "PLANNING"
+
+
+def test_plan_done_rolls_back_token_when_sidecar_commit_fails(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    research = plan_dir / "research.md"
+    plan = plan_dir / "plan.md"
+    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    _write_valid_research(research)
+    _write_valid_plan(plan)
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal", "level": "L2"},
+                "status": "active",
+                "goal": {"state": "PLANNING"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    original_token = token_path.read_bytes()
+    mode_data = {"mode": "goal", "rpe_plan_dir": str(plan_dir)}
+
+    def fail_sidecar(*args):
+        raise OSError("sidecar unavailable")
+
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, "mode.json"))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "_write_mode_file", fail_sidecar)
+
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_plan_done()
+    assert exc.value.code == 2
+    assert token_path.read_bytes() == original_token
+
+
+def test_goal_execution_writer_gate_excludes_archiving(tmp_path):
+    base_spec = importlib.util.spec_from_file_location(
+        "carros_base_gate_under_test", ROOT / ".claude/scripts/carros_base.py"
+    )
+    assert base_spec is not None and base_spec.loader is not None
+    base = importlib.util.module_from_spec(base_spec)
+    base_spec.loader.exec_module(base)
+
+    assert not base._require_goal_execution_state(
+        {"mode": "goal", "goal": {"state": "ARCHIVING"}},
+        "collect",
+    )
+    assert base._require_goal_execution_state(
+        {"mode": "goal", "goal": {"state": "EXECUTING"}},
+        "collect",
+    )
+
+
+def test_subagent_executor_seals_goal_parent_before_execution(monkeypatch, tmp_path):
+    executor_spec = importlib.util.spec_from_file_location(
+        "sub_agent_executor_under_test", ROOT / ".claude/scripts/sub_agent_executor.py"
+    )
+    assert executor_spec is not None and executor_spec.loader is not None
+    executor_module = importlib.util.module_from_spec(executor_spec)
+    executor_spec.loader.exec_module(executor_module)
+
+    project = tmp_path / "project"
+    fake_script = project / ".claude/scripts/sub_agent_executor.py"
+    fake_script.parent.mkdir(parents=True)
+    monkeypatch.setattr(executor_module, "__file__", str(fake_script))
+    task_dir = project / ".omc/tasks/20260811/goal"
+    sub_dir = task_dir / "sub_task/sub-S1"
+    sub_dir.mkdir(parents=True)
+    token_path = project / ".omc/tokens/20260811/goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal"},
+                "goal": {"state": "PLANNING"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    executor = executor_module.SubAgentExecutor(sub_dir)
+    with pytest.raises(RuntimeError, match="Goal state=PLANNING"):
+        executor._goal_write_allowed()
+
+
+def test_goal_done_does_not_archive_without_goal_machine(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps(
+            {
+                "mode": "goal",
+                "session": {"id": "goal"},
+                "status": "active",
+                "stats": {"done": 1, "total": 1},
+                "goal": {"state": "VERIFYING"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    mode_path = tmp_path / "mode.json"
+    mode_path.write_text("{}", encoding="utf-8")
+    mode_data = {"mode": "goal", "rpe_plan_dir": str(plan_dir)}
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(mode_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "_GSM", None)
+
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_done()
+    assert exc.value.code == 1
+    assert token_path.exists()
+
+
+def test_goal_done_retains_archived_token_and_removes_sidecar(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    token_path = tmp_path / "tokens" / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps({
+            "mode": "goal",
+            "session": {"id": "goal"},
+            "status": "active",
+            "stats": {"done": 1, "total": 1},
+            "goal": {"state": "VERIFYING"},
+        }),
+        encoding="utf-8",
+    )
+    lock_path = token_path.with_suffix(token_path.suffix + ".lock")
+    lock_path.touch()
+    mode_path = tmp_path / "mode.json"
+    mode_path.write_text("{}", encoding="utf-8")
+    mode_data = {"mode": "goal", "rpe_plan_dir": str(plan_dir)}
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(mode_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    module.cmd_done()
+
+    final_token = json.loads(token_path.read_text(encoding="utf-8"))
+    assert final_token["status"] == "archived"
+    assert token_path.exists()
+    assert not lock_path.exists()
+
+
+def test_goal_off_retains_completed_token_and_removes_sidecar(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    plan_dir = project / ".omc" / "tasks" / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n\n### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    token_root = project / ".omc" / "tokens"
+    token_path = token_root / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps({"session": {"id": "goal"}, "status": "active", "goal": {"state": "VERIFYING"}}),
+        encoding="utf-8",
+    )
+    lock_path = token_path.with_suffix(token_path.suffix + ".lock")
+    lock_path.touch()
+    state_dir = project / ".omc" / "state"
+    mode_path = state_dir / "tokens" / "lx-goal.json"
+    mode_path.parent.mkdir(parents=True)
+    mode_path.write_text("{}", encoding="utf-8")
+    signal = state_dir / "tokens" / "autonomous.active"
+    signal.touch()
+    mode_data = {"rpe_plan_dir": str(plan_dir), "completed_tasks": []}
+    monkeypatch.setattr(module, "PROJECT_ROOT", project)
+    monkeypatch.setattr(module, "STATE_DIR", state_dir)
+    monkeypatch.setattr(module, "TOKENS_DIR", token_root)
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(mode_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "cmd_report", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_lc_set_mode", lambda mode: None)
+
+    module.cmd_off()
+
+    final_token = json.loads(token_path.read_text(encoding="utf-8"))
+    assert final_token["status"] == "completed"
+    assert token_path.exists()
+    assert not lock_path.exists()
+
+
+def test_goal_off_preserves_archived_token(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    plan_dir = project / ".omc" / "tasks" / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("### EV-S1\n\n- step: S1\n- exit_code: 0\n", encoding="utf-8")
+    token_root = project / ".omc" / "tokens"
+    token_path = token_root / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(json.dumps({"session": {"id": "goal"}, "status": "archived"}), encoding="utf-8")
+    state_dir = project / ".omc" / "state"
+    mode_path = state_dir / "tokens" / "lx-goal.json"
+    mode_path.parent.mkdir(parents=True)
+    mode_path.write_text("{}", encoding="utf-8")
+    signal = state_dir / "tokens" / "autonomous.active"
+    signal.touch()
+    mode_data = {"rpe_plan_dir": str(plan_dir), "completed_tasks": []}
+
+    monkeypatch.setattr(module, "PROJECT_ROOT", project)
+    monkeypatch.setattr(module, "STATE_DIR", state_dir)
+    monkeypatch.setattr(module, "TOKENS_DIR", token_root)
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(mode_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "cmd_report", lambda *args, **kwargs: None)
+    monkeypatch.setattr(module, "_lc_set_mode", lambda mode: None)
+
+    module.cmd_off()
+
+    assert json.loads(token_path.read_text())["status"] == "archived"
+
+
+def test_goal_off_rejects_empty_plan_without_finalizing(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    plan_dir = project / ".omc" / "tasks" / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    (plan_dir / "plan.md").write_text("# Plan\n", encoding="utf-8")
+    (plan_dir / "research.md").write_text("# Research\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    token_root = project / ".omc" / "tokens"
+    token_path = token_root / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(json.dumps({"session": {"id": "goal"}, "status": "active"}), encoding="utf-8")
+    lock_path = token_path.with_suffix(token_path.suffix + ".lock")
+    lock_path.touch()
+    state_dir = project / ".omc" / "state"
+    mode_path = state_dir / "tokens" / "lx-goal.json"
+    mode_path.parent.mkdir(parents=True)
+    mode_path.write_text("{}", encoding="utf-8")
+    signal = state_dir / "tokens" / "autonomous.active"
+    signal.touch()
+    mode_data = {"rpe_plan_dir": str(plan_dir), "completed_tasks": []}
+
+    monkeypatch.setattr(module, "PROJECT_ROOT", project)
+    monkeypatch.setattr(module, "STATE_DIR", state_dir)
+    monkeypatch.setattr(module, "TOKENS_DIR", token_root)
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, str(mode_path)))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "cmd_report", lambda *args, **kwargs: None)
+
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_off()
+
+    assert exc.value.code == 1
+    assert json.loads(token_path.read_text())["status"] == "active"
+    assert lock_path.exists()
+    assert mode_path.exists()
+
+
+def test_goal_poll_expiry_retains_token_and_removes_sidecar(monkeypatch, tmp_path):
+    project = tmp_path / "project"
+    plan_dir = project / ".omc" / "tasks" / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    for name in ("plan.md", "research.md", "executor.md"):
+        (plan_dir / name).write_text("# fixture\n", encoding="utf-8")
+    token_root = project / ".omc" / "tokens"
+    token_path = token_root / "20260811" / "goal.json"
+    token_path.parent.mkdir(parents=True)
+    token_path.write_text(
+        json.dumps({
+            "mode": "goal",
+            "session": {"id": "goal"},
+            "task_dir": str(plan_dir),
+            "status": "active",
+            "goal": {"expires_at": "2000-01-01T00:00:00+00:00"},
+        }),
+        encoding="utf-8",
+    )
+    lock_path = token_path.with_suffix(token_path.suffix + ".lock")
+    lock_path.touch()
+    monkeypatch.setattr(module, "TOKENS_DIR", token_root)
+    monkeypatch.setattr(module, "cmd_report", lambda *args, **kwargs: None)
+
+    module.cmd_poll(plan_dir)
+
+    final_token = json.loads(token_path.read_text(encoding="utf-8"))
+    assert final_token["status"] == "expired"
+    assert token_path.exists()
+    assert not lock_path.exists()
+
+
+def test_phase0_rolls_back_token_when_mode_sidecar_commit_fails(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    research = plan_dir / "research.md"
+    _write_valid_research(research)
+    token_dir = tmp_path / "tokens" / "20260811"
+    token_dir.mkdir(parents=True)
+    token_path = token_dir / "goal.json"
+    token_path.write_text(
+        json.dumps({
+            "mode": "goal",
+            "session": {"id": "goal", "level": "L2"},
+            "task_dir": str(plan_dir),
+            "goal": {"state": "CLARIFY"},
+        }),
+        encoding="utf-8",
+    )
+    before = token_path.read_bytes()
+    mode_data = {"mode": "goal", "rpe_plan_dir": str(plan_dir)}
+
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, "mode.json"))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+
+    def fail_sidecar(*args):
+        raise OSError("mode sidecar unavailable")
+
+    monkeypatch.setattr(module, "_write_mode_file", fail_sidecar)
+    with pytest.raises(SystemExit) as exc:
+        module.cmd_phase0_done()
+    assert exc.value.code == 2
+
+    assert token_path.read_bytes() == before
+
+
+def test_goal_verify_step_skips_tick_when_already_verifying(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "20260811" / "goal"
+    plan_dir.mkdir(parents=True)
+    token_dir = tmp_path / "tokens" / "20260811"
+    token_dir.mkdir(parents=True)
+    token_path = token_dir / "goal.json"
+    token_path.write_text(
+        json.dumps({
+            "mode": "goal",
+            "session": {"id": "goal", "level": "L2"},
+            "task_dir": str(plan_dir),
+            "goal": {"state": "VERIFYING"},
+        }),
+        encoding="utf-8",
+    )
+    mode_data = {"mode": "goal", "rpe_plan_dir": str(plan_dir)}
+    calls = []
+
+    class Result:
+        returncode = 0
+        stdout = "verified"
+        stderr = ""
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return Result()
+
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, "mode.json"))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module.subprocess, "run", fake_run)
+
+    assert module._verify_goal_step("S1") == 0
+    assert len(calls) == 1
+    assert calls[0][-2:] == ["verify", "--step"] or "verify" in calls[0]

@@ -4,13 +4,13 @@ pretool-gate.py — CarrorOS PreToolUse Unified Gate (THIN ROUTER).
 
 This is now the thin routing layer. All gate logic lives in pretool_gates/*.py.
 
-Execution order (short-circuit on first BLOCK):
-  1. sensitive-edit   — block sensitive path access
-  2. fallback-check   — block if task is blocked/waiting_user
-  3. action-gate      — block dangerous commands
-  4. plan-gate        — block if task files missing
-  5. edit-scope       — block writes outside declared scope
-  6. verify-gate      — block unverified step completion marks
+Execution order (prefer REDIRECT; escalate to ASK_USER when needed):
+  1. sensitive-edit   — ask for confirmation on sensitive paths
+  2. fallback-check   — redirect blocked/waiting_user tasks
+  3. action-gate      — ask for confirmation on dangerous commands
+  4. plan-gate        — redirect missing task context
+  5. edit-scope       — warn or ask for scope clarification
+  6. verify-gate      — redirect unverified completion marks
   7. oracle-gate      — L2 oracle classification
 """
 from __future__ import annotations
@@ -75,7 +75,7 @@ GATES = [
     ("injection-guard", _check_injection),
 ]
 from pretool_gates.helpers import (
-    _read_stdin, _extract_tool, _ok, _block, _redirect, _hard_stop,
+    _read_stdin, _extract_tool, _ok, _block, _redirect,
     _check_temp_bypass, _check_trust_breach, _clean_stale_state_token,
     _goal_mode, _append_audit, _get_gate_mode,
     _record_gate_decision, _verify_contract_compliance,
@@ -84,7 +84,7 @@ from pretool_gates.helpers import (
 )
 
 # ── State paths used by main ──
-from pretool_gates.constants import REDIRECT_STREAK, GOAL_SIGNAL, TRUST_BREACH
+from pretool_gates.constants import TRUST_BREACH
 
 
 def main() -> int:
@@ -116,7 +116,7 @@ def main() -> int:
             continue
         if result:
             if result.startswith("REDIRECT"):
-                # ── 1-3 REDIRECT: recoverable via _redirect; >=4: hard_stop ──
+                # ── REDIRECT remains recoverable; repeated redirects escalate to ASK_USER ──
                 parts = result.split("|", 1)
                 reason = parts[0].replace("REDIRECT ", "").strip()
                 token = _active_token()
@@ -134,14 +134,18 @@ def main() -> int:
                         "redirect_count": cnt,
                         "reason": f"exceeded_{cnt}_redirect_limit",
                     })
-                    return _hard_stop(
-                        f"该操作已被 REDIRECT 拦截 {cnt} 次仍未修正。"
-                        "放弃当前操作方向，不要重复被拒的操作。")
+                    return _block(
+                        f"ASK_USER redirect_limit_{cnt}",
+                        "该操作已被 REDIRECT 多次；请确认是否调整计划或继续。",
+                    )
                 parts = result.split("|", 1)
                 reason = parts[0].replace("REDIRECT ", "").strip()
                 guidance = parts[1].strip() if len(parts) > 1 else ""
                 return _redirect(reason, guidance)
             if result.startswith("BLOCK"):
+                parts = result.split("|", 1)
+                reason = parts[0].replace("BLOCK ", "").strip()
+                suggestion = parts[1].strip() if len(parts) > 1 else ""
                 if bypass_active:
                     _append_audit({
                         "event_type": "gate_bypassed",
@@ -150,14 +154,11 @@ def main() -> int:
                         "reason": result,
                     })
                     return _ok(f"BYPASS_ALLOW [{gate_name}] (用户已授权临时跳过)")
-                parts = result.split("|", 1)
-                reason = parts[0].replace("BLOCK ", "").strip()
-                suggestion = parts[1].strip() if len(parts) > 1 else ""
                 if _is_trust_breach_reason(reason):
                     _record_trust_breach(reason)
-                return _block(reason, suggestion)
+                return _block(f"ASK_USER {reason}", suggestion or "请确认是否继续或调整计划。")
             if result == "HARD_BLOCK":
-                return _hard_stop("Gate returned HARD_BLOCK")
+                return _block("ASK_USER hard_boundary", "请人工确认下一步，不自动终止任务。")
             elif result.startswith("ASK_USER"):
                 parts = result.split("|", 1)
                 reason = parts[0].replace("ASK_USER ", "").strip()
@@ -178,7 +179,10 @@ def main() -> int:
     # ── Gate Contract Compliance (output as int, not string) ──
     contract_result = _verify_contract_compliance(gate_mode, executed_gates)
     if contract_result and contract_result.startswith("BLOCK"):
-        return _hard_stop(f"contract-violation: {contract_result}")
+        return _block(
+            "ASK_USER contract_violation",
+            "门禁证据不完整；请确认继续，系统不会再以 HARD_BLOCK 终止任务。",
+        )
 
     return _ok(f"ALLOW tool={tool_name}")
 

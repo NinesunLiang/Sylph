@@ -18,6 +18,7 @@ import fcntl
 import json
 import os
 import re
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -28,6 +29,11 @@ except ImportError:
     def is_placeholder(value: str) -> bool:
         normalized = str(value or "").strip().lower()
         return not normalized or normalized in {"todo", "tbd", "n/a", "待填写", "待确认", "暂无", "...", "…"}
+
+_SCRIPT_DIR = str(Path(__file__).resolve().parent)
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+from goal_document_gate import GoalDocumentGateError, require_document_write
 
 STEP_STATUSES = {"pending", "active", "completed", "blocked"}
 
@@ -254,6 +260,15 @@ def start_step_atomic(token_path: str | Path,
     # Read current state
     plan_text = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
     token = read_json(token_path, {})
+    try:
+        require_document_write(
+            token_path,
+            "executor",
+            action=f"step activation {step_id}",
+            allowed_states={"EXECUTING"},
+        )
+    except GoalDocumentGateError as exc:
+        raise ValueError(str(exc)) from exc
 
     # Validate step
     steps = parse_plan_steps(plan_text)
@@ -409,6 +424,15 @@ def complete_step_atomic(token_path: str | Path,
     plan_text = plan_path.read_text(encoding="utf-8") if plan_path.exists() else ""
     executor_text = executor_path.read_text(encoding="utf-8") if executor_path.exists() else ""
     token = read_json(token_path, {})
+    try:
+        require_document_write(
+            token_path,
+            "executor",
+            action=f"step completion {step_id}",
+            allowed_states={"EXECUTING", "VERIFYING"},
+        )
+    except GoalDocumentGateError as exc:
+        raise ValueError(str(exc)) from exc
 
     steps = parse_plan_steps(plan_text)
     step_info = next((s for s in steps if s["id"] == step_id), None)
@@ -433,9 +457,9 @@ def complete_step_atomic(token_path: str | Path,
         new_plan, count=1,
     )
     new_plan = re.sub(
-        rf"(\s+- status:) active",
+        rf"(- \[x\] {re.escape(step_id)}:.*?\n\s+- status:) active",
         r"\1 completed",
-        new_plan, count=1,
+        new_plan, count=1, flags=re.DOTALL,
     )
 
     # Update token
@@ -444,7 +468,8 @@ def complete_step_atomic(token_path: str | Path,
     task["status"] = "active"
     stats = token.setdefault("stats", {})
     stats["done"] = stats.get("done", 0) + 1
-    total = stats.get("total", 0)
+    stats["total"] = len(steps)
+    total = stats["total"]
     if stats["done"] >= total and total > 0:
         task["status"] = "completed"
     token["revision"] = token.get("revision", 0) + 1
@@ -453,6 +478,11 @@ def complete_step_atomic(token_path: str | Path,
     lock_path = token_path.with_suffix(token_path.suffix + ".lock")
     tmp_plan = _transaction_temp_path(plan_path)
     tmp_token = _transaction_temp_path(token_path)
+    originals = {
+        plan_path: plan_path.read_bytes() if plan_path.exists() else None,
+        token_path: token_path.read_bytes() if token_path.exists() else None,
+    }
+    replaced: list[Path] = []
 
     try:
         with open(lock_path, "a+") as lf:
@@ -461,6 +491,7 @@ def complete_step_atomic(token_path: str | Path,
                 plan_path.parent.mkdir(parents=True, exist_ok=True)
                 tmp_plan.write_text(new_plan, encoding="utf-8")
                 _atomic_replace(tmp_plan, plan_path)
+                replaced.append(plan_path)
 
                 token_path.parent.mkdir(parents=True, exist_ok=True)
                 tmp_token.write_text(
@@ -468,6 +499,15 @@ def complete_step_atomic(token_path: str | Path,
                     encoding="utf-8",
                 )
                 _atomic_replace(tmp_token, token_path)
+                replaced.append(token_path)
+            except Exception:
+                for path in reversed(replaced):
+                    original = originals[path]
+                    if original is None:
+                        path.unlink(missing_ok=True)
+                    else:
+                        path.write_bytes(original)
+                raise
             finally:
                 for p in [tmp_plan, tmp_token]:
                     if p.exists():

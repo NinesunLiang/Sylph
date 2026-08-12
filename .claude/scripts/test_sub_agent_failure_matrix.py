@@ -48,6 +48,54 @@ def test_empty_executor_output_is_failed(tmp_path):
     assert "empty" in result["failure"]
 
 
+def test_executor_preserves_configured_retry_limit(tmp_path):
+    _, sub_dir = make_manager(tmp_path)
+    executor = SubAgentExecutor(sub_dir)
+    executor._call_api = lambda instruction: instruction[:0]
+    executor.run()
+    result = json.loads((sub_dir / "result.json").read_text())
+    assert result["max_retries"] == 1
+
+
+def test_failed_executor_can_consume_one_retry(tmp_path):
+    manager, sub_dir = make_manager(tmp_path)
+    executor = SubAgentExecutor(sub_dir)
+
+    def fail(_instruction):
+        raise RuntimeError("fixture failure")
+
+    executor._call_api = fail
+    assert executor.run()["status"] == "failed"
+    assert manager.retry("S1") is True
+    result = json.loads((sub_dir / "result.json").read_text())
+    assert result["status"] == "pending"
+    assert result["retry_count"] == 1
+
+
+def test_retry_cap_preserves_original_failure(tmp_path):
+    manager, sub_dir = make_manager(tmp_path)
+    write_result(sub_dir, json.dumps({
+        "status": "failed",
+        "failure": "fixture failure",
+        "retry_count": 1,
+        "max_retries": 1,
+    }))
+
+    assert manager.retry("S1") is False
+    result = json.loads((sub_dir / "result.json").read_text())
+    assert result["failure"] == "fixture failure"
+
+
+def test_late_executor_output_is_rejected_after_cancel(tmp_path):
+    manager, sub_dir = make_manager(tmp_path)
+    executor = SubAgentExecutor(sub_dir)
+
+    assert manager.cancel("S1", "cancelled before late output") is True
+    executor._write_output("late output must not persist")
+
+    assert "late output must not persist" not in executor.executor_path.read_text()
+
+
 def test_crash_cancel_timeout_and_retry_cap_are_terminal(tmp_path):
     manager, sub_dir = make_manager(tmp_path)
     write_result(sub_dir, json.dumps({"status": "failed", "failure": "process crashed", "retry_count": 1, "max_retries": 1}))
@@ -179,3 +227,34 @@ def test_retry_generation_rejects_old_executor(tmp_path):
         allowed_statuses={"running"},
     ) is False
     assert json.loads((sub_dir / "result.json").read_text())["status"] == "pending"
+
+
+def test_goal_manager_collect_rejects_before_execution(tmp_path):
+    task_dir = tmp_path / ".omc" / "tasks" / "20260811" / "goal"
+    sub_dir = task_dir / "sub_task" / "sub-S1"
+    sub_dir.mkdir(parents=True)
+    (task_dir / "executor.md").write_text("# Executor\n", encoding="utf-8")
+    token_dir = tmp_path / ".omc" / "tokens" / "20260811"
+    token_dir.mkdir(parents=True)
+    (token_dir / "goal.json").write_text(
+        json.dumps({
+            "mode": "goal",
+            "status": "active",
+            "session": {"id": "goal"},
+            "task_dir": str(task_dir),
+            "goal": {"state": "PLANNING"},
+        }),
+        encoding="utf-8",
+    )
+    (sub_dir / "result.json").write_text(
+        json.dumps({"status": "completed", "summary": "completed"}),
+        encoding="utf-8",
+    )
+    before = (task_dir / "executor.md").read_bytes()
+
+    manager = SubAgentManager(task_dir, project_root=tmp_path)
+    collected = manager.collect("S1")
+
+    assert collected["success"] is False
+    assert "PLANNING" in collected["error"]
+    assert (task_dir / "executor.md").read_bytes() == before

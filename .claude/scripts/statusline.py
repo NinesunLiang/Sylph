@@ -22,15 +22,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)
-# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
-sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
-try:
-    from task_ssot import latest_active_token as _ssot_latest_active_token
-except Exception:  # SSOT 不可用 → 降级 NO_TASK 显示(状态栏只读,永不炸)
-    _ssot_latest_active_token = None
-
-
 def read_json(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
@@ -38,10 +29,17 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def latest_token(root: Path) -> Path | None:
-    """委托 task_ssot:终态(archived/done/completed)与非任务 token 永不复活。"""
-    if _ssot_latest_active_token is None:
+    """Resolve only the explicit task token for this process."""
+    raw_token = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if raw_token:
+        path = Path(raw_token).expanduser().resolve()
+        return path if path.is_file() else None
+    raw_task = os.environ.get("CARROROS_TASK_DIR", "").strip()
+    if not raw_task:
         return None
-    return _ssot_latest_active_token(root / ".omc" / "tokens")
+    task_dir = Path(raw_task).expanduser().resolve()
+    path = root / ".omc" / "tokens" / task_dir.parent.name / f"{task_dir.name}.json"
+    return path if path.is_file() else None
 
 
 def compact_label(token: dict[str, Any]) -> str:

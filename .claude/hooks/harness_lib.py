@@ -180,9 +180,8 @@ def is_mode_active(state_dir=None):
 
     Returns 'ghost', 'goal', or 'normal'.
 
-    Priority: ghost > goal > normal
-    New format: lx-ghost.json / lx-goal.json in tokens/ subdir
-    Legacy: ghost-mode.json, ghost-mode.active, unattended-mode.json, .unattended-mode
+    Priority: ghost > explicitly bound goal > normal.
+    Goal state is read from the task token supplied by the current process.
     """
     if state_dir is None:
         state_dir = str(_STATE_DIR)
@@ -225,19 +224,17 @@ def is_mode_active(state_dir=None):
     if (state_path / "ghost-mode.active").exists():
         return "ghost"
 
-    # Check lx-goal.json (new format)
-    result = _check_token_json(str(state_path / "tokens" / "lx-goal.json"))
-    if result == "active":
-        return "goal"
-
-    # Check unattended-mode.json (legacy)
-    result = _check_token_json(str(state_path / "unattended-mode.json"))
-    if result == "active":
-        return "goal"
-
-    # Check .unattended-mode (plain file marker)
-    if (state_path / ".unattended-mode").exists():
-        return "goal"
+    # Goal mode is task-scoped; without explicit context do not inspect other tasks.
+    goal_token = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if not goal_token:
+        task_dir = os.environ.get("CARROROS_TASK_DIR", "").strip()
+        if task_dir:
+            task_path = Path(task_dir).expanduser().resolve()
+            goal_token = str(state_path.parent / "tokens" / task_path.parent.name / f"{task_path.name}.json")
+    if goal_token:
+        result = _check_token_json(goal_token)
+        if result == "active":
+            return "goal"
 
     return "normal"
 
@@ -250,7 +247,7 @@ def _mode_file_for(state_dir, mode):
     if mode == "ghost":
         return str(sp / "tokens" / "lx-ghost.json")
     elif mode == "goal":
-        return str(sp / "tokens" / "lx-goal.json")
+        return os.environ.get("CARROROS_TOKEN_PATH", "")
     elif mode == "unattended":
         return str(sp / "unattended-mode.json")
     else:

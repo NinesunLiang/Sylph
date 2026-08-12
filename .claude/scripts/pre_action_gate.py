@@ -581,10 +581,14 @@ def write_audit(
 
 
 def write_executor_note(
-    spec: ActionSpec, decision: GateDecision, executor_path: Path
+    spec: ActionSpec, decision: GateDecision, executor_path: Path, token: dict | None = None
 ) -> None:
     if decision.decision == "ALLOW":
         return
+    if token and token.get("mode") == "goal":
+        state = token.get("goal", {}).get("state")
+        if state not in {"EXECUTING", "VERIFYING"}:
+            return
 
     command_line = f"- command: {spec.command}\n" if spec.command else ""
     text = (
@@ -666,7 +670,15 @@ def main() -> int:
 
     doc_root = resolve_doc_root(token)
     executor_path = doc_root / "executor.md"
-    write_executor_note(spec, decision, executor_path)
+    goal_state = token.get("goal", {}).get("state") if token.get("mode") == "goal" else None
+    if token.get("mode") == "goal" and goal_state not in {"EXECUTING", "VERIFYING"}:
+        print(
+            f"executor note deferred: Goal state={goal_state or 'UNKNOWN'}; "
+            "research → plan-done → EXECUTING required",
+            file=sys.stderr,
+        )
+    else:
+        write_executor_note(spec, decision, executor_path, token)
 
     if decision.decision == "BLOCK":
         update_blocked(token_path, decision.reason)

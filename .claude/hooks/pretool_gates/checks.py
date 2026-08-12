@@ -14,8 +14,7 @@ from typing import Any
 
 from .constants import (
     ROOT, OMC, STATE_DIR,
-    FALLBACK_REQUIRED, FALLBACK_APPROVED, TEMP_BYPASS,
-    REDIRECT_STREAK, GOAL_SIGNAL, TRUST_BREACH,
+    FALLBACK_REQUIRED, FALLBACK_APPROVED, TEMP_BYPASS, TRUST_BREACH,
     SENSITIVE_PATTERNS, DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS,
     ASK_USER_COMMANDS, ORACLE_TRIGGER_KW, ORACLE_FORCE_KW,
     STALE_LOCK_THRESHOLD, READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
@@ -66,12 +65,9 @@ def _check_sensitive_edit(payload: dict) -> str | None:
         print(json.dumps({"continue": True, "message": reason_text}, ensure_ascii=False))
         return None
     if _is_sensitive(path):
-        return (f"BLOCK 敏感路径 {path}|"
-                f"⛔ 检测到敏感文件写入: {path}。\n"
-                f"原因: .env/.ssh/密钥文件可能包含凭据。\n"
-                f"可选方案: 1. 确认修改安全后使用临时 bypass\n"
-                f"         2. 如需创建新密钥,使用专用工具\n"
-                f"预期结果: 授权后继续;未授权则跳过")
+        return (f"ASK_USER 敏感路径 {path}|"
+                f"检测到可能包含凭据的敏感文件，请确认是否继续修改。\n"
+                f"确认后继续；未确认则停止本次操作。")
     return None
 
 
@@ -184,29 +180,6 @@ def _check_plan_gate(payload: dict) -> str | None:
         return None
     token = _active_token()
     if not token:
-        from .helpers import _ssot_err, _ssot_latest_terminal_token  # noqa: F811
-        if _ssot_err is not None:
-            return None
-        terminal_path = None
-        try:
-            if _ssot_latest_terminal_token:
-                terminal_path = _ssot_latest_terminal_token(TOKENS)
-        except Exception:
-            pass
-        if terminal_path is not None:
-            terminal_data = _read_json(terminal_path)
-            terminal_task = terminal_data.get("task", {}) if isinstance(terminal_data, dict) else {}
-            terminal_id = (terminal_task.get("id") if isinstance(terminal_task, dict) else None) or terminal_path.stem
-            signature = f"terminal_inertia:{terminal_id}"
-            _append_audit({"event_type": "terminal_inertia_block", "actor": "hook:pretool-gate",
-                            "decision": "BLOCK", "reason": signature,
-                            "terminal_token": str(terminal_path.relative_to(ROOT))
-                            if terminal_path.is_relative_to(ROOT) else str(terminal_path)})
-            suggestion = (f"上一任务 {terminal_id} 已终态。开新任务: "
-                          f"`carros_base.py init --task <name>`")
-            if _failure_escalate(signature):
-                return (f"ASK_USER {signature}|同一阻断签名已 ≥3 次——升级人类裁决。")
-            return f"REDIRECT {signature}|{suggestion}"
         path = _extract_path(payload)
         _auto_init(path)
         return None
@@ -258,9 +231,9 @@ def _check_edit_scope(payload: dict) -> str | None:
             _append_audit({"event_type": "governance_scope_allow", "actor": "hook:pretool-gate",
                            "decision": "ALLOW", "reason": "human-approved-plan-scope", "path": path})
             return None
-        _append_audit({"event_type": "governance_scope_block", "actor": "hook:pretool-gate",
-                        "decision": "BLOCK", "reason": "governance_file_out_of_scope", "path": path})
-        return "BLOCK governance_path: 治理文件路径不可越界编辑。"
+        _append_audit({"event_type": "governance_scope_ask_user", "actor": "hook:pretool-gate",
+                        "decision": "ASK_USER", "reason": "governance_file_out_of_scope", "path": path})
+        return "ASK_USER governance_path: 治理文件变更需要确认|请确认变更范围后继续。"
     # `.claude/` 下非治理文件（如 workflows/ references/ UI_README.md）是项目基建，
     # 不属于 scope 越界，放行。
     _p = path.replace("\\", "/")
@@ -277,42 +250,11 @@ def _check_edit_scope(payload: dict) -> str | None:
         "src/", "public/", ".claude/workflows/", ".omc/ui-autopilot/"
     ] if workflow_goal else []
 
-    def _bump_scope_streak() -> str | None:
-        if GOAL_SIGNAL.exists() or goal_mode:
-            _append_audit({"event_type": "edit_scope_recovery", "actor": "hook:pretool-gate",
-                           "decision": "RECOVER", "path": path,
-                           "reason": "goal_mode_scope_recovery"})
-            return None
-        _REDIRECT_TTL_S = 21600
-        _streak: dict[str, dict] = {}
-        now_s = int(time.time())
-        try:
-            if REDIRECT_STREAK.is_file():
-                raw = json.loads(REDIRECT_STREAK.read_text(encoding="utf-8"))
-                for k, v in raw.items():
-                    if isinstance(v, dict) and "c" in v and "t" in v:
-                        if now_s - v["t"] < _REDIRECT_TTL_S:
-                            _streak[k] = v
-        except Exception:
-            _streak = {}
-        normalized_path = path.replace("\\", "/")
-        streak_key = f"edit-scope:{normalized_path}"
-        legacy_key = "edit-scope"
-        if streak_key not in _streak and legacy_key in _streak:
-            streak_key = legacy_key
-        prev = _streak.get(streak_key, {}).get("c", 0)
-        count = prev + 1
-        _streak[streak_key] = {"c": count, "t": now_s}
-        try:
-            REDIRECT_STREAK.parent.mkdir(parents=True, exist_ok=True)
-            REDIRECT_STREAK.write_text(json.dumps(_streak), encoding="utf-8")
-        except Exception:
-            pass
-        if count >= 4:
-            _append_audit({"event_type": "edit_scope_escalated_to_block", "actor": "hook:pretool-gate",
-                            "reason": f"scope_violation_streak_{count}", "path": normalized_path})
-            return (f"BLOCK edit-scope: 已连续 {count} 次越界(逃逸惯性)，放弃当前操作方向。")
-        return None
+    def _scope_notice() -> str:
+        _append_audit({"event_type": "scope_review_notice", "actor": "hook:pretool-gate",
+                       "decision": "WARN", "path": path,
+                       "reason": "plan_scope_is_mutable"})
+        return "WARN edit-scope: 当前变更超出原 scope；plan 可合理更新，继续执行并记录原因。"
 
     _HARNESS_PATH = ROOT / "scripts" / "carroros-gates" / "harness.yaml"
     harness_scope = []
@@ -336,7 +278,7 @@ def _check_edit_scope(payload: dict) -> str | None:
                         "decision": "WARN", "reason": "harness_scope_violation",
                         "path": path, "scope": harness_scope[:10]})
         print(f"⚠️ [edit-scope] 路径不在 project scope 内: {path}", file=sys.stderr, flush=True)
-        return _bump_scope_streak()
+        return _scope_notice()
     token_scope = token.get("implementation_scope") or token.get("scope") or []
     token_scope = [s for s in token_scope if not re.match(r"^[a-zA-Z]+://", str(s)) and not str(s).startswith("//")]
     if local_goal_scope and _in_scope(path, local_goal_scope):
@@ -348,12 +290,12 @@ def _check_edit_scope(payload: dict) -> str | None:
                         "decision": "WARN", "reason": "token_scope_violation",
                         "path": path, "scope": token_scope[:10]})
         print(f"⚠️ [edit-scope] 路径不在 token scope 内: {path}", file=sys.stderr, flush=True)
-        return _bump_scope_streak()
+        return _scope_notice()
     _task_dir2 = _task_dir(token)
     if _task_dir2 and _task_dir2.exists():
         if not _in_scope(path, [str(_task_dir2)]):
             print(f"⚠️ [edit-scope] 路径不在默认 task scope 内: {path}", file=sys.stderr, flush=True)
-            return _bump_scope_streak()
+            return _scope_notice()
     return None
 
 

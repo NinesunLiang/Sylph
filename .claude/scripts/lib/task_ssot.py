@@ -59,10 +59,8 @@ def latest_active_token(tokens_dir: Path, *, require_stats: bool = False) -> Pat
     """
     if not tokens_dir.exists():
         return None
-    state_goal = tokens_dir.parent / "state" / "tokens" / "lx-goal.json"
-    prioritized = [state_goal] if state_goal.is_file() else []
-    candidates = prioritized + sorted(
-        [p for p in tokens_dir.glob("*/*.json") if p.is_file() and p != state_goal],
+    candidates = sorted(
+        [p for p in tokens_dir.glob("*/*.json") if p.is_file()],
         key=lambda p: p.stat().st_mtime,
         reverse=True,
     )

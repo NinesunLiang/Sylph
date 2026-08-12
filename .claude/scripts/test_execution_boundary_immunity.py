@@ -27,6 +27,7 @@ STEP_CONTRACTS = load_module(
 VERIFY_GATE = load_module(
     ROOT / ".claude/scripts/verify_gate.py", "verify_gate_boundary"
 )
+OMC_LINT = load_module(ROOT / ".claude/scripts/omc_lint.py", "omc_lint_boundary")
 sys.path.insert(0, str(ROOT / ".claude/hooks"))
 from pretool_gates import checks as PRETOOL_CHECKS
 
@@ -132,6 +133,64 @@ ok
     assert json.loads(token.read_text(encoding="utf-8"))["stats"]["done"] == 1
 
 
+def test_completion_reconciles_token_total_with_plan_steps(tmp_path):
+    plan = tmp_path / "plan.md"
+    executor = tmp_path / "executor.md"
+    token = tmp_path / "token.json"
+    plan.write_text(
+        """- [a] S1: first
+  - status: active
+  - depends_on: none
+  - scope: local
+  - acceptance: first evidence
+  - verify: assertion:first
+- [ ] S2: second
+  - status: pending
+  - depends_on: S1
+  - scope: local
+  - acceptance: second evidence
+  - verify: assertion:second
+- [ ] S3: third
+  - status: pending
+  - depends_on: S2
+  - scope: local
+  - acceptance: third evidence
+  - verify: assertion:third
+""",
+        encoding="utf-8",
+    )
+    executor.write_text(
+        """## Conditions
+- local
+## Key Changes
+- local
+## Decisions
+- Rationale: test
+## Acceptance Checklist
+- [x] S1 evidence
+## TDD Evidence
+- Dependency TDD command: test -> exit 0
+- Regression TDD command: test -> exit 0
+### EV-S1
+- step: S1
+- type: test
+- source: test
+- evidence_level: E3
+- exit_code: 0
+- file: test
+- assertion: first evidence
+""",
+        encoding="utf-8",
+    )
+    token.write_text(json.dumps({"task": {"status": "active"}, "stats": {"done": 0, "total": 1}}), encoding="utf-8")
+
+    STEP_CONTRACTS.complete_step_atomic(token, plan, executor, "S1")
+
+    updated = json.loads(token.read_text(encoding="utf-8"))
+    assert updated["stats"] == {"done": 1, "total": 3}
+    assert updated["task"]["status"] == "active"
+
+
 def test_verify_rules_do_not_fallback_to_another_step():
     plan = """- [a] S1: first
   - verify:
@@ -211,6 +270,31 @@ def test_plan_scope_sync_populates_hook_scope(tmp_path, monkeypatch):
     sys.modules.pop("carros_scope_sync", None)
 
 
+def test_lint_counts_active_plan_steps(tmp_path, capsys):
+    task_dir = tmp_path / ".omc/tasks/20260811/task"
+    task_dir.mkdir(parents=True)
+    token_dir = tmp_path / ".omc/tokens/20260811"
+    token_dir.mkdir(parents=True)
+    (token_dir / "task.json").write_text(
+        json.dumps({
+            "status": "active",
+            "session": {"id": "task"},
+            "stats": {"done": 0, "total": 2},
+        }),
+        encoding="utf-8",
+    )
+    (task_dir / "plan.md").write_text(
+        "- [a] S1: active\n- [ ] S2: pending\n",
+        encoding="utf-8",
+    )
+    result = OMC_LINT.run_lint(tmp_path)
+    captured = capsys.readouterr().out
+    assert "S1" in captured
+    assert "Mismatch: token total=2, plan total=1" not in captured
+    assert "Consistent: done=0, total=2" in captured
+    assert result["exit_code"] == 1
+
+
 def test_missing_task_dir_does_not_bypass_explicit_context(tmp_path, monkeypatch):
     carros = load_module(ROOT / ".claude/scripts/carros_base.py", "carros_boundary")
     tokens = tmp_path / "tokens"
@@ -227,3 +311,44 @@ def test_missing_task_dir_does_not_bypass_explicit_context(tmp_path, monkeypatch
     monkeypatch.delenv("CARROROS_TOKEN_PATH", raising=False)
     assert carros._find_latest_token() == (None, None)
     sys.modules.pop("carros_boundary", None)
+
+
+def test_goal_step_contract_rejects_direct_start_before_execution(tmp_path):
+    plan = tmp_path / "plan.md"
+    executor = tmp_path / "executor.md"
+    token = tmp_path / "token.json"
+    plan.write_text(
+        "- [ ] S1: start\n"
+        "  - status: pending\n"
+        "  - depends_on: none\n",
+        encoding="utf-8",
+    )
+    executor.write_text("# Executor\n", encoding="utf-8")
+    token.write_text(
+        json.dumps({
+            "mode": "goal",
+            "goal": {"state": "PLANNING"},
+            "task": {},
+            "revision": 0,
+        }),
+        encoding="utf-8",
+    )
+    before = {p: p.read_bytes() for p in (plan, executor, token)}
+
+    with pytest.raises(ValueError, match="Goal state=PLANNING"):
+        STEP_CONTRACTS.start_step_atomic(token, plan, executor, "S1")
+
+    assert {p: p.read_bytes() for p in (plan, executor, token)} == before
+
+
+def test_carros_init_help_does_not_create_unnamed_task(monkeypatch):
+    carros = load_module(ROOT / ".claude/scripts/carros_base.py", "carros_init_help")
+    help_calls = []
+    init_calls = []
+    monkeypatch.setattr(carros, "cmd_help", lambda: help_calls.append(True) or 0)
+    monkeypatch.setattr(carros, "cmd_init", lambda **kwargs: init_calls.append(kwargs) or 2)
+
+    assert carros.main(["init", "--help"]) == 0
+    assert help_calls == [True]
+    assert init_calls == []
+    sys.modules.pop("carros_init_help", None)

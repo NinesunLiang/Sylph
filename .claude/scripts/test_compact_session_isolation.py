@@ -11,6 +11,9 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_module(name: str, path: Path):
+    for module_name in list(sys.modules):
+        if module_name == "lib" or module_name.startswith("lib."):
+            del sys.modules[module_name]
     spec = importlib.util.spec_from_file_location(name, path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
@@ -98,6 +101,27 @@ def test_compact_write_capsule_is_session_bound(monkeypatch, tmp_path):
     assert capsule["plan_dir"] == str(task_dir)
 
 
+def test_compact_write_includes_document_pointers_and_checklist(monkeypatch, tmp_path):
+    module = load_module("context_engine_documents", ROOT / ".claude/scripts/context_engine.py")
+    token_path, task_dir = make_task(tmp_path)
+    (task_dir / "executor.md").write_text(
+        "# Executor\n- [x] S1 evidence\n- [ ] S2 pending\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+
+    assert module.compact_write(token_path, task_dir, user_prompt="last query", session_id="sid-a") == 0
+
+    handoff = (tmp_path / ".omc/session-handoff.md").read_text(encoding="utf-8")
+    assert f"task_dir: {task_dir}" in handoff
+    assert f"plan: {task_dir / 'plan.md'}" in handoff
+    assert f"checklist: {task_dir / 'state' / 'checklist.md'}" in handoff
+    assert "- [x] S1 evidence" in handoff
+    assert "- [ ] S2 pending" in handoff
+    prompts = (tmp_path / ".omc/state/last-user-prompt.md").read_text(encoding="utf-8")
+    assert "last query" in prompts
+
+
 def write_capsule(tmp_path: Path, session_id: str) -> tuple[Path, Path]:
     token_path, task_dir = make_task(tmp_path)
     capsule_path = tmp_path / ".omc/state/resume-capsule.json"
@@ -127,6 +151,42 @@ def test_postcompact_consumes_matching_capsule(monkeypatch, tmp_path):
     assert not capsule_path.exists()
 
 
+def test_session_start_injects_bound_handoff_and_recent_prompts(monkeypatch, tmp_path, capsys):
+    module = load_module("session_start_bound_resume", ROOT / ".claude/hooks/session-start.py")
+    task_dir = tmp_path / "tasks" / "20260811" / "task-a"
+    state_dir = task_dir / "state"
+    state_dir.mkdir(parents=True)
+    (state_dir / "session-handoff.md").write_text(
+        f"task_dir: {task_dir}\nchecklist: {state_dir / 'checklist.md'}\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "state").mkdir(parents=True)
+    (tmp_path / "state/last-user-prompt.md").write_text("last query from user\n", encoding="utf-8")
+    note = tmp_path / "state/resume-note.md"
+    note.write_text(
+        f"session_id=sid-a\ntask=task-a\ntask_dir={task_dir}\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "OMC", tmp_path)
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "STEPWISE_STATE", tmp_path / "stepwise")
+
+    original = sys.stdin
+    sys.stdin = io.StringIO(json.dumps({"source": "compact", "session_id": "sid-a"}))
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            module.main()
+        assert exc_info.value.code == 0
+    finally:
+        sys.stdin = original
+
+    output = json.loads(capsys.readouterr().out)
+    context = output["hookSpecificOutput"]["additionalContext"]
+    assert "session-handoff.md" in context
+    assert "last query from user" in context
+    assert not note.exists()
+
+
 def test_postcompact_keeps_foreign_capsule(monkeypatch, tmp_path):
     capsule_path, _ = write_capsule(tmp_path, "sid-a")
     module = load_module("postcompact_foreign", ROOT / ".claude/hooks/postcompact.py")
@@ -147,7 +207,6 @@ def test_session_start_startup_does_not_inject_global_task(monkeypatch, tmp_path
     monkeypatch.setattr(module, "OMC", tmp_path)
     monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
     monkeypatch.setattr(module, "STEPWISE_STATE", tmp_path / "stepwise")
-    monkeypatch.setattr(module, "_ssot_latest_active_token", lambda *_: None)
 
     original = sys.stdin
     sys.stdin = io.StringIO(json.dumps({"source": "startup", "session_id": "sid-b"}))
@@ -172,7 +231,6 @@ def test_session_start_consumes_matching_resume_note(monkeypatch, tmp_path, caps
     monkeypatch.setattr(module, "LAST_PROMPTS", tmp_path / "missing-prompts.md")
     monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
     monkeypatch.setattr(module, "STEPWISE_STATE", tmp_path / "stepwise")
-    monkeypatch.setattr(module, "_ssot_latest_active_token", lambda *_: None)
 
     original = sys.stdin
     sys.stdin = io.StringIO(json.dumps({"source": "compact", "session_id": "sid-a"}))
@@ -186,3 +244,35 @@ def test_session_start_consumes_matching_resume_note(monkeypatch, tmp_path, caps
     output = json.loads(capsys.readouterr().out)
     assert "AUTO-RESUME" in output["hookSpecificOutput"]["additionalContext"]
     assert not note.exists()
+
+
+def test_session_start_injects_live_stepwise_on_compact(monkeypatch, tmp_path, capsys):
+    module = load_module("session_start_stepwise", ROOT / ".claude/hooks/session-start.py")
+    stepwise = tmp_path / "stepwise"
+    stepwise.mkdir(parents=True)
+    (stepwise / "task.json").write_text(
+        json.dumps({
+            "task_id": "task",
+            "current_card": "C08",
+            "passed": ["C00", "C01"],
+            "status": "active",
+        }),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(module, "OMC", tmp_path)
+    monkeypatch.setattr(module, "HANDOFF", tmp_path / "missing-handoff.md")
+    monkeypatch.setattr(module, "LAST_PROMPTS", tmp_path / "missing-prompts.md")
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "STEPWISE_STATE", stepwise)
+
+    original = sys.stdin
+    sys.stdin = io.StringIO(json.dumps({"source": "compact", "session_id": "sid-a"}))
+    try:
+        with pytest.raises(SystemExit) as exc_info:
+            module.main()
+        assert exc_info.value.code == 0
+    finally:
+        sys.stdin = original
+
+    output = json.loads(capsys.readouterr().out)
+    assert output == {"continue": True}

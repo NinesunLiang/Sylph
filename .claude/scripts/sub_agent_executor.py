@@ -29,6 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from sub_agent_result import TERMINAL_STATUSES, read_result, update_result_locked
+from goal_document_gate import GoalDocumentGateError, require_parent_write
 
 
 DEFAULT_TIMEOUT = 180
@@ -197,7 +198,8 @@ class SubAgentExecutor:
                 raise RuntimeError("empty agent output")
 
             # 写产出到 executor.md
-            self._write_output(ai_output)
+            if not self._write_output(ai_output):
+                raise RuntimeError("stale executor output")
 
             short = ai_output[:500] if len(ai_output) > 500 else ai_output
             if not self._update_result(
@@ -281,7 +283,7 @@ class SubAgentExecutor:
                 "failure": failure,
                 "retry_count": current.get("retry_count", 0),
                 "generation": current_generation,
-                "max_retries": 3,
+                "max_retries": current.get("max_retries", 0),
                 "started_at": current.get("started_at"),
                 "completed_at": current.get("completed_at"),
             }
@@ -290,14 +292,34 @@ class SubAgentExecutor:
                 result_data["completed_at"] = None
             elif status in ("completed", "failed"):
                 result_data["completed_at"] = datetime.now(timezone.utc).isoformat()
-            if status == "failed":
-                result_data["retry_count"] = current.get("retry_count", 0) + 1
             return result_data
 
         _, committed = update_result_locked(self.result_path, publish)
         return committed
 
-    def _write_output(self, text: str):
+    def _goal_write_allowed(self) -> bool:
+        """Allow Goal subagent output only after the parent plan gate."""
+        project_root = Path(__file__).resolve().parents[2]
+        task_dir = self.sub_dir.parent.parent
+        try:
+            require_parent_write(
+                task_dir,
+                project_root,
+                "executor",
+                "subagent output",
+                allowed_states={"EXECUTING", "VERIFYING"},
+            )
+        except GoalDocumentGateError as exc:
+            raise RuntimeError(str(exc)) from exc
+        return True
+
+    def _write_output(self, text: str) -> bool:
+        current = read_result(self.result_path)
+        if current.get("status") != "running":
+            return False
+        if int(current.get("generation", 0)) != self.generation:
+            return False
+        self._goal_write_allowed()
         marker = f"# SubAgent: {self.step_id}\n\n## 产出\n\n"
         if self.executor_path.exists():
             marker = "\n\n---\n## 产出\n\n"
@@ -305,6 +327,7 @@ class SubAgentExecutor:
             f.write(marker)
             f.write(text)
             f.write("\n")
+        return True
 
 
 def main(argv=None):

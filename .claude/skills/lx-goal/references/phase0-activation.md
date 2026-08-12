@@ -33,14 +33,18 @@
 python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"
 ```
 
-此命令创建两个信号文件：
-- `.omc/state/tokens/lx-goal.json` — `is_mode_active()` 读取此文件判断是否为 goal 模式
-- `.omc/state/tokens/autonomous.active` — hook 据此降级
+此命令创建一个任务 token 和对应 task_dir 文档目录：
+- `.omc/tokens/<date>/<task>.json` — Goal 状态、期限、风险记录和任务路径
+- `.omc/tasks/<date>/<task>/` — research/plan/executor/checklist 文档
 
 **激活后验证**：
 ```bash
-ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active
+python3 .claude/skills/lx-goal/scripts/lx-goal.py status --task-dir <task_dir>
 ```
+
+**阶段推进顺序**：research、plan、executor 可以在同一 task_dir 内合理修订；每次变更记录原因并重新运行相应验证。所有命令必须传 `--task-dir <path>`，不扫描其它任务。
+
+**工具读写协议**：修改现有文件前必须先对同一绝对路径执行一次真实 `Read`。粘贴文本和 read-tracker 记录都不替代本次 Read；收到 `File must be read first` 时不得重复修改调用。
 
 **为什么必须走脚本**：手动 `touch autonomous.active` 只创建一个文件，`is_mode_active()` 读取 `lx-goal.json` 而非 `autonomous.active`，半个系统仍在 normal mode（DG-46 教训）。
 

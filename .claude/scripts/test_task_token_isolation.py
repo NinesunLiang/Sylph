@@ -49,7 +49,7 @@ def test_init_does_not_archive_unrelated_active_token(tmp_path, monkeypatch):
     assert carros_base.cmd_init("task-a", steps=["S1"], task_dir=str(task_dir)) == 0
 
     assert json.loads(other_path.read_text(encoding="utf-8")) == original
-    created = tokens / "20260811" / "task-a.json"
+    created = next(tokens.glob("*/task-a.json"))
     assert json.loads(created.read_text(encoding="utf-8"))["session"]["id"] == "task-a"
 
 
@@ -66,15 +66,15 @@ def test_unbound_lookup_does_not_select_other_active_token(tmp_path, monkeypatch
     assert found_path is None
 
 
-def test_single_active_token_remains_compatible(tmp_path, monkeypatch):
+def test_unbound_lookup_does_not_select_even_single_active_token(tmp_path, monkeypatch):
     tokens, tasks = configure_paths(tmp_path, monkeypatch)
     only_path = tokens / "20260811" / "task-a.json"
     write_token(only_path, token("task-a", tasks / "task-a"))
 
     found, found_path = carros_base._find_latest_token()
 
-    assert found["session"]["id"] == "task-a"
-    assert found_path == only_path
+    assert found is None
+    assert found_path is None
 
 
 def test_task_id_selector_isolated(tmp_path, monkeypatch):

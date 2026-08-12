@@ -8,9 +8,9 @@ Pipeline: CLARIFY → PLANNING → EXECUTING → VERIFYING → ARCHIVING → ARC
 API（普通 transition 不提供倒退能力）。
 
 Gate 集成：
-  - transition 到 PLANNING 时可选传入 research_path 触发 ResearchGate 验证
-  - transition 到 EXECUTING 时可选传入 plan_path 触发 PlanGate 验证
-  - 不传文档路径时保持纯状态后退兼容（低层 state-only 测试可用）
+  - goal token 进入 PLANNING 必须提供并通过 research_path
+  - goal token 进入 EXECUTING 必须提供并通过 research_path + plan_path
+  - 非 goal token 保留纯状态转换，供低层任务兼容
 
 Usage:
     from goal_state_machine import GoalMachine, GoalStatus
@@ -21,6 +21,7 @@ Usage:
 """
 
 import json
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 from error_dna_logger import log_error
@@ -155,6 +156,24 @@ class GoalMachine:
                     )
 
         # ── Gate validation ──────────────────────────────────────────
+        token_data = self._read_token() or {}
+        is_goal = token_data.get("mode") == "goal"
+
+        if is_goal and target_state == PLANNING:
+            if research_path is None:
+                raise GoalError(
+                    "Goal research gate requires research_path before entering PLANNING"
+                )
+            if ResearchGate is None:
+                raise GoalError("ResearchGate unavailable; Goal cannot enter PLANNING")
+        if is_goal and target_state == EXECUTING:
+            if research_path is None or plan_path is None:
+                raise GoalError(
+                    "Goal plan gate requires research_path and plan_path before entering EXECUTING"
+                )
+            if ResearchGate is None or PlanGate is None:
+                raise GoalError("ResearchGate/PlanGate unavailable; Goal cannot enter EXECUTING")
+
         if target_state == PLANNING and research_path is not None and ResearchGate is not None:
             try:
                 ResearchGate.validate(research_path)
@@ -167,6 +186,20 @@ class GoalMachine:
                 )
                 raise GoalError(
                     f"ResearchGate blocked transition to PLANNING: {e}"
+                ) from e
+
+        if target_state == EXECUTING and research_path is not None and ResearchGate is not None:
+            try:
+                ResearchGate.validate(research_path)
+            except ResearchGateError as e:
+                log_error(
+                    "ResearchGateError",
+                    str(e),
+                    fix="先完成 research.md，再填写 plan.md",
+                    context={"research_path": str(research_path), "target_state": "EXECUTING"}
+                )
+                raise GoalError(
+                    f"ResearchGate blocked transition to EXECUTING: {e}"
                 ) from e
 
         if target_state == EXECUTING and plan_path is not None and PlanGate is not None:
@@ -205,9 +238,16 @@ class GoalMachine:
                 token_data["goal"]["last_reason"] = reason
             if self.token_path:
                 self.token_path.parent.mkdir(parents=True, exist_ok=True)
-                self.token_path.write_text(
-                    json.dumps(token_data, indent=2, ensure_ascii=False) + "\n"
+                tmp_path = self.token_path.with_suffix(
+                    self.token_path.suffix + f".{os.getpid()}.tmp"
                 )
+                try:
+                    tmp_path.write_text(
+                        json.dumps(token_data, indent=2, ensure_ascii=False) + "\n"
+                    )
+                    os.replace(tmp_path, self.token_path)
+                finally:
+                    tmp_path.unlink(missing_ok=True)
 
         return True
 

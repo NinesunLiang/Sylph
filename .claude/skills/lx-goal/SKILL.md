@@ -53,10 +53,11 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 8. 人类确认后激活：`python3 .claude/skills/lx-goal/scripts/lx-goal.py on "{目标描述}"`
     - 激活时 lx-goal.py 委托 **carros_base.py init --task-mode goal** 创建任务文档目录 + 结构化模板
     - carros_base.py 负责 research/plan/executor 模板生成，不再由 lx-goal.py 自建骨架
-9. **🔴 绑定 plan_dir** — 激活后必须调用 `lx-goal.py assert-plan-dir` 获取 carros_base 创建的 unique plan_dir 路径并 `cd` 到该目录。**禁止自行 mkdir、猜测或创建新目录作为 plan_dir**。后续所有文档 I/O（research/plan/executor）必须锁定此路径。
-10. **🔴 填写 research.md** — 硬规则。必须填写 research.md 的所有 8 个 section（背景/约束/已知信息/不确定性/全貌/依赖树/方案/Dependency TDD），每个 section 至少 1 行非占位内容。依赖树必须至少 1 条。
-11. **🔴 Phase 0 门禁** — 硬规则。填写完成后必须调用 `lx-goal.py phase0-done`，触发 ResearchGate 验证 + GoalMachine 状态转换。验证失败会阻断进入 Phase 1。**不调用此命令 = 跳过 Phase 0 = 违反铁律**。
-12. 验证激活标志存在：`ls -la .omc/state/tokens/lx-goal.json .omc/state/tokens/autonomous.active`
+9. **绑定 task_dir** — 激活后记录 carros_base 输出的绝对 task_dir，后续命令显式传 `--task-dir <path>`。不扫描、不猜测其它任务；plan 可在任务范围内合理变更并记录原因。
+10. **🔴 工具读写协议** — 修改现有文件前，必须先对同一绝对路径调用 `Read`；粘贴内容、旧会话记录或 read-tracker 记录都不能替代这次真实 Read。若工具返回 `File must be read first`，停止重试，先 Read 再进行唯一一次修改。
+11. **🔴 先 research 后 plan** — 激活只创建三个空骨架；先填写 research.md 的 8 个 section（背景/约束/已知信息/不确定性/全貌/依赖树/方案/Dependency TDD），每个 section 至少 1 行非占位内容，依赖树至少 1 条；然后只调用 `lx-goal.py phase0-done` 进入 PLANNING。
+12. **🔴 PlanGate 门禁** — 仅在 PLANNING 状态填写并审查 plan.md；完成后调用 `lx-goal.py plan-done`，ResearchGate + PlanGate 通过后才进入 EXECUTING。未通过不得 tick、subagent-log 或填充 executor.md。
+13. 验证任务绑定存在：`lx-goal.py status --task-dir <task_dir>`；不扫描其它任务。
 
 > ⚠️ Anti-Pattern: "这任务太简单不需要澄清" — 简单的任务恰恰是未检视假设导致最多返工的地方。澄清可以短（几句话），但不能跳过。
 
@@ -142,10 +143,10 @@ lx-goal subagent-log summary
 
 ## 跨会话续跑
 
-1. 检测：`.omc/state/tokens/lx-goal.json` 存在则读 goal + expires_at
-2. 恢复：读 `.omc/tasks/{date}/{slug}/` — research.md / plan.md / executor.md
-3. 继续：检测 token 中最后未完成（status != done）的 step，从该 step 继续。若所有 step 均 done 则跳至退出报告。不需要重新 Phase 0。
-4. 关闭：`lx-goal done` 删锁 → `lx-goal off`
+1. compact 后消费一次性 resume-note，取得 `task_dir` 与 token 指针
+2. 恢复：读取该 `.omc/tasks/{date}/{slug}/` — research.md / plan.md / executor.md / checklist
+3. 继续：用该 task_dir 定位 `.omc/tokens/{date}/{slug}.json`，不扫描其它 active token
+4. 关闭：`lx-goal done --task-dir <path>` 或 `lx-goal off --task-dir <path>`，保留 token、删除 sidecar lock
 
 ## 子任务引擎路由
 

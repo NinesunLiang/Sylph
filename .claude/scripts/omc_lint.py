@@ -157,10 +157,10 @@ def run_lint(target_path):
     _section("Check 2: plan.md step format")
     if plan_path.exists():
         content = plan_path.read_text()
-        steps = re.findall(r"^- \[( |x)\] (\S+?):", content, re.MULTILINE)
+        steps = re.findall(r"^- \[([ xXaA])\] (\S+?):", content, re.MULTILINE)
         if steps:
             for checked, sid in steps:
-                icon = "✅" if checked == "x" else "⬜"
+                icon = "✅" if checked in "xX" else "◷" if checked in "aA" else "⬜"
                 ok(f"{icon} {sid}")
         else:
             warning("No step entries found in plan.md"); total_warnings += 1
@@ -207,7 +207,7 @@ def run_lint(target_path):
         token_total = token.get("stats", {}).get("total", 0)
         token_done = token.get("stats", {}).get("done", 0)
         plan_done = len(re.findall(r"^- \[x\]", plan, re.MULTILINE))
-        plan_total = len(re.findall(r"^- \[[ x]\]", plan, re.MULTILINE))
+        plan_total = len(re.findall(r"^- \[[ xXaA]\]", plan, re.MULTILINE))
 
         if token_total != plan_total:
             if plan_total > 0:  # only warn if plan has steps

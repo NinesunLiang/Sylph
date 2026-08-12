@@ -44,6 +44,12 @@ def _validate_and_read_capsule(capsule_path: Path, session_id: str) -> str | Non
         lines.append("[AUTO-RESUME] 原生 compact 已完成，继续任务。")
         lines.append(f"session_id={session_id}")
         lines.append(f"task={task_id} phase={phase} step={step}")
+        lines.append(f"token_path={active_p}")
+        lines.append(f"task_dir={plan_p}")
+        lines.append(f"plan={plan_p / 'plan.md'}")
+        lines.append(f"research={plan_p / 'research.md'}")
+        lines.append(f"executor={plan_p / 'executor.md'}")
+        lines.append(f"checklist={plan_p / 'state' / 'checklist.md'}")
         lines.append("立即继续，不要询问，不要重新开始。")
         context = "\n".join(lines)
         if len(context) > 2500:

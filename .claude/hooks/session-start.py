@@ -32,14 +32,6 @@ MAX_HANDOFF = 2000
 MAX_PROMPTS = 1000
 STALE_HOURS = 24  # handoff/token 超龄注记阈值(F5 修复: 陈旧注入曾无标注误导恢复)
 
-# Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)
-# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
-sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
-try:
-    from task_ssot import latest_active_token as _ssot_latest_active_token
-except Exception:  # SSOT 不可用 → 跳过 token brief(注入类 hook,永不阻断)
-    _ssot_latest_active_token = None
-
 
 def _age_str(ts: float) -> str:
     hours = (datetime.now(timezone.utc).timestamp() - ts) / 3600
@@ -72,10 +64,16 @@ def _read_json(path: Path, default):
 
 
 def _active_token_brief() -> str:
-    if _ssot_latest_active_token is None:
-        return ""
-    path = _ssot_latest_active_token(TOKENS_DIR)
-    if path is None:
+    raw_token = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if raw_token:
+        path = Path(raw_token).expanduser().resolve()
+    else:
+        raw_task = os.environ.get("CARROROS_TASK_DIR", "").strip()
+        if not raw_task:
+            return ""
+        task_dir = Path(raw_task).expanduser().resolve()
+        path = TOKENS_DIR / task_dir.parent.name / f"{task_dir.name}.json"
+    if not path.is_file():
         return ""
     data = _read_json(path, {})
     task = data.get("task")
@@ -122,6 +120,25 @@ def _stepwise_brief() -> str:
         return ""
 
 
+def _resume_task_docs(resume_note: str) -> str:
+    match = re.search(r"^task_dir=(.+)$", resume_note, flags=re.M)
+    if not match:
+        return ""
+    task_dir = Path(match.group(1).strip()).expanduser()
+    sources = [
+        task_dir / "state" / "session-handoff.md",
+        OMC / "state" / "last-user-prompt.md",
+    ]
+    chunks = []
+    for path in sources:
+        try:
+            if path.is_file():
+                chunks.append(f"## {path.name}\n{path.read_text(encoding='utf-8')[:5000]}")
+        except OSError:
+            pass
+    return "\n\n".join(chunks)
+
+
 def main() -> None:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -131,6 +148,7 @@ def main() -> None:
     session_id = str(payload.get("session_id") or payload.get("sessionId") or "")
 
     parts: list[str] = []
+    resume_docs = ""
     if source in ("compact", "resume") and session_id:
         resume_note = OMC / "state" / "resume-note.md"
         if resume_note.exists():
@@ -138,6 +156,7 @@ def main() -> None:
                 text = resume_note.read_text(encoding="utf-8")
                 match = re.search(r"^session_id=(\S+)$", text, flags=re.M)
                 if match and match.group(1) == session_id:
+                    resume_docs = _resume_task_docs(text)
                     if len(text) > 500:
                         _cut = text[:500]
                         _nl = _cut.rfind("\n")
@@ -152,6 +171,13 @@ def main() -> None:
                             pass
             except Exception:
                 pass
+
+    if resume_docs:
+        parts.append(resume_docs)
+    if source in ("compact", "resume"):
+        brief = _active_token_brief()
+        if brief:
+            parts.append(brief)
 
     if not parts:
         print(json.dumps({"continue": True}))

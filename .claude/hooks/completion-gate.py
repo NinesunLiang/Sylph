@@ -110,18 +110,17 @@ def _manage_finish_length_streak():
 # ─── 自主模式检测 ───
 
 def _is_autonomous():
-    """检测是否处于自主/无人值守模式。"""
-    tokens_dir = STATE_DIR / "tokens"
-    checks = [
-        tokens_dir / "autonomous.active",
-        STATE_DIR / "ghost-mode.active",
-        tokens_dir / "lx-ghost.json",
-        tokens_dir / "lx-goal.json",
-    ]
-    for f in checks:
-        if f.exists():
-            return True
-    return False
+    """Detect only explicitly bound autonomous context."""
+    if (STATE_DIR / "ghost-mode.active").exists() or (STATE_DIR / "tokens" / "lx-ghost.json").exists():
+        return True
+    token_path = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if not token_path:
+        return False
+    try:
+        token = json.loads(Path(token_path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return token.get("mode") == "goal" and token.get("status") == "active"
 
 
 # ─── 软阻断（自主模式降级） ───

@@ -76,30 +76,20 @@ Philosophy（7 条哲学原则，不可违背）
 
 ## 卡点分类处理矩阵（按实际 hook 链 14 行）
 
-> 匹配 pretool-gate.py 7 门 + 全链路门禁。BLOCK 类均走三级裁决链。
+> Gate 只提供引导，不作为公开硬阻断：优先 REDIRECT，无法自决时 ASK_USER；PostTool 只 WARN 记录。
 
-| # | 卡点类型 | 判断依据 | 默认处理 | 升级路线 | 对应 Gate |
-|---|---------|---------|---------|---------|----------|
-| 1 | **Sensitive Edit** | 访问 .env/.ssh/*key/*secret 等敏感路径 | BLOCK → skip-risk | hard-boundary-hit 记录 | sensitive-edit |
-| 2 | **Fallback Check** | token 标记 blocked/waiting_user | BLOCK → skip-risk | 更新 token 恢复标记 | fallback-check |
-| 3 | **Dangerous Command** | rm/rmdir/sudo/drop/destroy/等 | BLOCK → 三级裁决链 | AGENTS→Oracle→blocked_human | action-gate |
-| 4 | **Risky Command** | push/force/delete/非破坏性敏感 | ASK_USER → 三级裁决链 | AGENTS→Oracle→skip-risk | action-gate |
-| 5 | **Temp Bypass** | temp-bypass/token-block-bypass | BLOCK → 跳过 | AGENTS 裁决 | action-gate |
-| 6 | **Plan Missing** | plan.md/token 缺失 | REDIRECT → 自动 call init | 自动创建最小计划 | plan-gate |
-| 7 | **Edit Scope Escape** | 写入 plan.md scope 外文件 | BLOCK → skip-risk | ASK_USER→范围重审 | edit-scope |
-| 8 | **Unverified Step** | [x] 标记但 VerifyGate 未通过 | REDIRECT → 补验 | 自动执行 verify | verify-gate |
-| 9 | **Oracle BLOCK** | 结构化危险语义（L2） | BLOCK → skip-risk | 三级裁决链 | oracle-gate (L2) |
-| 10 | **Oracle ESCALATE** | 不可解析+高危信号（L2） | ESCALATE → ASK_USER | 降级 skip-risk+记录 | oracle-gate (L2) |
-| 11 | **Oracle Hint** | 模糊关键词（L2） | PASS → warn | audit 记录+继续 | oracle-gate (L2) |
-| 12 | **K1 PSEUDO_INTEGRITY** | 无来源数值断言 | WARN → autofix (goal) / soft-block (L1) / hard-block (L2) | 自动标注来源 | posttool-claim-audit |
-| 13 | **K2 EDIT_REPEAT** | 同文件高频编辑未收敛 | WARN → autofix log (goal) / soft-block (L1) / REDIRECT (L2) | 自动记录 evidence | posttool-claim-audit |
-| 14 | **Completion Gate** | 软完成语/证据不足 | BLOCK → verify | 自动执行回访 | completion-gate |
+| 场景 | 默认处理 |
+|---|---|
+| 敏感文件 | ASK_USER 确认，不自动修改凭据类文件 |
+| 计划/范围变化 | WARN 并允许合理更新 plan，记录原因后继续 |
+| 缺少任务上下文 | REDIRECT 到显式 `--task-dir` |
+| 验证证据不足 | REDIRECT 回到验证步骤 |
+| 危险或不可逆操作 | ASK_USER/安全裁决，不自动执行 |
+| 重复 REDIRECT | ASK_USER，不升级 HARD_BLOCK |
 
 ### 隔离执行策略
 
-卡点 1-11 在 pretool 阶段执行，BLOCK 后短路跳过后续门禁。
-卡点 12-14 在 posttool 阶段执行，不阻断操作但记录违规供退出报告审查。
-goal 模式下卡点 1-11 BLOCK → skip-risk 直接记录+继续；卡点 12-14 自动修复+继续。
+所有 Goal 选择都由显式 task_dir → token.task_dir 完成；无上下文不得扫描其它任务。
 
 ## Phase 1→N 全自动执行
 
@@ -113,7 +103,9 @@ goal 模式下卡点 1-11 BLOCK → skip-risk 直接记录+继续；卡点 12-14
 2. **不提问** — 歧义按决策框架判断
 3. **不中断** — 卡点处理后继续
 4. **只记录** — 风险和阻断写入 skipped_risks
-5. **只锚定** — 进入执行期前必须调用 `lx-goal.py assert-plan-dir` 绑定 plan_dir，此后所有文档 I/O 锁定此路径。禁止另建目录、禁止猜测路径、禁止 mv 文件到其他目录。
+5. **只锚定** — 所有文档 I/O 使用显式 `--task-dir` 对应的 task_dir；不扫描其它任务。
+6. **先研究后计划再执行** — research/plan/executor 可在同一 task_dir 内合理修订；变更记录原因并重新验证，不以冻结 plan 作为门禁。
+7. **先读后改** — 修改现有文件前必须先对同一绝对路径执行一次真实 `Read`；收到 `File must be read first` 时先 Read，不重复写入调用。
 
 ### 常见场景自主处理（按新卡点矩阵映射）
 

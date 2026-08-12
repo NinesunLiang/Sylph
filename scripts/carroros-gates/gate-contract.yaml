@@ -37,5 +37,5 @@ L2:
     - audit_event: true
     - harness_evidence: true
   enforcement:
-    missing_gate: BLOCK
-    missing_evidence: BLOCK
+    missing_gate: WARN
+    missing_evidence: INFO

@@ -30,22 +30,12 @@ os.chdir(str(ROOT))
 STATE_DIR = ROOT / ".omc" / "state"
 FALLBACK_REQUIRED = STATE_DIR / "fallback-blocked-required"
 FALLBACK_APPROVED = STATE_DIR / "fallback-blocked-approved"
-GOAL_SIGNAL = STATE_DIR / "tokens" / "autonomous.active"
-GOAL_STATE = STATE_DIR / "tokens" / "lx-goal.json"
 TOKENS_DIR = ROOT / ".omc" / "tokens"
 TASKS_DIR = ROOT / ".omc" / "tasks"
 RING_PATH = ROOT / ".omc" / ".prompt-ring.json"
 RING_STATE = ROOT / ".omc" / ".prompt-ring-state.json"
 CONTEXT_ENGINE = ROOT / ".claude" / "scripts" / "context_engine.py"
 COMPACT_WRITE_LOG = STATE_DIR / "compact-write.log"
-
-# Round7 PKG-1: token 读取委托 SSOT(单一真相源,禁第二实现)
-# 直插 lib 目录按顶层模块导入——hooks/lib 正规包会遮蔽 lib.* 包路径
-sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
-try:
-    from task_ssot import latest_active_token as _ssot_latest_active_token
-except Exception:  # SSOT 不可用时本钩降级为跳过 token 回写/注入(永不阻断 prompt)
-    _ssot_latest_active_token = None
 
 MAX_RING = 20
 INJECT_INTERVAL = 5  # 每 5 轮：compact-write + 尾部状态注入（U 型注意力）
@@ -63,14 +53,17 @@ def _read_json(path: Path, default):
 
 
 def _latest_token() -> Path | None:
-    """Latest ACTIVE carros task token — 委托 task_ssot(单一真相源)。
-
-    保 stats 要求(SSOT 写入目标必须有 stats dict);SSOT 不可用 → None(降级跳过)。
-    根因(2026-07-20 幻影 token 事件):mtime 取最新 + 本文件每轮回写 → 陈旧任务自我续命。
-    """
-    if _ssot_latest_active_token is None:
+    """Resolve only the explicit task token for this terminal."""
+    raw_token = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if raw_token:
+        path = Path(raw_token).expanduser().resolve()
+        return path if path.is_file() else None
+    raw_task = os.environ.get("CARROROS_TASK_DIR", "").strip()
+    if not raw_task:
         return None
-    return _ssot_latest_active_token(TOKENS_DIR, require_stats=True)
+    task_dir = Path(raw_task).expanduser().resolve()
+    path = TOKENS_DIR / task_dir.parent.name / f"{task_dir.name}.json"
+    return path if path.is_file() else None
 
 
 def _extract_prompt(raw: str) -> str:
@@ -136,12 +129,12 @@ def _state_injection_text(token_path: Path) -> str:
         return ""
 
 
-def _goal_state_text() -> str:
-    data = _read_json(GOAL_STATE, {})
+def _goal_state_text(token_path: Path) -> str:
+    data = _read_json(token_path, {})
     if not isinstance(data, dict) or not data:
         return ""
-    goal = data.get("goal", "")
-    done = data.get("done", [])
+    goal = data.get("goal", {}).get("description", "")
+    done = data.get("completed_tasks", [])
     skipped = data.get("skipped_risks", [])
     lines = ["[Goal Mode]", f"goal={goal}", f"done={len(done)} skipped={len(skipped)}"]
     if done:
@@ -178,8 +171,8 @@ def _every_fifth_round(token_path: Path | None) -> str:
     else:
         injection = ""
 
-    if GOAL_SIGNAL.exists():
-        goal_text = _goal_state_text()
+    if token_path:
+        goal_text = _goal_state_text(token_path)
         if goal_text:
             injection = f"{injection}\n{goal_text}" if injection else goal_text
     return injection

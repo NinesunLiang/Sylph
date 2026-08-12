@@ -16,8 +16,7 @@ from typing import Any
 from .constants import (
     ROOT, OMC, STATE_DIR, TOKENS, AUDIT,
     CRITICAL_STATE, FALLBACK_REQUIRED, FALLBACK_APPROVED,
-    TEMP_BYPASS, REDIRECT_STREAK, GOAL_SIGNAL, GOAL_MODE_FILE,
-    GOAL_MODE_LEGACY, TRUST_BREACH,
+    TEMP_BYPASS, REDIRECT_STREAK, TRUST_BREACH,
     SENSITIVE_PATTERNS, STALE_LOCK_THRESHOLD,
     READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
     STATE_TOKEN,
@@ -30,11 +29,9 @@ from gatekeeper import GateKeeper, GateContext, make_context  # noqa: E402
 # ── Round7 PKG-1: SSOT ──
 sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
 try:
-    from task_ssot import latest_active_token as _ssot_latest_active_token  # noqa: F401
     from task_ssot import latest_terminal_token as _ssot_latest_terminal_token
     _SSOT_ERR: Exception | None = None
 except Exception as exc:
-    _ssot_latest_active_token = None  # type: ignore[assignment]
     _ssot_latest_terminal_token = None
     _SSOT_ERR = exc
 
@@ -47,22 +44,16 @@ _ssot_err = _SSOT_ERR
 # ═══════════════════════════════════
 
 def _goal_mode() -> bool:
-    if not GOAL_SIGNAL.exists():
+    token = _active_token()
+    if not token or token.get("mode") != "goal" or token.get("status") != "active":
         return False
-    path = GOAL_MODE_FILE if GOAL_MODE_FILE.exists() else GOAL_MODE_LEGACY
-    try:
-        data = json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return False
-    if not data.get("active"):
-        return False
-    expires = data.get("expires_at")
+    expires = token.get("goal", {}).get("expires_at")
     if expires:
         try:
             if datetime.now(timezone.utc) >= datetime.fromisoformat(expires):
                 return False
-        except Exception:
-            pass
+        except ValueError:
+            return False
     return True
 
 
@@ -183,11 +174,22 @@ def _block(reason: str, suggestion: str = "") -> int:
     unattended = _goal_mode()
     is_high_risk = any(k in safe_reason.lower() for k in _REASON_TO_HAZARD)
 
+    ask_user = safe_reason.startswith("ASK_USER ")
+    display_reason = safe_reason.removeprefix("ASK_USER ") if ask_user else safe_reason
     hs: dict[str, Any] = {
         "hookEventName": "PreToolUse",
         "permissionDecision": "deny",
-        "permissionDecisionReason": safe_reason,
+        "permissionDecisionReason": display_reason,
     }
+
+    if ask_user:
+        hs["additionalContext"] = (
+            f"ASK_USER: {display_reason}\n\n"
+            f"{suggestion or '请确认是否继续，或调整当前计划。'}"
+        )
+        print(json.dumps({"continue": True, "hookSpecificOutput": hs}, ensure_ascii=False))
+        sys.stderr.write(f"PreToolGate: ASK_USER - {display_reason}\n")
+        return 0
 
     if is_high_risk:
         hazard_flags = []
@@ -394,9 +396,16 @@ def _read_json(path: Path) -> dict[str, Any]:
 # ═══════════════════════════════════
 
 def _latest_token() -> Path | None:
-    if _ssot_latest_active_token is None:
+    raw_token = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if raw_token:
+        path = Path(raw_token).expanduser().resolve()
+        return path if path.is_file() else None
+    raw_task = os.environ.get("CARROROS_TASK_DIR", "").strip()
+    if not raw_task:
         return None
-    return _ssot_latest_active_token(TOKENS)
+    task_dir = Path(raw_task).expanduser().resolve()
+    path = TOKENS / task_dir.parent.name / f"{task_dir.name}.json"
+    return path if path.is_file() else None
 
 
 def _active_token() -> dict[str, Any] | None:
@@ -419,7 +428,6 @@ def _task_dir(token: dict) -> Path | None:
     explicit = (
         task.get("dir")
         or token.get("task_dir")
-        or token.get("rpe_plan_dir")
         or token.get("plan_dir")
     )
     if explicit:

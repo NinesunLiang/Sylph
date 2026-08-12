@@ -50,6 +50,7 @@ except ImportError:
     recovery = None
 
 from sub_agent_result import TERMINAL_STATUSES, update_result_locked
+from goal_document_gate import GoalDocumentGateError, require_parent_write
 
 
 # ═══════════════════════════════════════════
@@ -85,6 +86,18 @@ class SubAgentManager:
             candidate = parent
         return Path.cwd()
 
+    def _require_parent_write(self, action: str, allowed_states: set[str]) -> None:
+        try:
+            require_parent_write(
+                self.task_dir,
+                self.project_root,
+                "executor",
+                action,
+                allowed_states=allowed_states,
+            )
+        except GoalDocumentGateError as exc:
+            raise RuntimeError(str(exc)) from exc
+
     def set_config(self, **kwargs):
         """更新配置"""
         for k, v in kwargs.items():
@@ -107,6 +120,7 @@ class SubAgentManager:
         if not steps:
             print("⚠  Empty plan — nothing to distribute")
             return []
+        self._require_parent_write("subagent distribute", {"EXECUTING"})
 
         results = []
         for step in steps:
@@ -322,6 +336,7 @@ class SubAgentManager:
         Returns:
             True if retry initiated, False if max retries exceeded
         """
+        self._require_parent_write("subagent retry", {"EXECUTING", "VERIFYING"})
         sub_dir = self.sub_task_dir / f"sub-{step_id}"
         result_path = sub_dir / "result.json"
 
@@ -336,7 +351,8 @@ class SubAgentManager:
             retry_count = current_result.get("retry_count", 0)
             if retry_count >= max_retries:
                 current_result["status"] = "failed"
-                current_result["failure"] = f"max retries ({max_retries}) exceeded"
+                current_result.setdefault("failure", f"max retries ({max_retries}) exceeded")
+                current_result["retry_exhausted"] = True
                 current_result["completed_at"] = datetime.now(timezone.utc).isoformat()
                 return current_result
 
@@ -401,20 +417,15 @@ class SubAgentManager:
             pass
 
     def _find_main_token(self) -> Optional[Path]:
-        """在主 token 目录查找最新的 active token"""
-        tokens_dir = self.project_root / ".omc" / "tokens"
-        if not tokens_dir.exists():
-            return None
-        for dd in sorted(tokens_dir.iterdir(), reverse=True):
-            if dd.is_dir():
-                for jf in sorted(dd.glob("*.json"), reverse=True):
-                    try:
-                        t = json.loads(jf.read_text())
-                        if t.get("status") == "active":
-                            return jf
-                    except Exception:
-                        continue
-        return None
+        """Resolve only the token derived from this manager's task_dir."""
+        token_path = (
+            self.project_root
+            / ".omc"
+            / "tokens"
+            / self.task_dir.parent.name
+            / f"{self.task_dir.name}.json"
+        )
+        return token_path if token_path.exists() else None
 
     # ─── 回收 ───
 
@@ -424,6 +435,10 @@ class SubAgentManager:
         Returns:
             {success: bool, result: dict, summary: str}
         """
+        try:
+            self._require_parent_write("subagent collect", {"EXECUTING", "VERIFYING"})
+        except RuntimeError as exc:
+            return {"success": False, "error": str(exc)}
         sub_dir = self.sub_task_dir / f"sub-{step_id}"
         result_path = sub_dir / "result.json"
 
@@ -559,6 +574,7 @@ class SubAgentManager:
         返回:
             {status, completed, failed, summary, steps_results}
         """
+        self._require_parent_write("subagent auto-run", {"EXECUTING"})
         # 第1步: 分发
         if plan:
             self.distribute(plan)
@@ -575,10 +591,13 @@ class SubAgentManager:
         print(f"\n⏳ Auto-run: {len(sub_dirs)} sub-tasks (timeout={self.config['timeout']}s)...")
         self._wait_all()
 
-        # 第3步: 重试失败项
-        retried = self.retry_failed()
-        if retried:
-            print(f"\n🔄 Retrying {len(retried)} failed tasks...")
+        # 第3步: 按每个 step 的 retry budget 重试失败项
+        while True:
+            retried = self.retry_failed()
+            successful_retries = [item for item in retried if item[1]]
+            if not successful_retries:
+                break
+            print(f"\n🔄 Retrying {len(successful_retries)} failed tasks...")
             time.sleep(2)
             self._wait_all()
 
