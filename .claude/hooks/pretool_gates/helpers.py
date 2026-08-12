@@ -269,16 +269,6 @@ def _redirect(reason: str, guidance: str = "") -> int:
     return 0
 
 
-def _hard_stop(reason: str) -> int:
-    """Hard stop: exit the tool with continue:false + stopReason, return 0."""
-    print(json.dumps({
-        "continue": False,
-        "stopReason": f"HARD_BLOCK: {reason[:300]}",
-    }, ensure_ascii=False))
-    sys.stderr.write(f"PreToolGate: HARD_STOP - {reason}\n")
-    return 0
-
-
 def _increment_streak(key: str, path: Path | None = None) -> int:
     """Atomic increment for redirect streak with 6h TTL.
 

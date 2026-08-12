@@ -663,7 +663,7 @@ class GateKeeper:
 
         lines.extend([
             "",
-            "⚠️ 重复相同操作将触发 HARD_BLOCK",
+            "⚠️ 重复相同操作将升级为 ASK_USER（转人工裁决）",
         ])
         return "\n".join(lines)
 

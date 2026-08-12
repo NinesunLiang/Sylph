@@ -92,16 +92,3 @@ def context(message: str) -> dict:
     return {"continue": True, "hookSpecificOutput": {"additionalContext": f"[AGENTIC] {message}"}}
 
 
-def context_block(message: str):
-    """Build a blocking additionalContext and exit.
-
-    Equivalent to agentic_context_block() in agentic-ui.sh.
-    """
-    result = {
-        "continue": False,
-        "hookSpecificOutput": {
-            "additionalContext": f"[AGENTIC:BLOCK] {message}",
-        },
-    }
-    print(json.dumps(result, ensure_ascii=True))
-    sys.exit(2)

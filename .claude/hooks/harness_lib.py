@@ -311,18 +311,6 @@ def hc_gate_mode_warn(gate_name="unknown"):
     return False
 
 
-def hc_gate_mode_block(gate_name="unknown"):
-    """非 normal 模式时硬阻断。
-    返回 True=应阻断, False=继续正常
-    """
-    mode = is_mode_active(str(_STATE_DIR))
-    if mode != "normal":
-        sys.stderr.write(f"[{gate_name}] BLOCKED: {mode} mode — gate enforced\n")
-        flywheel_event(gate_name, "mode_blocked", "P1")
-        return True
-    return False
-
-
 # ─── Token/CAPTCHA generator ───
 
 def hc_generate_token(length=8):

@@ -225,7 +225,7 @@ def _block(reason: str) -> int:
         full = f"⛔ 夜跑信任边界阻断: {reason}"
 
     full += (f"\n💡 夜间 Bash 为无条件默认拒绝（GPT §17a P0-SOL-1）；合法形态见 night-loop.md。\n"
-             f"💡 被拦后禁止用拼接/变量/glob/cwd 等价改写绕过——记 BLOCKED_CONTROL_PLANE 并停手。\n"
+             f"💡 被拦后禁止用拼接/变量/glob/cwd 等价改写绕过——等价改写同样被无条件拒绝。\n"
              f"💡 晨收前人类先执行 rm .omc/state/night-session.active 摘除标记。")
     print(json.dumps({
         "continue": True,

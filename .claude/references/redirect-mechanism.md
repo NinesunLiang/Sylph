@@ -8,16 +8,18 @@
 
 ## 一、哲学定位
 
-门禁出口等级谱系（从轻到重）:
+门禁出口谱系（公开出口仅 REDIRECT / ASK_USER）:
 
 ```
-  PASS → NARROW → REDIRECT → ESCALATE → BLOCK → HARD_BLOCK
-  通过    提鞋     打断升级    人类裁决   物理阻断   不可逆阻断
+  PASS → NARROW → REDIRECT → ASK_USER
+  通过    提鞋     打断升级    人类裁决
 
-  ↑ REDIRECT 在此              ↑ BLOCK 在此
-  软打断: 给你选项             硬打断: 没得商量
-  "停下来看看"                "不许动"
-  安全非高险场景               高险/不可逆/越权/架构
+  ↑ REDIRECT 在此          ↑ ASK_USER 在此
+  软打断: 给你选项          真阻断: 转人工裁决
+  "停下来看看"             "必须人类决策"
+
+  BLOCK / HARD_BLOCK 仅作内部决策态（checks.py / gatekeeper 返回值），
+  由 pretool-gate 统一映射为 ASK_USER 输出，不直接暴露给用户。
 ```
 
 哲学映射:
@@ -35,15 +37,18 @@
 
 ## 二、三种交互模式对比
 
-| 维度 | WARN (旧) | REDIRECT (新) | BLOCK (已有) |
-|------|-----------|---------------|--------------|
+| 维度 | WARN (旧) | REDIRECT (新) | ASK_USER (升级) |
+|------|-----------|---------------|-----------------|
 | 触发时机 | 操作已执行 | 操作未执行 | 操作未执行 |
-| 能否继续 | 能（无人管） | 修正后重试 | 不能 |
-| 物理强制力 | 0 | continue=False | continue=False |
-| 适用场景 | 需了解但非紧急 | 可修复违规 | 危险/不可逆 |
-| 反复不改 | 每次WARN | 3次后→BLOCK | 永远BLOCK |
-| 是否告知下一步 | 否 | 选项A/B/C | 给建议 |
-| AI自主权 | 完整 | 有，AB都可 | 无 |
+| 能否继续 | 能（无人管） | 修正后重试 | 等待人类裁决 |
+| 强制力 | 0 | 软引导（continue=True） | 转人工（continue=True） |
+| 适用场景 | 需了解但非紧急 | 可修复违规 | 高危/不可逆/越权/架构/反复不改 |
+| 反复不改 | 每次WARN | 4次后→ASK_USER | 持续 ASK_USER |
+| 是否告知下一步 | 否 | 选项A/B/C | 已知事实+候选分支+最小裁决问题 |
+| AI自主权 | 完整 | 有，AB都可 | 移交人类 |
+
+> BLOCK / HARD_BLOCK 不再作为公开出口，仅保留为 checks.py / gatekeeper 的
+> 内部决策态字符串，由 pretool-gate 统一转 ASK_USER。
 
 ---
 
@@ -81,7 +86,7 @@
 
 ### Gate 9: `_check_numeric_claim` — 数值断言溯源
 
-**位置**: pretool-gate.py 约 L1710
+**位置**: `.claude/hooks/pretool_gates/checks.py` — `_check_numeric_claim`
 
 **触发条件**: 写入 `.md/.rst/.txt/.json/.yaml` 文件中包含无来源的数值断言
 
@@ -129,7 +134,7 @@ REDIRECT 输出:
 
 ### Gate 10: `_check_claim_source` — 文件引用溯源
 
-**位置**: pretool-gate.py 约 L1766
+**位置**: `.claude/hooks/pretool_gates/checks.py` — `_check_claim_source`
 
 **触发条件**: 写入任何文件时，内容中包含 backtick-enclosed `file.ext:line` 引用
 
@@ -180,9 +185,8 @@ REDIRECT 输出:
 
 | 次数 | 行为 | AI感受 |
 |:----:|------|--------|
-| 第1次 | REDIRECT | 原因+选项，修正后重试 |
-| 第2次 | REDIRECT | 同上，仍未修正 |
-| 第3次 | BLOCK | 放弃当前方向 |
+| 第1-3次 | REDIRECT | 原因+选项，修正后重试 |
+| 第4次 | ASK_USER | 转人工裁决（不再有 HARD_BLOCK） |
 
 跨会话: 计数器持久化到 `redirect-streak.json`（v2 格式: `{"gate": {"c": count, "t": timestamp}}`）。6h TTL 过期重置，v1 格式（旧会话遗留）自动清零。
 
@@ -211,7 +215,7 @@ GATES (L2):
 | temp-bypass.py跳过 | REDIRECT不走bypass路径 |
 | 换新会话 | 6h TTL过期重置，v1格式自动清零 |
 | 不用backtick写引用 | 设计意图——规范引用格式 |
-| 重复3次 | 自动升级BLOCK |
+| 重复4次 | 自动升级ASK_USER |
 
 ---
 
