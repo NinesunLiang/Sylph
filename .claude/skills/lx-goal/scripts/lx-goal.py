@@ -62,6 +62,35 @@ def _goal_slug(goal: str) -> str:
     return f"{base[: max(1, 64 - len(suffix) - 1)].rstrip('-_')}-{suffix}"
 
 
+def _goal_base(goal: str) -> str:
+    """语义 base（去随机后缀）：用于检测同一目标是否已有活跃任务（精专化）。"""
+    base = "".join(c if c.isalnum() or c in "-_" else "" for c in goal.replace(" ", "-")[:44])
+    return base.strip("-_") or "goal"
+
+
+def _find_active_goal(base: str, tokens_root: Path | None = None) -> str | None:
+    """检测同 base 目标是否已有活跃任务（有 .json.lock 或 goal.state=active）。"""
+    tokens_root = tokens_root or (PROJECT_ROOT / ".omc" / "tokens")
+    if not tokens_root.exists():
+        return None
+    import json as _json
+    for jf in tokens_root.glob("*/*.json"):
+        if jf.name.endswith(".json.lock"):
+            continue
+        try:
+            token = _json.loads(jf.read_text(encoding="utf-8"))
+        except (OSError, _json.JSONDecodeError):
+            continue
+        session_id = str(token.get("session", {}).get("id", ""))
+        if not session_id.startswith(base):
+            continue
+        goal_state = token.get("goal", {}).get("state")
+        lock_present = jf.with_name(jf.name + ".lock").exists()
+        if lock_present or goal_state in ("EXECUTING", "ACTIVE", "CLARIFY", "PLANNING"):
+            return session_id
+    return None
+
+
 _GOAL_RUNTIME_KEYS = (
     "activated_at", "expires_at", "retry_count", "skipped_risks",
     "completed_tasks", "hard_boundary_hits", "blocked_human",
@@ -345,6 +374,16 @@ def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None):
             raise ValueError("task_id must contain only letters, digits, '.', '_' or '-'")
         slug = task_id
     else:
+        # 精专化：同目标已有活跃任务 → 拒绝新建（the less the more）
+        active = _find_active_goal(_goal_base(goal))
+        if active is not None:
+            print(
+                f"❌ 检测到同目标已有活跃任务: {active}",
+                file=sys.stderr,
+            )
+            print("   同一目标不允许并发激活（避免报告编号/脚本竞争）。", file=sys.stderr)
+            print("   如需继续，请先归档已有任务或指定不同 task_id。", file=sys.stderr)
+            sys.exit(2)
         slug = _goal_slug(goal)
     expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
     now = get_now()

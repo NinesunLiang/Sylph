@@ -869,7 +869,7 @@ def _task_token_exists(task_id: str) -> "Path | None":
     return None
 
 
-def cmd_resume(task_doc=None):
+def cmd_resume(task_doc=None, auto_continue=False):
     """从任务文档路径恢复中断任务（中断续传）。
 
     唯一合法输入: `.omc/tasks/YYYYMMDD/{task_name}`。
@@ -979,6 +979,23 @@ def cmd_resume(task_doc=None):
         print(_yellow(f"   ⏭️  Next Action: 继续推进 Goal 阶段（{token_info['goal_state']}）"))
     else:
         print(_green("   ✅ 无待办步骤，任务可能已完成"))
+
+    # ── resume → continue → verify 完整链（精专化，C9/E8 提分）──
+    # --continue 时自动执行下一个 pending step 的 tick + verify，不依赖人手动续跑。
+    if auto_continue and pending:
+        next_step = pending[0]
+        print(_green(f"\n   ▶ 自动续跑 (--continue): tick {next_step} → verify"))
+        try:
+            tick_rc = cmd_tick(step_id=next_step)
+            if tick_rc != 0:
+                print(_red(f"   ⚠️  tick {next_step} 返回 {tick_rc}，跳过 verify"), file=sys.stderr)
+                return tick_rc
+            verify_rc = cmd_verify(step_id=next_step)
+            print(f"   → tick+verify {next_step} 完成 (verify rc={verify_rc})")
+            return verify_rc
+        except Exception as exc:  # 完整链失败不炸任务
+            print(_red(f"   ⚠️ 续跑异常: {exc}"), file=sys.stderr)
+            return 2
     return 0
 
 
@@ -3195,7 +3212,8 @@ def main(argv=None):
 
     elif command == "resume":
         task_doc = args[0] if args else None
-        return cmd_resume(task_doc=task_doc)
+        auto_continue = "--continue" in args
+        return cmd_resume(task_doc=task_doc, auto_continue=auto_continue)
 
     elif command == "tick":
         step_id = None
