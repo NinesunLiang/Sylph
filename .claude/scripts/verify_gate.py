@@ -277,27 +277,45 @@ def is_soft_completion(text: str) -> bool:
 VERIFY_ROOT = Path(__file__).resolve().parents[2]
 
 
-def _resolve_verified_path(expected_file: str) -> Path | None:
-    """将 file: 规则路径解析为仓库内绝对路径；越界（.. 逃逸 / 仓库外）返回 None。"""
+def _resolve_verified_path(expected_file: str, base_dir: Path | None = None) -> Path | None:
+    """将 file: 规则路径解析为仓库内绝对路径；越界（.. 逃逸 / 仓库外）返回 None。
+
+    index19 F1：plan.md 的 file: 规则常用任务目录相对路径（如 artifacts/xxx）。
+    base_dir 存在时先尝试从 base_dir（任务目录）解析；文件在 repo 根则照旧。
+    两条路径都必须在 VERIFY_ROOT 内，否则按越界拒绝。
+    """
     p = Path(expected_file)
     try:
         root = VERIFY_ROOT.resolve()
     except OSError:
         return None
+    candidates: list[Path] = []
     if p.is_absolute():
-        try:
-            resolved = p.resolve()
-        except OSError:
-            return None
+        candidates.append(p)
     else:
-        resolved = (VERIFY_ROOT / p).resolve()
-    if resolved == root or root in resolved.parents:
-        return resolved
-    return None
+        if base_dir is not None and base_dir.exists():
+            candidates.append(base_dir / p)
+        candidates.append(VERIFY_ROOT / p)
+    first_in_repo = None
+    for cand in candidates:
+        try:
+            resolved = cand.resolve()
+        except OSError:
+            continue
+        if resolved == root or root in resolved.parents:
+            if resolved.exists():
+                return resolved
+            if first_in_repo is None:
+                first_in_repo = resolved  # 仓库内但暂不存在：供调用方报 missing
+    return first_in_repo
 
 
-def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, str, list[str]]:
-    """Match a single verify rule against available evidence."""
+def match_verify_rule(rule: str, evidence: list[dict[str, Any]],
+                      base_dir: Path | None = None) -> tuple[bool, str, list[str]]:
+    """Match a single verify rule against available evidence.
+
+    base_dir: 任务目录（executor.md 所在目录），file: 相对路径的第二解析基点。
+    """
     warnings: list[str] = []
 
     # command: rule
@@ -322,7 +340,11 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
     if fm:
         expected_file = fm.group(1).strip()
         expected_assertion = fm.group(2).strip()
-        resolved = _resolve_verified_path(expected_file)
+        # 剥离包裹引号（plan.md 里 `contains "index19"` 引号是书写习惯，非字面量）
+        if len(expected_assertion) >= 2 and expected_assertion[0] == expected_assertion[-1] \
+                and expected_assertion[0] in ("'", '"'):
+            expected_assertion = expected_assertion[1:-1]
+        resolved = _resolve_verified_path(expected_file, base_dir)
         if resolved is None:
             return False, f"file rule path outside repo: {expected_file}", warnings
         if not resolved.exists():
@@ -489,7 +511,7 @@ def verify_step(step: str, plan_path: Path, executor_path: Path, token_path: Pat
     all_warnings: list[str] = []
 
     for rule in verify_rules:
-        ok, reason, warns = match_verify_rule(rule, evidence)
+        ok, reason, warns = match_verify_rule(rule, evidence, base_dir=executor_path.parent)
         all_warnings.extend(warns)
         if ok:
             matched_rules.append(reason)

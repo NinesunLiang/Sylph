@@ -272,7 +272,12 @@ _SCHEMA_VERSION = "v1.0"
 
 
 def _get_date_str():
-    return datetime.now(timezone.utc).strftime("%Y%m%d")
+    """本地日历日期（任务目录/审计分片用）。
+
+    早期用 UTC 日期：本地 +8 在 UTC 19:00 后即次日，任务落入昨日目录。
+    日期目录与审计分片应按本地日历日，时间戳字段仍保持 UTC（见 _now_iso）。
+    """
+    return datetime.now().strftime("%Y%m%d")
 
 
 def _init_task_paths(task_id=None, task_dir=None):
@@ -320,7 +325,7 @@ def _bold(s): return f"\033[1m{s}\033[0m"
 
 def _default_token(task_id=None, level="L1", steps=None):
     now = datetime.now(timezone.utc)
-    suffix = now.strftime("%Y%m%d")
+    suffix = _get_date_str()
     tid = task_id or f"sess_{suffix}_0000"
     if steps is None:
         steps = ["S1"]
@@ -723,7 +728,7 @@ def _write_audit(event_type, data, fallback=False):
     if ad is None:
         return  # 无法写 audit
     ad.mkdir(parents=True, exist_ok=True)
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    date_str = _get_date_str()
     audit_file = ad / f"{date_str}.jsonl"
     record = {
         "schema_version": _SCHEMA_VERSION,
