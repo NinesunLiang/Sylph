@@ -126,6 +126,18 @@ def parse_plan_steps(plan_text: str) -> list[dict[str, Any]]:
     return steps
 
 
+def _deps_all_completed(dep: str, completed: set[str]) -> bool:
+    """A step's dependencies are all completed. Supports comma-separated deps.
+
+    `dep` may be "none", a single id ("S2"), or comma-separated ("S2,S3,S4").
+    Every non-empty id must be present in `completed`. (index17 S6)
+    """
+    if not dep or dep.strip().lower() == "none":
+        return True
+    deps = [d.strip() for d in dep.split(",") if d.strip()]
+    return all(d in completed for d in deps)
+
+
 def find_first_activatable_step(steps: list[dict[str, Any]]) -> str | None:
     """Find first pending step whose dependencies are all completed.
 
@@ -136,7 +148,7 @@ def find_first_activatable_step(steps: list[dict[str, Any]]) -> str | None:
         if s["status"] != "pending":
             continue
         dep = s.get("depends_on", "none")
-        if dep.lower() == "none" or dep in completed:
+        if _deps_all_completed(dep, completed):
             return s["id"]
     return None
 
@@ -295,12 +307,11 @@ def start_step_atomic(token_path: str | Path,
     if step_info["status"] != "pending":
         raise ValueError(f"Step {step_id} status={step_info['status']}, expected pending")
 
-    # Validate dependencies
+    # Validate dependencies (multi-dep comma-separated supported, index17 S6)
     dep = step_info.get("depends_on", "none")
-    if dep.lower() != "none":
-        dep_info = next((s for s in steps if s["id"] == dep), None)
-        if not dep_info or dep_info["status"] != "completed":
-            raise ValueError(f"Step {step_id} depends on {dep} which is not completed")
+    completed_ids = {s["id"] for s in steps if s["status"] == "completed"}
+    if not _deps_all_completed(dep, completed_ids):
+        raise ValueError(f"Step {step_id} depends on {dep} which is not completed")
 
     # Prepare new plan text
     new_plan = re.sub(

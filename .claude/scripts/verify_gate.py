@@ -119,19 +119,36 @@ def _normalize_i18n(text: str) -> str:
     return lowered
 
 
+def _canonical_atom(word: str) -> str:
+    """Normalize English morphological forms for core-term comparison.
+
+    Strips a trailing 's' (noun plurals / 3rd-person -s) while guarding 'ss'
+    suffixes and short words, so 'exists'=='exist', 'artifacts'=='artifact'.
+    '-ed/-ing' inflections are NOT stripped, keeping distinct lexemes distinct
+    and avoiding false-positive matches. (index17 M1)
+    """
+    w = word.lower().strip()
+    if w.endswith("ss") or len(w) <= 4:
+        return w
+    if w.endswith("s"):
+        return w[:-1]
+    return w
+
+
 def _extract_core_terms(normalized: str) -> set[str]:
     """从归一化文本提取核心术语集（⟨...⟩ 标记的映射术语）。
 
     复合短语（含空格的 ⟨old task states untouched⟩）按空格拆成单词原子，
     使「术语集覆盖」比较能跨同义短语成立（rule 的原子词全在断言侧即可），
     同时保留单术语原子。用于断言匹配的判断：rule 原子词 ⊆ 断言原子词。
+    原子词经 _canonical_atom 词形归一（index17 M1：exist/exists 拦截修复）。
     """
     terms: set[str] = set()
     for marked in re.findall(r"⟨([^⟩]+)⟩", normalized):
         if " " in marked:
-            terms.update(marked.split())
+            terms.update(_canonical_atom(w) for w in marked.split())
         else:
-            terms.add(marked)
+            terms.add(_canonical_atom(marked))
     return terms
 
 
