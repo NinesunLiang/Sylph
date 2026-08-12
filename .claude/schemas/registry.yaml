@@ -44,6 +44,10 @@
 
 # output/acceptance_report.yaml — Referenced by lx-todo Step 4（保留）
 
+# 2026-08-12 ADR 0015 清理：output/review_report.yaml、output/block-output.yaml — 0 引用，已删
+# 2026-08-12 ADR 0015 真源化：contract/*.yaml 由 state_transitions.py / phase_contracts.py / step_contracts.py 消费
 
  verdict: path: schemas/atomic/verdict.yaml version: v1 description: "最终判定" consumers: [ALL]
-contract: state_transitions: path: schemas/contract/state_transitions.yaml version: v1 description: "状态机转换契约（参考文档，非强制）" consumers: [lx-task-spec]
+contract: state_transitions: path: schemas/contract/state_transitions.yaml version: v1 description: "任务级状态机转换契约（真源强制，ADR 0015）" consumers: [lx-task-spec, carros_base/state_transitions.py]
+contract: phase_handoff: path: schemas/contract/phase_handoff.yaml version: v1 description: "阶段交接唯一契约（真源强制，含 phases 实例，ADR 0015）" consumers: [phase_contracts.py]
+contract: step_contract: path: schemas/contract/step_contract.yaml version: v1 description: "step 生命周期唯一契约（真源强制，ADR 0015）" consumers: [step_contracts.py]

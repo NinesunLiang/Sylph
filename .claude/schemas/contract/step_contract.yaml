@@ -1,0 +1,40 @@
+# Schema: step_contract
+# Version: v1
+# Owner: CarrorOS lifecycle (ADR 0015)
+# Purpose: step 生命周期唯一契约。step_contracts.py 唯一读取源。
+# 声明 step 字段集合 / 状态机 / 证据必填 section。
+
+schema_version: carroros.step_contract.v1
+
+step:
+  fields:
+    id:
+      type: string
+      required: true
+    status:
+      type: enum
+      values: [pending, active, completed, blocked]
+      required: true
+    depends_on:
+      type: string
+      default: none
+      required: false
+    acceptance:
+      type: string
+      required: false
+    verify:
+      type: string
+      required: false
+    scope:
+      type: string
+      required: false
+  status:
+    values: [pending, active, completed, blocked]
+
+evidence:
+  required_sections:
+    - Conditions
+    - Key Changes
+    - Decisions
+    - Acceptance Checklist
+    - TDD Evidence

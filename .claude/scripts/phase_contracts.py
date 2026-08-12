@@ -12,44 +12,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 
 _PLACEHOLDERS = {"", "todo", "tbd", "n/a", "待填写", "待确认", "暂无", "...", "…"}
 
 SCHEMA_VERSION = "carroros.phase_handoff.v1"
-PHASES = ("CLARIFY", "PLANNING", "EXECUTING", "VERIFYING", "ARCHIVING")
 
-PHASE_CONTRACTS: dict[str, dict[str, Any]] = {
-    "CLARIFY": {
-        "inputs": {"required": ["goal.description", "task_dir"], "inherited": []},
-        "outputs": {"required": ["research.sections", "research.dependency_tree"], "artifacts": ["research.md"]},
-        "evidence": {"required": ["research_gate.result", "research_gate.errors"]},
-        "next_gate": {"target_phase": "PLANNING", "checks": ["ResearchGate.validate(research.md)"]},
-    },
-    "PLANNING": {
-        "inputs": {"required": ["research.md", "research_gate.result"], "inherited": ["goal.description", "task_dir"]},
-        "outputs": {"required": ["plan.phases", "plan.steps", "step.acceptance", "step.verify"], "artifacts": ["plan.md"]},
-        "evidence": {"required": ["plan_gate.result", "plan_gate.errors"]},
-        "next_gate": {"target_phase": "EXECUTING", "checks": ["ResearchGate.validate(research.md)", "PlanGate.validate(plan.md)"]},
-    },
-    "EXECUTING": {
-        "inputs": {"required": ["plan.md", "plan_gate.result", "current_step.schema"], "inherited": ["research.md", "task_dir"]},
-        "outputs": {"required": ["step.conditions", "step.key_changes", "step.decisions", "step.acceptance_checklist", "step.tdd_evidence", "step.evidence"], "artifacts": ["executor.md", "state/step-handoff-<step>.json"]},
-        "evidence": {"required": ["step_start.result", "dependency_tdd", "regression_tdd"]},
-        "next_gate": {"target_phase": "VERIFYING", "checks": ["all steps completed", "step handoff ready"]},
-    },
-    "VERIFYING": {
-        "inputs": {"required": ["executor.md", "all step handoffs", "verify rules"], "inherited": ["plan.md", "research.md"]},
-        "outputs": {"required": ["verify.decisions", "verify.evidence_summary", "verify.next_actions"], "artifacts": ["state/verify-results.json"]},
-        "evidence": {"required": ["VerifyGate.result", "audit event"]},
-        "next_gate": {"target_phase": "ARCHIVING", "checks": ["all VerifyGate decisions are VERIFIED or WARN", "no unresolved blockers"]},
-    },
-    "ARCHIVING": {
-        "inputs": {"required": ["verify-results", "final-report"], "inherited": ["plan.md", "executor.md", "research.md"]},
-        "outputs": {"required": ["archive.manifest", "archive.verdict"], "artifacts": [".omc/archive/<task>"]},
-        "evidence": {"required": ["lint.result", "archive.result"]},
-        "next_gate": {"target_phase": "ARCHIVED", "checks": ["archive completed", "token lock removed"]},
-    },
-}
+_PHASE_CONTRACT_YAML = Path(__file__).resolve().parent.parent / "schemas" / "contract" / "phase_handoff.yaml"
+
+
+def _load_phases_from_yaml() -> dict[str, dict[str, Any]]:
+    """从 phase_handoff.yaml 读取每阶段实例（Contract-first 唯一真源，ADR 0015）。
+
+    fail-fast: 文件缺失 / 缺 phases 段 / schema_version 不匹配直接抛错，
+    不静默 fallback（防双源漂移）。
+    """
+    path = _PHASE_CONTRACT_YAML
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or "phases" not in data:
+        raise ValueError(f"phase_handoff.yaml missing 'phases' section: {path}")
+    if data.get("schema_version", {}).get("const") != SCHEMA_VERSION:
+        raise ValueError(f"phase_handoff.yaml schema_version mismatch: {path}")
+    phases = data["phases"]
+    if not isinstance(phases, dict) or not phases:
+        raise ValueError(f"phase_handoff.yaml 'phases' section empty: {path}")
+    return phases
+
+
+_PHASE_DATA = _load_phases_from_yaml()
+PHASES = tuple(_PHASE_DATA.keys())
 
 
 def now_iso() -> str:
@@ -57,9 +50,9 @@ def now_iso() -> str:
 
 
 def phase_contract(phase: str) -> dict[str, Any]:
-    if phase not in PHASE_CONTRACTS:
+    if phase not in _PHASE_DATA:
         raise ValueError(f"unknown phase: {phase}")
-    value = PHASE_CONTRACTS[phase]
+    value = _PHASE_DATA[phase]
     return {
         "schema_version": SCHEMA_VERSION,
         "phase": phase,

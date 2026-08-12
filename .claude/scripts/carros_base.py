@@ -94,6 +94,11 @@ try:
 except ImportError:
     phase_contracts = None
 
+try:
+    import state_transitions
+except ImportError:
+    state_transitions = None
+
 from token_lifecycle import finalize_token
 
 
@@ -582,11 +587,10 @@ def _write_goal_scaffolds() -> None:
         encoding="utf-8",
     )
     EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
-    EXECUTOR_PATH.write_text(
-        "# Executor Evidence Ledger\n\n"
-        "> sealed: plan-done must pass before executor evidence is written.\n",
-        encoding="utf-8",
-    )
+    # 复用 RPE 标准 executor 模板：预声明终态门禁要求的全部工件节
+    # （Conditions/Key Changes/Decisions/Acceptance Checklist/TDD Evidence），
+    # 避免「先过门禁后补信息」的次序缺陷 —— 信息须在门禁前就位。
+    _write_default_executor()
 
 
 def _init_task_dirs():
@@ -949,10 +953,28 @@ def cmd_resume(task_doc=None):
         print(f"   → {action} (state/continuation.json)")
     print(f"   → 恢复摘要: {task_dir / 'state' / 'resume.md'}")
 
+    # 持久化激活指针：后续 status/tick/verify 无需 env 直接定位（给路径即续传）
+    try:
+        state_root = OMC_ROOT / "state"
+        state_root.mkdir(parents=True, exist_ok=True)
+        (state_root / "active-resume.json").write_text(
+            json.dumps({
+                "date": doc["date"],
+                "slug": doc["slug"],
+                "task_dir": str(task_dir),
+                "token_path": str(doc["token_path"]),
+                "activated_at": datetime.now(timezone.utc).isoformat(),
+            }, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        print(_green("   → 已写入活跃任务指针：后续 tick/verify 直接继续，无需 env"))
+    except OSError:
+        pass
+
     print()
     if pending:
         print(_yellow(f"   ⏭️  Next Action: 继续执行 {pending[0]}"))
-        print(f"      CARROROS_TASK_DIR='{task_dir}' python3 .claude/scripts/carros_base.py tick --step {pending[0]}")
+        print(f"      python3 .claude/scripts/carros_base.py tick --step {pending[0]}")
     elif token_info.get("goal_state"):
         print(_yellow(f"   ⏭️  Next Action: 继续推进 Goal 阶段（{token_info['goal_state']}）"))
     else:
@@ -1133,6 +1155,20 @@ def _find_latest_token(require_active=True):
         return token, explicit
 
     if not task_id and not task_dir:
+        # 无上下文：读显式激活指针（resume 写入），不扫描其他任务
+        ptr = OMC_ROOT / "state" / "active-resume.json"
+        try:
+            data = json.loads(ptr.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = None
+        if data:
+            tp = Path(str(data.get("token_path", ""))).expanduser()
+            try:
+                token = json.loads(tp.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                token = None
+            if isinstance(token, dict) and matches(token, tp):
+                return token, tp
         return None, None
 
     OMC_TOKENS.mkdir(parents=True, exist_ok=True)
@@ -1541,6 +1577,12 @@ def cmd_verify(step_id=None, all_steps=False):
         _save_token(token)
         _write_handoff(token)
 
+        # state_transitions 强制 gate（ADR 0015）：任务全绿完成必须经过合法转换校验
+        # 统一在 verify 尾部覆盖 step_contracts 与 legacy 两条完成路径
+        if (state_transitions is not None
+                and token.get("stats", {}).get("done", 0) >= token.get("stats", {}).get("total", 1)):
+            state_transitions.require_transition("executing", "done")
+
         # Goal 状态自动推进: all steps done → EXECUTING ready → VERIFYING
         done = token.get("stats", {}).get("done", 0)
         total = token.get("stats", {}).get("total", 0)
@@ -1717,6 +1759,13 @@ def cmd_archive(force=False):
     token["status"] = "archived"
     token["archived_at"] = datetime.now(timezone.utc).isoformat()
     _save_token(token)
+    # 归档成功 → 清除活跃任务指针（避免残留指向已归档任务）
+    try:
+        _aptr = OMC_ROOT / "state" / "active-resume.json"
+        if _aptr.exists():
+            _aptr.unlink()
+    except OSError:
+        pass
     cmd_report(use_stdout=False)
     print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
 

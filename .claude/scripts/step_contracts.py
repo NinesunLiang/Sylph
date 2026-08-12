@@ -23,6 +23,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 try:
     from goal_contracts import is_placeholder
 except ImportError:
@@ -39,15 +41,26 @@ try:
 except ImportError:
     phase_contracts = None
 
-STEP_STATUSES = {"pending", "active", "completed", "blocked"}
+_STEP_CONTRACT_YAML = Path(__file__).resolve().parent.parent / "schemas" / "contract" / "step_contract.yaml"
 
-EVIDENCE_REQUIRED_SECTIONS = [
-    "Conditions",
-    "Key Changes",
-    "Decisions",
-    "Acceptance Checklist",
-    "TDD Evidence",
-]
+
+def _load_step_contract() -> dict[str, Any]:
+    """从 step_contract.yaml 读取 step 契约（Contract-first 唯一真源，ADR 0015）。
+
+    fail-fast: 文件缺失 / schema_version 不匹配直接抛错，不静默 fallback。
+    """
+    path = _STEP_CONTRACT_YAML
+    with open(path, encoding="utf-8") as f:
+        data = yaml.safe_load(f)
+    if not isinstance(data, dict) or data.get("schema_version") != "carroros.step_contract.v1":
+        raise ValueError(f"step_contract.yaml invalid or wrong schema_version: {path}")
+    return data
+
+
+_STEP_CONTRACT = _load_step_contract()
+STEP_STATUSES = set(_STEP_CONTRACT["step"]["status"]["values"])
+
+EVIDENCE_REQUIRED_SECTIONS = list(_STEP_CONTRACT["evidence"]["required_sections"])
 
 
 def now_iso() -> str:
@@ -247,7 +260,7 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
 def start_step_atomic(token_path: str | Path,
                       plan_path: str | Path,
                       executor_path: str | Path,
-                      step_id: str) -> None:
+                      step_id: str) -> dict[str, Any]:
     """Atomic step activation: transactionally update plan + token + executor.
 
     Transaction semantics:
@@ -441,6 +454,9 @@ def start_step_atomic(token_path: str | Path,
         if lock_path.exists():
             lock_path.unlink(missing_ok=True)
 
+    # G2 出参契约（ADR 0015）：成功返回结构化结果，失败仍抛 ValueError
+    return {"ok": True, "step_id": step_id, "errors": []}
+
 
 # ─── Atomic Step Complete ──────────────────────────────────────────
 
@@ -448,7 +464,7 @@ def start_step_atomic(token_path: str | Path,
 def complete_step_atomic(token_path: str | Path,
                          plan_path: str | Path,
                          executor_path: str | Path,
-                         step_id: str) -> None:
+                         step_id: str) -> dict[str, Any]:
     """Evidence-validated step completion.
 
     Before updating plan/token, validates EV evidence completeness via
@@ -489,7 +505,7 @@ def complete_step_atomic(token_path: str | Path,
                 f"Step {step_id} already completed but canonical stats mismatch "
                 f"({stats.get('done', 0)}/{stats.get('total', 0)} != {completed_count}/{total})"
             )
-        return
+        return {"ok": True, "step_id": step_id, "errors": []}
     if step_info["status"] != "active":
         raise ValueError(f"Step {step_id} status={step_info['status']}, expected active")
 
@@ -592,3 +608,6 @@ def complete_step_atomic(token_path: str | Path,
 
     if phase_contracts is not None and (plan_path.parent / "state" / f"step-handoff-{step_id}.json").exists():
         phase_contracts.complete_step_from_artifacts(plan_path.parent, step_id)
+
+    # G2 出参契约（ADR 0015）：成功返回结构化结果，失败仍抛 ValueError
+    return {"ok": True, "step_id": step_id, "errors": []}

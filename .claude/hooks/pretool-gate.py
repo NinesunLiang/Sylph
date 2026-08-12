@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
 sys.path.insert(0, str(_script_path.parent))
 
 from pretool_gates.checks import (
-    _check_sensitive_edit, _check_fallback, _check_action_gate,
+    _check_sensitive_edit, _check_governance_bypass, _check_fallback, _check_action_gate,
     _check_plan_gate, _check_edit_scope, _check_verify_gate,
     _check_oracle_gate, _check_document_quality,
     _check_g2_large_file, _check_g3_reviews, _check_g5_wide_glob, _check_g6_budget,
@@ -45,6 +45,7 @@ from pretool_gates.checks import (
 L1_GATES = [
     ("source-marker", _check_source_marker),
     ("sensitive-edit", _check_sensitive_edit),
+    ("governance-bypass", _check_governance_bypass),
     ("fallback", _check_fallback),
     ("edit-scope", _check_edit_scope),
     ("action", _check_action_gate),
@@ -56,6 +57,7 @@ L1_GATES = [
 GATES = [
     ("source-marker", _check_source_marker),
     ("sensitive-edit", _check_sensitive_edit),
+    ("governance-bypass", _check_governance_bypass),
     ("fallback", _check_fallback),
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),

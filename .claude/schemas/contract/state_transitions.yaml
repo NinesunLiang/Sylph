@@ -2,9 +2,10 @@
 
 # Version: v1
 
-# Owner: lx-task-spec (generic)
+# Owner: lx-task-spec (generic) + CarrorOS lifecycle (ADR 0015)
 
-# Description: 状态机转换契约，定义合法的状态流转路径
+# Description: 状态机转换契约，定义合法的状态流转路径。
+# 真源（强制）：由 state_transitions.py 消费，非法转换在 verify/archive 完成判定处被拒绝（ADR 0015）。
 
 
 states:

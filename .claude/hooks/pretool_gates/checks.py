@@ -71,6 +71,45 @@ def _check_sensitive_edit(payload: dict) -> str | None:
     return None
 
 
+# ── governance_bypass 软门禁（ADR 0015 二期）：Bash 写敏感治理文件 → REDIRECT ──
+# 路径找补：echo/cat >> CLAUDE.md 等绕过 Write 门禁直写治理文件 → 软门禁
+# REDIRECT 回正确路径，不 BLOCK（对齐 agentic-ui 软锁哲学：REDIRECT/ASK_USER）。
+
+# 治理文件判定在 _is_governance 基础上补充顶层 CLAUDE.md 与 .claude/harness.yaml
+# （_is_governance 的 patterns 未覆盖这两处）。
+_GOV_BYPASS_EXTRA = ("CLAUDE.md", ".claude/harness.yaml")
+
+
+def _check_governance_bypass(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    command = _extract_command(payload)
+    if not command:
+        return None
+    for m in re.finditer(r"[>]{1,2}\s+([^\s;>|&]+)", command):
+        target = m.group(1).strip("'\"")
+        if not target:
+            continue
+        if not (_is_governance(target) or target in _GOV_BYPASS_EXTRA):
+            continue
+        _append_audit({
+            "event_type": "governance_bypass_redirect",
+            "actor": "hook:pretool-gate",
+            "decision": "REDIRECT",
+            "reason": f"governance_bypass: bash write to {target}",
+            "tool": tool,
+            "command": command[:120],
+        })
+        return (
+            f"REDIRECT governance_bypass tool={tool} target={target}|"
+            f"⚠️ Bash 重定向写治理文件 {target}，绕过 Write 门禁。"
+            f"治理文件变更须走受控决策流程（铁律/审批）；请勿用 echo/cat >> 直写。"
+            f"若确需变更，通过正确路径申请后再写。"
+        )
+    return None
+
+
 # ── Gate 2: Fallback check ──
 
 def _check_fallback(_payload: dict) -> str | None:

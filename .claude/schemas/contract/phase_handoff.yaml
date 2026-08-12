@@ -1,7 +1,9 @@
 # Schema: phase_handoff
 # Version: v1
 # Owner: CarrorOS lifecycle
-# Purpose: 阶段交接唯一契约。当前阶段开始时生成骨架，下一阶段门禁消费并验证。
+# Purpose: 阶段交接唯一契约（Contract-first 真源，ADR 0015）。
+# 当前阶段开始时生成骨架，下一阶段门禁消费并验证。
+# phases 段为每阶段具体实例，phase_contracts.py 唯一读取源。
 
 schema_version:
   type: string
@@ -69,3 +71,67 @@ created_at:
 completed_at:
   type: string
   required: false
+
+# ── 每阶段具体实例（唯一真源；phase_contracts.phase_contract 读取） ──
+
+phases:
+  CLARIFY:
+    inputs:
+      required: ["goal.description", "task_dir"]
+      inherited: []
+    outputs:
+      required: ["research.sections", "research.dependency_tree"]
+      artifacts: ["research.md"]
+    evidence:
+      required: ["research_gate.result", "research_gate.errors"]
+    next_gate:
+      target_phase: PLANNING
+      checks: ["ResearchGate.validate(research.md)"]
+  PLANNING:
+    inputs:
+      required: ["research.md", "research_gate.result"]
+      inherited: ["goal.description", "task_dir"]
+    outputs:
+      required: ["plan.phases", "plan.steps", "step.acceptance", "step.verify"]
+      artifacts: ["plan.md"]
+    evidence:
+      required: ["plan_gate.result", "plan_gate.errors"]
+    next_gate:
+      target_phase: EXECUTING
+      checks: ["ResearchGate.validate(research.md)", "PlanGate.validate(plan.md)"]
+  EXECUTING:
+    inputs:
+      required: ["plan.md", "plan_gate.result", "current_step.schema"]
+      inherited: ["research.md", "task_dir"]
+    outputs:
+      required: ["step.conditions", "step.key_changes", "step.decisions", "step.acceptance_checklist", "step.tdd_evidence", "step.evidence"]
+      artifacts: ["executor.md", "state/step-handoff-<step>.json"]
+    evidence:
+      required: ["step_start.result", "dependency_tdd", "regression_tdd"]
+    next_gate:
+      target_phase: VERIFYING
+      checks: ["all steps completed", "step handoff ready"]
+  VERIFYING:
+    inputs:
+      required: ["executor.md", "all step handoffs", "verify rules"]
+      inherited: ["plan.md", "research.md"]
+    outputs:
+      required: ["verify.decisions", "verify.evidence_summary", "verify.next_actions"]
+      artifacts: ["state/verify-results.json"]
+    evidence:
+      required: ["VerifyGate.result", "audit event"]
+    next_gate:
+      target_phase: ARCHIVING
+      checks: ["all VerifyGate decisions are VERIFIED or WARN", "no unresolved blockers"]
+  ARCHIVING:
+    inputs:
+      required: ["verify-results", "final-report"]
+      inherited: ["plan.md", "executor.md", "research.md"]
+    outputs:
+      required: ["archive.manifest", "archive.verdict"]
+      artifacts: [".omc/archive/<task>"]
+    evidence:
+      required: ["lint.result", "archive.result"]
+    next_gate:
+      target_phase: ARCHIVED
+      checks: ["archive completed", "token lock removed"]
