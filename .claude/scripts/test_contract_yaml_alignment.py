@@ -42,7 +42,7 @@ EXPECTED_PHASES = {
     },
     "EXECUTING": {
         "inputs": {"required": ["plan.md", "plan_gate.result", "current_step.schema"], "inherited": ["research.md", "task_dir"]},
-        "outputs": {"required": ["step.conditions", "step.key_changes", "step.decisions", "step.acceptance_checklist", "step.tdd_evidence", "step.evidence"], "artifacts": ["executor.md", "state/step-handoff-<step>.json"]},
+        "outputs": {"required": ["step.key_changes", "step.tdd_evidence", "step.evidence"], "artifacts": ["executor.md", "state/step-handoff-<step>.json"]},
         "evidence": {"required": ["step_start.result", "dependency_tdd", "regression_tdd"]},
         "next_gate": {"target_phase": "VERIFYING", "checks": ["all steps completed", "step handoff ready"]},
     },

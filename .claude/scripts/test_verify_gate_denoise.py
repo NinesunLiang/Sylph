@@ -4,7 +4,7 @@
 红→绿目标：
   1. 自然语言 executor（无机器格式字面）通过 validate_step_evidence
   2. 中英断言语义匹配（rule 英文 / EV 断言中文）通过 match_verify_rule
-  3. 核心防线保留：空 TDD / 软完成断言 / 占位 Decisions 仍被拒
+  3. 核心防线保留：空 TDD / 软完成断言仍被拒；Decisions 段已精简不再校验
 """
 import sys
 from pathlib import Path
@@ -53,14 +53,14 @@ def test_empty_tdd_still_rejected() -> None:
     assert any("tdd" in e for e in errors), f"空 TDD 应被拒: {errors}"
 
 
-def test_empty_decisions_still_rejected() -> None:
-    """核心防线：Decisions 段无实质内容仍拒。"""
+def test_placeholder_decisions_no_longer_required() -> None:
+    """契约精简（6→3）：Decisions 段不再校验，占位内容不拒。"""
     executor = NATURAL_EXECUTOR.replace(
         "- 决策: 采用 TDD 先行，先写红测试再实现，避免重复重试。",
         "- 待填写",
     )
     errors = validate_step_evidence(executor, "S1")
-    assert any("decisions" in e for e in errors), f"占位 Decisions 应被拒: {errors}"
+    assert not any("decisions" in e for e in errors), f"Decisions 段精简后不应再拒: {errors}"
 
 
 # ── 2. 中英断言语义匹配（降噪） ─────────────────────────────────────
@@ -136,7 +136,7 @@ def test_all_terms_reordered_matches() -> None:
 if __name__ == "__main__":
     test_natural_language_executor_passes()
     test_empty_tdd_still_rejected()
-    test_empty_decisions_still_rejected()
+    test_placeholder_decisions_no_longer_required()
     test_i18n_assertion_match()
     test_i18n_pure_chinese_assertion_match()
     test_soft_completion_still_rejected()

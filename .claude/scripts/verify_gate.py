@@ -273,6 +273,29 @@ def is_soft_completion(text: str) -> bool:
     return any(phrase.lower() in lowered for phrase in SOFT_COMPLETION_PHRASES)
 
 
+# ── 真实文件验证（还债升级）：file: 规则直接读仓库内文件，不信任 AI 自述 ──
+VERIFY_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_verified_path(expected_file: str) -> Path | None:
+    """将 file: 规则路径解析为仓库内绝对路径；越界（.. 逃逸 / 仓库外）返回 None。"""
+    p = Path(expected_file)
+    try:
+        root = VERIFY_ROOT.resolve()
+    except OSError:
+        return None
+    if p.is_absolute():
+        try:
+            resolved = p.resolve()
+        except OSError:
+            return None
+    else:
+        resolved = (VERIFY_ROOT / p).resolve()
+    if resolved == root or root in resolved.parents:
+        return resolved
+    return None
+
+
 def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, str, list[str]]:
     """Match a single verify rule against available evidence."""
     warnings: list[str] = []
@@ -294,28 +317,25 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
                     warnings.append(f"command {src} exit=0 but evidence_level={el} (expected E3)")
         return False, f"no matching command evidence for: {expected_cmd}", warnings
 
-    # file: rule
+    # file: rule — 真实读文件验证（还债升级：不信任 AI 自述的 file/assertion 字段）
     fm = re.match(r"^file:(.+?)\s+contains\s+(.+)$", rule)
     if fm:
         expected_file = fm.group(1).strip()
         expected_assertion = fm.group(2).strip()
-        for ev in evidence:
-            if ev.get("type") == "failure":
-                continue
-            ef = str(ev.get("file", "")).strip()
-            ea = str(ev.get("assertion", "")).strip()
-            el = str(ev.get("evidence_level", ""))
-            if ef and (ef == expected_file or ef.endswith("/" + expected_file)):
-                if is_soft_completion(ea):
-                    warnings.append(f"file_assertion for {ef} contains soft completion: '{ea}'")
-                    return False, "soft_completion_in_assertion", warnings
-                if expected_assertion.lower() in ea.lower():
-                    if el in ("E2", "E3"):
-                        return True, f"file assertion match: {ef} contains '{expected_assertion}'", []
-                    warnings.append(f"file assertion for {ef} has evidence_level={el} (expected E2/E3)")
-                else:
-                    warnings.append(f"file assertion for {ef} doesn't contain '{expected_assertion}'")
-        return False, f"no matching file assertion for: {expected_file}", warnings
+        resolved = _resolve_verified_path(expected_file)
+        if resolved is None:
+            return False, f"file rule path outside repo: {expected_file}", warnings
+        if not resolved.exists():
+            return False, f"verified file missing: {expected_file}", warnings
+        try:
+            content = resolved.read_text(encoding="utf-8", errors="ignore")
+        except OSError as exc:
+            return False, f"cannot read verified file {expected_file}: {exc}", warnings
+        # 注：真实文件读取不做 soft-completion 检测（那是防 AI 自述敷衍的，
+        # 真实代码/文档内容含"should be ok"等词是正常现象，不应误判）。
+        if expected_assertion.lower() in content.lower():
+            return True, f"real file match: {expected_file} contains '{expected_assertion}'", []
+        return False, f"real file does not contain '{expected_assertion}': {expected_file}", warnings
 
     # assertion: rule
     am = re.match(r"^assertion:(.+)$", rule)
@@ -341,9 +361,11 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
             # 1) 整段字面子串（向后兼容，含中英归一化后）
             if expected_norm in assertion_norm or expected_raw in assertion_text:
                 return True, f"assertion match: '{expected_raw}'", []
-            # 2) 全部实质性分段均命中（容忍插入/换序 + 中英归一化）
-            if segments_norm and all(s in assertion_norm for s in segments_norm):
-                return True, f"assertion segment match: '{'; '.join(segments)}'", []
+            # 2) 多数实质性分段命中（容忍插入/换序 + 中英归一化；降噪还债：all→majority，对齐 index12 文档原意）
+            if segments_norm:
+                hits = sum(1 for s in segments_norm if s in assertion_norm)
+                if hits * 2 > len(segments_norm):
+                    return True, f"assertion segment match ({hits}/{len(segments_norm)}): '{'; '.join(segments)}'", []
             # 3) 核心术语集覆盖（rule 术语 ⊆ 断言术语）——跨语言语义匹配主路径
             if expected_terms and assertion_terms and expected_terms <= assertion_terms:
                 return True, f"assertion core-term match: {expected_terms}", []

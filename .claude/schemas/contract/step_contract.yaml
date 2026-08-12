@@ -33,8 +33,5 @@ step:
 
 evidence:
   required_sections:
-    - Conditions
     - Key Changes
-    - Decisions
-    - Acceptance Checklist
     - TDD Evidence

@@ -76,10 +76,10 @@ def step_contract(step: dict[str, Any], phase: str = "EXECUTING") -> dict[str, A
     contract["step"] = step_id
     contract["inputs"]["required"].extend(["step.scope", "step.acceptance", "step.verify"])
     contract["outputs"]["required"] = [f"{step_id}.{field}" for field in (
-        "conditions", "key_changes", "decisions", "acceptance_checklist", "tdd_evidence", "evidence")]
+        "key_changes", "tdd_evidence", "evidence")]
     contract["outputs"]["artifacts"] = ["executor.md", f"state/step-handoff-{step_id}.json"]
     contract["required_artifacts"] = [
-        {"path": "executor.md", "checks": ["EV block", "five completion sections"], "required": True},
+        {"path": "executor.md", "checks": ["EV block", "two completion sections"], "required": True},
         {"path": "plan.md", "checks": [f"step {step_id} exists", "canonical verify prefix"], "required": True},
     ]
     return contract
@@ -132,12 +132,9 @@ def _artifact_values(task_dir: str | Path, contract: dict[str, Any]) -> dict[str
     values: dict[str, str] = {}
     for key in contract.get("outputs", {}).get("required", []):
         field = key.rsplit(".", 1)[-1]
-        if field in {"conditions", "key_changes", "decisions", "acceptance_checklist", "tdd_evidence"}:
+        if field in {"key_changes", "tdd_evidence"}:
             heading = {
-                "conditions": "Conditions",
                 "key_changes": "Key Changes",
-                "decisions": "Decisions",
-                "acceptance_checklist": "Acceptance Checklist",
                 "tdd_evidence": "TDD Evidence",
             }[field]
             values[key] = _section_content(executor, heading)

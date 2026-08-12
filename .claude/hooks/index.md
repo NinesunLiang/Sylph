@@ -23,7 +23,6 @@
 | **夜航模式** | `carroros-night-deny.py` | PreToolUse |
 | **Claim审计** | `posttool-claim-audit.py` | PostToolUse:Edit/Write |
 | **安全过滤** | `posttool-sensitive-filter.py` | PostToolUse |
-| **输出校验** | `posttool-output-schema.py` | PostToolUse |
 | **Error DNA 采集** | `error-dna.py` | PostToolUse |
 | **完成审核** | `completion-gate.py` | PostToolUse:TaskUpdate |
 | **会话启动** | `session-start.py` | SessionStart |
@@ -42,3 +41,12 @@
 | `token_writer.py` | harness.yaml 显式禁用（token_writer: false） |
 | `turn-counter.py` | hc_enabled 门控但未启用 |
 | `compound-verify-gate.py` / `verify_contract.py` | 文档描述但文件从未存在（虚构引用） |
+
+## 已退休 Hook（还债·少即是多清理）
+
+以下 hook 已移入 `retired/`（可回滚，不物理删除），退出 settings.json 注册：
+
+| 退休文件 | 原因 |
+|------|------|
+| `postcompact.py` | 纯记录型；resume-note 写入逻辑无门禁价值，会话恢复由 session-start.py 读 handoff 兜底 |
+| `posttool-output-schema.py` | 纯提示型（warn-only）；输出 schema 校验无消费方，砍掉减少 token 开销 |

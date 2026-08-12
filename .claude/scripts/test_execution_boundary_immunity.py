@@ -209,9 +209,12 @@ def test_default_templates_are_contract_shaped(tmp_path, monkeypatch):
     plan = (tmp_path / "plan.md").read_text(encoding="utf-8")
     executor = (tmp_path / "executor.md").read_text(encoding="utf-8")
     assert "- verify: assertion: step S1 evidence is recorded" in plan
-    assert "- Rationale:" in executor
+    # 契约精简（6→3）：模板不再含 Rationale（Decisions 段已砍）
+    assert "- Rationale:" not in executor
+    assert "## Key Changes" in executor
     assert "Dependency TDD command:" in executor
     assert "Regression TDD command:" in executor
+    assert "### EV-S1" in executor
     sys.modules.pop("carros_templates", None)
 
 

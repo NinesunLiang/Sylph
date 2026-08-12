@@ -1252,7 +1252,12 @@ def cmd_subagent_log(action: str, agent_name: str = "", subtask: str = "", detai
 
 
 def _verify_executor_checklist(plan_dir: Path) -> None:
-    """Require the selected task's executor checklist to exist and be complete."""
+    """Require the selected task's executor to have completion evidence.
+
+    契约精简（还债项）：Acceptance Checklist 不再是必需段。
+    - 旧 executor 含 Acceptance Checklist → 仍校验全 [x]（向后兼容）
+    - 新 executor 无该段 → 以 VerifyGate 的 EV-*-VERIFIED 标记作为验收证据
+    """
     executor_md = plan_dir / "executor.md"
     if not executor_md.exists():
         raise ValueError(f"executor.md missing: {executor_md}")
@@ -1264,7 +1269,10 @@ def _verify_executor_checklist(plan_dir: Path) -> None:
         flags=re.MULTILINE,
     )
     if not checklist:
-        raise ValueError("executor Acceptance Checklist missing")
+        # 契约精简：无 checklist 段时以 VerifyGate 的 EV-VERIFIED 标记作为验收证据
+        if re.search(r"^### EV-\S+-VERIFIED\s*$", text, flags=re.MULTILINE):
+            return
+        raise ValueError("executor Acceptance Checklist missing and no VerifyGate EV-VERIFIED evidence")
 
     items = re.findall(r"^- \[([ xX])\] (.+)$", checklist.group(1), flags=re.MULTILINE)
     if not items:

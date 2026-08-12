@@ -182,11 +182,8 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
 
     Checks:
       1. EV block exists for step_id
-      2. Conditions section has content
-      3. Key Changes section has content
-      4. Decisions section includes rationale (or "none" + reason)
-      5. Acceptance Checklist is fully checked [x]
-      6. TDD Evidence has dependency TDD + regression TDD with exit 0
+      2. Key Changes section has content
+      3. TDD Evidence has dependency TDD + regression TDD with exit 0
 
     Returns list of error strings (empty = all valid).
     """
@@ -198,17 +195,7 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
         errors.append(f"missing_step_evidence_block: EV-{step_id}")
         return errors  # can't validate further without evidence block
 
-    # 2. Conditions section
-    cond_content = _extract_section_content(executor_text, "Conditions")
-    if not cond_content:
-        errors.append("conditions_section_empty_or_missing")
-    else:
-        cond_lines = [l for l in cond_content.split("\n") if l.strip()
-                      and not l.strip().startswith("<!--") and not is_placeholder(l)]
-        if not cond_lines:
-            errors.append("conditions_section_no_content")
-
-    # 3. Key Changes section
+    # 2. Key Changes section
     kc_content = _extract_section_content(executor_text, "Key Changes")
     if not kc_content:
         errors.append("key_changes_section_empty_or_missing")
@@ -218,29 +205,7 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
         if not kc_lines:
             errors.append("key_changes_section_no_content")
 
-    # 4. Decisions section - must include substantive rationale (semantic, not literal)
-    #    降噪（index15）：不强制 "rationale:" 字面，只要含实质决策内容即可。
-    dec_content = _extract_section_content(executor_text, "Decisions")
-    if not dec_content:
-        errors.append("decisions_section_empty_or_missing")
-    else:
-        dec_lines = [line for line in dec_content.split("\n") if line.strip() and not is_placeholder(line)]
-        if not dec_lines:
-            errors.append("decisions_missing_rationale")
-
-    # 5. Acceptance Checklist - all [x]
-    ac_content = _extract_section_content(executor_text, "Acceptance Checklist")
-    if not ac_content:
-        errors.append("acceptance_checklist_empty_or_missing")
-    else:
-        checked = len(re.findall(r"- \[[xX]\]", ac_content))
-        unchecked = len(re.findall(r"- \[ \]", ac_content))
-        if checked == 0:
-            errors.append("acceptance_checklist_has_no_checked_items")
-        if unchecked > 0:
-            errors.append(f"acceptance_checklist_has_{unchecked}_unchecked_items")
-
-    # 6. TDD Evidence - dependency + regression with exit 0
+    # 3. TDD Evidence - dependency + regression with exit 0
     #    降噪（index15）：不强制 "dependency tdd"/"regression tdd" 字面；只要 TDD 段
     #    含命令证据（.py/.sh/命令名）+ exit 0/通过 标记即视为满足，空段/无证据仍拒。
     tdd_content = _extract_section_content(executor_text, "TDD Evidence")
@@ -276,7 +241,7 @@ def start_step_atomic(token_path: str | Path,
       - Validates all dependencies are completed
       - Updates plan.md: [ ] -> [a] for step_id
       - Updates token.json: current_step, status, revision
-      - Updates executor.md: writes Conditions section + start EV block
+      - Updates executor.md: writes completion sections + start EV block
 
     Crash during transaction leaves NO partial state (temp files + os.replace).
 
@@ -346,28 +311,10 @@ def start_step_atomic(token_path: str | Path,
 
     # Prepare executor content and submit the full completion schema before execution.
     ts = now_iso()
-    exec_conditions = f"""
-## Conditions
-
-- step: {step_id}
-- status: active
-- started_at: {ts}
-- depends_on: {dep}
-"""
     exec_key_changes = """
 ## Key Changes
 
 - pending: record each changed file or explicit no-op before verification.
-"""
-    exec_decisions = """
-## Decisions
-
-- Rationale: record the selected implementation path and why it is safe.
-"""
-    exec_acceptance = """
-## Acceptance Checklist
-
-- [ ] pending: complete the step acceptance criteria before verification.
 """
     exec_tdd = """
 ## TDD Evidence
@@ -422,19 +369,13 @@ def start_step_atomic(token_path: str | Path,
                 _atomic_replace(tmp_token, token_path)
                 replaced.append((token_path, orig_token))
 
-                # Write executor — add Conditions + start EV
+                # Write executor — add completion sections + start EV
                 executor_path.parent.mkdir(parents=True, exist_ok=True)
                 existing_exec = (executor_path.read_text(encoding="utf-8")
                                  if executor_path.exists() else "")
                 new_exec = existing_exec.rstrip() + "\n"
-                if "## Conditions" not in existing_exec:
-                    new_exec += exec_conditions
                 if "## Key Changes" not in existing_exec:
                     new_exec += exec_key_changes
-                if "## Decisions" not in existing_exec:
-                    new_exec += exec_decisions
-                if "## Acceptance Checklist" not in existing_exec:
-                    new_exec += exec_acceptance
                 if "## TDD Evidence" not in existing_exec:
                     new_exec += exec_tdd
                 new_exec += exec_start_ev

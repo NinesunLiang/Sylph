@@ -169,6 +169,37 @@ _REASON_TO_HAZARD = {
 }
 
 
+# ── S7 治理补引导：拦截不只给"拒绝"，还给出"下一步怎么做" ──
+_GUIDANCE_HINTS: list[tuple[str, str]] = [
+    ("action_loop", "已连续执行相同命令，可能陷入循环。先停止重试，归因根因（保留实际输出），再小步验证。"),
+    ("task_blocked", "任务被阻塞。输入 /approve <token> 解除阻塞，或 /deny 保持阻塞并调整计划。"),
+    ("dangerous_command", "该命令有风险。优先使用更安全的替代操作，或将操作拆分为小步验证。"),
+    ("cd_churn", "确认目标目录后直接执行目标命令，不要连续空 cd 导航。"),
+    ("multi_cmd_newline", "多命令请用 && 连接为单行，不要用 \\n 换行拆条。"),
+    ("redundant_file_probe", "检查文件请一次 read 完成，不要反复 head/cat/wc 同一文件。"),
+    ("gov_file_bypass", "治理文件(.claude/hooks/*)不可直接编辑。如需修改 hook，使用 goal 模式(/lx-goal)。"),
+    ("verify_gate", "验证证据不足。先补 EV 证据块，再跑 verify。"),
+    ("document-quality", "文档质量不足。先补充上下文/影响范围，再继续。"),
+    ("plan-gate", "plan.md 未满足门禁。先补 Phase/Step/verify 声明。"),
+]
+
+
+def _next_better_step(reason: str) -> str:
+    """根据拦截原因给出'下一步怎么做'引导；静态映射优先，动态学习源（anti-pattern-redirects.jsonl）兜底。"""
+    low = reason.lower()
+    for key, hint in _GUIDANCE_HINTS:
+        if key in low:
+            return hint
+    try:
+        from .oracle import _load_anti_pattern_redirects
+        for pattern, _pk, guidance in _load_anti_pattern_redirects():
+            if guidance and pattern.search(reason):
+                return guidance
+    except Exception:
+        pass
+    return ""
+
+
 def _block(reason: str, suggestion: str = "") -> int:
     safe_reason = reason[:300]
     unattended = _goal_mode()
@@ -234,9 +265,11 @@ def _block(reason: str, suggestion: str = "") -> int:
         return 0
 
     # Non-high-risk: recoverable denial
+    hint = _next_better_step(safe_reason)
+    extra = f"\n\n正确做法: {hint}" if hint else ""
     hs["additionalContext"] = (
-        f"🔄 {safe_reason}\n\n可选方案:\n  {suggestion}"
-        if suggestion else f"🔄 {safe_reason}"
+        f"🔄 {safe_reason}\n\n可选方案:\n  {suggestion}{extra}"
+        if suggestion else f"🔄 {safe_reason}{extra}"
     )
     print(json.dumps({
         "continue": True,
@@ -254,13 +287,15 @@ def _redirect(reason: str, guidance: str = "") -> int:
     )
     result = GateKeeper.evaluate(ctx, gate_type="pretool")
     full_output = GateKeeper.format_output(result)
+    hint = _next_better_step(reason)
+    extra = f"\n\n正确做法: {hint}" if hint else ""
     print(json.dumps({
         "continue": True,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
             "permissionDecision": "deny",
             "permissionDecisionReason": reason,
-            "additionalContext": f"REDIRECT: {reason}\n\n{guidance}\n\n{full_output}",
+            "additionalContext": f"REDIRECT: {reason}\n\n{guidance}{extra}\n\n{full_output}",
         }
     }, ensure_ascii=False))
     sys.stderr.write(f"PreToolGate: REDIRECT - {reason}\n")

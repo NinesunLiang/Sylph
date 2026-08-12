@@ -18,6 +18,16 @@ def test_checklist_gate_rejects_missing_checklist(tmp_path):
     assert exc.value.code == 1
 
 
+def test_checklist_gate_accepts_verifygate_marker_without_checklist(tmp_path):
+    """契约精简（6→3）：无 Acceptance Checklist 段但有 EV-VERIFIED 标记应通过。"""
+    (tmp_path / "executor.md").write_text(
+        "# Executor\n\n## Key Changes\n- done\n\n## TDD Evidence\n- pytest -> exit 0\n\n"
+        "### EV-S1-VERIFIED\n- step: S1\n- exit_code: 0\n- assertion: VerifyGate accepted\n",
+        encoding="utf-8",
+    )
+    assert module.cmd_checklist_verify(tmp_path) == 0
+
+
 def test_checklist_gate_rejects_unchecked_item(tmp_path):
     (tmp_path / "executor.md").write_text(
         "# Executor\n\n## Acceptance Checklist\n- [x] prepared\n- [ ] verified\n",

@@ -34,18 +34,19 @@ def test_phase_contract_declares_next_gate_and_required_outputs():
 
 def test_step_contract_declares_all_completion_sections_before_execution():
     contract = step_contract({"id": "S1", "scope": "src", "acceptance": "works", "verify": "command:pytest"})
-    assert "S1.conditions" in contract["outputs"]["required"]
     assert "S1.key_changes" in contract["outputs"]["required"]
-    assert "S1.decisions" in contract["outputs"]["required"]
-    assert "S1.acceptance_checklist" in contract["outputs"]["required"]
     assert "S1.tdd_evidence" in contract["outputs"]["required"]
     assert "S1.evidence" in contract["outputs"]["required"]
+    # 契约精简（6→3，还债项）：Conditions/Decisions/Acceptance Checklist 不再要求
+    assert "S1.conditions" not in contract["outputs"]["required"]
+    assert "S1.decisions" not in contract["outputs"]["required"]
+    assert "S1.acceptance_checklist" not in contract["outputs"]["required"]
 
 
 def test_missing_fields_are_reported_before_next_gate():
     contract = phase_contract("EXECUTING")
-    missing = missing_contract_fields(contract, {"step.conditions": "ready"})
-    assert "step.key_changes" in missing
+    missing = missing_contract_fields(contract, {"step.key_changes": "ready"})
+    assert "step.tdd_evidence" in missing
 
 
 def test_handoff_round_trip_and_ready_validation(tmp_path):
@@ -62,10 +63,7 @@ def test_complete_phase_from_artifacts_derives_execution_outputs(tmp_path):
     from phase_contracts import complete_phase_from_artifacts, start_phase
 
     (tmp_path / "executor.md").write_text(
-        "## Conditions\nfocused tests\n\n"
         "## Key Changes\ncanonical handoff\n\n"
-        "## Decisions\nnone: bounded scope\n\n"
-        "## Acceptance Checklist\n- [x] tests\n\n"
         "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
         "### EV-S1\n- exit_code: 0\n- assertion: passed\n",
         encoding="utf-8",
@@ -96,8 +94,7 @@ def test_complete_step_from_artifacts_derives_step_outputs(tmp_path):
     from phase_contracts import complete_step_from_artifacts, start_step
 
     (tmp_path / "executor.md").write_text(
-        "## Conditions\nfocused tests\n\n## Key Changes\nchange\n\n"
-        "## Decisions\nnone: scope\n\n## Acceptance Checklist\n- [x] tests\n\n"
+        "## Key Changes\nchange\n\n"
         "## TDD Evidence\ndependency TDD exit 0; regression TDD exit 0\n\n"
         "### EV-S1\n- exit_code: 0\n- assertion: passed\n",
         encoding="utf-8",

@@ -514,6 +514,12 @@ def _write_default_plan(steps=None):
         steps = ["S1"]
     PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
     lines = ["# Plan\n", "", "## Goal\n\n", "## Scope\n\n"]
+    lines.append("> 引导：verify 规则请写成可真实验证的格式（按优先级）：\n")
+    lines.append(">   1. `file: <路径> contains \"<内容>\"` — VerifyGate 真实读文件验证\n")
+    lines.append(">   2. `command: <命令>` — VerifyGate 真实执行验证\n")
+    lines.append(">   3. `assertion: <语义描述>` — 仅语义自述（无法自动验证时用）\n")
+    lines.append(">   示例：`verify: file: src/module.py contains \"def handle\"`\n")
+    lines.append(">   避免水规则（如 `assertion: step S1 evidence is recorded`）。\n\n")
     for i, s in enumerate(steps):
         phase_num = i + 1
         lines.append(f"## Phase {phase_num}\n")
@@ -537,22 +543,11 @@ def _write_default_executor():
 > schema_version: v2
 > 格式对齐 AGENTS.md §executor.md 证据块模板 — 每步对应一个 ### EV-<step_id> 块
 > verify_gate 和 oracle 通过解析 ### EV-xxx / step: / assertion: 字段验证完成状态。
-
-## Conditions
-
-- 记录本 step 的范围、依赖和安全边界。
+> 契约精简（还债项）：只保留 Key Changes + TDD Evidence + EV 证据块 3 段。
 
 ## Key Changes
 
 - 记录本 step 的实际改动或明确 no-op。
-
-## Decisions
-
-- Rationale: 记录选择该执行路径的原因。
-
-## Acceptance Checklist
-
-- [ ] 在 VerifyGate 前完成本 step 的验收项。
 
 ## TDD Evidence
 
@@ -627,8 +622,8 @@ def _write_goal_scaffolds() -> None:
         encoding="utf-8",
     )
     EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
-    # 复用 RPE 标准 executor 模板：预声明终态门禁要求的全部工件节
-    # （Conditions/Key Changes/Decisions/Acceptance Checklist/TDD Evidence），
+    # 复用 executor 模板：预声明终态门禁要求的工件节
+    # （Key Changes / TDD Evidence / EV 证据块，契约精简 6→3），
     # 避免「先过门禁后补信息」的次序缺陷 —— 信息须在门禁前就位。
     _write_default_executor()
 
@@ -2007,12 +2002,15 @@ def _generate_final_report(token):
     return "\n".join(lines)
 
 
-def cmd_prune_stale_locks(dry_run=False, max_age_days=1.0):
-    """prune-stale-locks — quarantine stale token/lock residue (index17 M2 还债).
+def cmd_prune_stale_locks(dry_run=False, max_age_days=1.0, prune_snapshots=False, keep_snapshots=7):
+    """prune-stale-locks — quarantine stale token/lock residue (index17 M2 + 还债 S9/S10).
 
-    Categories (only tokens that carry a .lock file):
+    Categories:
       - stale_lock: token.status in {completed, archived} AND lock present → quarantine lock file
       - stale_active: token.status == active AND lock present AND token older than max_age_days → quarantine token + lock
+      - orphan_locks: *.lock 无配对 json（S9）→ quarantine lock file
+      - stale_planning: 终态 + task.status=planning + stats.done=0（S10）→ quarantine token
+    prune_snapshots=True 时清理 state/snapshots，保留最近 keep_snapshots 份（S10）。
     Quarantine moves files to .omc/backup/stale-cleanup/{ts}/ (reversible; never deletes).
     Default applies real quarantine; use --dry-run to preview.
     """
@@ -2044,11 +2042,51 @@ def cmd_prune_stale_locks(dry_run=False, max_age_days=1.0):
         elif status == "active" and f.stat().st_mtime < cutoff:
             stale_active.append(f)
 
-    print(f"stale_locks(terminal+lock)={len(stale_lock)}  stale_active(active+lock,>{max_age_days}d)={len(stale_active)}")
+    # 裸锁回收（还债项 S9）：无配对 json 的 lock 是纯垃圾，遍历 *.json 永远看不到，单独扫。
+    orphan_locks: list[Path] = []
+    for lk in sorted(OMC_TOKENS.rglob("*.json.lock")):
+        paired = Path(str(lk)[: -len(".lock")])
+        if not paired.exists():
+            orphan_locks.append(lk)
+
+    # planning_stuck 回收（还债项 S10）：终态 token 内层 task.status 未收敛且从未推进。
+    stale_planning: list[Path] = []
+    for f in sorted(OMC_TOKENS.rglob("*.json")):
+        if f.name.endswith(".lock") or Path(str(f) + ".lock").exists():
+            continue
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        if d.get("status") not in ("completed", "archived"):
+            continue
+        task = d.get("task", {})
+        tstatus = task.get("status", "") if isinstance(task, dict) else ""
+        stats = d.get("stats", {}) or {}
+        done = stats.get("done", 0) if isinstance(stats, dict) else 0
+        if tstatus == "planning" and not done:
+            stale_planning.append(f)
+
+    # 快照保留策略（还债项 S10）：state/snapshots 只保留最近 keep_snapshots 份。
+    stale_snapshots: list[Path] = []
+    if prune_snapshots:
+        snap_dir = OMC_ROOT / "state" / "snapshots"
+        if snap_dir.exists():
+            snaps = sorted(snap_dir.glob("*.json"),
+                           key=lambda p: p.stat().st_mtime, reverse=True)
+            stale_snapshots = snaps[keep_snapshots:]
+
+    print(f"stale_locks(terminal+lock)={len(stale_lock)}  stale_active(active+lock,>{max_age_days}d)={len(stale_active)}  orphan_locks(no paired json)={len(orphan_locks)}  planning_stuck={len(stale_planning)}  snapshots_old={len(stale_snapshots)}")
     for f in stale_lock:
         print(f"  LOCK-ONLY: {f.relative_to(OMC_ROOT)}")
     for f in stale_active:
         print(f"  ACTIVE-STALE: {f.relative_to(OMC_ROOT)}")
+    for lk in orphan_locks:
+        print(f"  ORPHAN-LOCK: {lk.relative_to(OMC_ROOT)}")
+    for f in stale_planning:
+        print(f"  PLANNING-STUCK: {f.relative_to(OMC_ROOT)}")
+    for p in stale_snapshots:
+        print(f"  SNAPSHOT-OLD: {p.relative_to(OMC_ROOT)}")
     if dry_run:
         print("DRY-RUN: no files moved")
         return 0
@@ -2069,9 +2107,29 @@ def cmd_prune_stale_locks(dry_run=False, max_age_days=1.0):
             moved += 1
         except OSError as e:
             print(_yellow(f"  SKIP {f.name}: {e}"))
+    for lk in orphan_locks:
+        try:
+            shutil.move(str(lk), str(backup_dir / lk.name))
+            moved += 1
+        except OSError as e:
+            print(_yellow(f"  SKIP {lk.name}: {e}"))
+    for f in stale_planning:
+        try:
+            shutil.move(str(f), str(backup_dir / f.name))
+            moved += 1
+        except OSError as e:
+            print(_yellow(f"  SKIP {f.name}: {e}"))
+    for p in stale_snapshots:
+        try:
+            shutil.move(str(p), str(backup_dir / p.name))
+            moved += 1
+        except OSError as e:
+            print(_yellow(f"  SKIP {p.name}: {e}"))
     _write_audit("prune-stale-locks",
                  {"quarantined": moved, "stale_lock": len(stale_lock),
-                  "stale_active": len(stale_active), "backup": str(backup_dir)})
+                  "stale_active": len(stale_active), "orphan_locks": len(orphan_locks),
+                  "planning_stuck": len(stale_planning), "snapshots_old": len(stale_snapshots),
+                  "backup": str(backup_dir)})
     print(f"QUARANTINED {moved} file(s) → {backup_dir}")
     return 0
 
@@ -3384,7 +3442,16 @@ def main(argv=None):
                 max_age = float(args[i + 1])
             except (ValueError, IndexError):
                 pass
-        return cmd_prune_stale_locks(dry_run=dry_run, max_age_days=max_age)
+        prune_snapshots = "--prune-snapshots" in args
+        keep = 7
+        if "--keep-snapshots" in args:
+            i = args.index("--keep-snapshots")
+            try:
+                keep = int(args[i + 1])
+            except (ValueError, IndexError):
+                pass
+        return cmd_prune_stale_locks(dry_run=dry_run, max_age_days=max_age,
+                                     prune_snapshots=prune_snapshots, keep_snapshots=keep)
 
     elif command == "manifest-json":
         return cmd_manifest_json()
