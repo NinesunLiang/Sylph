@@ -16,7 +16,7 @@
 
 | 类别 | Hook 文件 | 触发点 |
 |------|-----------|--------|
-| **门禁路由** | `pretool-gate.py` → `pretool_gates/*.py` | PreToolUse |
+| **门禁路由** | `pretool-gate.py` → `pretool_gates/*.py` | PreToolUse（L1 5 道真安全门 / L2 15 道含末端校验） |
 | **记分卡门禁** | `pretool-scorecard-gate.py` | PreToolUse:Edit/Write |
 | **完成门禁** | `pre-completion-gate.py` | PreToolUse:TaskUpdate |
 | **用户审批** | `pretool-user-approve.py` | UserPromptSubmit |
@@ -31,15 +31,14 @@
 | **飞轮停止** | `stop-flywheel.py` | PreCompact |
 | **阅读追踪** | `read-tracker.py` | PostToolUse:Read |
 
-## Base 未注册（Enhance 域 / 开发中）
+## 已删除 Hook（index15 降噪·ROI 清理）
 
-这些文件存在于磁盘但不在 Base settings.json 注册，供 Enhanc 版本或按需激活：
+以下 hook 因 ROI 考量已删除（`git rm` 可恢复），不属有效治理资产：
 
-| 文件 | 用途 |
+| 已删除文件 | 删除原因 |
 |------|------|
-| `posttool-bash-audit.py` | Bash 输出审计 — Enhance 版才启用 |
-| `compound-verify-gate.py` | 复合 Verify Gate — 增强层 |
-| `session-resume.py` | 会话恢复 — Enhance 域 |
-| `token_writer.py` | Token 写回 — Enhance 域 |
-| `turn-counter.py` | 轮次计数 — Enhance 域 |
-| `verify_contract.py` | Gate Contract 验证 — 被 compound-verify-gate 引用 |
+| `posttool-bash-audit.py` | 仅被 error-dna 注释提及，无实际注册/引用 |
+| `session-resume.py` | 零引用死代码 |
+| `token_writer.py` | harness.yaml 显式禁用（token_writer: false） |
+| `turn-counter.py` | hc_enabled 门控但未启用 |
+| `compound-verify-gate.py` / `verify_contract.py` | 文档描述但文件从未存在（虚构引用） |

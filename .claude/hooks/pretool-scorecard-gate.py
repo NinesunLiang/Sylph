@@ -91,6 +91,86 @@ def _extract_content(payload: dict) -> str:
     return content
 
 
+def check_path_scope(path, task_dir=None) -> str | None:
+    """前置路径预检（v2 升级，index15 降噪·强前置引导）。
+
+    读取活跃任务的 working-set.yaml 的 allowed_paths/denied_paths（schema 声明的
+    路径契约），判断写路径是否越界：
+      - allowed_paths 内 → None（放行）
+      - denied_paths → REDIRECT（引导）
+      - 未声明 → REDIRECT（引导补声明）
+      - 无活跃任务 / 无 working-set / 非写路径 → None（不阻断）
+    返回 REDIRECT 消息或 None。
+    """
+    try:
+        path_str = str(path).replace("\\", "/")
+        # 定位活跃任务的 working-set.yaml
+        if not task_dir:
+            task_dir = _active_task_dir()
+        if not task_dir:
+            return None
+        ws = Path(task_dir) / "working-set.yaml"
+        if not ws.exists():
+            return None
+        import yaml
+        data = yaml.safe_load(ws.read_text(encoding="utf-8")) or {}
+        allowed = [str(p).rstrip("/") for p in data.get("allowed_paths", []) or []]
+        denied = [str(p).rstrip("/") for p in data.get("denied_paths", []) or []]
+
+        # denied 优先：命中即 REDIRECT（前缀匹配相对/绝对路径）
+        for d in denied:
+            if _path_matches(path_str, d):
+                return (f"REDIRECT 路径越界（denied_paths）: {path_str}\n"
+                        f"  schema 声明禁止此路径。请在 working-set.yaml 声明范围内操作。")
+        # allowed：命中即放行
+        for a in allowed:
+            if _path_matches(path_str, a):
+                return None
+        # 未声明 → REDIRECT 引导补声明
+        if allowed:
+            return (f"REDIRECT 路径未声明: {path_str}\n"
+                    f"  working-set.yaml allowed_paths 未包含此路径。请补声明或移回声明范围。")
+        return None
+    except Exception:
+        return None
+
+
+def _path_matches(path_str: str, declared: str) -> bool:
+    """判断写路径是否命中 working-set 声明的路径（相对声明匹配任意绝对/相对写路径）。
+
+    声明 `src/` 匹配：
+      - 绝对路径含 `/src/x.py`
+      - 相对路径 `src/x.py`
+    声明带尾部斜杠 / 不带均归一。
+    """
+    d = declared.rstrip("/")
+    p = path_str.rstrip("/")
+    # 相对声明：匹配路径后缀段（如 src/ 命中任何 /.../src/...）
+    if not d.startswith("/"):
+        if p == d or p.startswith(d + "/"):
+            return True
+        if f"/{d}/" in p or p.endswith("/" + d):
+            return True
+        return False
+    # 绝对声明：前缀匹配
+    return p == d or p.startswith(d + "/")
+
+
+def _active_task_dir():
+    """定位活跃任务目录（token.task_dir 或 active-resume 指针）。"""
+    try:
+        state_root = ROOT / ".omc" / "state"
+        ptr = state_root / "active-resume.json"
+        if ptr.exists():
+            data = json.loads(ptr.read_text(encoding="utf-8"))
+            td = data.get("task_dir") or data.get("plan_dir")
+            if td and Path(td).exists():
+                return td
+    except Exception:
+        pass
+    return None
+
+
 def _append_audit(event: dict) -> None:
     try:
         AUDIT.mkdir(parents=True, exist_ok=True)
@@ -118,6 +198,18 @@ def main() -> int:
         return 0
 
     path = _extract_path(payload)
+    # v2 前置路径预检：写路径须在 working-set.yaml schema 声明范围内
+    # 豁免：scorecard.md 自身（治理文件，非任务产物）与 .claude 治理目录
+    is_governance_file = (
+        "scorecard.md" in path.replace("\\", "/")
+        or "/.claude/" in path.replace("\\", "/")
+        or path.replace("\\", "/").startswith(".claude/")
+    )
+    scope_result = None if is_governance_file else (check_path_scope(path) if path else None)
+    if scope_result:
+        print(json.dumps({"continue": False, "reason": scope_result, "message": scope_result}))
+        return 2
+
     if not path or "scorecard.md" not in path.replace("\\", "/"):
         print(json.dumps({"continue": True}))
         return 0

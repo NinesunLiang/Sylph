@@ -30,39 +30,33 @@ sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
 sys.path.insert(0, str(_script_path.parent))
 
 from pretool_gates.checks import (
-    _check_sensitive_edit, _check_governance_bypass, _check_fallback, _check_action_gate,
-    _check_plan_gate, _check_edit_scope, _check_verify_gate,
+    _check_sensitive_edit, _check_governance_bypass, _check_action_gate,
+    _check_verify_gate,
     _check_oracle_gate, _check_document_quality,
     _check_g2_large_file, _check_g3_reviews, _check_g5_wide_glob, _check_g6_budget,
-    _check_secret_scan, _check_source_marker,
-    _check_numeric_claim, _check_claim_source, _check_action_loop,
+    _check_secret_scan,
+    _check_numeric_claim, _check_action_loop,
     _check_stall, _check_injection,
 )
 
 # ── L1/L2 Gate definitions ──
-# L1: 轻量模式（日常任务），仅核心安全门
-# L2: 完整模式（复杂/危险任务），全量 Gate
+# L1: 轻量模式（日常任务），仅真安全门（敏感路径/危险命令/密钥/治理绕过/卡死）。
+# 降噪·激进砍（index15 后续，人类裁决）：砍 fallback/plan/edit-scope/claim-source/
+# source-marker —— 途中防错与强制格式，由前置 schema 引导（scorecard-gate 升级）
+# + 末端 TDD 校验（verify_gate/completion-gate）替代，避免每工具调用 6+ 道 gate 的开销。
 L1_GATES = [
-    ("source-marker", _check_source_marker),
     ("sensitive-edit", _check_sensitive_edit),
     ("governance-bypass", _check_governance_bypass),
-    ("fallback", _check_fallback),
-    ("edit-scope", _check_edit_scope),
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),
     ("stall", _check_stall),
-    ("claim-source", _check_claim_source),
 ]
 
 GATES = [
-    ("source-marker", _check_source_marker),
     ("sensitive-edit", _check_sensitive_edit),
     ("governance-bypass", _check_governance_bypass),
-    ("fallback", _check_fallback),
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),
-    ("plan", _check_plan_gate),
-    ("edit-scope", _check_edit_scope),
     ("verify", _check_verify_gate),
     ("oracle", _check_oracle_gate),
     ("document-quality", _check_document_quality),
@@ -73,7 +67,6 @@ GATES = [
     ("action-loop", _check_action_loop),
     ("stall", _check_stall),
     ("numeric-claim", _check_numeric_claim),
-    ("claim-source", _check_claim_source),
     ("injection-guard", _check_injection),
 ]
 from pretool_gates.helpers import (
