@@ -116,7 +116,7 @@ class GoalMachine:
                 stats = token.get("stats", {})
                 done = stats.get("done", 0)
                 total = stats.get("total", 0)
-                if done < total:
+                if total <= 0 or done != total:
                     return False
 
         return True
@@ -148,22 +148,29 @@ class GoalMachine:
 
         # Stats gate: EXECUTING->VERIFYING requires all steps done
         if self._state == EXECUTING and target_state == VERIFYING:
-            token = self._read_token()
-            if token:
-                stats = token.get("stats", {})
+            effective_token = token if token is not None else self._read_token()
+            if effective_token:
+                stats = effective_token.get("stats", {})
                 done = stats.get("done", 0)
                 total = stats.get("total", 0)
-                if done < total:
+                if total <= 0 or done != total:
                     raise GoalError(
                         f"Cannot transition to VERIFYING: not all steps done "
                         f"({done}/{total})"
                     )
 
         # ── Gate validation ──────────────────────────────────────────
-        token_data = self._read_token() or {}
+        token_data = token if token is not None else (self._read_token() or {})
         is_goal = token_data.get("mode") == "goal"
         task_dir = token_data.get("task_dir")
 
+        if is_goal and target_state in (VERIFYING, ARCHIVING) and not task_dir:
+            raise GoalError("Goal lifecycle requires task_dir for schema validation")
+
+        if is_goal and target_state == PLANNING and research_path is None:
+            raise GoalError("Goal research_path is required before PLANNING")
+        if is_goal and target_state == EXECUTING and plan_path is None:
+            raise GoalError("Goal research_path and plan_path are required before EXECUTING")
         if is_goal and task_dir and target_state in (PLANNING, EXECUTING, VERIFYING, ARCHIVING):
             if validate_contract_ready is None:
                 raise GoalError("phase handoff validator unavailable; cannot advance Goal")
@@ -291,7 +298,7 @@ class GoalMachine:
 
         transitions_made = []
 
-        if goal_state == EXECUTING and done >= total:
+        if goal_state == EXECUTING and total > 0 and done >= total:
             self.transition(VERIFYING, token_data,
                             reason=f"auto: all {done}/{total} steps completed")
             transitions_made.append(("auto", EXECUTING, VERIFYING))

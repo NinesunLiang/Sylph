@@ -64,6 +64,51 @@ def test_ready_validation_rejects_pending_handoff(tmp_path):
         validate_contract_ready(tmp_path, "CLARIFY", filename="phase-handoff-CLARIFY.json")
 
 
+def test_plan_gate_accepts_uppercase_checkbox(tmp_path):
+    contracts = load_goal_contracts()
+    plan = tmp_path / "plan.md"
+    plan.write_text(
+        "# Plan\n\n## Gate\n- level: L2\n\n## Phase 1\n"
+        "- [X] S1: done\n"
+        "  - status: completed\n"
+        "  - depends_on: none\n"
+        "  - scope: lifecycle\n"
+        "  - acceptance: done\n"
+        "  - verify: assertion: done\n",
+        encoding="utf-8",
+    )
+    assert contracts.PlanGate.validate(plan)["steps"] == 1
+
+
+
+def test_auto_progress_ignores_zero_total_stats(tmp_path):
+    state_path = tmp_path / "tokens" / "20260812" / "auto.json"
+    state_path.parent.mkdir(parents=True)
+    state_path.write_text('{"stats":{"done":0,"total":0},"goal":{"state":"EXECUTING"}}', encoding="utf-8")
+    state_machine_path = Path(__file__).resolve().parent / "goal_state_machine.py"
+    spec = importlib.util.spec_from_file_location("zero_total_auto_progress", state_machine_path)
+    assert spec and spec.loader
+    state_machine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(state_machine)
+    assert state_machine.GoalMachine(state_path).auto_progress() == []
+
+
+def test_goal_transition_rejects_zero_total_stats(tmp_path):
+    state_path = tmp_path / "tokens" / "20260812" / "goal.json"
+    task_dir = tmp_path / "tasks" / "20260812" / "goal"
+    task_dir.mkdir(parents=True)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text('{"mode":"goal","task_dir":"' + str(task_dir) + '","stats":{"done":0,"total":0},"goal":{"state":"EXECUTING"}}', encoding="utf-8")
+    state_machine_path = Path(__file__).resolve().parent / "goal_state_machine.py"
+    spec = importlib.util.spec_from_file_location("zero_total_state_machine", state_machine_path)
+    assert spec and spec.loader
+    state_machine = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(state_machine)
+    machine = state_machine.GoalMachine(state_path)
+    with pytest.raises(state_machine.GoalError, match="not all steps done"):
+        machine.transition("VERIFYING")
+
+
 def test_goal_transition_consumes_pending_phase_handoff(tmp_path):
     state_path = tmp_path / "tokens" / "20260812" / "goal.json"
     task_dir = tmp_path / "tasks" / "20260812" / "goal"
@@ -82,6 +127,22 @@ def test_goal_transition_consumes_pending_phase_handoff(tmp_path):
     machine = state_machine.GoalMachine(state_path)
     with pytest.raises(state_machine.GoalError, match="phase handoff blocked"):
         machine.transition("PLANNING", research_path=tmp_path / "research.md")
+
+
+def test_plan_gate_rejects_unknown_checkbox(tmp_path):
+    contracts = load_goal_contracts()
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n\n## Gate\n- level: L2\n\n## Phase 1\n- [?] S1: malformed\n", encoding="utf-8")
+    with pytest.raises(contracts.PlanGateError, match="at least 1 Step"):
+        contracts.PlanGate.validate(plan)
+
+
+def test_plan_gate_rejects_phase_orphan_step(tmp_path):
+    contracts = load_goal_contracts()
+    plan = tmp_path / "plan.md"
+    plan.write_text("# Plan\n\n## Gate\n- level: L2\n\n- [ ] S1: orphan\n", encoding="utf-8")
+    with pytest.raises(contracts.PlanGateError, match="Phase"):
+        contracts.PlanGate.validate(plan)
 
 
 def test_plan_gate_rejects_unprefixed_verify_before_execution(tmp_path):

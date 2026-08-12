@@ -82,7 +82,7 @@ def _merge_goal_runtime(token: dict) -> dict:
 
 # Goal 状态机 + Step 合约（fail-closed: 导入失败时赋 None，调用方必须检查）
 sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "scripts"))
-from carros_base import _save_token as _save_task_token
+from carros_base import _save_token as _save_task_token, CASConflict
 _lc_set_mode = None
 try:
     from goal_state_machine import GoalMachine as _GSM, ALL_STATES as _GSM_ALL_STATES, GoalError as _GSM_Error
@@ -241,7 +241,10 @@ def _update_lock_counter(plan_dir: Path, field: str, inc: int = 1):
         return  # 锁不存在时静默跳过
     with open(lock_file, encoding="utf-8") as f:
         lock = json.load(f)
-    lock[field] = lock.get(field, 0) + inc
+    current = lock.get(field, 0)
+    if isinstance(current, list):
+        return
+    lock[field] = current + inc
     lock["updated_at"] = get_now()
     with open(lock_file, "w", encoding="utf-8") as f:
         json.dump(lock, f, indent=2, ensure_ascii=False)
@@ -549,9 +552,8 @@ def cmd_phase0_done():
     lock_snapshot = token_snapshot
     try:
         token_data = json.loads(lock_file.read_text(encoding="utf-8"))
-        if not token_data.get("task_dir"):
-            token_data["task_dir"] = str(plan_dir.resolve())
-            lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        token_data["task_dir"] = str(plan_dir.resolve())
+        lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
         if _start_phase is not None:
             handoff = plan_dir / "state" / "phase-handoff-CLARIFY.json"
             if not handoff.exists():
@@ -580,25 +582,14 @@ def cmd_phase0_done():
             lock["phase"] = "planning"
             lock["updated_at"] = get_now()
             lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
-    except (_GSM_Error, OSError, json.JSONDecodeError) as e:
+        if _start_phase is not None:
+            _start_phase(plan_dir, "PLANNING")
+    except (ValueError, _GSM_Error, OSError, json.JSONDecodeError) as e:
         _restore_file(lock_file, lock_snapshot)
         _restore_file(path, mode_snapshot)
         print(f"❌ Phase 0 状态提交失败，已回滚: {e}", file=sys.stderr)
         sys.exit(2)
 
-    if _start_phase is not None:
-        try:
-            handoff = plan_dir / "state" / "phase-handoff-CLARIFY.json"
-            if not handoff.exists():
-                _start_phase(plan_dir, "CLARIFY")
-            _complete_phase(plan_dir, "CLARIFY", {
-                "research.sections": "ResearchGate passed",
-                "research.dependency_tree": "ResearchGate passed",
-            })
-            _start_phase(plan_dir, "PLANNING")
-        except ValueError as exc:
-            print(f"❌ 阶段交接 schema 未就绪，不能进入 PLANNING: {exc}", file=sys.stderr)
-            sys.exit(1)
     print("✅ Phase 0 完成 → PLANNING 已解锁")
     print("   ResearchGate 内容结构验证通过")
     print("   已提交 PLANNING 入参 schema：research.md / ResearchGate 结果")
@@ -639,9 +630,8 @@ def cmd_plan_done():
     physical_lock_snapshot = _snapshot_file(physical_lock)
     try:
         token_data = json.loads(lock_file.read_text(encoding="utf-8"))
-        if not token_data.get("task_dir"):
-            token_data["task_dir"] = str(plan_dir.resolve())
-            lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        token_data["task_dir"] = str(plan_dir.resolve())
+        lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
         if _start_phase is not None:
             handoff = plan_dir / "state" / "phase-handoff-PLANNING.json"
             if not handoff.exists():
@@ -671,28 +661,15 @@ def cmd_plan_done():
             lock["phase"] = "executing"
             lock["updated_at"] = get_now()
             lock_file.write_text(json.dumps(lock, indent=2, ensure_ascii=False), encoding="utf-8")
-    except (_GSM_Error, OSError, json.JSONDecodeError) as e:
+        if _start_phase is not None:
+            _start_phase(plan_dir, "EXECUTING")
+    except (ValueError, _GSM_Error, OSError, json.JSONDecodeError) as e:
         _restore_file(lock_file, token_snapshot)
         _restore_file(path, mode_snapshot)
         _restore_file(physical_lock, physical_lock_snapshot)
         print(f"❌ PlanGate 状态提交失败，已回滚执行解锁: {e}", file=sys.stderr)
         sys.exit(2)
 
-    if _start_phase is not None:
-        try:
-            handoff = plan_dir / "state" / "phase-handoff-PLANNING.json"
-            if not handoff.exists():
-                _start_phase(plan_dir, "PLANNING")
-            _complete_phase(plan_dir, "PLANNING", {
-                "plan.phases": "PlanGate passed",
-                "plan.steps": "PlanGate passed",
-                "step.acceptance": "PlanGate passed",
-                "step.verify": "PlanGate passed",
-            })
-            _start_phase(plan_dir, "EXECUTING")
-        except ValueError as exc:
-            print(f"❌ 阶段交接 schema 未就绪，不能进入 EXECUTING: {exc}", file=sys.stderr)
-            sys.exit(1)
     print("✅ PlanGate 通过 → EXECUTING 已解锁")
     print("   已提交 EXECUTING 入参 schema：plan.md / current_step.schema / executor sections")
     print("   现在才允许 tick、subagent-log 和 executor 证据写入")
@@ -1026,6 +1003,34 @@ def cmd_verify_step(step_id: str = ""):
     return _verify_goal_step(step_id)
 
 
+def _sync_canonical_step_stats(plan_dir: Path) -> None:
+    """Derive canonical step stats from the validated plan after completion."""
+    import step_contracts
+
+    token_path = _token_path_for_plan(plan_dir)
+    if not token_path.exists():
+        return
+    plan_text = (plan_dir / "plan.md").read_text(encoding="utf-8")
+    steps = step_contracts.parse_plan_steps(plan_text)
+    done = sum(step.get("status") == "completed" for step in steps)
+    total = len(steps)
+    for _ in range(2):
+        token = json.loads(token_path.read_text(encoding="utf-8"))
+        expected_revision = token.get("revision", 0)
+        task = token.setdefault("task", {})
+        stats = token.setdefault("stats", {})
+        stats["done"] = done
+        stats["total"] = total
+        task["status"] = "completed" if total > 0 and done == total else "active"
+        task["current_step"] = next((step["id"] for step in steps if step.get("status") != "completed"), None)
+        try:
+            _save_task_token(token, token_path, expected_revision=expected_revision)
+            return
+        except CASConflict:
+            continue
+    raise CASConflict(expected_revision, expected_revision + 1)
+
+
 def cmd_task_done(description: str = "未知任务"):
     """Verify the current step before recording a goal task completion."""
     mode_data, path = _read_mode_file()
@@ -1059,6 +1064,8 @@ def cmd_task_done(description: str = "未知任务"):
         if plan_dir:
             _ledger_append_block(plan_dir / "executor.md", "Completed Tasks", {"task": description, "timestamp": ts})
             _update_lock_counter(plan_dir, "completed_tasks")
+    if plan_dir:
+        _sync_canonical_step_stats(plan_dir)
     print(f"✅ 已验证并标记任务完成: {_sanitize(description)}")
     return 0
 
@@ -1246,8 +1253,26 @@ def cmd_done(plan_dir: Path | str | None = None):
         sys.exit(1)
     try:
         gsm = _GSM(str(lock_file))
-        gsm.transition("ARCHIVING", reason="done: checklist passed")
-        gsm.transition("ARCHIVED", reason="done: task completed")
+        token = json.loads(lock_file.read_text(encoding="utf-8"))
+        token["task_dir"] = str(plan_dir.resolve())
+        _save_task_token(
+            token,
+            lock_file,
+            expected_revision=token.get("revision", 0),
+        )
+        token = json.loads(lock_file.read_text(encoding="utf-8"))
+        current_state = getattr(gsm, "current_state", token.get("goal", {}).get("state"))
+        if current_state == "EXECUTING":
+            gsm.transition("VERIFYING", token=token, reason="done: checklist verified")
+            current_state = "VERIFYING"
+        if current_state == "VERIFYING":
+            handoff = plan_dir / "state" / "phase-handoff-VERIFYING.json"
+            if _start_phase is not None and not handoff.exists():
+                _start_phase(plan_dir, "VERIFYING")
+            if _complete_phase is not None:
+                _complete_phase(plan_dir, "VERIFYING", {"verify.decisions": "VERIFIED", "verify.evidence_summary": "checklist passed", "verify.next_actions": "none"})
+            gsm.transition("ARCHIVING", token=token, reason="done: checklist passed")
+        gsm.transition("ARCHIVED", token=token, reason="done: task completed")
     except _GSM_Error as e:
         print(f"❌ GoalMachine 状态转换失败: {e}", file=sys.stderr)
         sys.exit(1)

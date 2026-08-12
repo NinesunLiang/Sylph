@@ -180,8 +180,6 @@ def _check_plan_gate(payload: dict) -> str | None:
         return None
     token = _active_token()
     if not token:
-        path = _extract_path(payload)
-        _auto_init(path)
         return None
     task = token.get("task", {})
     if not isinstance(task, dict):

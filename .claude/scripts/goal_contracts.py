@@ -190,7 +190,7 @@ class PlanGate:
             if phase_m:
                 current_phase = phase_m.group(1)
                 continue
-            step_m = re.match(r"^- \[.\] (\S+?):", line.strip())
+            step_m = re.match(r"^- \[(?: |a|A|x|X)\] (\S+?):", line.strip())
             if step_m:
                 steps_raw.append({
                     "id": step_m.group(1),
@@ -204,6 +204,10 @@ class PlanGate:
 
         if len(steps_raw) < 1:
             errors.append("Plan must have at least 1 Step (format: - [ ] <id>: description)")
+        if level != "L1":
+            orphan_steps = [s["id"] for s in steps_raw if not s["phase"]]
+            if orphan_steps:
+                errors.append(f"Steps must be nested under a Phase: {orphan_steps}")
 
         if errors:
             raise PlanGateError(errors)
@@ -211,9 +215,12 @@ class PlanGate:
         # ── Fill in step details from subsequent lines ──
         current_step = None
         for line in content.split("\n"):
-            step_m = re.match(r"^- \[.\] (\S+?):", line.strip())
+            step_m = re.match(r"^- \[(?: |a|A|x|X)\] (\S+?):", line.strip())
             if step_m:
                 current_step = step_m.group(1)
+                continue
+            if line.strip().startswith("## "):
+                current_step = None
                 continue
             if current_step is None:
                 continue

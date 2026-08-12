@@ -173,6 +173,67 @@ def test_report_missing_plan_dir_is_blocked(monkeypatch, tmp_path):
     assert exc.value.code == 2
 
 
+def test_task_done_syncs_canonical_token_stats(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    token_dir = tmp_path / "tokens" / tmp_path.name
+    token_dir.mkdir(parents=True)
+    token_path = token_dir / f"{plan_dir.name}.json"
+    token_path.write_text(json.dumps({"task_dir": str(plan_dir), "stats": {"done": 0, "total": 1}, "task": {"current_step": "S1"}}), encoding="utf-8")
+    mode_data = {"completed_tasks": [], "rpe_plan_dir": str(plan_dir)}
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, "mode.json"))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "_resolve_current_step", lambda path: None)
+    monkeypatch.setattr(module, "_write_mode_file", lambda data, path: None)
+    monkeypatch.setattr(module, "_ledger_append_block", lambda *args: None)
+    monkeypatch.setattr(module, "_update_lock_counter", lambda *args: None)
+
+    assert module.cmd_task_done("sync stats") == 0
+    token = json.loads(token_path.read_text())
+    assert token["stats"]["done"] == 1
+    assert token["task"]["status"] == "completed"
+
+
+def test_done_transitions_through_verifying(monkeypatch, tmp_path):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    (plan_dir / "plan.md").write_text("- [x] S1: done\n", encoding="utf-8")
+    (plan_dir / "executor.md").write_text("### EV-S1\n- step: S1\n- type: test\n- evidence_level: E3\n- source: test\n- exit_code: 0\n- assertion: done\n", encoding="utf-8")
+    token_dir = tmp_path / "tokens" / tmp_path.name
+    token_dir.mkdir(parents=True)
+    token_path = token_dir / f"{plan_dir.name}.json"
+    token_path.write_text(json.dumps({"mode": "goal", "task_dir": str(plan_dir), "stats": {"done": 1, "total": 1}, "goal": {"state": "EXECUTING"}}), encoding="utf-8")
+    transitions = []
+    class FakeGsm:
+        def __init__(self, path): pass
+        def transition(self, state, **kwargs): transitions.append(state)
+    monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
+    monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: ({"rpe_plan_dir": str(plan_dir)}, "mode.json"))
+    monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    monkeypatch.setattr(module, "_verify_executor_checklist", lambda path: None)
+    monkeypatch.setattr(module, "_GSM", FakeGsm)
+    monkeypatch.setattr(module, "finalize_token", lambda *args, **kwargs: None)
+
+    module.cmd_done(plan_dir)
+    assert transitions == ["VERIFYING", "ARCHIVING", "ARCHIVED"]
+
+
+def test_update_lock_counter_ignores_list_fields(tmp_path, monkeypatch):
+    plan_dir = tmp_path / "task"
+    plan_dir.mkdir()
+    token_dir = tmp_path / "tokens"
+    (token_dir / tmp_path.name).mkdir(parents=True)
+    token_path = token_dir / tmp_path.name / f"{plan_dir.name}.json"
+    token_path.write_text(json.dumps({"completed_tasks": []}), encoding="utf-8")
+    monkeypatch.setattr(module, "TOKENS_DIR", token_dir)
+
+    module._update_lock_counter(plan_dir, "completed_tasks")
+
+    assert json.loads(token_path.read_text())["completed_tasks"] == []
+
+
 def test_task_done_accepts_already_verified_plan(monkeypatch, tmp_path):
     plan_dir = tmp_path / "task"
     plan_dir.mkdir()
@@ -294,6 +355,7 @@ def test_goal_machine_requires_research_then_plan_for_goal(tmp_path):
             {
                 "mode": "goal",
                 "session": {"id": "goal", "level": "L2"},
+                "task_dir": str(tmp_path),
                 "status": "active",
                 "goal": {"state": "CLARIFY"},
             }
@@ -309,7 +371,10 @@ def test_goal_machine_requires_research_then_plan_for_goal(tmp_path):
     with pytest.raises(state_machine.GoalError, match="research_path"):
         gm.transition("PLANNING")
 
+    (tmp_path / "state").mkdir()
+    (tmp_path / "state" / "phase-handoff-CLARIFY.json").write_text(json.dumps({"schema_version": "carroros.phase_handoff.v1", "phase": "CLARIFY", "status": "ready"}), encoding="utf-8")
     gm.transition("PLANNING", research_path=research)
+    (tmp_path / "state" / "phase-handoff-PLANNING.json").write_text(json.dumps({"schema_version": "carroros.phase_handoff.v1", "phase": "PLANNING", "status": "ready"}), encoding="utf-8")
     with pytest.raises(state_machine.GoalError, match="research_path and plan_path"):
         gm.transition("EXECUTING", plan_path=plan)
 
@@ -333,6 +398,7 @@ def test_phase0_and_plan_done_are_separate_transitions(monkeypatch, tmp_path):
             {
                 "mode": "goal",
                 "session": {"id": "goal", "level": "L2"},
+                "task_dir": str(tmp_path),
                 "status": "active",
                 "goal": {"state": "CLARIFY"},
             }
@@ -375,6 +441,7 @@ def test_goal_tick_is_blocked_before_plan_done(monkeypatch, tmp_path):
             {
                 "mode": "goal",
                 "session": {"id": "goal", "level": "L2"},
+                "task_dir": str(tmp_path),
                 "status": "active",
                 "stats": {"done": 0, "total": 1, "tick": 0},
                 "goal": {"state": "PLANNING"},
@@ -434,6 +501,7 @@ def test_phase0_done_preserves_state_machine_transition(monkeypatch, tmp_path):
             {
                 "mode": "goal",
                 "session": {"id": "goal", "level": "L2"},
+                "task_dir": str(tmp_path),
                 "status": "active",
                 "goal": {"state": "CLARIFY"},
             }
@@ -467,6 +535,7 @@ def test_plan_done_rolls_back_token_when_sidecar_commit_fails(monkeypatch, tmp_p
             {
                 "mode": "goal",
                 "session": {"id": "goal", "level": "L2"},
+                "task_dir": str(tmp_path),
                 "status": "active",
                 "goal": {"state": "PLANNING"},
             }
@@ -554,6 +623,7 @@ def test_goal_done_does_not_archive_without_goal_machine(monkeypatch, tmp_path):
             {
                 "mode": "goal",
                 "session": {"id": "goal"},
+                "task_dir": str(plan_dir),
                 "status": "active",
                 "stats": {"done": 1, "total": 1},
                 "goal": {"state": "VERIFYING"},

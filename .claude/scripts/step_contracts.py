@@ -477,6 +477,14 @@ def complete_step_atomic(token_path: str | Path,
     if not step_info:
         raise ValueError(f"Step {step_id} not found in plan")
     if step_info["status"] == "completed":
+        stats = token.setdefault("stats", {})
+        completed_count = sum(step.get("status") == "completed" for step in steps)
+        total = len(steps)
+        if stats.get("done") != completed_count or stats.get("total") != total:
+            raise ValueError(
+                f"Step {step_id} already completed but canonical stats mismatch "
+                f"({stats.get('done', 0)}/{stats.get('total', 0)} != {completed_count}/{total})"
+            )
         return
     if step_info["status"] != "active":
         raise ValueError(f"Step {step_id} status={step_info['status']}, expected active")
@@ -505,7 +513,10 @@ def complete_step_atomic(token_path: str | Path,
     task["current_step"] = step_id
     task["status"] = "active"
     stats = token.setdefault("stats", {})
-    stats["done"] = stats.get("done", 0) + 1
+    stats["done"] = sum(
+        step.get("status") == "completed" or step.get("id") == step_id
+        for step in steps
+    )
     stats["total"] = len(steps)
     total = stats["total"]
     if stats["done"] >= total and total > 0:
