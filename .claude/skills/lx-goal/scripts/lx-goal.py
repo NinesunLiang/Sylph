@@ -264,8 +264,19 @@ def cmd_assert_plan_dir(plan_dir: Path | str | None = None):
 
 
 def _token_path_for_plan(plan_dir: Path) -> Path:
-    resolved = Path(plan_dir).resolve()
-    return TOKENS_DIR / resolved.parent.name / f"{resolved.name}.json"
+    """从 plan_dir 定位 token 路径。
+
+    归档后 plan_dir 是 symlink（指向 archive/{date}_{slug}/{slug}），resolve 后
+    parent.name = "{date}_{slug}"（含下划线，非纯 8 位数字）。date 段固定为
+    "{8位数字}_{slug}" 结构，故从 parent.name 提取 8 位数字前缀作为 date 目录名，
+    拼出 tokens/{date}/{slug}.json；tasks 下真实路径 parent.name 本身就是纯 8 位数字。
+    """
+    resolved = Path(plan_dir).expanduser().resolve()
+    parent_name = resolved.parent.name
+    name = resolved.name
+    m = re.match(r"^(\d{8})(?:_|$)", parent_name)
+    date_dir = m.group(1) if m else parent_name
+    return TOKENS_DIR / date_dir / f"{name}.json"
 
 
 def _update_lock_counter(plan_dir: Path, field: str, inc: int = 1):
@@ -1335,7 +1346,10 @@ def cmd_done(plan_dir: Path | str | None = None):
             elif _complete_phase is not None:
                 _complete_phase(plan_dir, "VERIFYING", {"verify.decisions": "VERIFIED", "verify.evidence_summary": "checklist passed", "verify.next_actions": "none"})
             gsm.transition("ARCHIVING", token=token, reason="done: checklist passed")
-        gsm.transition("ARCHIVED", token=token, reason="done: task completed")
+        if current_state != "ARCHIVED":
+            # 仅非终态才推进到 ARCHIVED；已归档任务（carros_base archive 完成）
+            # 幂等 done：跳过转换，直接终态化。
+            gsm.transition("ARCHIVED", token=token, reason="done: task completed")
     except (_GSM_Error, ValueError, CASConflict) as e:
         print(f"❌ GoalMachine 状态转换失败: {e}", file=sys.stderr)
         sys.exit(1)

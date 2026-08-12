@@ -99,7 +99,43 @@ try:
 except ImportError:
     state_transitions = None
 
-from token_lifecycle import finalize_token
+from token_lifecycle import finalize_token, TERMINAL_STATUSES
+
+
+def _is_terminal_token(token) -> bool:
+    """M1 终结器判定：token 顶层 status 或 task.status 处于终态。
+
+    terminal 语义：任务不可再推进（completed/archived/failed/expired/cancelled）。
+    命中时 _save_token 写盘后同步销毁 sidecar lock，保持物理锁「锁存在=进行中」。
+    """
+    try:
+        top = token.get("status", "")
+        task_status = (token.get("task") or {}).get("status", "")
+    except AttributeError:
+        return False
+    return top in TERMINAL_STATUSES or task_status in TERMINAL_STATUSES
+
+
+def _research_md_is_placeholder(research_path) -> bool:
+    """M2 门禁：research.md 是否仍为占位模板。
+
+    判定：文件存在但所有 section 内容为空或仅为占位标记（无实质正文）。
+    用于普通任务归档前检测，防「占位模板绕过归档」。
+    """
+    try:
+        text = Path(research_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return True
+    # 提取 section 内容：跳过标题行与 HTML 注释
+    lines = [l.strip() for l in text.splitlines()
+             if l.strip() and not l.strip().startswith("#")
+             and not l.strip().startswith("<!--")
+             and not l.strip().endswith("-->")]
+    if not lines:
+        return True
+    # 占位特征：全为短标注/括号/引号框
+    substantive = [l for l in lines if len(l) > 4 and not l.startswith(">")]
+    return len(substantive) < 2
 
 
 # ─── Optional-import guard helper ─────────────────────────────
@@ -361,6 +397,10 @@ def _save_token(token, path=None, expected_revision=None):
                 f.flush()
                 os.fsync(f.fileno())
             os.replace(tmp_path, p)
+            # M1 终结器：写入终态（completed/archived 等）后同步销毁 sidecar lock，
+            # 保持「锁存在 = 任务进行中」的物理锁语义。
+            if _is_terminal_token(token):
+                lock_path.unlink(missing_ok=True)
         finally:
             if tmp_path.exists():
                 tmp_path.unlink(missing_ok=True)
@@ -1707,6 +1747,14 @@ def cmd_archive(force=False):
     if not token:
         print(_red("❌ No active task"))
         return 2
+
+    # Step 1a (M2): research.md 占位检测 — 归档前必须存在实质内容（防占位绕过归档）
+    if TASK_DIR and (TASK_DIR / "research.md").exists() and not force:
+        if _research_md_is_placeholder(TASK_DIR / "research.md"):
+            print(_yellow("⚠  research.md 仍是占位模板（M2 门禁）——请填充实质内容后归档；--force 可跳过"))
+            _write_audit("archive.warn.research_placeholder",
+                         {"task_id": token.get("session", {}).get("id", "unknown")})
+            return 2
 
     if token.get("mode") == "goal":
         if GoalMachine is None:

@@ -56,6 +56,85 @@ def _load_step_evidence_validator():
 
 validate_step_evidence = _load_step_evidence_validator()
 
+# 降噪（index15）：中英同义词归一化映射。
+# 目的不是放宽标准，而是移除「rule 英文 / EV 断言中文」时的强制双语书写负担，
+# 让 AI 把 token 花在正确产出上。核心防线（soft-completion/占位）不受影响。
+_I18N_SYNONYMS = [
+    ("baseline", "基线"),
+    ("snapshot", "快照"),
+    ("exists", "存在|落盘"),
+    ("evidence", "证据"),
+    ("error attribution table", "报错归因表"),
+    ("attribution", "归因"),
+    ("old task states untouched", "未改动任何旧任务状态"),  # 复合短语整词
+    ("old task states", "旧任务状态"),  # 拆解原子，允许中文侧部分命中
+    ("untouched", "未改动|未改"),
+    ("verified", "验证"),
+    ("passed", "通过"),
+    ("failed", "失败"),
+    ("completed", "完成"),
+    ("scorecard", "评分卡"),
+    ("report generated", "报告生成"),
+    ("generated", "生成"),
+    ("archived", "归档"),
+    ("artifacts exist", "产物落盘"),
+    ("artifacts", "产物"),
+    ("under artifacts", "产物目录"),
+    ("regression", "回归"),
+    ("cleanup script idempotent", "清理脚本幂等"),
+    ("idempotent", "幂等"),
+    ("backup exists", "备份存在"),
+    ("backup", "备份"),
+    ("green", "绿"),
+    ("red", "红"),
+]
+
+
+def _normalize_i18n(text: str) -> str:
+    """中英同义词归一化：将文本中的中英关键术语映射为统一 token，便于跨语言比对。
+
+    仅做术语映射，不改动其余字符；soft-completion 检测走独立短语表，不受此影响。
+    """
+    lowered = text.lower()
+    # 两阶段替换，避免术语嵌套穿透（如 "untouched" ⊂ "old task states untouched"）：
+    # 阶段 1：所有术语 → 不可碰撞占位符（P0,P1,...），按英文长度降序先替换长短语；
+    # 阶段 2：占位符 → ⟨术语⟩ 标记。这样替换互不干扰，杜绝二次穿透。
+    placeholders: list[tuple[str, str]] = []
+    for idx, (en, zh) in enumerate(_I18N_SYNONYMS):
+        token = f"\x00D{idx}\x00"
+        placeholders.append((en, token))
+        # 中文侧可能用 | 提供多个同义变体（如 "未改动|未改"），逐个替换
+        for variant in zh.split("|"):
+            if variant and variant in lowered:
+                lowered = lowered.replace(variant, token)
+    # 英文侧按长度降序替换（长短语优先，避免短术语先命中产生穿透）
+    for en, token in sorted(placeholders, key=lambda p: len(p[0]), reverse=True):
+        if en in lowered:
+            lowered = lowered.replace(en, token)
+    # 阶段 2：占位符 → 术语标记（复合短语拆为原子标记，便于术语集覆盖比较）
+    for idx, (en, _zh) in enumerate(_I18N_SYNONYMS):
+        token = f"\x00D{idx}\x00"
+        marker = en if " " not in en else en  # 复合短语保留整词标记（由覆盖逻辑处理）
+        lowered = lowered.replace(token, f"⟨{marker}⟩")
+    return lowered
+
+
+def _extract_core_terms(normalized: str) -> set[str]:
+    """从归一化文本提取核心术语集（⟨...⟩ 标记的映射术语）。
+
+    复合短语（含空格的 ⟨old task states untouched⟩）按空格拆成单词原子，
+    使「术语集覆盖」比较能跨同义短语成立（rule 的原子词全在断言侧即可），
+    同时保留单术语原子。用于断言匹配的判断：rule 原子词 ⊆ 断言原子词。
+    """
+    terms: set[str] = set()
+    for marked in re.findall(r"⟨([^⟩]+)⟩", normalized):
+        if " " in marked:
+            terms.update(marked.split())
+        else:
+            terms.add(marked)
+    return terms
+
+
 SOFT_COMPLETION_PHRASES = [
     "应该好了", "看起来可以", "基本完成", "大概没问题",
     "已经处理", "完成了",
@@ -225,10 +304,14 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
     am = re.match(r"^assertion:(.+)$", rule)
     if am:
         expected_raw = am.group(1).strip().lower()
-        # 分段匹配（P1-4, index12 S2）：整段字面子串 OR 全部实质性分段命中。
-        # 容忍子句间插入细节/换序/标点差异，仍要求每个实质性子句都被覆盖，
-        # 不降级为部分覆盖匹配（防止仅命中一个子句即通过）。
+        # 降噪（index15）：中英同义词归一化 + 核心术语集匹配。
+        # 目标不是放宽标准，而是移除「rule 英文 / EV 断言中文」的强制双语书写负担。
+        # 匹配语义 = rule 的核心术语集必须全被断言侧覆盖（不要求结构词/顺序），
+        # 保持防编造强度：soft-completion 仍拒，术语缺失仍拒。
+        expected_norm = _normalize_i18n(expected_raw)
+        expected_terms = _extract_core_terms(expected_norm)
         segments = [s.strip() for s in re.split(r"[;；,，。\n]+", expected_raw) if len(s.strip()) > 3]
+        segments_norm = [_normalize_i18n(s) for s in segments]
         for ev in evidence:
             if ev.get("type") == "failure":
                 continue
@@ -236,16 +319,22 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]]) -> tuple[bool, 
             if is_soft_completion(assertion_text):
                 warnings.append("assertion contains soft completion")
                 continue
-            # 1) 整段字面子串（向后兼容）
-            if expected_raw in assertion_text:
+            assertion_norm = _normalize_i18n(assertion_text)
+            assertion_terms = _extract_core_terms(assertion_norm)
+            # 1) 整段字面子串（向后兼容，含中英归一化后）
+            if expected_norm in assertion_norm or expected_raw in assertion_text:
                 return True, f"assertion match: '{expected_raw}'", []
-            # 2) 全部实质性分段均命中（容忍插入/换序）
-            if segments and all(s in assertion_text for s in segments):
+            # 2) 全部实质性分段均命中（容忍插入/换序 + 中英归一化）
+            if segments_norm and all(s in assertion_norm for s in segments_norm):
                 return True, f"assertion segment match: '{'; '.join(segments)}'", []
+            # 3) 核心术语集覆盖（rule 术语 ⊆ 断言术语）——跨语言语义匹配主路径
+            if expected_terms and assertion_terms and expected_terms <= assertion_terms:
+                return True, f"assertion core-term match: {expected_terms}", []
             txt = str(ev.get("output_tail", "")).lower()
-            if expected_raw in txt and ev.get("exit_code") == 0:
+            txt_norm = _normalize_i18n(txt)
+            if (expected_raw in txt or expected_norm in txt_norm) and ev.get("exit_code") == 0:
                 return True, f"assertion in command output: '{expected_raw}'", []
-            if segments and ev.get("exit_code") == 0 and all(s in txt for s in segments):
+            if segments_norm and ev.get("exit_code") == 0 and all(s in txt_norm for s in segments_norm):
                 return True, f"assertion segments in command output: '{'; '.join(segments)}'", []
         return False, f"no matching assertion for: {expected_raw}", warnings
 

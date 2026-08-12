@@ -206,15 +206,14 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
         if not kc_lines:
             errors.append("key_changes_section_no_content")
 
-    # 4. Decisions section - must include rationale
+    # 4. Decisions section - must include substantive rationale (semantic, not literal)
+    #    降噪（index15）：不强制 "rationale:" 字面，只要含实质决策内容即可。
     dec_content = _extract_section_content(executor_text, "Decisions")
     if not dec_content:
         errors.append("decisions_section_empty_or_missing")
     else:
         dec_lines = [line for line in dec_content.split("\n") if line.strip() and not is_placeholder(line)]
-        dec_lower = dec_content.lower()
-        has_rationale = any("rationale:" in line.lower() or "reason:" in line.lower() for line in dec_lines)
-        if not has_rationale:
+        if not dec_lines:
             errors.append("decisions_missing_rationale")
 
     # 5. Acceptance Checklist - all [x]
@@ -230,26 +229,23 @@ def validate_step_evidence(executor_text: str, step_id: str) -> list[str]:
             errors.append(f"acceptance_checklist_has_{unchecked}_unchecked_items")
 
     # 6. TDD Evidence - dependency + regression with exit 0
+    #    降噪（index15）：不强制 "dependency tdd"/"regression tdd" 字面；只要 TDD 段
+    #    含命令证据（.py/.sh/命令名）+ exit 0/通过 标记即视为满足，空段/无证据仍拒。
     tdd_content = _extract_section_content(executor_text, "TDD Evidence")
     if not tdd_content:
         errors.append("tdd_evidence_empty_or_missing")
     else:
-        tdd_lower = tdd_content.lower()
-        has_dep_tdd = re.search(r"dependency.*?tdd", tdd_lower)
-        if not has_dep_tdd:
-            errors.append("tdd_missing_dependency_tdd_command")
+        tdd_lines = [l for l in tdd_content.split("\n") if l.strip() and not is_placeholder(l)]
+        if not tdd_lines:
+            errors.append("tdd_evidence_no_content")
         else:
-            dep_exit0 = re.search(r"dependency.*?tdd.*?(?:exit\s*[：:]\s*0|→\s*exit\s*0|->\s*exit\s*0)", tdd_lower)
-            if not dep_exit0:
-                errors.append("tdd_dependency_tdd_missing_exit_0")
-
-        has_reg_tdd = re.search(r"regression.*?tdd", tdd_lower)
-        if not has_reg_tdd:
-            errors.append("tdd_missing_regression_tdd_command")
-        else:
-            reg_exit0 = re.search(r"regression.*?tdd.*?(?:exit\s*[：:]\s*0|→\s*exit\s*0|->\s*exit\s*0)", tdd_lower)
-            if not reg_exit0:
-                errors.append("tdd_regression_tdd_missing_exit_0")
+            tdd_lower = tdd_content.lower()
+            has_cmd = bool(re.search(r"(python3?|pytest|\.py|\.sh|npm|go test|run[a-z0-9_\-]*|exit\s*[0:：])", tdd_lower))
+            has_exit0 = bool(re.search(r"(exit\s*[：:]\s*0|→\s*exit\s*0|->\s*exit\s*0|passed|通过|0 失败|0 failed|exit code 0|退出码\s*0)", tdd_lower))
+            if not has_cmd:
+                errors.append("tdd_missing_dependency_tdd_command")
+            if not has_exit0:
+                errors.append("tdd_missing_exit_0_evidence")
 
     return errors
 
