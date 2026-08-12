@@ -2,7 +2,7 @@
 """
 omc_lint.py — 统一 lint 系统
 
-检查内容（按 update.md 第 9 条）：
+检查内容（按 design-docs/update.md 第 9 条，ADR0017 归档于 references/archived/design-docs/）：
 1. token.json schema
 2. plan.md step 格式
 3. executor.md evidence block

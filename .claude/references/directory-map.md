@@ -52,7 +52,7 @@ Carror_Base_OS/
 │   │   ├── feature_test/          # [测试] ← 错位（见下文 §2.2）
 │   │   ├── round7/                # [存档] ← 略重（建议与 design-docs 合并）
 │   │   ├── adr/                   # [ADR] 架构决策记录
-│   │   ├── design-docs/           # [设计] 历史设计文档
+│   │   ├── design-docs/           # [设计] 编号设计文档（大编号优先，13 为活文档，历史已归档 ADR0017）
 │   │   ├── task-architecture/     # [架构] 任务架构参考
 │   │   ├── templates/             # [模板] Handoff/Stepwise 模板
 │   │   └── ...                    # 其余 15+ 独立文件

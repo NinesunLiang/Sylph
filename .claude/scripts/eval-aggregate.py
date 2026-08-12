@@ -351,7 +351,7 @@ def aggregate(scorecard_path: Path, oracle_dir: Path, output_path: Path, project
         lines.extend(f"- `{item['id']}` [{item['severity']}] {item['reason']}" for item in readiness)
     else:
         lines.append("- 无")
-    lines.extend(["", "## 下轮建议", "", "详见 .claude/references/design-docs/r8-convergence-plan.md", "", "---", f"> 由 eval-aggregate.py 于 {now} 生成"])
+    lines.extend(["", "## 下轮建议", "", "详见 .claude/references/archived/design-docs/r8-convergence-plan.md（历史迭代，ADR0017 归档）", "", "---", f"> 由 eval-aggregate.py 于 {now} 生成"])
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     readiness_path = output_path.with_suffix(".readiness.json")

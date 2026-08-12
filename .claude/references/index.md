@@ -8,8 +8,8 @@
 | 目录 | 用途 | 入口 |
 |------|------|------|
 | `adr/` | 架构决策记录 | `INDEX.md` |
-| `archived/` | 已归档旧文档 | `loading_matrix.md`, `mechanism_evals.md` |
-| `design-docs/` | 设计文档（分阶段编号） | `1.md` ~ `11.md` 按主题阅读 |
+| `archived/` | 已归档旧文档 | `loading_matrix.md`, `mechanism_evals.md`, `design-docs/`（历史迭代，ADR0017） |
+| `design-docs/` | 设计文档（分阶段编号，大编号优先） | `13-headless-lightweight-actions.md`（当前活文档）；历史归档于 `archived/design-docs/` |
 | `task-architecture/` | 任务架构参考（SUPERSEDED） | `@current-task-architecture.md` — 实际基线 |
 | `templates/` | 模板（handoff-capsule, stepwise-cards 等） | 直接引用 |
 | `race/` | Race 编排模式文档 | `state-machine.md` |
