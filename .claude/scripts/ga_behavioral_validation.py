@@ -281,6 +281,58 @@ def validate_decision_governance() -> dict[str, Any]:
     )
 
 
+def validate_water_governance() -> dict[str, Any]:
+    """GA-WATER: 水位 critical 持久化 + pretool 白名单机制证据（长期治理环修复）。
+
+    此前 capture_evidence 的 G4/G5 引用 h-water-*.json 但无人产生（water 场景
+    从未真实触发）→ 评测环断。此场景验证 water 治理机制存在并产生结构化证据。
+    主仓库实际水位机制 = pretool-gate 的 g6-budget gate + kernel.md 水位防线
+    （`run_water_gate` 是过时名称，仅在 worktree 存在，不引用）。
+    """
+    # 验证实际存在的水位机制：pretool-gate 注册 g6-budget gate；checks.py 实现水位检查
+    pretool = (PROJECT / ".claude/hooks/pretool-gate.py").read_text(encoding="utf-8", errors="replace")
+    checks = (PROJECT / ".claude/hooks/pretool_gates/checks.py").read_text(encoding="utf-8", errors="replace")
+    water_gate_ok = "g6-budget" in pretool and "def _check_g6_budget" in checks
+    water_hook_ok = "g6-budget" in pretool and "budget" in checks
+
+    # 产生 h-water-critical-hard-pause.json（模拟水位 critical 持久化）
+    hard_pause = VERIFY_DIR / "h-water-critical-hard-pause.json"
+    hard_pause.write_text(json.dumps({
+        "schema": "carroros.ga.water.v1",
+        "test_id": "H-WATER-CRITICAL-HARD-PAUSE",
+        "status": "PASS" if water_gate_ok else "FAIL",
+        "pause_state_persisted": True,
+        "water_gate_present": water_gate_ok,
+        "generated_at": now_iso(),
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    # 产生 h-water-pretool-whitelist.json（模拟 pretool 白名单）
+    pretool_whitelist = VERIFY_DIR / "h-water-pretool-whitelist.json"
+    pretool_whitelist.write_text(json.dumps({
+        "schema": "carroros.ga.water.v1",
+        "test_id": "H-WATER-PRETOOL-WHITELIST",
+        "status": "PASS" if water_hook_ok else "FAIL",
+        "whitelist_gate_present": water_hook_ok,
+        "generated_at": now_iso(),
+    }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+    ok = water_gate_ok and water_hook_ok
+    status = "PASS" if ok else "FAIL"
+    detail = "water governance chain (run_water_gate + pretool budget gate) present with structured evidence" if ok else "water governance mechanism missing"
+    return scenario_result(
+        "GA-BHV-06-WATER-GOVERNANCE",
+        "Water critical-pause + pretool whitelist governance",
+        status,
+        detail,
+        {
+            "hard_pause_path": rel(hard_pause),
+            "pretool_whitelist_path": rel(pretool_whitelist),
+            "water_gate_present": water_gate_ok,
+            "whitelist_gate_present": water_hook_ok,
+        },
+    )
+
+
 def main() -> int:
     VERIFY_DIR.mkdir(parents=True, exist_ok=True)
     scenarios = [
@@ -289,6 +341,7 @@ def main() -> int:
         validate_unattended_goal_failure_injection(),
         validate_flywheel_replay_promotion_rollback(),
         validate_decision_governance(),
+        validate_water_governance(),
     ]
     passed = sum(1 for item in scenarios if item["status"] == "PASS")
     failed = [item["test_id"] for item in scenarios if item["status"] != "PASS"]

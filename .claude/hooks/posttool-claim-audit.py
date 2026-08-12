@@ -214,11 +214,16 @@ def main():
         # 同一文件编辑次数 / 唯一内容 hash 数，值越低越健康
         _edit_count_snapshot = 1
         _unique_hash_count = 1
+        _revert_of = None
         try:
             with open(_EH_LOG, encoding='utf-8') as _eh_temp:
                 _file_edits = [json.loads(lx) for lx in _eh_temp if lx.strip() and FILE_PATH in lx]
                 _edit_count_snapshot = len(_file_edits) + 1
                 _unique_hash_count = len(set(r.get('content_hash', '') for r in _file_edits)) + 1
+                # E6 revert 检测（精专化）：当前内容 hash 曾在历史中出现 → 内容回退到之前版本。
+                # 此前 revert_of 恒 None（死代码），E6-2 REVERT_DETECTED 从未真实触发。
+                if _hash and any(r.get('content_hash') == _hash for r in _file_edits):
+                    _revert_of = _hash[:16]
         except Exception:
             pass
         _patience_score = round(_edit_count_snapshot / max(1, _unique_hash_count), 2)
@@ -233,7 +238,7 @@ def main():
             "sig": _hash,
             "edit_count": _edit_count_snapshot,
             "contradiction": False,
-            "revert_of": None,
+            "revert_of": _revert_of,
             "content_hash": _hash,
         }
         with _EH_LOG.open("a", encoding="utf-8") as _eh_f:

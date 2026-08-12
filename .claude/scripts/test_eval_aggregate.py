@@ -270,6 +270,31 @@ def test_valid_manifest_adds_no_item_blocker(tmp_path):
     assert not any(i["id"].startswith("scorecard.item_") for i in items)
 
 
+def test_ce_above_threshold_with_manifest_certifies(tmp_path):
+    """C8 可维护性：C/E 双达标 8.6 + 完整 manifest（全 9）+ 有效 PASS Oracle → CERIFIED。
+
+    锁定 8.6 认证门槛的正向路径（现有测试多为 PROVISIONAL/阻断路径）。
+    manifest 全 9 → C/E 重算 9.0，声明必须与之一致（否则算术 mismatch blocker）。
+    """
+    scorecard = tmp_path / "scorecard.md"
+    scorecard.write_text(
+        manifest_scorecard(manifest_text(score=9.0))
+        .replace("C1-C9 加权 8.0", "C1-C9 加权 9.0")
+        .replace("E1-E8 加权 8.0", "E1-E8 加权 9.0")
+        .replace("24 项总加权 8.0", "24 项总加权 9.0")
+    )
+    oracle = tmp_path / "oracle" / "run-1"
+    oracle.mkdir(parents=True)
+    (oracle / "verdict.json").write_text(json.dumps({"verdict": "PASS", "score": 9.0}))
+    output = tmp_path / "report.md"
+    project = make_certification_ready_project(tmp_path)
+
+    assert module.aggregate(scorecard, oracle.parent, output, project_root=project) == 0
+    report = output.read_text()
+    assert "Certification: **CERTIFIED**" in report, report
+    assert "`scorecard.item_manifest_missing`" not in report
+
+
 UX_SCORECARD = (
     "## UX 独立 proxy（7 项算术平均，非人类研究）\n"
     "| 维度 | 得分 |\n"

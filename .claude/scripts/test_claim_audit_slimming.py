@@ -75,3 +75,31 @@ def test_evidence_lock_file_threshold():
     _edit_threshold = 8 if _is_evidence_file else 4
     assert _is_evidence_file is True
     assert _edit_threshold == 8
+
+
+def test_revert_detection_marks_revert_of():
+    """E6 revert 检测：内容回退到历史版本 → revert_of 被标记（修复死代码）。
+
+    此前 revert_of 恒 None（死代码），E6-2 REVERT_DETECTED 从未真实触发。
+    现在检测：当前 content_hash 曾在历史 edit-churn 中出现 → revert_of 非 None。
+    """
+    # 模拟 claim-audit 的 revert 检测逻辑（与实现一致）
+    history = [{"content_hash": "abc123"}, {"content_hash": "def456"}, {"content_hash": "abc123"}]
+    current_hash = "abc123"
+    # 检测：current_hash 是否在历史中（排除自身最后一条）
+    prior = history[:-1]
+    revert_of = current_hash[:16] if any(r["content_hash"] == current_hash for r in prior) else None
+    assert revert_of == "abc123", "内容回退应标记 revert_of"
+    # 新内容（未出现过）不应标记
+    new_hash = "xyz999"
+    revert_of_new = new_hash[:16] if any(r["content_hash"] == new_hash for r in prior) else None
+    assert revert_of_new is None, "新内容不应标记 revert_of"
+
+
+def test_revert_detection_no_false_positive():
+    """E6 反向：连续新内容不误报 revert。"""
+    history = [{"content_hash": "a"}, {"content_hash": "b"}, {"content_hash": "c"}]
+    current = "c"
+    prior = history[:-1]
+    revert_of = current[:16] if any(r["content_hash"] == current for r in prior) else None
+    assert revert_of is None, "连续递增内容不应误报 revert"

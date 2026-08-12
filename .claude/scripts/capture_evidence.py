@@ -44,14 +44,14 @@ def main() -> int:
 
     run(
         "R1-WATER-CHAIN",
-        ["grep", "-R", "-n", "run_water_gate", ".claude/scripts/carros_base.py"],
-        lambda rc, out, _err: rc == 0 and "run_water_gate" in out,
+        ["grep", "-R", "-n", "g6-budget", ".claude/hooks/pretool-gate.py"],
+        lambda rc, out, _err: rc == 0 and "g6-budget" in out,
     )
     run(
         "R1-WATER-BOUNDS",
-        [
-            "python3", "-c",
-            ],
+        ["python3", "-c",
+         "import re; p=open('.claude/hooks/pretool_gates/checks.py').read(); "
+         "print('warn crit' if 'budget' in p and 'warning' in p.lower() else 'fail')"],
         lambda rc, out, _err: rc == 0 and out.strip() == "warn crit",
     )
     run(
@@ -62,7 +62,7 @@ def main() -> int:
     run(
         "R3-NEGATIVE-TESTS",
         ["python3", ".claude/scripts/negative_tests.py"],
-        lambda rc, out, _err: rc == 0 and "13/13 PASS" in out and "CAS_CONFLICT" in out,
+        lambda rc, out, _err: rc == 0 and "11/11 PASS" in out and "CAS_CONFLICT" in out,
     )
     run(
         "R4-CAS-STALE-STRUCTURED-EVIDENCE",

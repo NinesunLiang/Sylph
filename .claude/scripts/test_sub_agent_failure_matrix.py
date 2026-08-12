@@ -86,6 +86,44 @@ def test_retry_cap_preserves_original_failure(tmp_path):
     assert result["failure"] == "fixture failure"
 
 
+def test_thrash_same_failure_rejects_retry(tmp_path):
+    """E4 thrash：同 failure 重复 ≥2 次 → 拒绝重试（系统性阻塞尽早停止）。
+
+    fixture 已失败 2 次，failure 均为 "permission denied"（同因）。retry 时应
+    检测到 thrash 并拒绝，而非重试到 max_retries。
+    """
+    manager, sub_dir = make_manager(tmp_path)
+    write_result(sub_dir, json.dumps({
+        "status": "failed",
+        "failure": "permission denied",
+        "failure_history": ["permission denied", "permission denied"],
+        "retry_count": 2,
+        "max_retries": 5,
+    }))
+
+    assert manager.retry("S1") is False
+    result = json.loads((sub_dir / "result.json").read_text())
+    assert result["status"] == "failed"
+    assert result.get("thrash") is True, "同 failure 重复应标记 thrash"
+
+
+def test_distinct_failure_still_retries(tmp_path):
+    """E4 反向：不同 failure 不触发 thrash，仍可重试。"""
+    manager, sub_dir = make_manager(tmp_path)
+    write_result(sub_dir, json.dumps({
+        "status": "failed",
+        "failure": "timeout",
+        "failure_history": ["permission denied"],
+        "retry_count": 0,
+        "max_retries": 3,
+    }))
+
+    assert manager.retry("S1") is True
+    result = json.loads((sub_dir / "result.json").read_text())
+    assert result["status"] == "pending"
+    assert result.get("thrash") is None, "不同 failure 不应触发 thrash"
+
+
 def test_late_executor_output_is_rejected_after_cancel(tmp_path):
     manager, sub_dir = make_manager(tmp_path)
     executor = SubAgentExecutor(sub_dir)

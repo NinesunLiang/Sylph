@@ -349,6 +349,17 @@ class SubAgentManager:
                 return None
             max_retries = current_result.get("max_retries", self.config["max_retries"])
             retry_count = current_result.get("retry_count", 0)
+            # E4 thrash 检测：同 failure 重复 >=2 次 → 系统性阻塞，尽早停止而非重试到上限。
+            current_failure = current_result.get("failure") or ""
+            history = current_result.get("failure_history") or []
+            same_failures = history.count(current_failure) if current_failure else 0
+            if same_failures >= 2:
+                current_result["status"] = "failed"
+                current_result.setdefault("failure", current_failure or "thrash detected")
+                current_result["thrash"] = True
+                current_result["retry_exhausted"] = True
+                current_result["completed_at"] = datetime.now(timezone.utc).isoformat()
+                return current_result
             if retry_count >= max_retries:
                 current_result["status"] = "failed"
                 current_result.setdefault("failure", f"max retries ({max_retries}) exceeded")
@@ -356,6 +367,8 @@ class SubAgentManager:
                 current_result["completed_at"] = datetime.now(timezone.utc).isoformat()
                 return current_result
 
+            # 记录本次 failure 到历史（供下次 thrash 检测），然后重置
+            current_result["failure_history"] = (history + [current_failure])[-5:]
             current_result["status"] = "pending"
             current_result["failure"] = None
             current_result["retry_count"] = retry_count + 1
