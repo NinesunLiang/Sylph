@@ -66,3 +66,27 @@ def test_missing_contract_fails(tmp_path):
     )
     assert r.returncode != 0
     assert "missing file" in r.stderr
+
+
+def test_bootstrap_when_target_missing(tmp_path):
+    # M4 regression (index17 提分验证抓到): fresh env has no settings.local.json,
+    # apply must BOOTSTRAP it from the contract instead of failing.
+    contract = tmp_path / "contract.json"
+    target = tmp_path / "target.json"
+    contract.write_text(json.dumps(CONTRACT), encoding="utf-8")
+    base = Path(__file__).resolve().parents[2]
+    script = base / ".claude" / "scripts" / "apply_permissions.py"
+    r = subprocess.run(
+        [sys.executable, str(script), "--contract", str(contract), "--target", str(target)],
+        capture_output=True, text=True,
+    )
+    assert r.returncode == 0, r.stderr
+    assert "bootstrapping" in r.stdout
+    data = json.loads(target.read_text(encoding="utf-8"))
+    assert data["permissions"]["allow"] == CONTRACT["permissions"]["allow"]
+    # second run idempotent
+    r2 = subprocess.run(
+        [sys.executable, str(script), "--contract", str(contract), "--target", str(target)],
+        capture_output=True, text=True,
+    )
+    assert r2.returncode == 0 and "no changes" in r2.stdout

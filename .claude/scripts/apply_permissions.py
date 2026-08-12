@@ -56,7 +56,13 @@ def main() -> int:
         print(f"ERROR: contract {contract_path} has empty permissions.allow", file=sys.stderr)
         return 2
 
-    target = load_json(target_path)
+    if target_path.exists():
+        target = load_json(target_path)
+        target_existed = True
+    else:
+        target = {}
+        target_existed = False
+        print(f"target missing; bootstrapping new {target_path}")
     target_permissions = target.setdefault("permissions", {})
     existing = target_permissions.get("allow", [])
     merged = merge_allow(existing if isinstance(existing, list) else [], contract_allow)
@@ -71,9 +77,9 @@ def main() -> int:
         print("DRY-RUN: would write", len(merged) - len(existing), "new rule(s)")
         return 0
 
-    # backup once
+    # backup once (only when target pre-existed)
     bak = Path(str(target_path) + ".bak")
-    if not bak.exists():
+    if target_existed and not bak.exists():
         shutil.copy2(target_path, bak)
         print(f"backup: {bak}")
     target_permissions["allow"] = merged

@@ -2007,6 +2007,75 @@ def _generate_final_report(token):
     return "\n".join(lines)
 
 
+def cmd_prune_stale_locks(dry_run=False, max_age_days=1.0):
+    """prune-stale-locks — quarantine stale token/lock residue (index17 M2 还债).
+
+    Categories (only tokens that carry a .lock file):
+      - stale_lock: token.status in {completed, archived} AND lock present → quarantine lock file
+      - stale_active: token.status == active AND lock present AND token older than max_age_days → quarantine token + lock
+    Quarantine moves files to .omc/backup/stale-cleanup/{ts}/ (reversible; never deletes).
+    Default applies real quarantine; use --dry-run to preview.
+    """
+    import shutil
+    import time as _time
+
+    if not OMC_TOKENS.exists():
+        print(_yellow("no tokens dir"))
+        return 0
+    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    backup_dir = OMC_ROOT / "backup" / "stale-cleanup" / ts
+    cutoff = _time.time() - max_age_days * 86400
+
+    stale_lock: list[Path] = []
+    stale_active: list[Path] = []
+    for f in sorted(OMC_TOKENS.rglob("*.json")):
+        if f.name.endswith(".lock"):
+            continue
+        lock_path = Path(str(f) + ".lock")
+        if not lock_path.exists():
+            continue
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        status = d.get("status")
+        if status in ("completed", "archived"):
+            stale_lock.append(f)
+        elif status == "active" and f.stat().st_mtime < cutoff:
+            stale_active.append(f)
+
+    print(f"stale_locks(terminal+lock)={len(stale_lock)}  stale_active(active+lock,>{max_age_days}d)={len(stale_active)}")
+    for f in stale_lock:
+        print(f"  LOCK-ONLY: {f.relative_to(OMC_ROOT)}")
+    for f in stale_active:
+        print(f"  ACTIVE-STALE: {f.relative_to(OMC_ROOT)}")
+    if dry_run:
+        print("DRY-RUN: no files moved")
+        return 0
+
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    moved = 0
+    for f in stale_lock:
+        lk = Path(str(f) + ".lock")
+        if lk.exists():
+            shutil.move(str(lk), str(backup_dir / (f.name + ".lock")))
+            moved += 1
+    for f in stale_active:
+        lk = Path(str(f) + ".lock")
+        try:
+            shutil.move(str(f), str(backup_dir / f.name))
+            if lk.exists():
+                shutil.move(str(lk), str(backup_dir / (f.name + ".lock")))
+            moved += 1
+        except OSError as e:
+            print(_yellow(f"  SKIP {f.name}: {e}"))
+    _write_audit("prune-stale-locks",
+                 {"quarantined": moved, "stale_lock": len(stale_lock),
+                  "stale_active": len(stale_active), "backup": str(backup_dir)})
+    print(f"QUARANTINED {moved} file(s) → {backup_dir}")
+    return 0
+
+
 def cmd_lint(path=None):
     """统一 lint — 委托 omc_lint 模块"""
     if omc_lint is None:
@@ -3178,6 +3247,7 @@ COMMANDS = {
     "poll": cmd_poll,
     "collect": cmd_collect,
     "report": cmd_report,
+    "prune-stale-locks": cmd_prune_stale_locks,
     "cancel": cmd_cancel,
     "oracle": cmd_oracle,
     "fallback": cmd_fallback,
@@ -3304,6 +3374,17 @@ def main(argv=None):
     elif command == "lint":
         path = args[0] if args else None
         return cmd_lint(path=path)
+
+    elif command == "prune-stale-locks":
+        dry_run = "--dry-run" in args
+        max_age = 1.0
+        if "--max-age-days" in args:
+            i = args.index("--max-age-days")
+            try:
+                max_age = float(args[i + 1])
+            except (ValueError, IndexError):
+                pass
+        return cmd_prune_stale_locks(dry_run=dry_run, max_age_days=max_age)
 
     elif command == "manifest-json":
         return cmd_manifest_json()

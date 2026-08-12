@@ -30,9 +30,13 @@ python3 .claude/scripts/apply_permissions.py
 - `.claude/settings.json` / `settings.local.json` 含机器特定配置（apiUrl / authToken / 本机工具链 allow），**gitignored 且含机密**，不可提交。
 - 契约文件不含机密、结构最小，可安全提交；合并脚本把契约落到本地生效文件，保持「机器配置留本机、能力契约进项目」的边界。
 
-## 与 inline python 软规则的关系
+## 与 inline python 软规则的关系（F2 例外条款）
 
-AGENTS.md 的「临时脚本须用 Write/Edit 落盘、禁止 inline `python3 -c`」是**软规则**（无 hook 硬门禁，index17 实测 ON 会话 python3 -c/heredoc 均放行）。当权限受限使 python3 成为唯一合法写路径时，由 **AI 决策链**自主裁决，不设权限硬门禁。
+AGENTS.md 的「临时脚本须用 Write/Edit 落盘、禁止 inline `python3 -c`」是**软规则**（无 hook 硬门禁，index17 实测 ON 会话 python3 -c/heredoc 均放行）。
+
+**例外条款（2026-08-13 用户裁决 F2 还债）**：当 Write/Edit 与 Bash 直写（重定向/touch/tee）**均被权限系统拦截**，而 python3 是唯一可用的合法执行/写文件路径时，允许临时使用 python3 heredoc 或脚本落盘——**这属于例外，不构成违规**，无需在报告里自我批评偏离规则。AI 按决策链自决，并在报告中如实标注所用回退方式。
+
+> 判定边界：例外仅在「权限受限致常规路径不可用」时触发；常规环境（有 Write 权限）仍须遵守「脚本落盘」规则。
 
 ## 决策记录（2026-08-13 用户裁决）
 
