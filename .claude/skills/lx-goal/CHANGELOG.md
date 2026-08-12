@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.5.1
+- fix: Phase0 改为逐卡片澄清循环
+  - 每张卡只问一个问题
+  - 用户回答后重新扫描剩余不确定项
+  - 仅在没有新的用户决策项时进入计划确认
+  - 删除与逐问规则冲突的批量 Q 清单要求
+
 ## v1.5.0
 - feat: Phase0 融入 brainstorming/grill-me 理念
   - HARD-GATE: Phase0 未完成不得执行

@@ -1525,7 +1525,23 @@ def cmd_archive(force=False):
             )
             return 2
 
-    # Step 2: check all steps completed — 统一新格式
+    # Step 2: compare the frozen plan with token progress before reporting.
+    plan_completed = None
+    plan_total = None
+    if step_contracts and PLAN_PATH and PLAN_PATH.exists():
+        plan_steps = step_contracts.parse_plan_steps(PLAN_PATH.read_text())
+        plan_completed = sum(1 for step in plan_steps if step.get("status") == "completed")
+        plan_total = len(plan_steps)
+        token_stats = token.get("stats", {})
+        if (token_stats.get("done"), token_stats.get("total")) != (plan_completed, plan_total):
+            conflict = f"token {token_stats.get('done', 0)}/{token_stats.get('total', 0)} vs plan {plan_completed}/{plan_total}"
+            if not force:
+                print(_red(f"❌ Archive blocked: state_conflict ({conflict})"))
+                return 2
+            token.setdefault("archive_warnings", []).append(f"state_conflict: {conflict}")
+            print(_yellow(f"⚠  --force: preserving token progress despite {conflict}"))
+
+    # Step 3: check all steps completed — 统一新格式
     if not force:
         pending = []
         if token.get("stats", {}).get("done", 0) < token.get("stats", {}).get("total", 0):
@@ -1536,7 +1552,7 @@ def cmd_archive(force=False):
     else:
         print(_yellow("⚠  --force: skipping step completion check"))
 
-    # Step 3: generate final report (shared node)
+    # Step 4: generate final report (shared node)
     task_sid = token.get("session", {}).get("id", "unknown")
 
     # 用 task 目录语义名替代 session ID 作为 archive 目录名
@@ -1548,6 +1564,9 @@ def cmd_archive(force=False):
         archive_name = task_sid
     archive_dir = OMC_ROOT / "archive" / archive_name
     archive_dir.mkdir(parents=True, exist_ok=True)
+    token["status"] = "archived"
+    token["archived_at"] = datetime.now(timezone.utc).isoformat()
+    _save_token(token)
     cmd_report(use_stdout=False)
     print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
 

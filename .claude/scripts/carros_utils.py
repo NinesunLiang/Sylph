@@ -479,6 +479,13 @@ def generate_final_report(token: dict, task_dir: Optional[Path] = None) -> str:
         lines.extend(verification_notes)
         lines.append("")
 
+    archive_warnings = token.get("archive_warnings", [])
+    if archive_warnings:
+        lines.append("## 归档警告")
+        lines.append("")
+        lines.extend(f"- {warning}" for warning in archive_warnings)
+        lines.append("")
+
     lines.append("## 审计轨迹")
     lines.append("")
     lines.append("完整事件日志见 `.omc/audit/` 目录。")
