@@ -1039,11 +1039,13 @@ def test_report_accepts_verifygate_marker_for_red_test_step(monkeypatch, tmp_pat
     assert "VERIFIED: 所有计划步骤已完成" in report
 
 def test_goal_scaffold_executor_predeclares_terminal_artifacts(monkeypatch, tmp_path):
-    """TDD 红：goal 模式 scaffold 生成的 executor.md 必须预声明终态门禁(phase contract)要求的全部工件节。
+    """TDD 红：goal 模式 scaffold 生成的 executor.md 必须预声明门禁(phase contract)要求的工件节。
 
-    缺陷：_write_goal_scaffolds 只写 sealed 占位，不含 Conditions/Key Changes/Decisions/
-    Acceptance Checklist/TDD Evidence，导致 done 在终态才要求补信息（先过门禁后补信息）。
+    缺陷：_write_goal_scaffolds 只写 sealed 占位，不含 Key Changes/TDD Evidence/EV 块，
+    导致 done 在终态才要求补信息（先过门禁后补信息）。
     正确工作流：模板预声明 → 执行期填充 → 门禁通过（补充信息在前，门禁在后）。
+    契约精简（还债项 6→3）：Conditions/Decisions/Acceptance Checklist 不再是必需段，
+    当前要求预声明 Key Changes + TDD Evidence + EV 证据块。
     """
     base_spec = importlib.util.spec_from_file_location(
         "carros_base_under_test", ROOT / ".claude/scripts/carros_base.py"
@@ -1064,6 +1066,6 @@ def test_goal_scaffold_executor_predeclares_terminal_artifacts(monkeypatch, tmp_
     base._write_goal_scaffolds()
 
     executor = (task_dir / "executor.md").read_text(encoding="utf-8")
-    required = ["## Conditions", "## Key Changes", "## Decisions", "## Acceptance Checklist", "## TDD Evidence"]
+    required = ["## Key Changes", "## TDD Evidence", "### EV-S1"]
     missing = [h for h in required if h not in executor]
     assert not missing, f"goal executor scaffold 缺少终态工件节: {missing}"

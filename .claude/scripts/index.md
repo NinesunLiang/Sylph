@@ -8,11 +8,8 @@
 | 脚本 | 用途 |
 |------|------|
 | `carros_base.py` | 主入口 CLI — `init/status/tick/verify/archive/lint/bench` |
-| `oracle_engine.py` | Oracle 引擎（静态 + 运行时） |
 | `pre_action_gate.py` | 前置动作门禁 |
-| `oracle_spawn.py` | Oracle 双审生成器 |
-| `static_oracle_agent.py` | 静态分析 agent |
-| `runtime_oracle_agent.py` | 运行时验证 agent |
+| `oracle_agent.py` | 统一 Oracle（review/status/bypass） |
 | `meta_oracle.py` | Meta-Oracle 二阶评审 |
 
 ## 任务/工作流

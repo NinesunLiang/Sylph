@@ -242,7 +242,7 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 2. 回归全过 → 验证覆盖门禁: python3 .claude/references/tests/test-coverage-gate.py --block
 3. 覆盖通过 → 写 scorecard.md 记录三元组
 4. 每 3 轮 → 独立审计: python3 .claude/scripts/meta_oracle.py aggregate --policy duo
-5. 合成报告: python3 scripts/eval-aggregate.py --scorecard X --meta-verdict Y
+5. 合成报告: python3 .claude/scripts/eval-aggregate.py --scorecard X --meta-verdict Y
 6. 读 eval-report.md: 得分 + 分歧分析 + 下轮建议
 7. Δ ≥ 1.0 必须查明原因后才可继续迭代
 ```
@@ -257,7 +257,7 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 | `.claude/scripts/run-regression.sh` | 回归地基（44/44 全量套件） |
 | `.claude/references/tests/` | 44 套测试文件仓库 |
 | `.claude/references/tests/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
-| `scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |
+| `.claude/scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |
 | `.claude/scripts/meta_oracle.py` | 审计器——G1-G4 框架 |
 | `improve_plan/CarrorOS_second_time/scorecard.md` | 纵向账本 |
 | `benchmark/runs/` | 基准回归存档 |

@@ -27,6 +27,7 @@ HANDOFF = OMC / "session-handoff.md"
 LAST_PROMPTS = OMC / "state" / "last-user-prompt.md"
 TOKENS_DIR = OMC / "tokens"
 STEPWISE_STATE = ROOT / ".claude" / "references" / "templates" / "stepwise_cards" / ".state"
+NIGHT_MARKER = OMC / "state" / "night-session.active"
 
 MAX_HANDOFF = 2000
 MAX_PROMPTS = 1000
@@ -139,6 +140,27 @@ def _resume_task_docs(resume_note: str) -> str:
     return "\n\n".join(chunks)
 
 
+def _maybe_register_night_session(session_id: str) -> None:
+    """F1: 夜会话自注册——启动时若环境标记 CARROROS_NIGHT=1，绑定当前 session_id 到夜会话标记。
+
+    仅夜跑启动器设置该环境变量；普通会话不触发。标记格式：
+        created_at: <UTC ISO>
+        session_id: <id>
+    night-deny 据此只约束持有会话，不阻断新终端。注册失败不阻断会话启动。
+    """
+    if os.environ.get("CARROROS_NIGHT") != "1" or not session_id:
+        return
+    try:
+        NIGHT_MARKER.parent.mkdir(parents=True, exist_ok=True)
+        NIGHT_MARKER.write_text(
+            f"created_at: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}\n"
+            f"session_id: {session_id}\n",
+            encoding="utf-8",
+        )
+    except Exception:
+        pass
+
+
 def main() -> None:
     try:
         payload = json.loads(sys.stdin.read() or "{}")
@@ -146,6 +168,7 @@ def main() -> None:
         payload = {}
     source = str(payload.get("source") or "startup")
     session_id = str(payload.get("session_id") or payload.get("sessionId") or "")
+    _maybe_register_night_session(session_id)
 
     parts: list[str] = []
     resume_docs = ""

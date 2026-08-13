@@ -336,22 +336,40 @@ def _night_verdict(payload: dict) -> str | None:
     return None
 
 
+def _marker_owner() -> str | None:
+    """读取夜会话标记绑定的持有会话 session_id；无/解析失败 → None（未绑定）。
+
+    F1 会话作用域：preflight 创建的 legacy 标记只含时间戳（无 session_id），
+    无法识别持有会话 → 不约束任何会话；夜跑会话经 session-start 注册后
+    标记含 `session_id: <id>` → 仅该会话受约束。
+    """
+    try:
+        text = MARKER.read_text(encoding="utf-8")
+    except Exception:
+        return None
+    m = re.search(r"^session_id:\s*(\S+)\s*$", text, flags=re.M)
+    return m.group(1) if m else None
+
+
 def main() -> int:
-    night = MARKER.exists()
     raw = sys.stdin.read()
+    # F1 会话作用域：仅「标记存在 且 本会话为持有者」视为夜间。
+    # legacy/未绑定标记、或非持有会话（新终端）→ 不进入夜间约束。
+    owner = _marker_owner()
     try:
         payload = json.loads(raw) if raw.strip() else {}
     except json.JSONDecodeError:
-        if night:
-            return _block("hook payload 非合法 JSON，fail-closed（P1-SOL-3）")
-        return _allow("夜会话未激活，放行")
+        payload = {"_malformed": "bad_json"}
     if not isinstance(payload, dict):
-        if night:
-            return _block("hook payload 结构非法，fail-closed")
-        return _allow("夜会话未激活，放行")
-
+        payload = {"_malformed": "bad_structure"}
+    sid = str(payload.get("session_id") or payload.get("sessionId") or "")
+    # F1 判定：持有会话执行；未声明其它 session_id 的 payload（攻击探测/坏 payload）fail-closed。
+    # 声明了非持有 session_id 的 payload = 真实新终端 → 放行（夜间任务不阻断新终端）。
+    night = owner is not None and (not sid or sid == owner)
     if not night:
-        return _allow("夜会话未激活，放行")
+        return _allow("夜会话未激活或本会话非持有者，放行")
+    if payload.get("_malformed"):
+        return _block("hook payload 非合法，fail-closed")
     try:
         verdict = _night_verdict(payload)
     except Exception as e:  # P1-SOL-3：hook 自身异常夜间 fail-closed
