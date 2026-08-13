@@ -17,8 +17,18 @@ triggers:
   - "/lx-oracle-agent"
   - "/lx-oracle-meta"
   - "/lx-oracle-review"
+  # 双审(duo)
+  - "双法官"
+  - "双审"
+  # Oracle agent(static, Oracle-D)
   - "oracle"
+  - "oracle agent"
+  - "oracle-agent"
   - "oracle审核"
+  # Mate Oracle(runtime, Oracle-V)
+  - "mate oracle"
+  - "mate-oracle"
+  - "mate"
 role: "Oracle gate — static (Oracle-D) + runtime (Oracle-V) + dual review"
 execution_mode: stepwise
 body_ref: references/body-duo.md
@@ -28,6 +38,16 @@ body_ref: references/body-duo.md
 
 > **合并技能**: 原 `lx-oracle-agent`(static) + `lx-oracle-meta`(runtime) + `lx-oracle-review`(duo)
 > 保留旧触发器别名 `/lx-oracle-agent` `/lx-oracle-meta` `/lx-oracle-review` 以向后兼容。
+
+## 触发词路由
+
+| 用户说 | 模式 | 角色 |
+|---|---|---|
+| **双法官 / 双审** | `duo` | 双审(static + runtime 互补,高风险/Release) |
+| **Oracle / Oracle agent / oracle** | `static` | Oracle-D 静态分析(消耗小,默认必出) |
+| **Mate-Oracle / Mate / mate** | `runtime` | Oracle-V 运行时 TDD(消耗大,Mate 按需升级才出) |
+
+> 例:「双法官审一下」→ duo;「oracle 审 plan」→ static;「mate 复核」→ runtime。
 
 三条执行模式：
 
