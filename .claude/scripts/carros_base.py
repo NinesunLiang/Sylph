@@ -1012,22 +1012,46 @@ def cmd_resume(task_doc=None, auto_continue=False):
     print(f"   → 恢复摘要: {task_dir / 'state' / 'resume.md'}")
 
     # 持久化激活指针：后续 status/tick/verify 无需 env 直接定位（给路径即续传）
-    try:
-        state_root = OMC_ROOT / "state"
-        state_root.mkdir(parents=True, exist_ok=True)
-        (state_root / "active-resume.json").write_text(
-            json.dumps({
-                "date": doc["date"],
-                "slug": doc["slug"],
-                "task_dir": str(task_dir),
-                "token_path": str(doc["token_path"]),
-                "activated_at": datetime.now(timezone.utc).isoformat(),
-            }, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
-        )
-        print(_green("   → 已写入活跃任务指针：后续 tick/verify 直接继续，无需 env"))
-    except OSError:
-        pass
+    # 防跨任务污染（index19 M?）：指针是全局单例，若已被其他仍 active 的任务持有，
+    # 拒绝覆盖——避免并发任务互相覆盖致 verify 误读他人 FAIL。
+    _ptr = OMC_ROOT / "state" / "active-resume.json"
+    _held_by_other_active = False
+    if _ptr.exists():
+        try:
+            _prev = json.loads(_ptr.read_text(encoding="utf-8"))
+            _prev_slug = str(_prev.get("slug", ""))
+            if _prev_slug and _prev_slug != str(doc["slug"]):
+                _prev_tp = Path(str(_prev.get("token_path", ""))).expanduser()
+                try:
+                    _prev_tok = json.loads(_prev_tp.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError):
+                    _prev_tok = {}
+                if _prev_tok.get("status") == "active":
+                    _held_by_other_active = True
+        except (OSError, json.JSONDecodeError):
+            _held_by_other_active = False
+    if _held_by_other_active:
+        print(_yellow(
+            f"   ⚠️ 活跃任务指针已被占用: {_prev_slug}（仍 active）。"
+            f"不覆盖，避免跨任务污染。如确需切换，请先归档该任务或显式指定 task-dir。"),
+            file=sys.stderr)
+    else:
+        try:
+            state_root = OMC_ROOT / "state"
+            state_root.mkdir(parents=True, exist_ok=True)
+            (state_root / "active-resume.json").write_text(
+                json.dumps({
+                    "date": doc["date"],
+                    "slug": doc["slug"],
+                    "task_dir": str(task_dir),
+                    "token_path": str(doc["token_path"]),
+                    "activated_at": datetime.now(timezone.utc).isoformat(),
+                }, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            print(_green("   → 已写入活跃任务指针：后续 tick/verify 直接继续，无需 env"))
+        except OSError:
+            pass
 
     print()
     if pending:
