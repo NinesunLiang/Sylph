@@ -26,7 +26,7 @@
 ```yaml
 id: string # 自动生成，如 "FIND-001"
 rule_id: string # 触发的规则 ID（如 "A1", "SEC-01"）
-severity: severity.yaml # 严重度
+severity: P0-P3 # 严重度（内联）
 file: string # 涉及文件
 line: number (optional) # 涉及行号
 description: string # 问题描述

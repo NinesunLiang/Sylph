@@ -6,9 +6,9 @@ schema_version: "1.1"
 L1:
   required_gates:
     - sensitive-edit
-    - fallback
+    - governance-bypass
     - action
-    - edit-scope
+    - secret-scan
     - stall
   required_evidence:
     - audit_event: true
@@ -19,20 +19,20 @@ L1:
 L2:
   required_gates:
     - sensitive-edit
-    - fallback
+    - governance-bypass
     - action
-    - edit-scope
-    - stall
     - secret-scan
-    - plan
+    - stall
     - verify
     - oracle
-    - action-loop
-    - numeric-claim
+    - document-quality
     - g2-large-file
     - g3-reviews
     - g5-wide-glob
     - g6-budget
+    - action-loop
+    - numeric-claim
+    - injection-guard
   required_evidence:
     - audit_event: true
     - harness_evidence: true

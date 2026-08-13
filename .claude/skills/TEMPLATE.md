@@ -39,7 +39,7 @@ l
 | Schema | 路径 | 用途|
 |--------|------|------|
 |scan_target | `../../schemas/atomic/scan_target.yaml` | 目标定义|
-|severity | `../../schemas/atomic/severity.yaml` | 严重度分级|
+|severity | 内联 enum [P0-P3] | 严重度分级|
 |finding | `../../schemas/atomic/finding.yaml` | 问题发现项|
 |scan_report | `../../schemas/atomic/scan_report.yaml` | 报告|
 |fix_record | `../../schemas/atomic/fix_record.yaml` | 修复记录|

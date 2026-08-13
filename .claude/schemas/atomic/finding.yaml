@@ -21,10 +21,10 @@ rule_id:
   example: '"A1" | "SEC-03" | "VIS-12"'
 
 severity:
-  type: ref
-  target: severity.yaml
+  type: string
   required: true
-  description: "严重度"
+  enum: [P0, P1, P2, P3]
+  description: "严重度（P0 最高；内联自足，severity.yaml 已删）"
 
 file:
   type: string

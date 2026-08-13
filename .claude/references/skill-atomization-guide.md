@@ -94,7 +94,6 @@ Skill 通过复用 `.claude/nodes/` 下的通用节点来组装工作流，避�
 | Schema | 描述 |
 |--------|------|
 | `scan_target.yaml` | 扫描/审查/验证目标定义 |
-| `severity.yaml` | 问题严重度分级 (P0-P3) |
 | `finding.yaml` | 单个问题/发现项 |
 | `scan_report.yaml` | 扫描/审查/验证报告 |
 | `fix_record.yaml` | 修复记录 |

@@ -5,36 +5,23 @@ from __future__ import annotations
 import json
 import os
 import re
-import secrets
 import sys
 import time
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
 
 from .constants import (
-    ROOT, OMC, STATE_DIR,
-    FALLBACK_REQUIRED, FALLBACK_APPROVED, TEMP_BYPASS, TRUST_BREACH,
-    SENSITIVE_PATTERNS, DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS,
-    ASK_USER_COMMANDS, ORACLE_TRIGGER_KW, ORACLE_FORCE_KW,
-    STALE_LOCK_THRESHOLD, READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
+    OMC, STATE_DIR,
+    DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS, ASK_USER_COMMANDS,
+    READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
     _INJECTION_PATTERNS, _EXTERNAL_DATA_MAX_LEN,
-    STATE_TOKEN, TOKENS, AUDIT,
 )
 from .helpers import (
     _goal_mode, _is_governance, _is_sensitive,
     _extract_tool, _extract_input, _extract_path, _extract_command,
-    _ok, _block, _check_temp_bypass,
-    _check_trust_breach, _record_trust_breach, _is_trust_breach_reason,
     _match_any, _append_audit,
-    _active_token, _task_dir,
-    _in_scope, _parse_scope, _check_verified,
-    _auto_init, _safe_unlink, _auto_archive_token,
-    _failure_escalate, _clean_stale_state_token,
-    _read_json, _latest_token,
-    _ssot_err, _ssot_latest_terminal_token,
+    _active_token, _task_dir, _check_verified,
 )
-from .oracle import _oracle_classify, _load_anti_pattern_redirects, _ORACLE_ANTI_PATTERN_RULES
+from .oracle import _oracle_classify, _ORACLE_ANTI_PATTERN_RULES
 
 
 # ── Gate 1: Sensitive edit ──
@@ -110,78 +97,6 @@ def _check_governance_bypass(payload: dict) -> str | None:
     return None
 
 
-# ── Gate 2: Fallback check ──
-
-def _check_fallback(_payload: dict) -> str | None:
-    token_path = _latest_token()
-    if not token_path:
-        return None
-    token_data = _read_json(token_path)
-    if not token_data:
-        return None
-    token = token_data
-    task = token.get("task", {})
-    if not isinstance(task, dict):
-        return None
-    status = task.get("status") or token.get("status") or "active"
-    if status != "blocked":
-        if status == "waiting_user":
-            reason = task.get("reason") or "requires_user"
-            return (f"ASK_USER Bypass 临时授权状态：{reason}|")
-        fallback = task.get("fallback", {}) or {}
-        if fallback.get("unresolved"):
-            return (f"BLOCK fallback 状态未解决：{fallback.get('reason', 'unknown')}|"
-                    f"⛔ 任务处于未解决的 fallback 状态。\n"
-                    f"原因: {fallback.get('reason', 'unknown')}\n"
-                    f"可选方案: 1. 解决 fallback 问题后继续  2. 使用临时 bypass  3. 输入 /deny 保持状态")
-        session = token.get("session", {}) or {}
-        if session.get("fallback"):
-            return None
-        return None
-    reason = task.get("blocked") or task.get("reason") or "blocked"
-    ts_str = (task.get("fallback") or {}).get("timestamp") or (token.get("session") or {}).get("created_at") or ""
-    age = 0.0
-    if ts_str:
-        try:
-            ts = datetime.fromisoformat(ts_str)
-            age = (datetime.now(timezone.utc) - ts).total_seconds()
-        except Exception:
-            pass
-    if age >= STALE_LOCK_THRESHOLD:
-        _auto_archive_token(token_path, token_data, f"stale_blocked age={int(age)}s reason={reason}")
-        return None
-    if FALLBACK_APPROVED.exists():
-        _auto_archive_token(token_path, token_data, f"user_approved reason={reason}")
-        _safe_unlink(FALLBACK_REQUIRED)
-        _safe_unlink(FALLBACK_APPROVED)
-        return None
-    captcha = secrets.token_hex(3)
-    try:
-        FALLBACK_REQUIRED.parent.mkdir(parents=True, exist_ok=True)
-        FALLBACK_REQUIRED.write_text(captcha)
-    except OSError:
-        pass
-    task2 = token.get("task", {})
-    session = token.get("session", {})
-    task_name = session.get("id") or (task2.get("name") if isinstance(task2, dict) else None) or token_path.stem
-    blocked_since = (task2.get("fallback") or {}).get("timestamp") or session.get("created_at", "")[:19] or "?"
-    current_step = task2.get("current_step", "?") if isinstance(task2, dict) else "?"
-    age_str = f"（阻塞 {int(age)} 秒）" if age > 0 else ""
-    msg = (f"\n╔══ CarrorOS 任务阻塞 ══════════════════════════════\n"
-           f"║  任务: {task_name}\n║  状态: blocked  {age_str}\n"
-           f"║  原因: {reason}\n║  当前步骤: {current_step}\n"
-           f"║  阻塞自: {blocked_since[:19]}\n"
-           f"║  📌 如需解除阻塞并归档此任务,请输入: /approve {captcha}\n"
-           f"║  📌 如需保持阻塞状态: /deny\n"
-           f"║  ⏱ 或等待 {max(1, int(STALE_LOCK_THRESHOLD/60 - age/60))} 分钟后自动解除\n"
-           f"╚══════════════════════════════════════════════════\n")
-    print(msg, file=sys.stderr, flush=True)
-    return (f"BLOCK task_blocked reason={reason}|"
-            f"⛔ 任务处于 blocked 状态。\n原因: {reason}\n"
-            f"可选方案: 1. 输入 /approve <token> 解除阻塞  2. 输入 /deny 保持阻塞\n"
-            f"预期结果: 解除后任务继续执行")
-
-
 # ── Gate 3: Action gate ──
 
 def _check_action_gate(payload: dict) -> str | None:
@@ -208,131 +123,6 @@ def _check_action_gate(payload: dict) -> str | None:
                         "decision": "WARN", "reason": "path_specific_destructive",
                         "pattern": warn_only, "command_preview": command[:160]})
         return f"WARN path_specific_destructive pattern={warn_only}"
-    return None
-
-
-# ── Gate 4: Plan gate ──
-
-def _check_plan_gate(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    token = _active_token()
-    if not token:
-        return None
-    task = token.get("task", {})
-    if not isinstance(task, dict):
-        return None
-    if task.get("status") in {"blocked", "waiting_user"}:
-        return f"REDIRECT task_status_{task.get('status')}|任务处于 {task.get('status')} 状态。"
-    task_dir = _task_dir(token)
-    if not task_dir:
-        return None
-    plan = task_dir / "plan.md"
-    if not plan.exists():
-        _append_audit({"event_type": "plan_gate_warn", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": f"plan_missing task_dir={task_dir}"})
-        print(f"⚠️ [plan-gate] plan.md 不存在: {task_dir}", file=sys.stderr, flush=True)
-        return None
-    if not task.get("current_step"):
-        _append_audit({"event_type": "plan_gate_warn", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "current_step_missing"})
-        print("⚠️ [plan-gate] 任务缺少 current_step 状态", file=sys.stderr, flush=True)
-        return None
-    return None
-
-
-# ── Gate 5: Edit scope ──
-
-def _check_edit_scope(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    if _ssot_err is not None:
-        return f"edit-scope: task_ssot 导入失败({_ssot_err!r})——fail-closed 阻断"
-    path = _extract_path(payload)
-    if not path:
-        return None
-    if _is_governance(path):
-        token = _active_token()
-        task_dir = _task_dir(token) if token else None
-        declared_scope = []
-        if task_dir:
-            plan_path = task_dir / "plan.md"
-            try:
-                if plan_path.exists():
-                    declared_scope = _parse_scope(plan_path.read_text(encoding="utf-8"))
-            except OSError:
-                declared_scope = []
-        if _goal_mode() and declared_scope and _in_scope(path, declared_scope):
-            _append_audit({"event_type": "governance_scope_allow", "actor": "hook:pretool-gate",
-                           "decision": "ALLOW", "reason": "human-approved-plan-scope", "path": path})
-            return None
-        _append_audit({"event_type": "governance_scope_ask_user", "actor": "hook:pretool-gate",
-                        "decision": "ASK_USER", "reason": "governance_file_out_of_scope", "path": path})
-        return "ASK_USER governance_path: 治理文件变更需要确认|请确认变更范围后继续。"
-    # `.claude/` 下非治理文件（如 workflows/ references/ UI_README.md）是项目基建，
-    # 不属于 scope 越界，放行。
-    _p = path.replace("\\", "/")
-    if _p.startswith(".claude/") or _p.startswith("./.claude/"):
-        return None
-    token = _active_token()
-    if not token:
-        return None
-
-    goal_mode = _goal_mode()
-    goal_text = str(token.get("goal", "") or token.get("goal", {}).get("description", ""))
-    workflow_goal = goal_mode and "frontend-overnight" in goal_text
-    local_goal_scope = [
-        "src/", "public/", ".claude/workflows/", ".omc/ui-autopilot/"
-    ] if workflow_goal else []
-
-    def _scope_notice() -> str:
-        _append_audit({"event_type": "scope_review_notice", "actor": "hook:pretool-gate",
-                       "decision": "WARN", "path": path,
-                       "reason": "plan_scope_is_mutable"})
-        return "WARN edit-scope: 当前变更超出原 scope；plan 可合理更新，继续执行并记录原因。"
-
-    _HARNESS_PATH = ROOT / "scripts" / "carroros-gates" / "harness.yaml"
-    harness_scope = []
-    try:
-        if _HARNESS_PATH.exists():
-            import yaml
-            with open(_HARNESS_PATH, "r") as _fh:
-                _hdata = yaml.safe_load(_fh) or {}
-            _proj = _hdata.get("project", {}) or {}
-            hs = _proj.get("scope")
-            if isinstance(hs, list):
-                harness_scope = hs
-            elif isinstance(hs, str):
-                harness_scope = [hs]
-    except Exception:
-        pass
-    if harness_scope:
-        if _in_scope(path, harness_scope):
-            return None
-        _append_audit({"event_type": "scope_violation", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "harness_scope_violation",
-                        "path": path, "scope": harness_scope[:10]})
-        print(f"⚠️ [edit-scope] 路径不在 project scope 内: {path}", file=sys.stderr, flush=True)
-        return _scope_notice()
-    token_scope = token.get("implementation_scope") or token.get("scope") or []
-    token_scope = [s for s in token_scope if not re.match(r"^[a-zA-Z]+://", str(s)) and not str(s).startswith("//")]
-    if local_goal_scope and _in_scope(path, local_goal_scope):
-        return None
-    if token_scope:
-        if _in_scope(path, token_scope):
-            return None
-        _append_audit({"event_type": "scope_violation", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "token_scope_violation",
-                        "path": path, "scope": token_scope[:10]})
-        print(f"⚠️ [edit-scope] 路径不在 token scope 内: {path}", file=sys.stderr, flush=True)
-        return _scope_notice()
-    _task_dir2 = _task_dir(token)
-    if _task_dir2 and _task_dir2.exists():
-        if not _in_scope(path, [str(_task_dir2)]):
-            print(f"⚠️ [edit-scope] 路径不在默认 task scope 内: {path}", file=sys.stderr, flush=True)
-            return _scope_notice()
     return None
 
 
@@ -529,44 +319,6 @@ def _check_secret_scan(payload: dict) -> str | None:
     return None
 
 
-# ── Watermark gate ──
-
-def _check_source_marker(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path or not path.endswith((".py", ".sh", ".yaml", ".yml", ".json")):
-        return None
-    ti = _extract_input(payload)
-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
-    if not content or len(content) < 200:
-        return None
-    # Goal mode bypass
-    if _goal_mode():
-        return None
-    # Check marker: Python comment or shell/YAML comment
-    lines = content.split("\n")
-    first_line = lines[0].strip() if lines else ""
-    second_line = lines[1].strip() if len(lines) > 1 else ""
-    has_marker = False
-    if path.endswith(".py"):
-        has_marker = bool(re.search(r"CarrorOS|Auto-generated|DO NOT EDIT", first_line + second_line))
-    elif path.endswith(".sh"):
-        has_marker = bool(re.search(r"CarrorOS|Auto-generated|DO NOT EDIT", first_line + second_line))
-    elif path.endswith((".yaml", ".yml", ".json")):
-        for i, l in enumerate(lines[:5]):
-            l = l.strip()
-            if l.startswith("#") and re.search(r"CarrorOS|Auto-generated|DO NOT EDIT", l):
-                has_marker = True
-                break
-    if not has_marker:
-        _append_audit({"event_type": "source_marker_missing", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "no_source_marker", "path": path})
-        print(f"⚠️ [source-marker] 新建文件 {path} 缺少 CarrorOS 标记", file=sys.stderr, flush=True)
-    return None
-
-
 # ── Numeric claim gate ──
 
 def _check_numeric_claim(payload: dict) -> str | None:
@@ -589,32 +341,6 @@ def _check_numeric_claim(payload: dict) -> str | None:
                         "decision": "WARN", "reason": "unattributed_numeric_claim",
                         "path": path, "claims": suspicious[:5]})
         print(f"⚠️ [numeric-claim] 无来源数值断言: {suspicious[:3]}", file=sys.stderr, flush=True)
-    return None
-
-
-# ── Claim source gate ──
-
-def _check_claim_source(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path or not path.endswith(".md"):
-        return None
-    ti = _extract_input(payload)
-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
-    if not content or len(content) < 100:
-        return None
-    lack_source = False
-    for m in re.finditer(r"(?i)\b(file|path|directory|module|class|function|method)\s+(is|was|has|does)\b", content):
-        snippet = content[max(0, m.start()-30):m.end()+30]
-        if not re.search(r"\[.*\]\(.*\)|`[^`]+`|file:\w+|\bfound\b|\bseen\b|\bdetected\b", snippet):
-            lack_source = True
-            break
-    if lack_source:
-        _append_audit({"event_type": "claim_no_source", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "statement_without_source", "path": path})
-        print(f"⚠️ [claim-source] 断言缺少来源引用: {path}", file=sys.stderr, flush=True)
     return None
 
 
