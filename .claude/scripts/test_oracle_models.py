@@ -40,6 +40,23 @@ def test_current_model_follows_anthropic_model(monkeypatch):
     assert module.current_model() == "opus"
 
 
+def test_current_model_strips_cc_suffix(monkeypatch):
+    """Claude Code 模型带 [1m] 后缀 → 清洗为裸模型名(API 端点不认后缀)。"""
+    monkeypatch.setenv("ANTHROPIC_MODEL", "deepseek-v4-flash[1m]")
+    assert module.current_model() == "deepseek-v4-flash"
+
+
+def test_tiered_models_strips_suffix(monkeypatch):
+    """分档模型值带后缀 → 清洗。"""
+    monkeypatch.setenv("ANTHROPIC_DEFAULT_OPUS_MODEL", "opus-m[1m]")
+    monkeypatch.setenv("ANTHROPIC_DEFAULT_SONNET_MODEL", "sonnet-m[1m]")
+    monkeypatch.setenv("ANTHROPIC_DEFAULT_HAIKU_MODEL", "haiku-m")
+    tiers = module.tiered_models()
+    assert tiers["opus"] == "opus-m"
+    assert tiers["sonnet"] == "sonnet-m"
+    assert tiers["haiku"] == "haiku-m"
+
+
 def test_has_tiered_models_false_when_same_value(monkeypatch):
     """三档同值（如 deepseek 全指向同一模型）→ 无分档。"""
     monkeypatch.setenv("ANTHROPIC_DEFAULT_OPUS_MODEL", "m")

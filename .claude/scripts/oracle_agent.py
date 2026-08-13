@@ -351,15 +351,15 @@ def _try_llm_model(task_id: str, prompt: str,
             "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
         })
-        headers = [
-            "Content-Type: application/json",
-            "x-api-key: " + auth_token if auth_token else "Authorization: Bearer " + _get_deepseek_key(),
-        ]
+        auth_header = ("x-api-key: " + auth_token) if auth_token else ("Authorization: Bearer " + _get_deepseek_key())
+        curl_args = []
+        for _h in ("Content-Type: application/json", auth_header):
+            if _h:
+                curl_args.append("-H")
+                curl_args.append(_h)
         try:
             r = subprocess.run(
-                ["curl", "-s", "-X", "POST", api_url] +
-                [h for h in headers if h] +
-                ["-d", payload],
+                ["curl", "-s", "-X", "POST", api_url] + curl_args + ["-d", payload],
                 capture_output=True, text=True, timeout=60,
             )
             if r.returncode != 0:

@@ -14,9 +14,18 @@ oracle_agent）。
 from __future__ import annotations
 
 import os
+import re
 from typing import Dict
 
 DEFAULT_MODEL = "deepseek-v4-flash"
+
+# Claude Code 会话模型带后缀标记(如 deepseek-v4-flash[1m])，API 端点不认后缀。
+_CC_SUFFIX_RE = re.compile(r"\[[^\]]*\]")
+
+
+def _clean_model(name: str) -> str:
+    """清洗 Claude Code 模型后缀标记: deepseek-v4-flash[1m] → deepseek-v4-flash。"""
+    return _CC_SUFFIX_RE.sub("", name).strip()
 
 TIER_ENV = {
     "opus": "ANTHROPIC_DEFAULT_OPUS_MODEL",
@@ -29,16 +38,16 @@ DYNAMIC_ROLES = {"mate", "runtime", "meta"}
 
 
 def current_model() -> str:
-    """当前会话模型。ANTHROPIC_MODEL 优先，兜底 deepseek-v4-flash。"""
-    return os.environ.get("ANTHROPIC_MODEL", "").strip() or DEFAULT_MODEL
+    """当前会话模型。ANTHROPIC_MODEL 优先，兜底 deepseek-v4-flash；清洗 CC 后缀。"""
+    return _clean_model(os.environ.get("ANTHROPIC_MODEL", "")) or DEFAULT_MODEL
 
 
 def tiered_models() -> Dict[str, str]:
-    """读取分档模型名；缺失档位跳过。"""
+    """读取分档模型名；缺失档位跳过；清洗 CC 后缀。"""
     return {
-        tier: os.environ.get(env, "").strip()
+        tier: _clean_model(os.environ.get(env, ""))
         for tier, env in TIER_ENV.items()
-        if os.environ.get(env, "").strip()
+        if _clean_model(os.environ.get(env, ""))
     }
 
 
