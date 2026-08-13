@@ -36,13 +36,13 @@
                      ├─────────────────────────────┤
                      │  Layer 1 回归地基 (Ground Truth)│
                      │  44 套件全覆盖一键跑              │
-                     │  bash scripts/run-regression.sh│
+                     │  bash .claude/scripts/run-regression.sh│
                      └─────────────────────────────┘
 ```
 
 ### Layer 1 — 回归地基
 
-**什么**: 44 套自动化测试套件，全量覆盖 56/56 机制，一键 `bash scripts/run-regression.sh`
+**什么**: 44 套自动化测试套件，全量覆盖 56/56 机制，一键 `bash .claude/scripts/run-regression.sh`
 
 **14 注册套件（精确测试名，独立报告）**:
 
@@ -97,7 +97,7 @@ Coverage Gate 位置: `.claude/references/tests/test-coverage-gate.py`
 ```
 每次提分必须包含:
   [commit_sha]   → "这分谁改的" —— git commit hash
-  [回归证据]      → "跑通了吗" —— scripts/run-regression.sh rc=0 日志
+  [回归证据]      → "跑通了吗" —— .claude/scripts/run-regression.sh rc=0 日志
   [裁决记录]      → "三模型认可吗" —— 终审票决记录
 ```
 
@@ -238,7 +238,7 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 ## 使用流程
 
 ```text
-1. 提分施工 → git commit + 跑回归: bash scripts/run-regression.sh
+1. 提分施工 → git commit + 跑回归: bash .claude/scripts/run-regression.sh
 2. 回归全过 → 验证覆盖门禁: python3 .claude/references/tests/test-coverage-gate.py --block
 3. 覆盖通过 → 写 scorecard.md 记录三元组
 4. 每 3 轮 → 独立审计: python3 .claude/scripts/meta_oracle.py aggregate --policy duo
@@ -254,7 +254,7 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 | 文件 | 职责 |
 |------|------|
 | `.claude/references/evaluation-framework.md` | 本文件——框架规范 |
-| `scripts/run-regression.sh` | 回归地基（44/44 全量套件） |
+| `.claude/scripts/run-regression.sh` | 回归地基（44/44 全量套件） |
 | `.claude/references/tests/` | 44 套测试文件仓库 |
 | `.claude/references/tests/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
 | `scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |

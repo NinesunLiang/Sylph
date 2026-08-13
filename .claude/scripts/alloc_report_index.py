@@ -8,8 +8,8 @@
 多会话并发时，flock 保证每次只有一个会话能分配，其它会话拿到下一个编号。
 
 用法:
-  python3 scripts/alloc_report_index.py                 # 分配下一编号
-  python3 scripts/alloc_report_index.py --preview       # 只预览不写
+  python3 .claude/scripts/alloc_report_index.py                 # 分配下一编号
+  python3 .claude/scripts/alloc_report_index.py --preview       # 只预览不写
 """
 from __future__ import annotations
 

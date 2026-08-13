@@ -12,7 +12,7 @@
 
 set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PROJECT_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"  # 位于 .claude/scripts/，上两级为仓库根
 STATE="$PROJECT_ROOT/.omc/state"
 TOKENS="$STATE/tokens"
 BYPASS="$STATE/temp-bypass.json"

@@ -10,7 +10,7 @@ from urllib.parse import urlparse
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
-_WRITE_LOCK_DIR = str(_PROJECT_ROOT / "scripts")
+_WRITE_LOCK_DIR = str(_PROJECT_ROOT / ".claude" / "scripts")
 if _WRITE_LOCK_DIR not in sys.path:
     sys.path.insert(0, _WRITE_LOCK_DIR)
 

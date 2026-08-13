@@ -45,7 +45,7 @@ def main() -> int:
     for raw in r.stdout.decode("utf-8", "replace").split("\0"):
         if raw.strip(): changed.add(raw.strip())
 
-    gov_patterns = ("scripts/carroros-gates/", ".omc/night/", ".claude/", "/gate-results/")
+    gov_patterns = (".claude/workflows/frontend-overnight/scripts/carroros-gates/", ".omc/night/", ".claude/", "/gate-results/")
 
     def strip_prefix(p):
         return p[len(prefix):] if prefix and p.startswith(prefix) else p

@@ -12,7 +12,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
-GATE_CONTRACT = ROOT / "scripts" / "carroros-gates" / "gate-contract.yaml"
+GATE_CONTRACT = ROOT / ".claude" / "scripts" / "gate-contract.yaml"  # 契约已随重组移至 .claude/scripts/
 CHECKS_PY = ROOT / ".claude" / "hooks" / "pretool_gates" / "checks.py"
 SCHEMAS_ATOMIC = ROOT / ".claude" / "schemas" / "atomic"
 OMC_STATE = ROOT / ".omc" / "state"

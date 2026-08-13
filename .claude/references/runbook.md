@@ -11,13 +11,13 @@
 
 ```bash
 # 1. GateKeeper 事件统计
-python3 scripts/gatekeeper_digest.py
+python3 .claude/scripts/gatekeeper_digest.py
 
 # 2. 检查是否有堆积的跳过风险
-python3 scripts/gatekeeper_digest.py --check
+python3 .claude/scripts/gatekeeper_digest.py --check
 
 # 3. 详细告警
-python3 scripts/gatekeeper_digest.py --alert
+python3 .claude/scripts/gatekeeper_digest.py --alert
 ```
 
 ## 场景处理

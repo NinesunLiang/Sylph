@@ -829,7 +829,7 @@ def cmd_report(plan_dir: Path | str | None = None):
     _gk_digest = ""
     try:
         _gk_result = subprocess.run(
-            [sys.executable, str(Path(__file__).resolve().parent.parent.parent / "scripts" / "gatekeeper_digest.py"), "--alert"],
+            [sys.executable, str(Path(__file__).resolve().parents[4] / ".claude" / "scripts" / "gatekeeper_digest.py"), "--alert"],
             capture_output=True, text=True, timeout=10,
         )
         _gk_digest = _gk_result.stdout.strip()

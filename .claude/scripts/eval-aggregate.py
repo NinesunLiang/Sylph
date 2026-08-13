@@ -242,7 +242,7 @@ def collect_readiness(scorecard_path: Path, oracle_dir: Path, project_root: Path
     if invalid:
         items.append(_item("oracle.invalid", "evidence", "blocker", "; ".join(invalid)))
 
-    regression = project_root / "scripts" / "run-regression.sh"
+    regression = project_root / ".claude" / "scripts" / "run-regression.sh"
     if not regression.exists():
         items.append(_item("regression.entrypoint.missing", "coverage", "blocker", str(regression)))
     else:

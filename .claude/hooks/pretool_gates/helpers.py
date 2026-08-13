@@ -723,7 +723,7 @@ def _record_gate_decision(gate_name: str, result: str | None, mode: str) -> None
 
 def _verify_contract_compliance(mode: str, executed_gates: set[str]) -> str | None:
     try:
-        _CONTRACT_PATH = ROOT / "scripts" / "carroros-gates" / "gate-contract.yaml"
+        _CONTRACT_PATH = ROOT / ".claude" / "scripts" / "gate-contract.yaml"
         if not _CONTRACT_PATH.exists():
             return None
         import yaml

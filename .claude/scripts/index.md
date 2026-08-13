@@ -25,21 +25,15 @@
 | `sub_agent_executor.py` | SubAgent 执行器 |
 | `sub_agent_manager.py` | SubAgent 管理器 |
 | `sub_agent_recovery.py` | SubAgent 恢复 |
-| `archive_engine.py` | 归档引擎 |
 
 ## 测试/验证
 
 | 脚本 | 用途 |
 |------|------|
-| `verify_tests.py` | 完整性验证 |
 | `verify_gate.py` | 完成验证门禁 |
-| `runtime_verify.py` | 运行时验证 |
-| `runtime_verify2.py` | 运行时验证 v2 |
 | `negative_tests.py` | 负面测试 |
 | `phase3_matrix_test.py` | Phase 3 矩阵测试 |
 | `ga_behavioral_validation.py` | GA 行为验证 |
-| `ga_observability.py` | GA 可观测性 |
-| `feature_verify.py` | 特征验证 |
 
 ## 辅助工具
 
@@ -50,21 +44,9 @@
 | `intake_gate.py` | 准入门禁 |
 | `output_compress.py` | 输出压缩 |
 | `plan_builder.py` | 计划构建器 |
-| `statusline.py` | 状态行生成 |
 | `temp-bypass.py` | 临时绕过 |
-| `honesty_audit.py` | 诚实审计 |
-| `provision_worktree_hooks.py` | Worktree hook 供应 |
-| `ab_compare.py` | A/B 对比 |
-| `deepseek_inject.py` | DeepSeek 注入 |
 | `executor_ledger.py` | 执行分类账 |
-| `formal_seal.py` | 正式封存 |
-| `summarize_verdicts.py` | 裁决汇总 |
-| `auto-review.py` | 自动评审 |
-| `check_commit_msg.py` | Commit 消息检查 |
-| `carros_cost_report.py` | 成本报告 |
-| `write-handoff.py` | 强制写 handoff |
 | `clarify_engine.py` | 澄清引擎 |
-| `randomized_bench.py` | 随机化基准测试 |
 | `omc_lint.py` | 代码规范检查 |
 | `init-omc.sh` | 项目初始化脚本 |
 

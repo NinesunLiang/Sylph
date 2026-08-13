@@ -46,7 +46,7 @@ EVIDENCE_CHECK = CARROTOROS_GATES_DIR / "evidence_check.py"         # C7: eviden
 FINALIZE_PAGE = CARROTOROS_GATES_DIR / "finalize_page.py"           # C8a: finalize from gate-results
 CONTROL_PLANE_LOCK_GEN = CARROTOROS_GATES_DIR / "gen_control_plane_lock.py"
 ASSERTION_CATALOG = CARROTOROS_GATES_DIR / "assertion-catalog.yaml"
-GATE_CONTRACT = CARROTOROS_GATES_DIR / "gate-contract.yaml"
+GATE_CONTRACT = PROJECT_ROOT / ".claude" / "scripts" / "gate-contract.yaml"  # gate-contract 随重组移至 .claude/scripts/
 
 # ── Runtime Paths (.omc/) ──────────────────────────────────────────────────────
 

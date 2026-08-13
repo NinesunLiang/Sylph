@@ -52,7 +52,7 @@ def make_certification_ready_project(tmp_path):
     (project / "tests").mkdir()
     (project / ".claude/skills/lx-goal/scripts").mkdir(parents=True)
     (project / ".claude/scripts").mkdir(parents=True)
-    (project / "scripts/run-regression.sh").write_text("#!/bin/sh\n")
+    (project / ".claude/scripts/run-regression.sh").write_text("#!/bin/sh\n")
     (project / ".claude/skills/lx-goal/scripts/test_goal_lifecycle_e2e.py").write_text("# fixture\n")
     (project / ".claude/scripts/test_sub_agent_failure_matrix.py").write_text("# fixture\n")
     return project
