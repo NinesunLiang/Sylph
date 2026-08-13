@@ -1470,62 +1470,119 @@ def cmd_tick(step_id=None):
 
 
 def _run_dual_judge(token: dict) -> int:
-    """L2 任务 verify 自动双审判：static + runtime oracle → meta 聚合。
+    # TOMBSTONE 2026-08-13: 空转死链，从未产生有效裁决。
+    # 原因:
+    #   static_oracle_agent.py / runtime_oracle_agent.py 已归档至
+    #     .claude/skills/archived/lx-oracle-legacy/，_hook_dir 下不存在 → FileNotFoundError → 异常跳过。
+    #   meta_oracle.py 无 aggregate 命令 → verdict 恒为 UNAVAILABLE → return 0 放行。
+    #   oracle_agent.exists() 分支执行 pass，随即跌入上述死链；且模块未 import subprocess，原函数每次抛 NameError。
+    # 替代: _run_oracle_staged() 直接调用 oracle_agent.py (v2.0.0+)。
+    # 保留函数壳体仅为 git blame 可追溯；任何调用者必须迁移至 _run_oracle_staged。
+    raise RuntimeError(
+        "_run_dual_judge is tombstoned (2026-08-13). "
+        "Use _run_oracle_staged() for Oracle review."
+    )
 
-    裁决落盘 .omc/state/oracle/{task_id}/meta-latest.json。
-    Returns: 0=ACCEPT/ADVISORY（放行）, 2=REJECT（verify 不通过）, 3=ESCALATE（放行但提示人工）。
+
+# ── Oracle 接线辅助（挂载点①②③）─────────────────────────────────────────────
+
+_ORACLE_SEVERITY: dict[str, int] = {
+    "REJECT": 4, "ESCALATE": 3, "ADVISORY": 2, "ACCEPT": 1, "UNAVAILABLE": 0,
+}
+
+
+def _aggregate_verdicts(v1: str, v2: str) -> str:
+    """取两个 Oracle verdict 中更严者（纯函数，不调用 LLM）。
+
+    严重度: REJECT > ESCALATE > ADVISORY > ACCEPT > UNAVAILABLE
     """
-    task_id = token.get("session", {}).get("id", "unknown")
-    # Primary: unified oracle_agent.py (v2.0.0+)
-    oracle_agent = _hook_dir / "oracle_agent.py"
-    # Legacy fallback: static/runtime/meta are deprecated, keep for backward compat
-    static_agent = _hook_dir / "static_oracle_agent.py"
-    runtime_agent = _hook_dir / "runtime_oracle_agent.py"
-    meta = _hook_dir / "meta_oracle.py"
-    if oracle_agent.exists():
-        # Use unified oracle_agent.py (static+runtime+duo in one script)
-        pass  # caller should prefer oracle_agent.py over legacy scripts
-    elif not (static_agent.exists() and runtime_agent.exists() and meta.exists()):
-        print(_yellow("⚠  dual-judge 脚本缺失，跳过（降级为人工复核）"))
-        return 0
+    return v1 if _ORACLE_SEVERITY.get(v1, 0) >= _ORACLE_SEVERITY.get(v2, 0) else v2
 
-    print("⚖️  L2 双审判官裁决（static → runtime → meta）...")
-    for name, agent in (("static", static_agent), ("runtime", runtime_agent)):
-        try:
-            r = subprocess.run(
-                [sys.executable, str(agent), "review", "--task-id", task_id],
-                capture_output=True, text=True, timeout=120,
-            )
-            if r.returncode not in (0, 1):
-                print(_yellow(f"⚠  {name} oracle exit={r.returncode}: {r.stderr[:200]}"))
-        except Exception as exc:
-            print(_yellow(f"⚠  {name} oracle 异常: {exc}"))
+
+def _write_unverified_marker(task_id: str) -> Path:
+    """熔断 fail-closed 标记：Oracle 不可用时写盘，阻塞 cmd_archive。
+
+    路径: .omc/state/oracle/{task_id}-unverified.json
+    """
+    marker_dir = Path(".omc/state/oracle")
+    marker_dir.mkdir(parents=True, exist_ok=True)
+    marker = marker_dir / f"{task_id}-unverified.json"
+    marker.write_text(
+        json.dumps({
+            "task_id": task_id,
+            "reason": "oracle_unavailable",
+            "ts": datetime.now(timezone.utc).isoformat(),
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return marker
+
+
+def _run_oracle_staged(token: dict, mode: str, label: str) -> tuple[str, int]:
+    """调用 oracle_agent.py review --mode <mode>，返回 (verdict_str, exit_code)。
+
+    熔断 fail-closed：脚本缺失 / 超时 / 异常 → 写 UNVERIFIED 标记，返回 ("UNAVAILABLE", 4)。
+    UNAVAILABLE 由 cmd_archive 的 UNVERIFIED 检查兜底；绝不降级放行。
+
+    Args:
+        token: 当前任务 token dict
+        mode:  "static" | "runtime" | "duo"
+        label: 审计标签（如 "plan-oracle" / "report-duo" / "verify-warn-static"）
+    """
+    import subprocess as _sp
+    task_id = token.get("session", {}).get("id", "unknown")
+    oracle_script = _hook_dir / "oracle_agent.py"
+
+    if not oracle_script.exists():
+        print(_yellow(f"⚠  [{label}] oracle_agent.py 缺失 → UNVERIFIED 标记已写入"))
+        _write_unverified_marker(task_id)
+        return "UNAVAILABLE", 4, []
+
+    cmd = [
+        sys.executable, str(oracle_script),
+        "review", "--task-id", task_id,
+        "--mode", mode,
+    ]
+    if PLAN_PATH and PLAN_PATH.exists():
+        cmd += ["--plan", str(PLAN_PATH)]
+    if EXECUTOR_PATH and EXECUTOR_PATH.exists():
+        cmd += ["--executor", str(EXECUTOR_PATH)]
+    if TOKEN_PATH and TOKEN_PATH.exists():
+        cmd += ["--token", str(TOKEN_PATH)]
 
     try:
-        r = subprocess.run(
-            [sys.executable, str(meta), "aggregate", "--task-id", task_id],
-            capture_output=True, text=True, timeout=30,
-        )
-        out = r.stdout.strip()
-        verdict = "UNAVAILABLE"
-        try:
-            json_start = out.find("{")
-            if json_start >= 0:
-                verdict = json.loads(out[json_start:]).get("verdict", "UNAVAILABLE")
-        except Exception:
-            pass
-        _write_audit("dual_judge", {"task_id": task_id, "verdict": verdict, "exit": r.returncode})
-        if verdict == "REJECT":
-            print(_red(f"⚖️  双审判 REJECT — verify 不通过，详见 .omc/state/oracle/{task_id}/meta-latest.json"))
-            return 2
-        if verdict == "ESCALATE":
-            print(_yellow(f"⚖️  双审判 ESCALATE — 建议人工复核"))
-            return 3
-        print(_green(f"⚖️  双审判 {verdict}"))
-        return 0
+        r = _sp.run(cmd, capture_output=True, text=True, timeout=180)
+    except _sp.TimeoutExpired:
+        print(_yellow(f"⚠  [{label}] oracle 超时(180s) → UNVERIFIED 标记已写入"))
+        _write_unverified_marker(task_id)
+        return "UNAVAILABLE", 4, []
     except Exception as exc:
-        print(_yellow(f"⚠  meta 聚合异常: {exc}（降级放行，需人工复核）"))
-        return 0
+        print(_yellow(f"⚠  [{label}] oracle 异常: {exc} → UNVERIFIED 标记已写入"))
+        _write_unverified_marker(task_id)
+        return "UNAVAILABLE", 4, []
+
+    # oracle_agent.py RETURN_CODES: ACCEPT=0 ADVISORY=1 REJECT=2 ESCALATE=3 UNAVAILABLE=4
+    _rc_to_verdict = {0: "ACCEPT", 1: "ADVISORY", 2: "REJECT", 3: "ESCALATE", 4: "UNAVAILABLE"}
+    verdict = _rc_to_verdict.get(r.returncode, "UNAVAILABLE")
+
+    _write_audit(f"oracle_{label}", {
+        "task_id": task_id, "mode": mode, "verdict": verdict, "exit": r.returncode,
+    })
+    print(f"   ⚖️  [{label}] Oracle({mode}): {verdict}")
+    if r.returncode == 2 and r.stdout:
+        print(_red(r.stdout[-600:]))
+
+    # 解析 oracle_agent stdout 中的 reasons(rule_fallback 的 JSON reasons / LLM 文本截断)
+    reasons: list[str] = []
+    if r.stdout:
+        try:
+            _parsed = json.loads(r.stdout)
+            reasons = _parsed.get("reasons", []) if isinstance(_parsed, dict) else []
+            if not isinstance(reasons, list):
+                reasons = [str(reasons)]
+        except json.JSONDecodeError:
+            reasons = [r.stdout.strip()[:200]]
+    return verdict, r.returncode, reasons
 
 
 def _run_verify_gate(step_id):
@@ -1624,9 +1681,7 @@ def cmd_verify(step_id=None, all_steps=False):
             return 2
 
     level = token.get("session", {}).get("level", "L1_BASE")
-    # ── Oracle 审查 ──
-    # Base 不做深度审查（属 Enhance 域），仅做流程验证
-    # 如需深度审查：在 Enhance 层调用 lib.phase3_oracle.spawn_oracle()
+    # Oracle 审阅按需调用(skill 化,不内嵌工作流): carros_base.py oracle-plan
     verified_any = False
     plan_steps = step_contracts.parse_plan_steps(plan) if step_contracts else []
     for target in targets:
@@ -1650,12 +1705,6 @@ def cmd_verify(step_id=None, all_steps=False):
             if required:
                 print(_yellow(f"   需要: {required}"))
             return 2
-
-        # Oracle must pass before the completion transaction can persist [x].
-        if level == "L2_ENHANCE" and not degraded:
-            judge_rc = _run_dual_judge(token)
-            if judge_rc == 2:
-                return 2
 
         # ── Task75 Atomic Evidence Gate (non-degraded) ──
         # complete_step_atomic validates evidence, updates plan [x], token done++
@@ -1740,6 +1789,89 @@ def cmd_verify(step_id=None, all_steps=False):
     return 0
 
 
+def _build_backcard_guidance(reasons: list[str]) -> list[str]:
+    """从 REJECT reasons 生成可执行的修复指引(打回单)。"""
+    if not reasons:
+        return ["Oracle 未给出具体原因，请人工检查 oracle 输出后修复"]
+    return [f"按原因修复: {r}" for r in reasons[:3]]
+
+
+def cmd_oracle_plan() -> int:
+    """挂载点①: 审判闭环 — plan 前 static oracle 审,REJECT 打回(round+reasons),3轮仍REJECT → Mate 复核1轮。
+
+    退出码: 0=ACCEPT/ADVISORY  2=REJECT(打回)  3=ESCALATE(人工)  4=UNAVAILABLE
+    """
+    if not TOKEN_PATH or not TOKEN_PATH.exists():
+        token, found_path = _find_latest_token()
+        if token and found_path:
+            _init_paths_from_token(token, found_path)
+        else:
+            print(_red("❌ No active task"))
+            return 2
+
+    token = _load_token()
+    if not token:
+        print(_red("❌ No active task"))
+        return 2
+
+    level = token.get("session", {}).get("level", "L1_BASE")
+    if level not in ("L2_ENHANCE", "L2"):
+        print(_yellow("⚠  oracle-plan 仅适用于 L2 任务，当前跳过"))
+        return 0
+
+    task_id = token.get("session", {}).get("id", "unknown")
+    verdict, rc, reasons = _run_oracle_staged(token, "static", "plan-oracle")
+
+    # 打回单: round 计数 + reasons + 修复指引
+    oracle_state_dir = Path(".omc/state/oracle") / task_id
+    oracle_state_dir.mkdir(parents=True, exist_ok=True)
+    plan_oracle_file = oracle_state_dir / "plan-oracle.json"
+    prev_round = 0
+    if plan_oracle_file.exists():
+        try:
+            prev_round = int(json.loads(plan_oracle_file.read_text(encoding="utf-8")).get("round", 0))
+        except (json.JSONDecodeError, OSError, TypeError):
+            prev_round = 0
+    round_n = prev_round + 1
+
+    record = {
+        "verdict": verdict,
+        "round": round_n,
+        "exit": rc,
+        "reasons": reasons,
+        "guidance": _build_backcard_guidance(reasons) if verdict == "REJECT" else [],
+        "ts": datetime.now(timezone.utc).isoformat(),
+    }
+    plan_oracle_file.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+    print(f"   ✅ Plan oracle 裁决落盘(round={round_n}): {plan_oracle_file}")
+
+    # Mate 升级阶梯: 连续 3 轮 REJECT → runtime(Mate)复核 1 轮
+    if verdict == "REJECT" and round_n >= 3:
+        print(_yellow(f"⚠  连续 {round_n} 轮 REJECT — 升级 Mate Oracle 复核(仅 1 轮)"))
+        mate_v, mate_rc, mate_reasons = _run_oracle_staged(token, "runtime", "plan-mate")
+        record["mate"] = {"verdict": mate_v, "exit": mate_rc, "reasons": mate_reasons}
+        if mate_v in ("ACCEPT", "ADVISORY"):
+            record["verdict"] = "ACCEPT"
+            plan_oracle_file.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+            print(_green(f"⚖️  Mate 复核 {mate_v} — 判定通过,放行"))
+            return 0
+        if mate_v == "REJECT":
+            plan_oracle_file.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
+            print(_red("❌ Mate 复核 REJECT — 升级人工裁决 (ESCALATE)"))
+            return 3
+        # mate UNAVAILABLE → 维持 REJECT(打回)
+
+    if verdict == "REJECT":
+        print(_red("❌ Plan Oracle REJECT — 打回"))
+        for _r in reasons[:3]:
+            print(f"     - {_r}")
+        print(_yellow("   按以上说明修复 plan.md 后,重新运行 oracle-plan 重审"))
+        return 2
+    if rc == 4:
+        return 4
+    return 0
+
+
 def cmd_report(use_stdout=True, archive_mode=False):
     """
     生成 final-report.md — 共享节点，所有流程的终止点都应调用。
@@ -1768,6 +1900,7 @@ def cmd_report(use_stdout=True, archive_mode=False):
 
     report_text = ""
 
+    # Oracle 审阅按需调用(skill 化,不内嵌工作流): carros_base.py oracle / oracle-plan
     if carros_utils and hasattr(carros_utils, "generate_final_report"):
         report_text = carros_utils.generate_final_report(token, TASK_DIR)
     else:
@@ -1825,6 +1958,24 @@ def cmd_archive(force=False):
     if not token:
         print(_red("❌ No active task"))
         return 2
+
+    # ── UNVERIFIED 标记检查: Oracle 熔断期间写入，阻塞归档（fail-closed）──
+    if not force:
+        _arc_task_id = token.get("session", {}).get("id", "unknown")
+        _unverified_marker = Path(".omc/state/oracle") / f"{_arc_task_id}-unverified.json"
+        if _unverified_marker.exists():
+            print(_red(
+                f"❌ Archive 被阻塞: 存在 UNVERIFIED 标记（Oracle 未完成审判）\n"
+                f"   标记文件: {_unverified_marker}\n"
+                f"   处理方式:\n"
+                f"     1. 重新运行 oracle-plan 和 report 确认 Oracle 可用\n"
+                f"     2. 确认安全后手动删除标记文件\n"
+                f"     3. 使用 --force 强制归档（需人类裁决，写入 audit）"
+            ))
+            _write_audit("archive_blocked", {
+                "reason": "unverified_marker", "marker": str(_unverified_marker),
+            })
+            return 2
 
     # Step 1a (M2): research.md 占位检测 — 归档前必须存在实质内容（防占位绕过归档）
     if TASK_DIR and (TASK_DIR / "research.md").exists() and not force:
@@ -3370,6 +3521,7 @@ COMMANDS = {
     "prune-stale-locks": cmd_prune_stale_locks,
     "cancel": cmd_cancel,
     "oracle": cmd_oracle,
+    "oracle-plan": cmd_oracle_plan,
     "fallback": cmd_fallback,
     "manifest-json": cmd_manifest_json,
     "token-write": cmd_token_write,
@@ -3486,6 +3638,9 @@ def main(argv=None):
         if args and args[0] == "--step" and len(args) >= 2:
             step_id = args[1]
         return cmd_verify(step_id=step_id, all_steps=all_steps)
+
+    elif command == "oracle-plan":
+        return cmd_oracle_plan()
 
     elif command == "archive":
         force = "--force" in args or "-f" in args

@@ -1,3 +1,9 @@
+# DEPRECATED 2026-08-13
+# 真相源: oracle_agent.py (.claude/scripts/oracle_agent.py)
+# 本文件不再被任何生产代码引用。禁止新增 import。
+# 保留仅为 git blame 历史可追溯。
+# 如需 Oracle 功能: python3 .claude/scripts/oracle_agent.py review --mode static|runtime|duo
+#
 #!/usr/bin/env python3
 # DEPRECATED - 保留向后兼容，建议迁移到 oracle_agent.py (--mode duo) / meta_oracle.py (combo)
 """
