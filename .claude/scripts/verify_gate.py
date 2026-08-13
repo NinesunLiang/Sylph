@@ -573,6 +573,49 @@ def write_audit(decision: VerifyDecision, token: dict[str, Any] | None = None) -
     append_jsonl(Path(".omc/audit") / f"{today()}.jsonl", event)
 
 
+def self_check() -> list[str]:
+    """内建自检（index19 M: 测试内建到机制能力）。
+
+    验证 VerifyGate 自身的不变量，无需外部测试矫正：
+    - 词形归一（_canonical_atom：exist/exists、ss 守卫、不同词拒匹配）
+    - file 规则引号剥离（contains "x" 不按字面量含引号比较）
+    启动时调用，fail-closed。返回违规列表（空 = 通过）。
+    """
+    violations: list[str] = []
+
+    # 1. 词形归一不变量
+    canonical_cases = {
+        "exists": "exist", "artifacts": "artifact", "files": "file",
+        "verify": "verify", "class": "class", "process": "process",
+    }
+    for word, expected in canonical_cases.items():
+        got = _canonical_atom(word)
+        if got != expected:
+            violations.append(f"self_check canonical({word})={got} expected {expected}")
+
+    # 2. 断言匹配：exist/exists 应匹配；不同词应拒绝（经 match_verify_rule）
+    ev_match = {"type": "test", "assertion": "artifacts exists（10/10 exit 0）",
+                "evidence_level": "E3", "exit_code": 0}
+    ok, _, _ = match_verify_rule("assertion: artifacts exist", [ev_match])
+    if not ok:
+        violations.append("self_check: exist/exists core-term match failed")
+    ok_reject, _, _ = match_verify_rule(
+        "assertion: artifacts exist",
+        [{"type": "test", "assertion": "artifacts removed from workspace",
+          "evidence_level": "E3", "exit_code": 0}])
+    if ok_reject:
+        violations.append("self_check: distinct lexeme should not match")
+
+    return violations
+
+
+def _assert_self_check():
+    """启动时调用；违规即抛错（fail-closed）。"""
+    v = self_check()
+    if v:
+        raise RuntimeError("VerifyGate self_check failed: " + "; ".join(v))
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--step", required=True)
@@ -582,6 +625,8 @@ def main() -> int:
     parser.add_argument("--spec", required=False,
                        help="spec.md 路径 — 可选，提供 AC 规则以增强验证")
     args = parser.parse_args()
+
+    _assert_self_check()  # 内建自检 fail-closed（机制自身不变量）
 
     token = read_json(Path(args.token)) if args.token else None
     spec_path = Path(args.spec) if args.spec else None

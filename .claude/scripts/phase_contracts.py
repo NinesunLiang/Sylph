@@ -221,3 +221,41 @@ def validate_contract_ready(task_dir: str | Path, phase: str, values: dict[str, 
         if missing:
             raise ValueError("handoff schema incomplete: " + ", ".join(missing))
     return contract
+
+
+# ─── Self-Check（测试内建到机制能力）──────────────────────────────────
+
+def self_check() -> list[str]:
+    """内建自检：step_contract 契约不变量（输出字段/完成节/required_artifacts）。
+
+    验证 step_contract 生成的契约含全部完成节与 required_artifacts，
+    无需外部测试矫正。启动时调用，fail-closed。返回违规列表（空=通过）。
+    """
+    violations: list[str] = []
+    contract = step_contract({"id": "S1", "scope": "src", "acceptance": "works",
+                              "verify": "command:pytest"})
+
+    # 输出字段：三节全在
+    for field in ("S1.key_changes", "S1.tdd_evidence", "S1.evidence"):
+        if field not in contract["outputs"]["required"]:
+            violations.append(f"self_check step_contract missing output {field}")
+
+    # required_artifacts：executor.md + plan.md 全声明
+    artifact_paths = {a["path"] for a in contract["required_artifacts"]}
+    for path in ("executor.md", "plan.md"):
+        if path not in artifact_paths:
+            violations.append(f"self_check step_contract missing artifact {path}")
+
+    # 输入：scope/acceptance/verify 全要求
+    for field in ("step.scope", "step.acceptance", "step.verify"):
+        if field not in contract["inputs"]["required"]:
+            violations.append(f"self_check step_contract missing input {field}")
+
+    return violations
+
+
+def _assert_self_check():
+    """启动时调用；违规即抛错（fail-closed）。"""
+    v = self_check()
+    if v:
+        raise RuntimeError("phase_contracts self_check failed: " + "; ".join(v))

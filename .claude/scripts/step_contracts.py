@@ -559,3 +559,66 @@ def complete_step_atomic(token_path: str | Path,
 
     # G2 出参契约（ADR 0015）：成功返回结构化结果，失败仍抛 ValueError
     return {"ok": True, "step_id": step_id, "errors": []}
+
+
+# ─── Self-Check（测试内建到机制能力）──────────────────────────────────
+
+def self_check() -> list[str]:
+    """内建自检：plan step 依赖激活不变量（多依赖/单依赖/none/空格）。
+
+    验证 find_first_activatable_step 与 _deps_all_completed 的核心契约，
+    无需外部测试矫正。启动时调用，fail-closed。返回违规列表（空=通过）。
+    """
+    violations: list[str] = []
+
+    completed = {"S1", "S2", "S3", "S4", "S5"}
+    dep_cases = {
+        "none": True, "S2": True, "S2,S3,S4": True,
+        "S2,S3,S9": False, "S2, S4": True,
+    }
+    for dep, expected in dep_cases.items():
+        got = _deps_all_completed(dep, completed)
+        if got != expected:
+            violations.append(f"self_check deps_all_completed({dep})={got} expected {expected}")
+
+    # 激活顺序：多依赖步在所有依赖完成后才可选
+    multi = [
+        {"id": "S1", "status": "completed", "depends_on": "none"},
+        {"id": "S2", "status": "completed", "depends_on": "S1"},
+        {"id": "S3", "status": "completed", "depends_on": "S2"},
+        {"id": "S4", "status": "completed", "depends_on": "S3"},
+        {"id": "S5", "status": "completed", "depends_on": "S4"},
+        {"id": "S6", "status": "pending", "depends_on": "S2,S3,S4"},
+        {"id": "S7", "status": "pending", "depends_on": "S6"},
+    ]
+    got_first = find_first_activatable_step(multi)
+    if got_first != "S6":
+        violations.append(f"self_check multi-dep activatable={got_first} expected S6")
+
+    # 有未完成依赖的步不得抢先
+    skip = [
+        {"id": "A", "status": "completed", "depends_on": "none"},
+        {"id": "C", "status": "pending", "depends_on": "A,B"},
+        {"id": "B", "status": "pending", "depends_on": "A"},
+    ]
+    got_skip = find_first_activatable_step(skip)
+    if got_skip != "B":
+        violations.append(f"self_check pending-dep skip={got_skip} expected B")
+
+    # none 依赖首个 pending
+    none_first = [
+        {"id": "A", "status": "pending", "depends_on": "none"},
+        {"id": "B", "status": "pending", "depends_on": "A"},
+    ]
+    got_none = find_first_activatable_step(none_first)
+    if got_none != "A":
+        violations.append(f"self_check none-dep first={got_none} expected A")
+
+    return violations
+
+
+def _assert_self_check():
+    """启动时调用；违规即抛错（fail-closed）。"""
+    v = self_check()
+    if v:
+        raise RuntimeError("step_contracts self_check failed: " + "; ".join(v))

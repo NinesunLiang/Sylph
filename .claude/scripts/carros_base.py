@@ -1348,6 +1348,31 @@ def cmd_status(hot_mode=True):
     return 0
 
 
+def _run_mechanism_self_checks() -> list[str]:
+    """内建自检（index19 M: 测试内建到机制能力）。
+
+    治理主流程（tick/verify）启动时验证核心机制自身不变量，fail-closed。
+    机制：verify_gate / step_contracts / phase_contracts。
+    """
+    violations: list[str] = []
+    try:
+        vg = __import__("verify_gate")
+        violations.extend(vg.self_check())
+    except Exception as exc:
+        violations.append(f"verify_gate self_check error: {exc}")
+    try:
+        sc = __import__("step_contracts")
+        violations.extend(sc.self_check())
+    except Exception as exc:
+        violations.append(f"step_contracts self_check error: {exc}")
+    try:
+        pc = __import__("phase_contracts")
+        violations.extend(pc.self_check())
+    except Exception as exc:
+        violations.append(f"phase_contracts self_check error: {exc}")
+    return violations
+
+
 def cmd_tick(step_id=None):
     """递增 tick 计数器并原子激活可执行步骤。"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
@@ -1360,6 +1385,10 @@ def cmd_tick(step_id=None):
     token = _load_token()
     if not token:
         print(_red("❌ No active task"))
+        return 2
+    _violations = _run_mechanism_self_checks()
+    if _violations:
+        print(_red("❌ 机制自检失败: " + "; ".join(_violations)))
         return 2
     if not _require_goal_execution_state(token, "tick"):
         return 2
@@ -1521,6 +1550,10 @@ def cmd_verify(step_id=None, all_steps=False):
             print(_red("❌ No active task"))
             return 2
     token = _load_token()
+    _violations = _run_mechanism_self_checks()
+    if _violations:
+        print(_red("❌ 机制自检失败: " + "; ".join(_violations)))
+        return 2
     if not token:
         print(_red("❌ No active task"))
         return 2
