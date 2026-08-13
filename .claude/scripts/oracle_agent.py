@@ -24,6 +24,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional, List, Tuple
 
+# lib/ 子模块（oracle_models）路径注入，允许以脚本方式直接运行
+_SCRIPTS_LIB = Path(__file__).resolve().parent / "lib"
+if str(_SCRIPTS_LIB) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS_LIB))
+from oracle_models import resolve_oracle_model  # type: ignore[reportMissingImports]  # noqa: E402
+
 ORACLE_VERDICTS_DIR = Path(".omc/state/oracle")
 BYPASS_DIR = Path(".omc/state/oracle")
 BYPASS_TTL = 86400
@@ -280,7 +286,49 @@ def _get_deepseek_key() -> str:
 
 
 def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
-    """Call DeepSeek API for review. Returns (success, text)."""
+    """调用当前模型端点做 Oracle 审阅。返回 (success, text)。
+
+    端点优先级：
+    1. ANTHROPIC_BASE_URL（跟随当前会话模型，Anthropic messages 格式）
+    2. DeepSeek 官方 OpenAI 端点（回退，需 DEEPSEEK_API_KEY）
+    """
+    base_url = os.environ.get("ANTHROPIC_BASE_URL", "").strip()
+    auth_token = os.environ.get("ANTHROPIC_AUTH_TOKEN", "").strip()
+
+    # 优先：Anthropic messages 格式，模型按动态档路由（跟随当前模型 / opus）
+    if base_url:
+        api_url = base_url.rstrip("/") + "/v1/messages"
+        model = resolve_oracle_model("runtime")
+        payload = json.dumps({
+            "model": model,
+            "max_tokens": 2000,
+            "temperature": 0.0,
+            "system": ORACLE_SYSTEM_PROMPT,
+            "messages": [{"role": "user", "content": prompt}],
+        })
+        headers = [
+            "Content-Type: application/json",
+            "x-api-key: " + auth_token if auth_token else "Authorization: Bearer " + _get_deepseek_key(),
+        ]
+        try:
+            r = subprocess.run(
+                ["curl", "-s", "-X", "POST", api_url] +
+                [h for h in headers if h] +
+                ["-d", payload],
+                capture_output=True, text=True, timeout=60,
+            )
+            if r.returncode != 0:
+                return False, ""
+            resp = json.loads(r.stdout)
+            blocks = resp.get("content", [])
+            text = "".join(b.get("text", "") for b in blocks if b.get("type") == "text")
+            if text.strip():
+                return True, text
+            return False, ""
+        except Exception:
+            return False, ""
+
+    # 回退：DeepSeek 官方 OpenAI 端点
     api_key = _get_deepseek_key()
     if not api_key:
         return False, ""

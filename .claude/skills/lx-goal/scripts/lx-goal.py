@@ -385,16 +385,10 @@ def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None):
             raise ValueError("task_id must contain only letters, digits, '.', '_' or '-'")
         slug = task_id
     else:
-        # 精专化：同目标已有活跃任务 → 拒绝新建（the less the more）
-        active = _find_active_goal(_goal_base(goal))
-        if active is not None:
-            print(
-                f"❌ 检测到同目标已有活跃任务: {active}",
-                file=sys.stderr,
-            )
-            print("   同一目标不允许并发激活（避免报告编号/脚本竞争）。", file=sys.stderr)
-            print("   如需继续，请先归档已有任务或指定不同 task_id。", file=sys.stderr)
-            sys.exit(2)
+        # Goal 激活只创建并绑定自身任务，不扫描全局 token。
+        # 其他任务可能是别的会话、历史残留或独立目标；把它们作为
+        # 当前 Goal 的前置条件会造成跨任务污染。并发协调必须由调用方
+        # 提供显式 task_id/外部协调，不由隐式全局扫描决定。
         slug = _goal_slug(goal)
     expires = (datetime.now(timezone.utc) + timedelta(hours=expiry_hours)).isoformat()
     now = get_now()

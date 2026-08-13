@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from oracle_models import resolve_oracle_model  # type: ignore[reportMissingImports]  # noqa: E402
+
 
 def should_trigger_oracle(
     level: str,
@@ -50,14 +52,17 @@ def should_trigger_oracle(
 
 def run_oracle(
     prompt: str,
-    model_hint: str = "deepseek-v4-flash",
+    model_hint: Optional[str] = None,
     timeout: int = 30,
 ) -> str:
     """
     运行 Oracle（同级模型，非高阶模型）。
     调用 local DeepSeek proxy (127.0.0.1:9998)。
+    model_hint 缺省时按静态档路由（跟随当前模型 / sonnet-haiku）。
     """
     api_url = "http://127.0.0.1:9998/v1/messages"
+    if not model_hint:
+        model_hint = resolve_oracle_model("static")
 
     payload = json.dumps({
         "model": model_hint,
