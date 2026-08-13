@@ -54,6 +54,50 @@ ORACLE_SYSTEM_PROMPT = """You are an independent third-party reviewer (Oracle). 
 5. Do not pass something just because you don't know. Unknown = REJECT
 6. Be specific about what needs to change for ACCEPT"""
 
+# ── 双法官角色分离(参考 phase3 设计,保留输出契约)──────────────────────────
+
+ORACLE_STATIC_PROMPT = """You are an independent third-party auditor (Oracle, FIRST review). You see ONLY the data below — no conversation history, no context from previous turns.
+
+SCOPE: Static analysis, breadth-first. Focus on residual risk, missing edge cases, and factual errors.
+
+VERDICT RULES (evaluate in order, first match wins):
+  REJECT   -> any factual error citable as file:line, OR a missing critical guard
+  ADVISORY -> non-blocking gaps, unmitigated known risks, insufficient evidence
+  ACCEPT   -> no blocking issues; every identified risk is acknowledged and mitigated
+
+If the submitted task explicitly binds a Goal token, treat its token/task context as the execution context. Do not infer autonomous mode from global files. In that context prefer REDIRECT and ASK_USER guidance over hard blocking.
+
+Do not pass something just because you don't know. Unknown = REJECT. Be specific about what needs to change for ACCEPT.
+
+OUTPUT (required format):
+  VERDICT: ACCEPT | REJECT | ADVISORY
+  Safety Risk: HIGH | MEDIUM | LOW
+  Architecture: 0-10
+  Evidence: 0-10
+Evidence citations required: file:line for code; section/filename for documents/designs.
+"""
+
+ORACLE_MATE_PROMPT = """You are an independent second auditor (Mate, runtime/TDD coverage). You see ONLY the data below — the first reviewer's output is NOT available to you. Review independently.
+
+SCOPE: Runtime test coverage. Identify what a static first review may have missed: missing negative tests, insufficient evidence, overclaiming. Challenge assumptions that seem unproven.
+
+SELF-CONSISTENCY CONSTRAINT (CRITICAL):
+  Your SCORE for each dimension MUST match your own EVIDENCE text.
+  - Evidence says "no problem found" / positive -> score >= 7
+  - Evidence says "some risk but no concrete failure" -> score 5-6
+  - score <= 4 is ONLY allowed with a specific, observable failure cited in evidence
+  - After writing all scores, RE-READ evidence. If contradiction -> fix the score.
+  - DEFAULT when uncertain: 7 (not 2-3). Insufficient data is NOT a failure.
+
+If the submitted task explicitly binds a Goal token, treat its token/task context as the execution context. Do not infer autonomous mode from global files.
+
+OUTPUT (required format):
+  VERDICT: ACCEPT | REJECT | ADVISORY
+  Safety Risk: HIGH | MEDIUM | LOW
+  Architecture: 0-10
+  Evidence: 0-10
+"""
+
 DANGEROUS_PATH_PATTERNS = [
     r"\.ssh/", r"\.env\b", r"credentials?", r"secrets?",
     r"/etc/", r"/usr/local/", r"/var/lib/",
@@ -285,7 +329,8 @@ def _get_deepseek_key() -> str:
     return key
 
 
-def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
+def _try_llm_model(task_id: str, prompt: str,
+                   system_prompt: str = ORACLE_SYSTEM_PROMPT) -> Tuple[bool, str]:
     """调用当前模型端点做 Oracle 审阅。返回 (success, text)。
 
     端点优先级：
@@ -303,7 +348,7 @@ def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
             "model": model,
             "max_tokens": 2000,
             "temperature": 0.0,
-            "system": ORACLE_SYSTEM_PROMPT,
+            "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
         })
         headers = [
@@ -339,7 +384,7 @@ def _try_llm_model(task_id: str, prompt: str) -> Tuple[bool, str]:
         "max_tokens": 2000,
         "temperature": 0.0,
         "messages": [
-            {"role": "system", "content": ORACLE_SYSTEM_PROMPT},
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": prompt},
         ],
     })
@@ -545,8 +590,8 @@ def review_static(task_id: str, plan_text: str = "",
     if _is_autonomous_mode(token_path):
         target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
-    # Try LLM first
-    ok, result = _try_llm_model(task_id, target_text[:8000])
+    # Try LLM first (Oracle 第一审角色)
+    ok, result = _try_llm_model(task_id, target_text[:8000], system_prompt=ORACLE_STATIC_PROMPT)
     if ok:
         parsed = _parse_llm_verdict(result)
         # Full LLM output preserved for audit trail; first 500 chars in reasons for readability
@@ -578,8 +623,8 @@ def review_runtime(task_id: str, executor_text: str = "",
     if _is_autonomous_mode(token_path):
         target_text += "\n[Context] Autonomous/Unmanned mode ACTIVE. HARD-GATE and structural guards are by-design safety features of this mode.\n"
 
-    # Try LLM first
-    ok, result = _try_llm_model(task_id, target_text[:8000])
+    # Try LLM first (Mate 第二审角色)
+    ok, result = _try_llm_model(task_id, target_text[:8000], system_prompt=ORACLE_MATE_PROMPT)
     if ok:
         parsed = _parse_llm_verdict(result)
         # Full LLM output preserved for audit trail; first 500 chars in reasons for readability
