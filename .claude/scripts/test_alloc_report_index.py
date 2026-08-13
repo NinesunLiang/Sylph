@@ -8,7 +8,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-SCRIPTS = Path(__file__).resolve().parents[2] / "scripts"
+SCRIPTS = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPTS))
 spec = importlib.util.spec_from_file_location("alloc_report_index_under_test", SCRIPTS / "alloc_report_index.py")
 assert spec is not None

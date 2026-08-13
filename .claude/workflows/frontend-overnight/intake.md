@@ -19,7 +19,7 @@
 ## 2. intake 操作步骤
 
 1. 输入放入 `inputs/{产品名}/`，核对 `prototype.kind`（interactive/static/mixed——决定浮层发现策略，填错 = 夜跑误判）
-2. 复制模板：`cp scripts/carroros-gates/templates/night-manifest.template.yaml .omc/night/{date}/night-manifest.yaml`
+2. 复制模板：`cp .claude/workflows/frontend-overnight/scripts/carroros-gates/templates/night-manifest.template.yaml .omc/night/{date}/night-manifest.yaml`
 3. 填充：`inputs.*.status` 按上表；`pages[0]` 选**输入最全+复杂度最低**的真页（O5）；`api_contract_status` 按上表
 4. PRD/API 缺席 → 在 `.omc/night/{date}/assumptions.yaml` 预登记推断契约骨架（夜跑模型只可补充、不可删除）
 5. 进 `phase0-checklist.md`

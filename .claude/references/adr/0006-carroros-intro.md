@@ -25,7 +25,7 @@
 4. **隐私防线** — 无条件禁止读取.env/密钥文件/.ssh目录下所有敏感内容
 5. **先 init 后动手** — 任何任务启动第一步必须先执行`carros_base.py init`完成令牌初始化，之后才可写入代码
 6. **数值断言溯源** — 所有性能/指标类数字断言必须标注完整来源（file:line/reference/benchmark），不允许给出无来源的估算值
-7. **治理文件不可改** — 核心治理目录下文件`.claude/hooks/*` / `scripts/carroros-gates/*` / `settings.json` 受Gate1永久保护，普通开发流程中禁止修改
+7. **治理文件不可改** — 核心治理目录下文件`.claude/hooks/*` / `.claude/workflows/frontend-overnight/scripts/carroros-gates/*` / `settings.json` 受Gate1永久保护，普通开发流程中禁止修改
 
 
 ## 机制集合

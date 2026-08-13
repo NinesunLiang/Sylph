@@ -17,7 +17,7 @@ v3 核心改动（GPT §17a P0-SOL-1：动态路径旁路）：
   夜间一律 exit 2 fail-closed。
 
 文件工具 deny（命中即 exit 2，含 realpath 解析）：
-  scripts/carroros-gates/**、**/gate-results/**、night-manifest*.yaml、
+  .claude/workflows/frontend-overnight/scripts/carroros-gates/**、**/gate-results/**、night-manifest*.yaml、
   **/token.json、.claude/settings*.json、.claude/hooks/**、
   verification-summaries/、ac-aggregates/、tokens/、metrics/、
   page-baselines/、smoke-results*.yaml、control-plane-scorecard.yaml、
@@ -70,7 +70,7 @@ MARKER = REPO_ROOT / ".omc" / "state" / "night-session.active"
 
 # ---------- 文件工具：受保护路径 ----------
 DENY_PATH_PATTERNS = [
-    (re.compile(r"scripts/carroros-gates/"), "门禁脚本目录（控制面，夜跑禁写）"),
+    (re.compile(r".claude/workflows/frontend-overnight/scripts/carroros-gates/"), "门禁脚本目录（控制面，夜跑禁写）"),
     (re.compile(r"/gate-results/"), "gate-results 权威链目录（仅门禁脚本可写）"),
     (re.compile(r"\.omc/night/.*/night-manifest.*\.yaml"), "night-manifest 签署后 immutable"),
     (re.compile(r"token\.json$"), "token.json 仅允许 carros_base.py token-write API"),
@@ -88,7 +88,7 @@ DENY_PATH_PATTERNS = [
 
 # run-gate wrapped 命令与 mkdir 禁触碰的控制面 token
 PROTECTED_TOKENS = (
-    "scripts/carroros-gates", "scripts/carroros-gates/lib", "carroros-gates", "gate-results",
+    ".claude/workflows/frontend-overnight/scripts/carroros-gates", ".claude/workflows/frontend-overnight/scripts/carroros-gates/lib", "carroros-gates", "gate-results",
     ".omc/night", ".omc/state", "night-manifest",
     "verification-summar", "ac-aggregates", "page-baselines",
     "token.json", "tokens/", ".claude/settings", ".claude/hooks",
@@ -162,7 +162,7 @@ EVENTS_RE = re.compile(r"echo\s+[^&|;`<>$()]*>>\s*\S*execution-events\.jsonl")
 # ---------- Bash 夜间白名单（全部 fullmatch） ----------
 ALLOW_CMD_PATTERNS = [
     # 1. 夜循环门禁脚本（.sh 兼容 + .py 等价物）
-    (re.compile(r"(?:bash\s+\S*scripts/carroros-gates/(?:scope-check|c7-check|evidence-check|finalize-page|abstraction-check)\.sh|python3\s+\S*scripts/carroros-gates/(?:scope_check|c7_check|evidence_check|finalize_page|abstraction_check)\.py)(\s+--[a-z-]+\s+" + _ARG + r")+"),
+    (re.compile(r"(?:bash\s+\S*.claude/workflows/frontend-overnight/scripts/carroros-gates/(?:scope-check|c7-check|evidence-check|finalize-page|abstraction-check)\.sh|python3\s+\S*.claude/workflows/frontend-overnight/scripts/carroros-gates/(?:scope_check|c7_check|evidence_check|finalize_page|abstraction_check)\.py)(\s+--[a-z-]+\s+" + _ARG + r")+"),
      "门禁脚本"),
     # 3. carros_base 三个 API
     (re.compile(r"python3?\s+\S*carros_base\.py\s+(manifest-json|gate-results-init|token-write)(\s+--[a-z-]+\s+" + _ARG + r")+"),
@@ -190,7 +190,7 @@ ALLOW_CMD_PATTERNS = [
 ]
 
 # run-gate：bash .../run_gate.py <参数段> -- <wrapped 命令>
-RUN_GATE_RE = re.compile(r"(?:bash\s+\S*scripts/carroros-gates/lib/run-gate\.sh|python3\s+\S*scripts/carroros-gates/run_gate\.py)\s+(.*?)\s+--\s+(.+)")
+RUN_GATE_RE = re.compile(r"(?:bash\s+\S*.claude/workflows/frontend-overnight/scripts/carroros-gates/lib/run-gate\.sh|python3\s+\S*.claude/workflows/frontend-overnight/scripts/carroros-gates/run_gate\.py)\s+(.*?)\s+--\s+(.+)")
 RUN_GATE_OUR_ARGS_RE = re.compile(r"(--[a-z-]+\s+" + _ARG + r"\s*)+")
 WRAPPED_TOOLS = {"pnpm", "npm", "npx", "node", "tsc", "eslint", "playwright"}
 WRAPPED_SCRIPT_RE = re.compile(r"(bash|python3?)\s+\S*(tests?|visual|e2e|scripts)/")

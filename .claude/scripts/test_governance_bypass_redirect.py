@@ -32,7 +32,7 @@ def test_governance_bypass_redirects_settings_append():
 
 def test_governance_bypass_redirects_harness_append():
     result = CHECKS._check_governance_bypass(
-        _payload("echo something >> scripts/carroros-gates/harness.yaml")
+        _payload("echo something >> .claude/workflows/frontend-overnight/scripts/carroros-gates/harness.yaml")
     )
     assert result is not None and result.startswith("REDIRECT")
 

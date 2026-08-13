@@ -31,7 +31,7 @@ PHASE0_CHECKLIST_MD = WORKFLOW_CONFIG_DIR / "phase0-checklist.md"
 
 # ── CarrorOS Ecosystem Paths ────────────────────────────────────────────────────
 
-CARROTOROS_GATES_DIR = PROJECT_ROOT / "scripts" / "carroros-gates"
+CARROTOROS_GATES_DIR = PROJECT_ROOT / ".claude" / "workflows" / "frontend-overnight" / "scripts" / "carroros-gates"
 LX_GOAL_DIR = CLAUDE_DIR / "skills" / "lx-goal"
 LX_GOAL_SCRIPT = LX_GOAL_DIR / "scripts" / "lx-goal.py"
 CARROS_BASE_SCRIPT = CLAUDE_DIR / "scripts" / "carros_base.py"

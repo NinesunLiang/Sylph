@@ -51,7 +51,7 @@ ANTHACK_RE = re.compile(r"\.ant-[a-z]")
 IMMUTABLE_NIGHT_PATTERNS = [
     "src/styles/tokens/generated/",
     "src/styles/tokens/source/",
-    "scripts/carroros-gates/",
+    ".claude/workflows/frontend-overnight/scripts/carroros-gates/",
     ".claude/",
     ".omc/",
 ]

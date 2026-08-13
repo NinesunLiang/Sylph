@@ -2,7 +2,7 @@
 
 > **用途**：供线上大模型（DeepSeek V4 Flash / Kimi K3 / GPT-5.5 / Opus-4.8）读取本文件，理解工作流全貌后提出优化方案。
 > **生成时间**：2026-07-28
-> **来源**：Carror OS Base 项目 `.claude/workflows/frontend-overnight/` 全套文档 + `scripts/carroros-gates/` 门禁套件
+> **来源**：Carror OS Base 项目 `.claude/workflows/frontend-overnight/` 全套文档 + `.claude/workflows/frontend-overnight/scripts/carroros-gates/` 门禁套件
 
 ---
 
@@ -49,7 +49,7 @@
 | **`night-loop.md`** | **夜循环13步主循环、Bash白名单、禁止列表、J0出口** | **执行模型读本** |
 | `OPTIMIZATION-FACTSET.md` | 本文件，供线上模型优化用 | 线上优化模型 |
 
-### 2.2 门禁脚本套件（scripts/carroros-gates/）
+### 2.2 门禁脚本套件（.claude/workflows/frontend-overnight/scripts/carroros-gates/）
 
 **核心门禁（夜跑每页逐步调用）：**
 
@@ -164,13 +164,13 @@ adapter端点：`http://127.0.0.1:8765`，路由探针在Phase 0 A3。
 
 ### 步6：C1 越界检测
 ```
-python3 scripts/carroros-gates/scope_check.py --manifest $MANIFEST --night-dir $NIGHT --page-id {page} --target-repo $R
+python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/scope_check.py --manifest $MANIFEST --night-dir $NIGHT --page-id {page} --target-repo $R
 ```
 - exit 0；越界→回步3修，越界×2→页熔
 
 ### 步7：C2 编译链
 ```
-python3 scripts/carroros-gates/run_gate.py --gate-id C2 -- pnpm -C $R exec tsc --noEmit
+python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/run_gate.py --gate-id C2 -- pnpm -C $R exec tsc --noEmit
 # 然后eslint --max-warnings 0
 # 然后pnpm -C $R build
 ```
@@ -179,13 +179,13 @@ python3 scripts/carroros-gates/run_gate.py --gate-id C2 -- pnpm -C $R exec tsc -
 
 ### 步8：C3 风格约束
 ```
-python3 scripts/carroros-gates/c7_check.py
+python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/c7_check.py
 ```
 - 裸色值/魔法px/:global/!important/antd→回步4修
 
 ### 步9：C4/C5 Playwright测试
 ```
-python3 scripts/carroros-gates/run_gate.py --gate-id C4 -- pnpm -C $R exec playwright test
+python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/run_gate.py --gate-id C4 -- pnpm -C $R exec playwright test
 # C5浮层矩阵（每浮层逐条）
 ```
 - C5浮层关闭语义矩阵（7.1 R3）：
@@ -208,8 +208,8 @@ python3 scripts/carroros-gates/run_gate.py --gate-id C4 -- pnpm -C $R exec playw
 
 ### 步12：C7 + C8a 证据最终化
 ```
-python3 scripts/carroros-gates/evidence_check.py
-python3 scripts/carroros-gates/finalize_page.py
+python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/evidence_check.py
+python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/finalize_page.py
 ```
 - final_status由finalize宣布，不是模型
 
@@ -346,7 +346,7 @@ src/styles/tokens/
 
 ## 9. 断言词表（Assertion Catalog）
 
-来源：`scripts/carroros-gates/assertion-catalog.yaml` v1.0
+来源：`.claude/workflows/frontend-overnight/scripts/carroros-gates/assertion-catalog.yaml` v1.0
 
 **封闭词表规则**：manifest引用的assert ID必须在本文件中。未知ID→preflight FAIL。禁止自由文本断言。
 
@@ -465,7 +465,7 @@ J0 是模型唯一的"判断"空间，其他情况按规则执行。
   morning_report.py ──writes──► control-plane-scorecard.yaml
 
 控制面（模型禁碰）
-  scripts/carroros-gates/          ─── hook deny + control_plane_lock + 晨审git diff 三层拦截
+  .claude/workflows/frontend-overnight/scripts/carroros-gates/          ─── hook deny + control_plane_lock + 晨审git diff 三层拦截
   .claude/hooks/                   ─── hook deny精确白名单执行
   .claude/settings*.json           ─── hook deny
   manifest/signoff                ─── hook deny

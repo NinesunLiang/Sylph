@@ -35,7 +35,7 @@ SENSITIVE_PATTERNS = [
     # ── 治理文件保护域 ──
     r"(^|/)\.claude/hooks/",
     r"(^|/)\.claude/settings\.json",
-    r"(^|/)scripts/carroros-gates/",
+    r"(^|/).claude/workflows/frontend-overnight/scripts/carroros-gates/",
     r"(^|/)\.harness-evidence/",
     r"(^|/)AGENTS\.md$",
     r"(^|/)AGENTS\.compact\.md$",

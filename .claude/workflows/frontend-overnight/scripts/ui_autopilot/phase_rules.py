@@ -56,7 +56,7 @@ PHASE_ALLOWED_FILE_PATTERNS: dict[Phase, list[str]] = {
 PHASE_PROHIBITED_ALWAYS: list[str] = [
     "src/styles/tokens/source/**",      # Token source is daytime-only
     "src/styles/tokens/generated/**",   # Generated tokens (codegen output)
-    "scripts/carroros-gates/**",        # Gate scripts
+    ".claude/workflows/frontend-overnight/scripts/carroros-gates/**",        # Gate scripts
     ".claude/**",                        # CarrorOS config
     ".omc/**",                           # Runtime state
     "node_modules/**",

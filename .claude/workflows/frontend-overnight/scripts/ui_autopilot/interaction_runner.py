@@ -154,7 +154,7 @@ MINIMAL_REQUIRED_ASSERTIONS: list[dict[str, Any]] = [
 def parse_assertion_catalog(catalog_path: Path) -> list[AssertionDef]:
     """Parse assertion-catalog.yaml into AssertionDef list.
 
-    Compatible with CarrorOS scripts/carroros-gates/assertion-catalog.yaml format.
+    Compatible with CarrorOS .claude/workflows/frontend-overnight/scripts/carroros-gates/assertion-catalog.yaml format.
     """
     import yaml
 

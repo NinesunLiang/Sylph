@@ -67,7 +67,7 @@ def _is_governance(path: str) -> bool:
         r"(^|/)\.claude/hooks/",
         r"(^|/)\.claude/scripts/",
         r"(^|/)\.claude/settings\.json",
-        r"(^|/)scripts/carroros-gates/",
+        r"(^|/).claude/workflows/frontend-overnight/scripts/carroros-gates/",
         r"(^|/)\.claude/kernel\.md$",
         r"(^|/)AGENTS\.md$",
     ]
