@@ -25,6 +25,7 @@ import fcntl
 import json
 import os
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -51,6 +52,11 @@ try:
     import carros_utils
 except ImportError:
     carros_utils = None
+
+try:
+    import worktree_utils
+except ImportError:
+    worktree_utils = None
 
 try:
     import task_state_tracker as tst
@@ -3502,6 +3508,34 @@ def cmd_gate_results_init():
     return 0
 
 
+def cmd_worktree_status() -> int:
+    """列出所有 isolated worktrees 及审计摘要（worktree 隔离可观测性）。"""
+    if worktree_utils is None:
+        print(_red("❌ worktree_utils 不可用"), file=sys.stderr)
+        return 2
+    wts = worktree_utils.list_isolated_worktrees()
+    if not wts:
+        print("ℹ️  无 active isolated worktree")
+        return 0
+    for wt in wts:
+        print(f"  {wt['branch']}  @  {wt['path']}")
+    return 0
+
+
+def cmd_worktree_gc() -> int:
+    """回收僵尸/已归档 worktree（安全门: 未归档只 WARN 不删, 传 --execute 才真删）。"""
+    if worktree_utils is None:
+        print(_red("❌ worktree_utils 不可用"), file=sys.stderr)
+        return 2
+    execute = "--execute" in sys.argv
+    messages = worktree_utils.gc(execute=execute)
+    for m in messages:
+        print(m)
+    if not execute:
+        print("\n(dry-run; 传 --execute 执行删除。未归档 worktree 需人工确认)")
+    return 0
+
+
 COMMANDS = {
     "init": cmd_init,
     "resume": cmd_resume,
@@ -3529,6 +3563,8 @@ COMMANDS = {
     "gate-results-init": cmd_gate_results_init,
     "migrate": cmd_migrate,
     "resolve-conflict": cmd_resolve_conflict,
+    "worktree-status": cmd_worktree_status,
+    "worktree-gc": cmd_worktree_gc,
     "help": cmd_help,
 }
 
@@ -3560,6 +3596,7 @@ def main(argv=None):
         target = None
         task_mode = None
         force = False
+        isolated = False
         i = 0
         while i < len(args):
             if args[i] == "--force":
@@ -3611,6 +3648,9 @@ def main(argv=None):
             elif args[i] == "--task-mode" and i + 1 < len(args):
                 task_mode = args[i + 1].lower()
                 i += 2
+            elif args[i] == "--isolated":
+                isolated = True
+                i += 1
             else:
                 i += 1
         if any(arg in ("-h", "--help") for arg in args):
@@ -3620,6 +3660,24 @@ def main(argv=None):
         if not task_id:
             print(_red("❌ init 需要 --task-id；自动任务请使用 --auto"), file=sys.stderr)
             return 2
+        if isolated:
+            if worktree_utils is None:
+                print(_red("❌ worktree_utils 不可用，无法创建隔离 worktree"), file=sys.stderr)
+                return 2
+            # 先建 worktree，再在 worktree 内跑 init（.omc/ 是 gitignored，需在 worktree 内重建）
+            wt_path, branch = worktree_utils.create_worktree(task_id)
+            print(f"🔀 隔离 worktree: {wt_path} (branch={branch})", file=sys.stderr)
+            init_proc = subprocess.run(
+                [sys.executable, __file__, "init", task_id,
+                 "--level", level, "--task-id", task_id,
+                 *(["--force"] if force else [])],
+                cwd=str(wt_path), capture_output=True, text=True,
+            )
+            if init_proc.returncode != 0:
+                print(init_proc.stdout, init_proc.stderr, file=sys.stderr)
+                return init_proc.returncode
+            print(f"✅ --isolated 任务初始化完成于 worktree: {wt_path}")
+            return 0
         return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode, force=force)
 
     elif command == "resume":
@@ -3629,15 +3687,15 @@ def main(argv=None):
 
     elif command == "tick":
         step_id = None
-        if args and args[0] == "--step" and len(args) >= 2:
-            step_id = args[1]
+        if "--step" in args and len(args) >= args.index("--step") + 2:
+            step_id = args[args.index("--step") + 1]
         return cmd_tick(step_id=step_id)
 
     elif command == "verify":
         step_id = None
         all_steps = "--all" in args
-        if args and args[0] == "--step" and len(args) >= 2:
-            step_id = args[1]
+        if "--step" in args and len(args) >= args.index("--step") + 2:
+            step_id = args[args.index("--step") + 1]
         return cmd_verify(step_id=step_id, all_steps=all_steps)
 
     elif command == "oracle-plan":

@@ -33,6 +33,7 @@ ROUTED_FUNCS = {
     "_check_document_quality", "_check_g2_large_file", "_check_g3_reviews",
     "_check_g5_wide_glob", "_check_g6_budget", "_check_action_loop",
     "_check_numeric_claim", "_check_injection",
+    "_check_omc_skeleton_readonly",  # worktree 隔离骨架只读(design-doc 14)
 }
 
 

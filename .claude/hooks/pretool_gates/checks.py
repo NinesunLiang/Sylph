@@ -438,3 +438,38 @@ def _check_injection(payload: dict) -> str | None:
         return (f"REDIRECT content_truncated tool={tool}|"
                 f"内容长度 {len(content)} 字符超过 8000 限制。使用 Write 写入前 6000 字符+续写标记，再用 Edit 替换标记追加剩余内容")
     return None
+
+
+# ──────────────────────────────────────────────
+# omc-skeleton-readonly gate（worktree 隔离用）
+# .omc/**/*.md 骨架文件在 worktree 内只读——多智能体并发时, worktree 隔离
+# 任务不得改写 .omc/ 骨架索引(会与主树/其他 worktree merge 冲突)。
+# 必须进 _GATE_CORE(守护级, 不因 L1/L2 跳过)。
+# ──────────────────────────────────────────────
+_SKELETON_MD_RE = re.compile(r"(^|[/\\])\.omc[/\\].*\.md$", re.IGNORECASE)
+
+
+def _check_omc_skeleton_readonly(payload: dict) -> str | None:
+    """拦截对 .omc/**/*.md 骨架的 Write/Edit/MultiEdit。
+
+    gate 契约: 返回 None=放行, 返回 "BLOCK <reason>"=阻断。
+    只拦 .md 骨架(状态写入走 carros_base.py 接口), 放行 .json 等其他文件。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool not in ("write", "edit", "multiedit"):
+        return None
+    ti = _extract_input(payload) or {}
+    path = str(ti.get("file_path", "") or "").replace("\\", "/")
+    if _SKELETON_MD_RE.search(path):
+        _append_audit({
+            "event_type": "omc_skeleton_write_blocked",
+            "actor": "hook:pretool-gate",
+            "gate": "omc-skeleton-readonly",
+            "decision": "BLOCK",
+            "reason": f"skeleton_md_write:{path[:120]}",
+            "tool": tool,
+        })
+        return (f"BLOCK omc-skeleton-readonly|"
+                f"直接修改骨架文件 {path!r} 被禁止(worktree 隔离下 .omc/**/*.md 只读)。"
+                f"如需更新任务状态, 使用 carros_base.py 的状态写入接口。")
+    return None

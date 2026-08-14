@@ -218,7 +218,25 @@ def parse_verify_rules(plan_text: str, step: str) -> list[str]:
         if in_step:
             m = re.match(r"- verify:\s*(.+)$", stripped)
             if m:
-                rules.append(m.group(1).strip())
+                raw = m.group(1).strip()
+                # 支持一行多规则: `file: A contains "x"; file: B contains "y"` 拆成两条。
+                # 顶层分号拆分, 忽略引号内分号(避免拆坏 contains "a;b")。
+                parts, cur, in_q, qch = [], "", False, None
+                for ch in raw:
+                    if ch in ("'", '"'):
+                        if in_q and ch == qch:
+                            in_q = False
+                        elif not in_q:
+                            in_q, qch = True, ch
+                    if ch == ";" and not in_q:
+                        if cur.strip():
+                            parts.append(cur.strip())
+                        cur = ""
+                    else:
+                        cur += ch
+                if cur.strip():
+                    parts.append(cur.strip())
+                rules.extend(p for p in parts if p)
     return rules
 
 

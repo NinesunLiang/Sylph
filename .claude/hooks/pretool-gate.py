@@ -48,6 +48,7 @@ from pretool_gates.checks import (
     _check_secret_scan,
     _check_numeric_claim, _check_action_loop,
     _check_stall, _check_injection,
+    _check_omc_skeleton_readonly,
 )
 
 # ── L1/L2 Gate definitions ──
@@ -61,6 +62,8 @@ _GATE_CORE = [
     ("governance-bypass", _check_governance_bypass),
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),
+    # 骨架只读(worktree 隔离): .omc/**/*.md 在 worktree 内只读, 守护级必须 L1 也生效
+    ("omc-skeleton-readonly", _check_omc_skeleton_readonly),
 ]
 _GATE_L2_EXTRA = [
     ("verify", _check_verify_gate),
