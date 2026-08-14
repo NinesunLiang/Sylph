@@ -124,3 +124,14 @@ def test_bash_write_clean_target_allowed():
 
 def test_non_bash_tool_passes_write_gate():
     assert _check_sensitive_write_bash(_payload("Edit", file_path="credentials.json")) is None
+
+
+def test_rooot_resolution_is_cwd_independent():
+    """index27 修复: constants.ROOT 必须解析到仓库根（含 .claude/.git 的祖先），
+    与调用 cwd 无关——gate_cli 在任意目录调用时审计仍落盘正确仓库。"""
+    import os
+    from . import constants as _c
+    assert (_c.ROOT / ".claude").is_dir(), f"ROOT 不是仓库根: {_c.ROOT}"
+    assert (_c.ROOT / ".git").is_dir() or (_c.ROOT / "AGENTS.md").is_file(), \
+        f"ROOT 缺仓库根标志: {_c.ROOT}"
+    assert _c.AUDIT == _c.ROOT / ".omc" / "state" / "audit", f"AUDIT 偏离仓库: {_c.AUDIT}"

@@ -7,10 +7,12 @@ import re
 from pathlib import Path
 
 # ROOT detection (shared across all pretool_gates modules)
+# index27 修复: 从本文件位置向上找含 .claude 的祖先仓库根——parents[2] 是 .claude
+# 而非仓库根（本文件在 pretool_gates/ 子目录），旧 fallback 依赖 cwd 导致
+# gate_cli 等非 CC 调用把审计写进调用者 cwd（如 /tmp 或工作区）。
 _script_path = Path(__file__).resolve()
-ROOT = _script_path.parents[2]
-if not (ROOT / ".claude").is_dir():
-    ROOT = Path(".").resolve()
+ROOT = next((p for p in _script_path.parents if (p / ".claude").is_dir()),
+            Path(".").resolve())
 
 # ── State paths ──
 OMC = ROOT / ".omc"
