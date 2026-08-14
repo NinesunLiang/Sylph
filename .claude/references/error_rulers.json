@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "description": "CarrorOS 错误分类规则库 — error-dna 消费该文件将 exit_code + stderr 模式映射为具体错误类型",
-  "last_updated": "2026-07-28T17:52+0800",
+  "last_updated": "2026-08-15T00:57+0800",
   "rules": [
     {
       "type": "bash_command_not_found",
@@ -47,7 +47,8 @@
       ],
       "severity": "error",
       "action": "create_path",
-      "suggested_fix": "创建缺失的路径或文件"
+      "suggested_fix": "创建缺失的路径或文件",
+      "frequency": 41
     },
     {
       "type": "build_compile_error",
@@ -469,6 +470,46 @@
       "first_seen": 1784559157,
       "last_seen": 1784616685,
       "frequency": 68
+    },
+    {
+      "type": "auto_python3",
+      "priority": 50,
+      "exit_code": [
+        1
+      ],
+      "stderr_patterns": [
+        "exit",
+        "code",
+        "must",
+        "phase",
+        "verify"
+      ],
+      "cmd_patterns": [
+        "python3"
+      ],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "检查 python3 相关错误",
+      "auto_generated": true,
+      "first_seen": 1786700807,
+      "last_seen": 1786700922,
+      "frequency": 5
+    },
+    {
+      "type": "auto_unknown",
+      "priority": 50,
+      "exit_code": [],
+      "stderr_patterns": [],
+      "cmd_patterns": [
+        "unknown"
+      ],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "检查 unknown 相关错误",
+      "auto_generated": true,
+      "first_seen": 1785400277,
+      "last_seen": 1786445027,
+      "frequency": 42
     }
   ]
 }

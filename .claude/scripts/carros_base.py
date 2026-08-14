@@ -1,4 +1,3 @@
-from __future__ import annotations
 #!/usr/bin/env python3
 """
 carros_base.py — CarrorOS Base 核心状态系统
@@ -423,6 +422,35 @@ def now_iso():
     return carros_utils.now_iso() if carros_utils else datetime.now(timezone.utc).replace(microsecond=0).isoformat()
 
 
+def _derive_task_desc(token: dict, plan_path: Optional[Path] = None) -> str:
+    """从 token 或 plan.md 的 ## Goal 节提取任务描述（供 handoff 等使用）。
+
+    index28 修复: 旧实现取 plan.md 第一个标题行（## Goal → 'Goal'）作描述——
+    标题本身是节名不是内容。新实现只取 ## Goal 节下的首个内容行。
+    """
+    desc = (token.get("description") or (token.get("goal") or {}).get("description") or "")
+    if desc and desc != "未知":
+        return desc[:200]
+    if plan_path and plan_path.exists():
+        try:
+            _plan_lines = plan_path.read_text(encoding="utf-8").splitlines()
+            in_goal = False
+            for _l in _plan_lines:
+                s = _l.strip()
+                if s.startswith("## Goal"):
+                    in_goal = True
+                    continue
+                if not in_goal:
+                    continue
+                if s.startswith("## "):
+                    break
+                if s and not s.startswith((">", "<!--")):
+                    return s[:200]
+        except Exception:
+            pass
+    return ""
+
+
 def _write_handoff(token, plan_summary=None):
     """写入 Resume Capsule — 7 段结构化 handoff（R2 Compact Storm）"""
     import sys
@@ -438,18 +466,8 @@ def _write_handoff(token, plan_summary=None):
     done = token.get("stats", {}).get("done", 0)
     total = token.get("stats", {}).get("total", 0)
     current = token.get("task", {}).get("current_step", "?")
-    task_desc = (token.get("description") or (token.get("goal") or {}).get("description") or "")
-    if not task_desc or task_desc == "未知":
-        # Lossless handoff: derive goal from plan.md when the token has none.
-        try:
-            _plan_lines = PLAN_PATH.read_text(encoding="utf-8").splitlines() if PLAN_PATH else []
-            for _l in _plan_lines:
-                if _l.startswith("#") and not _l.startswith("# Plan"):
-                    task_desc = _l.lstrip("# ").strip()
-                    break
-        except Exception:
-            pass
-    task_desc = (task_desc or "未知")[:200]
+    task_desc = _derive_task_desc(token, PLAN_PATH) or "未知"
+    task_desc = task_desc[:200]
     level = token.get("level", token.get("session", {}).get("level", "L1"))
     # 读取 error-dna（最近 3 条）
     errors = ""

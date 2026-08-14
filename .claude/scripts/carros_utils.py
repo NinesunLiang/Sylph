@@ -288,10 +288,16 @@ def _extract_decisions(executor_text: str, audit_events: list[dict]) -> list[dic
         reason_text = ""
 
         if event_type in ("oracle_decision",):
-            decision_text = f"Oracle: {data.get('decision', '?')}"
+            _val = data.get("decision")
+            if not _val:
+                continue  # index28: 缺字段事件不渲染 '?' 占位
+            decision_text = f"Oracle: {_val}"
             reason_text = data.get("reason", "")
         elif event_type in ("fallback_event", "fallback"):
-            decision_text = f"Fallback: {data.get('decision', '?')}"
+            _val = data.get("decision")
+            if not _val:
+                continue
+            decision_text = f"Fallback: {_val}"
             reason_text = data.get('reason', '') or data.get('failure_type', '')
         elif event_type == "archive_completed":
             decision_text = "归档完成"
@@ -300,7 +306,10 @@ def _extract_decisions(executor_text: str, audit_events: list[dict]) -> list[dic
             decision_text = "任务阻塞"
             reason_text = data.get("reason", "")
         elif event_type in ("verify_decision",):
-            decision_text = f"验证: {data.get('step', '?')} → {data.get('decision', '?')}"
+            _step, _val = data.get("step"), data.get("decision")
+            if not (_step and _val):
+                continue
+            decision_text = f"验证: {_step} → {_val}"
             reason_text = ""
 
         if decision_text:
