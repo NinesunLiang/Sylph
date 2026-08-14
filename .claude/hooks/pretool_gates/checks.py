@@ -587,7 +587,12 @@ def _check_injection(payload: dict) -> str | None:
 # 任务不得改写 .omc/ 骨架索引(会与主树/其他 worktree merge 冲突)。
 # 必须进 _GATE_CORE(守护级, 不因 L1/L2 跳过)。
 # ──────────────────────────────────────────────
-_SKELETON_MD_RE = re.compile(r"(^|[/\\])\.omc[/\\].*\.md$", re.IGNORECASE)
+# index30 修复: 只拦 state 骨架/导航索引/归档冻结文档; 放行任务文档
+# (.omc/tasks/{date}/{task}/executor.md 等——模型按 AGENTS.md 工作流必须写,
+# 旧正则 .omc/**/*.md 拦全部导致治理自噬: ON 电池 tick/verify 流程被自身门禁 BLOCK)。
+_SKELETON_MD_RE = re.compile(
+    r"(^|[/\\])\.omc[/\\](?:state[/\\].*\.md$|archive[/\\].*\.md$|.*[/\\]index\.md$)",
+    re.IGNORECASE)
 
 
 def _check_omc_skeleton_readonly(payload: dict) -> str | None:

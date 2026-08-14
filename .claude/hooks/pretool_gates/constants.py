@@ -124,11 +124,16 @@ BASH_READ_TOKEN_RE = re.compile(
     r"""|(?:^|\s)(?:cat|head|tail|less|more|nl|sed)\s+(?:-[^\s]+ )*["']?([^\s'"|;&><]+)["']?"""
 )
 
-# Bash 写入通道: 重定向 / tee / sed -i / python open(w|a) / touch
+# Bash 写入通道: 重定向 / tee / sed -i / python open(w|a) / touch /
+# Path.write_text/write_bytes / shutil.copy 系 / json.dump→open（index30 扩展:
+# 电池实测 Path.write_text 绕过 open( 正则导致 credentials.json 被改写）
 BASH_WRITE_TOKEN_RE = [
     re.compile(r"""(?:^|[\s|;&])(?:>>|>)\s*["']?([^\s'"|;&><]+)"""),
     re.compile(r"""(?:^|\s)tee\s+["']?([^\s'"|;&><]+)"""),
     re.compile(r"""(?:^|\s)sed\s+-i\b.*?["']?([^\s'"|;&><]+)$"""),
     re.compile(r"""open\(\s*["']([^"']+)["']\s*,\s*["']wa?["']"""),
     re.compile(r"""(?:^|\s)touch\s+["']?([^\s'"|;&><]+)"""),
+    re.compile(r"""Path\(\s*["']([^"']+)["']\s*\)\.write_(?:text|bytes)"""),
+    re.compile(r"""shutil\.(?:copy|move|copyfile|copy2)\s*\([^,]+,\s*["']([^"']+)["']"""),
+    re.compile(r"""json\.dump\(\s*[^,]+,\s*open\(\s*["']([^"']+)["']"""),
 ]

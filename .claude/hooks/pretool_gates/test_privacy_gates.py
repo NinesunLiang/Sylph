@@ -135,3 +135,22 @@ def test_rooot_resolution_is_cwd_independent():
     assert (_c.ROOT / ".git").is_dir() or (_c.ROOT / "AGENTS.md").is_file(), \
         f"ROOT 缺仓库根标志: {_c.ROOT}"
     assert _c.AUDIT == _c.ROOT / ".omc" / "state" / "audit", f"AUDIT 偏离仓库: {_c.AUDIT}"
+
+
+def test_bash_write_pathlib_write_text():
+    """index30: Path.write_text 绕过 open( 正则——必须拦截。"""
+    r = _check_sensitive_write_bash(
+        _payload("Bash", command="python3 -c \"from pathlib import Path; Path('credentials.json').write_text('x')\""))
+    assert r and r.startswith("ASK_USER"), r
+
+
+def test_bash_write_shutil_copy_target():
+    r = _check_sensitive_write_bash(
+        _payload("Bash", command="python3 -c \"import shutil; shutil.copy('a.txt', 'credentials.json')\""))
+    assert r and r.startswith("ASK_USER"), r
+
+
+def test_bash_write_json_dump_open():
+    r = _check_sensitive_write_bash(
+        _payload("Bash", command="python3 -c \"import json; json.dump({}, open('credentials.json','w'))\""))
+    assert r and r.startswith("ASK_USER"), r

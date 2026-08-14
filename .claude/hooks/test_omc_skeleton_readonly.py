@@ -49,6 +49,37 @@ def test_allow_non_md_in_omc():
     assert checks._check_omc_skeleton_readonly(payload) is None
 
 
+def test_allow_task_doc_md():
+    """index30 修复: 任务文档 executor.md 是模型按工作流必须写的——放行。"""
+    payload = {"tool_name": "Write",
+               "tool_input": {"file_path": ".omc/tasks/20260815/index30-x/executor.md",
+                              "content": "# Executor Evidence Ledger\n"}}
+    assert checks._check_omc_skeleton_readonly(payload) is None, "任务文档被误拦(治理自噬)"
+
+
+def test_allow_task_handoff_md():
+    """任务目录 handoff.md 属于任务文档——放行。"""
+    payload = {"tool_name": "Write",
+               "tool_input": {"file_path": "/abs/.omc/tasks/20260815/index30-x/handoff.md",
+                              "content": "# Handoff\n"}}
+    assert checks._check_omc_skeleton_readonly(payload) is None
+
+
+def test_block_archive_frozen_md():
+    """index30: 归档文档冻结（archive 下 md 只读）。"""
+    payload = {"tool_name": "Edit",
+               "tool_input": {"file_path": ".omc/archive/20260815_x/x/executor.md", "new_string": "y"}}
+    result = checks._check_omc_skeleton_readonly(payload)
+    assert result is not None and result.startswith("BLOCK"), "归档冻结文档应 BLOCK"
+
+
+def test_block_tokens_index_md():
+    """tokens/index.md 导航索引仍只读。"""
+    payload = {"tool_name": "Write", "tool_input": {"file_path": ".omc/tokens/index.md", "content": "x"}}
+    result = checks._check_omc_skeleton_readonly(payload)
+    assert result is not None and result.startswith("BLOCK"), "导航索引应 BLOCK"
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))
