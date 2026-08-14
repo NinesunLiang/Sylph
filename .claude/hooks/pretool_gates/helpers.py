@@ -384,7 +384,9 @@ def _match_any(text: str, patterns: list[str]) -> str | None:
 def _append_audit(event: dict) -> None:
     try:
         AUDIT.mkdir(parents=True, exist_ok=True)
-        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        # 审计分片名用本地日期（UTC+8 晚 8 小时运行会落昨日分片，双法官 index21 发现）；
+        # 时间戳字段 timestamp 仍保持 UTC ISO（下方 setdefault）。
+        day = datetime.now().strftime("%Y-%m-%d")
         event.setdefault("timestamp", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
         if "task_id" not in event or "step_id" not in event:
             try:

@@ -2,7 +2,7 @@
 
 @.claude/kernel.md
 @.claude/index.md
-@.claude/anti-patterns.md
+@.claude/references/anti-patterns.md
 <!-- @方法引入项目相关配置，如：@README.md -->
 
 > 本文件继承自 CarrorOS 哲学传统。变更须人类裁决。<!-- 冻结态：模型不自改 -->
@@ -31,7 +31,7 @@
 
 ## 临时 Python 过程脚本（不纳入 CarrorOS 治理）
 
-- 任务过程中主动发起的临时 Python 指令，包括测试、验证、编译和一次性处理，必须先用 `Write`/`Edit` 落盘；禁止在终端直接使用 `python3 -c`、`python3 -`、Python heredoc 或 `python3 -m ...` 执行临时逻辑。
+- 任务过程中主动发起的临时 Python 指令，包括测试、验证、编译和一次性处理，必须先用 `Write`/`Edit` 落盘；禁止让用户输入多行 python 指令。
 - 独立终端调用的临时脚本平铺在 `.omc/scripts/<name>.py`；从任务流程调用的脚本放在 `.omc/tasks/{date}/{task_name}/scripts/<name>.py`，按调用位置判定，不按脚本内容猜测。
 - 文件创建完成后，终端只执行一行命令，并从仓库根目录运行：
   ```bash

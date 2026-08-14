@@ -346,7 +346,9 @@ def _try_llm_model(task_id: str, prompt: str,
         model = resolve_oracle_model("runtime")
         payload = json.dumps({
             "model": model,
-            "max_tokens": 2000,
+            # DeepSeek 推理模型 thinking 块会吃预算；8000 给思考留足空间
+            # 避免 thinking 耗尽预算 → text 空 → 静默 fallback（双法官从没真审）。
+            "max_tokens": 8000,
             "temperature": 0.0,
             "system": system_prompt,
             "messages": [{"role": "user", "content": prompt}],
@@ -360,7 +362,7 @@ def _try_llm_model(task_id: str, prompt: str,
         try:
             r = subprocess.run(
                 ["curl", "-s", "-X", "POST", api_url] + curl_args + ["-d", payload],
-                capture_output=True, text=True, timeout=60,
+                capture_output=True, text=True, timeout=150,
             )
             if r.returncode != 0:
                 return False, ""
@@ -395,7 +397,7 @@ def _try_llm_model(task_id: str, prompt: str,
              "-H", "Content-Type: application/json",
              "-H", "Authorization: Bearer " + api_key,
              "-d", payload],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True, text=True, timeout=150,
         )
         if r.returncode != 0:
             return False, ""
@@ -570,6 +572,7 @@ def _review_with_llm_fallback(task_id: str, target_text: str,
     result = fallback_fn(*fallback_args)
     result["mode"] = "rule_fallback"
     result["source"] = "oracle_agent"
+    result["llm_fallback_reason"] = "LLM 未产出裁决文本（无 text 块/API 失败）；已回退规则扫描，非真实 LLM 双审"
     return result
 
 
@@ -608,6 +611,7 @@ def review_static(task_id: str, plan_text: str = "",
     result = _static_scan_rule_based(plan_text, executor_text, diff_text)
     result["mode"] = "rule_fallback"
     result["source"] = "oracle_agent"
+    result["llm_fallback_reason"] = "LLM 未产出裁决文本（无 text 块/API 失败）；已回退规则扫描，非真实 LLM 双审"
     return result
 
 
@@ -641,6 +645,7 @@ def review_runtime(task_id: str, executor_text: str = "",
     result = _runtime_scan_rule_based(executor_text, logs_text)
     result["mode"] = "rule_fallback"
     result["source"] = "oracle_agent"
+    result["llm_fallback_reason"] = "LLM 未产出裁决文本（无 text 块/API 失败）；已回退规则扫描，非真实 LLM 双审"
     return result
 
 

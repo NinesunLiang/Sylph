@@ -92,7 +92,9 @@ def write_audit(audit_dir, event_type, data, schema_version="v1.0"):
                 f"audit_schema_violation: {event_type} 事件缺字段 {missing}——拒写(PKG-4 C4 机检)"
             )
     audit_dir.mkdir(parents=True, exist_ok=True)
-    date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
+    # 审计分片名用本地日期（UTC+8 晚 8 小时运行会落昨日分片，双法官 index21 发现）；
+    # 时间戳字段 ts 仍保持 UTC ISO（见下方 record）。
+    date_str = datetime.now().strftime("%Y%m%d")
     audit_file = audit_dir / f"{date_str}.jsonl"
     record = {
         "schema_version": schema_version,
