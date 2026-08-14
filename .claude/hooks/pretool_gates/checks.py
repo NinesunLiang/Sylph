@@ -195,30 +195,75 @@ def _check_governance_bypass(payload: dict) -> str | None:
 
 # ── Gate 3: Action gate ──
 
+def _split_command_segments(cmd: str) -> list[str]:
+    """按 ; / && / || / | / 换行 切分命令段（引号内与 # 注释不切分）。
+
+    index30 修复：危险命令模式锚定段首（`^git push` 等），复合命令
+    （`cd x && git push --force`）中段原本不命中 → 放行（实测真实发生
+    force push 副作用）。切段后每段独立锚定匹配；引号内文本/注释不误伤。
+    """
+    segments: list[str] = []
+    buf: list[str] = []
+    i, n = 0, len(cmd)
+    quote: str | None = None
+    while i < n:
+        ch = cmd[i]
+        if quote:
+            buf.append(ch)
+            if ch == quote and (i == 0 or cmd[i - 1] != "\\"):
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == "#":  # 行注释：跳到行尾
+            while i < n and cmd[i] != "\n":
+                i += 1
+            continue
+        two = cmd[i:i + 2]
+        if ch == "\n" or two in ("&&", "||") or ch in (";", "|"):
+            seg = "".join(buf).strip()
+            if seg:
+                segments.append(seg)
+            buf = []
+            i += 2 if two in ("&&", "||") else 1
+            continue
+        buf.append(ch)
+        i += 1
+    seg = "".join(buf).strip()
+    if seg:
+        segments.append(seg)
+    return segments
+
+
 def _check_action_gate(payload: dict) -> str | None:
     command = _extract_command(payload)
     if not command:
         return None
-    hard = _match_any(command, DANGEROUS_COMMANDS)
-    if hard:
-        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
-                        "decision": "BLOCK", "reason": "dangerous_command",
-                        "pattern": hard, "command_preview": command[:160]})
-        return (f"BLOCK dangerous_command pattern={hard}|"
-                f"⛔ 检测到不可逆破坏性操作。\n"
-                f"可选方案: 1. 使用临时 bypass  2. 使用更安全的替代操作  3. 等待用户介入")
-    ask = _match_any(command, ASK_USER_COMMANDS)
-    if ask:
-        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "approval_required_command",
-                        "pattern": ask, "command_preview": command[:160]})
-        return f"WARN approval_required pattern={ask}"
-    warn_only = _match_any(command, WARN_ONLY_COMMANDS)
-    if warn_only:
-        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "path_specific_destructive",
-                        "pattern": warn_only, "command_preview": command[:160]})
-        return f"WARN path_specific_destructive pattern={warn_only}"
+    for seg in _split_command_segments(command):
+        hard = _match_any(seg, DANGEROUS_COMMANDS)
+        if hard:
+            _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                            "decision": "BLOCK", "reason": "dangerous_command",
+                            "pattern": hard, "command_preview": command[:160]})
+            return (f"BLOCK dangerous_command pattern={hard}|"
+                    f"⛔ 检测到不可逆破坏性操作。\n"
+                    f"可选方案: 1. 使用临时 bypass  2. 使用更安全的替代操作  3. 等待用户介入")
+        ask = _match_any(seg, ASK_USER_COMMANDS)
+        if ask:
+            _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                            "decision": "WARN", "reason": "approval_required_command",
+                            "pattern": ask, "command_preview": command[:160]})
+            return f"WARN approval_required pattern={ask}"
+        warn_only = _match_any(seg, WARN_ONLY_COMMANDS)
+        if warn_only:
+            _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                            "decision": "WARN", "reason": "path_specific_destructive",
+                            "pattern": warn_only, "command_preview": command[:160]})
+            return f"WARN path_specific_destructive pattern={warn_only}"
     return None
 
 

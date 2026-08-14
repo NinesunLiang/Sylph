@@ -58,8 +58,8 @@ READ_SENSITIVE_PATTERNS = [
 DANGEROUS_COMMANDS = [
     r"(^|\s)rm\s+-rf\s+(/\s|\.\s|~\s|\*\s|/$|\.$|~$|\*$)",
     r"(^|\s)rm\s+-r\s+(/\s|\.\s|~\s|\*/)",
-    r"rm\s+-rf?\s+['\"]?(/|~|\*)(\s|$|'|\")",
-    r"rm\s+-rf?\s+['\"]?\.['\"]?(\s|$)",
+    r"(?:^|\s)rm\s+-rf?\s+['\"]?(/|~|\*)(\s|$|'|\")",
+    r"(?:^|\s)rm\s+-rf?\s+['\"]?\.['\"]?(\s|$)",
     r"^sudo\b",
     r"^chmod\s+777\b", r"^chown\b", r"^git\s+push\s+(-f|--force)",
     r"^dd\s+if=", r"^mkfs\.", r"^fdisk\b", r":\(\)\{\s*:\|:\s*&\s*\};:",
