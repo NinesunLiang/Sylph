@@ -41,6 +41,17 @@ SENSITIVE_PATTERNS = [
     r"(^|/)AGENTS\.compact\.md$",
 ]
 
+# ── Read-sensitive patterns (index26 修复) ──
+# 读取侧门禁只拦「凭据/密钥」类路径；治理文件域（AGENTS.md/.claude/hooks 等）是代理
+# 的指令来源，必须可读（只禁写不禁读）。与 SENSITIVE_PATTERNS 的差异即治理文件保护域。
+READ_SENSITIVE_PATTERNS = [
+    r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
+    r"(^|/)\.gcp(/|$)", r"(^|/)\.azure(/|$)", r"id_rsa", r"id_ed25519",
+    r"private[_-]?key", r"(^|/)secret\b", r"(^|/)credential(s)?\b",
+    r"(^|/)password\b", r"(^|/)\.[a-z_-]*(token|oauth|jwt|api[_-]?key)[a-z_-]*\b",
+    r"cookie",
+]
+
 # ── Dangerous command patterns ──
 DANGEROUS_COMMANDS = [
     r"(^|\s)rm\s+-rf\s+(/\s|\.\s|~\s|\*\s|/$|\.$|~$|\*$)",
@@ -88,3 +99,34 @@ _INJECTION_PATTERNS: list[re.Pattern] = [
 ]
 
 _EXTERNAL_DATA_MAX_LEN = 8000
+
+# ── Privacy gate (index25, 人类裁决修复): 密钥内容扫描 + Bash 读写通道提取 ──
+# 与 posttool-sensitive-filter.py 的掩码模式对齐；读取侧先拦截，输出侧再掩码，双层防护。
+SECRET_CONTENT_PATTERNS = [
+    r"sk-[a-zA-Z0-9]{20,}",
+    r"(?:ghp|ghu|gho|ghs)_[a-zA-Z0-9]{36}",
+    r"xox[baprs]-[a-zA-Z0-9-]{20,}",
+    r"-----BEGIN\s+(?:RSA|EC|OPENSSH|DSA|PRIVATE)\s+KEY-----",
+    r"eyJ[a-zA-Z0-9_-]+\.eyJ[a-zA-Z0-9_-]+\.[a-zA-Z0-9_-]+",
+    r"Bearer\s+[a-zA-Z0-9._-]{20,}",
+    r"AKIA[0-9A-Z]{16}",
+    r"org-[a-zA-Z0-9]{20,}",
+    r"(?:sk_live|pk_live)_[a-zA-Z0-9]{20,}",
+]
+SECRET_CONTENT_COMPILED = [re.compile(p) for p in SECRET_CONTENT_PATTERNS]
+PRIVACY_SCAN_SIZE_CAP = 1_048_576  # 内容扫描护栏: 仅 <1MB 文件
+
+# Bash 读取通道: 引号内带扩展名的路径 token（含 python open('x')）或 cat/head/tail/less/more/nl/sed 目标
+BASH_READ_TOKEN_RE = re.compile(
+    r"""["']([^"']+\.(?:json|ya?ml|toml|env|txt|md|py|conf|cfg|ini|xml|csv))["']"""
+    r"""|(?:^|\s)(?:cat|head|tail|less|more|nl|sed)\s+(?:-[^\s]+ )*["']?([^\s'"|;&><]+)["']?"""
+)
+
+# Bash 写入通道: 重定向 / tee / sed -i / python open(w|a) / touch
+BASH_WRITE_TOKEN_RE = [
+    re.compile(r"""(?:^|[\s|;&])(?:>>|>)\s*["']?([^\s'"|;&><]+)"""),
+    re.compile(r"""(?:^|\s)tee\s+["']?([^\s'"|;&><]+)"""),
+    re.compile(r"""(?:^|\s)sed\s+-i\b.*?["']?([^\s'"|;&><]+)$"""),
+    re.compile(r"""open\(\s*["']([^"']+)["']\s*,\s*["']wa?["']"""),
+    re.compile(r"""(?:^|\s)touch\s+["']?([^\s'"|;&><]+)"""),
+]

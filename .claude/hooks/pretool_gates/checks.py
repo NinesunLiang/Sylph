@@ -14,6 +14,9 @@ from .constants import (
     DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS, ASK_USER_COMMANDS,
     READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
     _INJECTION_PATTERNS, _EXTERNAL_DATA_MAX_LEN,
+    BASH_READ_TOKEN_RE, BASH_WRITE_TOKEN_RE,
+    SECRET_CONTENT_COMPILED, PRIVACY_SCAN_SIZE_CAP,
+    READ_SENSITIVE_PATTERNS,
 )
 from .helpers import (
     _goal_mode, _is_governance, _is_sensitive,
@@ -55,6 +58,99 @@ def _check_sensitive_edit(payload: dict) -> str | None:
         return (f"ASK_USER 敏感路径 {path}|"
                 f"检测到可能包含凭据的敏感文件，请确认是否继续修改。\n"
                 f"确认后继续；未确认则停止本次操作。")
+    return None
+
+
+# ── Gate 1b (index25): sensitive read — 读取侧隐私门禁 ──
+# 动机: posttool-sensitive-filter 是提示型掩码（hook stderr 输出掩码版，不剥离模型可见的
+# 原始工具结果）→ 密钥仍会进入模型上下文（index24 P1 双法官确认）。本门在读取前拦截:
+# 路径命中敏感模式 → 直接拦；内容命中密钥模式（<1MB 文本）→ 拦。
+def _candidate_read_paths(payload: dict) -> list[str]:
+    tool = _extract_tool(payload).lower()
+    inp = _extract_input(payload)
+    paths: list[str] = []
+    if tool in ("read", "grep", "search_files"):
+        p = str(inp.get("file_path") or inp.get("path") or "")
+        if p:
+            paths.append(p)
+    elif tool == "bash":
+        cmd = _extract_command(payload) or ""
+        for m in BASH_READ_TOKEN_RE.finditer(cmd):
+            g = m.group(1) or m.group(2)
+            if g:
+                paths.append(g)
+    return paths
+
+
+def _resolve_read_path(p: str) -> Path:
+    q = Path(p.strip().strip("'\""))
+    if not q.is_absolute():
+        q = Path(os.getcwd()) / q
+    return q
+
+
+_READ_SENSITIVE_RE = re.compile("|".join(READ_SENSITIVE_PATTERNS), re.IGNORECASE)
+
+
+def _is_read_sensitive(path: str) -> bool:
+    """读取侧敏感判定：仅凭据/密钥类路径；治理文件域（AGENTS.md/.claude/hooks）可读。"""
+    return bool(_READ_SENSITIVE_RE.search(path.replace("\\", "/")))
+
+
+def _check_sensitive_read(payload: dict) -> str | None:
+    """读取敏感文件（路径模式或内容含密钥模式）→ ASK_USER(deny)，阻止密钥进入上下文。"""
+    for raw in _candidate_read_paths(payload):
+        q = _resolve_read_path(raw)
+        if not q.exists():
+            continue
+        s = str(q)
+        if _is_read_sensitive(s):
+            _append_audit({"event_type": "privacy_read_block", "actor": "hook:pretool-gate",
+                           "path": s, "reason": "sensitive_path"})
+            return (f"ASK_USER sensitive_read|"
+                    f"⛔ 读取被隐私门禁拦截：{q.name} 命中敏感路径模式（凭据/密钥）。\n"
+                    f"确需读取请人工授权；或先脱敏导出。")
+        if q.is_file() and q.stat().st_size <= PRIVACY_SCAN_SIZE_CAP:
+            try:
+                data = q.read_bytes()
+            except OSError:
+                continue
+            if b"\x00" in data[:8192]:
+                continue  # 二进制文件不扫描
+            text = data.decode("utf-8", errors="ignore")
+            if any(pat.search(text) for pat in SECRET_CONTENT_COMPILED):
+                _append_audit({"event_type": "privacy_read_block", "actor": "hook:pretool-gate",
+                               "path": s, "reason": "secret_content"})
+                return (f"ASK_USER sensitive_read|"
+                        f"⛔ 读取被隐私门禁拦截：{q.name} 内容含密钥/凭据模式"
+                        f"（sk-*/私钥/令牌）。\n"
+                        f"确需读取请人工授权；或使用脱敏导出通道。")
+    return None
+
+
+# ── Gate 1c (index25): sensitive write via Bash — 补 sensitive-edit 的 Bash 通道 ──
+# 动机: sensitive-edit 只覆盖 WRITE_TOOLS（Edit/Write），模型经 Bash 写敏感/治理路径
+# （sed -i / tee / 重定向 / python open(w|a) / touch）可绕过（index24 P6 双法官确认）。
+def _check_sensitive_write_bash(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    cmd = _extract_command(payload) or ""
+    candidates: list[str] = []
+    for rx in BASH_WRITE_TOKEN_RE:
+        for m in rx.finditer(cmd):
+            g = m.group(1)
+            if g:
+                candidates.append(g.strip().strip("'\""))
+    for raw in candidates:
+        if not raw:
+            continue
+        if _is_sensitive(raw) or _is_governance(raw):
+            _append_audit({"event_type": "privacy_write_block", "actor": "hook:pretool-gate",
+                           "path": raw, "reason": "sensitive_or_governance"})
+            return (f"ASK_USER sensitive_write|"
+                    f"⛔ Bash 写入被门禁拦截：{raw} 命中敏感/治理路径（凭据/密钥/治理文件）。\n"
+                    f"确需修改请改用 Edit 工具走敏感编辑流程，或人工授权。")
     return None
 
 
