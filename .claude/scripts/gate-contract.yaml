@@ -6,6 +6,8 @@ schema_version: "1.1"
 L1:
   required_gates:
     - sensitive-edit
+    - sensitive-read
+    - sensitive-write-bash
     - governance-bypass
     - action
     - secret-scan

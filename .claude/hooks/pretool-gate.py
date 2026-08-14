@@ -49,6 +49,7 @@ from pretool_gates.checks import (
     _check_numeric_claim, _check_action_loop,
     _check_stall, _check_injection,
     _check_omc_skeleton_readonly,
+    _check_sensitive_read, _check_sensitive_write_bash,
 )
 
 # ── L1/L2 Gate definitions ──
@@ -59,6 +60,9 @@ from pretool_gates.checks import (
 # G5 (index18 人类裁决)：L1/L2 门列表单一真源——核心门只写一遍，避免改门时两处漏改。
 _GATE_CORE = [
     ("sensitive-edit", _check_sensitive_edit),
+    # index25(人类裁决修复): 读取侧隐私门禁 + Bash 写敏感路径补漏
+    ("sensitive-read", _check_sensitive_read),
+    ("sensitive-write-bash", _check_sensitive_write_bash),
     ("governance-bypass", _check_governance_bypass),
     ("action", _check_action_gate),
     ("secret-scan", _check_secret_scan),
