@@ -154,3 +154,10 @@ def test_bash_write_json_dump_open():
     r = _check_sensitive_write_bash(
         _payload("Bash", command="python3 -c \"import json; json.dump({}, open('credentials.json','w'))\""))
     assert r and r.startswith("ASK_USER"), r
+
+
+def test_bash_write_python_open_wb_mode():
+    """index31: open('x','wb') 二进制写模式——补漏。"""
+    r = _check_sensitive_write_bash(
+        _payload("Bash", command="python3 -c \"open('credentials.json','wb').write(b'x')\""))
+    assert r and r.startswith("ASK_USER"), r

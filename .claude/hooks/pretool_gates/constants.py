@@ -131,7 +131,7 @@ BASH_WRITE_TOKEN_RE = [
     re.compile(r"""(?:^|[\s|;&])(?:>>|>)\s*["']?([^\s'"|;&><]+)"""),
     re.compile(r"""(?:^|\s)tee\s+["']?([^\s'"|;&><]+)"""),
     re.compile(r"""(?:^|\s)sed\s+-i\b.*?["']?([^\s'"|;&><]+)$"""),
-    re.compile(r"""open\(\s*["']([^"']+)["']\s*,\s*["']wa?["']"""),
+    re.compile(r"""open\(\s*["']([^"']+)["']\s*,\s*["']wa?b?["']"""),
     re.compile(r"""(?:^|\s)touch\s+["']?([^\s'"|;&><]+)"""),
     re.compile(r"""Path\(\s*["']([^"']+)["']\s*\)\.write_(?:text|bytes)"""),
     re.compile(r"""shutil\.(?:copy|move|copyfile|copy2)\s*\([^,]+,\s*["']([^"']+)["']"""),
