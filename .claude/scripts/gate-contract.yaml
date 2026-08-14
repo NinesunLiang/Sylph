@@ -8,6 +8,7 @@ L1:
     - sensitive-edit
     - sensitive-read
     - sensitive-write-bash
+    - test-verification
     - governance-bypass
     - action
     - secret-scan

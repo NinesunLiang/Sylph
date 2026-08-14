@@ -7,6 +7,7 @@ import os
 import re
 import sys
 import time
+from datetime import datetime
 from pathlib import Path
 
 from .constants import (
@@ -54,6 +55,15 @@ def _check_sensitive_edit(payload: dict) -> str | None:
         _append_audit({"event_type": "governance_warn", "path": path, "tool": tool})
         print(json.dumps({"continue": True, "message": reason_text}, ensure_ascii=False))
         return None
+    if _is_read_sensitive(path):
+        # index31 F2: 凭据类 default-deny（.env/.ssh/credentials/secret/password/
+        # api_key/token）——自动放行环境下 ASK_USER 退化为留痕（index30 法官发现），
+        # 凭据改写不可逆，升级为硬 BLOCK；确需修改走 temp-bypass/人工流程。
+        _append_audit({"event_type": "credential_write_block", "actor": "hook:pretool-gate",
+                       "path": path, "tool": tool})
+        return (f"BLOCK sensitive-credential|"
+                f"⛔ 凭据类文件 {path} 写入被默认拒绝（default-deny）。\n"
+                f"凭据改写不可逆且有泄露风险；确需修改请走人工审批/temp-bypass 流程。")
     if _is_sensitive(path):
         return (f"ASK_USER 敏感路径 {path}|"
                 f"检测到可能包含凭据的敏感文件，请确认是否继续修改。\n"
@@ -126,6 +136,52 @@ def _check_sensitive_read(payload: dict) -> str | None:
                         f"（sk-*/私钥/令牌）。\n"
                         f"确需读取请人工授权；或使用脱敏导出通道。")
     return None
+
+
+# ── Gate 1d (index31 F3): test-verification — 改代码后验证补位 ──
+# index30 法官发现：skip-tests 场景 verify-gate 未触发，ON 侧"说明风险"即达标。
+# 本门：Edit/Write 修改 .py 源码且项目存在测试文件但本日无测试执行记录 → REDIRECT
+# 引导实跑（软引导不阻断；验证大于承诺铁律的机制化）。
+
+def _check_test_verification(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS:
+        return None
+    path = str(_extract_path(payload) or "").replace("\\", "/")
+    base = os.path.basename(path)
+    if not path.endswith(".py") or base.startswith("test_") or base.endswith("_test.py"):
+        return None
+    if "/test" in path.lower().replace("\\", "/") or path.startswith("tests/"):
+        return None
+    # 项目是否有测试文件（cwd 根一层，性能护栏）
+    has_tests = False
+    try:
+        for cand in ("test_*.py", "*_test.py"):
+            if list(Path(os.getcwd()).glob(cand)):
+                has_tests = True
+                break
+        if not has_tests and (Path(os.getcwd()) / "tests").is_dir():
+            has_tests = True
+    except OSError:
+        return None
+    if not has_tests:
+        return None
+    # 本日 audit 是否有测试执行记录
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        audit_dir = STATE_DIR / "audit"
+        if audit_dir.exists():
+            for f in audit_dir.glob(f"{today}.jsonl"):
+                content = f.read_text(encoding="utf-8", errors="ignore")
+                if "pytest" in content or "run-tests" in content or "test_run" in content:
+                    return None
+    except OSError:
+        return None
+    _append_audit({"event_type": "test_verification_redirect", "actor": "hook:pretool-gate",
+                   "path": path, "reason": "no_test_evidence"})
+    return (f"REDIRECT test-verification|"
+            f"⚠️ 修改了 {os.path.basename(path)}，项目存在测试文件且本日无测试执行记录。\n"
+            f"铁律「验证大于承诺」：请运行测试（如 python3 -m pytest -q）并附结果证据后再报告完成。")
 
 
 # ── Gate 1c (index25): sensitive write via Bash — 补 sensitive-edit 的 Bash 通道 ──

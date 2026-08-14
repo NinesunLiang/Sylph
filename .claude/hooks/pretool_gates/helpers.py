@@ -662,10 +662,29 @@ def _clean_stale_state_token() -> None:
 # Gate mode & misc
 # ═══════════════════════════════════
 
+def _gate_mode_from_token(token) -> str:
+    """index31: 任务 level 与 gate mode 联动（L1 任务→l1 轻量门，L2→全量）。"""
+    try:
+        if isinstance(token, dict):
+            lvl = str(((token.get("session") or {}).get("level") or "")).lower()
+            if lvl in ("l1", "l2"):
+                return lvl
+    except Exception:
+        pass
+    return ""
+
+
 def _get_gate_mode() -> str:
     env_mode = os.environ.get("CARROROS_GATE_MODE", "").lower()
     if env_mode in ("l1", "l2"):
         return env_mode
+    # index31: 任务级别优先联动（有活跃 token 时按 level 定门）
+    try:
+        _tok_mode = _gate_mode_from_token(_active_token())
+        if _tok_mode:
+            return _tok_mode
+    except Exception:
+        pass
     harness_mode = ""
     try:
         _HARNESS_PATH = ROOT / "scripts" / "carroros-gates" / "harness.yaml"
@@ -712,13 +731,31 @@ def _validate_bypass_token(token: str) -> bool:
         return False
 
 
+_GATE_PASS_COUNTER = AUDIT.parent / "gate-pass-count.jsonl"
+
+
 def _record_gate_decision(gate_name: str, result: str | None, mode: str) -> None:
+    """index31 审计压缩: PASS 收敛为按 (date,gate,mode) 计数文件; 非 PASS 逐条 audit。"""
     now = datetime.now(timezone.utc)
+    decision = result[:50] if result else "PASS"
+    if decision == "PASS":
+        try:
+            _GATE_PASS_COUNTER.parent.mkdir(parents=True, exist_ok=True)
+            with open(_GATE_PASS_COUNTER, "a", encoding="utf-8") as _fh:
+                _fh.write(json.dumps({
+                    "date": now.strftime("%Y-%m-%d"),
+                    "gate": gate_name,
+                    "mode": mode,
+                    "count": 1,
+                }) + "\n")
+        except OSError:
+            pass
+        return
     _append_audit({
         "event_type": "gate_decision",
         "gate": gate_name,
         "mode": mode,
-        "decision": result[:50] if result else "PASS",
+        "decision": decision,
         "timestamp": now.isoformat(),
     })
 
