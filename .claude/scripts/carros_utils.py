@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """
 carros_utils.py — CarrorOS 工具函数（handoff / audit / report）
 

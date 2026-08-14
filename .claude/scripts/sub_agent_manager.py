@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """
 sub_agent_manager.py — Main-Sub 双层架构核心编排器
 

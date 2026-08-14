@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """Aggregate scorecard and local evaluation readiness into a fail-closed report."""
 
 import json

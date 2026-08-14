@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """
 posttool-sensitive-filter.py — PostToolUse — 轻量敏感数据输出过滤器
 PostTool 阶段对工具输出做简单模式匹配掩码，阻止敏感信息进入 LLM 上下文。

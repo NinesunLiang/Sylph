@@ -220,7 +220,8 @@ def render_failure_md(failure: Failure) -> str:
         f"- timestamp: {failure.timestamp}",
     ]
     if failure.output_tail:
-        lines.append(f"- output_tail: {failure.output_tail.replace(chr(10), '\\n')}")
+        escaped = failure.output_tail.replace(chr(10), "\\n")
+        lines.append(f"- output_tail: {escaped}")
     return "\n".join(lines) + "\n"
 
 

@@ -9,6 +9,8 @@ Grok P0 发现: 多 gate 可能在同一进程窗口写 token.json 导致 torn w
   write_with_lock(Path(".omc/state/token.json"), data)
 """
 
+from __future__ import annotations
+
 import fcntl
 import json
 import os

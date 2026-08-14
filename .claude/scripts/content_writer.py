@@ -1,5 +1,7 @@
 """UTF-8 safe writer for payloads subject to the 8000-character tool gate."""
 
+
+from __future__ import annotations
 from pathlib import Path
 
 DEFAULT_CHUNK_BYTES = 6000

@@ -5,6 +5,8 @@
 2. _find_active_goal 检测到同 base 已有活跃任务（.lock 或 state=active）
 3. 无活跃任务时不误报
 """
+
+from __future__ import annotations
 import importlib.util
 import json
 import sys

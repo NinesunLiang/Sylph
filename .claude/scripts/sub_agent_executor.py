@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 sub_agent_executor.py — 轻量 subagent 运行器

@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """error_dna_logger.py — 错误 DNA 收集器
 

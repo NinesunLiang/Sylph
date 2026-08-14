@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """goal_contracts.py — ResearchGate + PlanGate for GoalMachine lifecycle validation.
 

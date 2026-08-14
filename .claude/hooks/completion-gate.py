@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """completion-gate.py — PostToolUse:TaskUpdate — 强制 TaskUpdate 前提供结构化证据文件
 Role: 强制 TaskUpdate 前提供结构化证据文件
 

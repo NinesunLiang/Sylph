@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """
 hot_card.py — CarrorOS Hot Card 渲染器
 

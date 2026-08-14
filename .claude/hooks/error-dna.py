@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """error-dna.py — PostToolUse:Bash / PostToolUseFailure:Bash — 轻量错误捕获（Oracle 瘦身后 v2）
 Role: 捕获 Bash 错误写入 error-dna.jsonl + governance-audit.jsonl + total-ops 计数器 + 高频告警
 

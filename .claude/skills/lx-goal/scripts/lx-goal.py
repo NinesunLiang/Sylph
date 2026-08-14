@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """
 lx-goal.py — 目标模式（目标驱动自主执行）
 跨平台（macOS/Linux/Windows）

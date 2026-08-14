@@ -6,6 +6,8 @@
   3. .omc/state 无一次性评测残留
   4. checks.py 无未路由死函数
 """
+
+from __future__ import annotations
 import re
 from pathlib import Path
 

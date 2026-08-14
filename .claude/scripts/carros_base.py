@@ -1,3 +1,4 @@
+from __future__ import annotations
 #!/usr/bin/env python3
 """
 carros_base.py — CarrorOS Base 核心状态系统

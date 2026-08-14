@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 from urllib.parse import urlparse
 
 
@@ -18,7 +18,7 @@ from write_lock import update_json_with_lock
 
 
 TERMINAL_STATUSES = frozenset({"completed", "failed", "timeout", "cancelled"})
-ResultUpdater = Callable[[dict[str, Any]], dict[str, Any] | None]
+ResultUpdater = Callable[[dict[str, Any]], Optional[dict[str, Any]]]
 
 # Remote agent endpoints require an explicit human-authorized override.
 ALLOW_REMOTE_AGENT_ENV = "CARROROS_ALLOW_REMOTE_AGENT"

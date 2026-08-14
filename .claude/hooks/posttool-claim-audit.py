@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """posttool-claim-audit.py — PostToolUse:Edit|Write — 铁律 #1「禁止编造」强制校验
 检测 AI 对文件内容的断言（file:line 引用 + 数值断言来源）是否基于真实读取
 Role: 铁律 #1 enforce — AI 不能编造没读过的代码事实 + 不能写无来源的数值断言

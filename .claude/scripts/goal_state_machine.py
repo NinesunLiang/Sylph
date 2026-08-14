@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
-"""
-goal_state_machine.py — Goal 严格向前状态机
+"""goal_state_machine.py — Goal 严格向前状态机
 
 Pipeline: CLARIFY → PLANNING → EXECUTING → VERIFYING → ARCHIVING → ARCHIVED
 
@@ -19,6 +18,8 @@ Usage:
     gm.transition("VERIFYING")
     print(gm.current_state)
 """
+
+from __future__ import annotations
 
 import json
 import os

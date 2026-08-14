@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+
+from __future__ import annotations
 """
 harness_core.py — 共享库核心（Python 版）
 高频函数: hc_enabled, output_continue, read_input, flywheel_event, hc_get
