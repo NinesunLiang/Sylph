@@ -377,6 +377,12 @@ def main():
     fingerprint = [error_type, _exit_code_group, _step, _cmd_family_stripped]
 
     # === C6: level 严重级别 ===
+    # is_escape 判定前置（修复: 原在 413 行后赋值, 此处先使用导致 UnboundLocalError）
+    is_escape = False
+    if ESCAPE_E1:
+        is_escape = True
+    elif ESCAPE_E2:
+        is_escape = True
     if is_escape:
         _level = 'error'
     elif exit_code != 0 and _has_stderr:
@@ -410,7 +416,6 @@ def main():
         'retry_count': _retry_count,
     }
 
-    is_escape = False
     if ESCAPE_E1:
         record['error_type'] = 'governance_bypass'
         record['escape_type'] = 'governance_bypass'
