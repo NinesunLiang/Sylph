@@ -3,10 +3,12 @@
 > 背景：index17 独立评估发现——ON spawn 会话能写文件完成任务，关键机制是 `.claude/settings.local.json` 的 `permissions.allow` 含 `Bash(python3 *)`。该文件 gitignored（机器本地），fresh 环境（新克隆/新机器）无此配置时，headless AI 所有写入被拦，退回「OFF 全拦」状态。
 >
 > 用户裁决（2026-08-13）：把权限契约写进项目正式文件，让任何环境都能用。
+> 后续调整（2026-08-14，index21 通用化）：契约文件本体已**本地化**（gitignored、不提交远程），
+> 但机制保留——`apply_permissions.py` 把契约并集合并到本地 `settings.local.json` 生效。
 
 ## 契约文件
 
-`.claude/settings.permissions.json`（**已提交**）——可移植的 headless 执行使能白名单：
+`.claude/settings.permissions.json`（**gitignored 本地保留**，机器本地换挡）——可移植的 headless 执行使能白名单：
 
 - `Bash(python3 *)`：核心使能。允许 python3 脚本/heredoc/-c 执行（headless 下唯一可靠的写文件与运行路径）。
 - 少量只读工具（git status/diff/log、ls、pwd）：headless 下的常用只读操作。

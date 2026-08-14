@@ -101,7 +101,7 @@ Coverage Gate 位置: `.claude/references/tests/test-coverage-gate.py`
   [裁决记录]      → "三模型认可吗" —— 终审票决记录
 ```
 
-**数据源**: `improve_plan/CarrorOS_second_time/scorecard.md`
+**数据源**: `references/scorecard.md`
 
 **格式规范**（每轮记录）:
 ```markdown
@@ -259,7 +259,7 @@ delta = (当前加权 - baseline) / (目标加权 - baseline)
 | `.claude/references/tests/test-coverage-gate.py` | 覆盖门禁（100% 断言） |
 | `.claude/scripts/eval-aggregate.py` | 合成器——读 scorecard + 审计 → 出报告 |
 | `.claude/scripts/meta_oracle.py` | 审计器——G1-G4 框架 |
-| `improve_plan/CarrorOS_second_time/scorecard.md` | 纵向账本 |
+| `references/scorecard.md` | 纵向账本 |
 | `benchmark/runs/` | 基准回归存档 |
 
 ---

@@ -468,11 +468,13 @@ def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None):
     goal_state["completed_tasks"] = []
     goal_state["hard_boundary_hits"] = []
     goal_state["blocked_human"] = []
-    if "frontend-overnight" in goal:
+    # UI 还原类目标（frontend-overnight / ui-autopilot 工作流）预设 scope。
+    # 通用化: 识别任意 UI 还原目标, scope 可被用户显式覆盖。
+    if "frontend-overnight" in goal or "ui-autopilot" in goal:
         task = existing.setdefault("task", {})
         prototype_scope = task.get("scope", []) or []
         task["prototype_scope"] = prototype_scope
-        task["implementation_scope"] = [
+        task["implementation_scope"] = task.get("implementation_scope") or [
             "src/", "public/", ".claude/workflows/", ".omc/ui-autopilot/"
         ]
         task["scope"] = task["implementation_scope"]

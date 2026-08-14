@@ -93,7 +93,7 @@
 
 ## 输出格式
 
-使用 [统一交付 Schema](../references/task-architecture/unified_delivery_schema.md)：
+使用 [GateKeeper 裁决输出](../references/current-task-architecture.md)（统一交付 Schema 已 SUPERSEDED，见 §3）：
 - state: `executing` | `blocked` | `done`
 - 本轮产出必须包含：
   - 做了什么改动（文件清单）

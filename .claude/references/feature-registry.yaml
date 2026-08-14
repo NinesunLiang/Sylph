@@ -335,7 +335,7 @@ hooks:
   philosophy: ['#2', '#5']
   type: guard
   category: quality
-  description: 拦截硬编码版本号写入 SKILL.md，确保只用 >= 格式（指向 VERSION.json 单一真相源）
+  description: 拦截硬编码版本号写入 SKILL.md，确保只用 >= 格式（指向 .claude/VERSION 单一真相源）
   enabled_by_default: true
   evidence_level: L3
 - name: pretool-edit-scope

@@ -8,16 +8,7 @@
 
 ## 设计决策
 
-| ADR | 决策 | 文件 |
-|-----|------|------|
-| 0001 | `.omc/` 作为 AI 唯一写入域 | `adr/0001-omc-ai-write-domain.md` |
-| 0002 | Token + Lock 双层任务生命周期 | `adr/0002-token-lock-task-lifecycle.md` |
-| 0003 | VerifyGate 证据等级 E3>E2>E1>E0 | `adr/0003-verifygate-evidence-hierarchy.md` |
-| 0004 | Oracle 双模型对抗审核 | `adr/0004-oracle-dual-model-adversarial-review.md` |
-| 0005 | Goal 模式自主执行 + skip-risk 安全阀 | `adr/0005-goal-mode-autonomous-execution.md` |
-| 0012 | REDIRECT oracle 判决级别 + 反模式注入 | `adr/0012-redirect-verdict-level.md` |
-| 0013 | Scorecard 自评审计门禁 | `adr/0013-scorecard-self-rating-audit-gate.md` |
-
+> 架构决策唯一真源为 [`adr/INDEX.md`](../adr/INDEX.md)（0001-0018）。此处不再重复维护列表。
 > 自 2026-07-25 起，架构决策不再仅靠"不可撤销 + 非直觉 + 真权衡"。门禁、反模式等高频更迭项通过 `anti-patterns.md`（K 区）和 `redirect-mechanism.md` 记录演化，无 ADR 的决策视为"设计内调整"。
 
 ---
@@ -41,8 +32,7 @@
 | 规格 | 描述 |
 |------|------|
 | `evaluation-framework.md` | 四层架构：Regression → Longitude → Latitude → Adversarial |
-| `scorecard.md`（improve_plan/） | 纵向提分账本，R0-R6 完整轮次 + 三模型终审记录 |
-| `improve_plan/CarrorOS_second_time/round7/` | 三模型(Opus/GPT/Grok)独立方案 |
+| `scorecard.md`（references/） | 纵向提分账本，R0-R6 完整轮次 + 三模型终审记录 |
 
 **顶层设计**: `evaluation-framework.md` — C1-C9 能力激发、E1-E8 错误防护、长期治理 7 维、UX 7 维、合计 31 维度评分体系。总分 = 纵向追踪 ×0.6 + 独立审计 ×0.4。
 
@@ -91,12 +81,7 @@
 ├── skills/
 │   └── lx-goal/                  # Goal 模式
 └── scripts/
-    └── carros_base.py             # 主入口
-improve_plan/
-├── CarrorOS_second_time/
-│   ├── scorecard.md              # 纵向提分账本
-│   └── round7/                   # 三模型终审方案
-scripts/
-├── run-regression.sh             # 回归地基
-├── verify_contract.py            # 验证判决契约
-tests/                              # 44 测试文件 + REDIRECT 测试套件
+    ├── carros_base.py             # 主入口
+    ├── run-regression.sh          # 回归地基
+    └── lib/                       # 共享子模块
+scorecard.md                        # 纵向提分账本（references/ 真源）

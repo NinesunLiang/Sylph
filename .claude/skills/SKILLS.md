@@ -27,5 +27,5 @@ lx-task-spec ──deep→ lx-stepwise (串行攻坚引擎)
 
 | 文件 | 被引用者 |
 |------|---------|
-| `references/oma/` | lx-rpe (残余引用，待清理) |
+| `references/oma/` | lx-rpe (活跃消费：降级升级/裁决链/执行工作流) |
 | `schemas/atomic/verdict.yaml` | ALL skills |

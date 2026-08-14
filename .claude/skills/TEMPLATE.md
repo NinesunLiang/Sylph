@@ -45,11 +45,10 @@ l
 |fix_record | `../../schemas/atomic/fix_record.yaml` | 修复记录|
 |gate_result | `../../schemas/atomic/gate_result.yaml` | Gate 判定（如适用）|
 |verdict | `../../schemas/atomic/verdict.yaml` | 最终判定 |\|
-### 引用的 task-architecture 组件
+### 引用的任务架构基线
 | 组件 | 路径 | 用途|
 |------|------|------|
-|统一交付 Schema | `../../references/task-architecture/unified_delivery_schema.md` | 输出格式统一|
-|上下文守卫 | `../../references/task-architecture/context_guard.md` | 长会话上下文总结 |\|
+|任务架构基线 | `../../references/current-task-architecture.md` | 状态机/GateKeeper/证据层级（task-architecture/ 已 SUPERSEDED）|\|
 ### 状态机
 > > 说明本 skill 的状态机类型：
 > - **scan→fix→re-scan 循环**（审查类）

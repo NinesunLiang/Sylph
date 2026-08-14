@@ -21,16 +21,15 @@
 
 | 房间 | 入口 | 功能 |
 |------|------|------|
-| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（24个，按触发点分类） |
-| nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12个，按功能/频率分类） |
-| schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/input/output） |
-| references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates/race）；references 为唯一真源，大编号优先（ADR0017） |
+| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（17 顶层 py，13 注册，按触发点分类） |
+| nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12 活跃 + a/b terminal + orchestrator 路由） |
+| schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/output） |
+| references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates）；references 为唯一真源，大编号优先（ADR0017） |
 | error_rulers/ | `@.claude/references/error_rulers.json` | 错误分类规则库（exit_code+stderr模式→error_type映射） |
-| scripts/ | `@.claude/scripts/index.md` | 治理工具脚本（40+，按功能分 6 组 + lib/ 子模块） |
+| scripts/ | `@.claude/scripts/index.md` | 治理工具脚本（按功能分 6 组 + lib/ 子模块） |
 | rules/ | `@.claude/rules/index.md` | 语言与工具行为规则（2个） |
-| profiles/ | `@.claude/profiles/index.md` | 项目语言 profile（6种语言，各含独立 harness.yaml） |
-| skills/ | `@.claude/skills/index.md` | AI agent skills（按 category 分组） |
-| workflows/ | `@.claude/workflows/index.md` | 工作流定义（2个）+ 基础设施 hook（4个） |
+| skills/ | `@.claude/skills/index.md` | AI agent skills（10 个 lx-* 扁平布局） |
+| workflows/ | `@.claude/workflows/index.md` | 工作流（front-stepwise 起源 + frontend-overnight UI 还原） |
 
 ### `.omc/` — 运行时任务状态
 

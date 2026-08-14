@@ -3,7 +3,7 @@
 > 不可自改。变更须人类裁决。
 
 ## 冻结规则
-AI 不可自改 AGENTS.md / kernel.md / index.md 及 `.claude/hooks/*` / `scripts/carros-gates/harness.yaml`。
+AI 不可自改 AGENTS.md / kernel.md / index.md 及 `.claude/hooks/*` / `.claude/harness.yaml`。
 
 ## 紧凑恢复（R2 Compact Storm）
 紧凑后自动读取 `.omc/session-handoff.md` 恢复会话。

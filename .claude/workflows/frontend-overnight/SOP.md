@@ -3,7 +3,7 @@
 > 读者：几周后回来的你。不需要记得任何细节，按本文勾选执行即可。
 > 深度文档：能力边界/输入分期 → `README.md`；白天执行细节 → `phase0-checklist.md`；
 > 输入成熟度判定 → `intake.md`；夜模型读本（你不用读，夜模型读）→ `night-loop.md`。
-> 规格冻结于 `UI/FINAL.md` v3.1；三家审计闭环证据在 `UI/round5/`。
+> 规格由 `inputs/{产品名}/` 下的原型/PRD/API 文档承载（冻结于当次 manifest）；UI 还原参考实现技术栈 Vite8+React19（可替换）。
 
 ## 0. 心智模型（30 秒版）
 
