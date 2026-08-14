@@ -11,11 +11,11 @@ node_modules/
 .claude/settings_rt.json
 .claude/settings_ds.json
 .claude/settings_k3.json
+.claude/settings.permissions.json
 benchmark/ci-*.log
 benchmark/runs/
 .claude/state/lifecycle.json
 .claude/state/handoff.json
 .claude/state/snapshots/precompact-*.json
 improve_plan
-.DS_Store
 Benchmarking
