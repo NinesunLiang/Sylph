@@ -6,7 +6,8 @@ export interface Assistant {
   name: string;
   description: string;
   category: string;
-  icon: string; // emoji 或图标 key（1:1 还原真实站 emoji 图标）
+  icon: string; // 自定义图标 key
+  emoji: string; // twemoji SVG 文件名（1:1 还原真实站 Twemoji 渲染）
 }
 
 export interface Topic {

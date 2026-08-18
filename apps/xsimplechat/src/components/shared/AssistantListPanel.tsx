@@ -2,26 +2,15 @@ import { ChevronDown, Command, MessageSquarePlus, Plus, Search } from "lucide-re
 import { Button, Tooltip } from "antd";
 import styles from "./assistant-list-panel.module.scss";
 
-// OpenAI 风格漩涡 logo（真实站当前助手卡使用黑色漩涡图标）
-function SwirlIcon() {
-  return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path
-        d="M12 2.5c-2.2 0-3.8 1.1-4.4 2.9-.9-.5-2-.6-3-.2C3 6 2.3 7.8 2.9 9.6c.5 1.4 1.5 2.4 2.7 2.9-.3.6-.3 1.3 0 2 .6 1.8 2.4 3.1 4.4 2.9.3 1.7 1.4 3 3.3 3.1 2.2.2 4.2-1.3 4.7-3.4.4-1.6-.1-3.2-1.3-4.3.9-1 1.3-2.4 1-3.8-.5-2.1-2.4-3.5-4.7-3.4-1.7 0-3 .9-3.6 2.4-.9-.3-1.9-.2-2.8.3.3-.7.6-1.2 1-1.6 1.4-1.5 3.9-1.7 5.6-.4.8.6 1.4 1.5 1.7 2.5.9-.2 1.9.1 2.7.8.8.8 1.1 1.9.8 3-.3 1-1 1.8-1.9 2.3.3.7.4 1.5.2 2.2-.3 1.1-1 2-1.9 2.5.9.2 1.9-.1 2.6-.8.7-.7 1.1-1.6 1.1-2.6 1.4.1 2.6-.7 3-2 .4-1.2.1-2.6-.8-3.5.7-1.4.7-3-.1-4.4C20 4.6 16.4 2.5 12 2.5zm-4.7 16.6c-1.5-.2-2.6-1.5-2.5-3 .9.5 2 .7 3 .6-.1 1-.5 1.9-1.2 2.4.2 0 .5.1.7 0zm9.3-2.1c-.2.8-.8 1.4-1.6 1.7-.4-1-.6-2.1-.5-3.2.8-.2 1.6-.5 2.3-1.1-.1 1-.3 1.9-.7 2.6h.5z"
-        fill="currentColor"
-      />
-    </svg>
-  );
-}
-
 interface AssistantListPanelProps {
   onNewAssistant?: () => void;
+  width?: number;
 }
 
 // 左侧助手列表栏（真实站: 320px；XSimple 标题 + 搜索 + 当前助手卡 + 默认列表 + 新建助手）
-export function AssistantListPanel({ onNewAssistant }: AssistantListPanelProps) {
+export function AssistantListPanel({ onNewAssistant, width = 320 }: AssistantListPanelProps) {
   return (
-    <aside className={styles.panel} aria-label="助手列表">
+    <aside className={styles.panel} aria-label="助手列表" style={{ flexBasis: width }}>
       <div className={styles.header}>
         <span className={styles.title}>XSimple</span>
         <Tooltip title="新建会话">
@@ -44,7 +33,7 @@ export function AssistantListPanel({ onNewAssistant }: AssistantListPanelProps) 
 
       <div className={styles.currentCard} data-testid="current-assistant">
         <span className={styles.currentIcon}>
-          <SwirlIcon />
+          <img src="/logo/swirl-logo.png" alt="" width={20} height={20} />
         </span>
         <span className={styles.currentName}>随便聊聊</span>
       </div>

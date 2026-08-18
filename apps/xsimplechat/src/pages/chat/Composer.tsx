@@ -1,11 +1,10 @@
 import { useState } from "react";
 import {
-  AppWindow,
-  Bot,
   ChevronDown,
   Eraser,
-  FileText,
+  FileStack,
   Inbox,
+  LayoutGrid,
   Maximize2,
   Mic,
   Paperclip,
@@ -13,6 +12,7 @@ import {
 } from "lucide-react";
 import { Dropdown, Tooltip } from "antd";
 import { CheckOutlined } from "@ant-design/icons";
+import { SwirlIcon } from "@/components/shared/SwirlIcon";
 import { useChatStore } from "@/store/chat-store";
 import styles from "./composer.module.scss";
 
@@ -55,10 +55,9 @@ export function Composer({ disabled = false, onSend }: ComposerProps) {
           <Dropdown menu={modelMenu} trigger={["click"]} placement="topLeft" data-testid="model-dropdown">
             <button type="button" className={styles.modelPill} data-testid="model-selector">
               <span className={styles.modelDot}>
-                <Bot size={12} />
+                <SwirlIcon size={11} />
               </span>
               <span className={styles.modelName}>{selectedModel.name}</span>
-              <ChevronDown size={13} />
             </button>
           </Dropdown>
           <Tooltip title="添加附件">
@@ -68,7 +67,7 @@ export function Composer({ disabled = false, onSend }: ComposerProps) {
           </Tooltip>
           <Tooltip title="资料">
             <button type="button" className={styles.toolBtn} aria-label="资料">
-              <FileText size={16} />
+              <FileStack size={16} />
             </button>
           </Tooltip>
           <Tooltip title="调节">
@@ -83,7 +82,7 @@ export function Composer({ disabled = false, onSend }: ComposerProps) {
           </Tooltip>
           <Tooltip title="工具">
             <button type="button" className={styles.toolBtn} aria-label="工具">
-              <AppWindow size={16} />
+              <LayoutGrid size={16} />
             </button>
           </Tooltip>
         </div>
@@ -128,22 +127,49 @@ export function Composer({ disabled = false, onSend }: ComposerProps) {
       <div className={styles.actions}>
         <span className={styles.hint}>↵ 发送 / ⌘ ↵ 换行</span>
         <div className={styles.actionBtns}>
-          <Tooltip title="会话面板">
-            <button type="button" className={styles.trayBtn} aria-label="会话面板">
-              <Inbox size={17} strokeWidth={2.2} />
-            </button>
-          </Tooltip>
-          <button
-            type="button"
-            className={styles.sendBtn}
-            disabled={disabled}
-            onClick={handleSend}
-            data-testid="send-button"
+          <Dropdown
+            menu={{
+              items: [
+                { key: "panel", label: "会话面板" },
+                { key: "knowledge", label: "知识库" },
+                { key: "artifacts", label: "Artifacts" },
+              ],
+            }}
+            trigger={["click"]}
+            placement="topRight"
           >
-            <span>发送</span>
-            <span className={styles.sendDivider} />
-            <ChevronDown size={14} />
-          </button>
+            <Tooltip title="会话面板">
+              <button type="button" className={styles.trayBtn} aria-label="会话面板" data-testid="tray-menu">
+                <Inbox size={17} strokeWidth={2.2} />
+              </button>
+            </Tooltip>
+          </Dropdown>
+          <div className={styles.sendGroup} data-testid="send-group">
+            <button
+              type="button"
+              className={styles.sendBtn}
+              disabled={disabled}
+              onClick={handleSend}
+              data-testid="send-button"
+            >
+              <span>发送</span>
+            </button>
+            <Dropdown
+              menu={{
+                items: [
+                  { key: "send", label: "发送" },
+                  { key: "regenerate", label: "重新生成" },
+                  { key: "continue", label: "继续生成" },
+                ],
+              }}
+              trigger={["click"]}
+              placement="topRight"
+            >
+              <button type="button" className={styles.sendArrow} aria-label="发送选项" data-testid="send-arrow">
+                <ChevronDown size={14} />
+              </button>
+            </Dropdown>
+          </div>
         </div>
       </div>
     </footer>

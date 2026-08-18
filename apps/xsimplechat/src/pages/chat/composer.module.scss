@@ -4,8 +4,8 @@
 .composer {
   flex: none;
   border-top: 1px solid $color-border;
-  padding: 22px 16px 16px;
-  background: $color-bg-container;
+  padding: 19px 26px 16px 19px;
+  background: $color-bg-page;
 }
 
 .toolbar {
@@ -29,15 +29,15 @@
 .modelPill {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  height: 32px;
-  padding: 0 10px;
+  gap: 5px;
+  height: 30px;
+  padding: 0 6px;
   border: none;
   border-radius: $radius-full;
   background: $color-bg-selected;
   cursor: pointer;
   color: $color-text-primary;
-  margin-right: 6px;
+  margin-right: 8px;
   transition: background-color 0.15s ease;
 
   &:hover {
@@ -46,8 +46,8 @@
 }
 
 .modelDot {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   border-radius: $radius-full;
   background: $color-text-primary;
   color: $color-text-inverse;
@@ -57,7 +57,7 @@
 }
 
 .modelName {
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .toolBtn {
@@ -83,13 +83,13 @@
 
 .input {
   width: 100%;
-  margin-top: 10px;
+  margin-top: 12px;
   border: none;
   outline: none;
   resize: none;
   font-size: 14px;
   line-height: 1.6;
-  min-height: 64px;
+  min-height: 80px;
   color: $color-text-primary;
   background: transparent;
   font-family: inherit;
@@ -139,14 +139,19 @@
   }
 }
 
+.sendGroup {
+  display: flex;
+  align-items: center;
+  border-radius: $radius-md;
+  overflow: hidden;
+}
+
 .sendBtn {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
   height: 36px;
-  padding: 0 6px 0 16px;
+  padding: 0 18px;
   border: none;
-  border-radius: $radius-md;
   background: $color-btn-primary-bg;
   color: $color-text-inverse;
   font-size: 14px;
@@ -167,8 +172,20 @@
   }
 }
 
-.sendDivider {
-  width: 1px;
-  height: 16px;
-  background: rgb(255 255 255 / 30%);
+.sendArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 36px;
+  border: none;
+  border-left: 1px solid rgb(255 255 255 / 25%);
+  background: $color-btn-primary-bg;
+  color: $color-text-inverse;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: $color-btn-primary-hover;
+  }
 }

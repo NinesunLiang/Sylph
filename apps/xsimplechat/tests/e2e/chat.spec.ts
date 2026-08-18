@@ -175,3 +175,87 @@ test.describe("chat-inbox 页面", () => {
     await expect(page.getByRole("tooltip")).toHaveCount(0);
   });
 });
+
+test.describe("侧栏拖拽与浮层补全", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/chat?session=inbox");
+    // 等公告弹窗出现后关闭（保证无遮罩干扰后续交互）
+    await expect(page.getByRole("dialog").filter({ hasText: "系统公告" })).toBeVisible({ timeout: 8000 }).catch(() => undefined);
+    await page.keyboard.press("Escape").catch(() => undefined);
+    await expect(page.getByRole("dialog").filter({ hasText: "系统公告" })).not.toBeVisible({ timeout: 3000 }).catch(() => undefined);
+  });
+
+  test("左列表栏拖拽调宽 + 持久化", async ({ page }) => {
+    const handle = page.getByTestId("resize-left");
+    await expect(handle).toBeVisible();
+    const before = (await page.getByTestId("current-assistant").boundingBox())!;
+    // 拖拽 +80px
+    const hb = (await handle.boundingBox())!;
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(hb.x + 80, hb.y + 200, { steps: 5 });
+    await page.mouse.up();
+    const after = (await page.getByTestId("current-assistant").boundingBox())!;
+    expect(after.width).toBeGreaterThan(before.width + 40);
+    // 开闭
+    await page.getByTestId("collapse-sidebar").click();
+    await expect(page.getByTestId("resize-left")).toHaveCount(0);
+    await page.getByTestId("collapse-sidebar").click();
+    await expect(page.getByTestId("resize-left")).toBeVisible();
+  });
+
+  test("右面板拖拽调宽 + 开闭", async ({ page }) => {
+    const handle = page.getByTestId("resize-right");
+    await expect(handle).toBeVisible();
+    const before = (await page.getByTestId("topic-panel").boundingBox())!;
+    const hb = (await handle.boundingBox())!;
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(hb.x - 60, hb.y + 200, { steps: 5 });
+    await page.mouse.up();
+    const after = (await page.getByTestId("topic-panel").boundingBox())!;
+    expect(after.width).toBeGreaterThan(before.width + 30);
+    await page.getByTestId("toggle-right-panel").click();
+    await expect(page.getByTestId("resize-right")).toHaveCount(0);
+    await page.getByTestId("toggle-right-panel").click();
+    await expect(page.getByTestId("resize-right")).toBeVisible();
+  });
+
+  test("联系客服弹窗：打开/关闭/复制邮箱", async ({ page }) => {
+    await page.getByTestId("contact-support").click();
+    const modal = page.getByRole("dialog").filter({ hasText: "联系客服" });
+    await expect(modal).toBeVisible();
+    await expect(modal.getByText("support@xsimplechat.com")).toBeVisible();
+    await modal.getByTestId("copy-email").click({ force: true });
+    await expect(modal.getByText("已复制 ✓")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(modal).not.toBeVisible();
+  });
+
+  test("分享/更多/话题更多/托盘/发送选项 下拉菜单", async ({ page }) => {
+    // 分享
+    await page.getByTestId("share-menu").click();
+    await expect(page.getByRole("menuitem", { name: "复制链接" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // 更多
+    await page.getByTestId("more-menu").click();
+    await expect(page.getByRole("menuitem", { name: "关于 XSimple" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // 话题更多
+    await page.getByTestId("topic-more").click();
+    await expect(page.getByRole("menuitem", { name: "清空会话" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // 托盘
+    await page.getByTestId("tray-menu").click();
+    await expect(page.getByRole("menuitem", { name: "知识库" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // 发送箭头
+    await page.getByTestId("send-arrow").click();
+    await expect(page.getByRole("menuitem", { name: "继续生成" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // 发送按钮本体仍可用
+    await page.getByTestId("chat-input").fill("测试");
+    await page.getByTestId("send-button").click();
+    await expect(page.getByTestId("message-assistant")).toBeVisible({ timeout: 5000 });
+  });
+});

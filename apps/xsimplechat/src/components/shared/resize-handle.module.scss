@@ -1,0 +1,15 @@
+@use "../../styles/tokens" as *;
+
+.handle {
+  flex: none;
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  transition: background-color 0.15s ease;
+  touch-action: none;
+
+  &:hover,
+  &:active {
+    background: $color-primary-weak;
+  }
+}

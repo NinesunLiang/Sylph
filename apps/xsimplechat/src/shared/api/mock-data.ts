@@ -9,7 +9,8 @@ export const mockAssistants: Assistant[] = [
     name: "健身专家",
     description: "知识渊博的健身专家",
     category: "生活",
-    icon: "🏀",
+    icon: "custom",
+    emoji: "1f3c0",
   },
   {
     id: "a2",
@@ -17,7 +18,8 @@ export const mockAssistants: Assistant[] = [
     name: "Mistaker",
     description: "通过清晰的解释和语法、发音示例来消除错误。",
     category: "教育",
-    icon: "📚",
+    icon: "mistaker",
+    emoji: "1f3c0",
   },
   {
     id: "a3",
@@ -25,7 +27,8 @@ export const mockAssistants: Assistant[] = [
     name: "代码优化/错误修改",
     description: "精通多种编程语言，优化代码结构，修复错误并提供优雅的解决方案。",
     category: "编程",
-    icon: "🤖",
+    icon: "custom",
+    emoji: "1f916",
   },
   {
     id: "a4",
@@ -33,7 +36,8 @@ export const mockAssistants: Assistant[] = [
     name: "伦理安全分析师",
     description: "专注于识别和减轻网络和移动平台中的安全漏洞。",
     category: "安全",
-    icon: "🕵️",
+    icon: "custom",
+    emoji: "1f575",
   },
 ];
 

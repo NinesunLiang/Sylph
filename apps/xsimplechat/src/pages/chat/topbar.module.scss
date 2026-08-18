@@ -6,15 +6,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 9px 0 10px;
   border-bottom: 1px solid $color-border;
-  background: $color-bg-container;
+  background: $color-bg-page;
 }
 
 .left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .logo {
@@ -32,9 +32,9 @@
 .modelBadge {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   height: 20px;
-  padding: 0 8px;
+  padding: 0 5px;
   border-radius: $radius-full;
   background: $color-bg-selected;
   font-size: 12px;
@@ -42,8 +42,8 @@
 }
 
 .modelDot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: $radius-full;
   background: $color-text-primary;
 }
@@ -80,7 +80,7 @@
   align-items: center;
   gap: 6px;
   height: 32px;
-  padding: 0 12px;
+  padding: 0 15px;
   border: none;
   border-radius: $radius-md;
   background: linear-gradient(135deg, $color-support-from, $color-support-to);
@@ -99,7 +99,7 @@
   align-items: center;
   gap: 5px;
   height: 30px;
-  padding: 0 6px;
+  padding: 0 5px;
   border: none;
   background: transparent;
   color: $color-text-primary;

@@ -12,6 +12,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
+  background: $color-bg-page;
 }
 
 .workspaceBody {
@@ -25,7 +26,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  background: $color-bg-container;
+  background: transparent;
 }
 
 .content {

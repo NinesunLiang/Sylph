@@ -7,27 +7,21 @@
   align-items: center;
   background: $color-bg-container;
   border-right: 1px solid $color-border;
-  padding: 16px 0 12px;
+  padding: 20px 0 19px;
 }
 
 .logo {
   width: 32px;
   height: 32px;
-  border-radius: $radius-full;
-  background: linear-gradient(135deg, #ff7a1f, $color-logo);
+  margin-bottom: 20px;
+  user-select: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: $color-text-inverse;
-  font-weight: 800;
-  font-size: 17px;
-  margin-bottom: 20px;
-  user-select: none;
-}
 
-.logoX {
-  line-height: 1;
-  transform: rotate(0deg);
+  img {
+    display: block;
+  }
 }
 
 .top {
@@ -40,7 +34,12 @@
   margin-top: auto;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 3px;
+}
+
+.bottom .item {
+  width: 36px;
+  height: 36px;
 }
 
 .item {
