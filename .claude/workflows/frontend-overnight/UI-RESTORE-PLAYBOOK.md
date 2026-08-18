@@ -4,8 +4,9 @@
 > 一比一静态&交互&二级弹窗 UI 还原。本文由 2026-08-18 xsimplechat chat-inbox 还原实测沉淀
 > （证据：`.omc/tasks/20260818/xsimplechat-inbox-restore/`，视觉 diff 3.30% vs 上次同类任务 15.80%）。
 > 本文是 night-loop.md 步 1/2 的配套手册；与 assertion-catalog.yaml、tokens 契约配套使用。
-> **参考实现**：`apps/xsimplechat/`（本次交付，全部门禁绿）——tokens 结构 / antd 主题收敛 /
-> 组件拆分 / 断言写法 / e2e 浮层语义，下次任务直接照抄骨架，不重发明。
+> **参考实现**：`.omc/archive/20260818_xsimplechat-inbox-restore/`（本次交付证据链：截图/diff 数值/executor）
+> 与 `.omc/archive/20260818_xsimplechat-perfect-v2/`（静态 1.45% + 交互 17 e2e）。应用源码按用户要求
+> 已从仓库移除；下次任务按本文 §0-§5 重建骨架（tokens/antd 主题收敛/断言写法见各节）。
 
 ## 0. 核心闭环（每页必走，不许跳步）
 
