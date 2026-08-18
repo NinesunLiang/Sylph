@@ -259,3 +259,23 @@ test.describe("侧栏拖拽与浮层补全", () => {
     await expect(page.getByTestId("message-assistant")).toBeVisible({ timeout: 5000 });
   });
 });
+
+test("拖拽实时更新（不松手 UI 已变宽）", async ({ page }) => {
+  await page.goto("/chat?session=inbox");
+  await expect(page.getByRole("dialog").filter({ hasText: "系统公告" })).toBeVisible({ timeout: 8000 });
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog").filter({ hasText: "系统公告" })).not.toBeVisible({ timeout: 3000 });
+  const handle = page.getByTestId("resize-left");
+  await expect(handle).toBeVisible();
+  const hb = (await handle.boundingBox())!;
+  const width = () =>
+    page.evaluate(() => document.querySelector('[aria-label="助手列表"]')!.getBoundingClientRect().width);
+  const start = await width();
+  await page.mouse.move(hb.x + 2, hb.y + 200);
+  await page.mouse.down();
+  await page.mouse.move(hb.x + 50, hb.y + 200, { steps: 3 });
+  await page.waitForTimeout(150);
+  const mid = await width(); // 松手前
+  await page.mouse.up();
+  expect(mid).toBeGreaterThan(start + 30);
+});

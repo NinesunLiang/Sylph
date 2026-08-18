@@ -45,7 +45,7 @@ export function ChatPage() {
           <ResizeHandle
             ariaLabel="调整助手列表宽度"
             dataTestId="resize-left"
-            onResize={(d) => setLeftWidth(leftWidth + d)}
+            onResize={(d) => setLeftWidth(useLayoutStore.getState().leftPanelWidth + d)}
           />
         </>
       )}
@@ -69,7 +69,7 @@ export function ChatPage() {
               <ResizeHandle
                 ariaLabel="调整话题面板宽度"
                 dataTestId="resize-right"
-                onResize={(d) => setRightWidth(rightWidth - d)}
+                onResize={(d) => setRightWidth(useLayoutStore.getState().rightPanelWidth - d)}
               />
               <TopicPanel width={rightWidth} />
             </>
