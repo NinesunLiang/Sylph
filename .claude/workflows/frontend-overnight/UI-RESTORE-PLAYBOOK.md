@@ -77,7 +77,10 @@
 - 骨架期（Phase 0）一次建好：tokens/、router 全量预注册、mock 层、assertions.ts 17 helper、
   playwright.config（1440x900）。**antd 等组件库用 ConfigProvider 主题收敛真实站色板**
   （本次：colorPrimary #0072f5 / colorText #222 / colorBgLayout #f8f8f8，CDP 实测值）。
-- **复杂组件用组件库**（Modal/Dropdown/Tooltip 等），关闭语义免费获得；
+- **复杂组件用组件库**（Modal/Drawer/Dropdown/Popover/Tooltip/Table/Tree/Select/DatePicker 等，
+  C3 白名单），关闭语义免费获得；简单视觉组件（Button/Input/Card 等）**手写**，像素还原须完全掌控；
+  antd 统一 `import { X } from 'antd'` 主入口具名导入（禁 `@ant-design/icons`，图标走 emoji/内联 SVG），
+  主题用 ConfigProvider 收敛真实站色板。
   但弹窗类测试的"遮罩点击"必须点弹窗**外**的坐标（弹窗居中时点角落），否则点到弹窗本体。
 - 禁止 `:global`、裸色值、魔法 px；间距走 8pt 网格；emoji 图标与真实站一致时直接用 emoji
   （视觉 diff 收益最大），渐变图形类图标用内联 SVG 近似。

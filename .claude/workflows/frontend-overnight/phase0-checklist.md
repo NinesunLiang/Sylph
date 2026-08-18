@@ -7,7 +7,7 @@
 - [ ] **A1 目标 repo 骨架**（§18#3 决定位置）：Vite 8 + React 19 + TS6 strict + Sass/CSS Modules + React Router v7 + Zustand v5 + Axios
   - [ ] `src/styles/tokens/`（色/间距/圆角/阴影变量，C3 的唯一合法来源）
   - [ ] `src/app/router/`、`src/shared/api/api-routing.ts`（mock 层）
-  - [ ] ESLint `no-restricted-imports`：禁 antd 全家族（含动态 import/require/re-export）
+  - [ ] ESLint `no-restricted-imports`：禁 `@ant-design/icons` 与 `antd/es/*`（强制 `import { X } from 'antd'` 主入口具名导入；antd 复杂组件白名单由 C3 `c7_check.py` 守，简单组件仍手写）
   - [ ] `tests/e2e/helpers/assertions.ts`：实现 `.claude/workflows/frontend-overnight/scripts/carroros-gates/assertion-catalog.yaml` 全部 17 个 helper，**以 catalog id 为键导出 registry**（preflight 4b 会逐个 grep id 字符串，缺一个 = NO-GO）
   - [ ] playwright.config.ts（1440 视口、trace/video 开、artifacts 输出到 manifest 约定路径）
 - [ ] **A2 夜跑 hook 挂载**：`python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/install_night_hook.py`（幂等）

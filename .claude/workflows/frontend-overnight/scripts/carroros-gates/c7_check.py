@@ -7,6 +7,44 @@ import json, re, subprocess, sys
 from pathlib import Path
 from lib.common_lib import *
 
+# antd 复杂组件白名单：状态机/浮层/重型数据组件允许用 antd（关闭语义免费获得）；
+# 简单视觉组件（Button/Input/Card 等）禁用 antd——像素级还原须手写完全掌控。
+ANTD_COMPLEX_ALLOW = frozenset({
+    "Modal", "Drawer", "Dropdown", "Popover", "Tooltip", "Popconfirm",
+    "DatePicker", "TimePicker", "Table", "Tree", "TreeSelect", "Cascader",
+    "Tabs", "Segmented", "Slider", "Select", "AutoComplete", "Transfer", "Mentions",
+    "Upload", "Steps", "Carousel", "Calendar", "Form", "InputNumber", "Pagination",
+    "Collapse", "Descriptions", "Timeline", "Statistic", "Skeleton", "Spin",
+    "Result", "Empty", "Tour", "Watermark", "QRCode", "App", "ConfigProvider",
+    "Affix", "Anchor", "FloatButton",
+})
+
+
+def check_antd_import(code: str) -> str | None:
+    """antd 使用门禁：复杂组件具名导入允许；简单组件/子路径/图标/动态导入禁止。
+    返回违规描述（None = 允许）。"""
+    if "@ant-design" in code:
+        return "@ant-design 家族禁用（图标走 emoji/内联 SVG，还原收益最大）"
+    m = re.search(r"import\s*\{([^}]*)\}\s*from\s*['\"]antd['\"]", code)
+    if m:
+        names = []
+        for item in m.group(1).split(","):
+            item = item.strip()
+            if item:
+                names.append(item.split(" as ")[0].strip())
+        if not names:
+            return "antd 空具名导入"
+        bad = [n for n in names if n not in ANTD_COMPLEX_ALLOW]
+        if bad:
+            return "antd 简单组件禁用（像素还原须手写）: " + ", ".join(bad)
+        return None
+    if re.search(r"import\s*['\"]antd/dist/(?:reset|antd)\.css['\"]", code):
+        return None
+    if re.search(r"""(?:from\s*['\"]|require\(\s*['\"]|import\(\s*['\"]|import\s*['\"])antd(?:/|['\"])""", code):
+        return "antd 必须从主入口按复杂组件具名导入（例：import { Modal } from 'antd'）"
+    return None
+
+
 def main() -> int:
     gates_parse_args()
     assert TARGET_REPO is not None, "需要 --target-repo"
@@ -60,7 +98,6 @@ def main() -> int:
 
     hex_re = re.compile(r"#[0-9a-fA-F]{3,8}\b")
     px_re = re.compile(r"(?<![\w.])(\d+(?:\.\d+)?)px\b")
-    antd_re = re.compile(r"""(?:from\s+['"]|require\(\s*['"]|import\(\s*['"])antd|@ant-design""")
 
     violations = []
     for f, n, text in new_lines:
@@ -83,8 +120,9 @@ def main() -> int:
             violations.append(f"{f}:{n} :global 禁用: {stripped[:80]}")
         if "!important" in code:
             violations.append(f"{f}:{n} !important 禁用: {stripped[:80]}")
-        if antd_re.search(code):
-            violations.append(f"{f}:{n} antd 家族 import: {stripped[:80]}")
+        antd_issue = check_antd_import(code)
+        if antd_issue:
+            violations.append(f"{f}:{n} {antd_issue}: {stripped[:80]}")
 
     # O2 token reference coverage
     style_files = []

@@ -57,7 +57,7 @@
 |------|--------|------|
 | `scope_check.py` | C1 | 越界检测（只写files_allowed内的文件） |
 | `run_gate.py` | C2/C4/C5 | 统一门禁运行器，wrapped命令=tsc/eslint/build/playwright |
-| `c7_check.py` | C3 | 裸色值/魔法px/:global/!important/antd检测 |
+| `c7_check.py` | C3 | 裸色值/魔法px/:global/!important/antd违规检测（复杂组件白名单内允许） |
 | `evidence_check.py` | C7 | 证据链完整性检查 |
 | `finalize_page.py` | C8a | 从gate-results重算final_status（模型禁写） |
 | `abstraction_check.py` | C3补充 | 组件抽象检测 |
@@ -181,7 +181,7 @@ python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/run_gate.py 
 ```
 python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/c7_check.py
 ```
-- 裸色值/魔法px/:global/!important/antd→回步4修
+- 裸色值/魔法px/:global/!important/antd违规→回步4修（antd 复杂组件白名单内允许）
 
 ### 步9：C4/C5 Playwright测试
 ```
@@ -334,7 +334,7 @@ src/styles/tokens/
 |------|------|------|---------|
 | C1 | scope_check | 越界检测——只写files_allowed内文件 | 越界→回步3修 |
 | C2 | run_gate(tsc/eslint/build) | 类型检查+lint+编译 | 编译失败3轮→回步2 |
-| C3 | c7_check + abstraction_check | 裸色值/px/:global/!important/antd + 组件抽象 | 违规→回步4修 |
+| C3 | c7_check + abstraction_check | 裸色值/px/:global/!important/antd违规（简单组件禁/复杂组件白名单）+ 组件抽象 | 违规→回步4修 |
 | C4 | run_gate(playwright test) | 七态断言 + 功能测试 + 交互测试 | 失败→Fixer修复 |
 | C5 | run_gate(playwright overlay) | 浮层关闭语义矩阵（每浮层逐条） | 同上 |
 | C6 | 视觉确定性检查 | 1440不崩/关键区齐/无溢出/无console error等 | FAIL→VISUAL_FIXING→C1全链重跑 |
