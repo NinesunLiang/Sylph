@@ -574,6 +574,11 @@ def _write_default_executor():
 > 格式对齐 AGENTS.md §executor.md 证据块模板 — 每步对应一个 ### EV-<step_id> 块
 > verify_gate 和 oracle 通过解析 ### EV-xxx / step: / assertion: 字段验证完成状态。
 > 契约精简（还债项）：只保留 Key Changes + TDD Evidence + EV 证据块 3 段。
+>
+> 关键（2026-08-17 用户裁决：提前给模板，不试错返工）：
+> EV 块的 `assertion:` 必须**逐字包含** plan.md 中该 step 的 verify 规则关键短语。
+> 例：plan verify 写 `assertion: 5项AC全部通过`，EV 断言里要原样出现
+> 「5项AC全部通过」，再补充实测证据，否则 VerifyGate 报 evidence_missing。
 
 ## Key Changes
 
@@ -643,12 +648,35 @@ def _write_goal_scaffolds() -> None:
     """Create sealed document skeletons; Goal phases fill them in order."""
     _write_default_research()
     PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
+    # goal plan 模板内置「格式契约」骨架（2026-08-17 用户裁决：提前给模板，
+    # 不让 AI 试错返工）。AI 在 PLANNING 阶段照骨架填，不重排格式。
     PLAN_PATH.write_text(
         "# Plan\n\n"
         "## Gate\n"
         "- level: L2\n\n"
-        "## Plan Pending\n"
-        "<!-- Fill only after phase0-done moves Goal to PLANNING. -->\n",
+        "## 目标\n"
+        "<任务目标（一句）>\n\n"
+        "> 格式契约（PlanGate 逐条校验，照抄不返工）：\n"
+        ">   · Phase 头必须精确 `## Phase N`（数字后不能有文字）\n"
+        ">   · 每个 step 必须带 scope / acceptance / verify 三个字段\n"
+        ">   · verify 前缀三选一：`file: <仓库内路径> contains \"<内容>\"`（真实读）\n"
+        ">     | `command: <命令>`（真实执行）| `assertion: <语义>`（自述）\n"
+        ">   · assertion 自述时：executor.md 的 EV 断言必须逐字覆盖 verify 规则关键短语\n"
+        ">     （规则写「5项AC全部通过」，EV 断言里原样出现该短语，否则 evidence_missing）\n"
+        ">   · verify 优先级：file（真实读文件）> command（真实执行）> assertion（语义自述）\n\n"
+        "## Phase 1\n"
+        "<Phase 1 说明，可留空>\n\n"
+        "- [ ] S1: <step 描述>\n"
+        "  - scope: <本 step 改动/产出的范围>\n"
+        "  - acceptance: <完成标准>\n"
+        "  - verify: assertion: <与 acceptance 对应的可验证语义>\n\n"
+        "## Phase 2\n"
+        "<Phase 2 说明，可留空>\n\n"
+        "- [ ] S2: <step 描述>\n"
+        "  - depends_on: S1\n"
+        "  - scope: <本 step 改动/产出的范围>\n"
+        "  - acceptance: <完成标准>\n"
+        "  - verify: assertion: <与 acceptance 对应的可验证语义>\n",
         encoding="utf-8",
     )
     EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -696,6 +724,11 @@ def _print_path_contract(task_dir):
         print("   ── 路径契约（working-set.yaml）──")
         print(f"   允许: {', '.join(str(a) for a in allowed) if allowed else '(无)'}")
         print(f"   禁止: {', '.join(str(d) for d in denied) if denied else '(无)'}")
+        print("   提示: 任务若涉及仓库外输入/输出（如桌面路径），research 阶段"
+              "把路径加入 allowed_paths（支持绝对路径声明，见 SKILL Phase 0 step 11b）")
+        print("   ── 格式契约 ──")
+        print("   提示: goal plan.md 模板已内置 PlanGate 格式骨架（Phase/step/字段/verify 前缀），"
+              "PLANNING 阶段照骨架填不返工；executor 的 EV 断言须逐字覆盖 verify 规则关键短语")
     except Exception:
         pass  # 契约打印失败不阻断 init
 

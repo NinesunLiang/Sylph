@@ -11,7 +11,7 @@ pretool-scorecard-gate.py — PreToolUse:Edit|Write 自评审计门禁（ADR-001
   - 不阻断非 scorecard 的任何操作
   - 只检查提分项，不提分的不审查
   - 审计事件写入 audit 供 Oracle 交叉校验消费
-  - exit 0 放行,exit 2 阻断 + 具体缺失列表明晰
+  - 干预一律 ASK_USER（permissionDecision=ask），不 BLOCK（用户底线 2026-08-17）
 
 Usage:注册在 settings.json PreToolUse:Edit|Write
 """
@@ -98,6 +98,22 @@ def _extract_content(payload: dict) -> str:
     return content
 
 
+def _scope_ask_payload(message: str) -> dict:
+    """路径越界决策载荷：ASK_USER 而非 BLOCK（用户底线 2026-08-17）。
+
+    返回 permissionDecision=ask，由 CC 弹授权确认，不再硬拦。
+    """
+    return {
+        "continue": False,
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "ask",
+            "permissionDecisionReason": message,
+            "additionalContext": f"{message}\n\n是否仍要写入该路径？确认则放行。",
+        },
+    }
+
+
 def check_path_scope(path, task_dir=None) -> str | None:
     """前置路径预检（v2 升级，index15 降噪·强前置引导）。
 
@@ -107,6 +123,8 @@ def check_path_scope(path, task_dir=None) -> str | None:
       - denied_paths → REDIRECT（引导）
       - 未声明 → REDIRECT（引导补声明）
       - 无活跃任务 / 无 working-set / 非写路径 → None（不阻断）
+      - 仓库外绝对路径 → None（放行；任务产物契约不约束仓库外个人文件，
+        2026-08-17 人类裁决）
     返回 REDIRECT 消息或 None。
     """
     try:
@@ -115,6 +133,9 @@ def check_path_scope(path, task_dir=None) -> str | None:
         if ("/.omc/" in path_str or path_str.startswith(".omc/")
                 or "/.claude/" in path_str or path_str.startswith(".claude/")
                 or "scorecard.md" in path_str):
+            return None
+        # 仓库外绝对路径：不适用任务产物路径契约（桌面/daily_tasks 等个人文件放行）
+        if path_str.startswith("/") and not path_str.startswith(str(ROOT) + "/"):
             return None
         # 定位活跃任务的 working-set.yaml
         if not task_dir:
@@ -223,8 +244,9 @@ def main() -> int:
     scope_result = None if is_governance_file else (check_path_scope(path) if path else None)
     if scope_result:
         _au_banner("redirect", "scorecard-gate", scope_result)
-        print(json.dumps({"continue": False, "reason": scope_result, "message": scope_result}))
-        return 2
+        # 用户底线（2026-08-17 裁决）：门禁只 ASK_USER 不 BLOCK
+        print(json.dumps(_scope_ask_payload(scope_result), ensure_ascii=False))
+        return 0
 
     if not path or "scorecard.md" not in path.replace("\\", "/"):
         print(json.dumps({"continue": True}))
@@ -316,7 +338,7 @@ def main() -> int:
         "continue": True,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
+            "permissionDecision": "ask",
             "permissionDecisionReason": f"scorecard: {len(violations)} 项提分缺证据引用",
             "additionalContext": guidance,
         },

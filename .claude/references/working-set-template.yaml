@@ -11,6 +11,9 @@ budget:
   controllable_tokens_hard: 12000
 
 # 允许操作的文件/目录白名单
+# 任务级契约（INV-06：只改 allowed_paths）。AI 在 research/planning 阶段
+# 按任务声明补充实际接触路径：仓库内产物目录 + 仓库外输入/输出（如
+# /Users/xx/Desktop/daily_tasks/）。支持绝对路径前缀声明。
 allowed_paths:
   - src/
   - tests/

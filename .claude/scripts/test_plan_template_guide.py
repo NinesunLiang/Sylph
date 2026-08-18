@@ -47,3 +47,39 @@ def test_guided_rules_still_parseable(tmp_path, monkeypatch):
     )
     rules = verify_gate.parse_verify_rules(plan_text, "S1")
     assert rules == ["file: src/module.py contains def handle"]
+
+
+# ── goal plan 模板内置格式契约（2026-08-17 用户裁决：提前给模板不返工）──
+
+def test_goal_scaffold_plan_has_format_skeleton(tmp_path, monkeypatch):
+    """goal plan.md 模板自带 Phase/step/字段骨架，AI 照填不重排格式。"""
+    mod = _load_carros("carros_goal_skeleton", tmp_path)
+    mod.RESEARCH_PATH = tmp_path / "research.md"
+    mod._write_goal_scaffolds()
+    plan = (tmp_path / "plan.md").read_text(encoding="utf-8")
+    assert "## Phase 1" in plan
+    assert "- [ ] S1:" in plan
+    assert "  - scope:" in plan
+    assert "  - acceptance:" in plan
+    assert "  - verify: assertion:" in plan
+    assert "格式契约" in plan
+    sys.modules.pop("carros_goal_skeleton", None)
+
+
+def test_goal_scaffold_skeleton_parses_under_plangate(tmp_path, monkeypatch):
+    """骨架示例 step 可被 PlanGate 格式校验识别（verify 前缀合法、无孤儿 step）。"""
+    import goal_contracts
+    mod = _load_carros("carros_goal_parse", tmp_path)
+    mod.RESEARCH_PATH = tmp_path / "research.md"
+    mod._write_goal_scaffolds()
+    plan = (tmp_path / "plan.md").read_text(encoding="utf-8")
+    # 复用 PlanGate 的正则：Phase 头 + step 必须被正确解析
+    import re
+    phases = re.findall(r"^## Phase\s+\d+\s*$", plan, re.MULTILINE)
+    assert len(phases) >= 1, f"Phase 头应为 ## Phase N，实际: {phases}"
+    steps = re.findall(r"^- \[ \] (\S+?):", plan, re.MULTILINE)
+    assert steps, "骨架应有可解析的 step"
+    # 骨架 step 的 verify 带合法前缀（assertion:），引导里列出全部可选项
+    assert re.search(r"- verify: assertion:", plan) is not None, "骨架 verify 前缀缺失"
+    assert "file:" in plan and "command:" in plan, "引导应列出 file:/command: 可选前缀"
+    sys.modules.pop("carros_goal_parse", None)

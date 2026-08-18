@@ -57,6 +57,7 @@ Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自
 9. **绑定 task_dir** — 激活后记录 carros_base 输出的绝对 task_dir，后续命令显式传 `--task-dir <path>`。不扫描、不猜测其它任务；plan 可在任务范围内合理变更并记录原因。
 10. **🔴 工具读写协议** — 修改现有文件前，必须先对同一绝对路径调用 `Read`；粘贴内容、旧会话记录或 read-tracker 记录都不能替代这次真实 Read。若工具返回 `File must be read first`，停止重试，先 Read 再进行唯一一次修改。
 11. **🔴 先 research 后 plan** — 激活只创建三个空骨架；先填写 research.md 的 8 个 section（背景/约束/已知信息/不确定性/全貌/依赖树/方案/Dependency TDD），每个 section 至少 1 行非占位内容，依赖树至少 1 条；然后只调用 `lx-goal.py phase0-done` 进入 PLANNING。
+11b. **🔴 路径契约同步（AI 生成白名单）** — research 阶段把任务声明的输入/输出路径写入 `{task_dir}/working-set.yaml` 的 `allowed_paths`（支持绝对路径声明，如 `/Users/xx/Desktop/daily_tasks/`；仓库外路径也应声明，避免路径契约误拦）。让 working-set 反映任务真实接触面。若任务不涉及任务外文件，本步可跳过。
 12. **🔴 PlanGate 门禁** — 仅在 PLANNING 状态填写并审查 plan.md；完成后调用 `lx-goal.py plan-done`，ResearchGate + PlanGate 通过后才进入 EXECUTING。未通过不得 tick、subagent-log 或填充 executor.md。
 13. 验证任务绑定存在：`lx-goal.py status --task-dir <task_dir>`；不扫描其它任务。
 
