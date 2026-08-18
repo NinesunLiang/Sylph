@@ -1,0 +1,174 @@
+@use "sass:color";
+@use "../../styles/tokens" as *;
+
+.composer {
+  flex: none;
+  border-top: 1px solid $color-border;
+  padding: 22px 16px 16px;
+  background: $color-bg-container;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.toolbarLeft {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbarRight {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.modelPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: $radius-full;
+  background: $color-bg-selected;
+  cursor: pointer;
+  color: $color-text-primary;
+  margin-right: 6px;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: color.adjust($color-bg-selected, $lightness: -2%);
+  }
+}
+
+.modelDot {
+  width: 16px;
+  height: 16px;
+  border-radius: $radius-full;
+  background: $color-text-primary;
+  color: $color-text-inverse;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modelName {
+  font-size: 14px;
+}
+
+.toolBtn {
+  width: 30px;
+  height: 30px;
+  border: none;
+  background: transparent;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-tertiary;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    background: $color-bg-hover;
+    color: $color-text-primary;
+  }
+}
+
+.input {
+  width: 100%;
+  margin-top: 10px;
+  border: none;
+  outline: none;
+  resize: none;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 64px;
+  color: $color-text-primary;
+  background: transparent;
+  font-family: inherit;
+
+  &::placeholder {
+    color: $color-text-secondary;
+  }
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.hint {
+  font-size: 12px;
+  color: $color-text-secondary;
+}
+
+.actionBtns {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trayBtn {
+  width: 36px;
+  height: 36px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-container;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-primary;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    border-color: $color-border-strong;
+    color: $color-primary;
+  }
+}
+
+.sendBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 6px 0 16px;
+  border: none;
+  border-radius: $radius-md;
+  background: $color-btn-primary-bg;
+  color: $color-text-inverse;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover:not(:disabled) {
+    background: $color-btn-primary-hover;
+  }
+
+  &:active:not(:disabled) {
+    background: $color-btn-primary-active;
+  }
+
+  &:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+}
+
+.sendDivider {
+  width: 1px;
+  height: 16px;
+  background: rgb(255 255 255 / 30%);
+}

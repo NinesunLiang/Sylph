@@ -1,0 +1,148 @@
+@use "sass:color";
+@use "../../styles/tokens" as *;
+
+.panel {
+  flex: 0 0 320px;
+  display: flex;
+  flex-direction: column;
+  background: $color-bg-container;
+  border-right: 1px solid $color-border;
+  padding: 16px 0;
+  overflow-y: auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: 24px;
+  font-weight: 700;
+  color: $color-text-primary;
+}
+
+.newChatBtn {
+  color: $color-text-primary;
+}
+
+.search {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  margin: 0 16px 12px;
+  padding: 0 10px;
+  border: 1px solid $color-border;
+  border-radius: $radius-md;
+  background: $color-bg-container;
+  transition: border-color 0.15s ease;
+
+  &:focus-within {
+    border-color: $color-primary;
+  }
+}
+
+.searchIcon {
+  color: $color-text-secondary;
+  flex: none;
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  color: $color-text-primary;
+  background: transparent;
+
+  &::placeholder {
+    color: $color-text-secondary;
+  }
+}
+
+.kbd {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 12px;
+  color: $color-text-secondary;
+  border: 1px solid $color-border;
+  border-radius: $radius-sm;
+  padding: 1px 5px;
+  background: $color-bg-page;
+}
+
+.currentCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 8px 0;
+  padding: 20px 16px;
+  background: $color-bg-selected;
+  border-radius: $radius-lg;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: color.adjust($color-bg-selected, $lightness: -2%);
+  }
+}
+
+.currentIcon {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border-radius: $radius-md;
+  background: $color-text-primary;
+  color: $color-text-inverse;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.currentName {
+  font-size: 16px;
+  font-weight: 600;
+  color: $color-text-primary;
+}
+
+.listHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px 20px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  color: $color-text-secondary;
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
+
+  &:hover {
+    color: $color-text-primary;
+    background: $color-bg-hover;
+  }
+}
+
+.newAssistant {
+  margin: 14px 16px 0;
+  height: 36px;
+  border-color: $color-border-strong;
+  color: $color-text-primary;
+  background: $color-bg-container;
+  border-radius: $radius-md;
+
+  &:hover {
+    border-color: $color-primary !important;
+    color: $color-primary !important;
+  }
+}

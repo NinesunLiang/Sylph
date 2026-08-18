@@ -31,6 +31,7 @@
   - ❌ 不要默认选首页——首页通常是聚合页（多 API/多浮层），首夜避雷
   - ✅ 好候选：登录/设置/单列表页；首夜强制 `pages==1`（preflight 机判），跑通后每夜可排多页
 - [ ] **B1 intake**：按 `intake.md` 填成熟度 + `api_contract_status`（API 文档没到 = inferred，推断契约登记 assumptions.yaml，晨报挂红旗，到后 reconcile 对账——**不阻塞开发**）
+- [ ] **B1.5 测量锚点**：按 `UI-RESTORE-PLAYBOOK.md` §2 用视觉工具测页面锚点（区块坐标/尺寸/交互态色值）写入 research.md——让夜模型"照数字写 CSS"，不靠审美发挥
 - [ ] **B2 feature 目录**：`prd/{app}/feat-{PAGE_ID}/prd.md` 头部写"夜间模式：验收委托机器门禁"
 - [ ] **B3 dry-cost**（**仅首夜**）：拿本夜页手动走一遍完整门禁周期，实测调用数/墙钟/fix 轮 → `budgets = P90 × 1.5` 填 manifest（禁止拍脑袋）
 - [ ] **B4 环境指纹**：node/pnpm/lockfile sha256/playwright 版本填 manifest
@@ -75,6 +76,7 @@
 
 | 问题 | 规则 |
 |---|---|
+| AI 自行还原怎么执行 | 按 `UI-RESTORE-PLAYBOOK.md`（捕获→分型→测量→实现→像素 diff 迭代→门禁闭环；含预算与坑位清单） |
 | 目标 repo 放哪 | `apps/{产品名}/`（首夜）；独立 repo 等产品长大再拆 |
 | 首夜选哪页 | 输入最全 + 复杂度最低；不默认首页；`pages==1` 硬约束 |
 | 路由什么时候配 | **永远白天骨架期**；router 是公共面，夜里碰 = BLOCKED_SCOPE（宁可停不许越权） |

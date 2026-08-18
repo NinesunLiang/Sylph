@@ -1,0 +1,20 @@
+.announceModal {
+  // antd Modal 根节点（className 直接落到 .ant-modal）
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.body {
+  padding: 8px 4px 12px;
+}
+
+.line {
+  margin: 0 0 10px;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--ant-color-text);
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}

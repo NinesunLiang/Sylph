@@ -1,0 +1,167 @@
+@use "sass:color";
+@use "../../styles/tokens" as *;
+
+.panel {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  background: $color-bg-container;
+  border-left: 1px solid $color-border;
+  overflow-y: auto;
+}
+
+.header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 12px 8px 16px;
+  border-bottom: 1px solid $color-border;
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: $color-text-primary;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.iconBtn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-secondary;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    background: $color-bg-hover;
+    color: $color-text-primary;
+  }
+}
+
+.guideCard {
+  position: relative;
+  margin: 3px 8px;
+  padding: 16px 14px 14px;
+  border: 1px solid $color-border;
+  border-radius: $radius-lg;
+  background: $color-bg-container;
+}
+
+.guideClose {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border: none;
+  background: transparent;
+  border-radius: $radius-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-secondary;
+  cursor: pointer;
+
+  &:hover {
+    background: $color-bg-hover;
+    color: $color-text-primary;
+  }
+}
+
+.guideArt {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 12px;
+}
+
+.guideTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.guideTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: $color-text-primary;
+}
+
+.guideEmptyTag {
+  flex: none;
+  font-size: 12px;
+  color: $color-text-secondary;
+  border: 1px solid $color-border;
+  border-radius: $radius-sm;
+  padding: 1px 6px;
+  background: $color-bg-page;
+  white-space: nowrap;
+}
+
+.guideText {
+  margin: 8px 0 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: $color-text-secondary;
+}
+
+.topicList {
+  padding: 0 8px;
+}
+
+.topicItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 41px;
+  padding: 0 12px;
+  border-radius: $radius-md;
+  background: $color-bg-selected;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+
+  &:hover {
+    background: color.adjust($color-bg-selected, $lightness: -2%);
+  }
+}
+
+.topicIcon {
+  color: $color-text-secondary;
+  display: flex;
+}
+
+.topicTitle {
+  font-size: 14px;
+  color: $color-text-primary;
+}
+
+.topicTag {
+  margin-left: auto;
+  font-size: 12px;
+  color: $color-text-secondary;
+  background: $color-bg-container;
+  border-radius: $radius-sm;
+  padding: 1px 7px;
+}
+
+.artifactsEmpty {
+  padding: 14px 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: $color-text-secondary;
+}

@@ -1,0 +1,70 @@
+@use "../../styles/tokens" as *;
+
+.rail {
+  flex: 0 0 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: $color-bg-container;
+  border-right: 1px solid $color-border;
+  padding: 16px 0 12px;
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: $radius-full;
+  background: linear-gradient(135deg, #ff7a1f, $color-logo);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-inverse;
+  font-weight: 800;
+  font-size: 17px;
+  margin-bottom: 20px;
+  user-select: none;
+}
+
+.logoX {
+  line-height: 1;
+  transform: rotate(0deg);
+}
+
+.top {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item {
+  width: 44px;
+  height: 44px;
+  border: none;
+  background: transparent;
+  border-radius: $radius-md;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: $color-text-secondary;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+
+  &:hover {
+    background: $color-bg-hover;
+    color: $color-text-primary;
+  }
+}
+
+.itemActive {
+  background: $color-bg-selected;
+  color: $color-text-primary;
+}
