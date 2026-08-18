@@ -43,7 +43,7 @@
 |---|---|---|
 | 0 | **PAGE_BOUNDARY_RESET**：工作树干净；环境指纹比对（node/pnpm/lockfile/playwright）；清 browser context/storage/mock 内存态/端口；记录页基线 `git -C $R rev-parse HEAD > $NIGHT/page-baselines/{page}.sha` | reset 失败 → **夜熔 WORKSPACE_POISONED**（记 events，整晚停） |
 | 1 | **research**：按 `prototype.kind` 分型测量（interactive=逐触发器扫描；static/mixed=禁伪装点击，浮层只认 PRD/标注/intake 登记）；**分型/测量/锚点/交互态登记一律按 `UI-RESTORE-PLAYBOOK.md` §1-§2 执行**（含捕获资产清单与 CDP 四态色值入 tokens）；分段滚动捕获 fold 以下；仓库模式扫描 → `research.md` + overlay-inventory + `reuse-map.json` | fold 以下没进 research 就不许进 plan |
-| 2 | **plan 冻结**：files_allowed / AC 逐条 / 七态断言落 playwright（ID 必须在 assertion-catalog.yaml 内）/ overlay_contract 确认（status∈{declared,confirmed_none}，unknown → BLOCKED_INPUT）/ rollback 方案 → `plan.md` 标 frozen | overlay unknown 不许冻结 |
+| 2 | **plan 冻结**：files_allowed / AC 逐条 / 七态断言落 playwright（ID 必须在 assertion-catalog.yaml 内）/ overlay_contract 确认（status∈{declared,confirmed_none}，unknown → BLOCKED_INPUT）/ rollback 方案 → `plan.md` 标 frozen；**锚点表（`UI-RESTORE-PLAYBOOK.md` §2.2 模板）必须已进 research.md 且与金样坐标一致，否则不许冻结** | overlay unknown 不许冻结；锚点表缺失不许冻结 |
 | 3–5 | **实现**：骨架→结构→交互，原子提交（每提交可编译）；全 mock；api 层按 `api_contract_status`（inferred → 每条推断契约补登 assumptions.yaml） | 不碰 files_allowed 外任何文件 |
 | 6 | **C1**：`python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/scope_check.py --manifest $MANIFEST --night-dir $NIGHT --page-id {page} --target-repo $R` | exit 0；越界 → 回步 3 修，越界×2 → 页熔 |
 | 7 | **C2**：`python3 .claude/workflows/frontend-overnight/scripts/carroros-gates/run_gate.py --gate-id C2 ... -- pnpm -C $R exec tsc --noEmit` 然后 eslint（`--max-warnings 0`）然后 `pnpm -C $R build`（三次各写一个 C2 信封） | 失败 → Fixer（V4 Flash）修，编译失败 3 轮 → 回步 2 |

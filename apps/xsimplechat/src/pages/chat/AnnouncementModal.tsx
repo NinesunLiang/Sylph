@@ -27,7 +27,7 @@ export function AnnouncementModal() {
       title={announcement?.title ?? "系统公告"}
       centered
       width={420}
-      maskClosable
+      mask={{ closable: true }}
       closable
       footer={null}
       className={styles.announceModal}
@@ -36,7 +36,7 @@ export function AnnouncementModal() {
         setOpen(false);
         dismissAnnouncement();
       }}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className={styles.body} data-testid="announce-body">
         {content?.map((line, i) => (

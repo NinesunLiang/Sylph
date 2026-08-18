@@ -25,13 +25,13 @@ export function LoginModal({ open, onClose }: LoginModalProps) {
       open={open}
       centered
       width={400}
-      maskClosable
+      mask={{ closable: true }}
       closable
       footer={null}
       className={styles.loginModal}
       data-testid="login-modal"
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
     >
       <div className={styles.header}>
         <div className={styles.logo}>X</div>

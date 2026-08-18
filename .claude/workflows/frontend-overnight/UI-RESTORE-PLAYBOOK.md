@@ -4,6 +4,8 @@
 > 一比一静态&交互&二级弹窗 UI 还原。本文由 2026-08-18 xsimplechat chat-inbox 还原实测沉淀
 > （证据：`.omc/tasks/20260818/xsimplechat-inbox-restore/`，视觉 diff 3.30% vs 上次同类任务 15.80%）。
 > 本文是 night-loop.md 步 1/2 的配套手册；与 assertion-catalog.yaml、tokens 契约配套使用。
+> **参考实现**：`apps/xsimplechat/`（本次交付，全部门禁绿）——tokens 结构 / antd 主题收敛 /
+> 组件拆分 / 断言写法 / e2e 浮层语义，下次任务直接照抄骨架，不重发明。
 
 ## 0. 核心闭环（每页必走，不许跳步）
 
@@ -16,6 +18,17 @@
 - **原型是唯一事实源**。DOM 文本（contents.json 类捕获）优先级 > 视觉 OCR；两者冲突时登记冲突。
 - **像素 diff 是唯一验收尺**。禁止"看起来像"——以 `vision_pixel_diff` 数值收敛为准。
 - **先测后写**。每个尺寸/间距来自测量，不拍脑袋；一处改动后必须重截图重 diff。
+
+## 0.5 两条工具路径（先选后干）
+
+| 路径 | 工具 | 适用 | 备注 |
+|---|---|---|---|
+| A：视觉工具链（推荐，本次实测） | `vision_glance`/`vision_ground`/`vision_crop`/`vision_pixel_diff` | 任何环境，无需 task.json | 锚点±3px、diff 数值收敛，见 §2/§4 |
+| B：ui-restore 脚本链（历史沉淀） | `scripts/ui-restore/{capture-*,measure,region-compare}.mjs` | 本地有 Chrome + task.json 配置 | 多断点/区域裁图自动化；配置走 task-config.mjs |
+| 截图（两条路径共用） | `node .claude/workflows/frontend-overnight/scripts/ui-restore/shot-page.mjs <url> <out.png> [--wait 800] [--console]` | 标准截图入口 | `--console` 顺带做 C6 无 console error 检查 |
+
+选 A 还是 B：有视觉工具直接 A（本轮 3.30% 就是这么拿的）；环境只有本地浏览器脚本就走 B。
+两条路径的产物（金样/测量表/diff 数值）格式一致，验收标准相同。
 
 ## 1. 捕获（S1，复用或新捕获）
 
@@ -40,6 +53,24 @@
 4. **overlay 清单**：触发器 → 浮层 → 关闭语义（modal=Esc+遮罩+×；click popover=外点+Esc+再点；
    tooltip=hover 显/leave 隐），写进 manifest overlay_contract（status 必须 declared）。
 
+### 锚点表模板（§2.2 落地格式，直接复制进 research.md）
+
+```markdown
+## 锚点表（真实站 1440x900 实测）
+| 区块 | 元素 | x1,y1 | x2,y2 | w×h | 备注 |
+|---|---|---|---|---|---|
+| rail | logo 圆 | 16,19 | 47,50 | 32×32 | 橙红底白 X |
+| rail | 选中图标块 | 10,72 | 53,116 | 44×44 | bg #f0f0f0 |
+| 左栏 | 当前助手卡 | 72,130 | 376,200 | 304×70 | bg #f0f0f0 |
+| 顶栏 | 联系客服 | 1115,8 | 1220,40 | 105×32 | 紫粉渐变 |
+| 中央 | 晚上好 | 748,71 | ~ | 32px | 粗体黑 |
+| 中央 | 卡片行1 | 400,220 | 1143,331 | 368×110 | 2 列 gap 8 |
+| 右面板 | 话题标题 | 1176,74 | ~ | 16px | 面板下无顶栏覆盖 |
+| 输入区 | 发送按钮 | 1043,848 | 1134,884 | 91×36 | 黑底白字+下拉 |
+```
+
+写 CSS 时逐条对照此表；任何「感觉差不多」都是 bug 前兆。
+
 ## 3. 实现（步 3–5）
 
 - 骨架期（Phase 0）一次建好：tokens/、router 全量预注册、mock 层、assertions.ts 17 helper、
@@ -57,8 +88,9 @@
 ## 4. 视觉验收闭环（步 6–11 之间穿插）
 
 ```bash
-# 截图（等 mock 数据与弹窗动画稳定后再拍）
-node .omc/scripts/shot-chat.mjs impl.png
+# 截图（等 mock 数据与弹窗动画稳定后再拍；--console 顺带查 console error）
+node .claude/workflows/frontend-overnight/scripts/ui-restore/shot-page.mjs \
+  http://localhost:5173/chat?session=inbox .omc/artifacts/impl.png --wait 800 --console
 # 与金样 diff（同尺寸金样优先；2x 金样会自动缩放）
 vision_pixel_diff --original gold.png --rebuilt impl.png
 ```
@@ -69,6 +101,33 @@ vision_pixel_diff --original gold.png --rebuilt impl.png
 - 收敛标准：无结构性差异（无缺失区块/无错位>8px），整体 diff 停留在文字抗锯齿/图标细节级
   （本次 3.30%；上次未用本手册 15.80%）。预算内优先把 worstRegions 逐块压到 <6%。
 - **改完必须从门禁重跑**（tsc/eslint/stylelint/vitest/build/playwright 全绿才算数）。
+
+### diff 迭代决策树（diff 不降时的标准动作，不许原地重试）
+
+```
+overallDifferencePct 没降？
+├─ 先看 worstRegions 坐标分布
+│   ├─ 集中在文字区 → 文字色/字号/行高/字重问题（对照锚点表与 tokens）
+│   ├─ 集中在图标区 → 图标资源不一致（emoji vs 自定义 SVG；渐变图形用内联 SVG）
+│   ├─ 集中在区块边界 → 该区块 x/y/w/h 与锚点表不符 → 改 CSS 尺寸
+│   └─ 全页均匀 → 主题色/背景/字体家族级差异 → 查 ConfigProvider token 与全局样式
+├─ 找不到原因 → vision_crop 裁 worst 区域（scale 2-4）放大看局部
+├─ 再看不清 → vision_glance 并排对比同区域裁剪图，列差异清单
+└─ 一次改一批（≥3 处）再重截图重 diff；单点微调轮次 ≤ 2，避免空转
+```
+
+### 差异归因表（实测踩坑映射，直接查表）
+
+| 现象 | 根因 | 修法 |
+|---|---|---|
+| 整页内容只占上半屏、下面空白 | `height:100%` 链断裂（组件库包裹层没撑满） | `#root > .ant-app { height:100% }` |
+| 弹窗点遮罩关不掉 | 测试点击坐标点在弹窗本体上 | 点弹窗外的角落（如 80,120） |
+| 说明文字对比度不足 | 用了 #999 浅灰 | 改 #666 |
+| 顶栏按钮整体左移/右移 | 图标按钮 32px+gap8 比真实站 30px+gap6 宽 | 按锚点表调 iconBtn 尺寸与 gap |
+| 标题"发灰" | 用了 #222 但真实站近纯黑 | 大标题用 #000 |
+| 助手卡图标不一致 | 渐变图形被 emoji 替代/或相反 | 真实站是渐变图形→内联 SVG；是 emoji→直接用 emoji |
+| diff 数值完全不动 | 改动没生效（HMR 失败/sass 报错 500） | 查 dev server 日志，先修编译错误 |
+| 卡片/区块整体下移 N px | 上一区块 margin/padding 链偏差 | 从锚点表倒推每个间距，逐级对齐 |
 
 ## 5. 门禁链（步 6–12）
 
@@ -90,6 +149,18 @@ vision_pixel_diff --original gold.png --rebuilt impl.png
 | e2e 全量 | 12 spec ≈ 24s |
 | 全门禁一遍 | ≈ 1min（含 build） |
 | 建议预算 | per_page_calls 80 / fix_rounds 8 / online_vision_calls 30 |
+
+## 6.5 能力基线（下次任务对照用——进步/退步一目了然）
+
+| 指标 | 2026-08-18 本次（用本手册） | 2026-08-16 上次（未用本手册） |
+|---|---|---|
+| 静态视觉 diff（vs 真实站原图） | **3.30%** | 15.80% |
+| 浮层关闭语义 | 12/12 e2e 全绿 | 9/9 e2e |
+| 门禁 | 全绿（含 stylelint/17 helper 专项） | 全绿 |
+| 迭代方式 | 锚点测量→批量修→diff 收敛 | 视觉对照主观修 |
+
+下次任何还原任务收尾时，把当次 diff 数值填进此表对比；
+**超过 3.30% 说明有步骤没按手册走，回查决策树与归因表。**
 
 ## 7. 禁止事项（违反 = 当夜作废）
 
