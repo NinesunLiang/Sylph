@@ -30,19 +30,19 @@ function RobotIcon() {
       <svg width="30" height="34" viewBox="0 0 30 34" fill="none">
         <defs>
           <linearGradient id="robot-head" x1="0" y1="0" x2="0" y2="1">
-            <stop stopColor="#e6d2f4" />
-            <stop offset="1" stopColor="#c2a6e6" />
+            <stop stopColor="#c9a8da" />
+            <stop offset="1" stopColor="#b08fd0" />
           </linearGradient>
         </defs>
         <rect x="6.5" y="2" width="10" height="3" rx="1.5" fill="#f59e0b" />
-        <rect x="26.5" y="2.5" width="1.5" height="15" rx="0.75" fill="#f472b6" />
-        <circle cx="27.2" cy="1.5" r="1.8" fill="#f472b6" />
-        <rect x="1" y="2.5" width="1.5" height="15" rx="0.75" fill="#f472b6" />
-        <circle cx="1.8" cy="1.5" r="1.8" fill="#f472b6" />
-        <rect x="4" y="5" width="23" height="24" rx="6.5" fill="url(#robot-head)" />
-        <rect x="4.5" y="9" width="22" height="8" rx="4" fill="#312e81" />
-        <rect x="5.2" y="10.4" width="3" height="5.2" rx="1.5" fill="#22d3ee" />
-        <rect x="16" y="10.4" width="3" height="5.2" rx="1.5" fill="#22d3ee" />
+        <rect x="26.5" y="2.5" width="1.5" height="15" rx="0.75" fill="#f21872" />
+        <circle cx="27.2" cy="1.5" r="1.8" fill="#f21872" />
+        <rect x="1" y="2.5" width="1.5" height="15" rx="0.75" fill="#f21872" />
+        <circle cx="1.8" cy="1.5" r="1.8" fill="#f21872" />
+        <rect x="3" y="5" width="23" height="24" rx="6.5" fill="url(#robot-head)" />
+        <rect x="3.5" y="9" width="22" height="8" rx="4" fill="#29233f" />
+        <rect x="4.2" y="10.4" width="3" height="5.2" rx="1.5" fill="#00a9f5" />
+        <rect x="15" y="10.4" width="3" height="5.2" rx="1.5" fill="#00a9f5" />
         <rect x="8" y="22.5" width="7.6" height="2.8" rx="1.4" fill="#4c1d95" />
       </svg>
     </span>

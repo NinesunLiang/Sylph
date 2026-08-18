@@ -31,6 +31,7 @@
   font-size: 14px;
   line-height: 1.1;
   letter-spacing: 0.4px;
+  font-weight: 500;
   color: #333;
   max-width: 520px;
 }
@@ -100,9 +101,9 @@
   gap: 12px;
   padding: 22px 24px 14px 21px;
   background: $color-bg-container;
-  border: 1px solid #f5f5f5;
+  border: none;
   border-radius: 10px;
-  box-shadow: 0 1px 2px rgb(0 0 0 / 2%);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 4%);
   cursor: pointer;
   transition:
     border-color 0.15s ease,

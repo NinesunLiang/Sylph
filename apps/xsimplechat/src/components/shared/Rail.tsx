@@ -66,7 +66,7 @@ export function Rail() {
           if (item.to) navigate(item.to);
         }}
       >
-        <item.icon size={ICON_SIZE} strokeWidth={1.5} />
+        <item.icon size={ICON_SIZE} strokeWidth={1.8} />
       </button>
     </Tooltip>
   );
