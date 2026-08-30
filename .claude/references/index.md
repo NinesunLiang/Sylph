@@ -26,6 +26,7 @@
 | `oracle-spec.md` | Oracle 门禁规格 |
 | `philosophy.md` | 决策链哲学（唯一真相源） |
 | `governance-philosophy.md` | 治理哲学：疏导 + 兜底原则（22 门分类） |
+| `sandbox-long-task-pattern.md` | 沙箱内长任务模式（分批 / 后台 / 轮询） |
 | `skill-atomization-guide.md` | Skill 原子化指南 |
 
 ## ADR
