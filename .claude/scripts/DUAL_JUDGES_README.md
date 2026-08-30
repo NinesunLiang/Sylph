@@ -90,7 +90,51 @@ Evidence: 0-10
 | "双法官会自动跑" | ❌ **被动响应**——只在用户主动要求或 L2 任务时触发。|
 | "Mate 比 Oracle 宽松" | ❌ **Mate 更严格**——不确定时默认 REJECT，Oracle 不确定时也 REJECT 但 score 默认 7。|
 
-## 7. 内部模块（无需用户感知）
+## 7. 治理哲学：疏导 + 兜底
+
+> **本节对应 `.claude/references/governance-philosophy.md` 完整文档**。这里只列用户需要知道的要点。
+
+### 核心思想
+
+不防错（防不过来），而是**疏导**（工作流步骤前置引导）+ **兜底**（防止 AI 不遵循引导）。
+
+| 模式 | 描述 | 工作量 |
+|---|---|---|
+| 防错（禁用）| 预测所有 AI 错误并拦截 | 不可穷尽 |
+| 疏导（首选）| step 前置引导（字段/模板/tooltip）| 低 |
+| 兜底（辅助）| AI 不遵守时 REDIRECT/BLOCK | 中 |
+
+### 22 个门实测分类
+
+- **8 疏导为主**（36%）：doc_reference_before_delete / verify_gate / oracle_gate 等
+- **11 疏导 + 兜底双层**（50%）：sensitive_edit / secret_scan / commit_soft_completion 等
+- **3 纯兜底**（14%）：governance_bypass / injection / omc_skeleton_readonly（必要的安全攻击面）
+
+### 用户视角的体现
+
+| 你看到的 | 内部机制 |
+|---|---|
+| plan.md 的 consumes + produces 字段 | 步骤契约（路径锁定，AI 一直在正确路径）|
+| handoff.md 的 "Last Step Produces" 段 | step 边界契约握手 |
+| verify 时 PlanGate 严格 | 兜底（防 AI 写错）|
+| 软完成语检测 warn | 兜底（防 AI 自夸）|
+| delete 文档引用检测 | 疏导（删前提示怎么改）|
+
+### 对用户的好处
+
+- **不浪费算力**：AI 启动 step 前就知道需要什么，不在跑偏后矫正
+- **不报 hook error**：所有 hook error 根因已修（commit 2907e42 / 6d3de8e / 952100c / 43ad497）
+- **归档不再卡**：VERIFYING handoff 自动就绪（commit 43ad497）
+- **步骤交接契约**：每个 step 边界显式握手
+
+### 详细文档
+
+完整治理哲学（22 门分类、加新门准则、不应加的"纯防错"模式）见：
+`.claude/references/governance-philosophy.md`
+
+---
+
+## 8. 内部模块（无需用户感知）
 
 | 用户视角 | 内部模块 | 角色 |
 |---|---|---|
