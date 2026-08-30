@@ -50,7 +50,7 @@ from pretool_gates.checks import (
     _check_stall, _check_injection,
     _check_omc_skeleton_readonly,
     _check_sensitive_read, _check_sensitive_write_bash,
-    _check_test_verification,
+    _check_test_verification, _check_doc_reference_before_delete,
 )
 
 # ── L1/L2 Gate definitions ──
@@ -70,6 +70,8 @@ _GATE_CORE = [
     ("secret-scan", _check_secret_scan),
     # 骨架只读(worktree 隔离): .omc/**/*.md 在 worktree 内只读, 守护级必须 L1 也生效
     ("omc-skeleton-readonly", _check_omc_skeleton_readonly),
+    # F3 (2026-08-30)：删除前查文档引用图（L1 也生效，文档一致性保护低成本）
+    ("doc-reference-before-delete", _check_doc_reference_before_delete),
 ]
 _GATE_L2_EXTRA = [
     ("verify", _check_verify_gate),
@@ -80,6 +82,8 @@ _GATE_L2_EXTRA = [
     ("g5-wide-glob", _check_g5_wide_glob),
     ("g6-budget", _check_g6_budget),
     ("action-loop", _check_action_loop),
+    # F3 (2026-08-30)：删除前查文档引用
+    ("doc-reference-before-delete", _check_doc_reference_before_delete),
 ]
 _GATE_STALL = [("stall", _check_stall)]
 _GATE_L2_TAIL = [

@@ -11,7 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .constants import (
-    OMC, STATE_DIR,
+    OMC, STATE_DIR, ROOT,
     DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS, ASK_USER_COMMANDS,
     READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
     _INJECTION_PATTERNS, _EXTERNAL_DATA_MAX_LEN,
@@ -320,6 +320,82 @@ def _check_action_gate(payload: dict) -> str | None:
                             "decision": "WARN", "reason": "path_specific_destructive",
                             "pattern": warn_only, "command_preview": command[:160]})
             return f"WARN path_specific_destructive pattern={warn_only}"
+    return None
+
+
+# ── Gate 5-extended: F3 (2026-08-30) 文档引用图删除前检查 ──
+_DOC_REFERENCE_EXTS = (".md", ".txt", ".rst", ".adoc")  # 文档类文件才查引用
+_DOC_REFERENCE_DIRS = (
+    ".claude/references",
+    ".claude/docs",
+    "docs",
+    "README.md",
+    "AGENTS.md",
+)
+
+
+def _extract_delete_targets(payload: dict) -> list[str]:
+    """提取 Delete/Bash rm 操作的目标路径（不带 shell 解析的轻量实现）。"""
+    tool = _extract_tool(payload).lower()
+    targets: list[str] = []
+    if tool == "delete":
+        path = _extract_path(payload)
+        if path:
+            targets.append(path)
+    elif tool == "bash":
+        cmd = _extract_command(payload) or ""
+        # 简单匹配 rm / unlink / git rm 后面的路径
+        import re as _re
+        for m in _re.finditer(r"\b(?:rm|unlink|git\s+rm)\s+([^\s;|&>]+)", cmd):
+            targets.append(m.group(1))
+    return targets
+
+
+def _check_doc_reference_before_delete(payload: dict) -> str | None:
+    """F3 门：删除文件前查文档引用图。
+
+    防止 AI 删脚本/文档时破坏文档一致性（删了脚本但文档还在描述它）。
+    仅对 .claude/scripts/ / src/ 等代码/脚本文件做检查。
+    """
+    targets = _extract_delete_targets(payload)
+    if not targets:
+        return None
+    project_root = ROOT
+    refs_found: list[tuple[str, str]] = []  # (target, ref_file)
+    for target in targets:
+        # 仅对 .py / .sh / .js / .ts / .yaml 等代码/配置检查（不是删 .md 自身）
+        if not target.endswith((".py", ".sh", ".js", ".ts", ".yaml", ".yml", ".json")):
+            continue
+        # 取文件名（去路径）
+        from pathlib import PurePosixPath
+        fname = PurePosixPath(target).name
+        if not fname or fname.startswith("."):
+            continue
+        # grep 文档目录
+        for ref_dir in _DOC_REFERENCE_DIRS:
+            ref_path = project_root / ref_dir
+            if not ref_path.exists():
+                continue
+            try:
+                import subprocess as _sp
+                # grep 排除 .bak / archived / __pycache__
+                r = _sp.run(
+                    ["grep", "-rl", "--include=*.md", "--exclude-dir=__pycache__",
+                     "--exclude-dir=archived", "--exclude-dir=retired",
+                     "--exclude=*.bak", fname, str(ref_path)],
+                    capture_output=True, text=True, timeout=5,
+                )
+                for ref_file in (r.stdout or "").strip().splitlines():
+                    if ref_file:
+                        refs_found.append((target, ref_file))
+            except Exception:
+                continue
+    if refs_found:
+        target, ref_file = refs_found[0]
+        return (f"REDIRECT doc_reference_found|"
+                f"删除 {target} 但文档 {ref_file} 还在引用它。\n"
+                f"请先更新文档（移除引用或指向新位置），确认无认知依赖后再删除。\n"
+                f"如确认无关，可使用 temp-bypass.py 临时跳过。")
     return None
 
 
