@@ -598,7 +598,7 @@ def _write_default_executor():
     EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
     content = """# Executor Evidence Ledger
 
-> schema_version: v2
+> schema_version: v3
 > 格式对齐 AGENTS.md §executor.md 证据块模板 — 每步对应一个 ### EV-<step_id> 块
 > verify_gate 和 oracle 通过解析 ### EV-xxx / step: / assertion: 字段验证完成状态。
 > 契约精简（还债项）：只保留 Key Changes + TDD Evidence + EV 证据块 3 段。
@@ -607,6 +607,12 @@ def _write_default_executor():
 > EV 块的 `assertion:` 必须**逐字包含** plan.md 中该 step 的 verify 规则关键短语。
 > 例：plan verify 写 `assertion: 5项AC全部通过`，EV 断言里要原样出现
 > 「5项AC全部通过」，再补充实测证据，否则 VerifyGate 报 evidence_missing。
+>
+> 步骤交接契约（2026-08-30）：consumes → produces 路径锁定
+>   - 每步 EV 块必须包含 consumes + produces 字段
+>   - produces 字段 = 下步 consumes 字段的输入
+>   - produces 与下步 consumes 不一致 → REDIRECT 回上步补完
+>   契约先行，不是事后兜底。
 
 ## Key Changes
 
@@ -626,6 +632,8 @@ def _write_default_executor():
 - evidence_level: E2
 - source: step execution
 - exit_code: 0
+- consumes: <从 plan.md S1.consumes 字段读取；上步 produces>
+- produces: <本步输出/产物；下步 consumes 字段值>
 - file: pending
 - assertion: step evidence pending
 

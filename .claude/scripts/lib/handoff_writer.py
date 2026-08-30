@@ -56,6 +56,28 @@ def generate_capsule(
         lines.append("  (pending)")
     lines.append("")
 
+    # ── 步骤交接契约（2026-08-30）：上步 produces → 下步 consumes ──
+    # 契约先行（不是事后兜底）：让下步启动前直接读 consumes 字段，
+    # 避免"步骤需要的不匹配"在执行中才发现。
+    lines.append("## Step Contract (Handoff Boundary)")
+    lines.append("")
+    lines.append("### Last Step Produces (本步的输出/产物)")
+    if executor_path and executor_path.exists():
+        # 从 executor.md 提取最近 EV 块的 produces 字段（轻量启发式）
+        _ex_text = executor_path.read_text(encoding="utf-8")
+        _ev_produces = []
+        for _line in _ex_text.splitlines():
+            _stripped = _line.strip()
+            if _stripped.startswith("produces:") or _stripped.startswith("- produces:"):
+                _ev_produces.append(_stripped)
+        if _ev_produces:
+            lines.append("  " + "\n  ".join(_ev_produces[-3:]))  # 最近3条
+        else:
+            lines.append("  (从 plan.md 对应 step 的 produces 字段读取)")
+    else:
+        lines.append("  (executor.md 不存在 — 当前无已完成 step)")
+    lines.append("")
+
     # Next action (or archived)
     if archived:
         lines.append("## ⏹  Status: ARCHIVED")
@@ -66,6 +88,11 @@ def generate_capsule(
         cs = token.get("task", {}).get("current_step", "?")
         st = token.get("task", {}).get("status", "?")
         lines.append(f"  step: {cs} | status: {st}")
+        # Next Step Consumes：让 AI 在执行下步前明确知道需要什么
+        lines.append("")
+        lines.append("### Next Step Consumes (下步的输入/依赖)")
+        lines.append("  ⚠ 契约握手：在执行下步前，先 verify 当前 step 的 produces 字段")
+        lines.append("    是否满足下步 consumes 字段。不满足 → REDIRECT 回上步补完，不强行跑。")
     lines.append("")
 
     # Changed files from plan scope
