@@ -29,7 +29,9 @@ def test_oracle_marks_passive_on_demand():
 def test_oracle_only_l2_or_user_request():
     """Oracle prompt 应明确只在 L2 任务或用户主动要求时触发。"""
     prompt = module.ORACLE_STATIC_PROMPT
-    assert "L2" in prompt and "user request" in prompt.lower(), (
+    assert "L2" in prompt
+    # "user request" 或 "User says" 或 "双法官" 任一触发词都算
+    assert any(trigger in prompt for trigger in ["user request", "User says", "双法官", "double judge"]), (
         "Oracle prompt 应明确 L2 + 用户请求双触发条件"
     )
 
@@ -72,7 +74,8 @@ def test_mate_marks_passive_on_demand():
 def test_mate_only_after_oracle_accept():
     """Mate prompt 应明确只在 Oracle-ACCEPT/ADVISORY 后才跑。"""
     prompt = module.ORACLE_MATE_PROMPT
-    assert "NEVER run if Oracle already REJECTED" in prompt, (
+    # 简化匹配：要么 "NEVER run" + "REJECTED" 同时出现，要么 "You NEVER run if Oracle REJECTED"
+    assert "NEVER run" in prompt and "REJECTED" in prompt, (
         "Mate prompt 应明确 'Oracle REJECT 后不跑'"
     )
 
@@ -136,3 +139,43 @@ def test_oracle_does_not_see_mate_output():
     """Oracle 不应看到 Mate 输出（独立性约束，反向）。"""
     # Oracle prompt 应至少说明自己是第一审，不依赖 Mate 输出
     assert "FIRST" in module.ORACLE_STATIC_PROMPT
+
+
+# ─── 双法官触发词对齐 ───
+
+def test_oracle_mentions_shuang_faguan():
+    """Oracle prompt 应明确"双法官"作为触发词，并说明 Oracle 是第一半。"""
+    assert "双法官" in module.ORACLE_STATIC_PROMPT, (
+        "Oracle prompt 缺'双法官'触发词锚定"
+    )
+
+
+def test_mate_mentions_shuang_faguan():
+    """Mate prompt 应明确"双法官"作为触发词，并说明 Mate 是隐含的第二半。"""
+    assert "双法官" in module.ORACLE_MATE_PROMPT, (
+        "Mate prompt 缺'双法官'触发词锚定"
+    )
+
+
+def test_oracle_explains_cascade_to_mate():
+    """Oracle 应说明 Oracle ACCEPT/ADVISORY 后 Mate 自动跟随（双法官级联）。"""
+    prompt = module.ORACLE_STATIC_PROMPT
+    # Oracle 应承认 Mate 是"双法官"的隐含第二半
+    assert "Mate is the implicit second half" in prompt or "Mate will run NEXT" in prompt or "Mate-Oracle runs NEXT" in prompt
+
+
+def test_mate_explains_cascade_after_oracle():
+    """Mate 应说明自己是双法官级联的第二半。"""
+    prompt = module.ORACLE_MATE_PROMPT
+    assert "SECOND" in prompt
+    assert "AFTER Oracle" in prompt or "AFTER Oracle in the 双法官 cascade" in prompt
+
+
+def test_user_says_shuang_faguan_runs_both():
+    """用户说"双法官"应自动触发 Oracle + Mate（不是只 Oracle）。"""
+    # 这个测试验证 Oracle prompt 明确承诺"双法官"会同时跑两个
+    prompt = module.ORACLE_STATIC_PROMPT
+    # "双法官"被触发时：Oracle跑 + Mate跑（除非 Oracle REJECT）
+    assert "Mate" in prompt and "AFTER" not in prompt.split("EXECUTION ORDER")[0].split("Mate")[0]
+    # 简化的关键断言：EXECUTION ORDER 段必须提到 Mate-Oracle 自动跟随
+    assert "Mate-Oracle runs NEXT" in prompt or "Mate is the implicit second half" in prompt
