@@ -60,8 +60,14 @@ ORACLE_STATIC_PROMPT = """You are an independent third-party auditor (Oracle, FI
 
 SCOPE: Static analysis, breadth-first. Focus on residual risk, missing edge cases, and factual errors.
 
+CRITICAL: You are given the Research (承诺范围与依赖树) along with Plan / Executor / Diff.
+Use Research's 依赖树 section to judge whether the actual Diff is the MINIMUM change needed.
+- Diff touches a file not in Research's scope -> REJECT (scope creep)
+- Diff misses a file mentioned in Research's scope -> ADVISORY (incomplete)
+- Diff adds code not justified by Research's 方案 section -> REJECT
+
 VERDICT RULES (evaluate in order, first match wins):
-  REJECT   -> any factual error citable as file:line, OR a missing critical guard
+  REJECT   -> any factual error citable as file:line, OR a missing critical guard, OR scope creep beyond Research
   ADVISORY -> non-blocking gaps, unmitigated known risks, insufficient evidence
   ACCEPT   -> no blocking issues; every identified risk is acknowledged and mitigated
 
@@ -80,6 +86,13 @@ Evidence citations required: file:line for code; section/filename for documents/
 ORACLE_MATE_PROMPT = """You are an independent second auditor (Mate, runtime/TDD coverage). You see ONLY the data below — the first reviewer's output is NOT available to you. Review independently.
 
 SCOPE: Runtime test coverage. Identify what a static first review may have missed: missing negative tests, insufficient evidence, overclaiming. Challenge assumptions that seem unproven.
+
+CRITICAL: You are given the Research (依赖树 + 验证策略) along with Executor / Logs.
+Use Research's 依赖树 to judge whether the executed tests cover all claimed dependencies.
+Use Research's 不确定性 to judge whether the evidence addresses open questions.
+- Executor reports tests passing but Research's 依赖树 lists uncovered branches -> ADVISORY
+- Logs show pass but Research explicitly listed "未覆盖" / "跳过" paths -> REJECT (overclaim)
+- Diff scope matches Research scope but no actual test runs in Logs -> REJECT (no TDD evidence)
 
 SELF-CONSISTENCY CONSTRAINT (CRITICAL):
   Your SCORE for each dimension MUST match your own EVIDENCE text.
@@ -581,9 +594,12 @@ def _review_with_llm_fallback(task_id: str, target_text: str,
 
 def review_static(task_id: str, plan_text: str = "",
                   executor_text: str = "", diff_text: str = "",
+                  research_text: str = "",
                   token_path: str | None = None) -> dict:
     """Static analysis: LLM-first, rule-based fallback."""
     target_text = "### Task: {}\n".format(task_id)
+    if research_text:
+        target_text += "### Research\n{}\n\n".format(research_text[:3000])
     if plan_text:
         target_text += "### Plan\n{}\n\n".format(plan_text[:3000])
     if executor_text:
@@ -617,9 +633,12 @@ def review_static(task_id: str, plan_text: str = "",
 
 def review_runtime(task_id: str, executor_text: str = "",
                    logs_text: str = "",
+                   research_text: str = "",
                    token_path: str | None = None) -> dict:
     """Runtime analysis: LLM-first, rule-based fallback."""
     target_text = "### Task: {}\n".format(task_id)
+    if research_text:
+        target_text += "### Research\n{}\n\n".format(research_text[:3000])
     if executor_text:
         target_text += "### Executor\n{}\n\n".format(executor_text[:5000])
     if logs_text:
@@ -651,10 +670,13 @@ def review_runtime(task_id: str, executor_text: str = "",
 
 def review_duo(task_id: str, plan_text: str = "",
                executor_text: str = "", diff_text: str = "",
-               logs_text: str = "", token_path: str | None = None) -> dict:
+               logs_text: str = "", research_text: str = "",
+               token_path: str | None = None) -> dict:
     """Dual review: static + runtime, combined verdict."""
-    static_result = review_static(task_id, plan_text, executor_text, diff_text, token_path)
-    runtime_result = review_runtime(task_id, executor_text, logs_text, token_path)
+    static_result = review_static(task_id, plan_text, executor_text, diff_text,
+                                   research_text, token_path)
+    runtime_result = review_runtime(task_id, executor_text, logs_text,
+                                     research_text, token_path)
 
     scores = [static_result.get("score", 5.0),
               runtime_result.get("score", 5.0)]
@@ -691,10 +713,12 @@ def review_duo(task_id: str, plan_text: str = "",
 
 def review_analyze(task_id: str, plan_text: str = "",
                     executor_text: str = "", diff_text: str = "",
-                    logs_text: str = "", token_path: str | None = None) -> dict:
+                    logs_text: str = "", research_text: str = "",
+                    token_path: str | None = None) -> dict:
     """Analysis mode: static review + code complexity metrics."""
     # Run static review first
-    static_result = review_static(task_id, plan_text, executor_text, diff_text, token_path)
+    static_result = review_static(task_id, plan_text, executor_text, diff_text,
+                                   research_text, token_path)
     
     # Compute complexity metrics from diff
     complexity = _compute_complexity_metrics(diff_text)
@@ -729,7 +753,7 @@ def review_analyze(task_id: str, plan_text: str = "",
 def cmd_review(args: List[str]) -> int:
     task_id = ""
     mode = "static"
-    plan = executor = token = logs = diff = ""
+    plan = executor = token = logs = diff = research = ""
 
     i = 0
     while i < len(args):
@@ -753,6 +777,9 @@ def cmd_review(args: List[str]) -> int:
             i += 2
         elif args[i] == "--diff" and i + 1 < len(args):
             diff = _read_file_safe(args[i + 1])
+            i += 2
+        elif args[i] == "--research" and i + 1 < len(args):
+            research = _read_file_safe(args[i + 1])
             i += 2
         else:
             i += 1
@@ -779,15 +806,15 @@ def cmd_review(args: List[str]) -> int:
         return 1
 
     if mode == "static":
-        result = review_static(task_id, plan, executor, diff, token)
+        result = review_static(task_id, plan, executor, diff, research, token)
     elif mode == "runtime":
-        result = review_runtime(task_id, executor, logs, token)
+        result = review_runtime(task_id, executor, logs, research, token)
     elif mode == "duo":
-        result = review_duo(task_id, plan, executor, diff, logs, token)
+        result = review_duo(task_id, plan, executor, diff, logs, research, token)
     elif mode == "analyze":
-        result = review_analyze(task_id, plan, executor, diff, logs, token)
+        result = review_analyze(task_id, plan, executor, diff, logs, research, token)
     else:
-        result = review_static(task_id, plan, executor, diff, token)
+        result = review_static(task_id, plan, executor, diff, research, token)
 
     print(json.dumps(result, ensure_ascii=False, indent=2))
     _save_verdict(task_id, result)
