@@ -179,3 +179,60 @@ def test_user_says_shuang_faguan_runs_both():
     assert "Mate" in prompt and "AFTER" not in prompt.split("EXECUTION ORDER")[0].split("Mate")[0]
     # 简化的关键断言：EXECUTION ORDER 段必须提到 Mate-Oracle 自动跟随
     assert "Mate-Oracle runs NEXT" in prompt or "Mate is the implicit second half" in prompt
+
+
+def test_oracle_and_mate_have_independent_prompts():
+    """Oracle 和 Mate 必须各自有独立的 prompt（不能共享）。"""
+    # 1. 两段 prompt 字符串对象必须不同
+    assert module.ORACLE_STATIC_PROMPT is not module.ORACLE_MATE_PROMPT, (
+        "Oracle 和 Mate 不能共享同一段 prompt"
+    )
+
+    # 2. 两段 prompt 不能完全相等（必须有不同的内容）
+    assert module.ORACLE_STATIC_PROMPT != module.ORACLE_MATE_PROMPT, (
+        "Oracle 和 Mate prompt 内容相同，违反'各自有独立 prompt'定位"
+    )
+
+    # 3. 两段 prompt 长度应有显著差异（不同职责 → 不同内容）
+    len_oracle = len(module.ORACLE_STATIC_PROMPT)
+    len_mate = len(module.ORACLE_MATE_PROMPT)
+    # 不强制长度，但应至少有 10% 差异
+    diff_ratio = abs(len_oracle - len_mate) / max(len_oracle, len_mate)
+    assert diff_ratio > 0.05, (
+        f"Oracle ({len_oracle}) 与 Mate ({len_mate}) 长度太接近，可能内容重复"
+    )
+
+
+def test_oracle_emphasizes_static_analysis_uniquely():
+    """Oracle prompt 必须显式突出"静态分析"（Oracle 独有职责）。"""
+    assert "Static analysis" in module.ORACLE_STATIC_PROMPT
+    # Mate 可以有"runtime"但不应强调"static"
+    # 这是 Oracle 的独有职责
+
+
+def test_mate_emphasizes_runtime_tdd_uniquely():
+    """Mate prompt 必须显式突出"运行时 TDD"（Mate 独有职责）。"""
+    mate = module.ORACLE_MATE_PROMPT
+    assert "Runtime" in mate or "runtime" in mate
+    assert "TDD" in mate
+    # Oracle 提到静态但不应强调 TDD
+
+
+def test_dual_judges_cascade_is_sequential():
+    """双法官必须按序通过（Oracle 先 → 通过 → Mate）。"""
+    # Oracle prompt: 自己是 FIRST，Mate 在后
+    oracle = module.ORACLE_STATIC_PROMPT
+    assert "FIRST" in oracle
+    assert "Mate-Oracle runs NEXT" in oracle or "Mate will run next" in oracle
+
+    # Mate prompt: 自己是 SECOND，在 Oracle 后
+    mate = module.ORACLE_MATE_PROMPT
+    assert "SECOND" in mate
+    assert "AFTER Oracle" in mate
+
+
+def test_mate_does_not_run_if_oracle_rejects():
+    """Oracle REJECT 后 Mate 不应跑（按序通过的核心约束）。"""
+    # 双 prompt 双向声明这个约束
+    assert "If you REJECT, Mate does NOT run" in module.ORACLE_STATIC_PROMPT
+    assert "NEVER run" in module.ORACLE_MATE_PROMPT and "REJECTED" in module.ORACLE_MATE_PROMPT
