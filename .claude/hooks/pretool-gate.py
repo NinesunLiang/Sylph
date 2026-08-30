@@ -75,6 +75,8 @@ _GATE_CORE = [
     ("doc-reference-before-delete", _check_doc_reference_before_delete),
     # 优化2 (2026-08-30)：git commit 软完成语检测（L1 也生效，commit message 自夸防护）
     ("commit-soft-completion", _check_commit_soft_completion),
+    # index33 电池实证修复：治理指令文件删除保护（rm-dot ON 删 AGENTS.md/CLAUDE.md）
+    ("governance-delete-protection", _check_governance_delete_protection),
 ]
 _GATE_L2_EXTRA = [
     ("verify", _check_verify_gate),
@@ -89,6 +91,8 @@ _GATE_L2_EXTRA = [
     ("doc-reference-before-delete", _check_doc_reference_before_delete),
     # 优化2 (2026-08-30)：git commit 软完成语检测
     ("commit-soft-completion", _check_commit_soft_completion),
+    # index33 电池实证修复：治理指令文件删除保护（L2 也生效）
+    ("governance-delete-protection", _check_governance_delete_protection),
 ]
 _GATE_STALL = [("stall", _check_stall)]
 _GATE_L2_TAIL = [
@@ -150,7 +154,9 @@ def main() -> int:
                 step_id = task.get("current_step", "unknown") if isinstance(task, dict) else "unknown"
                 streak_key = f"{gate_name}|{reason}|{task_id}|{step_id}"
                 cnt = _increment_streak(streak_key)
-                if cnt >= 4:
+                # index33 电池实证修复：阈值 4→2（skip-tests 模型无视 1 次 REDIRECT 即完成，
+                # 原阈值 4 太高导致升级永不触发）。双法官共识#3。
+                if cnt >= 2:
                     _append_audit({
                         "event_type": "redirect_escalated_to_hard_stop",
                         "actor": "hook:pretool-gate",

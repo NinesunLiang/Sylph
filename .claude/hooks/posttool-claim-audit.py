@@ -115,6 +115,67 @@ def _autofix_log_edit_repeat(file_path: str, _mode: str) -> bool:
         return False
 
 
+# ── index34 S2: 拦截≠阻止观测增强（后写检测，不硬阻断）─────────────────────────
+# 无人模式核心就是无人（人类裁决），不能阻止任务进行；但门禁 BLOCK 后文件仍被写入
+# （sensitive-edit 凭据仍被改 / skip-tests 跳测试）必须留痕审计，避免"拦截≠阻止"无迹可查。
+
+_GATE_BLOCK_EVENTS = ("credential_write_block", "privacy_write_block")  # 仅实际发射的事件（index34 清理死词汇）
+_GATE_BYPASS_WINDOW_SEC = 120
+
+
+def _detect_gate_bypassed(file_path: str, state_dir: Path) -> bool:
+    """后写检测：pretool-gate 近期 BLOCK 了此文件（敏感/凭据），该文件仍被写入 → True。"""
+    if not file_path or not state_dir:
+        return False
+    audit_dir = state_dir / "audit"
+    if not audit_dir.exists():
+        return False
+    fname = Path(file_path).name
+    now = time.time()
+    for af in sorted(audit_dir.glob("*.jsonl"))[-3:]:
+        try:
+            lines = af.read_text(encoding="utf-8", errors="replace").splitlines()
+        except OSError:
+            continue
+        for line in lines[-300:]:  # 只看尾部，避免全量扫描
+            try:
+                ev = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if ev.get("event_type") not in _GATE_BLOCK_EVENTS:
+                continue
+            ev_path = ev.get("path", "")
+            if not ev_path or Path(ev_path).name != fname:
+                continue
+            ts = ev.get("timestamp", "")
+            try:
+                from datetime import datetime as _dt
+                ev_dt = _dt.fromisoformat(str(ts).replace("Z", "+00:00"))
+                if now - ev_dt.timestamp() <= _GATE_BYPASS_WINDOW_SEC:
+                    return True
+            except Exception:
+                return True  # 时间戳异常则按"存在即命中"保守判定
+    return False
+
+
+def _log_gate_bypassed(state_dir: Path, file_path: str, tool: str) -> None:
+    """写 gate-bypassed 审计事件（不阻止，只留痕）。"""
+    try:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        log = state_dir / "gate-bypassed.jsonl"
+        ev = {
+            "ts": int(time.time()),
+            "event_type": "gate_bypassed",
+            "file_path": file_path,
+            "tool": tool,
+            "detail": "敏感/凭据门禁刚 BLOCK 此文件但仍被写入（无人模式不阻止，只留痕）",
+        }
+        with open(log, "a", encoding="utf-8") as f:
+            f.write(json.dumps(ev, ensure_ascii=False) + "\n")
+    except Exception:
+        pass  # 留痕失败不阻断主流程
+
+
 def main():
     # ─── hc_enabled 门禁 ───
     if not hc_enabled('posttool_claim_audit'):
@@ -127,7 +188,8 @@ def main():
     # ─── 路径初始化 ───
     SCRIPT_DIR = _HOOKS_DIR
     PROJECT_ROOT = (SCRIPT_DIR / '../..').resolve()
-    STATE_DIR = PROJECT_ROOT / '.omc' / 'state'
+    # index34 验收修复：支持 CARROROS_STATE_DIR 环境变量覆盖（测试可隔离，避免污染真实审计链）
+    STATE_DIR = Path(os.environ.get("CARROROS_STATE_DIR", "")) if os.environ.get("CARROROS_STATE_DIR") else PROJECT_ROOT / '.omc' / 'state'
     STATE_DIR_STR = str(STATE_DIR)
 
     # Mode detection: ghost/goal 降级为 warn-only
@@ -156,6 +218,15 @@ def main():
     if not FILE_PATH:
         print(json.dumps({'continue': True}))
         sys.exit(0)
+
+    # index34 S2: 后写检测——pretool-gate 刚 BLOCK 此文件但仍被写入 → 记录 gate_bypassed（不阻止，只留痕）
+    try:
+        if _detect_gate_bypassed(FILE_PATH, STATE_DIR):
+            _log_gate_bypassed(STATE_DIR, FILE_PATH, TOOL_NAME)
+            print("[posttool-claim-audit] ⚠️ gate_bypassed_detected: "
+                  f"{FILE_PATH} 在敏感门禁 BLOCK 后仍被写入（已留痕审计）", file=sys.stderr, flush=True)
+    except Exception:
+        pass  # 检测失败不阻断
 
     # 代码/测试/参考文件中的 file:line 是源码引用或模式说明，非对外断言
     _EXEMPT_EXT = ('.py', '.js', '.ts', '.go', '.rs', '.sh', '.yaml', '.yml', '.json')
@@ -192,6 +263,21 @@ def main():
                 )
                 flywheel_event("posttool_claim_audit", "soft_completion_warn", "P2",
                                f"pattern={_pat}|file={FILE_PATH}")
+                # index33 电池实证修复：warn 落项目审计链（原仅宿主机 flywheel.log，
+                # 项目 .omc/state/ 不可见 → 观测性缺口）。追加到 soft-completion.jsonl。
+                try:
+                    _soft_log = STATE_DIR / 'soft-completion.jsonl'
+                    _soft_log.parent.mkdir(parents=True, exist_ok=True)
+                    with open(_soft_log, 'a', encoding='utf-8') as _f:
+                        _f.write(json.dumps({
+                            "ts": int(time.time()),
+                            "pattern": _pat,
+                            "file_path": FILE_PATH,
+                            "tool": TOOL_NAME,
+                            "severity": "warn",
+                        }, ensure_ascii=False) + "\n")
+                except Exception:
+                    pass  # 审计落盘失败不阻断主流程
                 # warn-only：不阻断（不 return），让其他检测继续
                 break
 

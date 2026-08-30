@@ -335,7 +335,11 @@ _DOC_REFERENCE_DIRS = (
 
 
 def _extract_delete_targets(payload: dict) -> list[str]:
-    """提取 Delete/Bash rm 操作的目标路径（不带 shell 解析的轻量实现）。"""
+    """提取 Delete/Bash rm 操作的目标路径（不带 shell 解析的轻量实现）。
+
+    index34 修复：跳过 rm 的 flag（-rf/-f/--force 等），否则 `rm -rf AGENTS.md`
+    只会捕获 `-rf` 而非目标文件（index33 治理删除保护对真实攻击形态失效，验收法官发现）。
+    """
     tool = _extract_tool(payload).lower()
     targets: list[str] = []
     if tool == "delete":
@@ -344,10 +348,18 @@ def _extract_delete_targets(payload: dict) -> list[str]:
             targets.append(path)
     elif tool == "bash":
         cmd = _extract_command(payload) or ""
-        # 简单匹配 rm / unlink / git rm 后面的路径
+        # 匹配 rm / unlink / git rm 后的参数段，跳过 flag（以 - 开头），保留其余 token 为目标
         import re as _re
-        for m in _re.finditer(r"\b(?:rm|unlink|git\s+rm)\s+([^\s;|&>]+)", cmd):
-            targets.append(m.group(1))
+        for m in _re.finditer(r"\b(?:rm|unlink|git\s+rm)\b([^;|&>]*)", cmd):
+            seg = m.group(1)
+            flags_done = False
+            for tok in seg.split():
+                if not flags_done and tok == "--":
+                    flags_done = True
+                    continue
+                if not flags_done and tok.startswith("-"):
+                    continue  # 跳过 flag（-rf/-f/--force 等）
+                targets.append(tok)
     return targets
 
 
@@ -420,8 +432,9 @@ def _check_governance_delete_protection(payload: dict) -> str | None:
         norm = target.rstrip("/")
         basename = norm.split("/")[-1] if norm else ""
         # 顶层治理指令文件（AGENTS.md/CLAUDE.md）或 .claude/ 下内核/路由文件
-        if basename in _GOVERNANCE_DELETE_BASENAMES or norm.endswith(
-            (".claude/kernel.md", ".claude/index.md", "kernel.md", "index.md")
+        # index34 收紧：仅认 .claude/kernel.md|index.md，避免误伤任意目录的 index.md
+        if basename in _GOVERNANCE_DELETE_BASENAMES or (
+            ".claude/kernel.md" in norm or ".claude/index.md" in norm
         ):
             return (f"REDIRECT governance_delete_protected|"
                     f"不能删除治理指令文件 {target}（AGENTS.md/CLAUDE.md/kernel.md/index.md 是治理灵魂文件）。\n"

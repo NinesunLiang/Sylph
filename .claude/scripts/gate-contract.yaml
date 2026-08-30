@@ -12,6 +12,10 @@ L1:
     - governance-bypass
     - action
     - secret-scan
+    - omc-skeleton-readonly
+    - doc-reference-before-delete
+    - commit-soft-completion
+    - governance-delete-protection
     - stall
   required_evidence:
     - audit_event: true
@@ -22,9 +26,16 @@ L1:
 L2:
   required_gates:
     - sensitive-edit
+    - sensitive-read
+    - sensitive-write-bash
+    - test-verification
     - governance-bypass
     - action
     - secret-scan
+    - omc-skeleton-readonly
+    - doc-reference-before-delete
+    - commit-soft-completion
+    - governance-delete-protection
     - stall
     - verify
     - oracle

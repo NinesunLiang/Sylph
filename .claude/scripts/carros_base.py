@@ -346,12 +346,20 @@ def _bold(s): return f"\033[1m{s}\033[0m"
 # Token helpers
 # ═══════════════════════════════════════════
 
-def _default_token(task_id=None, level="L1", steps=None):
+def _default_token(task_id=None, level="L1", steps=None, light=False):
     now = datetime.now(timezone.utc)
     suffix = _get_date_str()
     tid = task_id or f"sess_{suffix}_0000"
     if steps is None:
         steps = ["S1"]
+    task_state = {
+        "current_step": None,
+        "status": "executing" if light else "planning",
+        "blocked": None,
+    }
+    if light:
+        # index34 流程规模自适应：简单任务 L1-light 直通（免 research/plan ceremony）
+        task_state["mode"] = "light"
     return {
         "schema_version": _SCHEMA_VERSION,
         "revision": 0,
@@ -363,14 +371,10 @@ def _default_token(task_id=None, level="L1", steps=None):
         },
         "task_dir": str(TASK_DIR) if TASK_DIR else "",
         "status": "active",
-        "task": {
-            "current_step": None,
-            "status": "planning",
-            "blocked": None,
-        },
+        "task": task_state,
         "stats": {
             "done": 0,
-            "total": len(steps),
+            "total": 1 if light else len(steps),
             "tick": 0,
         },
     }
@@ -617,6 +621,39 @@ def _write_default_executor():
 - exit_code: 0
 - file: pending
 - assertion: step evidence pending
+
+---
+"""
+    EXECUTOR_PATH.write_text(content)
+
+
+def _write_light_executor():
+    """创建 light 任务最小 executor.md — 流程规模自适应（index34）。
+
+    light 任务免 research/plan ceremony（电池实证：默认骨架填空耗光 max_turns 卡死）。
+    只保留 EV 证据模板，verify 靠它校验完成。
+    """
+    EXECUTOR_PATH.parent.mkdir(parents=True, exist_ok=True)
+    content = """# Executor Evidence Ledger (Light Task)
+
+> 流程规模自适应（index34）：简单任务 L1-light 直通，免 research/plan ceremony。
+> 完成时在下方记录 EV 证据块（含 exit_code: 0），供 verify 校验。
+
+## Key Changes
+
+- 记录本任务的实际改动。
+
+## S1
+
+### EV-S1
+
+- step: S1
+- type: test/review/change
+- evidence_level: E3
+- source: <命令/来源>
+- exit_code: pending
+- file: <改了哪些文件>
+- assertion: <验证了什么>
 
 ---
 """
@@ -1156,11 +1193,12 @@ def cmd_resume(task_doc=None, auto_continue=False):
     return 0
 
 
-def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None, task_mode=None, force=False):
+def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, feature=None, task_mode=None, force=False, light=False):
     """初始化任务 — IntakeGate 分级 → PlanBuilder 生成冻结计划
 
     task_mode: "goal" 时写入 token 标记,由 lx-goal.py 委托调用。
     force=True: 显式覆盖已存在任务（不可逆，须人类授权并记录 audit）。
+    light=True: 流程规模自适应（index34）— 简单任务 L1-light 直通，免 research/plan ceremony。
     """
     # S3: 任务名合法性校验（防路径逃逸）— 复用 task_paths SSOT
     if task_id:
@@ -1230,7 +1268,14 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
             pass
 
     # ── PlanBuilder 生成冻结计划 ──
-    if task_mode == "goal":
+    if light:
+        # 流程规模自适应（index34）：简单任务 L1-light 直通，免 ceremony
+        token = _default_token(task_id=task_id, level=level, steps=steps, light=True)
+        _save_token(token)
+        _write_light_executor()
+        print(_green("   Light mode: 简单任务直通（免 research/plan ceremony）"))
+        print(_yellow("   完成实现后，在 executor.md 记录 EV 证据块，再运行 verify 校验。"))
+    elif task_mode == "goal":
         token = _default_token(task_id=task_id, level=level, steps=steps)
         _save_token(token)
         _write_goal_scaffolds()
@@ -1696,6 +1741,47 @@ def _run_verify_gate(step_id):
     return payload.get("decision", "BLOCKED"), payload.get("reason", ""), payload
 
 
+def _ev_field(block: str, name: str) -> str:
+    """提取 EV 块中 `- name: value` 字段值（去空白）。"""
+    m = re.search(rf"- {name}:\s*(.*)$", block, re.M)
+    return m.group(1).strip() if m else ""
+
+
+def _verify_light(token: dict) -> int:
+    """Light 任务 verify（流程规模自适应 index34）：免 plan/research ceremony。
+
+    跳过 F2 依赖树检查与 PlanGate，校验 executor.md 的 EV 证据块——
+    exit_code: 0 且 source/file/assertion 均非空、非占位符（<...>/(none)），防伪造空证据。
+    """
+    if not EXECUTOR_PATH or not EXECUTOR_PATH.exists():
+        print(_red("❌ executor.md not found (light 任务需记录 EV 证据)"))
+        return 2
+    text = EXECUTOR_PATH.read_text(encoding="utf-8", errors="replace")
+    ev_blocks = re.findall(r"### EV-\S+\n(.*?)(?=\n### |\Z)", text, re.S)
+    verified = False
+    for block in ev_blocks:
+        if not re.search(r"- exit_code:\s*0\b", block):
+            continue
+        src = _ev_field(block, "source")
+        f = _ev_field(block, "file")
+        a = _ev_field(block, "assertion")
+        # 拒绝空值、占位符（<...>）与 (none)——防伪造空证据
+        if (src and f and a
+                and "<" not in src and "<" not in f and "<" not in a
+                and src.lower() != "(none)" and f.lower() != "(none)" and a.lower() != "(none)"):
+            verified = True
+            break
+    if not verified:
+        print(_red("❌ light 任务无有效 EV 证据（需 ### EV-* 块：exit_code: 0 且 source/file/assertion 均非空非占位符）"))
+        print(_yellow("   完成实现后，在 executor.md 的 EV-S1 块填入真实 source/exit_code/file/assertion。"))
+        return 2
+    print(_green("✅ Light task VERIFIED (EV evidence OK)"))
+    token["task"]["status"] = "completed"
+    token["stats"]["done"] = token["stats"].get("done", 0) + 1
+    _save_token(token)
+    return 0
+
+
 def cmd_verify(step_id=None, all_steps=False):
     """验证 step 完成 — VerifyGate 裁决通过才标记 plan.md [x] + 写 task-bound audit"""
     if not TOKEN_PATH or not TOKEN_PATH.exists():
@@ -1715,6 +1801,9 @@ def cmd_verify(step_id=None, all_steps=False):
         return 2
     if not _require_goal_execution_state(token, "verify", {"EXECUTING", "VERIFYING"}):
         return 2
+    # index34 流程规模自适应：light 任务免 plan/research ceremony，直接校验 EV 证据
+    if (token.get("task") or {}).get("mode") == "light":
+        return _verify_light(token)
     token = _sync_token_scope_from_plan(token)
     if step_contracts is None:
         print(_red("❌ VerifyGate dependency unavailable: step_contracts.py"))
@@ -3672,10 +3761,15 @@ def main(argv=None):
         task_mode = None
         force = False
         isolated = False
+        light = False
         i = 0
         while i < len(args):
             if args[i] == "--force":
                 force = True
+                i += 1
+            elif args[i] == "--light":
+                # index34 流程规模自适应：简单任务 L1-light 直通（免 ceremony）
+                light = True
                 i += 1
             elif args[i] == "--task-id" and i + 1 < len(args):
                 task_id = args[i + 1]
@@ -3753,7 +3847,7 @@ def main(argv=None):
                 return init_proc.returncode
             print(f"✅ --isolated 任务初始化完成于 worktree: {wt_path}")
             return 0
-        return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode, force=force)
+        return cmd_init(task_id=task_id, level=level, steps=steps, user_request=user_request, task_dir=task_dir, feature=feature, task_mode=task_mode, force=force, light=light)
 
     elif command == "resume":
         task_doc = args[0] if args else None
