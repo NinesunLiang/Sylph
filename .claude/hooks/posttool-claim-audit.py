@@ -164,6 +164,30 @@ def main():
         print(json.dumps({'continue': True}))
         sys.exit(0)
 
+    # ── E3-extended: 软完成语检测（context 压力下 AI 自夸防护，T1 2026-08-30）──
+    # 仅在 markdown / 文本类文件中检测（代码文件可能含"看起来"等正常表达）
+    _SOFT_COMPLETION_TARGET = ('.md', '.txt', '.rst')
+    if FILE_PATH.endswith(_SOFT_COMPLETION_TARGET):
+        _content_for_soft = str(data.get('tool_input', {}).get('content', '') or
+                                data.get('tool_input', {}).get('new_string', '') or '')
+        # 软完成语词表（与 harness.yaml completion_gate.soft_completion_words 对齐）
+        _SOFT_PATTERNS = [
+            "看起来没问题", "看起来正常", "基本完成", "大部分完成", "差不多了",
+            "应该没问题", "理论上可行", "should be fine", "basically done",
+            "mostly complete", "seems to work", "probably works", "looks good",
+        ]
+        for _pat in _SOFT_PATTERNS:
+            if _pat.lower() in _content_for_soft.lower():
+                print(
+                    f"[posttool-claim-audit] ⚠️ soft_completion_detected: "
+                    f"文件 {FILE_PATH} 含软完成语 '{_pat}'（context 压力下 AI 自夸防护）",
+                    file=sys.stderr, flush=True,
+                )
+                flywheel_event("posttool_claim_audit", "soft_completion_warn", "P2",
+                               f"pattern={_pat}|file={FILE_PATH}")
+                # warn-only：不阻断（不 return），让其他检测继续
+                break
+
     # ── E6: edit-churn-log 写入（每个 Edit/Write 操作记录一条）──
     # 供 posttool-claim-audit.py 自身（同一会话/跨会话）做自我矛盾检测:
     #   - CONTRADICTION: intent-tracker 标记矛盾
