@@ -68,3 +68,83 @@ _来源：.omc/knowledge/sublimation-log.jsonl + PostToolUse hook 实测触发_
 - **与 K2 边界**：K2 聚焦编辑**次数**（应 Write）；K3 聚焦编辑**方向**（应先打草稿）
 - **→ against**：重大方向变更前先收敛方案（executor.md 打草稿），再 Edit 目标文件
 - **严重度**：low（0 触发证据）
+
+---
+
+## L. AI 行为反模式（index37 教训，2026-08-30）
+
+> 来源：index37-双法官盲评-CarrorOS-真实-AI-治理效能全量复测 task 实际报错分析。
+> 这些不是机制 bug——是 AI 自身行为反模式。**疏导目标：AI 启动任务前先扫这些模式**。
+
+### L1 PLAN_PHASE_FORMAT：plan.md Phase 头格式错
+- **现象**：`❌ PlanGate 未通过: Plan must have at least 1 Phase (format: ## Phase N)`
+- **根因**：AI 写 plan.md 时用了 "## Phase 1: 调研"——PlanGate 正则只接受严格 `## Phase 1`
+- **触发条件**：AI 自创 plan 模板而非用 init 自动生成的模板
+- **→ against**：
+  1. 永远用 `carros_base.py init --task-id X --steps "..."` 自动生成 plan.md 模板
+  2. 不要 Write 整个 plan.md——init 已经填好骨架
+  3. 编辑时只改 step 内的 `scope`/`acceptance`/`verify` 字段，Phase 头保持严格
+- **严重度**：medium（首次必踩，1 分钟可修）
+
+### L2 WRITE_OVERSIZE：单次 Write 超 ~8192 tokens
+- **现象**：`Error: content_truncated tool=write`
+- **根因**：Claude Code Write 工具单次 content 字段上限 ~8192 tokens
+- **触发条件**：AI 写大文件（battery.py、config.yaml 等）一次性 Write
+- **→ against**：
+  1. **分批 Write**：先 Write 文件头（前 30-50 行），Edit/append 后续
+  2. **预估大小**：写之前粗略计算 token 数（`wc -m` 中文 1 字 ≈ 1.5 token，英文 1 字 ≈ 0.5 token）
+  3. **超 500 行的文件**必须用 init/template + Edit 增量
+- **严重度**：medium（机制限制无法绕过，只能改用法）
+
+### L3 SIG_MISMATCH：调用函数传错参数
+- **现象**：`TypeError: spawn_judge() takes 1 positional argument but 2 were given`
+- **根因**：AI 凭"感觉"调用，未读取函数定义就传参
+- **触发条件**：AI 调用非自己定义的函数时
+- **→ against**：
+  1. **调用前必读函数定义**（Grep + Read 函数签名）
+  2. 遵循步骤交接契约：consumes 字段 = 函数签名要求
+  3. **Read 是契约的来源**——不读就违约
+- **严重度**：low（1 秒可修，但反映"不读源码"习惯）
+
+### L4 EV_KEYPHRASE_MISS：EV 块缺 verify 关键短语
+- **现象**：`❌ VerifyGate BLOCKED — evidence_missing`
+- **根因**：AI 写 EV 块时没用 plan.verify 里的关键短语，VerifyGate 无法匹配
+- **触发条件**：AI 写完 EV 块但没用 plan.verify 的原文短语
+- **→ against**：
+  1. **EV 块 assertion 字段必须逐字包含 plan.verify 关键短语**（已在 executor 模板注释）
+  2. copy-paste plan.verify 关键短语到 EV 块，再补充实测
+  3. 完成 EV 块前 Read 一下 plan.md 该 step 的 verify 字段
+- **严重度**：low（机制正确，AI 偷懒）
+
+### L5 SLEEP_OVERSIZE：单次 sleep 超沙箱超时
+- **现象**：`Error: Exit code 143 / Command timed out after 2m 0s`
+- **根因**：DSH 沙箱强制 60s / Claude Code Bash hook 默认 120s
+- **触发条件**：AI 用 `sleep 110` 等待后台任务完成
+- **→ against**：
+  1. **分多个短 sleep**（`sleep 50 && sleep 50 && sleep 20`）
+  2. **后台跑**：`run_in_background: true` + 后续查询时用 jobs 列表
+  3. **轮询代替 sleep**：用循环查 status 直到 ready
+- **严重度**：medium（沙箱机制无法绕，必须改用法）
+
+### L6 PARTIAL_FIX：bug 修一半就停
+- **现象**：错误修了一半，AI 继续往下走时报新错（"为什么不输入 prompt？"）
+- **根因**：AI 修了 spawn_judge 签名但没继续往下调
+- **触发条件**：bug 修复后 AI 没有继续
+- **→ against**：
+  1. **bug 修复后必须跑全流程验证**（不能修完就走）
+  2. **每修一个错误，重新评估下一步入参**（steps 边界契约）
+  3. **遵循"一镜到底"原则**：连续修复直到全流程通过
+- **严重度**：high（破坏连贯性，浪费算力重复查错）
+
+---
+
+## 模式速查表
+
+| 反模式 | 类型 | 对应机制 | 疏导 |
+|---|---|---|---|
+| L1 PLAN_PHASE_FORMAT | AI 行为 | PlanGate 严格 | init 自动模板 |
+| L2 WRITE_OVERSIZE | 工具限制 | content_truncated | 分批 Write |
+| L3 SIG_MISMATCH | AI 行为 | TypeError | Read 函数定义 |
+| L4 EV_KEYPHRASE_MISS | AI 偷懒 | VerifyGate 严格 | 复用 plan.verify |
+| L5 SLEEP_OVERSIZE | 沙箱限制 | timeout | 分批 sleep / 后台 |
+| L6 PARTIAL_FIX | AI 行为 | 无 | bug 修完跑全流程 |
