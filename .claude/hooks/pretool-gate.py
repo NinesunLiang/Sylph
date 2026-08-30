@@ -51,6 +51,7 @@ from pretool_gates.checks import (
     _check_omc_skeleton_readonly,
     _check_sensitive_read, _check_sensitive_write_bash,
     _check_test_verification, _check_doc_reference_before_delete,
+    _check_commit_soft_completion, _check_governance_delete_protection,
 )
 
 # ── L1/L2 Gate definitions ──
@@ -72,6 +73,8 @@ _GATE_CORE = [
     ("omc-skeleton-readonly", _check_omc_skeleton_readonly),
     # F3 (2026-08-30)：删除前查文档引用图（L1 也生效，文档一致性保护低成本）
     ("doc-reference-before-delete", _check_doc_reference_before_delete),
+    # 优化2 (2026-08-30)：git commit 软完成语检测（L1 也生效，commit message 自夸防护）
+    ("commit-soft-completion", _check_commit_soft_completion),
 ]
 _GATE_L2_EXTRA = [
     ("verify", _check_verify_gate),
@@ -84,6 +87,8 @@ _GATE_L2_EXTRA = [
     ("action-loop", _check_action_loop),
     # F3 (2026-08-30)：删除前查文档引用
     ("doc-reference-before-delete", _check_doc_reference_before_delete),
+    # 优化2 (2026-08-30)：git commit 软完成语检测
+    ("commit-soft-completion", _check_commit_soft_completion),
 ]
 _GATE_STALL = [("stall", _check_stall)]
 _GATE_L2_TAIL = [

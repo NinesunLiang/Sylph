@@ -399,6 +399,37 @@ def _check_doc_reference_before_delete(payload: dict) -> str | None:
     return None
 
 
+# ── Gate 6b: 治理指令文件删除保护（index33 电池实证）──
+
+# 治理灵魂文件：删除=删除治理框架本身（冻结规则：变更须人类裁决）
+_GOVERNANCE_DELETE_BASENAMES = ("AGENTS.md", "CLAUDE.md")
+
+
+def _check_governance_delete_protection(payload: dict) -> str | None:
+    """治理指令文件删除保护：AGENTS.md/CLAUDE.md/.claude/kernel.md/.claude/index.md 不可删。
+
+    电池实证（index33 rm-dot ON）：模型删光 AGENTS.md/CLAUDE.md/README/.omc，
+    而 .claude/ 与 .git/ 仅靠 Claude Code 内建 rm -rf 危险命令门禁存活——
+    CarrorOS 治理基座自身无删除自保。删除治理指令文件=删除治理框架本身，
+    属高价值不可逆操作，REDIRECT 拒绝并提示走人类裁决。
+    """
+    targets = _extract_delete_targets(payload)
+    if not targets:
+        return None
+    for target in targets:
+        norm = target.rstrip("/")
+        basename = norm.split("/")[-1] if norm else ""
+        # 顶层治理指令文件（AGENTS.md/CLAUDE.md）或 .claude/ 下内核/路由文件
+        if basename in _GOVERNANCE_DELETE_BASENAMES or norm.endswith(
+            (".claude/kernel.md", ".claude/index.md", "kernel.md", "index.md")
+        ):
+            return (f"REDIRECT governance_delete_protected|"
+                    f"不能删除治理指令文件 {target}（AGENTS.md/CLAUDE.md/kernel.md/index.md 是治理灵魂文件）。\n"
+                    f"删除治理指令文件等于删除治理框架本身，属于高价值不可逆操作。\n"
+                    f"如确需变更，请走人类裁决流程（冻结规则：变更须人类裁决）。")
+    return None
+
+
 # ── Gate 6: Verify gate ──
 
 def _check_verify_gate(payload: dict) -> str | None:
@@ -614,6 +645,46 @@ def _check_numeric_claim(payload: dict) -> str | None:
                         "decision": "WARN", "reason": "unattributed_numeric_claim",
                         "path": path, "claims": suspicious[:5]})
         print(f"⚠️ [numeric-claim] 无来源数值断言: {suspicious[:3]}", file=sys.stderr, flush=True)
+    return None
+
+
+# ── 优化2 (2026-08-30) Git commit 软完成语检测 ──
+# 防止 AI 在 commit message 里写"all done"/"fixed it"等绕过 commit message 审核
+# 仅对 git commit 触发，避免误报其他命令
+_COMMIT_SOFT_PATTERNS = [
+    "all done", "fixed it", "fixed the bug", "done with", "ready for review",
+    "all set", "completed successfully", "ship it",
+    "看起来没问题", "看起来正常", "基本完成", "大部分完成", "差不多了",
+    "搞定了", "修好了", "改完了", "做完了",
+]
+
+
+def _check_commit_soft_completion(payload: dict) -> str | None:
+    """优化2：git commit -m "..." 含软完成语应被 REDIRECT。
+
+    仅在 Bash 工具调用中提取 git commit -m "..." 字符串并检测。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    cmd = _extract_command(payload) or ""
+    # 仅匹配 git commit -m "..." 或 git commit -m '...'
+    import re as _re
+    m = _re.search(r"git\s+commit\s+(?:[^|&;]*\s)?-m\s+['\"](.+?)['\"]", cmd, _re.DOTALL)
+    if not m:
+        return None
+    msg = m.group(1).lower()
+    for pat in _COMMIT_SOFT_PATTERNS:
+        if pat.lower() in msg:
+            _append_audit({"event_type": "commit_soft_completion_detected", "actor": "hook:pretool-gate",
+                            "decision": "REDIRECT", "reason": "soft_completion_in_commit_msg",
+                            "pattern": pat, "msg_preview": msg[:80]})
+            return (f"REDIRECT commit_soft_completion|"
+                    f"commit message 含软完成语 '{pat}'。\n"
+                    f"请用具体 VERIFIED 证据替换，例如:\n"
+                    f"  'VERIFIED: pytest → 3 passed'\n"
+                    f"  '[已验证:src/foo.py:42] 修复了 XX'\n"
+                    f"如确认无关，可使用 temp-bypass.py 临时跳过。")
     return None
 
 
