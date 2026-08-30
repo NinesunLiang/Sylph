@@ -15,12 +15,22 @@ from pathlib import Path
 CRITICAL_HOOKS = {"pretool-gate.py"}
 
 
+def _detect_hook_event_type() -> str:
+    """Detect current hook event type from env (CC should set HOOK_EVENT_TYPE).
+
+    Default to PostToolUse for backwards compat, but PreToolUse and
+    PostToolUseFailure are also common — wrong value triggers Claude Code
+    'Hook returned incorrect event name' error.
+    """
+    return os.environ.get("HOOK_EVENT_TYPE", "PostToolUse")
+
+
 def _emit_continue(message="", hook_name=""):
     """Emit a valid continue JSON and exit 0 (fail-open)."""
     payload = {"continue": True}
     text = message or f"hook-launcher: hook execution failed: {hook_name}"
     payload["hookSpecificOutput"] = {
-        "hookEventName": "PostToolUse",
+        "hookEventName": _detect_hook_event_type(),
         "additionalContext": text,
     }
     print(json.dumps(payload, ensure_ascii=False))
@@ -152,7 +162,7 @@ def _merge_hook_results(results: list) -> dict:
     if any_permission_deny or any_permission_ask or any_continue_false:
         # Build a hookSpecificOutput reflecting the strongest decision
         decision = "deny" if (any_permission_deny or any_continue_false) else "ask"
-        hso = {"hookEventName": "PreToolUse", "permissionDecision": decision}
+        hso = {"hookEventName": _detect_hook_event_type(), "permissionDecision": decision}
         if contexts:
             hso["additionalContext"] = "\n".join(contexts)
         # Use first hook's reason as the primary one

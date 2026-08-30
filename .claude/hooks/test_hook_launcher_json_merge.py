@@ -94,3 +94,19 @@ def test_multiple_hooks_messages_merged():
     assert not msg.startswith("{") or not msg.endswith("}"), (
         f"message 字段仍是原始 JSON 拼接: {msg[:100]}"
     )
+
+
+def test_hook_event_type_post_tool_use_failure():
+    """PostToolUseFailure event type 应正确传递，避免 'Hook returned incorrect event name' 错误。"""
+    # 用软完成语触发 REDIRECT 路径（有 hookSpecificOutput）
+    proc = subprocess.run(
+        [sys.executable, str(HOOK_LAUNCHER), "pretool-gate.py"],
+        input=json.dumps({"tool_name": "Bash", "tool_input": {"command": "git commit -m 'all done'"}}),
+        capture_output=True, text=True, timeout=30,
+        env={**__import__("os").environ, "HOOK_EVENT_TYPE": "PostToolUseFailure"},
+    )
+    parsed = json.loads(proc.stdout.strip())
+    hso = parsed.get("hookSpecificOutput", {})
+    assert hso.get("hookEventName") == "PostToolUseFailure", (
+        f"hookEventName 应是 PostToolUseFailure，实际: {hso.get('hookEventName')}"
+    )
