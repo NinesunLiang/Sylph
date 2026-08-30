@@ -69,6 +69,13 @@ def main() -> int:
         ["python3", "-m", "json.tool", ".omc/metrics/runtime-verify/h-cas-stale-evidence.json"],
         lambda rc, _out, _err: rc == 0,
     )
+    # index35 修复：评测环闭环——先跑 ga_behavioral_validation 产出 h-water-*.json，
+    # 否则 G4/G5 引用的 water 证据无人产生 → 断环失败。
+    run(
+        "GA-BEHAVIORAL-VALIDATION",
+        ["python3", ".claude/scripts/ga_behavioral_validation.py"],
+        lambda rc, _out, _err: rc == 0,
+    )
     for name, path in [
         ("G1-CONCURRENT-WRITER-CONFLICT", ".omc/metrics/runtime-verify/h-concurrent-writer-conflict.json"),
         ("G2-ARTIFACT-MISSING", ".omc/metrics/runtime-verify/h-artifact-missing.json"),

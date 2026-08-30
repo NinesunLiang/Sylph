@@ -231,7 +231,7 @@ def test_cmd_tick_is_idempotent_for_completed_step(tmp_path, monkeypatch):
     plan = tmp_path / "plan.md"
     executor = tmp_path / "executor.md"
     token = tmp_path / "token.json"
-    plan.write_text("- [x] S1: done\n  - status: completed\n", encoding="utf-8")
+    plan.write_text("## 依赖树\n- 无\n\n- [x] S1: done\n  - status: completed\n", encoding="utf-8")
     executor.write_text("", encoding="utf-8")
     token.write_text(json.dumps({"status": "active", "task": {"status": "completed"}}), encoding="utf-8")
     monkeypatch.setattr(carros, "TOKEN_PATH", token)
@@ -246,7 +246,7 @@ def test_cmd_verify_is_idempotent_for_completed_step(tmp_path, monkeypatch):
     plan = tmp_path / "plan.md"
     executor = tmp_path / "executor.md"
     token = tmp_path / "token.json"
-    plan.write_text("- [x] S1: done\n  - status: completed\n", encoding="utf-8")
+    plan.write_text("## 依赖树\n- 无\n\n- [x] S1: done\n  - status: completed\n", encoding="utf-8")
     executor.write_text("", encoding="utf-8")
     token.write_text(json.dumps({"status": "active", "task": {"status": "completed"}}), encoding="utf-8")
     monkeypatch.setattr(carros, "TOKEN_PATH", token)

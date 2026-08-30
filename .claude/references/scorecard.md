@@ -268,3 +268,16 @@
 - gate_bypassed 数据积累后做违规模式分析
 
 
+
+---
+
+## index35 修复既有测试失败（2026-08-30）
+
+> 全量 pytest 回归清零：345 passed / 0 failed。修复 5 项既有失败（测试债务，非新缺陷）。
+
+| 类别 | 修复 | 影响 |
+|---|---|---|
+| F2 依赖树门禁（4 项） | 4 个 verify/plan 测试的 plan 补"## 依赖树"章节 | 测试同步 F2 新要求，断言目标不受损 |
+| water 评测断环（1 项） | negative_tests 移除已删 claude-next.md 引用；capture_evidence 前置 ga_behavioral_validation 产出 h-water-*.json | 评测环闭环，G4/G5 通过 |
+
+**里程碑**：回归套件首次完全绿色（345/345），治理机制演进与测试资产一致。

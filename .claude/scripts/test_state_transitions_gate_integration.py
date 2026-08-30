@@ -32,7 +32,10 @@ class _FakeST:
         self.calls.append((from_state, to_state))
 
 
-PLAN_TEXT = """- [a] S1: first
+PLAN_TEXT = """## 依赖树
+- 无
+
+- [a] S1: first
   - verify: assertion: step S1 evidence is recorded
 """
 

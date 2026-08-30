@@ -183,10 +183,11 @@ def run():
 
     # ── H-CRITICAL-CHECKPOINT (rename from H-COMPACT-E2E) ──
     def h_critical_checkpoint():
-        """critical 水位后文件仍在。不是完整 compact E2E。"""
+        """critical 水位后文件仍在。不是完整 compact E2E。
+        index35 修复：claude-next.md 已在知识库重组中移除（.omc/knowledge 现为空），
+        改为检查仍存在的关键抗 compact 文件。"""
         files = [
             PROJECT / ".omc/tokens",
-            PROJECT / ".omc/knowledge/claude-next.md",
             PROJECT / ".claude/references/invariants.md",
             PROJECT / ".claude/references/working-set-template.yaml",
         ]

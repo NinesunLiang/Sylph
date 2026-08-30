@@ -109,7 +109,7 @@ def test_plan_gate_accepts_uppercase_checkbox(tmp_path):
     contracts = load_goal_contracts()
     plan = tmp_path / "plan.md"
     plan.write_text(
-        "# Plan\n\n## Gate\n- level: L2\n\n## Phase 1\n"
+        "# Plan\n\n## Gate\n- level: L2\n\n## 依赖树\n- 无\n\n## Phase 1\n"
         "- [X] S1: done\n"
         "  - status: completed\n"
         "  - depends_on: none\n"
@@ -190,7 +190,7 @@ def test_plan_gate_rejects_unprefixed_verify_before_execution(tmp_path):
     contracts = load_goal_contracts()
     plan = tmp_path / "plan.md"
     plan.write_text(
-        "# Plan\n\n## Gate\n- level: L2\n\n## Phase 1\n"
+        "# Plan\n\n## Gate\n- level: L2\n\n## 依赖树\n- 无\n\n## Phase 1\n"
         "- [ ] S1: malformed\n"
         "  - status: pending\n"
         "  - depends_on: none\n"
