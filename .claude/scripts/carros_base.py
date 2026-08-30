@@ -1953,7 +1953,7 @@ def cmd_verify(step_id=None, all_steps=False):
                 and token.get("stats", {}).get("done", 0) >= token.get("stats", {}).get("total", 1)):
             state_transitions.require_transition("executing", "done")
 
-        # Goal 状态自动推进: all steps done → EXECUTING ready → VERIFYING
+        # Goal 状态自动推进: all steps done → EXECUTING ready → VERIFYING ready
         done = token.get("stats", {}).get("done", 0)
         total = token.get("stats", {}).get("total", 0)
         if phase_contracts is not None and TASK_DIR and token.get("mode") == "goal" and done >= total:
@@ -1963,6 +1963,16 @@ def cmd_verify(step_id=None, all_steps=False):
                     key: "execution complete" for key in phase_contracts.phase_contract("EXECUTING")["outputs"]["required"]
                 })
                 phase_contracts.start_phase(TASK_DIR, "VERIFYING")
+                # bug 2 修复 (2026-08-30)：complete_phase VERIFYING 而不是只 start_phase
+                # 否则 cmd_archive validate_contract_ready 永远报 "handoff not ready"
+                # 用户之前绕过：写脚本补完 handoff 再归档——这次不绕过
+                try:
+                    phase_contracts.complete_phase(TASK_DIR, "VERIFYING", {
+                        key: "verify passed" for key in phase_contracts.phase_contract("VERIFYING")["outputs"]["required"]
+                    })
+                    print("   VERIFYING handoff 已就绪，可归档")
+                except Exception as inner:
+                    print(_yellow(f"   ⚠ VERIFYING complete 失败: {inner}（归档时 validate 会报）"))
                 print("   已提交 VERIFYING 入参 schema：executor.md / step handoffs / verify rules")
             except (OSError, ValueError) as exc:
                 print(_yellow(f"   ⚠ VERIFYING handoff 尚未就绪: {exc}"))
@@ -2239,13 +2249,9 @@ def cmd_archive(force=False):
     token["status"] = "archived"
     token["archived_at"] = datetime.now(timezone.utc).isoformat()
     _save_token(token)
-    # 归档成功 → 清除活跃任务指针（避免残留指向已归档任务）
-    try:
-        _aptr = OMC_ROOT / "state" / "active-resume.json"
-        if _aptr.exists():
-            _aptr.unlink()
-    except OSError:
-        pass
+    # 注意（2026-08-30 bug 1 修复）：unlink 移到函数末尾，
+    # 确保所有 validation（goal VERIFYING 校验、tombstone）都成功后才清指针。
+    # 否则 archive 失败时指针已清，后续 verify 报 "No active task"。
     cmd_report(use_stdout=False)
     print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
 
@@ -2350,6 +2356,17 @@ def cmd_archive(force=False):
             print(_green("✅ trust_breach 标记已清除"))
         except OSError:
             print(_yellow("⚠  trust_breach 清除失败"))
+
+    # Step 6.5 (2026-08-30 bug 1 修复)：归档成功才清活跃任务指针。
+    # 必须在所有 cleanup（trust_breach）都成功后执行——确保 archive
+    # 真完成。如果之前 unlink 失败或 goal 校验 return 2，指针仍
+    # 保留，后续 resume 可恢复。
+    try:
+        _aptr = OMC_ROOT / "state" / "active-resume.json"
+        if _aptr.exists():
+            _aptr.unlink()
+    except OSError:
+        pass
 
     # Step 7: 输出 {"continue": false}
     print(json.dumps({"continue": False}))
