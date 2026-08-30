@@ -578,11 +578,18 @@ def _write_default_plan(steps=None):
         lines.append(f"  - status: pending\n")
         lines.append(f"  - depends_on: none\n")
         lines.append(f"  - scope: task directory\n")
+        lines.append(f"  - consumes: <从上一步拿的输入/依赖；步骤起点>\n")
+        lines.append(f"  - produces: <本步的输出/产物；给下一步用>\n")
         lines.append(f"  - acceptance: step evidence is recorded\n")
         lines.append(f"  - verify: assertion: step {s} evidence is recorded\n")
         lines.append("\n")
     lines.append("---\n")
     lines.append("> 冻结规则：不改 scope、不改 step 顺序、不改 verify 条件。\n")
+    lines.append("> 步骤交接契约（consumes → produces）：\n")
+    lines.append(">   - 执 step 前看 consumes（确定输入）；\n")
+    lines.append(">   - 执 step 中产出 produces（输出给下步）；\n")
+    lines.append(">   - 下步执行前 consumes 字段值 = 上步 produces 字段值。\n")
+    lines.append(">   任何字段不匹配 → REDIRECT，不强行跑。\n")
     PLAN_PATH.write_text("".join(lines))
 
 
