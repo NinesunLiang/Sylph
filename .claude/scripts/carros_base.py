@@ -144,6 +144,23 @@ def _research_md_is_placeholder(research_path) -> bool:
     return len(substantive) < 2
 
 
+def _check_plan_has_dependency_tree(plan_path) -> tuple[bool, str]:
+    """F2 (2026-08-30) 依赖树硬门禁：plan.md 必须含 '## 依赖树' 或 '## Dependency Tree' 章节。
+
+    依赖树是 AGENTS.md §L1 工作流第 1 步强制要求；缺失时 verify 应阻断。
+    返回 (ok, reason)。
+    """
+    try:
+        text = Path(plan_path).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False, "plan.md 不存在或不可读"
+    # 中文/英文标题行匹配（## 起始）
+    if re.search(r"^##\s+(依赖树|Dependency\s+Tree|dependency\s+tree)\s*$",
+                 text, re.MULTILINE | re.IGNORECASE):
+        return True, ""
+    return False, "plan.md 缺依赖树章节（## 依赖树 或 ## Dependency Tree）"
+
+
 # ─── Optional-import guard helper ─────────────────────────────
 # Task75: Use at call sites where an optional import is required.
 # Raises RuntimeError with context on missing module instead
@@ -1705,6 +1722,13 @@ def cmd_verify(step_id=None, all_steps=False):
 
     if not PLAN_PATH.exists():
         print(_red("❌ plan.md not found"))
+        return 2
+
+    # F2 (2026-08-30)：依赖树硬门禁——plan.md 必须含"## 依赖树"或"## Dependency Tree"章节
+    _dep_ok, _dep_reason = _check_plan_has_dependency_tree(PLAN_PATH)
+    if not _dep_ok:
+        print(_red(f"❌ {_dep_reason}"))
+        print(_yellow("   提示：plan.md 必须包含 '## 依赖树' 或 '## Dependency Tree' 章节"))
         return 2
 
     plan = PLAN_PATH.read_text()
