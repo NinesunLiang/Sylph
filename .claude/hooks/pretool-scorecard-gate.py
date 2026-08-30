@@ -129,9 +129,9 @@ def check_path_scope(path, task_dir=None) -> str | None:
     """
     try:
         path_str = str(path).replace("\\", "/")
-        # 豁免治理运行时区（任务文档/治理文件非产物，不适用产物路径契约）
+        # F1 (2026-08-30) 修订：仅豁免 .omc/ 与 scorecard.md
+        # .claude/ 治理内容文件走 working-set 检查（call 站点已区分基础设施 vs 内容）
         if ("/.omc/" in path_str or path_str.startswith(".omc/")
-                or "/.claude/" in path_str or path_str.startswith(".claude/")
                 or "scorecard.md" in path_str):
             return None
         # 仓库外绝对路径：不适用任务产物路径契约（桌面/daily_tasks 等个人文件放行）
@@ -232,16 +232,22 @@ def main() -> int:
 
     path = _extract_path(payload)
     # v2 前置路径预检：写路径须在 working-set.yaml schema 声明范围内
-    # 豁免（治理运行时区，非任务产物）：scorecard.md / .claude 治理目录 / .omc 任务目录
+    # F1 (2026-08-30) 修订：不再整目录豁免 .claude/，仅豁免治理基础设施
+    # 治理内容文件（SKILLS.md / references/ 等）走 working-set 检查
     normalized_path = path.replace("\\", "/") if path else ""
-    is_governance_file = (
-        "scorecard.md" in normalized_path
-        or "/.claude/" in normalized_path
-        or normalized_path.startswith(".claude/")
-        or "/.omc/" in normalized_path
+    _GOVERNANCE_INFRA = (
+        "/.omc/" in normalized_path
         or normalized_path.startswith(".omc/")
+        or normalized_path.endswith("scorecard.md")
+        or normalized_path.endswith(".claude/settings.json")
+        or normalized_path.endswith(".claude/settings.local.json")
+        or normalized_path.endswith(".claude/harness.yaml")
+        or normalized_path.endswith(".claude/index.md")
+        or normalized_path.endswith(".claude/kernel.md")
+        or "/.claude/hooks/" in normalized_path
+        or normalized_path.startswith(".claude/hooks/")
     )
-    scope_result = None if is_governance_file else (check_path_scope(path) if path else None)
+    scope_result = None if _GOVERNANCE_INFRA else (check_path_scope(path) if path else None)
     if scope_result:
         _au_banner("redirect", "scorecard-gate", scope_result)
         # 用户底线（2026-08-17 裁决）：门禁只 ASK_USER 不 BLOCK
