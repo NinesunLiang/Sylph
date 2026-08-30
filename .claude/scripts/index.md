@@ -45,7 +45,7 @@
 | `executor_ledger.py` | 执行分类账 |
 | `clarify_engine.py` | 澄清引擎 |
 | `omc_lint.py` | 代码规范检查 |
-| `init-omc.sh` | 项目初始化脚本 |
+| `init-omc.sh` | ~~项目初始化脚本（R9 收口已删）~~ |
 
 ## lib/ 子模块
 

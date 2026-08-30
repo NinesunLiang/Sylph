@@ -16,17 +16,15 @@
 
 | 文件 | 用途 |
 |------|------|
-| `SOUL.md` | 英文哲学版（SUPERSEDED 指针，唯一真相源为 `philosophy.md`） |
-| `SUBAGENT.md` | SubAgent 契约 |
 | `anti-patterns.md` | 已知反模式库（飞轮自动补充） |
 | `current-task-architecture.md` | 任务架构基线（2026-07-28） |
 | `evaluation-framework.md` | 评分框架（C1-C9/E1-E8/治理/UX） |
-| `fallback-matrix.md` | 降级矩阵 |
 | `feature-registry.yaml` | 功能注册表 |
-| `gate-rules.yaml` | Gate 规则 |
+| `gate-rules.yaml` | Gate 规则（pre_action_gate.py 数据驱动配置） |
+| `headless-permissions.md` | Headless 权限契约（apply_permissions.py 工作流） |
 | `invariants.md` | 12 条系统不变量 [内部自检，非行业标准] |
 | `oracle-spec.md` | Oracle 门禁规格 |
-| `philosophy.md` | 决策链哲学 |
+| `philosophy.md` | 决策链哲学（唯一真相源） |
 | `skill-atomization-guide.md` | Skill 原子化指南 |
 
 ## ADR

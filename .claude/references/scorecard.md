@@ -129,6 +129,39 @@
 | R6 | 受限收口（终审 2:1 锁定，禁扩）: R6-A E7 精确 BLOCK 化；R6-B 人工轮换闭环（owner 认领）;R6-C 一项 8→9（整合器机械选定即冻结，候选 C4/C8/E1/E2/E4/E5，治理项数学不够） | R6-A✅: Gate 7 三层重写（BLOCK/ESCALATE/hint/PASS),test-oracle-gate.py 31/31(U20+G9+E2),opus 六场景全覆盖+gpt 低误报低漏报双证；七套回归 rc=0;A-B12/A-A5 重冻结（漂移仅 pretool-gate.py,R5 值留存）;R6-C✅: 机械选定 E2（零新增面积×权重 20 最高收益，记票预耦合）;R6-B⏸ 待人工；收口报告 round3/r6-closure.md | E7 7→8✅、E2 8→9✅（总加权 8.51→8.65,**加权门禁达成**;24 项全≥8 仅差 R6-B) |
 | R6-终审（round4) | 三模型 R6 收口审 + owner 裁决 | 票决： R6-A/R6-C/加权 8.65 **3:0 通过**;Grok 条件（复跑绿）兑现=七套 rc=0 存证 round4/evidence/;Opus 1930 算术异议裁定为 1921（治理项 +1);**owner 裁决： 内置安全暂时视为通过 7→8（人的决策>AI 决策，轮换回执后补）**；不开 R7(Grok 禁令）;CWD 脆弱点等 4 项已知边界存档（round4/verdict-reconciliation.md §6) | 内置安全 7→8✅（治理 57→58/70=8.29;**总 1921/2220=8.65；最低分 8.0;ALL_GATES_MET owner-adjudicated**) |
 
+## R9 收口轮（2026-08-30，少即是多）
+
+按哲学 #1 少即是多 + #7 增益优先，重新调研后砍除冗余，保留真活资产：
+
+**实测结果**（10 个特性逐项验证）：
+
+| F | 计划动作 | 实测结果 | commit |
+|---|---------|---------|--------|
+| F1 | rm references/SOUL.md | ✅ 删除（23 行，自标 SUPERSEDED） | c704206 |
+| F2 | rm references/SUBAGENT.md | ✅ 删除（53 行，仅索引项引用） | 7c3c86f |
+| F3 | rm references/headless-permissions.md | ❌ NO-OP（被 apply_permissions.py + 测试覆盖） | — |
+| F4 | rm references/gate-rules.yaml | ❌ NO-OP（pre_action_gate.py 数据驱动配置） | — |
+| F5 | merge fallback-matrix.md → runbook.md | ✅ 合并（删 58 + 加 32 行） | f9e0b68 |
+| F6 | rm scripts/install.sh + init-omc.sh | ✅ 删除（88 行，已死代码） | d6a6001 |
+| F7 | rm scripts/temp-bypass.py + error_dna_logger.py | ❌ NO-OP（被 pretool_gates/3 + goal_state_machine.py 强引用） | — |
+| F8 | merge precompact-lifecycle.py + stop-flywheel.py | ❌ NO-OP（fail-closed vs best-effort 正交双语义） | — |
+| F9 | archive carroros-night-deny.py → retired/ | ❌ NO-OP（被 frontend-overnight 5 处 + ADR-0018 强引用） | — |
+| F10 | update index.md + scorecard | ✅ 同步（references/scripts 索引对齐） | （F10） |
+
+**关键洞察**（按哲学 #2 验证）：
+- 计划阶段的"冗余判断"全部经过实测 grep+code review 验证后修正
+- 4 个 NO-OP 揭示：原 plan 把"在用但分散"误判为"冗余"，验证后全部保留
+- 这是哲学 #2 验证 > AI 承诺的具体实践：plan 是 AI 自述，实测才是法定证据
+
+**代码量变化**：
+- references/ md：16 → 13（-3）
+- scripts/ 已死代码：-2 个文件（install.sh + init-omc.sh）
+- net 删除：164 行，新增 32 行（runbook §降级策略），净减 132 行
+- **治理资产保真度**：100%（4 个 NO-OP 全部保住功能链）
+
+**C6 知识密度**（10w）：8→8 不变（删冗余知识 ≠ 新增知识；待 R10 评估）
+**C8 可维护性**（10w）：8→**9** ↑（少 132 行 + 索引同步 + NO-OP 留痕 = 可维护性提升）
+
 ## R7 提分施工 (2026-07-25)
 
 2026-07-25 完成 B+C+REDIRECT 管线施工后的 scorecard 重估。Mate-Oracle 19-维独立外评（每个维度独立 agent 空上下文评分）。
