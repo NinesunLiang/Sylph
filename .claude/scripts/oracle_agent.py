@@ -37,7 +37,9 @@ PROJECT_ROOT = Path.cwd()
 
 RETURN_CODES = {"ACCEPT": 0, "ADVISORY": 1, "REJECT": 2, "ESCALATE": 3, "UNAVAILABLE": 4}
 
-ORACLE_SYSTEM_PROMPT = """You are an independent third-party reviewer (Oracle). Your responsibilities:
+ORACLE_FALLBACK_PROMPT = """You are an independent third-party reviewer (Oracle fallback). This is the GENERIC fallback prompt — only used when no specific Oracle/Mate prompt is loaded.
+
+RESPONSIBILITIES:
 1. Review the submitted task description, plan, executor log, and code diff independently
 2. Output verdict with these dimensions:
    - VERDICT: ACCEPT | REJECT | ADVISORY
@@ -52,7 +54,13 @@ ORACLE_SYSTEM_PROMPT = """You are an independent third-party reviewer (Oracle). 
    - Keep task documents and token state as the only durable sources
    - Do not treat ordinary plan revisions as a risk by themselves
 5. Do not pass something just because you don't know. Unknown = REJECT
-6. Be specific about what needs to change for ACCEPT"""
+6. Be specific about what needs to change for ACCEPT
+
+NOTE: This prompt is intentionally generic. The two specific 双法官 prompts are:
+  - ORACLE_STATIC_PROMPT — Oracle first review (static analysis)
+  - ORACLE_MATE_PROMPT   — Mate second review (runtime TDD)
+These are loaded explicitly by role. If you received THIS fallback prompt,
+it's likely a configuration bug — please flag in evidence."""
 
 # ── 双法官角色分离(参考 phase3 设计,保留输出契约)──────────────────────────
 
@@ -429,7 +437,7 @@ def _get_deepseek_key() -> str:
 
 
 def _try_llm_model(task_id: str, prompt: str,
-                   system_prompt: str = ORACLE_SYSTEM_PROMPT) -> Tuple[bool, str]:
+                   system_prompt: str = ORACLE_FALLBACK_PROMPT) -> Tuple[bool, str]:
     """调用当前模型端点做 Oracle 审阅。返回 (success, text)。
 
     端点优先级：
@@ -563,7 +571,7 @@ def _spawn_agent_review(agent_cmd: str, target_text: str) -> Optional[str]:
     """Spawn an independent agent process for review."""
     review_prompt = ("{}\n\nPlease review the following and output "
                      "JSON verdict:\n\n{}").format(
-        ORACLE_SYSTEM_PROMPT, target_text[:8000])
+        ORACLE_FALLBACK_PROMPT, target_text[:8000])
     cmd = [agent_cmd, "-p", review_prompt]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -584,7 +592,7 @@ def _local_review_prompt(target_text: str) -> str:
             '"architecture_score": 0-10, '
             '"evidence_score": 0-10, '
             '"reason": "..."}}').format(
-        ORACLE_SYSTEM_PROMPT, target_text[:8000])
+        ORACLE_FALLBACK_PROMPT, target_text[:8000])
 
 
 
