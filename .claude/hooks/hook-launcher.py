@@ -29,25 +29,32 @@ def _emit_continue(message="", hook_name=""):
 
 
 def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
-    """Run a single hook, forwarding stdout/stderr. Returns exit code."""
+    """Run a single hook, collecting stdout into the merge buffer (NOT printing directly).
+
+    Returns (rc, parsed_json_or_None).
+    The caller (main) accumulates results and prints a SINGLE merged JSON at the end
+    — fixing the "Hook output looks like a JSON object but is not valid JSON" bug
+    that Claude Code reports when multiple hook JSONs are concatenated.
+
+    Stderr is still forwarded immediately (operator visibility, not parsed by CC).
+    """
     hook_path = os.path.join(launcher_dir, hook_name)
 
     # Critical hook missing → block
     if not os.path.isfile(hook_path):
         if hook_name in CRITICAL_HOOKS:
             cn_msg = "hook-launcher: CRITICAL hook missing: " + hook_name + " — blocked"
-            out = json.dumps({
+            print(cn_msg, file=sys.stderr)
+            return (2, {
                 "continue": True,
                 "hookSpecificOutput": {
                     "hookEventName": "PreToolUse",
                     "additionalContext": cn_msg,
                 },
             })
-            print(out)
-            print(cn_msg, file=sys.stderr)
-            return 2
-        _emit_continue("hook-launcher: hook not found: " + hook_name, hook_name)
-        return 0
+        # Non-critical missing: continue
+        print(f"hook-launcher: hook not found: {hook_name}", file=sys.stderr)
+        return (0, None)
 
     cmd = ["bash", hook_path] if hook_name.endswith(".sh") else [sys.executable, hook_path]
     try:
@@ -56,24 +63,106 @@ def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
             timeout=120, env=env,
         )
     except subprocess.TimeoutExpired:
-        _emit_continue("hook-launcher: hook timed out (120s): " + hook_name, hook_name)
-        return 0
+        print(f"hook-launcher: hook timed out (120s): {hook_name}", file=sys.stderr)
+        return (0, None)
     except FileNotFoundError:
-        _emit_continue("hook-launcher: python3/bash not found for: " + hook_name, hook_name)
-        return 0
+        print(f"hook-launcher: python3/bash not found for: {hook_name}", file=sys.stderr)
+        return (0, None)
     except Exception as e:
-        _emit_continue("hook-launcher: spawn failed: " + hook_name + ": " + str(e), hook_name)
-        return 0
+        print(f"hook-launcher: spawn failed: {hook_name}: {e}", file=sys.stderr)
+        return (0, None)
 
-    if result.stdout:
-        sys.stdout.write(result.stdout)
+    # Forward stderr immediately (operator visibility)
     if result.stderr:
         sys.stderr.write(result.stderr)
 
-    if result.returncode != 0 and not result.stdout.strip():
-        _emit_continue("hook-launcher: hook crashed (exit=" + str(result.returncode) + "): " + hook_name, hook_name)
-        return 0
-    return result.returncode if result.stdout.strip().startswith("{") else 0
+    # Parse stdout as JSON if possible
+    stdout = result.stdout or ""
+    parsed = None
+    if stdout.strip().startswith("{"):
+        try:
+            parsed = json.loads(stdout.strip())
+        except json.JSONDecodeError:
+            # Hook printed non-JSON; fall through
+            pass
+
+    if result.returncode != 0 and not parsed:
+        # Hook crashed without JSON — treat as warning continue
+        print(f"hook-launcher: hook crashed (exit={result.returncode}): {hook_name}",
+              file=sys.stderr)
+        return (0, None)
+
+    # Non-zero RC but has JSON → caller decides BLOCK propagation
+    return (result.returncode, parsed)
+
+
+def _merge_hook_results(results: list) -> dict:
+    """Merge multiple hook results into a single Claude Code-compatible JSON.
+
+    Strategy:
+      - continue=True unless ANY hook returned continue=False (BLOCK semantics)
+      - decision: "block" if any hook blocked, else "allow"
+      - permissionDecision: "deny" if blocked, "ask" if ASK, "allow" otherwise
+      - message: concatenation with " | " separator
+      - additionalContext: concatenation
+      - reasons: list (audit trail)
+
+    Ref: Claude Code PreToolUse hook spec — must return single JSON object.
+    """
+    if not results:
+        return {"continue": True, "message": ""}
+
+    # Walk in order, first BLOCK wins (precedence: REJECT > ESCALATE > ASK > ALLOW)
+    any_continue_false = False
+    any_permission_deny = False
+    any_permission_ask = False
+    messages = []
+    contexts = []
+    reasons = []
+
+    for hook_name, (rc, parsed) in results:
+        if parsed is None:
+            continue
+        if parsed.get("continue") is False:
+            any_continue_false = True
+        # Collect message
+        msg = parsed.get("message", "")
+        if msg:
+            messages.append(f"[{hook_name}] {msg}")
+        # Collect hookSpecificOutput
+        hso = parsed.get("hookSpecificOutput", {})
+        ctx = hso.get("additionalContext", "")
+        if ctx:
+            contexts.append(f"[{hook_name}] {ctx}")
+        # Detect permission decision
+        pd = hso.get("permissionDecision", "")
+        if pd == "deny":
+            any_permission_deny = True
+        elif pd == "ask":
+            any_permission_ask = True
+        # Audit trail
+        reasons.append({"hook": hook_name, "rc": rc, "decision": hso.get("permissionDecisionReason", ""),
+                         "message": msg[:200]})
+
+    merged = {
+        "continue": not any_continue_false,
+    }
+    if messages:
+        merged["message"] = " | ".join(messages)
+    if any_permission_deny or any_permission_ask or any_continue_false:
+        # Build a hookSpecificOutput reflecting the strongest decision
+        decision = "deny" if (any_permission_deny or any_continue_false) else "ask"
+        hso = {"hookEventName": "PreToolUse", "permissionDecision": decision}
+        if contexts:
+            hso["additionalContext"] = "\n".join(contexts)
+        # Use first hook's reason as the primary one
+        first_dec = next((r[1][1].get("hookSpecificOutput", {}).get("permissionDecisionReason", "")
+                          for r in results if r[1][1]), "merged_decision")
+        hso["permissionDecisionReason"] = first_dec
+        merged["hookSpecificOutput"] = hso
+    merged["_reasons"] = reasons  # internal audit (Claude Code ignores _-prefixed)
+
+    return merged
 
 
 def main():
@@ -82,7 +171,8 @@ def main():
         return
 
     # 进程合并（降噪）：argv[1] 可含空格分隔的多个 hook 名，串行执行。
-    # 聚合输出；任一 hook BLOCK（exit 2 + JSON）→ 停止并转发该 JSON。
+    # 关键改进：不再直接 sys.stdout.write 每 hook 输出（导致 JSON 拼接 "}{" → CC 报 hook error）。
+    # 改为：每 hook 解析为 dict，最后合并成单 JSON 打印。
     hook_names = [n for n in sys.argv[1].split() if n.strip()]
     if not hook_names:
         _emit_continue("hook-launcher: empty hook list")
@@ -101,11 +191,16 @@ def main():
     env = os.environ.copy()
     env.pop("NIGHT_DENY_ROOT", None)
 
+    results = []
     for hook_name in hook_names:
-        rc = _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env)
-        if rc != 0:
-            # hook 已输出 BLOCK JSON 并 exit 2 → 停止后续 hook
-            sys.exit(rc)
+        rc, parsed = _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env)
+        results.append((hook_name, (rc, parsed)))
+        # If hook returned BLOCK (rc=2) or hard deny → stop further hooks
+        if rc != 0 and rc != 0 or (parsed and parsed.get("continue") is False):
+            break
+
+    merged = _merge_hook_results(results)
+    print(json.dumps(merged, ensure_ascii=False))
 
 
 if __name__ == "__main__":
