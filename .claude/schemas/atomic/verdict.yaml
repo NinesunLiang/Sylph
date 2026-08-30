@@ -1,16 +1,20 @@
 # Schema: verdict
 
-# Version: v2
+# Version: v3
 
 # Owner: harness-kit (shared)
 
-# Description: 最终判定，被 14 个 skill 全部复用。v2 新增 confidence 字段用于 E2 幻觉守卫
+# Description: 最终判定，被 14 个 skill 全部复用。v3 统一双法官命名：
+#   - Oracle  (oracle_agent.py ORACLE_STATIC_PROMPT) — 第一审，静态分析
+#   - Mate    (oracle_agent.py ORACLE_MATE_PROMPT)   — 第二审，运行时 TDD 冒烟
+#   - 双法官 = Oracle + Mate 级联（被动响应：用户主动 OR L2 任务触发）
+#   - meta_oracle.py 是独立回顾性评分模块（Meta-Oracle，与 Mate 不同）
 
 # Consumers: ALL lx-* skills
 
 # References:
-#   oracle_agent.py  — L2 验证层（静态+运行时审核）
-#   meta_oracle.py   — 元级审核（聚合+对抗性测试）
+#   oracle_agent.py  — 双法官主入口（ORACLE_STATIC_PROMPT + ORACLE_MATE_PROMPT）
+#   meta_oracle.py   — 回顾性 G1-G4 评分（独立模块，非双法官）
 #
 # Archive (旧版，保留向后兼容，建议迁移到 oracle_agent.py / meta_oracle.py):
 #   .claude/schemas/atomic/verdict_meta.yaml — (废弃，内容已合并至此)

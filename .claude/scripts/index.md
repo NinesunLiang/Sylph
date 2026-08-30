@@ -61,3 +61,16 @@
 | `hot_card.py` | Hot Card 阈值卡片 |
 | `task_ssot.py` | 任务 SSOT |
 | `ga_observability_*.py` | GA 可观测性指标 |
+
+## 双法官（用户视角）
+
+> **用户只需要记住两个名字：Oracle 和 Mate。** 内部模块命名（oracle_agent.py / meta_oracle.py 等）是内部实现细节。
+>
+> 完整使用指南见 `DUAL_JUDGES_README.md`。
+
+| 用户视角 | 内部模块 | 角色 |
+|---|---|---|
+| **Oracle** | `oracle_agent.py` + `ORACLE_STATIC_PROMPT` | 第一审：静态分析 |
+| **Mate** | `oracle_agent.py` + `ORACLE_MATE_PROMPT` | 第二审：运行时 TDD 冒烟 |
+
+触发条件：**用户主动**（"双法官过一遍"）或 **L2 任务类型**（架构/跨模块/不可逆/安全权限/release）。日常 L1 编辑**不调**双法官。
