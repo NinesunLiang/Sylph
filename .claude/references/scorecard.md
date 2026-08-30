@@ -146,7 +146,9 @@
 | F7 | rm scripts/temp-bypass.py + error_dna_logger.py | ❌ NO-OP（被 pretool_gates/3 + goal_state_machine.py 强引用） | — |
 | F8 | merge precompact-lifecycle.py + stop-flywheel.py | ❌ NO-OP（fail-closed vs best-effort 正交双语义） | — |
 | F9 | archive carroros-night-deny.py → retired/ | ❌ NO-OP（被 frontend-overnight 5 处 + ADR-0018 强引用） | — |
-| F10 | update index.md + scorecard | ✅ 同步（references/scripts 索引对齐） | （F10） |
+| F10 | update index.md + scorecard | ✅ 同步（references/scripts 索引对齐） | ae7146a |
+| F11 | rm scripts/eval-aggregate.py + test_eval_aggregate.py | ✅ 删除（762 行联动，R5评估专用） | 2712567 |
+| F12 | rm scripts/output_compress.py | ✅ 删除（60 行，仅 harness.yaml 死配置引用） | 1f77ff3 |
 
 **关键洞察**（按哲学 #2 验证）：
 - 计划阶段的"冗余判断"全部经过实测 grep+code review 验证后修正
@@ -155,12 +157,17 @@
 
 **代码量变化**：
 - references/ md：16 → 13（-3）
-- scripts/ 已死代码：-2 个文件（install.sh + init-omc.sh）
-- net 删除：164 行，新增 32 行（runbook §降级策略），净减 132 行
-- **治理资产保真度**：100%（4 个 NO-OP 全部保住功能链）
+- scripts/ 已死代码：-4 个文件（install.sh + init-omc.sh + eval-aggregate + output_compress；含联动测试 1 个）
+- net 删除：981 行，新增 31 行（runbook §降级策略 + scorecard R9 轮）
+- **治理资产保真度**：100%（5 个 NO-OP 全部保住功能链）
+- **回归测试**：HEAD vs HEAD~2 对比 0 新 FAIL（既存 2 FAIL 与本次无关）
+
+**"必合并"实测审计**（subagent × 4 / oracle × 4 / task × 4）：
+- 全部 NO-OP。理由：模块边界（运行期副本 / 编辑器 / 恢复器 / 状态机）+ 已收敛契约（schema 化 ADR-0015）+ 主目录已收敛（oracle 仅 2 个主文件 + 2 个 lib）
+- 哲学 #1 误判：原 plan "机械合并 ≠ 少即是多"，会破坏现行架构边界
 
 **C6 知识密度**（10w）：8→8 不变（删冗余知识 ≠ 新增知识；待 R10 评估）
-**C8 可维护性**（10w）：8→**9** ↑（少 132 行 + 索引同步 + NO-OP 留痕 = 可维护性提升）
+**C8 可维护性**（10w）：8→**9** ↑（净减 981 行 + 索引同步 + NO-OP 留痕 + 实测审计结论 = 可维护性显著提升）
 
 ## R7 提分施工 (2026-07-25)
 
