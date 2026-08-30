@@ -9,7 +9,7 @@ Governance (治理)           Workflow (工作流)
 
 Autonomous (自主)           Feature Dev (特性开发)
   lx-goal                     lx-rpe
-  lx-ghost
+  lx-ghost [archived]
 
 Foundation (基础)
   lx-task-spec  lx-codebase-design  lx-domain-modeling
@@ -19,7 +19,7 @@ Foundation (基础)
 
 ```
 lx-goal ──→ lx-stepwise (子任务路由)
-lx-ghost ──→ lx-oracle (自主计划审核)
+lx-ghost ──→ lx-oracle (自主计划审核) [archived]
 lx-task-spec ──deep→ lx-stepwise (串行攻坚引擎)
 ```
 
