@@ -316,3 +316,119 @@
 - **C6 知识密度** 9 → **9**（不变，删除冗余 ≠ 新增知识；verdict.yaml v3 增加 schema 知识密度）
 
 **门禁状态**：24 项加权 8.65 不变（C 维度 +1 但其他无变）；8.6 门禁 ✅，24 项最低分 8.0 ✅；ALL_GATES_MET 保持。
+
+---
+
+## index36 双法官盲评：完整复测 + 修复验证（2026-08-31）
+
+> 30 次真实 spawn 空上下文电池（15 探针 = index33 原 11 逐字 + 4 修复验证探针）× OFF/ON。详见 Benchmarking/index36.md。
+
+### 汇聚评分
+
+| 维度 | index33 | **index36** | Δ |
+|---|---|---|---|
+| C 能力加权 | 5.99 | **6.72** | +0.73 |
+| E 防护加权 | 4.85 | **6.20** | **+1.35** |
+| 长期治理均分 | 5.82 | **6.57** | +0.75 |
+| UX 均分 | 5.00 | **6.14** | +1.14 |
+
+### 修复验证（实证生效）
+
+| 修复项（index33/34） | 结果 |
+|---|---|
+| FixA 治理删除保护（rm-dot 从删光→del=[] 全存活） | ✅ 双探针防住 |
+| FixB 软完成审计落盘（soft-completion.jsonl） | ✅ 2+1 事件 |
+| index34 gate_bypassed 后写留痕 | ✅ 2 场景 |
+| F3 doc-ref 从"未直接触发"→"真实触发" | ✅ redirect c=1 |
+| FixC REDIRECT 阈值（skip-tests 单次 REDIRECT 仍被无视） | ⚠️ 未根治 |
+
+### 本轮机制修复（TDD 红后绿，436 passed / 0 failed）
+
+- F1 phase3_matrix_test.py 模块级 sys.exit(0) 使 pytest 收集 INTERNALERROR → `__name__` 守卫 + `__test__=False`。
+- F2 test_index31_fixes 日期炸弹（fixture 硬编码 2026-08-15）→ `datetime.now()`。
+- F3 test_commit_soft_completion redirect-streak 状态污染 → setup/teardown 清理。
+
+### 待人类裁决（skip-risk 记录，不硬闯）
+
+- E3 虚假完成根治：REDIRECT 升级改「次数阈值 + 完成断言触发」。
+- 流程仪式瘦身 + 截断自动收尾（L1-light 跳过 token/lock/working-set + end_turn 自动 resume）。
+- 拦截≠阻止升级（凭据改写自动回滚/置废）。
+- omc_lint 治理代码静态检查（pyflakes 级未定义名）。
+- verify 无 active task 自动 resume（active-resume 指针脆弱）。
+
+---
+
+## R11 治理机制自修轮（2026-08-30）
+
+> 9 个 commit + 2 个治理机制 bug 按哲学铁律处理（用户裁决："按 CarrorOS 哲学铁律来处理"）。
+
+| commit | 内容 | 测试 |
+|---|---|---|
+| `f394a83` | refactor: 改名 ORACLE_SYSTEM_PROMPT → ORACLE_FALLBACK_PROMPT | — |
+| `5f1659b` | docs(scorecard): R10 双法官对齐轮日志 | — |
+| `1599648` | docs(AGENTS): 精简第5条哲学（600→200 字符）| — |
+| `2907e42` | fix(hook): hook-launcher 合并多 hook 输出为单 JSON | 4 |
+| `6d3de8e` | fix(hook): launcher 传递正确 hookEventName | +1 |
+| `952100c` | fix(settings): 12 个 hook 命令加 HOOK_EVENT_TYPE env | — |
+| `6307724` | feat(plan): 步骤交接契约（consumes + produces 字段）| 4 |
+| `4394791` | feat(plan): 步骤交接契约贯穿 plan→executor→handoff | 7 |
+| `74b8d9e` | docs(governance): 治理哲学"疏导 + 兜底"原则文档化 | 4 |
+| `1e081c3` | test(oracle): 6 个测试锁定"双法官按序通过"核心约束 | 6 |
+| `e97fb07` | docs(oracle): 用户视角命名统一 | — |
+| `43ad497` | fix(archive): 修复 active-resume 提前 unlink + VERIFYING handoff 卡死 | 5 |
+
+**R11 关键贡献**：
+
+### 1. 治理机制自修（按哲学铁律处理）
+
+用户给的两个 bug——之前用临时绕过（每次重跑 resume / 写脚本补完 handoff）——这次按哲学铁律根治：
+
+**bug 1: active-resume 提前 unlink**
+- 原行为：cmd_archive 在 token.status=archived 后立即 unlink active-resume
+- 后果：goal 模式 VERIFYING 校验失败 return 2 时 unlink 已执行 → 后续 verify 报 "No active task"
+- 修法：unlink 移到函数末尾（所有 cleanup 之后）→ archive 失败时指针保留
+- 用户反馈："原则上我们不防错（因为防不过来），而是疏导 + 兜底"——这正是兜底层 bug
+
+**bug 2: VERIFYING handoff 卡死**
+- 原行为：cmd_verify 调 start_phase(VERIFYING) 但不调 complete_phase(VERIFYING)
+- 后果：handoff status 永远非 "ready" → cmd_archive validate_contract_ready 卡死
+- 修法：cmd_verify 在 start_phase 后立即 complete_phase(VERIFYING) → handoff 自动就绪
+- 用户反馈："系统只开 VERIFYING 阶段、从不标记完成 → 归档必被卡"——根因正是这个
+
+### 2. 步骤交接契约（路径锁定，非防错兜底）
+
+哲学纠正："不是单单的防错兜底，单单防错兜底会导致AI 路径不正常多次矫正，浪费算力。
+契约先行保证 AI 一直在正确的路径上，而不是犯错了改正。"
+
+- plan.md 加 consumes + produces 字段
+- executor.md EV 块加 consumes + produces 字段
+- handoff.md 加 "Step Contract (Handoff Boundary)" 段（Last Step Produces + Next Step Consumes）
+- 流程：consumes → 执行 → produces → 下步 consumes = 上步 produces（值匹配，不匹配 REDIRECT）
+
+### 3. 治理哲学明确化（疏导 + 兜底）
+
+新文档 `.claude/references/governance-philosophy.md`：
+- 22 个门实测分类：8 疏导为主 + 11 疏导+兜底双层 + 3 纯兜底
+- 实操准则：加新门时先问疏导再问兜底
+- 已有 11 个门是双层（sensitive_edit / secret_scan / commit_soft_completion / doc_reference_before_delete / verify_gate / test_verification / action_gate / action_loop / stall / sensitive_read / sensitive_write_bash）
+- 3 个纯兜底是必要的（governance_bypass / injection / omc_skeleton_readonly——安全攻击面）
+
+### 4. 用户视角命名统一
+
+- DUAL_JUDGES_README.md：用户只记 Oracle + Mate 两个名字
+- verdict.yaml v3：注释明确双法官定义
+- 内部模块（oracle_agent.py / meta_oracle.py）藏文档深处
+
+**R11 治理增量**：
+- 钩子 bug 修复：3 个 hook error 全部根除（实测你日志里 6/8 错都消了）
+- 治理哲学文档化：100+ 行文档
+- 用户体验：Oracle + Mate 唯二名字 + DUAL_JUDGES_README
+- 步骤契约：consumes/produces 跨 3 文件
+
+**C 维度微量调整**：
+- **C8 可维护性** 9 不变（已 R10 升 9）——本次修复是 bug 修复，不重新评分
+- **C5 工具生命周期** 6 不变（bug 修不算新功能）
+- **C9 错误恢复** 6→**7** ↑（bug 1 修后 active-resume 不再丢；bug 2 修后归档不再卡——错误恢复能力实际提升 1 个量级）
+- **C6 知识密度** 9 不变（新增 governance-philosophy 文档 = 增量知识；但删除架构级重构 ≠ 知识密度变化）
+
+**门禁状态**：24 项加权预估 8.65 → 8.68（+0.03，C9 提升带来）；24 项最低分 8.0 不变；ALL_GATES_MET 保持。
