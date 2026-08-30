@@ -423,6 +423,7 @@ def _write_valid_plan(path: Path) -> None:
     path.write_text(
         "# Plan\n\n"
         "## Gate\n- level: L2\n\n"
+        "## 依赖树\n- regression fixture\n\n"
         "## Phase 1\n"
         "- [ ] S1: lifecycle guard\n"
         "  - status: pending\n"

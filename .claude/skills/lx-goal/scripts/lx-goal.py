@@ -162,6 +162,31 @@ def _sanitize(text: str) -> str:
     return "".join(result)
 
 
+def _validate_exit_report_verdict(report_path) -> tuple[bool, list[str]]:
+    """优化3 (2026-08-30)：exit-report (goal-report.md) 必须含 verdict schema 必需字段。
+
+    verdict.yaml (atomic) 定义必需字段:
+    - status: pass | blocked | warn | incomplete
+    - confidence: high | medium | low
+
+    返回 (ok, errors)。
+    """
+    from pathlib import Path as _P
+    import re as _re
+    path = _P(report_path)
+    if not path.exists():
+        return False, ["exit-report not found"]
+    text = path.read_text(encoding="utf-8")
+    errors = []
+    if not _re.search(r"\*\*status\*\*[：:]\s*(pass|blocked|warn|incomplete)\b",
+                       text, _re.IGNORECASE):
+        errors.append("Missing or invalid 'status' field (must be pass/blocked/warn/incomplete)")
+    if not _re.search(r"\*\*confidence\*\*[：:]\s*(high|medium|low)\b",
+                       text, _re.IGNORECASE):
+        errors.append("Missing or invalid 'confidence' field (must be high/medium/low)")
+    return (not errors), errors
+
+
 def _resolve_plan_dir(plan_dir: Path | str | None = None) -> Path:
     global CURRENT_PLAN_DIR
     candidate = plan_dir or CURRENT_PLAN_DIR or os.environ.get("CARROROS_TASK_DIR")
@@ -835,6 +860,19 @@ def cmd_report(plan_dir: Path | str | None = None):
         pass
     _gk_section = f"\n## GateKeeper 事件摘要\n\n```\n{_gk_digest}\n```\n\n" if _gk_digest else ""
 
+    # 优化3 (2026-08-30)：根据验证状态推导出 verdict schema 字段
+    if not plan_dir or step_count == 0 or incomplete_steps or missing_evidence or uncertified_items:
+        verdict_status = "incomplete"
+    else:
+        verdict_status = "pass"
+    # confidence：基于是否有 skip-risk/hard-boundary 调整
+    if hard > 0 or blocked > 0:
+        verdict_confidence = "medium"
+    elif skip > 0:
+        verdict_confidence = "medium"
+    else:
+        verdict_confidence = "high"
+
     report_content = f"""# 目标模式执行报告
 
 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
@@ -885,6 +923,11 @@ def cmd_report(plan_dir: Path | str | None = None):
 {_gk_section}## 验证状态
 
 {f"BLOCKED: 当前 Goal plan_dir 不完整，不能生成 VERIFIED 报告。" if not plan_dir else f"BLOCKED: plan.md 未解析出任何步骤，不能生成 VERIFIED 报告。" if step_count == 0 else f"IN_PROGRESS: 未完成计划步骤 {', '.join(incomplete_steps)}；goal 保持执行态，不得视为验收完成。" if incomplete_steps else f"BLOCKED: 缺少成功的 EV evidence，不能生成 VERIFIED 报告（{', '.join(missing_evidence)}）。" if missing_evidence else f"IN_PROGRESS: 存在未认证项（{', '.join(uncertified_items)}）。" if uncertified_items else f"VERIFIED: 所有计划步骤已完成（{done} 项完成，{skip} 项风险跳过，{hard} 项硬边界拦截，{blocked} 项推迟决策，{retry} 次重试）"}
+
+## Verdict (优化3 2026-08-30)
+
+**status**: {verdict_status}
+**confidence**: {verdict_confidence}
 """
     report_file.parent.mkdir(parents=True, exist_ok=True)
     report_file.write_text(report_content, encoding="utf-8")
@@ -1308,6 +1351,18 @@ def cmd_done(plan_dir: Path | str | None = None):
 
     # 当前任务唯一闭环条件：绑定 task_dir 的 executor checklist 全部完成。
     cmd_checklist_verify(plan_dir)
+
+    # 优化3 (2026-08-30)：exit-report 必须含 verdict schema 必需字段
+    report_file = plan_dir / "state" / "goal-report.md"
+    if report_file.exists():
+        verdict_ok, verdict_errors = _validate_exit_report_verdict(report_file)
+        if not verdict_ok:
+            print("❌ exit-report verdict schema 校验未通过:", file=sys.stderr)
+            for err in verdict_errors:
+                print(f"  - {err}", file=sys.stderr)
+            print("  提示：报告必须含 **status**: pass|blocked|warn|incomplete 和 **confidence**: high|medium|low",
+                  file=sys.stderr)
+            sys.exit(1)
 
     lock_file = _token_path_for_plan(plan_dir)
 

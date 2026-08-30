@@ -39,6 +39,7 @@ def _valid_plan(path: Path) -> None:
     path.write_text(
         "# Plan\n\n"
         "## Gate\n- level: L2\n\n"
+        "## 依赖树\n- e2e fixture\n\n"
         "## Phase 1\n"
         "- [x] S1: lifecycle e2e step\n"
         "  - status: completed\n"
