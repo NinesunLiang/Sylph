@@ -135,3 +135,35 @@ git revert d9bee2b  # 第一个 GateKeeper commit
 
 - GateKeeper 相关修改均记录在 git log
 - 架构决策记录在 `.claude/references/adr/`
+
+## 降级策略（L2→L1）（来源: 原 fallback-matrix.md）
+
+> 当 context 过高 / 模型异常 / 连续失败时，自动降级 L2 → L1。
+> 实现见 `scripts/fallback_engine.py`（已取代旧 `fallback_matrix.py`）。
+
+### 降级触发条件
+
+| # | 条件 | 检测方式 | 阈值 | 降级动作 |
+|---|------|---------|------|---------|
+| 1 | Context 过满 | context_watermark | ≥80% | L2→L1 全降级 |
+| 2 | 连续 3 步未 Verify | audit 检查 | 连续 3 tick 无 verify 事件 | 暂停复杂操作 |
+| 3 | 3 次 Oracle 执行时间超过 30s | Oracle 响应时间 | 单次 >30s | 跳过 Oracle（ACCEPT 默认） |
+| 4 | 模型返回格式异常（非 JSON） | parse error 计数 | 连续 3 次 | 降级 L2→L1 |
+| 5 | 人类长时间无介入 | last_user_message | >3600s | 不降级，但限制 L2 操作范围 |
+
+### 降级路径
+
+- **L2→L1**: 关闭水位检测、关闭 Oracle、关闭飞轮，回到 L1 4 步工作流（Plan→Step→Verify→Archive）
+- **L1→非活跃**: session-handoff 写入后停止
+
+### 调用方式
+
+```bash
+# 触发降级（fallback_engine 入口）
+python3 .claude/scripts/fallback_engine.py <failure_type> [risk] [token_path]
+
+# 历史接口（fallback_matrix.py 已归档）—— 不要再使用
+# python3 .claude/scripts/archived/fallback_matrix.py --check <触发点ID>
+```
+
+返回示例（`should_fallback=true/false, action, reason`）。
