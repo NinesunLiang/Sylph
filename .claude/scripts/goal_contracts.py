@@ -187,6 +187,11 @@ class PlanGate:
         level_match = re.search(r"^- level:\s*(L\d+)", content, re.MULTILINE)
         level = level_match.group(1) if level_match else None
 
+        # ── 优化1 (2026-08-30)：plan.md 必须含依赖树章节（与 research.md 对齐）──
+        if not re.search(r"^##\s+(依赖树|Dependency\s+Tree|dependency\s+tree)\s*$",
+                         content, re.MULTILINE | re.IGNORECASE):
+            errors.append("Plan must contain dependency tree section (## 依赖树 or ## Dependency Tree)")
+
         # ── Parse Phases (L2+ required, L1 optional) ──
         phases = re.findall(r"^## Phase\s+\d+\s*$", content, re.MULTILINE)
         if level != "L1" and len(phases) < 1:
