@@ -171,10 +171,17 @@ def main():
         _content_for_soft = str(data.get('tool_input', {}).get('content', '') or
                                 data.get('tool_input', {}).get('new_string', '') or '')
         # 软完成语词表（与 harness.yaml completion_gate.soft_completion_words 对齐）
+        # T2 (2026-08-30) 扩展：context 压力下 AI 习惯用模糊完成语绕过检测
+        # 注意：避免过短模式（如"完成"），防止"已修复"被误中
         _SOFT_PATTERNS = [
             "看起来没问题", "看起来正常", "基本完成", "大部分完成", "差不多了",
             "应该没问题", "理论上可行", "should be fine", "basically done",
             "mostly complete", "seems to work", "probably works", "looks good",
+            # T2 新增：英文模糊完成语（短且边界明确）
+            "all done", "fixed it", "fixed the bug", "done with", "ready for review",
+            "all set", "completed successfully", "ship it",
+            # T2 新增：中文模糊完成语（≥3 字避免子串误报）
+            "搞定了", "修好了", "改完了", "做完了", "搞定，可以",
         ]
         for _pat in _SOFT_PATTERNS:
             if _pat.lower() in _content_for_soft.lower():
