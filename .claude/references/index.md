@@ -25,6 +25,7 @@
 | `invariants.md` | 12 条系统不变量 [内部自检，非行业标准] |
 | `oracle-spec.md` | Oracle 门禁规格 |
 | `philosophy.md` | 决策链哲学（唯一真相源） |
+| `governance-philosophy.md` | 治理哲学：疏导 + 兜底原则（22 门分类） |
 | `skill-atomization-guide.md` | Skill 原子化指南 |
 
 ## ADR
