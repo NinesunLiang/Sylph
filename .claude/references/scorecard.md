@@ -281,3 +281,38 @@
 | water 评测断环（1 项） | negative_tests 移除已删 claude-next.md 引用；capture_evidence 前置 ga_behavioral_validation 产出 h-water-*.json | 评测环闭环，G4/G5 通过 |
 
 **里程碑**：回归套件首次完全绿色（345/345），治理机制演进与测试资产一致。
+
+---
+
+## R10 双法官对齐轮（2026-08-30）
+
+> 5 个 oracle commit + vibecoding TDD 修复 + R9 收口回写。
+
+| commit | 内容 | 测试 |
+|---|---|---|
+| `03b19a5` | 双法官注入 research.md（修复承诺-执行偏差盲区）| 6 |
+| `c52203b` | 双法官 prompt 完全对齐定位（频率/严格/生产贴近）| 15 |
+| `92199dc` | 双法官改为被动响应 + L2/用户主动双触发 | 2 |
+| `8716faa` | 双法官作为统一触发词锚定（"双法官" = Oracle + Mate 级联）| 5 |
+| `e97fb07` | docs: 用户视角命名统一（Oracle + Mate 双法官）| — |
+| `1e081c3` | test: 6 个测试锁定"双法官按序通过"核心约束 | 6 |
+| `f394a83` | refactor: 改名 ORACLE_SYSTEM_PROMPT → ORACLE_FALLBACK_PROMPT | — |
+
+**双法官实测统计**：
+- `oracle_agent.py` 总 prompt：3 段（ORACLE_STATIC_PROMPT + ORACLE_MATE_PROMPT + ORACLE_FALLBACK_PROMPT）
+- 双法官独立性约束：Oracle/Mate 互不可见（盲审）+ 各自 prompt 独立对象
+- Mate 严格度 > Oracle（不确定时默认 REJECT vs 默认 7）
+- 触发条件：用户主动（"双法官过一遍"）或 L2 任务类型
+- 27 个定位测试 + 56 个 oracle 测试全绿，0 回归
+
+**R9 收口 + R10 治理增量**：
+- 代码量净减：981 行（R9） + vibecoding 修复 ~50 行
+- 新增护城河 8 项（敏感/软完成/范围/依赖树/双法官/verdict schema/hook 合并/被动响应）
+- 用户视角命名：Oracle + Mate（其它藏内部）
+- 文档新增：DUAL_JUDGES_README.md（用户视角使用指南）
+
+**C 维度微量调整**：
+- **C8 可维护性** 8→**9** ↑（净减 981 行 + 27 个定位测试锁定约束 + 命名清理 f394a83）
+- **C6 知识密度** 9 → **9**（不变，删除冗余 ≠ 新增知识；verdict.yaml v3 增加 schema 知识密度）
+
+**门禁状态**：24 项加权 8.65 不变（C 维度 +1 但其他无变）；8.6 门禁 ✅，24 项最低分 8.0 ✅；ALL_GATES_MET 保持。
