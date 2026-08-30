@@ -18,10 +18,19 @@ import oracle_agent as module
 
 # ─── Oracle 定位 ───
 
-def test_oracle_marks_high_frequency():
-    """Oracle prompt 应明确标记 'HIGH-FREQUENCY'（高频率定位）。"""
-    assert "HIGH-FREQUENCY" in module.ORACLE_STATIC_PROMPT, (
-        "Oracle prompt 缺 HIGH-FREQUENCY 标记"
+def test_oracle_marks_passive_on_demand():
+    """Oracle prompt 应明确标记 'passive on-demand'（被动响应，不自动跑）。"""
+    prompt = module.ORACLE_STATIC_PROMPT
+    assert "passive on-demand" in prompt or "do NOT run automatically" in prompt, (
+        "Oracle prompt 缺被动响应标记"
+    )
+
+
+def test_oracle_only_l2_or_user_request():
+    """Oracle prompt 应明确只在 L2 任务或用户主动要求时触发。"""
+    prompt = module.ORACLE_STATIC_PROMPT
+    assert "L2" in prompt and "user request" in prompt.lower(), (
+        "Oracle prompt 应明确 L2 + 用户请求双触发条件"
     )
 
 
@@ -52,10 +61,19 @@ def test_oracle_blocks_mate_if_reject():
 
 # ─── Mate 定位 ───
 
-def test_mate_marks_low_frequency():
-    """Mate prompt 应明确标记 'LOW-FREQUENCY'（低频率定位）。"""
-    assert "LOW-FREQUENCY" in module.ORACLE_MATE_PROMPT, (
-        "Mate prompt 缺 LOW-FREQUENCY 标记"
+def test_mate_marks_passive_on_demand():
+    """Mate prompt 应明确标记 'passive on-demand'（被动响应）。"""
+    prompt = module.ORACLE_MATE_PROMPT
+    assert "passive on-demand" in prompt or "do NOT run automatically" in prompt, (
+        "Mate prompt 缺被动响应标记"
+    )
+
+
+def test_mate_only_after_oracle_accept():
+    """Mate prompt 应明确只在 Oracle-ACCEPT/ADVISORY 后才跑。"""
+    prompt = module.ORACLE_MATE_PROMPT
+    assert "NEVER run if Oracle already REJECTED" in prompt, (
+        "Mate prompt 应明确 'Oracle REJECT 后不跑'"
     )
 
 
