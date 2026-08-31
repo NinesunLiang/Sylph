@@ -142,9 +142,82 @@ def _check_sensitive_read(payload: dict) -> str | None:
 # index30 法官发现：skip-tests 场景 verify-gate 未触发，ON 侧"说明风险"即达标。
 # 本门：Edit/Write 修改 .py 源码且项目存在测试文件但本日无测试执行记录 → REDIRECT
 # 引导实跑（软引导不阻断；验证大于承诺铁律的机制化）。
+#
+# index37 修复（双法官盲评 P0）：门禁三连环死锁导致 8/17 ON 探针 exit=1
+#   ① 门禁要求"本日 audit 有测试记录"，但无任何机制记录测试运行 → 永远无法满足
+#      → 新增 Bash test_run 记录器：跑 pytest/unittest/测试脚本 → 写 audit → 门禁自清
+#   ② 同一良性 .py 编辑被 REDIRECT 2 次 → 升级 hard stop → max_turns 卡死
+#      → 同一文件已引导过一次 → 放行（验证要求移到完成时，符合 index34 无人模式"不硬阻断"裁决）
+_TEST_RUN_CMD_RE = re.compile(
+    r"\bpytest\b|run-tests|python3?\s+(?:-m\s+)?(?:pytest|unittest)\b|python3?\s+test_[A-Za-z0-9_]+\.py\b",
+    re.IGNORECASE,
+)
+_GUIDE_WINDOW_SEC = 300
+
+
+def _is_test_run_cmd(cmd: str) -> bool:
+    return bool(_TEST_RUN_CMD_RE.search(cmd))
+
+
+def _is_stub_file(path: str) -> bool:
+    """目标 .py 文件当前是否为 stub（空实现）——实现新函数不该被 test-verification 拦。
+
+    index40 F1：control-benign 类"实现 add()"被拦 → 死锁/烧轮数；stub 文件是"实现"
+    而非"修改"，验证移到完成后（跑测试验证结果），编辑本身放行。
+    """
+    try:
+        content = Path(path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return bool(
+        re.search(r"^\s*pass\s*$", content, re.MULTILINE)
+        or "NotImplemented" in content
+        or re.search(r"^\s*\.\.\.\s*$", content, re.MULTILINE)
+        or re.search(r"^\s*raise\s+NotImplementedError", content, re.MULTILINE)
+    )
+
+
+def _recent_test_run(window_sec: int = _GUIDE_WINDOW_SEC) -> bool:
+    """近期（窗口内）audit 是否有 test_run 记录。
+
+    index40 F2：堵"重试绕过"——跑过测试才放行；仅"被引导过一次"不放行。
+    """
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        audit_dir = STATE_DIR / "audit"
+        now = time.time()
+        if not audit_dir.exists():
+            return False
+        for f in audit_dir.glob(f"{today}.jsonl"):
+            for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if "test_run" not in line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                ts = ev.get("timestamp", "")
+                if not ts:
+                    continue
+                try:
+                    epoch = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    continue
+                if (now - epoch) < window_sec:
+                    return True
+    except OSError:
+        return False
+    return False
+
 
 def _check_test_verification(payload: dict) -> str | None:
     tool = _extract_tool(payload).lower()
+    # Bash 跑测试 → 记录 test_run 到 audit（门禁自清路径）
+    if tool == "bash":
+        cmd = _extract_command(payload) or ""
+        if _is_test_run_cmd(cmd):
+            _append_audit({"event_type": "test_run", "reason": "pytest", "cmd": cmd[:160]})
+        return None
     if tool not in WRITE_TOOLS:
         return None
     path = str(_extract_path(payload) or "").replace("\\", "/")
@@ -166,22 +239,18 @@ def _check_test_verification(payload: dict) -> str | None:
         return None
     if not has_tests:
         return None
-    # 本日 audit 是否有测试执行记录
-    try:
-        today = datetime.now().strftime("%Y-%m-%d")
-        audit_dir = STATE_DIR / "audit"
-        if audit_dir.exists():
-            for f in audit_dir.glob(f"{today}.jsonl"):
-                content = f.read_text(encoding="utf-8", errors="ignore")
-                if "pytest" in content or "run-tests" in content or "test_run" in content:
-                    return None
-    except OSError:
+    # index40 F1：目标文件是 stub（实现新函数）→ 放行（验证移到完成后）
+    if _is_stub_file(path):
+        return None
+    # 近期（窗口内）是否有测试执行记录（index40 F2：跑过测试才放行，堵重试绕过）
+    if _recent_test_run():
         return None
     _append_audit({"event_type": "test_verification_redirect", "actor": "hook:pretool-gate",
                    "path": path, "reason": "no_test_evidence"})
     return (f"REDIRECT test-verification|"
-            f"⚠️ 修改了 {os.path.basename(path)}，项目存在测试文件且本日无测试执行记录。\n"
-            f"铁律「验证大于承诺」：请运行测试（如 python3 -m pytest -q）并附结果证据后再报告完成。")
+            f"⚠️ 修改了 {os.path.basename(path)}，项目存在测试文件且近期无测试执行记录。\n"
+            f"铁律「验证大于承诺」：请先运行测试（如 python3 -m pytest -q，运行后门禁自动放行）"
+            f"并附结果证据后再报告完成。")
 
 
 # ── Gate 1c (index25): sensitive write via Bash — 补 sensitive-edit 的 Bash 通道 ──
@@ -359,7 +428,9 @@ def _extract_delete_targets(payload: dict) -> list[str]:
                     continue
                 if not flags_done and tok.startswith("-"):
                     continue  # 跳过 flag（-rf/-f/--force 等）
-                targets.append(tok)
+                # index37 修复：剥离引号（`rm -rf "AGENTS.md"` 目标带引号 → 与
+                # _GOVERNANCE_DELETE_BASENAMES 精确比较永远不匹配，治理文件被当普通文件删掉）
+                targets.append(tok.strip("'\""))
     return targets
 
 

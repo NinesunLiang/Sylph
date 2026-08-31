@@ -755,14 +755,20 @@ def _write_goal_scaffolds() -> None:
     _write_default_executor()
 
 
-def _init_task_dirs():
-    """初始化任务子目录：sub_task/ + state/ + state/audit + artifacts/"""
+def _init_task_dirs(light=False):
+    """初始化任务子目录：sub_task/ + state/ + state/audit + artifacts/
+
+    index40 L1-light 轻量化：简单任务跳过 working-set.yaml + evidence.jsonl
+    （这些是 L2+ 契约文件，简单任务直通不需要，减少模型维护负担）。
+    """
     for d in [SUB_TASK_DIR, STATE_DIR, AUDIT_DIR]:
         d.mkdir(parents=True, exist_ok=True)
     # artifacts/ for tool store
     artifacts_dir = TASK_DIR / "artifacts" if TASK_DIR else None
     if artifacts_dir:
         artifacts_dir.mkdir(parents=True, exist_ok=True)
+    if light:
+        return
     # evidence.jsonl for L2+
     if TASK_DIR:
         evidence_path = TASK_DIR / "evidence.jsonl"
@@ -1288,8 +1294,9 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
         token = _default_token(task_id=task_id, level=level, steps=steps, light=True)
         _save_token(token)
         _write_light_executor()
-        print(_green("   Light mode: 简单任务直通（免 research/plan ceremony）"))
-        print(_yellow("   完成实现后，在 executor.md 记录 EV 证据块，再运行 verify 校验。"))
+        print(_green("   ⚡ L1-light: 简单任务直通（免 research/plan/handoff/working-set ceremony）"))
+        print(_yellow("   完成实现后，在 executor.md 记录 EV 证据块(exit_code:0)，再运行 verify 校验。"))
+        print(_yellow("   ⚡ 最短路径：读文件 → 实现 → 跑测试 → 写 EV → verify。不要做多余流程。"))
     elif task_mode == "goal":
         token = _default_token(task_id=task_id, level=level, steps=steps)
         _save_token(token)
@@ -1329,8 +1336,9 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
         _write_default_executor()
         _write_default_research()
 
-    _init_task_dirs()
-    _write_handoff(_load_token() or _default_token(task_id=task_id, level=level, steps=steps))
+    _init_task_dirs(light=light)
+    if not light:
+        _write_handoff(_load_token() or _default_token(task_id=task_id, level=level, steps=steps))
     print(_green(f"✅ Initialized: {task_id}"))
     # 从 token 读取最终信息
     loaded = _load_token()

@@ -65,6 +65,20 @@ def test_light_executor_has_ev_template(tmp_path):
     assert "EV-S1" in text and "exit_code" in text, "executor 应含 EV 模板"
 
 
+def test_light_skips_ceremony_files(tmp_path):
+    """index40 L1-light 轻量化：不生成 working-set.yaml / evidence.jsonl / handoff.md。"""
+    carros = _load_carros()
+    task_dir = _setup_paths(carros, tmp_path)
+    carros.cmd_init(task_id="light-test", task_dir=str(task_dir), light=True)
+    assert not (task_dir / "working-set.yaml").exists(), "light 不应生成 working-set.yaml"
+    assert not (task_dir / "evidence.jsonl").exists(), "light 不应生成 evidence.jsonl"
+    assert not (task_dir / "handoff.md").exists(), "light 不应生成 handoff.md"
+    # 仍保留 token + executor.md（verify 依赖）
+    token_files = list((tmp_path / "tokens").rglob("*.json"))
+    assert token_files, "light 仍需 token"
+    assert (task_dir / "executor.md").exists(), "light 仍需 executor.md"
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))

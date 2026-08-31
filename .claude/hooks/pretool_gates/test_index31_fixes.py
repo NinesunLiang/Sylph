@@ -93,8 +93,15 @@ def _mk_project(with_test: bool, pytest_evidence: bool) -> Path:
     audit = td / ".omc" / "state" / "audit"
     if pytest_evidence:
         audit.mkdir(parents=True)
-        (audit / "2026-08-15.jsonl").write_text(
-            json.dumps({"event_type": "preaction_decision", "reason": "pytest"}) + "\n",
+        # index36 修复：日期炸弹——门禁 _check_test_verification 查的是「今天」的 audit 分片
+        # （datetime.now().strftime('%Y-%m-%d')），fixture 硬编码 2026-08-15 导致今天必红。
+        # 改用今天日期，与门禁契约对齐。
+        # index40 修复：证据格式对齐 F2——test_run 事件带近期 timestamp（_recent_test_run 按窗口校验）
+        from datetime import datetime, timezone
+        today = datetime.now().strftime("%Y-%m-%d")
+        (audit / f"{today}.jsonl").write_text(
+            json.dumps({"event_type": "test_run", "reason": "pytest",
+                        "timestamp": datetime.now(timezone.utc).isoformat()}) + "\n",
             encoding="utf-8")
     return td
 
@@ -102,11 +109,15 @@ def _mk_project(with_test: bool, pytest_evidence: bool) -> Path:
 def test_edit_py_without_test_evidence_redirects():
     td = _mk_project(with_test=True, pytest_evidence=False)
     old = os.getcwd()
+    old_state = checks.STATE_DIR
     try:
         os.chdir(td)
+        # index37 修复：hermetic——避免读到真实仓库 audit（test_run 记录器/测试运行会污染）
+        checks.STATE_DIR = td / ".omc" / "state"
         r = checks._check_test_verification(
             _payload("Edit", file_path="app.py", old_string="1", new_string="2"))
     finally:
+        checks.STATE_DIR = old_state
         os.chdir(old)
     assert r and r.startswith("REDIRECT"), f"改 .py 无测试证据应 REDIRECT, 实际: {r}"
 
@@ -129,11 +140,14 @@ def test_edit_py_with_pytest_evidence_allowed():
 def test_edit_py_without_tests_allowed():
     td = _mk_project(with_test=False, pytest_evidence=False)
     old = os.getcwd()
+    old_state = checks.STATE_DIR
     try:
         os.chdir(td)
+        checks.STATE_DIR = td / ".omc" / "state"
         r = checks._check_test_verification(
             _payload("Edit", file_path="app.py", old_string="1", new_string="2"))
     finally:
+        checks.STATE_DIR = old_state
         os.chdir(old)
     assert r is None, f"无测试文件应放行, 实际: {r}"
 

@@ -62,3 +62,27 @@ def test_non_git_command_with_soft_completion_passes():
     assert "soft_completion" not in stderr.lower(), (
         f"误报：非 git 命令被拦。stderr: {stderr!r}"
     )
+
+
+# index36 修复：状态污染——redirect-streak.json 是仓库级共享状态，先前测试/会话残留的
+# commit-soft-completion streak（c≥4）会使 pretool-gate 升级为 redirect_limit_4（ASK_USER），
+# 导致本测试断言"首触发应为 REDIRECT"失败。镜像 test_redirect_escalation_threshold.py
+# 的清理模式：模块 setup/teardown 删除 streak 文件，保证每次独立红绿。
+def _streak_path() -> Path:
+    return Path(__file__).resolve().parents[3] / ".omc" / "state" / "redirect-streak.json"
+
+
+def setup_module(_module):
+    try:
+        if _streak_path().exists():
+            _streak_path().unlink()
+    except OSError:
+        pass
+
+
+def teardown_module(_module):
+    try:
+        if _streak_path().exists():
+            _streak_path().unlink()
+    except OSError:
+        pass
