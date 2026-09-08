@@ -290,8 +290,74 @@ def run_lint(target_path):
     return {"exit_code": exit_code, "output": "\n".join(output)}
 
 
+# ─── md 引用实体存在性 lint（PLAN_SIMPLIFY B3 / Phase 1）───────────────
+# 用途：抓活跃 .md 里指向不存在本地文件/目录的悬空链接（philosophy 悬空引用类），
+#       .omc/.omo/archive/artifacts 等运行时区不计。URL/#/mailto/模板不计。
+
+_REF_SKIP_PREFIX = ("http://", "https://", "#", "mailto:", "<", "{{", "/Users/")
+_REF_EXCLUDE_FRAG = (".omc/", ".omo/", "/archive/", ".claude/archived/", "node_modules/",
+                     "dist/", "/artifacts/", "__pycache__")
+
+
+def _strip_code_fences(text: str) -> str:
+    """剔除 ``` 围栏代码块，避免把示例链接当引用。"""
+    return re.sub(r"```.*?```", "", text, flags=re.DOTALL)
+
+
+def _md_local_links(text: str) -> list[str]:
+    links = []
+    for m in re.finditer(r"\]\(([^)]+)\)", _strip_code_fences(text)):
+        t = m.group(1).strip()
+        if t.startswith(_REF_SKIP_PREFIX) or "{" in t or "}" in t or " " in t:
+            continue
+        links.append(t)
+    return links
+
+
+def lint_md_references(root):
+    """扫描 root 下活跃 .md 的本地相对链接，返回 (悬空列表, 本地链接总数)。
+
+    悬空项：(md 相对路径, 链接目标)。解析基点 = md 所在目录，兜底 = root。
+    """
+    root = Path(root).resolve()
+    dangling: list[tuple[str, str]] = []
+    total = 0
+    for p in root.rglob("*.md"):
+        rel = p.relative_to(root).as_posix()
+        if any(frag in rel for frag in _REF_EXCLUDE_FRAG):
+            continue
+        text = p.read_text(encoding="utf-8", errors="ignore")
+        for t in _md_local_links(text):
+            target = t.split("#")[0]
+            if not target:
+                continue
+            total += 1
+            cands = [(p.parent / target), (root / target)]
+            if not any(c.exists() for c in cands):
+                dangling.append((rel, t))
+    return dangling, total
+
+
+def _run_mdrefs(path: str) -> int:
+    root = Path(path).resolve()
+    if not root.exists():
+        print(f"❌ Path not found: {path}")
+        return 2
+    dangling, total = lint_md_references(root)
+    for f, t in dangling[:80]:
+        print(f"  ⚠ 悬空: {f} -> {t}")
+    if len(dangling) > 80:
+        print(f"  … 等 {len(dangling) - 80} 条")
+    print(f"md 本地链接共 {total}，悬空 {len(dangling)}")
+    return 1 if dangling else 0
+
+
 def main():
-    path = sys.argv[1] if len(sys.argv) > 1 else os.getcwd()
+    args = sys.argv[1:]
+    if args and args[0] in ("mdrefs", "--mdrefs"):
+        path = args[1] if len(args) > 1 else os.getcwd()
+        sys.exit(_run_mdrefs(path))
+    path = args[0] if args else os.getcwd()
     result = run_lint(path)
     print(result["output"])
     sys.exit(result["exit_code"])
