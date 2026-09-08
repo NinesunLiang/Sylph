@@ -94,10 +94,10 @@ Oracle 审 → ACCEPT 放行
 - 一般 L2: 按需
 - 熔断: Oracle 不可用 → UNVERIFIED 标记 → archive 阻塞(fail-closed,不降级放行)
 
-**组件底层**(`.claude/scripts/carros_base.py` 保留,供 skill 调用):
+**组件底层**(carros_base.py / carros_core.py 保留,供 skill 调用):
 - `_run_oracle_staged(token, mode, label)` → (verdict, rc, reasons),熔断 fail-closed
 - `_aggregate_verdicts(v1, v2)` → 更严者(duo 聚合纯函数)
-- `_build_backcard_guidance(reasons)` → 打回修复指引
+- `_build_backcard_guidance(reasons)` → 打回修复指引 (carros_core.py, design-doc 15 M0 迁移)
 - `_write_unverified_marker(task_id)` → 熔断标记
 
 ## 公共审核原则
