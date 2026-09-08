@@ -19,10 +19,10 @@
 
 | 模块 | 内容（从 carros_base 迁出） | 预计行 | 耦合 |
 |---|---|---|---|
-| `lib/carros_core.py` | 状态机/文件路径/全局解析纯函数（token 定位、task_dir、plan/executor 解析、sha/时间工具、`_ev_field` 等） | ~500 | 低（先迁） |
-| `lib/carros_report.py` | final-report 生成、report/status 输出、bench 场景文案与汇总 | ~600 | 中（依赖 core+数据） |
-| `lib/carros_docs.py` | init 文档骨架（research/plan/executor 模板、working-set/三件套生成）、clarify 问题文案 | ~700 | 中 |
-| `lib/carros_gates.py` | verify_gate/oracle/self-check/mechanism 自检调用封装 | ~700 | 高（最晚迁） |
+| `lib.carros_core` | 状态机/文件路径/全局解析纯函数（token 定位、task_dir、plan/executor 解析、sha/时间工具、`_ev_field` 等） | ~500 | 低（先迁） |
+| `lib.carros_report` | final-report 生成、report/status 输出、bench 场景文案与汇总 | ~600 | 中（依赖 core+数据） |
+| `lib.carros_docs` | init 文档骨架（research/plan/executor 模板、working-set/三件套生成）、clarify 问题文案 | ~700 | 中 |
+| `lib.carros_gates` | verify_gate/oracle/self-check/mechanism 自检调用封装 | ~700 | 高（最晚迁） |
 | `carros_base.py`（瘦身主体） | import 上述 + 全局状态 + 命令分发 + 薄 cmd_* 壳 | ≤1200 | — |
 
 ## 迁移顺序（耦合低→高，每步独立 commit）
