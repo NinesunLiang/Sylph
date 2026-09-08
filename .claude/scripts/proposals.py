@@ -114,6 +114,36 @@ def write_proposals(props: list[dict], jsonl_out, md_out) -> tuple[Path, Path]:
     return jsonl_out, md_out
 
 
+def anti_regrowth_check(zombies: list[dict], round_note: str = "") -> dict:
+    """C4/C6#4 防膨胀闸：归档前必须「删≥1 僵尸」或「证明无僵尸」。
+
+    zombies 非空且无删除证据 → 不通过（需人类删/归档僵尸后重验）。
+    """
+    if not zombies:
+        return {"ok": True, "zombies": [], "note": "证明无僵尸（近窗口 0 触发）"}
+    deleted = [z for z in zombies if z.get("deleted_this_round")]
+    if deleted:
+        return {"ok": True, "zombies": deleted, "note": f"本轮删/归档僵尸 {len(deleted)} 个"}
+    return {"ok": False, "zombies": zombies,
+            "note": f"存在 {len(zombies)} 个僵尸候选且本轮无删除证据；需删/归档 ≥1 后重验",
+            "round_note": round_note}
+
+
+def _anti_regrowth(args) -> int:
+    rep = {}
+    try:
+        from gate_zombie_report import gate_zombie_report
+        rep = gate_zombie_report(args.gate_pass, window_days=args.window)
+    except Exception as exc:
+        print(f"⚠ 僵尸读取失败: {exc}")
+        return 1
+    r = anti_regrowth_check(rep["zombies"])
+    print(f"[anti-regrowth] M3 僵尸率 {rep['rate']:.1%} | 判定: {'PASS' if r['ok'] else 'BLOCK'} — {r['note']}")
+    for z in r["zombies"]:
+        print(f"  ⚠ {z['gate']} (last {z['last_seen']})")
+    return 0 if r["ok"] else 1
+
+
 def _distill(args) -> int:
     rows = load_error_dna(args.error_dna)
     zombies = []
@@ -190,6 +220,9 @@ def main(argv: list[str] | None = None) -> int:
         s.add_argument("id")
         s.add_argument("note", nargs="?")
         s.add_argument("proposals", nargs="?", default=str(Path(DEFAULT_OUT) / "proposals.jsonl"))
+    ar = sub.add_parser("anti-regrowth")
+    ar.add_argument("--gate-pass", default=".omc/state/gate-pass-count.jsonl")
+    ar.add_argument("--window", type=int, default=14)
     args = ap.parse_args(argv)
     if args.cmd == "distill":
         return _distill(args)
@@ -198,6 +231,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.cmd in ("accept", "reject"):
         status = {"accept": "accepted", "reject": "rejected"}[args.cmd]
         return _mutate(args.proposals, args.id, status, args.note or "")
+    if args.cmd == "anti-regrowth":
+        return _anti_regrowth(args)
     return 2
 
 
