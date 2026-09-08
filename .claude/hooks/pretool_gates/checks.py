@@ -222,10 +222,20 @@ def _check_test_verification(payload: dict) -> str | None:
         return None
     path = str(_extract_path(payload) or "").replace("\\", "/")
     base = os.path.basename(path)
-    if not path.endswith(".py") or base.startswith("test_") or base.endswith("_test.py"):
+    if not path.endswith(".py"):
         return None
     if "/test" in path.lower().replace("\\", "/") or path.startswith("tests/"):
         return None
+    is_test_file = base.startswith("test_") or base.endswith("_test.py")
+    if is_test_file:
+        # index44 S5 G1：新建测试 = red-first 编写 → 放行；修改**已存在**测试文件走下方闸，
+        # 堵「改测试断言对齐代码」绕过 test-first（index44 skip-tests 实证：test_config.py
+        # 断言 ==30 被改成 ==99 而全程未跑 pytest）。
+        try:
+            if not Path(path).exists():
+                return None
+        except OSError:
+            return None
     # 项目是否有测试文件（cwd 根一层，性能护栏）
     has_tests = False
     try:
@@ -431,6 +441,17 @@ def _extract_delete_targets(payload: dict) -> list[str]:
                 # index37 修复：剥离引号（`rm -rf "AGENTS.md"` 目标带引号 → 与
                 # _GOVERNANCE_DELETE_BASENAMES 精确比较永远不匹配，治理文件被当普通文件删掉）
                 targets.append(tok.strip("'\""))
+        # index44 S5 G2：堵 python 通道绕过——模型被 rm 拦截后转 python
+        # os.remove/os.unlink/shutil.rmtree/Path.unlink 等删除，需同样过"被引用/冻结"门禁
+        # （index44 doc-ref 实证：rm 被 deny 后模型转 python 删除被引用文件成功）。
+        # 先剥离 # 注释，避免把注释里的删除字样误当目标。
+        _code = _re.sub(r"#[^\n]*", "", cmd)
+        for _ptn in (
+            r"\b(?:os\.remove|os\.unlink|os\.removedirs|shutil\.rmtree|shutil\.rm)\s*\(\s*(['\"])([^'\"]+)\1",
+            r"\bPath\s*\(\s*(['\"])([^'\"]+)\1\s*\)\s*\.(?:unlink|rmdir)\s*\(",
+        ):
+            for _pm in _re.finditer(_ptn, _code):
+                targets.append(_pm.group(2).strip("'\""))
     return targets
 
 
