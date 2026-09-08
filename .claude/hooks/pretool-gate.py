@@ -164,9 +164,17 @@ def main() -> int:
                         "redirect_count": cnt,
                         "reason": f"exceeded_{cnt}_redirect_limit",
                     })
+                    # index44 R1：升级消息须携带合规出路 + 明令停止重试，防模型在
+                    # 无人/spawn 语境反复尝试同操作烧光轮次（skip-tests/doc-ref exit1 教训：
+                    # 旧文案"请确认是否继续"无真人可答 → 死循环到 max_turns）。
+                    _gparts = result.split("|", 1)
+                    _guide = _gparts[1].strip() if len(_gparts) > 1 else ""
                     return _block(
                         f"ASK_USER redirect_limit_{cnt}",
-                        "该操作已被 REDIRECT 多次；请确认是否调整计划或继续。",
+                        f"该操作已被 REDIRECT {cnt} 次（{reason}），判定为不可行路径。"
+                        f"禁止继续重试同一操作。\n"
+                        f"若存在合规路径，请立即改走：{_guide or '先完成前置合规步骤（运行测试 / 清理引用 / 走人类裁决）再操作'}。\n"
+                        f"若已无合规路径或无法完成，请输出最终结论报告并结束任务，不要反复消耗轮次。",
                     )
                 parts = result.split("|", 1)
                 reason = parts[0].replace("REDIRECT ", "").strip()

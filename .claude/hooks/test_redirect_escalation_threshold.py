@@ -82,6 +82,17 @@ def test_second_redirect_escalates_to_limit():
     )
 
 
+def test_escalation_message_gives_stop_loop_and_actionable_out():
+    """index44 R1：升级消息须明令停止重试并给出合规出路，防模型烧轮（skip-tests/doc-ref 教训）。"""
+    _setup()
+    _run()  # streak=1
+    r2 = _run()  # streak=2 → 升级
+    combined = r2.get("stderr", "") + r2.get("raw_stdout", "")
+    assert "禁止继续重试" in combined, f"升级消息应明令停止重试: {combined!r}"
+    # 可执行出路：F3 doc-reference 引导原文应被携带进升级消息
+    assert "请先更新文档" in combined, f"升级消息应携带合规引导(可执行下一步): {combined!r}"
+
+
 if __name__ == "__main__":
     import pytest
     sys.exit(pytest.main([__file__, "-v"]))
