@@ -158,6 +158,20 @@ def _distill(args) -> int:
             print(f"⚠ gate 僵尸读取失败(不影响 anti-pattern): {exc}")
     asof = date.today()
     props = make_proposals(rows, zombies, threshold=args.threshold, asof=asof)
+    # 脚本僵尸 → delete-candidate 提案（新增特性时清理死代码）
+    try:
+        from zombie_scan import find_zombies
+        for rel in find_zombies(".", (".claude/scripts",))[:50]:
+            seq = len(props) + 1
+            props.append({
+                "id": f"p-{asof.isoformat()}-{seq:03d}", "source": "distiller",
+                "kind": "delete-candidate",
+                "evidence": {"count": 1, "refs": [f"{rel} 无任何引用"]},
+                "suggestion": f"删除/归档死代码 {rel}（未被代码/配置/文档引用）",
+                "impact_estimate": "低", "status": "pending", "human_note": "", "test_commit": "",
+            })
+    except Exception as exc:
+        print(f"⚠ 脚本僵尸检测跳过: {exc}")
     jsonl, md = write_proposals(props, Path(args.out) / "proposals.jsonl", Path(args.out) / "proposals.md")
     print(f"[distill] {asof} | 提案 {len(props)} 条 | -> {jsonl}")
     for p in props:
