@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "description": "CarrorOS 错误分类规则库 — error-dna 消费该文件将 exit_code + stderr 模式映射为具体错误类型",
-  "last_updated": "2026-09-08T00:00+0800",
+  "last_updated": "2026-09-08T22:38+0800",
   "rules": [
     {
       "type": "bash_command_not_found",
@@ -48,7 +48,7 @@
       "severity": "error",
       "action": "create_path",
       "suggested_fix": "创建缺失的路径或文件；路径不存在属确定性错误，勿对同一路径重复重试（先检查/创建）",
-      "frequency": 93
+      "frequency": 153
     },
     {
       "type": "build_compile_error",
@@ -495,7 +495,7 @@
       "auto_generated": true,
       "first_seen": 1786700807,
       "last_seen": 1786700922,
-      "frequency": 18
+      "frequency": 25
     },
     {
       "type": "auto_unknown",
@@ -512,6 +512,28 @@
       "first_seen": 1785400277,
       "last_seen": 1786445027,
       "frequency": 47
+    },
+    {
+      "type": "auto_content",
+      "priority": 50,
+      "exit_code": [
+        1
+      ],
+      "stderr_patterns": [
+        "content",
+        "specific",
+        "read",
+        "exceeds",
+        "maximum"
+      ],
+      "cmd_patterns": [],
+      "severity": "warn",
+      "action": "investigate",
+      "suggested_fix": "检查命令输出",
+      "auto_generated": true,
+      "first_seen": 1788118610,
+      "last_seen": 1788871054,
+      "frequency": 12
     }
   ]
 }
