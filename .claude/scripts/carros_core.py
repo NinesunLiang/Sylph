@@ -15,6 +15,8 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
+from token_lifecycle import TERMINAL_STATUSES
+
 
 def _research_md_is_placeholder(research_path) -> bool:
     """M2 门禁：research.md 是否仍为占位模板。
@@ -62,3 +64,40 @@ def _result_template() -> dict:
         "completed_at": None,
         "started_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+def _print_path_contract(task_dir):
+    """前置引导：打印 working-set.yaml 的路径契约（allowed/denied），
+    让 AI 在任务激活时就知道允许写什么、禁止碰什么，主动规划在 schema 内。"""
+    try:
+        ws = Path(task_dir) / "working-set.yaml"
+        if not ws.exists():
+            return
+        import yaml
+        data = yaml.safe_load(ws.read_text(encoding="utf-8")) or {}
+        allowed = data.get("allowed_paths") or []
+        denied = data.get("denied_paths") or []
+        print("   ── 路径契约（working-set.yaml）──")
+        print(f"   允许: {', '.join(str(a) for a in allowed) if allowed else '(无)'}")
+        print(f"   禁止: {', '.join(str(d) for d in denied) if denied else '(无)'}")
+        print("   提示: 任务若涉及仓库外输入/输出（如桌面路径），research 阶段"
+              "把路径加入 allowed_paths（支持绝对路径声明，见 SKILL Phase 0 step 11b）")
+        print("   ── 格式契约 ──")
+        print("   提示: goal plan.md 模板已内置 PlanGate 格式骨架（Phase/step/字段/verify 前缀），"
+              "PLANNING 阶段照骨架填不返工；executor 的 EV 断言须逐字覆盖 verify 规则关键短语")
+    except Exception:
+        pass  # 契约打印失败不阻断 init
+
+
+def _is_terminal_token(token) -> bool:
+    """M1 终结器判定：token 顶层 status 或 task.status 处于终态。
+
+    terminal 语义：任务不可再推进（completed/archived/failed/expired/cancelled）。
+    命中时 _save_token 写盘后同步销毁 sidecar lock，保持物理锁「锁存在=进行中」。
+    """
+    try:
+        top = token.get("status", "")
+        task_status = (token.get("task") or {}).get("status", "")
+    except AttributeError:
+        return False
+    return top in TERMINAL_STATUSES or task_status in TERMINAL_STATUSES
