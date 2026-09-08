@@ -122,26 +122,6 @@ def _is_terminal_token(token) -> bool:
     return top in TERMINAL_STATUSES or task_status in TERMINAL_STATUSES
 
 
-def _research_md_is_placeholder(research_path) -> bool:
-    """M2 门禁：research.md 是否仍为占位模板。
-
-    判定：文件存在但所有 section 内容为空或仅为占位标记（无实质正文）。
-    用于普通任务归档前检测，防「占位模板绕过归档」。
-    """
-    try:
-        text = Path(research_path).read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return True
-    # 提取 section 内容：跳过标题行与 HTML 注释
-    lines = [l.strip() for l in text.splitlines()
-             if l.strip() and not l.strip().startswith("#")
-             and not l.strip().startswith("<!--")
-             and not l.strip().endswith("-->")]
-    if not lines:
-        return True
-    # 占位特征：全为短标注/括号/引号框
-    substantive = [l for l in lines if len(l) > 4 and not l.startswith(">")]
-    return len(substantive) < 2
 
 
 def _check_plan_has_dependency_tree(plan_path) -> tuple[bool, str]:
@@ -1751,10 +1731,6 @@ def _run_verify_gate(step_id):
     return payload.get("decision", "BLOCKED"), payload.get("reason", ""), payload
 
 
-def _ev_field(block: str, name: str) -> str:
-    """提取 EV 块中 `- name: value` 字段值（去空白）。"""
-    m = re.search(rf"- {name}:\s*(.*)$", block, re.M)
-    return m.group(1).strip() if m else ""
 
 
 def _verify_light(token: dict) -> int:
@@ -1763,6 +1739,7 @@ def _verify_light(token: dict) -> int:
     跳过 F2 依赖树检查与 PlanGate，校验 executor.md 的 EV 证据块——
     exit_code: 0 且 source/file/assertion 均非空、非占位符（<...>/(none)），防伪造空证据。
     """
+    from carros_core import _ev_field  # 函数级懒 import(design-doc 15 M0)
     if not EXECUTOR_PATH or not EXECUTOR_PATH.exists():
         print(_red("❌ executor.md not found (light 任务需记录 EV 证据)"))
         return 2
@@ -1980,11 +1957,6 @@ def cmd_verify(step_id=None, all_steps=False):
     return 0
 
 
-def _build_backcard_guidance(reasons: list[str]) -> list[str]:
-    """从 REJECT reasons 生成可执行的修复指引(打回单)。"""
-    if not reasons:
-        return ["Oracle 未给出具体原因，请人工检查 oracle 输出后修复"]
-    return [f"按原因修复: {r}" for r in reasons[:3]]
 
 
 def cmd_oracle_plan() -> int:
@@ -1992,6 +1964,7 @@ def cmd_oracle_plan() -> int:
 
     退出码: 0=ACCEPT/ADVISORY  2=REJECT(打回)  3=ESCALATE(人工)  4=UNAVAILABLE
     """
+    from carros_core import _build_backcard_guidance  # 函数级懒 import(design-doc 15 M0)
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -2125,6 +2098,7 @@ def cmd_report(use_stdout=True, archive_mode=False):
 
 def cmd_archive(force=False):
     """归档任务 — archive = lint + verify-summary + final-report + tombstone"""
+    from carros_core import _research_md_is_placeholder  # 函数级懒 import(design-doc 15 M0)
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -2812,17 +2786,6 @@ def _sub_token(task_dir: str, parent_id: str, step_id: str, plan_text: str = "")
     }
 
 
-def _result_template() -> dict:
-    """result.json 模板 — subagent 完成工作后写"""
-    return {
-        "status": "running",
-        "summary": "",
-        "evidence": [],
-        "files_changed": [],
-        "failure": None,
-        "completed_at": None,
-        "started_at": datetime.now(timezone.utc).isoformat(),
-    }
 
 
 def cmd_dispatch():
@@ -2844,6 +2807,7 @@ def cmd_dispatch():
         4. 更新 result.json（status=completed + summary + evidence）
         5. 更新 token.json（status=completed）
     """
+    from carros_core import _result_template  # 函数级懒 import(design-doc 15 M0)
     global TASK_DIR, TOKEN_PATH, SUB_TASK_DIR
 
     # 确保有 active token
