@@ -2206,6 +2206,32 @@ def cmd_archive(force=False):
         except Exception as exc:
             print(_red(f"❌ Goal state unreadable; archive aborted: {exc}"), file=sys.stderr)
             return 2
+        # index44 R2：终末"归档步骤"死结根治。GoalMachine 要求 done==total 才允许
+        # EXECUTING→VERIFYING，但常见 plan 把 archive 本身列为最后一步 → 该步 pending
+        # 使 goal 永远停在 EXECUTING，archive 又要求 VERIFYING（鸡生蛋，index44 实测 +
+        # memory verifying-handoff-gap）。识别「唯一 pending 且 verify 含 archive」的终末
+        # 步骤，在此自动完成并推进 VERIFYING（写审计），随后按正常流程归档。
+        if (archive_gate.current_state == gsm.EXECUTING
+                and step_contracts is not None and PLAN_PATH and PLAN_PATH.exists()):
+            _pend = [s for s in step_contracts.parse_plan_steps(PLAN_PATH.read_text(encoding="utf-8"))
+                     if s.get("status") != "completed"]
+            if len(_pend) == 1 and " archive" in str(_pend[0].get("verify", "")):
+                _step_id = _pend[0]["id"]
+                _pat = re.compile(r"^- \[[ aA]\] " + re.escape(_step_id) + r":", re.MULTILINE)
+                _ptxt = PLAN_PATH.read_text(encoding="utf-8")
+                PLAN_PATH.write_text(_pat.sub(f"- [x] {_step_id}:", _ptxt, count=1), encoding="utf-8")
+                token["stats"]["done"] = token["stats"].get("done", 0) + 1
+                _save_token(token)
+                _write_audit("archive_auto_completed_terminal_step", {
+                    "step": _step_id, "reason": "terminal-archive-step deadlock fix (index44 R2)",
+                })
+                try:
+                    _gm = GoalMachine(TOKEN_PATH)
+                    _gm.transition(gsm.VERIFYING, reason="archive auto-completed terminal archive step")
+                    archive_gate = _gm
+                    print(_yellow(f"   ↻ 终末归档步骤 {_step_id} 自动完成，goal -> VERIFYING（R2 死结修复）"))
+                except Exception as _exc:  # 防御：推进失败则回退提示走原检查
+                    print(_yellow(f"   ⚠ R2 自动推进失败({_exc})，走原 VERIFYING 检查"))
         if archive_gate.current_state != gsm.VERIFYING:
             print(
                 _red(
