@@ -1612,20 +1612,7 @@ def cmd_tick(step_id=None):
     return 0
 
 
-def _run_dual_judge(token: dict) -> int:
-    # TOMBSTONE 2026-08-13: 空转死链，从未产生有效裁决。
-    # 原因:
-    #   static_oracle_agent.py / runtime_oracle_agent.py 已归档至
-    #     .claude/skills/archived/lx-oracle-legacy/，_hook_dir 下不存在 → FileNotFoundError → 异常跳过。
-    #   meta_oracle.py 无 aggregate 命令 → verdict 恒为 UNAVAILABLE → return 0 放行。
-    #   oracle_agent.exists() 分支执行 pass，随即跌入上述死链；且模块未 import subprocess，原函数每次抛 NameError。
-    # 替代: _run_oracle_staged() 直接调用 oracle_agent.py (v2.0.0+)。
-    # 保留函数壳体仅为 git blame 可追溯；任何调用者必须迁移至 _run_oracle_staged。
-    raise RuntimeError(
-        "_run_dual_judge is tombstoned (2026-08-13). "
-        "Use _run_oracle_staged() for Oracle review."
-    )
-
+# _run_dual_judge tombstoned 2026-08-13 → 已删（无调用者，死链）。Oracle 一律走 _run_oracle_staged()。
 
 # ── Oracle 接线辅助（挂载点①②③）─────────────────────────────────────────────
 
