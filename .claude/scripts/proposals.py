@@ -152,6 +152,9 @@ def _mutate(jsonl, pid: str, status: str, note: str) -> int:
     p = Path(jsonl)
     if not p.exists():
         print("无提案文件"); return 1
+    if status == "rejected" and not note:
+        print("❌ reject 必须写原因（human_note），供 distiller 学习不重复提案")
+        return 1
     lines = p.read_text(encoding="utf-8").splitlines()
     hit = False
     for i, line in enumerate(lines):
