@@ -17,6 +17,14 @@ from typing import Optional
 
 MAX_RETRIES = 3
 
+# 确定性根因错误：重试无益（路径不存在/语法/导入缺失/命令缺失/权限）。error-dna 实测
+# bash_path_not_found 同一路径重试 67 次 → 出现 ≥DET_MIN 次即提前阻断并给修复指引。
+DET_MIN = 2
+DETERMINISTIC_TYPES = {
+    "bash_path_not_found", "bash_command_not_found", "syntax_error",
+    "import_error", "bash_permission_denied",
+}
+
 
 def record_error(
     task_dir: Path,
@@ -166,6 +174,16 @@ def check_retry_gate(task_dir: Path, step_id: str) -> tuple:
     """
     errors = get_recent_errors(task_dir, step_id)
     retry_count = sum(1 for e in errors if e.get("retry_count", 0) > 0 or e.get("error"))
+
+    # 确定性根因错误提前阻断（提案 p-...-002 落地）：路径/语法/导入/权限类重试无益，
+    # 同一类型带 retry 出现 ≥DET_MIN 次即停，给修复指引而非数满 MAX。
+    det = [e for e in errors
+           if e.get("error_type") in DETERMINISTIC_TYPES and (e.get("retry_count") or 0) > 0]
+    if len(det) >= DET_MIN:
+        t = det[-1].get("error_type", "deterministic")
+        return False, retry_count, (
+            f"确定性错误 {t} 重复 {len(det)} 次：重试无益（路径/语法/导入/权限类根因）。"
+            f"请先修复根因（检查/创建路径、修语法、装依赖、改权限）再继续，勿重复同一命令。")
 
     if retry_count >= MAX_RETRIES:
         return False, retry_count, f"MAX_RETRIES ({MAX_RETRIES}) reached for {step_id}"
