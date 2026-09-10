@@ -37,12 +37,40 @@ def _run(cmd: list[str], cwd: Path | None = None, check: bool = True) -> subproc
     )
 
 
+def _link_ledger(worktree_path: Path) -> bool:
+    """把 worktree 内的 `.omc` 链接到主树 `.omc` —— 隔离代码、共享账本。
+
+    index49：`git worktree add` 不复制被 gitignore 的 `.omc/`（实测：worktree 内只有
+    `.claude/`）。而任务文档 / 令牌 / 审计全在 `.omc/`。若不链接，goal 在 worktree 里
+    产生的证据会随 worktree 删除而**永久丢失**（merge_worktree 会 remove worktree）。
+
+    返回 True 表示链接就绪。平台不支持符号链接时返回 False，调用方须改用
+    主树绝对路径的 `--task-dir`（退化路径）。
+    """
+    target = PROJECT_ROOT / ".omc"
+    link = worktree_path / ".omc"
+    if link.is_symlink() or link.exists():
+        return True
+    try:
+        if not target.exists():
+            target.mkdir(parents=True, exist_ok=True)
+        link.symlink_to(target, target_is_directory=True)
+        return True
+    except OSError:
+        return False
+
+
 def create_worktree(task_id: str) -> tuple[Path, str]:
-    """创建隔离 worktree，返回 (worktree_path, branch_name)。"""
+    """创建隔离 worktree，返回 (worktree_path, branch_name)。
+
+    创建后会在 worktree 内建立 `.omc` → 主树链接（见 `_link_ledger`），
+    使隔离只作用于**代码**，账本/证据仍留在主树。
+    """
     branch_name = f"task-isolated-{task_id}-{uuid.uuid4().hex[:8]}"
     worktree_path = WORKTREES_DIR / branch_name
     worktree_path.parent.mkdir(parents=True, exist_ok=True)
     _run(["git", "worktree", "add", str(worktree_path), "-b", branch_name])
+    _link_ledger(worktree_path)
     return worktree_path, branch_name
 
 

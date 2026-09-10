@@ -33,11 +33,13 @@ from pretool_gates import checks as PRETOOL_CHECKS
 
 
 def test_on_parser_accepts_task_id_and_legacy_expiry():
-    assert LX_GOAL.parse_on_args(["goal text", "3"]) == ("goal text", 3, None)
+    # index49：解析结果新增第 4 位 level（缺省 L1 简易模式）
+    assert LX_GOAL.parse_on_args(["goal text", "3"]) == ("goal text", 3, None, "L1")
     assert LX_GOAL.parse_on_args(["goal text", "--task-id", "task-1"]) == (
         "goal text",
         6,
         "task-1",
+        "L1",
     )
 
 
@@ -53,7 +55,8 @@ def test_main_on_routes_task_id_without_traceback(monkeypatch):
     monkeypatch.setattr(LX_GOAL, "cmd_on", lambda *args: calls.append(args))
     monkeypatch.setattr(sys, "argv", ["lx-goal.py", "on", "goal text", "--task-id", "task-1"])
     LX_GOAL.main()
-    assert calls == [("goal text", 6, "task-1")]
+    # index49：cmd_on 新增 level 位置参数（缺省 L1）
+    assert calls == [("goal text", 6, "task-1", "L1")]
 
 
 def test_content_gate_keeps_boundary_and_redirects_over_budget():

@@ -402,9 +402,16 @@ def missing_verified_evidence(plan_dir: Path) -> list[str]:
 # 子命令
 # ============================================================
 
-def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None):
-    """激活目标模式 — 创建 mode file + 计划目录 + 物理锁"""
+def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None, level: str = "L1"):
+    """激活目标模式 — 创建 mode file + 计划目录 + 物理锁
+
+    index49：新增 `level`（L1 简易 / L2 完备）。原先此处**写死 L2**，
+    使所有 goal 都是完备开销；现按声明分级，缺省 L1。
+    """
     goal = goal or "目标任务未指定"
+    level = str(level or "L1").upper()
+    if level not in VALID_LEVELS:
+        raise ValueError(f"level must be one of {VALID_LEVELS}, got {level!r}")
     if not 1 <= expiry_hours <= 168:
         raise ValueError("expiry hours must be between 1 and 168")
     if task_id is not None:
@@ -430,7 +437,7 @@ def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None):
         result = subprocess.run(
             [sys.executable, str(carros_base), "init",
              "--task-id", slug,
-             "--level", "L2",
+             "--level", level,
              "--user-request", user_request,
              "--task-mode", "goal"],
             capture_output=True, text=True, timeout=15,
@@ -624,6 +631,9 @@ def cmd_phase0_done():
             print(f"   (共 {len(e.errors)} 项失败)")
         sys.exit(1)
 
+    # index49：完备模式（L2）前置 TDD 门——依赖树全绿 + 特性全红；简易模式 no-op
+    _tdd_gate_or_fail(plan_dir, "pre")
+
     slug = plan_dir.name
     date_dir = plan_dir.parent.name
     lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
@@ -681,6 +691,113 @@ def cmd_phase0_done():
     print("   完成后运行: lx-goal.py plan-done")
 
 
+def extract_tdd_commands(plan_text: str) -> dict:
+    """从 plan.md 抽取 TDD 判据命令（人类要求：完备模式须声明依赖树/特性两条命令）。
+
+    形如：
+        - dep_tdd_cmd: pytest tests/deps -q
+        - feature_tdd_cmd: pytest tests/feature_x -q
+    缺失即返回 {}，由门禁判定为不可进入完备流程。
+    """
+    out = {}
+    for key in ("dep_tdd_cmd", "feature_tdd_cmd"):
+        m = re.search(rf"^\s*-\s*{key}\s*:\s*(.+?)\s*$", plan_text or "", re.MULTILINE)
+        if m:
+            out[key] = m.group(1).strip()
+    return out
+
+
+def evaluate_pretdd(results: dict) -> tuple[bool, str]:
+    """前置门（开发前）：依赖树 TDD 须**全绿**，特性 TDD 须**全红**。
+
+    语义：依赖已就绪（绿）说明地基可用；特性测试仍红说明它确实在测未实现的行为
+    （若已绿 = 测试没在测新东西，属无效测试，必须拒绝）。
+    """
+    dep = results.get("dep_exit")
+    feat = results.get("feature_exit")
+    if dep is None or dep != 0:
+        return False, f"依赖树 TDD 未全绿（exit={dep}）"
+    if feat is None:
+        return False, "特性 TDD 未取得结果（命令未声明或未执行）"
+    if feat == 0:
+        return False, "特性 TDD 已是绿——测试未覆盖未实现行为（无效测试）"
+    return True, "前置门通过：依赖树全绿 + 特性全红"
+
+
+def evaluate_posttdd(results: dict) -> tuple[bool, str]:
+    """后置门（开发后验证）：依赖树与特性 TDD **均须全绿**。"""
+    dep = results.get("dep_exit")
+    feat = results.get("feature_exit")
+    if dep is None or dep != 0:
+        return False, f"依赖树 TDD 未全绿（exit={dep}）"
+    if feat is None or feat != 0:
+        return False, f"特性 TDD 未全绿（exit={feat}）"
+    return True, "后置门通过：依赖树与特性 TDD 均全绿"
+
+
+def run_tdd_commands(plan_dir: Path, commands: dict) -> dict:
+    """执行 plan 声明的两条 TDD 命令，返回 {"dep_exit": n, "feature_exit": n}（缺则 None）。"""
+    results: dict = {"dep_exit": None, "feature_exit": None}
+    for key, slot in (("dep_tdd_cmd", "dep_exit"), ("feature_tdd_cmd", "feature_exit")):
+        cmd = commands.get(key)
+        if not cmd:
+            continue
+        try:
+            proc = subprocess.run(cmd, shell=True, cwd=str(plan_dir),
+                                  capture_output=True, text=True, timeout=600)
+            results[slot] = proc.returncode
+        except subprocess.TimeoutExpired:
+            results[slot] = 124
+    return results
+
+
+def _tdd_gate_or_fail(plan_dir: Path, phase: str) -> None:
+    """完备模式跑对应 TDD 门；不通过则拒绝推进（简易模式 no-op）。"""
+    mode_data, _path = _read_mode_file()
+    level = str((mode_data.get("session") or {}).get("level") or "").upper()
+    if not is_complete_mode(level):
+        return
+    plan_text = (plan_dir / "plan.md").read_text(encoding="utf-8", errors="replace")
+    commands = extract_tdd_commands(plan_text)
+    if not commands:
+        print(f"❌ 完备模式要求 plan.md 声明 dep_tdd_cmd 与 feature_tdd_cmd（{phase} 门）", file=sys.stderr)
+        sys.exit(1)
+    results = run_tdd_commands(plan_dir, commands)
+    ok, detail = evaluate_pretdd(results) if phase == "pre" else evaluate_posttdd(results)
+    state_dir = plan_dir / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / f"tdd-{phase}.json").write_text(
+        json.dumps({**results, "ok": ok, "detail": detail}, ensure_ascii=False, indent=2),
+        encoding="utf-8")
+    if not ok:
+        print(f"❌ {phase} TDD 门未通过：{detail}", file=sys.stderr)
+        sys.exit(1)
+    print(f"✅ {phase} TDD 门通过：{detail}", file=sys.stderr)
+
+
+def enter_isolation_if_complete(token_data: dict, plan_dir: Path, create_worktree=None) -> dict:
+    """完备模式（L2）进入执行态前建立 worktree 隔离；简易模式（L1）no-op。
+
+    index49：人类要求「完备模式**一定**在 worktree 下」。
+    隔离只作用于**代码**：worktree 内 `.omc` 由 worktree_utils 链接回主树，
+    任务文档/令牌/审计仍留在主树（多进程共享、merge 后不丢）。
+
+    返回更新后的 token 片段 {"worktree": path, "worktree_branch": name}；
+    简易模式返回 {}。创建失败不静默：抛异常让调用方决定。
+    """
+    level = str((token_data.get("session") or {}).get("level") or "").upper()
+    if not is_complete_mode(level):
+        return {}
+    if token_data.get("worktree"):
+        return {"worktree": token_data["worktree"], "worktree_branch": token_data.get("worktree_branch", "")}
+    if create_worktree is None:
+        sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "scripts"))
+        from worktree_utils import create_worktree as _cw
+        create_worktree = _cw
+    wt_path, branch = create_worktree(plan_dir.name)
+    return {"worktree": str(wt_path), "worktree_branch": branch}
+
+
 def cmd_plan_done():
     """Validate the plan after research and unlock execution."""
     mode_data, path = _read_mode_file()
@@ -715,6 +832,11 @@ def cmd_plan_done():
     try:
         token_data = json.loads(lock_file.read_text(encoding="utf-8"))
         token_data["task_dir"] = str(plan_dir.resolve())
+        # index49：完备模式（L2）在进入执行态前建立 worktree 隔离；简易模式 no-op。
+        iso = enter_isolation_if_complete(token_data, plan_dir)
+        if iso:
+            token_data.update(iso)
+            print(f"🔒 完备模式隔离已建立: {iso['worktree']}", file=sys.stderr)
         lock_file.write_text(json.dumps(token_data, indent=2, ensure_ascii=False), encoding="utf-8")
         if _start_phase is not None:
             handoff = plan_dir / "state" / "phase-handoff-PLANNING.json"
@@ -1341,6 +1463,64 @@ def cmd_checklist_verify(plan_dir: Path | str | None = None):
     return 0
 
 
+
+def cmd_accept():
+    """完备模式验收：后置 TDD 门（依赖树+特性全绿）→ 双法官 → 自动合回发起分支。
+
+    index49：人类要求「完备模式一定在 worktree 下」且验收通过后自动合回。
+    简易模式（L1）：跳过全部（只做必要项）。
+    """
+    mode_data, _path = _read_mode_file()
+    plan_dir = _get_plan_dir(mode_data)
+    if not plan_dir:
+        print("❌ 计划目录不存在，请重新激活目标模式", file=sys.stderr)
+        sys.exit(1)
+    level = str((mode_data.get("session") or {}).get("level") or "").upper()
+    if not is_complete_mode(level):
+        print("ℹ️  简易模式（L1）无验收门，直接放行")
+        return
+
+    # ① 后置 TDD 门
+    _tdd_gate_or_fail(plan_dir, "post")
+
+    # ② 双法官验收（复用 oracle_agent 的 duo 顺序双审）
+    token_file = Path(mode_data.get("task_dir") or plan_dir).parent  # 占位，实际用 lock
+    slug = plan_dir.name
+    lock_file = TOKENS_DIR / plan_dir.parent.name / f"{slug}.json"
+    oracle = PROJECT_ROOT / ".claude" / "scripts" / "oracle_agent.py"
+    if not oracle.exists():
+        print("❌ 双法官不可用（oracle_agent.py 缺失），拒绝验收", file=sys.stderr)
+        sys.exit(2)
+    proc = subprocess.run(
+        [sys.executable, str(oracle), "review",
+         "--task-id", slug, "--mode", "duo",
+         "--plan", str(plan_dir / "plan.md"),
+         "--executor", str(plan_dir / "executor.md"),
+         "--token", str(lock_file)],
+        capture_output=True, text=True, timeout=1800)
+    verdict_path = plan_dir / "state" / "judge-verdict.json"
+    verdict_path.parent.mkdir(parents=True, exist_ok=True)
+    verdict_path.write_text(json.dumps({
+        "exit_code": proc.returncode,
+        "stdout_tail": (proc.stdout or "")[-4000:],
+        "stderr_tail": (proc.stderr or "")[-2000:],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    if proc.returncode != 0:
+        print(f"❌ 双法官未通过（exit={proc.returncode}），拒绝验收", file=sys.stderr)
+        sys.exit(1)
+    print("✅ 双法官验收通过")
+
+    # ③ 自动合回发起分支
+    wt = mode_data.get("worktree")
+    branch = mode_data.get("worktree_branch")
+    if wt and branch:
+        sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "scripts"))
+        from worktree_utils import merge_worktree
+        merge_worktree(Path(wt), branch, slug)
+        print(f"✅ 已合回发起分支并清理 worktree: {branch}")
+    else:
+        print("ℹ️  无 worktree（非完备隔离执行），跳过合回")
+
 def cmd_done(plan_dir: Path | str | None = None):
     """Finalize the explicitly selected Goal task after verification."""
     mode_data, _ = _read_mode_file(plan_dir)
@@ -1463,16 +1643,35 @@ KNOWN_SUBCOMMANDS = {
     "retry": cmd_retry,
     "subagent-log": cmd_subagent_log,
     "done": cmd_done,
+    "accept": cmd_accept,
     "_update-lock": cmd_update_lock,
 }
 
 
-def parse_on_args(args: list[str]) -> tuple[str, int, str | None]:
-    """Parse `on` arguments without touching lifecycle or task state."""
+VALID_LEVELS = ("L1", "L2")
+
+
+def is_complete_mode(level: str) -> bool:
+    """完备模式判定（index49）。
+
+    L2 = 完备模式：worktree 隔离 + 依赖树 + 前置/后置 TDD 门 + 双法官验收。
+    L1 = 简易模式：只做必要项。
+    本函数是**唯一真源**，worktree / 门禁 / 双法官均引用它，避免各处各判。
+    """
+    return str(level or "").upper() == "L2"
+
+
+def parse_on_args(args: list[str]) -> tuple[str, int, str | None, str]:
+    """Parse `on` arguments without touching lifecycle or task state.
+
+    index49：新增 `--level L1|L2`，**缺省 L1（简易）**——与既有「默认 L1」裁决一致。
+    完备模式（L2）由调用方显式声明。
+    """
     goal_parts: list[str] = []
     expiry = 6
     expiry_set = False
     task_id = None
+    level = "L1"
     i = 0
     while i < len(args):
         arg = args[i]
@@ -1480,6 +1679,15 @@ def parse_on_args(args: list[str]) -> tuple[str, int, str | None]:
             if i + 1 >= len(args) or args[i + 1].startswith("-"):
                 raise ValueError("--task-id requires a value")
             task_id = args[i + 1]
+            i += 2
+            continue
+        if arg == "--level":
+            if i + 1 >= len(args) or args[i + 1].startswith("-"):
+                raise ValueError("--level requires a value (L1 or L2)")
+            raw_level = args[i + 1].upper()
+            if raw_level not in VALID_LEVELS:
+                raise ValueError(f"--level must be one of {VALID_LEVELS}, got {args[i + 1]!r}")
+            level = raw_level
             i += 2
             continue
         if arg in ("--expiry", "--hours"):
@@ -1504,7 +1712,7 @@ def parse_on_args(args: list[str]) -> tuple[str, int, str | None]:
         goal_parts = ["目标任务未指定"]
     if not 1 <= expiry <= 168:
         raise ValueError("expiry hours must be between 1 and 168")
-    return " ".join(goal_parts), expiry, task_id
+    return " ".join(goal_parts), expiry, task_id, level
 
 
 _COMMAND_WORD_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
@@ -1567,14 +1775,15 @@ def main():
             print("若要激活目标，请用: lx-goal.py on \"<目标描述>\"", file=sys.stderr)
             print(_usage(), file=sys.stderr)
             sys.exit(2)
-        # 非子命令文本 → 当作目标描述自动激活
+        # 非子命令文本 → 当作目标描述自动激活（index49：此路径无选项解析，按缺省 L1 简易）
         raw = sys.argv[1:]
         goal = " ".join(raw)
         expiry = 6
+        level = "L1"
         if raw and raw[-1].isdigit():
             expiry = int(raw[-1])
             goal = " ".join(raw[:-1])
-        cmd_on(goal, expiry)
+        cmd_on(goal, expiry, level=level)
         return
 
     cmd_name = sys.argv[1]
@@ -1589,17 +1798,21 @@ def main():
 
     if cmd_name == "on":
         try:
-            goal, expiry, task_id = parse_on_args(args)
+            goal, expiry, task_id, level = parse_on_args(args)
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             print(_usage(), file=sys.stderr)
             sys.exit(2)
         try:
-            cmd_on(goal, expiry, task_id)
+            cmd_on(goal, expiry, task_id, level)
         except ValueError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             print(_usage(), file=sys.stderr)
             sys.exit(2)
+    elif cmd_name == "accept":
+        rc = cmd_accept()
+        if isinstance(rc, int):
+            sys.exit(rc)
     elif cmd_name == "set":
         if len(args) < 2:
             print("用法: lx-goal.py set <key> <value>")
