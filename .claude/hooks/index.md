@@ -44,9 +44,11 @@
 
 ## 已退休 Hook（还债·少即是多清理）
 
-以下 hook 已移入 `retired/`（可回滚，不物理删除），退出 settings.json 注册：
+以下 hook 已**物理删除**（index49，人类裁决「不符合少即是多的删除」）：
 
-| 退休文件 | 原因 |
+| 已删文件 | 原因 |
 |------|------|
 | `postcompact.py` | 纯记录型；resume-note 写入逻辑无门禁价值，会话恢复由 session-start.py 读 handoff 兜底 |
-| `posttool-output-schema.py` | 纯提示型（warn-only）；输出 schema 校验无消费方，砍掉减少 token 开销 |
+| `posttool-output-schema.py` | 纯提示型（warn-only）；输出 schema 校验无消费方 |
+
+> 原放在 `retired/` 目录「保留以便回滚」。回滚能力由 **git 历史**提供，无需在树内留副本——树内留副本本身就是「少即是多」的违规。

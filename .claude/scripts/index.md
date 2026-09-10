@@ -51,7 +51,7 @@
 
 | 模块 | 用途 |
 |------|------|
-| `tool_store.py` | 工具结果落盘 |
+| ~~`tool_store.py`~~ | 已删（index49：仅文档提及、零调用方） |
 | ~~`error_dna.py`~~ | 已随 error-dna 于 index48 移除（2026-09-10） |
 | `oracle_gate_light.py` | Oracle 条件接入 |
 | `phase3_oracle.py` | 双审判官独立 Context 裁决 |

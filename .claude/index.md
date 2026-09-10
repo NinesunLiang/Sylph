@@ -74,7 +74,7 @@
 | `carros_base.py` | 主入口（init/status/tick/verify/archive/lint） |
 | `omc_lint.py` | 7 项代码规范检查 |
 | `verify_gate.py` | 完成验证门禁 |
-| `lib/tool_store.py` | 工具结果落盘（Phase 0 S4） |
+| ~~`lib/tool_store.py`~~ | 已删（index49：仅文档提及、零调用方） |
 | ~~`lib/error_dna.py`~~ | 已随 error-dna 于 index48 移除（2026-09-10） |
 | `lib/oracle_gate_light.py` | Oracle 条件接入（Phase 1，同级模型） |
 | `lib/phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |

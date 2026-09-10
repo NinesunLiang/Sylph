@@ -51,7 +51,7 @@ CarrorOS 三层结构化文档体系，100%落盘任务状态：
 ### compact 机制
 上下文溢出场景下的安全压缩机制：
 - 触发上下文水位阈值时自动运行pre-completion-gate.py，对全量历史状态做快照写入磁盘，生成result-precomp.txt固化压缩前所有证据 [test-pre-completion-gate.py]// 已经删除上下文水位，由原生compact  上下文传递包括：任务状态列表（每个任务含有任务文档系统link）last_user_prompts(用会最近20条prompt)
-- 压缩完成后由session-start.py在下一会话自动从令牌+全量磁盘文档恢复完整任务上下文，完全规避compact导致的信息丢失、状态飘移问题 [session-start.py:1-30, precompact-lifecycle.py] // session-start.py 通过隐式状态注入（摆出任务状态让AI判断）+ postcompact.py写入resume-note.md的显式指令（"立即继续，不要询问"）实现自动恢复。
+- 压缩完成后由session-start.py在下一会话自动从令牌+全量磁盘文档恢复完整任务上下文，完全规避compact导致的信息丢失、状态飘移问题 [session-start.py:1-30, precompact-lifecycle.py] // session-start.py 通过隐式状态注入（摆出任务状态让AI判断）+ 写入 resume-note 的显式指令（"立即继续，不要询问"）实现自动恢复。（原承担的 resume-note 写入 hook 已于 index49 物理删除，恢复能力由 session-start.py 读 handoff 承担）
 - compact交换的信物： last_user_prompts(用户最后二十条prompt) 和handoff(任务列表，含执行状态和任务文档系统的token指向；整体摘要
 
 ### 飞轮系统
