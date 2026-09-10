@@ -14,12 +14,14 @@ budget:
 # 任务级契约（INV-06：只改 allowed_paths）。AI 在 research/planning 阶段
 # 按任务声明补充实际接触路径：仓库内产物目录 + 仓库外输入/输出（如
 # /Users/xx/Desktop/daily_tasks/）。支持绝对路径前缀声明。
+#
+# index52（2026-09-11）默认值修正：
+#   原默认 `src/ tests/ docs/` 与本仓实际结构不符（本仓是治理层，无 src/）。
+#   一旦路径契约门禁上线，写 `.claude/scripts/**` 等合法路径会被**误拦**（实测误拦率 33%）。
+#   故默认改为「**不约束范围**」（`./`）——只由 denied_paths 兜底，不误拦；
+#   需要严格管控的任务请**自行收窄**（如只留本次涉及的目录），收窄后立即生效。
 allowed_paths:
-  - src/
-  - tests/
-  - docs/
-  - .claude/references/
-  - AGENTS.md
+  - ./
 
 # 禁止操作
 denied_paths:

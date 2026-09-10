@@ -175,7 +175,14 @@ def _path_matches(path_str: str, declared: str) -> bool:
       - 绝对路径含 `/src/x.py`
       - 相对路径 `src/x.py`
     声明带尾部斜杠 / 不带均归一。
+
+    index52：`./`、`.`、`*` 视为「**未收窄**」——匹配一切。
+    理由：模板默认值原为 `src/ tests/ docs/`（与本仓实际结构不符）→ 一旦门禁上线就误拦
+    `.claude/scripts/**` 等合法路径（实测误拦率 33%）。默认改为「不约束范围」，
+    只由 `denied_paths` 兜底；需要严格管控的任务**自行收窄**，收窄后立即生效。
     """
+    if declared.strip() in (".", "./", "*", "**"):
+        return True
     d = declared.rstrip("/")
     p = path_str.rstrip("/")
     # 相对声明：匹配路径后缀段（如 src/ 命中任何 /.../src/...）
@@ -190,7 +197,14 @@ def _path_matches(path_str: str, declared: str) -> bool:
 
 
 def _active_task_dir():
-    """定位活跃任务目录（token.task_dir 或 active-resume 指针）。"""
+    """定位活跃任务目录。
+
+    顺序（index52 修正）：
+      1. `.omc/state/active-resume.json` 指针（lx-goal resume 写的）
+      2. **最新带 `.json.lock` 的 token 的 `task_dir`** —— 原实现只认 1，
+         而普通 `carros_base init` 建的任务不写 resume 指针 →
+         路径契约门禁在绝大多数任务下**永不上线**（实测 `_active_task_dir()` 恒为 None）。
+    """
     try:
         state_root = ROOT / ".omc" / "state"
         ptr = state_root / "active-resume.json"
@@ -199,6 +213,45 @@ def _active_task_dir():
             td = data.get("task_dir") or data.get("plan_dir")
             if td and Path(td).exists():
                 return td
+    except Exception:
+        pass
+
+    # 回退：**近期活跃**的 token（有 .json.lock = 任务进行中）
+    #
+    # 新鲜度判据（index52）：只看 lock 存在会把**陈旧未归档任务**当成活跃任务。
+    # 实测仓内有 5 个 Aug-31 的遗留锁，其 working-set 仍是占位值 `src/ tests/ docs/`
+    # → 会让门禁拿错数据去**误拦** `.claude/scripts/**`。
+    # 故要求 token 的 `session.updated_at` 在 STALE_HOURS 内（tick 会刷新它，长任务不受影响）。
+    STALE_HOURS = 24
+    try:
+        tokens_root = ROOT / ".omc" / "tokens"
+        if not tokens_root.is_dir():
+            return None
+        from datetime import datetime as _dt, timezone as _tz
+        now = _dt.now(_tz.utc)
+        locks = sorted(tokens_root.glob("*/*.json.lock"),
+                       key=lambda p: p.stat().st_mtime, reverse=True)
+        for lock in locks[:10]:
+            token_path = lock.with_suffix("")  # 去掉 .lock
+            if not token_path.exists():
+                continue
+            try:
+                data = json.loads(token_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            ts = str((data.get("session") or {}).get("updated_at")
+                     or data.get("updated_at") or "")
+            if not ts:
+                continue
+            try:
+                age_h = (now - _dt.fromisoformat(ts.replace("Z", "+00:00"))).total_seconds() / 3600
+            except ValueError:
+                continue
+            if age_h > STALE_HOURS:
+                continue  # 陈旧任务：不当活跃任务用
+            td = data.get("task_dir") or data.get("plan_dir")
+            if td and (ROOT / td).exists():
+                return str(ROOT / td) if not Path(td).is_absolute() else td
     except Exception:
         pass
     return None
