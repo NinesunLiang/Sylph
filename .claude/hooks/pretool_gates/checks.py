@@ -603,6 +603,74 @@ def _check_worktree_scope(payload: dict) -> str | None:
             f"（只有 .omc/ 账本目录共享主树；其余一律在 worktree 内改动，验收后自动合回。）")
 
 
+def _git_cmd(*args: str) -> str:
+    try:
+        import subprocess as _sp
+        r = _sp.run(["git", *args], cwd=str(ROOT), capture_output=True, text=True, timeout=20)
+        return (r.stdout or "") if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _check_commit_push_integrity(payload: dict) -> str | None:
+    """index51：commit 前的完整性接管。
+
+    **保留**：`git commit` → 检查**本次改动的 .py 语法**
+              （实测：commit 一个语法错的文件，改动前无人拦）
+
+    **已回退**：push 侧「悬空引用」检查——实测误报率 67%，会造成 push 恒阻塞。
+               回退依据见下方注释（与被替换的旧 lx-pre-push 同病）。
+
+    匹配用**命令位置**（行首或 `;`/`&`/`|` 之后）而非纯文本包含——
+    防止「命令/文档里只是提到 git commit」被误判（实测踩过：heredoc 正文提到 git push 即被拦）。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    cmd = _extract_command(payload) or ""
+    if not cmd:
+        return None
+
+    # ── git commit：改动的 .py 语法 ──
+    if re.search(r"(?:^|[;&|]\s*|\n\s*)git\s+commit\b", cmd, re.IGNORECASE):
+        staged = [l.strip() for l in _git_cmd("diff", "--cached", "--name-only",
+                                              "--diff-filter=ACM").splitlines() if l.strip()]
+        if not staged:
+            staged = [l.strip() for l in _git_cmd("diff", "--name-only",
+                                                  "--diff-filter=ACM").splitlines() if l.strip()]
+        bad: list[str] = []
+        for rel in staged[:200]:
+            if not rel.endswith(".py"):
+                continue
+            f = ROOT / rel
+            if not f.is_file():
+                continue
+            try:
+                import py_compile
+                py_compile.compile(str(f), doraise=True)
+            except Exception as exc:
+                bad.append(f"{rel}（{type(exc).__name__}: {str(exc)[:80]}）")
+        if bad:
+            _append_audit({"event_type": "commit_syntax_block", "actor": "hook:pretool-gate",
+                            "decision": "BLOCK", "reason": "syntax_error_in_staged_py",
+                            "files": bad[:5]})
+            return ("BLOCK commit_syntax|"
+                    f"⛔ 暂存区有 {len(bad)} 个 .py 语法错误，提交会落库坏文件：\n  "
+                    + "\n  ".join(bad[:5])
+                    + "\n先修复语法再提交。")
+        return None
+
+    # ── push 侧的「悬空引用」检查：index51 实测**已回退** ──
+    # 实测数据（对真实仓库跑）：22 项命中里绝大多数是误报——
+    #   · install.sh ← constants.py 里的正则 r"\bpip\s+install\b"（与文件无关）
+    #   · Benchmarking/index15.md ← 正文提到「index15」（编号巧合）
+    #   · error-dna.py ← harness.yaml 中「已于 index48 移除」的说明行
+    #   · test_*.py ← 断言「该文件不存在」的测试自身
+    # 误报率 67%（2/3 基准场景）→ 会造成 push 恒阻塞，与被替换的旧 lx-pre-push 同病。
+    # 按人类要求「不符合大增益的要回退」，本项**已回退**；仅保留 commit 侧语法检查。
+    return None
+
+
 def _check_oracle_gate(payload: dict) -> str | None:
     token = _active_token()
     if not token:
@@ -675,7 +743,26 @@ def _git_secret_candidates(command: str) -> list[str]:
     return candidates
 
 
+def is_test_file(rel: str) -> bool:
+    """测试文件判定（index51）。
+
+    测试里的 `sk-...` 多为**夹具**而非真泄漏，业界密钥扫描器普遍排除。
+    本判定被 `_check_secret_scan` 与 pre_push_check 共用——**单一真源，不做两份**。
+    """
+    name = Path(str(rel)).name
+    norm = str(rel).replace("\\", "/")
+    return (name.startswith("test_") or name.endswith("_test.py")
+            or "/tests/" in f"/{norm}" or "/test/" in f"/{norm}")
+
+
 def _check_secret_scan(payload: dict) -> str | None:
+    """密钥扫描（index51 强化）。
+
+    - **Bash `git push`** 命令文本 → 有候选密钥：WARN（保持原行为，push 文本本身不是泄漏源）
+    - **写工具内容**（Write/Edit）→ 命中密钥模式：
+        · 测试文件（夹具）→ 放行
+        · 其他文件 → **BLOCK**（原为静默放行；实测写入真密钥不被阻拦）
+    """
     tool = _extract_tool(payload).lower()
     command = _extract_command(payload)
     if not command and tool in WRITE_TOOLS:
@@ -683,7 +770,7 @@ def _check_secret_scan(payload: dict) -> str | None:
         command = str(ti.get("content", "") or ti.get("new_string", "") or "")
     if not command:
         return None
-    # Git operations
+    # Git operations（保持原有：仅告警）
     if tool == "bash" and re.search(r"\bgit\s+push\b", command, re.IGNORECASE):
         cands = _git_secret_candidates(command)
         if cands:
@@ -691,6 +778,21 @@ def _check_secret_scan(payload: dict) -> str | None:
                             "decision": "WARN", "reason": f"git_push_secret_candidates:{cands}",
                             "command_preview": command[:160]})
             print(f"⚠️ [secret-scan] git push 含潜在密钥: {cands}", file=sys.stderr, flush=True)
+        return None
+    # 写工具内容（index51 新增）：真密钥写入非测试文件 → BLOCK
+    if tool in WRITE_TOOLS:
+        path = _extract_path(payload) or ""
+        if is_test_file(path):
+            return None  # 测试夹具，放行
+        for rx in SECRET_CONTENT_COMPILED:
+            if rx.search(command):
+                _append_audit({"event_type": "secret_scan_block", "actor": "hook:pretool-gate",
+                                "decision": "BLOCK", "reason": "secret_in_write_content",
+                                "path": path[:160]})
+                return (f"BLOCK secret_in_content|"
+                        f"⛔ 写入内容命中密钥/凭据模式，目标文件：{path or '(未知)'}\n"
+                        f"请改用环境变量或密钥管理注入，不要把明文密钥写进仓库文件。\n"
+                        f"（测试夹具路径不受此门约束。）")
     return None
 
 

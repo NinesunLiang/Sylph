@@ -78,11 +78,19 @@ def _secret_patterns():
 
 
 def is_test_file(rel: str) -> bool:
-    """测试文件判定（其内出现 `sk-...` 多为夹具而非真泄漏，见 tests 惯例）。"""
-    name = Path(rel).name
-    norm = rel.replace("\\", "/")
-    return (name.startswith("test_") or name.endswith("_test.py")
-            or "/tests/" in f"/{norm}" or "/test/" in f"/{norm}")
+    """测试文件判定——**复用门禁的单一真源**（index51：不做两份）。
+
+    实现位于 `pretool_gates.checks.is_test_file`，供 `_check_secret_scan` 与本脚本共用。
+    导入失败时退化为本地最小实现（fail-degraded，不因导入问题让脚本不可用）。
+    """
+    try:
+        from pretool_gates.checks import is_test_file as _impl
+        return bool(_impl(rel))
+    except Exception:
+        name = Path(str(rel)).name
+        norm = str(rel).replace("\\", "/")
+        return (name.startswith("test_") or name.endswith("_test.py")
+                or "/tests/" in f"/{norm}" or "/test/" in f"/{norm}")
 
 
 def check_security(files: list[str]) -> tuple[bool, list[str]]:
