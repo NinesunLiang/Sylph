@@ -23,9 +23,19 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from error_dna_logger import log_error
+
+
+# index48：error_dna_logger 随 error-dna 机制整体移除。原先 log_error 会落盘到
+# error-dna.jsonl（该管道已证空转），现改为直接输出到 stderr——诊断信息（含 fix 指引）
+# 对使用者可见，不再写入无人消费的文件。
+def log_error(err_type: str, message: str, fix: str = "", context: dict | None = None) -> None:
+    detail = f"⚠️ [{err_type}] {message}"
+    if fix:
+        detail += f"\n   修复指引: {fix}"
+    print(detail, file=sys.stderr, flush=True)
 
 # ─── Gate contracts (optional — enables ResearchGate / PlanGate validation) ───
 try:

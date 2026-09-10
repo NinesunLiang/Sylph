@@ -233,7 +233,7 @@
 | F4 | rm references/gate-rules.yaml | ❌ NO-OP（pre_action_gate.py 数据驱动配置） | — |
 | F5 | merge fallback-matrix.md → runbook.md | ✅ 合并（删 58 + 加 32 行） | f9e0b68 |
 | F6 | rm scripts/install.sh + init-omc.sh | ✅ 删除（88 行，已死代码） | d6a6001 |
-| F7 | rm scripts/temp-bypass.py + error_dna_logger.py | ❌ NO-OP（被 pretool_gates/3 + goal_state_machine.py 强引用） | — |
+| F7 | rm scripts/temp-bypass.py + 错误日志器 | ❌ NO-OP（被 pretool_gates/3 + goal_state_machine.py 强引用；该日志器已于 index48 随 error-dna 移除） | — |
 | F8 | merge precompact-lifecycle.py + stop-flywheel.py | ❌ NO-OP（fail-closed vs best-effort 正交双语义） | — |
 | F9 | archive carroros-night-deny.py → retired/ | ❌ NO-OP（被 frontend-overnight 5 处 + ADR-0018 强引用） | — |
 | F10 | update index.md + scorecard | ✅ 同步（references/scripts 索引对齐） | ae7146a |
@@ -265,7 +265,7 @@
 
 | 维度 | 外评(7/24) | 本轮改动 | 修正后估分 | 证据 |
 |------|----------|---------|-----------|------|
-| C6 知识密度 10w | 4→**6** | error-dna 多工具采集修复(posttool-use 覆盖 Edit\|Write\|Bash\|Read)；anti-patterns→REDIRECT 动态注入管线(end-to-end)；stop-flywheel 升华时自动写入 redirects | **6** | error-dna.py 多工具 gate 修复；stop-flywheel.py +60 行动态注入；pretool-gate.py +60 行动态加载器 |
+| C6 知识密度 10w | 4→**6** | error-dna 多工具采集修复(posttool-use 覆盖 Edit\|Write\|Bash\|Read)；anti-patterns→REDIRECT 动态注入管线(end-to-end)；stop-flywheel 升华时自动写入 redirects | **6** | error-dna 多工具 gate 修复（该机制已于 index48 整体移除）；stop-flywheel.py +60 行动态注入；pretool-gate.py +60 行动态加载器 |
 | E6 自我矛盾 13w | **3**→**7** | edit-churn-log.jsonl writer 从 0→1(posttool-claim-audit.py 每次 Edit/Write 写一条)；手动验证写入成功 | **7** | posttool-claim-audit.py +20 行；`wc -l edit-churn-log.jsonl`=1 验证通过 |
 | E3 虚假完成 15w | ? | verify-gate + completion-gate 代码存在于 pretool-gate.py（合并后的 unified gate），非不存在。Agent 混淆原因为单文件找不到 → 给出修正估值 | **7** | pretool-gate.py `_check_verify_gate()` L933+ 验证门禁代码存在 |
 | E4 惯性执行 12w | 9 | NARROW→REDIRECT(3次)→BLOCK(4次) 三级升级链 | **9** | action-loop 升级链重写 |

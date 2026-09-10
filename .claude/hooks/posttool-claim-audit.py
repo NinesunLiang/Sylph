@@ -27,10 +27,17 @@ from harness_lib import hc_enabled, hc_emit_hook_json, flywheel_event, is_mode_a
 sys.path.insert(0, str(_HOOKS_DIR.parent / "scripts"))
 from gatekeeper import GateKeeper, make_context
 
+# index48 修复：`_autofix_log_edit_repeat` 原先引用 `STATE_DIR`，而该名字是在 main()
+# 内部（第 130 行左右）才赋值的局部变量 —— 模块级函数访问它必抛 NameError，
+# 被函数自身的 except 吞掉 → 自动修复**从未成功过**。此处提供模块级状态目录常量。
+_PROJECT_ROOT = _HOOKS_DIR.parent.parent
+STATE_DIR = Path(os.environ.get("CARROROS_STATE_DIR", "") or (_PROJECT_ROOT / ".omc" / "state"))
+
 
 def _autofix_log_edit_repeat(file_path: str, _mode: str) -> bool:
-    """K2 autofix: log structured evidence for EDIT_REPEAT to error-dna.jsonl.
+    """K2 autofix: log structured evidence for EDIT_REPEAT to edit-churn-log.jsonl.
 
+    注：原 docstring 记录的目标文件与实际写入目标不符（index48 更正）。
     Does not block the edit, but creates a structured record that exit report
     can aggregate.
     """
@@ -304,7 +311,6 @@ def main():
     except Exception:
         pass
 
-    READ_LOG = STATE_DIR / 'read-tracker.txt'
 
     # 豁免: 文档/参考/测试文件中的 file:line 引用是模式说明而非外部断言
     _EXEMPT_PATHS = [".claude/references/", "/test-", "/tests/"]
@@ -312,61 +318,8 @@ def main():
         print(json.dumps({'continue': True}))
         sys.exit(0)
 
-    # 提取所有 file:line 引用（匹配 文件.后缀:行号，大写扩展名也支持）
-    CLAIMED_FILES = re.findall(r'(?:\.?/)?[a-zA-Z0-9_./-]+\.[a-zA-Z]+:[0-9]+', INPUT)
-    # Apply sed cleanup similar to original: strip leading ./
-    CLAIMED_FILES = [f.lstrip('./') for f in CLAIMED_FILES]
-
-    # 读取 read-tracker
-    read_files = ''
-    _READ_TRACKER_EXISTS = True
-    if READ_LOG.is_file():
-        read_files = READ_LOG.read_text(encoding='utf-8', errors='replace')
-    else:
-        _READ_TRACKER_EXISTS = False
-
-    # 检测 claim 文件是否在 read-tracker 中
-    CLAIMED_BASENAMES = set()
-    CLAIMED_DIRS = set()
-    for cf in CLAIMED_FILES:
-        cf_path = cf.split(':')[0]
-        CLAIMED_BASENAMES.add(os.path.basename(cf_path))
-        CLAIMED_DIRS.add(os.path.dirname(cf_path))
-
+    # index48：read-tracker 依赖的 file:line 引用校验已移除（IRRELEVANT_CLAIM 12 天 0 触发）。
     VIOLATIONS = ''
-    for claimed in CLAIMED_FILES:
-        if not claimed:
-            continue
-
-        claimed_path = re.sub(r':[0-9]*$', '', claimed)
-
-        # 检查1: read-tracker 中有完整路径匹配
-        try:
-            resolved = os.path.realpath(os.path.join('.', claimed_path))
-        except Exception:
-            resolved = claimed_path
-        if read_files and resolved in read_files.splitlines():
-            continue
-
-        # 检查2: basename 匹配
-        basename = os.path.basename(claimed_path)
-        if read_files and '/' + basename in read_files:
-            continue
-
-        # 检查3: dirname 下有同名文件被 Read
-        claim_dir = os.path.dirname(claimed_path)
-        found = False
-        for d in CLAIMED_DIRS:
-            if not d:
-                continue
-            candidate = d + '/' + basename
-            if read_files and candidate in read_files:
-                found = True
-                break
-        if found:
-            continue
-
-        VIOLATIONS += '⚠️ IRRELEVANT_CLAIM: ' + claimed + '\n'
 
     # === E6 自我矛盾检测 ===
     E6_VIOLATIONS = ''
@@ -441,34 +394,8 @@ def main():
                 print(E6_CHECK, file=sys.stderr, flush=True)
 
     # ─── 组合违规 ───
-    # 计算 read-tracker 条目数（避免冷启动误阻断）
-    _READ_FILE_COUNT = len([l for l in read_files.splitlines() if l.strip()]) if read_files else 0
-
-    _IS_COLD_START = False
-    if VIOLATIONS or E6_VIOLATIONS:
-        if (not _READ_TRACKER_EXISTS or _READ_FILE_COUNT < 3) and CLAIMED_FILES:
-            # 冷启动保护：read-tracker 为空或 <3 条 → 持续 WARN，不升级为 BLOCK
-            # 原因: COLD_START_BLOCK 导致 "PostToolUse:Edit stopped continuation" — 过于激进
-            # 修复: 永远 WARN-only，通过 flywheel 记录追踪，退出报告时统一审查
-            _IS_COLD_START = True
-            _COLD_FILE = STATE_DIR / "claim-audit-cold-warned"
-            cold_count = 1
-            try:
-                if _COLD_FILE.exists():
-                    cold_count = int(_COLD_FILE.read_text(encoding="utf-8").strip() or "1") + 1
-                _COLD_FILE.parent.mkdir(parents=True, exist_ok=True)
-                _COLD_FILE.write_text(str(cold_count), encoding="utf-8")
-            except (OSError, ValueError):
-                pass
-            cold_warn = (
-                f'⚠️ COLD_START_WARN (#{cold_count}): read-tracker 为空，文件引用无法验证。\n'
-                f'  read-tracker 记录 ≤{cold_count} 条时持续警告，但不会阻断 Edit/Write。\n'
-                f'  建议: 先用 Read 工具读取文件，再引用其内容。\n'
-            )
-            VIOLATIONS = cold_warn + VIOLATIONS
-            flywheel_event('posttool_claim_audit', 'cold_start_warn', 'P3',
-                           'count=' + str(cold_count))
-
+    # index48：COLD_START 冷启动警告已移除（依赖 read-tracker；12 天 0 触发）。
+    if E6_VIOLATIONS:
         COMBINED = VIOLATIONS
         if E6_VIOLATIONS:
             COMBINED += '\n' + E6_VIOLATIONS

@@ -148,3 +148,18 @@ _来源：.omc/knowledge/sublimation-log.jsonl + PostToolUse hook 实测触发_
 | L4 EV_KEYPHRASE_MISS | AI 偷懒 | VerifyGate 严格 | 复用 plan.verify |
 | L5 SLEEP_OVERSIZE | 沙箱限制 | timeout | 分批 sleep / 后台 |
 | L6 PARTIAL_FIX | AI 行为 | 无 | bug 修完跑全流程 |
+
+### governance_intervention（飞轮升华 2026-09-10）
+- 来源：自动升华，hits=4（阈值≥3）
+- 触发条件：反复出现的 `governance_intervention` 失败模式
+- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决
+
+### redirect_recurring（飞轮升华 2026-09-10）
+- 来源：自动升华，hits=4（阈值≥3）
+- 触发条件：反复出现的 `redirect_recurring` 失败模式
+- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决
+
+### blocked_recurring（飞轮升华 2026-09-10）
+- 来源：自动升华，hits=3（阈值≥3）
+- 触发条件：反复出现的 `blocked_recurring` 失败模式
+- 正确行为：见 .omc/knowledge/claude-next.md 相关条目；晋升 kernel.md 需人类裁决

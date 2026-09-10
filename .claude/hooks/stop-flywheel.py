@@ -3,9 +3,10 @@
 stop-flywheel.py — CarrorOS Stop hook（飞轮自动触发 + 升华检查）
 
 会话停止时：
-  1. run_flywheel：error-dna → 模式提取 → anti-patterns.md + claude-next.md
-  2. 升华检查：claude-next 条目 hits≥5 → 升华至 anti-patterns.md（kernel 候选），
-     记录 sublimation-log.jsonl（铁律 6：不直接改 kernel.md/AGENTS.md，升华候选由人类裁决晋升）
+  升华检查：claude-next 条目 hits≥5 → 升华至 anti-patterns.md（kernel 候选），
+  记录 sublimation-log.jsonl（铁律 6：不直接改 kernel.md/AGENTS.md，升华候选由人类裁决晋升）
+
+注（index48）：原第 1 步 run_flywheel（error-dna → 模式提取）已随 error-dna 机制整体移除。
 
 设计：快速（<2s）、永不阻断（exit 0）、失败静默。
 """
@@ -29,7 +30,7 @@ CLAUDE_NEXT = KNOWLEDGE / "claude-next.md"
 SUBLIMATION_LOG = KNOWLEDGE / "sublimation-log.jsonl"
 ANTI_PATTERNS = ROOT / ".claude" / "references" / "anti-patterns.md"
 ANTI_PATTERN_REDIRECTS = ROOT / ".omc" / "state" / "anti-pattern-redirects.jsonl"
-ERROR_DNA = ROOT / ".omc" / "state" / "error-dna.jsonl"
+# ERROR_DNA 常量已随 error-dna 机制移除（index48 S1）
 KERNEL_CANDIDATES = KNOWLEDGE / "kernel-candidates.md"
 
 SUBLIMATION_HITS = 3  # 降低阈值，让种子数据更快进入管道（R8收敛）
@@ -72,9 +73,25 @@ def _now_iso() -> str:
 
 
 def _run_flywheel() -> dict:
+    """跑飞轮主管道。
+
+    index48 两处修复：
+    1. 燃料由 error-dna（已移除）换为门禁审计遥测 .omc/state/audit/*.jsonl。
+    2. **导入方式**：原写法 `from lib.flywheel import run_flywheel` 在本仓**必然失败**——
+       `.claude/hooks/lib/` 是正规包（有 __init__.py），而 `.claude/scripts/lib/` 是命名空间包；
+       Python 规则下正规包跨路径优先，故钩子进程里 `lib` 永远解析到 `.claude/hooks/lib`，
+       找不到 flywheel。这是飞轮「从未产出」的第二个独立死因。
+       改为按文件路径显式加载，绕开同名歧义。
+    """
     try:
-        from lib.flywheel import run_flywheel
-        return run_flywheel(ROOT)
+        import importlib.util
+        fw_path = ROOT / ".claude" / "scripts" / "lib" / "flywheel.py"
+        spec = importlib.util.spec_from_file_location("carros_flywheel", fw_path)
+        if spec is None or spec.loader is None:
+            return {"error": f"cannot load {fw_path}"}
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        return mod.run_flywheel(ROOT)
     except Exception as exc:
         return {"error": str(exc)}
 
@@ -96,27 +113,8 @@ def _sublimation_check() -> list[str]:
         except Exception:
             pass
 
-    # ── 数据源2: error-dna.jsonl 中的高频 error_type 簇 ──
-    _error_type_counts: dict[str, int] = {}
-    if ERROR_DNA.exists():
-        try:
-            with ERROR_DNA.open("r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    entry = json.loads(line)
-                    et = entry.get("error_type")
-                    msg = entry.get("message", "")
-                    # 跳过旧 harvester 格式（无 error_type）
-                    if not et or et == "?" or entry.get("_source") == "harvester":
-                        continue
-                    _error_type_counts[et] = _error_type_counts.get(et, 0) + 1
-        except Exception:
-            pass
-    for et, cnt in _error_type_counts.items():
-        if cnt >= SUBLIMATION_HITS and et not in patterns:
-            patterns[et] = cnt
+    # ── 数据源2 已移除（index48 S1）：原为 error-dna.jsonl 的高频 error_type 簇。
+    # error-dna 机制整体删除后该数据源不存在；升华管道现仅由 claude-next.md 驱动。
 
     candidates = [p for p, c in patterns.items() if c >= SUBLIMATION_HITS]
     if not candidates:
@@ -199,7 +197,7 @@ def main() -> None:
     if result.get("patterns_found") or sublimated:
         print(
             f"🛞 [flywheel] patterns={result.get('patterns_found', 0)} "
-            f"anti_patterns={result.get('anti_patterns_written', False)} "
+            f"knowledge={result.get('knowledge_entries', 0)} "
             f"sublimated={sublimated or 'none'}",
             file=sys.stderr, flush=True,
         )

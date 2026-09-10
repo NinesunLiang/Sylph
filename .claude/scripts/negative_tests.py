@@ -36,7 +36,6 @@ def run():
     def h_cas_01():
         import json; from pathlib import Path
         from lib.handoff_writer import write_handoff as _
-        import lib.error_dna as _
         return True
     results["H-CAS-01: revision 递增存在"] = test("", h_cas_01)
 

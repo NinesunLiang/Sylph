@@ -6,7 +6,7 @@
   tick/verify/archive 全部不可用。
 - sub_agent_result.py:21 `ResultUpdater = Callable[[dict[str, Any]], dict[str, Any] | None]`
   是**赋值语句**（非注解），__future__ 无法延迟求值，必须改 Optional。
-- goal_state_machine.py / error_dna_logger.py / token_lifecycle.py 等同样缺 __future__。
+- goal_state_machine.py / token_lifecycle.py 等同样缺 __future__。
 - executor_ledger.py:223 f-string 表达式内反斜杠（Py3.9 语法禁止）。
 
 修复：核心脚本补 from __future__ import annotations；赋值型类型别名改 Optional；
@@ -32,7 +32,6 @@ CORE_MODULES = [
     "write_lock",
     "sub_agent_result",
     "goal_state_machine",
-    "error_dna_logger",
     "token_lifecycle",
     "step_contracts",
     "verify_gate",

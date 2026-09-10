@@ -261,7 +261,7 @@ _CORE_HOOKS = frozenset({
     "pretool_rules_inject", "pretool_compact_writer",
     "posttool_checkpoint", "posttool_handoff_writer",
     "posttool_output_compressor", "user_correction_detector",
-    "error_dna", "lsp_suggest", "lsp_gate", "build_validator",
+    "lsp_suggest", "lsp_gate", "build_validator",
     "posttool_edit_quality", "posttool_format_gate",
     "posttool_read_cite", "posttool_write_cite",
     "posttool_write_lock", "read_tracker", "token_writer",

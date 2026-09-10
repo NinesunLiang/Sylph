@@ -438,23 +438,7 @@ def _write_handoff(token, plan_summary=None):
     task_desc = _derive_task_desc(token, PLAN_PATH) or "未知"
     task_desc = task_desc[:200]
     level = token.get("level", token.get("session", {}).get("level", "L1"))
-    # 读取 error-dna（最近 3 条）
-    errors = ""
-    try:
-        edna = OMC_ROOT/ "error-dna.jsonl"
-        if edna.exists():
-            _lines = edna.read_text().strip().splitlines()[-3:]
-            _types = []
-            for _l in _lines:
-                try:
-                    _e = json.loads(_l)
-                    _types.append(_e.get("type", _e.get("error_type", "?")))
-                except Exception:
-                    pass
-            if _types:
-                errors = ", ".join(_types)
-    except Exception:
-        pass
+    # error-dna 读取已移除（index48 S1）：该机制整体删除，handoff 不再携带历史错误摘要。
     # 读取 scope
     scope_lines = ""
     scope = token.get("scope", [])
@@ -482,7 +466,6 @@ def _write_handoff(token, plan_summary=None):
         f"- task_id: {token.get('session', {}).get('id', 'unknown')}\n"
         f"- level: {level}\n"
         f"- step: {current} ({done}/{total})\n"
-        f"{('- errors: ' + errors) if errors else ''}\n"
         f"\n"
         f"## Active Files / Scope\n"
         f"{scope_lines if scope_lines else '  (未设定 scope)'}\n"

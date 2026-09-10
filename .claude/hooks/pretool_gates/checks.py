@@ -455,6 +455,30 @@ def _extract_delete_targets(payload: dict) -> list[str]:
     return targets
 
 
+def _doc_reference_hits(ref_root: str, fname: str) -> list[str]:
+    """在文档目录中查找 `fname` 的**路径边界精确**引用，返回命中文件路径列表。
+
+    index48：原实现用 `grep -rl "<basename>"`——**子串匹配**。删 `flywheel.py` 时，
+    文档里的 `stop-flywheel.py`（另一个仍在使用的文件）会被误判为引用，导致
+    合法删除被 REDIRECT 并升级 ASK_USER（实测触发）。
+    改为要求文件名前是行首或非 [A-Za-z0-9_.-] 字符（即真正的路径/代码边界）。
+    """
+    import re as _re
+    import subprocess as _sp
+    escaped = _re.escape(fname)
+    pattern = rf"(^|[^A-Za-z0-9_.-]){escaped}"
+    try:
+        r = _sp.run(
+            ["grep", "-rlE", "--include=*.md", "--exclude-dir=__pycache__",
+             "--exclude-dir=archived", "--exclude-dir=retired",
+             "--exclude=*.bak", pattern, ref_root],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return []
+    return [p for p in (r.stdout or "").strip().splitlines() if p]
+
+
 def _check_doc_reference_before_delete(payload: dict) -> str | None:
     """F3 门：删除文件前查文档引用图。
 
@@ -475,25 +499,13 @@ def _check_doc_reference_before_delete(payload: dict) -> str | None:
         fname = PurePosixPath(target).name
         if not fname or fname.startswith("."):
             continue
-        # grep 文档目录
+        # grep 文档目录（路径边界精确匹配，见 _doc_reference_hits）
         for ref_dir in _DOC_REFERENCE_DIRS:
             ref_path = project_root / ref_dir
             if not ref_path.exists():
                 continue
-            try:
-                import subprocess as _sp
-                # grep 排除 .bak / archived / __pycache__
-                r = _sp.run(
-                    ["grep", "-rl", "--include=*.md", "--exclude-dir=__pycache__",
-                     "--exclude-dir=archived", "--exclude-dir=retired",
-                     "--exclude=*.bak", fname, str(ref_path)],
-                    capture_output=True, text=True, timeout=5,
-                )
-                for ref_file in (r.stdout or "").strip().splitlines():
-                    if ref_file:
-                        refs_found.append((target, ref_file))
-            except Exception:
-                continue
+            for ref_file in _doc_reference_hits(str(ref_path), fname):
+                refs_found.append((target, ref_file))
     if refs_found:
         target, ref_file = refs_found[0]
         return (f"REDIRECT doc_reference_found|"

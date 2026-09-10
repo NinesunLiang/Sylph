@@ -652,47 +652,11 @@ def main():
     if re.search(r"(typical\.common|generic|general.*error|standard.*root)", content, re.IGNORECASE):
         rca_templated += 1
 
-    # E5跨步错误去重检测: 检查error-dna是否已有相同错误签名在不同步骤重复出现
-    _error_dna_dedup_found = False
-    _error_dna_dedup_steps = []
-    _error_dna_path = STATE_DIR / "error-dna.jsonl"
-    if _error_dna_path.exists():
-        try:
-            error_records = []
-            for line in _error_dna_path.read_text(encoding="utf-8").splitlines():
-                if line.strip():
-                    try:
-                        error_records.append(json.loads(line))
-                    except json.JSONDecodeError:
-                        pass
-            # 按错误类型聚类（使用error字段前40字符作为近似签名）
-            from collections import defaultdict
-            error_clusters = defaultdict(list)
-            for rec in error_records:
-                err_sig = rec.get("error", "")[:40]
-                step = rec.get("step", "unknown")
-                if err_sig.strip():
-                    error_clusters[err_sig].append(step)
-            # 检测: 同错误签名出现在≥3个不同步骤 → 症状反复
-            for sig, steps in error_clusters.items():
-                unique_steps = list(dict.fromkeys(steps))
-                if len(unique_steps) >= 3:
-                    _error_dna_dedup_found = True
-                    _error_dna_dedup_steps = unique_steps
-                    break
-        except Exception:
-            pass
-
-    if _error_dna_dedup_found:
-        print(f"⛔ COMPLETION BLOCKED [E5-dedup]: 检测到同一错误签名在 {len(_error_dna_dedup_steps)} 个不同步骤重复出现", file=sys.stderr, flush=True)
-        print(f"  重复步骤: {', '.join(_error_dna_dedup_steps)}", file=sys.stderr, flush=True)
-        print(f"  症状反复 = AI 在治标不治本（仅处理症状，未消除根因）", file=sys.stderr, flush=True)
-        print(f"  请提供全局根因分析，确认修复项覆盖所有出现该错误的步骤", file=sys.stderr, flush=True)
-        try:
-            consumed.unlink()
-        except OSError:
-            pass
-        _auto_soft_block("E5-dedup 硬阻断: 同错误签名跨步重复", autonomous)
+    # index48 S1：E5 跨步错误去重检测已移除。
+    # 原实现读取 error-dna.jsonl 的 `error` 与 `step` 字段，但该文件的记录字段实为
+    # signature / fingerprint / error_type —— 两个字段**从不存在**，故 err_sig 恒为空、
+    # 聚类恒为空、_error_dna_dedup_found 恒为 False，该分支从未生效（结构性死代码）。
+    # 数据源 error-dna 机制已于同日整体移除，此处不再重建。
 
     # E5裁决: 综合深度评分 ≥4 才通过（字段存在性 rca_structured≥2 是旧要求）
     _rca_passes_depth = rca_depth_score >= 4

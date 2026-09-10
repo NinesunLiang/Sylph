@@ -2,8 +2,16 @@
 """
 flywheel.py — CarrorOS 飞轮升华管道
 
-Error DNA → kernel 升华 → anti-patterns.md 沉淀
+**燃料（index48 更换）**：门禁审计遥测 `.omc/state/audit/*.jsonl`
+→ 反复出现的拦截原因即反模式原料
+→ claude-next.md（供 stop-flywheel 升华检查消费，hits≥3 时写入 anti-patterns.md）
 飞轮数据落 .omc/knowledge/，不进默认 Context。
+
+历史：原燃料为 `error-dna.jsonl`。该机制于 2026-09-10（index48）整体移除——
+83 条记录 100% `resolution: pending`、`.omc/knowledge/` 产出为 0、76 条
+`bash_path_not_found` 中 67 条为测试自造命令。整条链历史产出为 0
+（`claude-next.md` 与 `anti-pattern-redirects.jsonl` 均不存在）。
+经人类裁决「接活：换真燃料」，改用真实存在的门禁审计日志。
 """
 
 import json
@@ -15,6 +23,11 @@ from typing import Optional
 
 KNOWLEDGE_DIR = ".omc/knowledge"
 
+# 达到该次数即视为「反复出现」，值得沉淀
+RECURRING_THRESHOLD = 3
+# 单轮最多沉淀的条目数（防止把噪声灌进知识库）
+MAX_ENTRIES = 5
+
 
 def _knowledge_root(project_root: Path) -> Path:
     """Get .omc/knowledge/ directory, create if needed."""
@@ -23,71 +36,90 @@ def _knowledge_root(project_root: Path) -> Path:
     return kd
 
 
-def read_error_dna(task_dir: Path, n: int = 50) -> list:
-    """Read recent Error DNA records from a task directory."""
-    dna_path = task_dir / "error-dna.jsonl"
-    if not dna_path.exists():
+def read_audit_events(state_dir: Path, n: int = 500) -> list:
+    """读取门禁审计遥测（.omc/state/audit/*.jsonl），返回最近 n 条。
+
+    目录缺失 / 文件损坏 → 返回空列表，绝不抛异常（飞轮永不阻断）。
+    """
+    audit_dir = Path(state_dir) / "audit"
+    if not audit_dir.is_dir():
         return []
-    records = []
-    with open(dna_path) as f:
-        for line in f:
+    records: list = []
+    for path in sorted(audit_dir.glob("*.jsonl")):
+        try:
+            text = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
             try:
-                records.append(json.loads(line))
+                rec = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if isinstance(rec, dict):
+                records.append(rec)
     return records[-n:]
 
 
-def extract_patterns(errors: list) -> list:
-    """从 Error DNA 中提取可复用的错误模式."""
-    grouped = {}
+def _event_signature(ev: dict) -> str:
+    """把一条审计事件归一化为「可聚类签名」：门禁 + 事件类型 + 决策/原因前缀。"""
+    parts = [
+        str(ev.get("gate") or ""),
+        str(ev.get("event_type") or ""),
+    ]
+    detail = str(ev.get("reason") or ev.get("decision") or "")
+    detail = re.sub(r"\s+", " ", detail).strip()
+    parts.append(detail[:60])
+    return " | ".join(p for p in parts if p)
 
-    for err in errors:
-        # === B2: 多字段回退 (error → message → cmd) ===
-        text = err.get("error") or err.get("message") or err.get("cmd") or ""
-        normalized = re.sub(r";\s*attempt=\d+", "", text).lower()
-        prefix = normalized[:80]
-        item = grouped.setdefault(prefix, {
-            "error": text,
-            "step": err.get("step", "?"),
-            "retry_count": 0,
+
+def extract_patterns(events: list) -> list:
+    """从门禁审计事件中提取「反复出现的拦截模式」。
+
+    返回 [{error, step, pattern, count, retry_count}]，按出现次数降序。
+    只保留非 PASS 的决策——放行记录不构成反模式。
+    """
+    grouped: dict[str, dict] = {}
+
+    for ev in events:
+        decision = str(ev.get("decision") or "").upper()
+        if decision in ("", "PASS"):
+            continue
+        # 事件型记录（无 decision 字段）同样计入：privacy_*_block 等
+        sig = _event_signature(ev)
+        if not sig or sig == " | ":
+            continue
+        item = grouped.setdefault(sig, {
+            "error": sig,
+            "step": str(ev.get("gate") or ev.get("event_type") or "?"),
             "count": 0,
         })
-        item["retry_count"] = max(item["retry_count"], err.get("retry_count", 0))
         item["count"] += 1
 
     patterns = []
     for item in grouped.values():
         text = item["error"].lower()
-        retry = item["retry_count"]
-        count = item["count"]
-
-        # Classify pattern
-        pattern_type = "unknown"
-        if any(k in text for k in ["timeout", "timed out"]):
-            pattern_type = "timeout"
-        elif any(k in text for k in ["assert", "expected", "got"]):
-            pattern_type = "assertion"
-        elif any(k in text for k in ["import error", "module not found", "cannot find module"]):
-            pattern_type = "import"
-        elif any(k in text for k in ["syntax", "parse error", "unexpected token"]):
-            pattern_type = "syntax"
-        elif any(k in text for k in ["permission", "access denied", "forbidden"]):
-            pattern_type = "permission"
-        elif any(k in text for k in ["not found", "no such file", "enoent"]):
-            pattern_type = "not_found"
-
-        if retry >= 2 or count >= 3:
-            pattern_type += "_recurring"
+        pattern_type = "governance_intervention"
+        if "block" in text:
+            pattern_type = "blocked_recurring"
+        elif "redirect" in text:
+            pattern_type = "redirect_recurring"
+        elif "ask_user" in text or "ask_user" in text.lower():
+            pattern_type = "escalated_recurring"
+        if item["count"] < RECURRING_THRESHOLD:
+            pattern_type = "one_off"
 
         patterns.append({
             "error": item["error"][:200],
             "step": item["step"],
             "pattern": pattern_type,
-            "retry_count": retry,
-            "count": count,
+            "count": item["count"],
+            "retry_count": 0,
         })
 
+    patterns.sort(key=lambda p: -p["count"])
     return patterns
 
 
@@ -114,7 +146,7 @@ def write_anti_patterns(project_root: Path, patterns: list) -> Optional[Path]:
     lines.append("## 已识别模式\n")
 
     for p in patterns:
-        lines.append(f"- **{p['pattern']}** (step={p['step']}, retry={p['retry_count']})")
+        lines.append(f"- **{p['pattern']}** (step={p['step']}, count={p['count']})")
         lines.append(f"  - `{p['error'][:120]}`")
         lines.append(f"")
 
@@ -145,46 +177,36 @@ def write_claude_next(project_root: Path, entry: str) -> Path:
 def run_flywheel(project_root: Path, task_dir: Optional[Path] = None) -> dict:
     """
     运行飞轮管道主流程。
-    1. 读 Error DNA
-    2. 提取模式
-    3. 写 anti-patterns.md
-    4. 写 knowledge/
+    1. 读门禁审计遥测（.omc/state/audit/*.jsonl）
+    2. 提取「反复出现的拦截模式」
+    3. 反复模式 → knowledge/claude-next.md（供 stop-flywheel 升华检查消费）
+
+    永不阻断：任何异常都降级为「本轮无产出」。
 
     Returns summary dict.
     """
     result = {"patterns_found": 0, "anti_patterns_written": False, "knowledge_entries": 0}
 
-    # Collect errors from .omc/state/error-dna.jsonl (primary) and .omc/tasks/*/ (legacy).
-    all_errors = []
-    state_dna = project_root / ".omc" / "state" / "error-dna.jsonl"
-    if state_dna.exists():
-        try:
-            all_errors.extend(read_error_dna(state_dna.parent))
-        except Exception:
-            pass
-    tasks_root = project_root / ".omc" / "tasks"
-    if task_dir is not None:
-        all_errors.extend(read_error_dna(task_dir))
-    elif tasks_root.exists():
-        for dna_file in tasks_root.rglob("error-dna.jsonl"):
-            try:
-                all_errors.extend(read_error_dna(dna_file.parent))
-            except Exception:
-                pass
+    try:
+        state_dir = project_root / ".omc" / "state"
+        events = read_audit_events(state_dir)
+    except Exception:
+        events = []
 
-    if not all_errors:
-        result["note"] = "no errors found in any task"
+    if not events:
+        result["note"] = "no audit telemetry found"
         return result
 
-    # Extract patterns (for telemetry only; promotion to anti-patterns.md
-    # is handled by stop-flywheel.py _sublimation_check() with hit threshold + dedup)
-    patterns = extract_patterns(all_errors)
-    result["patterns_found"] = len(patterns)
-    result["anti_patterns_written"] = False
+    patterns = extract_patterns(events)
+    recurring = [p for p in patterns if p["count"] >= RECURRING_THRESHOLD]
+    result["patterns_found"] = len(recurring)
+    if not recurring:
+        result["note"] = "no recurring intervention pattern"
+        return result
 
-    # Write knowledge entries (append-only, safe)
-    for p in patterns[:5]:
-        entry = f"Pattern '{p['pattern']}' detected in step {p['step']}: {p['error'][:80]}"
+    for p in recurring[:MAX_ENTRIES]:
+        entry = (f"Pattern '{p['pattern']}' in {p['step']} "
+                 f"(x{p['count']}): {p['error'][:80]}")
         write_claude_next(project_root, entry)
         result["knowledge_entries"] += 1
 

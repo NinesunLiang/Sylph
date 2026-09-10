@@ -252,7 +252,6 @@ def resume_check(token_path: Path, task_path: Path) -> ContextDecision:
                 "executor-tail",
                 "audit-tail",
                 "oracle",
-                "error-dna",
                 "fallback-tail",
             ],
         },

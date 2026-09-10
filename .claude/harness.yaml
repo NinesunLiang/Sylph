@@ -63,7 +63,7 @@ hooks_enabled:
   context_guard: true
   # ── 质量/治理 (高ROI 保留) ──
   completion_gate: true
-  error_dna: true
+  # error_dna: 已于 index48（2026-09-10 人类裁决）移除
   posttool_claim_audit: true
   # ── 状态持久化 (高ROI 保留) ──
   context_compressor: true
@@ -71,7 +71,7 @@ hooks_enabled:
   posttool_handoff_writer: true
   posttool_bash_audit: false
   knowledge_condenser: true
-  error_dna_auto_fix: true
+  # error_dna_auto_fix: 已于 index48 随 error-dna 移除
   token_writer: false
 terminal_safety:
   max_command_length: 2000

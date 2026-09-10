@@ -60,7 +60,7 @@ def digest() -> dict:
     """Produce digest of all gate events."""
     skipped = _read_jsonl(STATE_DIR / "skipped-risks.jsonl")
     gate_events = _read_jsonl(STATE_DIR / "gatekeeper-events.jsonl")
-    error_dna = _read_jsonl(ROOT / ".omc" / "error-dna.jsonl")
+    # index48：error-dna 数据源已随该机制整体移除，摘要不再包含该项。
 
     result = {
         "ts": datetime.now(timezone.utc).isoformat(),
@@ -72,9 +72,6 @@ def digest() -> dict:
             "count": len(gate_events),
             "by_decision": {},
             "items": gate_events[-10:] if gate_events else [],
-        },
-        "error_dna": {
-            "count": len(error_dna),
         },
         "digest_version": 1,
     }
@@ -117,7 +114,6 @@ def alert() -> None:
     print("GateKeeper Event Digest")
     print(f"  skipped_risks:       {d['skipped_risks']['count']}")
     print(f"  gatekeeper_events:   {d['gatekeeper_events']['count']}")
-    print(f"  error_dna entries:   {d['error_dna']['count']}")
 
     dec = d["gatekeeper_events"]["by_decision"]
     if dec:

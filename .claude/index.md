@@ -25,7 +25,7 @@
 | nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12 活跃 + a/b terminal + orchestrator 路由） |
 | schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/output） |
 | references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates）；references 为唯一真源，大编号优先（ADR0017） |
-| error_rulers/ | `@.claude/references/error_rulers.json` | 错误分类规则库（exit_code+stderr模式→error_type映射） |
+| ~~error_rulers/~~ | 已随 error-dna 于 index48 移除（2026-09-10） | — |
 | scripts/ | `@.claude/scripts/index.md` | 治理工具脚本（按功能分 6 组 + lib/ 子模块） |
 | rules/ | `@.claude/rules/index.md` | 语言与工具行为规则（2个） |
 | skills/ | `@.claude/skills/index.md` | AI agent skills（10 个 lx-* 扁平布局） |
@@ -75,7 +75,7 @@
 | `omc_lint.py` | 7 项代码规范检查 |
 | `verify_gate.py` | 完成验证门禁 |
 | `lib/tool_store.py` | 工具结果落盘（Phase 0 S4） |
-| `lib/error_dna.py` | Error DNA 自动生成与 Retry Gate（Phase 1） |
+| ~~`lib/error_dna.py`~~ | 已随 error-dna 于 index48 移除（2026-09-10） |
 | `lib/oracle_gate_light.py` | Oracle 条件接入（Phase 1，同级模型） |
 | `lib/phase3_oracle.py` | 双审判官独立 Context 裁决（Phase 3） |
 

@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 """proposals.py — 进化提案 distiller/approver v1（PLAN_SIMPLIFY C2/C6, Phase 2）
 
-把真实使用沉淀的原料（error-dna / gate-pass）蒸馏成"进化提案"，供人类采纳台裁决。
+把真实使用沉淀的原料（gate-pass 门禁触发遥测）蒸馏成"进化提案"，供人类采纳台裁决。
 Schema（C2 v1）：
   {id: p-YYYY-MM-DD-NNN, source: distiller,
    kind: anti-pattern | gate-zombie | doc-drift | new-gate | delete-candidate,
    evidence: {count, refs[]}, suggestion, impact_estimate,
    status: pending|accepted|rejected|deferred, human_note, test_commit}
 
+注（index48）：原 anti-pattern 一路的数据源 error-dna 已整体移除；
+现存 kind 主要由 gate-zombie / delete-candidate 产生。
+
 用法：
-  python3 .claude/scripts/proposals.py distill [error-dna.jsonl] [--threshold N] [--out DIR]
+  python3 .claude/scripts/proposals.py distill [--threshold N] [--out DIR]
   python3 .claude/scripts/proposals.py list|accept <id>|reject <id> <note>  [proposals.jsonl]
 """
 from __future__ import annotations
@@ -17,35 +20,21 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-DEFAULT_ERROR_DNA = ".omc/state/error-dna.jsonl"
 DEFAULT_OUT = ".omc/proposals"
 IMPACTS = ("高", "中", "低")
 
 
-def load_error_dna(path) -> list[dict]:
-    p = Path(path)
-    if not p.exists():
-        return []
-    out = []
-    for line in p.read_text(encoding="utf-8", errors="ignore").splitlines():
-        if not line.strip():
-            continue
-        try:
-            d = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(d, dict):
-            out.append(d)
-    return out
-
-
-def make_proposals(rows: list[dict], zombies: list[dict], threshold: int = 3,
+def make_proposals(zombies: list[dict], threshold: int = 3,
                    asof: date | None = None) -> list[dict]:
-    """error-dna 聚类(anti-pattern) + 僵尸(gate-zombie) → proposal 列表。"""
+    """僵尸门禁(gate-zombie) → proposal 列表。
+
+    index48：原 error-dna 聚类(anti-pattern) 一路已随 error-dna 机制整体移除
+    —— 该数据源无生产者、12 天遥测 100% pending 且 81% 为测试噪声。
+    现存唯一来源为 gate-pass-count.jsonl 的 0 触发门禁。
+    """
     asof = asof or date.today()
     prefix = f"p-{asof.isoformat()}"
     props: list[dict] = []
@@ -55,27 +44,6 @@ def make_proposals(rows: list[dict], zombies: list[dict], threshold: int = 3,
         nonlocal seq
         seq += 1
         return f"{prefix}-{seq:03d}"
-
-    # ── anti-pattern：error_type 聚类，pending 且达到阈值 ──
-    by_type: dict[str, list[dict]] = defaultdict(list)
-    for r in rows:
-        t = str(r.get("error_type") or "unknown").strip()
-        by_type[t].append(r)
-    for t, recs in sorted(by_type.items()):
-        pending = [r for r in recs if str(r.get("resolution", "pending")) == "pending"]
-        if len(pending) < threshold:
-            continue
-        max_retry = max((int(r.get("retry_count") or 0) for r in pending), default=0)
-        sample = next((r.get("message") or r.get("cmd") or "") for r in pending)
-        impact = "高" if max_retry >= 3 else "中"
-        props.append({
-            "id": _next(), "source": "distiller", "kind": "anti-pattern",
-            "evidence": {"count": len(pending),
-                         "refs": [f"error-dna.jsonl: error_type={t}"]},
-            "suggestion": f"为 error_type「{t}」注册已知失败签名/疏导，压 retry（峰值 {max_retry}）",
-            "impact_estimate": impact, "status": "pending", "human_note": "", "test_commit": "",
-            "sample": (sample or "")[:120],
-        })
 
     # ── gate-zombie：近窗口 0 触发 → 简化候选 ──
     for z in zombies:
@@ -145,7 +113,6 @@ def _anti_regrowth(args) -> int:
 
 
 def _distill(args) -> int:
-    rows = load_error_dna(args.error_dna)
     zombies = []
     if args.gate_pass:
         try:
@@ -155,9 +122,9 @@ def _distill(args) -> int:
                 z["window_days"] = args.window
             zombies = rep["zombies"]
         except Exception as exc:
-            print(f"⚠ gate 僵尸读取失败(不影响 anti-pattern): {exc}")
+            print(f"⚠ gate 僵尸读取失败: {exc}")
     asof = date.today()
-    props = make_proposals(rows, zombies, threshold=args.threshold, asof=asof)
+    props = make_proposals(zombies, threshold=args.threshold, asof=asof)
     # 脚本僵尸 → delete-candidate 提案（新增特性时清理死代码）
     try:
         from zombie_scan import find_zombies
@@ -222,7 +189,6 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="进化提案 distiller/approver")
     sub = ap.add_subparsers(dest="cmd", required=True)
     d = sub.add_parser("distill")
-    d.add_argument("error_dna", nargs="?", default=DEFAULT_ERROR_DNA)
     d.add_argument("--threshold", type=int, default=3)
     d.add_argument("--out", default=DEFAULT_OUT)
     d.add_argument("--gate-pass", default=".omc/state/gate-pass-count.jsonl")

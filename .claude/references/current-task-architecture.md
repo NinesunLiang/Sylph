@@ -111,8 +111,8 @@ pretool-gate (7门) → execute → completion-gate → verify-gate → claim-au
 |:-----|:-----|:----:|
 | 任务引擎 | `carros_base.py` | ~2521 行 |
 | GateKeeper 裁决链 | `gatekeeper.py` | ~705 行 |
-| 错误分类规则库 | `error_rulers.json` | 17 条规则 |
-| Error DNA 分类 | `error-dna.py` | ~660 行 |
+| ~~错误分类规则库~~ | 已随 error-dna 于 index48 移除 | — |
+| ~~Error DNA 分类~~ | 已随 error-dna 于 index48 移除 | — |
 | 降级引擎 | `fallback_engine.py` | ~481 行 |
 | 共享写锁 | `write_lock.py` | ~58 行 |
 | 内核/阈值 | `kernel.md` | 冻结规则 |

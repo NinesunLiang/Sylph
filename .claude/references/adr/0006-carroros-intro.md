@@ -60,8 +60,13 @@ CarrorOS 三层结构化文档体系，100%落盘任务状态：
 分为三层：
 
 - 采集层：采集CarrorOS运行时错误 > error-dna | 用用户纠正记录&项目偏好&错误模式&通用代码质量基线 > claude-next
-- 沉淀层：当采集层满了100条，进行与沉淀池的内容进行合并、去重，清空采集层数据；error-dna > .claude/references/error_rulers.json ;claude-next > .claude/references/anti-patterns.md
-- 应用层: 两种错误采集的应用层不一样，anti-patterns.md和claude-next 被 AGENTS.md 硬连接引入，主要目的是为了放错；error-dna 和error_rulers.json 是.claude/index.md 软连接引入，目的是ai犯错之后看一下犯错日志，找应对方式；
+- 沉淀层：当采集层满了100条，进行与沉淀池的内容进行合并、去重，清空采集层数据；error-dna > 错误分类规则库 ;claude-next > .claude/references/anti-patterns.md
+- 应用层: 两种错误采集的应用层不一样，anti-patterns.md和claude-next 被 AGENTS.md 硬连接引入，主要目的是为了放错；error-dna 与错误分类规则库 是.claude/index.md 软连接引入，目的是ai犯错之后看一下犯错日志，找应对方式；
+
+> **状态更新（2026-09-10，index48，人类裁决）**：本 ADR 描述的 **error-dna 采集层与错误分类规则库已整体移除**。
+> 依据：12 天遥测显示 83 条记录 100% `resolution: pending`、`.omc/knowledge/` 学习产出为 0、
+> 76 条 `bash_path_not_found` 中 67 条为测试自造命令 `ls /nonexistent`——该闭环从未产出价值。
+> 「claude-next → anti-patterns.md」一条仍保留。ADR 正文保留为历史决策记录，不作改写。
 
 
 ### 交互
