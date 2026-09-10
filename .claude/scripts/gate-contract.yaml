@@ -17,6 +17,7 @@ L1:
     - commit-soft-completion
     - governance-delete-protection
     - injection-guard
+    - worktree-scope
   required_evidence:
     - audit_event: true
   enforcement:
@@ -38,6 +39,7 @@ L2:
     - governance-delete-protection
     - oracle
     - injection-guard
+    - worktree-scope
   required_evidence:
     - audit_event: true
     - harness_evidence: true

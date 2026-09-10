@@ -555,6 +555,54 @@ def _check_governance_delete_protection(payload: dict) -> str | None:
 _ORACLE_L2_LEVELS = {"L2", "L2_ENHANCE"}
 
 
+def _check_worktree_scope(payload: dict) -> str | None:
+    """index49：worktree 隔离执行期的写路径门禁。
+
+    完备模式（L2）的 goal 会在 worktree 中执行。若 agent 仍写主树，隔离形同虚设
+    （多进程互相踩）。本门把主树代码改动拦下并指向 worktree 内等价路径。
+
+    放行：worktree 内路径、`.omc/`（账本按设计共享主树）、仓库外路径、非写操作。
+    无隔离执行（无活跃 token 或无 worktree 字段）→ no-op。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS:
+        return None
+    raw_path = _extract_path(payload)
+    if not raw_path:
+        return None
+    try:
+        token = _active_token()
+    except Exception:
+        return None
+    if not isinstance(token, dict):
+        return None
+    wt = token.get("worktree")
+    if not wt:
+        return None
+    try:
+        root = Path(ROOT).resolve()
+        wt_path = Path(str(wt)).resolve()
+        target = Path(raw_path)
+        target = (target if target.is_absolute() else (root / target)).resolve()
+    except (OSError, ValueError):
+        return None
+    # worktree 内 → 放行
+    if target == wt_path or wt_path in target.parents:
+        return None
+    # 仓库外 → 不管
+    if target != root and root not in target.parents:
+        return None
+    rel = target.relative_to(root)
+    # 账本共享主树（见 index49 S2 的 .omc symlink 方案）→ 放行
+    if rel.parts and rel.parts[0] == ".omc":
+        return None
+    suggested = wt_path / rel
+    return (f"REDIRECT worktree_scope|隔离执行中（L2 完备模式），代码改动必须落在 worktree 内。\n"
+            f"当前目标：{target}\n"
+            f"请改用：{suggested}\n"
+            f"（只有 .omc/ 账本目录共享主树；其余一律在 worktree 内改动，验收后自动合回。）")
+
+
 def _check_oracle_gate(payload: dict) -> str | None:
     token = _active_token()
     if not token:

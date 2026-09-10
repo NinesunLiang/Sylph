@@ -43,7 +43,7 @@ except Exception:
 from pretool_gates.checks import (
     _check_sensitive_edit, _check_governance_bypass, _check_action_gate,
     _check_secret_scan, _check_injection,
-    _check_oracle_gate,
+    _check_oracle_gate, _check_worktree_scope,
     _check_omc_skeleton_readonly,
     _check_sensitive_read, _check_sensitive_write_bash,
     _check_test_verification, _check_doc_reference_before_delete,
@@ -79,6 +79,8 @@ _GATE_CORE = [
     # WRITE_OVERSIZE 的 content_truncated 复现）。故提升为 L1 常开门，不随档位下调而丢失。
     # 仅在 WRITE_TOOLS 写入时触发，成本可忽略。
     ("injection-guard", _check_injection),
+    # index49：worktree 隔离执行期的写路径门禁（无隔离执行时 no-op）
+    ("worktree-scope", _check_worktree_scope),
 ]
 _GATE_L2_EXTRA = [
     # index47 (2026-09-10)：按 12 天门禁遥测 + 人类裁决「收益大才留，否则删」精简。

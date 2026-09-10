@@ -27,7 +27,7 @@ ROUTED_L1 = {
     "sensitive-edit", "sensitive-read", "sensitive-write-bash", "test-verification",
     "governance-bypass", "action", "secret-scan", "omc-skeleton-readonly",
     "doc-reference-before-delete", "commit-soft-completion",
-    "governance-delete-protection", "injection-guard",
+    "governance-delete-protection", "injection-guard", "worktree-scope",
 }
 ROUTED_L2 = ROUTED_L1 | {"oracle"}
 
@@ -38,7 +38,7 @@ ROUTED_FUNCS = {
     "_check_secret_scan", "_check_omc_skeleton_readonly",
     "_check_doc_reference_before_delete", "_check_commit_soft_completion",
     "_check_governance_delete_protection", "_check_injection",
-    "_check_oracle_gate",
+    "_check_oracle_gate", "_check_worktree_scope",
 }
 
 

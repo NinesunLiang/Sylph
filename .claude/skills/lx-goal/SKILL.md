@@ -42,6 +42,9 @@ schemas:
 
 plan.md 须声明两条判据命令：`- dep_tdd_cmd: <命令>` 与 `- feature_tdd_cmd: <命令>`。
 
+**隔离强制执行**：隔离执行期间，`worktree-scope` 门禁会拦下**主树**的代码写入并指向 worktree 内等价路径
+（只有 `.omc/` 账本目录按设计共享主树）。即「在 worktree 下干活」由机制保证，不靠自觉。
+
 **哲学约束（人类强调）**：符合「the less, the more」——改动必须**必要且最小范围**；
 不为完备而完备，L1 能解决的就不要上 L2。
 
