@@ -50,10 +50,7 @@ class ContextDecision:
     failure_type: str | None = None
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
+from carros_utils import now_iso  # noqa: F401  单一真源（index49 去重）
 def today() -> str:
     return datetime.now(timezone.utc).strftime("%Y%m%d")
 

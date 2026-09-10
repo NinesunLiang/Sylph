@@ -50,10 +50,7 @@ SCENARIO_IDS = [
 ]
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
+from carros_utils import now_iso  # noqa: F401  单一真源（index49 去重）
 def rel(path: Path) -> str:
     return str(path.relative_to(PROJECT))
 

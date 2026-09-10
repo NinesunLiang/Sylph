@@ -86,10 +86,7 @@ class Failure:
     output_tail: str | None = None
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
+from carros_utils import now_iso  # noqa: F401  单一真源（index49 去重）
 def event_id(prefix: str) -> str:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
     return f"{prefix}-{stamp}"

@@ -45,10 +45,7 @@ _PHASE_DATA = _load_phases_from_yaml()
 PHASES = tuple(_PHASE_DATA.keys())
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
+from carros_utils import now_iso  # noqa: F401  单一真源（index49 去重）
 def phase_contract(phase: str) -> dict[str, Any]:
     if phase not in _PHASE_DATA:
         raise ValueError(f"unknown phase: {phase}")

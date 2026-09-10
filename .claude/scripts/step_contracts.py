@@ -63,10 +63,7 @@ STEP_STATUSES = set(_STEP_CONTRACT["step"]["status"]["values"])
 EVIDENCE_REQUIRED_SECTIONS = list(_STEP_CONTRACT["evidence"]["required_sections"])
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
+from carros_utils import now_iso  # noqa: F401  单一真源（index49 去重）
 def read_json(path: Path, default: dict[str, Any] | None = None) -> dict[str, Any]:
     if not path.exists():
         return default or {}

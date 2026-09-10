@@ -24,10 +24,7 @@ EST_INPUT_TOKEN_USD_PER_M = 3.0
 EST_OUTPUT_TOKEN_USD_PER_M = 15.0
 
 
-def now_iso() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-
-
+from carros_utils import now_iso  # noqa: F401  单一真源（index49 去重）
 def build_report(project: Path, tokens: list[tuple[Path, dict[str, Any]]], stable_prefix_files: list[Path]) -> dict[str, Any]:
     prefix = stable_prefix_hash(project, stable_prefix_files)
     fallback_tokens = int(prefix["controllable_prefix_tokens"])
