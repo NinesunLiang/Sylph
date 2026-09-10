@@ -42,12 +42,8 @@ except Exception:
 
 from pretool_gates.checks import (
     _check_sensitive_edit, _check_governance_bypass, _check_action_gate,
-    _check_verify_gate,
-    _check_oracle_gate, _check_document_quality,
-    _check_g2_large_file, _check_g3_reviews, _check_g5_wide_glob, _check_g6_budget,
-    _check_secret_scan,
-    _check_numeric_claim, _check_action_loop,
-    _check_stall, _check_injection,
+    _check_secret_scan, _check_injection,
+    _check_oracle_gate,
     _check_omc_skeleton_readonly,
     _check_sensitive_read, _check_sensitive_write_bash,
     _check_test_verification, _check_doc_reference_before_delete,
@@ -77,31 +73,28 @@ _GATE_CORE = [
     ("commit-soft-completion", _check_commit_soft_completion),
     # index33 电池实证修复：治理指令文件删除保护（rm-dot ON 删 AGENTS.md/CLAUDE.md）
     ("governance-delete-protection", _check_governance_delete_protection),
-]
-_GATE_L2_EXTRA = [
-    ("verify", _check_verify_gate),
-    ("oracle", _check_oracle_gate),
-    ("document-quality", _check_document_quality),
-    ("g2-large-file", _check_g2_large_file),
-    ("g3-reviews", _check_g3_reviews),
-    ("g5-wide-glob", _check_g5_wide_glob),
-    ("g6-budget", _check_g6_budget),
-    ("action-loop", _check_action_loop),
-    # F3 (2026-08-30)：删除前查文档引用
-    ("doc-reference-before-delete", _check_doc_reference_before_delete),
-    # 优化2 (2026-08-30)：git commit 软完成语检测
-    ("commit-soft-completion", _check_commit_soft_completion),
-    # index33 电池实证修复：治理指令文件删除保护（L2 也生效）
-    ("governance-delete-protection", _check_governance_delete_protection),
-]
-_GATE_STALL = [("stall", _check_stall)]
-_GATE_L2_TAIL = [
-    ("numeric-claim", _check_numeric_claim),
+    # index46 S5 (G1)：兜底档位由 l2 改为 l1 后，原属 L2 的 injection-guard 会默认不跑。
+    # 但该门承载两件真安全/真防错事：(a) 写入内容提示注入模式 BLOCK（kernel.md §提示注入
+    # 防护 明文要求）；(b) 单次 Write 超 8000 字符 REDIRECT（防 anti-patterns.md L2
+    # WRITE_OVERSIZE 的 content_truncated 复现）。故提升为 L1 常开门，不随档位下调而丢失。
+    # 仅在 WRITE_TOOLS 写入时触发，成本可忽略。
     ("injection-guard", _check_injection),
 ]
+_GATE_L2_EXTRA = [
+    # index47 (2026-09-10)：按 12 天门禁遥测 + 人类裁决「收益大才留，否则删」精简。
+    # 已删除的 9 道门及依据（数据源 .omc/scripts/gate_roi_audit.py）：
+    #   verify / stall              —— 结构性死门：verify 0/4458；stall 依赖全仓无人设置的
+    #                                  HERMES_SESSION_ID，0/4601
+    #   g2-large-file / document-quality / g5-wide-glob / g6-budget / action-loop
+    #                               —— 合计约 22285 次运行、真生效 5 次
+    #   g3-reviews / numeric-claim  —— 返回值为软告警（NARROW/CHECKPOINT/WARN），
+    #                                  pretool-gate 对四者一律「记一笔审计后放行」，
+    #                                  从不拦截；numeric-claim 另与 claim-audit K1/G1 重复
+    ("oracle", _check_oracle_gate),
+]
 
-L1_GATES = _GATE_CORE + _GATE_STALL
-GATES = _GATE_CORE + _GATE_L2_EXTRA + _GATE_STALL + _GATE_L2_TAIL
+L1_GATES = _GATE_CORE
+GATES = _GATE_CORE + _GATE_L2_EXTRA
 from pretool_gates.helpers import (
     _read_stdin, _extract_tool, _ok, _block, _redirect,
     _check_temp_bypass, _check_trust_breach, _clean_stale_state_token,

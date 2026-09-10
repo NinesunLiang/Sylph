@@ -95,17 +95,13 @@ pretool-gate (7门) → execute → completion-gate → verify-gate → claim-au
 
 ## 4. 阈值（来源: kernel.md）
 
-| 体系 | 区间 | 动作 |
-|:----|:-----|:-----|
-| **A. 可控预算水位** | [0,40%) | 正常执行 |
-| | [40%,70%) | checkpoint 提示，禁止扩张，触发 handoff |
-| | [70%,100%] | 暂停+写 handoff+请求 compact |
-| **B. 上下文水位** | <50% | 正常执行 |
-| | [50%,70%) | 提醒 compact |
-| | [70%,80%) | 只读模式 |
-| | ≥80% | 全阻强制 compact |
+**水位防线已整体移除（2026-09-10 人类裁决）。** 原 A（可控预算水位 `40%/70%`）与 B（上下文水位 `50%/70%/80%`）两套阈值在代码中从无实现（`.claude/hooks/**` 无对应门禁），上下文压缩改由 Claude Code 原生 compact 承担（见 `adr/0006-carroros-intro.md` 的 compact 机制段）。kernel.md 中的相关章节已同步删除。
 
-**与旧文档差异**: context_guard.md 阈值 `40/50/60/80` → 实际 `40/70/80`（A体系）和 `50/70/80`（B体系）。
+现存阈值仅一项：
+
+| 阈值 | 用途 | 实现位置 |
+|:-----|:-----|:---------|
+| `8KB` 外部内容截断 | 写入内容超限 → REDIRECT（防 prompt 注入 + 单次写过大） | `pretool_gates/constants.py:_EXTERNAL_DATA_MAX_LEN`，由 `injection-guard` 门强制 |
 
 ---
 

@@ -674,7 +674,50 @@ def _gate_mode_from_token(token) -> str:
     return ""
 
 
+def _harness_gate_mode() -> str:
+    """读取项目档位配置。
+
+    index46 S5 (G1)：原路径 `ROOT/scripts/carroros-gates/harness.yaml` 在仓内不存在
+    （仓内实为 `.claude/harness.yaml`），使该级配置永久失效、必然落到兜底档。
+    现修正为 `.claude/harness.yaml`，并同时接受顶层 `gate_mode` 与 `project.gate_mode`。
+    """
+    candidates = [ROOT / ".claude" / "harness.yaml",
+                  ROOT / "scripts" / "carroros-gates" / "harness.yaml"]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            import yaml
+            with open(path, "r") as fh:
+                data = yaml.safe_load(fh) or {}
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        mode = str(data.get("gate_mode", "") or "").lower()
+        if mode not in ("l1", "l2"):
+            mode = str((data.get("project") or {}).get("gate_mode", "") or "").lower()
+        if mode in ("l1", "l2"):
+            return mode
+    return ""
+
+
 def _get_gate_mode() -> str:
+    """门禁档位解析。
+
+    index46 S5 (G1 / H1 人类指令)：绝大多数任务走 L1 轻量流程，只有与安全、权限、
+    架构相关或十分复杂的任务才走 L2 全流程。因此**兜底档位由 l2 改为 l1**，
+    与 AGENTS.md「简单任务直达（默认，最快路径）」/ index.md「默认 L1」的文档承诺对齐。
+
+    优先级（高 → 低）：
+      1. `CARROROS_GATE_MODE` 环境变量（显式覆盖；CI 如需全量门可设 l2）
+      2. 活跃 token 的 `session.level`（任务分级：L1 任务→轻门，L2 任务→全量门）
+      3. 项目配置 `gate_mode`（`.claude/harness.yaml`）
+      4. 兜底 l1
+
+    安全底线不受影响：L1 的 `_GATE_CORE` 已含 sensitive-*/secret-scan/
+    governance-bypass/governance-delete-protection 等真安全门（见 pretool-gate.py）。
+    """
     env_mode = os.environ.get("CARROROS_GATE_MODE", "").lower()
     if env_mode in ("l1", "l2"):
         return env_mode
@@ -685,18 +728,7 @@ def _get_gate_mode() -> str:
             return _tok_mode
     except Exception:
         pass
-    harness_mode = ""
-    try:
-        _HARNESS_PATH = ROOT / "scripts" / "carroros-gates" / "harness.yaml"
-        if _HARNESS_PATH.exists():
-            import yaml
-            with open(_HARNESS_PATH, "r") as _fh:
-                _hdata = yaml.safe_load(_fh) or {}
-            harness_mode = (_hdata.get("project", {}) or {}).get("gate_mode", "").lower()
-    except Exception:
-        pass
-    if not sys.stdin.isatty() or os.environ.get("CI") == "true" or os.environ.get("CARROROS_CI_MODE") == "1":
-        return harness_mode if harness_mode else "l2"
+    harness_mode = _harness_gate_mode()
     return harness_mode if harness_mode else "l1"
 
 

@@ -20,30 +20,25 @@ SCHEMAS_ATOMIC = ROOT / ".claude" / "schemas" / "atomic"
 OMC_STATE = ROOT / ".omc" / "state"
 
 # 路由真源：.claude/hooks/pretool-gate.py L1_GATES / GATES（index18 G5 单一真源）
-# index33 同步：F1(index25) 敏感读写门 + F3 doc-reference + commit-soft-completion +
-# governance-delete-protection(index33) 加入后契约/路由表同步（此前过时导致回归防线静默失效）
+# index47 同步：按 12 天门禁遥测精简 —— 删除 verify/stall（结构性死门）、
+# g2-large-file/document-quality/g5-wide-glob/g6-budget/action-loop（约 22285 次运行仅生效 5 次）、
+# g3-reviews/numeric-claim（软告警，从不拦截）；injection-guard 上提至 L1 常开。
 ROUTED_L1 = {
     "sensitive-edit", "sensitive-read", "sensitive-write-bash", "test-verification",
     "governance-bypass", "action", "secret-scan", "omc-skeleton-readonly",
     "doc-reference-before-delete", "commit-soft-completion",
-    "governance-delete-protection", "stall",
+    "governance-delete-protection", "injection-guard",
 }
-ROUTED_L2 = ROUTED_L1 | {
-    "verify", "oracle", "document-quality", "g2-large-file", "g3-reviews",
-    "g5-wide-glob", "g6-budget", "action-loop", "numeric-claim", "injection-guard",
-}
+ROUTED_L2 = ROUTED_L1 | {"oracle"}
 
-# 路由门禁对应的实现函数（pretool-gate.py 路由表，与 checks.py 22 个 _check_* 一一对应）
+# 路由门禁对应的实现函数（pretool-gate.py 路由表，与 checks.py 13 个 _check_* 一一对应）
 ROUTED_FUNCS = {
     "_check_sensitive_edit", "_check_sensitive_read", "_check_sensitive_write_bash",
     "_check_test_verification", "_check_governance_bypass", "_check_action_gate",
     "_check_secret_scan", "_check_omc_skeleton_readonly",
     "_check_doc_reference_before_delete", "_check_commit_soft_completion",
-    "_check_governance_delete_protection",
-    "_check_stall", "_check_verify_gate", "_check_oracle_gate",
-    "_check_document_quality", "_check_g2_large_file", "_check_g3_reviews",
-    "_check_g5_wide_glob", "_check_g6_budget", "_check_action_loop",
-    "_check_numeric_claim", "_check_injection",
+    "_check_governance_delete_protection", "_check_injection",
+    "_check_oracle_gate",
 }
 
 

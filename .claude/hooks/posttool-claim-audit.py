@@ -28,67 +28,6 @@ sys.path.insert(0, str(_HOOKS_DIR.parent / "scripts"))
 from gatekeeper import GateKeeper, make_context
 
 
-def _autofix_source_annotations(file_path: str, num_claims: list[str], mode: str) -> bool:
-    """K1 autofix: auto-append [内部自检，非行业标准] after unsourced numerical claims.
-
-    Only applies in autonomous/goal mode for non-code docs files.
-    Returns True if autofix was applied, False otherwise.
-    """
-    _is_auto = mode != 'normal'
-    if not _is_auto:
-        return False  # autofix only in autonomous/goal mode
-
-    # Only for docs/report files (not code/test/config)
-    _EXEMPT_EXT = ('.py', '.js', '.ts', '.go', '.rs', '.sh', '.yaml', '.yml', '.json', '.ini', '.toml')
-    if file_path.endswith(_EXEMPT_EXT):
-        return False
-
-    # Read the file
-    fpath = Path(file_path)
-    if not fpath.is_file():
-        return False
-    try:
-        content = fpath.read_text(encoding='utf-8')
-    except Exception:
-        return False
-
-    if not num_claims:
-        return False
-
-    # For each numerical claim without a source annotation nearby,
-    # insert [内部自检，非行业标准] after it
-    corrected = content
-    fix_count = 0
-    for claim in num_claims[:10]:  # limit to 10 per file
-        # Check if this claim already has a source annotation within 50 chars
-        idx = corrected.find(claim)
-        if idx == -1:
-            continue
-        trailing = corrected[idx + len(claim):idx + len(claim) + 80]
-        if any(marker in trailing for marker in ['[内部自检', '[来源:', '[已验证', '[已测试', 'VERIFIED', 'file:', 'http']):
-            continue
-        # Insert annotation
-        annotation = ' [内部自检，非行业标准]'
-        insert_pos = idx + len(claim)
-        corrected = corrected[:insert_pos] + annotation + corrected[insert_pos:]
-        fix_count += 1
-        if fix_count >= 5:
-            break
-
-    if fix_count == 0:
-        return False
-
-    # Write corrected content
-    try:
-        fpath.write_text(corrected, encoding='utf-8')
-        flywheel_event('posttool_claim_audit', 'autofix_applied', 'P2',
-                       f'fixed={fix_count} file={file_path}')
-        print(f"[autofix] K1: {fix_count} numerical claims annotated in {file_path}", flush=True)
-        return True
-    except Exception:
-        return False
-
-
 def _autofix_log_edit_repeat(file_path: str, _mode: str) -> bool:
     """K2 autofix: log structured evidence for EDIT_REPEAT to error-dna.jsonl.
 
@@ -429,46 +368,6 @@ def main():
 
         VIOLATIONS += '⚠️ IRRELEVANT_CLAIM: ' + claimed + '\n'
 
-    # === G1 数值断言来源强制检查 ===
-    G1_VIOLATIONS = ''
-    NUM_CLAIMS = re.findall(
-        r'[0-9]{1,3}\.[0-9]+%|[0-9]{1,3}%|通过率|[0-9]+%[-~][0-9]+%|减少\s*[0-9]+%?|提升\s*[0-9]+%?|'
-        r'节省\s*[0-9]+%?|降低\s*[0-9]+%?|1/[0-9]+|[0-9]+倍|[0-9]+/[0-9]+\s*(?:passed|通过|pass)|'
-        r'[0-9]+\s*(?:out of|of|项|个)\s*[0-9]+|\+[0-9]+\.[0-9]+|\+[0-9]+%|[0-9]+\s*分|'
-        r'得分\s*[0-9]+|[0-9]+\s*轮|[0-9]+\s*次|[0-9]{2,}\s*条',
-        INPUT
-    )
-
-    if NUM_CLAIMS:
-        HAS_SOURCE = bool(re.search(
-            r'(ASVS|OWASP|NIST|ISO|CWE|CVE|ATLAS|benchmark\.report|benchmark-report|'
-            r'baseline|cross-platform-gain|pass-rate-summary|\[已验证|\[已测试|\[内部自检|'
-            r'VERIFIED|https?://|[a-zA-Z0-9_./-]+\.[a-z]+:[0-9]+|source:|ref:|來源|'
-            r'出处|根据.*统计|harness\.smoke|production\.verify|audit\.hooks|auto\.score|'
-            r'flywheel\.log|\d+/\d+\s*(?:passed|通过)|实测|实测数据)',
-            INPUT
-        ))
-        if not HAS_SOURCE:
-            NUM_SAMPLE = ' '.join(NUM_CLAIMS[:5])
-            if 'docs/marketing/' in FILE_PATH:
-                G1_VIOLATIONS = ('⚠️ G1_MARKETING_CLAIM: 营销文档中的数值断言(' + NUM_SAMPLE +
-                                 ')无来源引用。\n  营销文案中的任何百分比/倍数/增减数字必须附带验证来源。'
-                                 '失去真实感，99% 的前面努力都浪费了。\n  修复: 在数字后标注来源，如 '
-                                 "'(20 轮实测数据，benchmark-run-7.md-42)' 或 '[内部自检，非行业标准]'。\n")
-            else:
-                # Goal/autonomous mode: autofix by inserting source annotations
-                if _AUTONOMOUS_LOCAL:
-                    autofixed = _autofix_source_annotations(FILE_PATH, NUM_CLAIMS, _MODE)
-                    if autofixed:
-                        G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
-                                         ')自动修复: 已插入 [内部自检，非行业标准] 标注。\n')
-                    else:
-                        G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
-                                         ')无来源。自动修复未应用，记录至退出报告。\n')
-                else:
-                    G1_VIOLATIONS = ('⚠️ G1_PSEUDO_INTEGRITY: 数值断言(' + NUM_SAMPLE +
-                                     ')无来源。请标注 [内部自检，非行业标准] 或附加来源 URL/file:line。\n')
-
     # === E6 自我矛盾检测 ===
     E6_VIOLATIONS = ''
     CONTRADICTION_LOG = STATE_DIR / 'edit-churn-log.jsonl'
@@ -546,7 +445,7 @@ def main():
     _READ_FILE_COUNT = len([l for l in read_files.splitlines() if l.strip()]) if read_files else 0
 
     _IS_COLD_START = False
-    if VIOLATIONS or G1_VIOLATIONS or E6_VIOLATIONS:
+    if VIOLATIONS or E6_VIOLATIONS:
         if (not _READ_TRACKER_EXISTS or _READ_FILE_COUNT < 3) and CLAIMED_FILES:
             # 冷启动保护：read-tracker 为空或 <3 条 → 持续 WARN，不升级为 BLOCK
             # 原因: COLD_START_BLOCK 导致 "PostToolUse:Edit stopped continuation" — 过于激进
@@ -571,8 +470,6 @@ def main():
                            'count=' + str(cold_count))
 
         COMBINED = VIOLATIONS
-        if G1_VIOLATIONS:
-            COMBINED += '\n' + G1_VIOLATIONS
         if E6_VIOLATIONS:
             COMBINED += '\n' + E6_VIOLATIONS
 

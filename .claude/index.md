@@ -49,7 +49,7 @@
 | 层级 | 路由 | 说明 |
 |------|------|------|
 | L1 | 默认路径 | 日常开发、单文件修复、文档更新 |
-| L2 | 跨系统 / 不可逆 / 安全权限 / 发布 / 长时间无人 | 启用 Oracle + 水位 + 降级 |
+| L2 | 跨系统 / 不可逆 / 安全权限 / 发布 / 长时间无人 | 启用 Oracle + 降级 |
 
 ## 工作流路由
 
@@ -58,13 +58,13 @@
 | 状态管理 | `kernel.md` → 管理内核 | 冻结 / 飞轮 / 降级 |
 | 完整生命周期 | `.claude/scripts/carros_base.py` | init→tick→verify→archive |
 | L1 快速任务 | `carros_base.py` | init→verify→archive |
-| L2 复杂任务 | `carros_base.py` + 条件 Oracle | 含水位+Oracle+降级 |
+| L2 复杂任务 | `carros_base.py` + 条件 Oracle | 含 Oracle+降级 |
 
 ## Hook 路由
 
 | 触发点 | 注册位置 | 说明 |
 |--------|----------|------|
-| 统一门禁 | `.claude/settings.json` → `hooks.PreToolUse` | pretool-gate.py（L1 5 道真安全门 / L2 15 道含末端校验）+ pretool-scorecard-gate.py（v2 路径预检），hook-launcher 合并 spawn（ADR0016） |
+| 统一门禁 | `.claude/settings.json` → `hooks.PreToolUse` | pretool-gate.py（门禁集单一真源＝该文件 `L1_GATES`/`GATES`，index47 精简为 L1 12 道 / L2 13 道）+ pretool-scorecard-gate.py（v2 路径预检），hook-launcher 合并 spawn（ADR0016） |
 | Hook 调度 | `.claude/hooks/hook-launcher.py` | 从 settings.json 按名启动具体 hook；支持单次 spawn 串行执行多 hook |
 
 ## 脚本快速索引

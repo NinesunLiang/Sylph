@@ -33,7 +33,7 @@ VALID_FAILURE_TYPES = {
     "enhance_model_unavailable",
     "oracle_unavailable",
     "meta_oracle_unavailable",
-    "context_overflow",       # context 窗口超 70%，跳过重试
+    # "context_overflow" 已随水位防线移除（2026-09-10 人类裁决）
     "cli_hook_failed",
     "python_script_failed",
     "audit_write_failed",
@@ -194,21 +194,14 @@ def risk_from_token(token: dict[str, Any] | None, explicit_risk: str | None = No
     return "low"
 
 
-def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None = None, context_usage_pct: float | None = None) -> FallbackDecision:
+def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None = None) -> FallbackDecision:
     if failure_type not in VALID_FAILURE_TYPES:
         failure_type = "unknown_failure"
 
-    # Context 溢出检测：超过 70% 窗口，强制 SKIP 不重试
-    if context_usage_pct is not None and context_usage_pct > 70.0:
-        return FallbackDecision(
-            "BLOCKED",
-            "context_overflow",
-            f"context_overflow:{context_usage_pct:.0f}%_exceeds_70%_threshold",
-            level_from_token(token),
-            level_from_token(token),
-            "high",
-            False,  # 不阻塞用户，自动跳过
-        )
+    # 2026-09-10 人类裁决：水位防线整体移除。
+    # 原 `context_usage_pct > 70.0` 强制 BLOCKED 分支已删除——该参数全仓无调用方传值
+    # （唯一引用即其自身签名），且全仓无测试覆盖，属 kernel.md 已删除水位的死实现。
+    # 上下文压缩改由 Claude Code 原生 compact 承担（见 adr/0006-carroros-intro.md）。
 
     level = level_from_token(token)
     risk = risk_from_token(token, explicit_risk)
@@ -223,18 +216,6 @@ def decide(failure_type: str, token: dict[str, Any], explicit_risk: str | None =
         "python_script_failed",
         "unknown_failure",
     }
-
-    # context_overflow 直通 SKIP（已在入口检测，这里兜底）
-    if failure_type == "context_overflow":
-        return FallbackDecision(
-            "BLOCKED",
-            "context_overflow",
-            f"context_overflow:throttled_by_context_window",
-            level,
-            level,
-            "high",
-            False,
-        )
 
     if failure_type in non_downgradeable:
         return FallbackDecision(

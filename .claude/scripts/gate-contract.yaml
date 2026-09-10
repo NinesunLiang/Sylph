@@ -16,7 +16,7 @@ L1:
     - doc-reference-before-delete
     - commit-soft-completion
     - governance-delete-protection
-    - stall
+    - injection-guard
   required_evidence:
     - audit_event: true
   enforcement:
@@ -36,16 +36,7 @@ L2:
     - doc-reference-before-delete
     - commit-soft-completion
     - governance-delete-protection
-    - stall
-    - verify
     - oracle
-    - document-quality
-    - g2-large-file
-    - g3-reviews
-    - g5-wide-glob
-    - g6-budget
-    - action-loop
-    - numeric-claim
     - injection-guard
   required_evidence:
     - audit_event: true

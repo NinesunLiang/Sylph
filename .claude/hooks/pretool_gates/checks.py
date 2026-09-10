@@ -535,44 +535,20 @@ def _check_governance_delete_protection(payload: dict) -> str | None:
     return None
 
 
-# ── Gate 6: Verify gate ──
-
-def _check_verify_gate(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path or not any(path.replace("\\", "/").endswith(p) for p in PLAN_FILE_PATTERNS):
-        return None
-    ti = _extract_input(payload)
-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
-    if not re.search(r"\[x\]", content, re.IGNORECASE):
-        return None
-    token = _active_token()
-    if not token:
-        return None
-    task = token.get("task", {})
-    if not isinstance(task, dict):
-        return None
-    current_step = task.get("current_step")
-    session = token.get("session", {})
-    task_id = session.get("id") if isinstance(session, dict) else None
-    if not _check_verified(current_step, task_id, _task_dir(token)):
-        _append_audit({"event_type": "verifygate_preaction_block", "actor": "hook:pretool-gate",
-                        "decision": "REDIRECT", "reason": "step_not_verified",
-                        "path": path, "current_step": current_step})
-        return f"REDIRECT step_{current_step}_not_VERIFIED|当前步骤 {current_step} 尚未通过验证。"
-    return None
-
-
 # ── Gate 7: Oracle gate ──
+
+# index47：L2 档位的等价写法。原判定为精确匹配 "L2_ENHANCE"，但全仓从未写入该值
+# （carros_base.py:1167/1909 均把 ("L2_ENHANCE", "L2") 视为同一档；历史 28 个任务
+# token 实测 level 全为 L1/L2）→ oracle 门自建成起从未生效（0/4458）。
+_ORACLE_L2_LEVELS = {"L2", "L2_ENHANCE"}
+
 
 def _check_oracle_gate(payload: dict) -> str | None:
     token = _active_token()
     if not token:
         return None
     session = token.get("session", {}) or {}
-    if session.get("level", "L1_BASE") != "L2_ENHANCE":
+    if str(session.get("level", "L1_BASE")) not in _ORACLE_L2_LEVELS:
         return None
     command = _extract_command(payload)
     if not command:
@@ -609,86 +585,16 @@ def _check_oracle_gate(payload: dict) -> str | None:
 
 # ── Document quality gate ──
 
-def _check_document_quality(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path or not path.endswith(".md"):
-        return None
-    ti = _extract_input(payload)
-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
-    if not content or len(content) < 50:
-        return None
-    warnings = []
-    if re.search(r"(?i)\bTODO\b", content) and re.search(r"(?i)\bFIXME\b", content):
-        warnings.append("含 TODO/FIXME 标记")
-    if re.search(r"(?i)\b(TBD|to be determined|under construction)\b", content):
-        warnings.append("含未完成标记")
-    if warnings:
-        msg = f"⚠️ [document-quality] {', '.join(warnings)} in {path}"
-        _append_audit({"event_type": "document_quality_warn", "path": path, "warnings": warnings})
-        print(msg, file=sys.stderr, flush=True)
-    return None
 
 
 # ── Context control gates ──
 
-def _check_g2_large_file(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path:
-        return None
-    try:
-        fpath = Path(path) if not Path(path).is_absolute() else Path(path)
-        if not fpath.exists():
-            return None
-        size = fpath.stat().st_size
-        if size > 500_000:
-            return f"NARROW g2-large-file: {path} ({size/1024:.0f}KB) 建议分小文件写入"
-    except Exception:
-        pass
-    return None
 
 
-def _check_g3_reviews(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path:
-        return None
-    ti = _extract_input(payload)
-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
-    if len(content) > 2000 and any(kw in content.lower() for kw in ("review", "pr", "merge", "commit")):
-        return f"CHECKPOINT_FIRST g3-review-large: 大段 review 内容,请先确认需要"
-    return None
 
 
-def _check_g5_wide_glob(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool != "bash":
-        return None
-    cmd = _extract_command(payload)
-    if not cmd:
-        return None
-    if re.search(r"\*\*/\*\.\w+|find\s+.*-name\s+['\"]?\*", cmd) and not re.search(r"\|", cmd):
-        return f"NARROW g5-wide-glob: 宽泛 glob 可能匹配大量文件,请确认范围"
-    return None
 
 
-def _check_g6_budget(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool != "bash":
-        return None
-    cmd = _extract_command(payload)
-    if not cmd:
-        return None
-    if re.search(r"(pip|npm|brew|conda)\s+(install|update|upgrade)\s", cmd, re.IGNORECASE):
-        return f"CHECKPOINT g6-dependency: 安装依赖,确认不影响项目"
-    return None
 
 
 
@@ -730,27 +636,6 @@ def _check_secret_scan(payload: dict) -> str | None:
 
 # ── Numeric claim gate ──
 
-def _check_numeric_claim(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in WRITE_TOOLS:
-        return None
-    path = _extract_path(payload)
-    if not path or not path.endswith(".md"):
-        return None
-    ti = _extract_input(payload)
-    content = str(ti.get("content", "") or ti.get("new_string", "") or "")
-    if not content:
-        return None
-    suspicious = []
-    for m in re.finditer(r"(?<!\d)(\d{2,}(?:\.\d+)?%|\d+(?:x|倍|ms|s|gb|mb|kb))(?!\d)", content, re.IGNORECASE):
-        line_num = content[:m.start()].count("\n") + 1
-        suspicious.append(f"L{line_num}:{m.group()[:30]}")
-    if suspicious:
-        _append_audit({"event_type": "numeric_claim_detected", "actor": "hook:pretool-gate",
-                        "decision": "WARN", "reason": "unattributed_numeric_claim",
-                        "path": path, "claims": suspicious[:5]})
-        print(f"⚠️ [numeric-claim] 无来源数值断言: {suspicious[:3]}", file=sys.stderr, flush=True)
-    return None
 
 
 # ── 优化2 (2026-08-30) Git commit 软完成语检测 ──
@@ -795,69 +680,10 @@ def _check_commit_soft_completion(payload: dict) -> str | None:
 
 # ── Action loop gate ──
 
-def _check_action_loop(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool != "bash":
-        return None
-    command = _extract_command(payload)
-    if not command or len(command) < 200:
-        return None
-    _loop_count_file = STATE_DIR / "action-loop-count.json"
-    _loop_reset_s = 300  # 5 min
-    _loop_threshold = 5
-    try:
-        if _loop_count_file.exists():
-            raw = json.loads(_loop_count_file.read_text(encoding="utf-8"))
-            if isinstance(raw, dict):
-                last_ts = raw.get("ts", 0)
-                count = raw.get("c", 0)
-                if time.time() - last_ts > _loop_reset_s:
-                    count = 0
-                count += 1
-                if count >= _loop_threshold:
-                    _append_audit({"event_type": "action_loop_detected", "actor": "hook:pretool-gate",
-                                    "decision": "BLOCK", "reason": f"action_loop_{count}_times"})
-                    return (f"BLOCK action_loop: 已连续 {count} 次长命令执行,可能陷入循环。"
-                            "请暂停当前方向,重新评估后重试。")
-                _loop_count_file.write_text(json.dumps({"c": count, "ts": time.time()}))
-    except Exception:
-        pass
-    return None
 
 
 # ── Stall detection gate ──
 
-def _check_stall(payload: dict) -> str | None:
-    tool = _extract_tool(payload).lower()
-    if tool not in READ_TOOLS:
-        return None
-    path = _extract_path(payload)
-    session_id_current = os.environ.get("HERMES_SESSION_ID") or ""
-    if not session_id_current:
-        return None
-    _stall_file = OMC / "state" / "stall-count.json"
-    _stall_reset_s = 120
-    _stall_threshold = 8
-    try:
-        if path and _stall_file.exists():
-            raw = json.loads(_stall_file.read_text(encoding="utf-8"))
-            if isinstance(raw, dict) and raw.get("path") == path and raw.get("session") == session_id_current:
-                if time.time() - raw.get("ts", 0) < _stall_reset_s:
-                    count = raw.get("c", 0) + 1
-                    if count >= _stall_threshold:
-                        _append_audit({"event_type": "stall_detected", "actor": "hook:pretool-gate",
-                                        "decision": "REDIRECT", "reason": f"stall_{count}_reads",
-                                        "path": path, "session_id": session_id_current[:16]})
-                        return (f"REDIRECT stall_reads: 已重复读取 {path} {count} 次。"
-                                "建议直接基于已读信息推进,不要反复确认。")
-                    _stall_file.write_text(json.dumps({"c": count, "ts": time.time(),
-                                                        "path": path, "session": session_id_current}))
-                else:
-                    _stall_file.write_text(json.dumps({"c": 1, "ts": time.time(),
-                                                        "path": path, "session": session_id_current}))
-    except Exception:
-        pass
-    return None
 
 
 # ── Injection guard gate ──

@@ -43,18 +43,6 @@ def main() -> int:
     record("META", "PASS" if git.returncode == 0 else "FAIL", f"git_commit={git.stdout.strip()}", "evidence capture")
 
     run(
-        "R1-WATER-CHAIN",
-        ["grep", "-R", "-n", "g6-budget", ".claude/hooks/pretool-gate.py"],
-        lambda rc, out, _err: rc == 0 and "g6-budget" in out,
-    )
-    run(
-        "R1-WATER-BOUNDS",
-        ["python3", "-c",
-         "import re; p=open('.claude/hooks/pretool_gates/checks.py').read(); "
-         "print('warn crit' if 'budget' in p and 'warning' in p.lower() else 'fail')"],
-        lambda rc, out, _err: rc == 0 and out.strip() == "warn crit",
-    )
-    run(
         "R2-PHASE3-MATRIX",
         ["python3", ".claude/scripts/phase3_matrix_test.py"],
         lambda rc, out, _err: rc == 0 and "PASS" in out.upper(),
@@ -69,8 +57,9 @@ def main() -> int:
         ["python3", "-m", "json.tool", ".omc/metrics/runtime-verify/h-cas-stale-evidence.json"],
         lambda rc, _out, _err: rc == 0,
     )
-    # index35 修复：评测环闭环——先跑 ga_behavioral_validation 产出 h-water-*.json，
-    # 否则 G4/G5 引用的 water 证据无人产生 → 断环失败。
+    # index47：原 G4/G5 依赖 h-water-*.json，由 ga_behavioral_validation 的 water 场景产生。
+    # 该场景实为自封循环——它验证的 g6-budget 门其实是依赖安装检查点，且水位防线在门禁层
+    # 从无实现（grep 无命中）。故连同场景一并删除，不作为验收证据。
     run(
         "GA-BEHAVIORAL-VALIDATION",
         ["python3", ".claude/scripts/ga_behavioral_validation.py"],
@@ -80,8 +69,6 @@ def main() -> int:
         ("G1-CONCURRENT-WRITER-CONFLICT", ".omc/metrics/runtime-verify/h-concurrent-writer-conflict.json"),
         ("G2-ARTIFACT-MISSING", ".omc/metrics/runtime-verify/h-artifact-missing.json"),
         ("G3-L5-RECOVERY", ".omc/metrics/runtime-verify/h-l5-recovery.json"),
-        ("G4-WATER-CRITICAL-HARD-PAUSE", ".omc/metrics/runtime-verify/h-water-critical-hard-pause.json"),
-        ("G5-WATER-PRETOOL-WHITELIST", ".omc/metrics/runtime-verify/h-water-pretool-whitelist.json"),
     ]:
         run(name, ["python3", "-m", "json.tool", path], lambda rc, _out, _err: rc == 0)
     print(f"Evidence captured: {EVIDENCE}")

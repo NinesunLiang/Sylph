@@ -96,19 +96,64 @@ def test_placeholder_contract_does_not_match_embedded_marker_text():
     assert not contracts.is_placeholder(text)
 
 
-def test_plan_builder_emits_acceptance_fields():
-    plan = ROOT / ".omc/tasks/20260811/CarrorOS--AI--C1-C9E1-E8-UX/plan.md"
-    text = plan.read_text(encoding="utf-8")
+def _load_carros_base():
+    """按需加载 carros_base.py（骨架生成器所在模块）。"""
+    spec = importlib.util.spec_from_file_location(
+        "carros_base_under_test", ROOT / ".claude/scripts/carros_base.py")
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def test_plan_scaffold_emits_acceptance_fields(tmp_path, monkeypatch):
+    """plan 骨架必须带 scope / acceptance / verify 三字段。
+
+    index46 S5：原测试读取 `.omc/tasks/20260811/...` 的实体产物，该任务已归档 →
+    文件消失 → 测试永久性腐坏。改为直接断言**生成器**的输出（自足、不依赖历史文件）。
+    """
+    cb = _load_carros_base()
+    plan_path = tmp_path / "plan.md"
+    monkeypatch.setattr(cb, "PLAN_PATH", plan_path)
+    monkeypatch.setattr(cb, "RESEARCH_PATH", tmp_path / "research.md")
+    monkeypatch.setattr(cb, "EXECUTOR_PATH", tmp_path / "executor.md")
+
+    cb._write_goal_scaffolds()
+
+    text = plan_path.read_text(encoding="utf-8")
     assert "acceptance:" in text
     assert "scope:" in text
     assert "verify:" in text
 
 
-def test_research_dependency_tree_requires_bullet():
-    research = ROOT / ".omc/tasks/20260811/CarrorOS--AI--C1-C9E1-E8-UX/research.md"
-    text = research.read_text(encoding="utf-8")
-    section = text.split("## 依赖树", 1)[1].split("## 方案", 1)[0]
-    assert any(line.startswith("-") for line in section.splitlines())
+def test_research_gate_rejects_dependency_tree_without_bullet(tmp_path):
+    """ResearchGate 契约：依赖树无 bullet 必须拒；有 bullet 必须放行。
+
+    index46 S5：原测试读取已归档任务的 research.md（文件已消失，永久腐坏）。
+    且它断言的是「AI 写出来的文档」——本质不可作为稳定单测。改测**门禁行为**本身。
+    """
+    no_bullet = tmp_path / "research_no_bullet.md"
+    no_bullet.write_text(
+        "# Research\n\n## 背景\n真实背景内容。\n\n## 约束\n真实约束内容。\n\n"
+        "## 已知信息\n真实已知信息。\n\n## 不确定性\n真实不确定性。\n\n"
+        "## 全貌\n真实现状全貌。\n\n## 依赖树\n依赖表格如下，但没有任何 bullet 行。\n\n"
+        "## 方案\n真实方案内容。\n\n## Dependency TDD\n真实 TDD 说明。\n",
+        encoding="utf-8")
+
+    with pytest.raises(contracts.ResearchGateError) as exc:
+        contracts.ResearchGate.validate(no_bullet)
+    assert any("bullet" in str(e) for e in exc.value.errors)
+
+    with_bullet = tmp_path / "research_with_bullet.md"
+    with_bullet.write_text(
+        no_bullet.read_text(encoding="utf-8").replace(
+            "依赖表格如下，但没有任何 bullet 行。",
+            "- app.py → 被 S2 依赖 → 单测通过"),
+        encoding="utf-8")
+
+    result = contracts.ResearchGate.validate(with_bullet)
+    assert result["valid"] is True
+    assert result["dep_tree_count"] >= 1
 
 
 def test_default_goal_slug_is_unique_across_activations():

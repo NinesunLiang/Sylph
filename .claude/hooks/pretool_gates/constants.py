@@ -49,9 +49,17 @@ SENSITIVE_PATTERNS = [
 READ_SENSITIVE_PATTERNS = [
     r"(^|/)\.env(\.|$|/)", r"(^|/)\.ssh(/|$)", r"(^|/)\.aws(/|$)",
     r"(^|/)\.gcp(/|$)", r"(^|/)\.azure(/|$)", r"id_rsa", r"id_ed25519",
-    r"private[_-]?key", r"(^|/)secret\b", r"(^|/)credential(s)?\b",
-    r"(^|/)password\b", r"(^|/)\.[a-z_-]*(token|oauth|jwt|api[_-]?key)[a-z_-]*\b",
-    r"cookie",
+    r"private[_-]?key",
+    # index46 S5 (G3)：由「路径子串 + \b」收紧为「路径段精确匹配（可带扩展名）」。
+    # 旧式 `(^|/)secret\b` 有两处错：leak 误报——`secret-leak/` 目录（评测/审计命名）
+    # 被当成凭据文件拦下，导致脱敏副本自身不可读；漏报——`/proj/secrets` 因 s 后无
+    # 词边界而根本不拦。新式同时修正两者。真实凭据实防另由 `.env`/`.ssh`/`.aws`/
+    # `id_rsa` 模式 + 内容扫描（SECRET_CONTENT_COMPILED）继续兜底。
+    r"(^|/)secrets?(\.[A-Za-z0-9]{1,10})?(/|$)",
+    r"(^|/)credentials?(\.[A-Za-z0-9]{1,10})?(/|$)",
+    r"(^|/)passwords?(\.[A-Za-z0-9]{1,10})?(/|$)",
+    r"(^|/)\.[a-z_-]*(token|oauth|jwt|api[_-]?key)[a-z_-]*\b",
+    r"(^|/)cookies?(\.[A-Za-z0-9]{1,10})?(/|$)",
 ]
 
 # ── Dangerous command patterns ──

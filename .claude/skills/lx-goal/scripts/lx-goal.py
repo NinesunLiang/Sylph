@@ -1507,6 +1507,18 @@ def parse_on_args(args: list[str]) -> tuple[str, int, str | None]:
     return " ".join(goal_parts), expiry, task_id
 
 
+_COMMAND_WORD_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*$")
+
+
+def _looks_like_command_word(arg: str) -> bool:
+    """裸词判定（PE-001 守卫）。
+
+    单个纯 ASCII 词（如 tick / verify / resume / archive / typo）视为「敲错的子命令」，
+    不当作目标描述。含空格的多词描述、含 CJK 的词（如「重构」）不在此列，仍走自然语言入口。
+    """
+    return bool(_COMMAND_WORD_RE.match(arg))
+
+
 def _usage() -> str:
     cmds = "、".join(sorted(k for k in KNOWN_SUBCOMMANDS if k != "_update-lock"))
     return (
@@ -1544,6 +1556,17 @@ def main():
         sys.exit(2)
 
     if sys.argv[1] not in KNOWN_SUBCOMMANDS:
+        # index46 S5 / PE-001：裸词守卫。
+        # 实证：`lx-goal.py tick --task-dir <p>` 曾把整串当目标描述静默 cmd_on，
+        # 建出垃圾 task + 带 lock 的活跃 token（垃圾 token 又被后续扫描当活跃任务）。
+        # 判据：单个纯 ASCII 词 = 多半是敲错的子命令，不是目标描述 → 报错退出。
+        # 多词描述与单个 CJK 词（如「重构」）仍按自然语言入口自动激活。
+        if _looks_like_command_word(sys.argv[1]):
+            print(f"ERROR: 未知子命令 {sys.argv[1]!r}——为避免误建任务，裸词不再当作目标描述。",
+                  file=sys.stderr)
+            print("若要激活目标，请用: lx-goal.py on \"<目标描述>\"", file=sys.stderr)
+            print(_usage(), file=sys.stderr)
+            sys.exit(2)
         # 非子命令文本 → 当作目标描述自动激活
         raw = sys.argv[1:]
         goal = " ".join(raw)
