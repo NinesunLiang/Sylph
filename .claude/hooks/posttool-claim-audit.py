@@ -53,8 +53,8 @@ def _autofix_log_edit_repeat(file_path: str, _mode: str) -> bool:
             "autofixed": True,
             "message": f"Edit count exceeded threshold in {file_path} — autofix logged",
         }
-        _CONTRADICTION_LOG = STATE_DIR / 'edit-churn-log.jsonl'
-        with open(_CONTRADICTION_LOG, 'a', encoding='utf-8') as f:
+        _CHURN_LOG = STATE_DIR / 'edit-churn-log.jsonl'
+        with open(_CHURN_LOG, 'a', encoding='utf-8') as f:
             f.write(json.dumps(ev, ensure_ascii=False) + "\n")
         return True
     except Exception:
@@ -279,20 +279,20 @@ def main():
         # 同一文件编辑次数 / 唯一内容 hash 数，值越低越健康
         _edit_count_snapshot = 1
         _unique_hash_count = 1
-        _revert_of = None
         try:
             with open(_EH_LOG, encoding='utf-8') as _eh_temp:
                 _file_edits = [json.loads(lx) for lx in _eh_temp if lx.strip() and FILE_PATH in lx]
                 _edit_count_snapshot = len(_file_edits) + 1
                 _unique_hash_count = len(set(r.get('content_hash', '') for r in _file_edits)) + 1
-                # E6 revert 检测（精专化）：当前内容 hash 曾在历史中出现 → 内容回退到之前版本。
-                # 此前 revert_of 恒 None（死代码），E6-2 REVERT_DETECTED 从未真实触发。
-                if _hash and any(r.get('content_hash') == _hash for r in _file_edits):
-                    _revert_of = _hash[:16]
         except Exception:
             pass
         _patience_score = round(_edit_count_snapshot / max(1, _unique_hash_count), 2)
 
+        # index48：原 `contradiction` / `revert_of` 两个字段已移除——其唯一消费者
+        # （E6 的 CONTRADICTION / REVERT_DETECTED 分支）已删除：
+        #   · contradiction 由本处硬编码 False → 读取方判 is True，结构上不可能触发
+        #   · revert_of 的写入侧于 2026-08-12 修好，但此后 263 条真实记录中全为空
+        #     （12 天零触发），且其计算需每次编辑全量读一遍 churn 日志 → 有成本无收益
         _eh_entry = {
             "ts": int(time.time()),
             "file_path": FILE_PATH,
@@ -302,8 +302,6 @@ def main():
             "patience_score": _patience_score,
             "sig": _hash,
             "edit_count": _edit_count_snapshot,
-            "contradiction": False,
-            "revert_of": _revert_of,
             "content_hash": _hash,
         }
         with _EH_LOG.open("a", encoding="utf-8") as _eh_f:
@@ -323,12 +321,12 @@ def main():
 
     # === E6 自我矛盾检测 ===
     E6_VIOLATIONS = ''
-    CONTRADICTION_LOG = STATE_DIR / 'edit-churn-log.jsonl'
-    if CONTRADICTION_LOG.is_file() and FILE_PATH:
+    CHURN_LOG = STATE_DIR / 'edit-churn-log.jsonl'
+    if CHURN_LOG.is_file() and FILE_PATH:
         E6_CHECK = ''
         try:
             matching = []
-            with open(CONTRADICTION_LOG, encoding='utf-8') as f:
+            with open(CHURN_LOG, encoding='utf-8') as f:
                 for line in f:
                     if FILE_PATH in line:
                         try:
@@ -336,15 +334,14 @@ def main():
                         except Exception:
                             pass
             if len(matching) >= 2:
-                contradicted = [r for r in matching if r.get('contradiction') is True]
-                reverted = [r for r in matching if r.get('revert_of') is not None]
                 max_edits = max((r.get('edit_count', 0) for r in matching), default=0)
                 unique_sigs = len(set(r.get('sig', '') for r in matching))
 
-                # E6-1: CONTRADICTION — intent-tracker 显式标记矛盾
-                # E6-2: REVERT_DETECTED — 内容回退（revert_of 非空）
-                # E6-3: EDIT_REPEAT — 同一文件高频编辑（精专化：门槛 4→8，豁免证据类文件）
-                # E6-4: CONTENT_FLIP — 连续 3+ 次编辑 hash 均不同，方向摇摆
+                # index48（人类裁决「删死枝，留活枝」）：原 E6-1 CONTRADICTION 与
+                # E6-2 REVERT_DETECTED 两个分支已移除——前者读取的 contradiction 字段
+                # 由唯一写入方硬编码为 False（结构上不可能为真），后者读 revert_of
+                # 在 263 条真实记录中全为空。二者 12 天真实触发均为 0。
+                # 保留：E6-3 EDIT_REPEAT（即人类裁决保留的 K2 防抖）与 E6-4 CONTENT_FLIP。
 
                 # 精专化（治理精专化 S3）：证据/治理产物文件合法追加（executor.md / evidence.jsonl /
                 # state/** / *.json.lock）不应触发 EDIT_REPEAT；门槛从 4 提到 8（降合法编辑误报）。
@@ -358,17 +355,7 @@ def main():
                 recent_hashes = [r.get('content_hash', '') for r in matching[-3:]]
                 content_flip_flag = not _is_evidence_file and len(recent_hashes) >= 3 and len(set(recent_hashes)) == len(recent_hashes)
 
-                if contradicted:
-                    E6_CHECK_parts = [f"[E6] CONTRADICTION: {FILE_PATH} — {len(contradicted)} 条标记为 contradiction=true"]
-                    for c in contradicted[:2]:
-                        E6_CHECK_parts.append(f"  · sig={c.get('sig','')[:16]}... type={c.get('type','?')}")
-                    E6_CHECK = '\n'.join(E6_CHECK_parts)
-                elif reverted:
-                    E6_CHECK_parts = [f"[E6] REVERT_DETECTED: {FILE_PATH} — {len(reverted)} 条 revert_of 非空"]
-                    for r in reverted[:2]:
-                        E6_CHECK_parts.append(f"  · revert_of={r.get('revert_of','')[:16]}...")
-                    E6_CHECK = '\n'.join(E6_CHECK_parts)
-                elif edit_repeat_flag:
+                if edit_repeat_flag:
                     E6_CHECK_parts = [f"[E6] EDIT_REPEAT: {FILE_PATH} — 编辑{max_edits}次，{unique_sigs}个签名，可能未收敛"]
                     if _AUTONOMOUS_LOCAL:
                         _autofix_log_edit_repeat(FILE_PATH, _MODE)
@@ -386,7 +373,8 @@ def main():
             pass
 
         if E6_CHECK:
-            if 'CONTRADICTION' in E6_CHECK or 'REVERT_DETECTED' in E6_CHECK or 'EDIT_REPEAT' in E6_CHECK or 'CONTENT_FLIP' in E6_CHECK:
+            # index48：判定串同步收敛——仅剩 EDIT_REPEAT / CONTENT_FLIP 两个活分支。
+            if 'EDIT_REPEAT' in E6_CHECK or 'CONTENT_FLIP' in E6_CHECK:
                 E6_VIOLATIONS = '⚠️ E6_SELF_CONTRADICTION: ' + E6_CHECK + '\n'
                 flywheel_event('posttool_claim_audit', 'e6_pattern_detected', 'P2')
             else:
