@@ -1,79 +1,61 @@
 ---
 name: lx-pre-push
-version: v2.2.0
-description: "推送前安全检查 — commit规范校验 + 安全扫描 + 变更审计。纯指令调用，不接入治理管线。每次push前执行。"
-when_to_use: "Use before git push. Pure command trigger. One check per push."
+version: v3.0.0
+description: "推送前深度检查 — 安全/边界/破坏性/依赖性，复用仓库自带能力，不依赖未安装的外部工具。纯指令调用，每次 push 前执行。"
+when_to_use: "Use before git push. Deep gate: security, boundary, destructiveness, dependency. One check per push."
 argument-hint: ""
 harness_version: ">=6.3.0"
 status: stable
-role: "Pre-push security gate — commit convention, security scan, change audit. Command-only."
+role: "Pre-push deep gate — security, boundary, destructive, dependency. Repo-native, no external tools."
 execution_mode: stepwise
 triggers:
   - "/lx-pre-push"
 ---
-# lx-pre-push — 推送前安全检查
+# lx-pre-push — 推送前深度检查
 
-> 纯指令调用，不接入治理管线。每次 push 前执行一次重度检查。
+> 纯指令调用，不接入治理管线。**每次 push 前**跑一次。生产的安全最后一道闸。
 
-## 流程
+## 定位（index50 重建）
 
-> 每个 Gate 失败时必须设置 `exit code = 1`。任一 Gate 🔴 即停止后续检查，立即输出**阻塞推送**。
+**深、复用仓库已有能力、不猜项目类型、不依赖外部工具。**
 
-### Gate 0 — Commit Message 规范校验
+| 旧版问题 | 新版 |
+|---|---|
+| 安全扫描靠 `pip-audit`/`gosec`——**本仓均未安装**，而规则是「工具缺失 → 阻塞」→ **每次 push 恒卡死** | 复用仓库自带的密钥模式库（`pretool_gates/constants`），**零外部依赖** |
+| 无「边界」检查 | **新增**：改动是否触碰禁止路径 |
+| 「破坏性」只有敏感文件+二进制 | **新增**：被删文件是否仍被引用（悬空引用） |
+| 无「依赖性」检查 | **新增**：改动文件**被谁引用**，暴露影响面 |
+| 靠「项目类型」分支 | 按**改动内容**判定 |
 
-检查待推送 commits 的 message 格式。
+## 执行
 
-范围：
-1. 当前分支名 → 确定目标分支（`git branch -a` 含 `main` / `master` / `develop`）
-2. `git log origin/<target-branch>..HEAD --oneline --no-merges`
-3. 目标分支不存在或新分支无 upstream → 跳过 Gate 0，**不阻塞**（首次推送无历史可对比）
-4. 降级 `git log @{push}..HEAD --oneline`（仅当 upstream 已建立）
-
-```regex
-^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\(.+\))?: .{1,72}
+```bash
+python3 ".claude/scripts/pre_push_check.py"
 ```
 
-不规范 → 列出具体不符的 commit hash + message → **阻塞推送**。
+## 四项检查
 
-### Gate 1 — 安全扫描
+| # | 检查 | 内容 | 失败行为 |
+|---|---|---|---|
+| 1 | **安全** | 改动内容是否含密钥/凭据（仓库自带模式库） | ❌ **阻断** |
+| 2 | **边界** | 是否触碰禁止路径（`.env`/`secrets/`/`.ssh/`/`.aws/`/`docs/carros/reviews/`） | ❌ **阻断** |
+| 3 | **破坏性** | 被删除的文件是否**仍被引用**（悬空引用） | ❌ **阻断** |
+| 4 | **依赖性** | 被修改的文件**被谁引用**——影响面清单 | ✅ 仅暴露，供确认 |
 
-按项目类型执行：
+## 关键实现细节（实跑教训）
 
-| 类型 | 命令 | 🔴阻断 | 🟡不阻塞 |
-|------|------|:------:|:--------:|
-| Go | `go vet ./...` + `gosec ./...`（如已安装 gosec） | 有 vet / gosec 错误 | — |
-| Node | `npm audit --production` | 有 critical 漏洞 | 有 high 漏洞 |
-| Python | `pip-audit` 或 `pip list --outdated` | 有已知漏洞 | 有版本过期 |
-
-**安全扫描不可用或失败 → 🔴 阻塞推送**。不跳过，不标注放行。
-
-### Gate 2 — 变更审计
-
-用 `git diff origin/main..HEAD --stat --name-only` 检查待推送变更：
-
-- `.env*` / `*.pem` / `*.key` / `id_rsa*` / `credentials*` / `secret*` / `token*` → **🔴 阻塞推送**
-- 二进制文件 `>1MB`（扩展名: .exe .dll .so .dylib .bin .dat .zip .tar.gz .img .iso） → **🟡 警告不阻塞**
-- 注释中的 `TODO`/`FIXME`/`DEBUG`/`console.log`/`print()` → **🟡 警告不阻塞**
-
-### 最终判定
-
-**每一门独立执行。任一 Gate 标记 🔴，立即 exit 1，不继续执行后续 Gate。**
-
-```
-📋 lx-pre-push 推送门禁结果
-Gate 0 Commit格式:  ✅ / ❌ {N} commits 检查
-Gate 1 安全扫描:    ✅ / ❌ / 🟡={N} 警告
-Gate 2 变更审计:    ✅ / ❌ / 🟡={N} 警告
-判定: [✅ 允许推送 / ❌ 阻塞推送]
-```
-
-**任何一门标记 🔴 必须阻塞推送。**
+- **比对基线用当前分支的 upstream**（`@{u}`）。本仓当前分支是 `release`，其 upstream 是
+  `origin/release`，而 `origin/HEAD` 指向 `origin/main`——**拿后者比会得出 391 个「改动」，完全失真**。
+- **测试夹具降级为警告**：`test_*.py` 里的 `sk-...` 是验证门禁用的夹具，不是真泄漏。
+  业界密钥扫描器普遍排除测试夹具，此处同办；**非测试文件命中仍 🔴 阻断**。
+- **引用识别要看「去扩展名」的形式**：代码里是 `from helper import x`，**不带 `.py`**。
+  只搜文件名会漏判真实依赖。
+- **扫描面用 `git ls-files`**，不用 `rglob`——后者会扫进 `node_modules/.git`，实测慢到超时。
 
 ## 降级
 
-| 场景 | 降级 |
-|------|------|
-| `git log` / `git diff` 无目标分支 | 用 `@{push}` 替代 |
-| 安全扫描工具缺失 | ❌ **阻塞**（不跳过） |
-| 命令超时(>120s) | ⏱️ 超时后建议手动检查，但仍**阻塞推送** |
-| 项目类型未知 | 跳过安全扫描，但**阻塞推送**提醒手动检查 |
+| 场景 | 处理 |
+|---|---|
+| 无 upstream（首次推送） | 退化为与 `HEAD` 比较，不空转 |
+| 密钥模式库不可用 | ❌ **阻断**（fail-closed，安全项不可降级） |
+| 无待推送改动 | 直接通过 |
