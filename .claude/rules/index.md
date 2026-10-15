@@ -6,6 +6,7 @@
 |------|------|
 | `bash-style.md` | Bash 脚本风格规范 |
 | `terminal-safety.md` | 终端使用安全规则 |
+| `external-knowledge.md` | 项目外知识获取优先级：官方 > 社区大牛 > 自研（不许跳级） |
 
 ## 使用方式
 

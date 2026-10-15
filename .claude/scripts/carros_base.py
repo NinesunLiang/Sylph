@@ -28,7 +28,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 # ─── Dependencies: sibling modules ───
 _hook_dir = Path(__file__).parent
@@ -285,6 +285,39 @@ def _init_paths_from_token(token, found_path):
 
 # ─── ANSI helpers ───
 def _green(s): return f"\033[32m{s}\033[0m"
+def _maybe_run_jev_shadow(step_id):
+    """JEV-C shadow（P1-b）——对交付物做规则轮询，只写记录，**不改变任何结论**。
+
+    硬约束（必须永远成立）：
+      1. 默认关闭；只有 CARROROS_JEV_SHADOW=1 时才跑。
+      2. 跑失败只是跳过，绝不抛错、绝不 return 非零影响调用方。
+      3. 只写 .omc/state/jev/ 下的清单与账本；不碰 plan / token / executor / audit。
+      4. 不改变 VerifyGate 结论、Goal 状态、complete_step_atomic 的调用与否。
+
+    为什么用子进程而不是 import：把崩溃面和主进程隔离开。
+    一次 shadow 崩了，最坏结果是这一条记录没有，而不是 verify 挂掉。
+    """
+    if os.environ.get("CARROROS_JEV_SHADOW") != "1":
+        return
+    if not TASK_DIR:
+        return
+    try:
+        import subprocess as _sp
+        cmd = [
+            sys.executable,
+            str(Path(__file__).resolve().parent / "jev_sweep.py"),
+            "--task-dir", str(TASK_DIR),
+            "--samples", os.environ.get("CARROROS_JEV_SAMPLES", "1"),
+        ]
+        # 不捕获输出：让清单摘要（含「待人工复核 N 条」）直接出现在 verify 的终端里。
+        # 产出必须有人看得见，否则等于没有出口。
+        r = _sp.run(cmd, timeout=300, check=False)
+        if r.returncode != 0:
+            print(_yellow(f"   ↳ JEV-C shadow 跳过（exit {r.returncode}）"))
+    except Exception as exc:  # noqa: BLE001 —— shadow 绝不影响主流程
+        print(_yellow(f"   ↳ JEV-C shadow 跳过: {type(exc).__name__}"))
+
+
 def _yellow(s): return f"\033[33m{s}\033[0m"
 def _red(s): return f"\033[31m{s}\033[0m"
 def _bold(s): return f"\033[1m{s}\033[0m"
@@ -1773,6 +1806,12 @@ def cmd_verify(step_id=None, all_steps=False):
             if required:
                 print(_yellow(f"   需要: {required}"))
             return 2
+
+        # ── JEV-C shadow（P1-b）：只记录，不改变任何结论 ──
+        # 位置固定在「机械 VerifyGate 允许继续之后、complete_step_atomic 之前」。
+        # 默认关闭；开关打开时也只是跑一遍并把清单写到 .omc/state/jev/，
+        # 不碰 VerifyGate 结论、Goal 状态、plan、token、executor 或 audit。
+        _maybe_run_jev_shadow(target)
 
         # ── Task75 Atomic Evidence Gate (non-degraded) ──
         # complete_step_atomic validates evidence, updates plan [x], token done++

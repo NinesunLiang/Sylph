@@ -21,3 +21,5 @@ benchmark/runs/
 .claude/state/handoff.json
 .claude/state/snapshots/precompact-*.json
 improve_plan
+.tooling/
+apps
