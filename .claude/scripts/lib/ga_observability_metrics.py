@@ -50,48 +50,48 @@ def token_controllable_tokens(token: dict[str, Any], fallback: int) -> int:
     context = token.get("context", {}) if isinstance(token.get("context"), dict) else {}
     session = token.get("session", {}) if isinstance(token.get("session"), dict) else {}
     for source in (context, session, token):
-        value = source.get("controllable_tokens") or source.get("token_used") or source.get("context_tokens")
-        if isinstance(value, int):
-            return value
+        for key in ("controllable_tokens", "token_used", "context_tokens"):
+            value = source.get(key)
+            if isinstance(value, int):
+                return value
     return fallback
+
+
+def _sum_event_counts(keys: tuple[str, ...], sources: tuple[dict[str, Any], ...]) -> int:
+    """Sum explicitly recorded event counts; absent fields mean zero events."""
+    return sum(
+        value
+        for source in sources
+        for key in keys
+        for value in (source.get(key),)
+        if isinstance(value, int)
+    )
 
 
 def token_l5_count(token: dict[str, Any]) -> int:
     session = token.get("session", {}) if isinstance(token.get("session"), dict) else {}
     compact = token.get("compact", {}) if isinstance(token.get("compact"), dict) else {}
-    total = 0
-    for source in (session, compact, token):
-        for key in ("l5_count", "l5_triggers", "auto_compact_l5_count"):
-            value = source.get(key)
-            if isinstance(value, int):
-                total += value
-        total += 1
-    return total
+    return _sum_event_counts(
+        ("l5_count", "l5_triggers", "auto_compact_l5_count"),
+        (session, compact, token),
+    )
 
 
 def token_compact_count(token: dict[str, Any]) -> int:
     session = token.get("session", {}) if isinstance(token.get("session"), dict) else {}
     compact = token.get("compact", {}) if isinstance(token.get("compact"), dict) else {}
-    total = 0
-    for source in (session, compact, token):
-        for key in ("compact_count", "compact_requests", "compacts"):
-            value = source.get(key)
-            if isinstance(value, int):
-                total += value
-        total += 1
-    return total
+    return _sum_event_counts(
+        ("compact_count", "compact_requests", "compacts"),
+        (session, compact, token),
+    )
 
 
 def token_critical_count(token: dict[str, Any]) -> int:
     session = token.get("session", {}) if isinstance(token.get("session"), dict) else {}
-    total = 0
-    for source in (session, token):
-        for key in ("critical_trip_count", "water_critical_count"):
-            value = source.get(key)
-            if isinstance(value, int):
-                total += value
-        total += 1
-    return total
+    return _sum_event_counts(
+        ("critical_trip_count", "water_critical_count"),
+        (session, token),
+    )
 
 
 def token_status(token: dict[str, Any]) -> str:
