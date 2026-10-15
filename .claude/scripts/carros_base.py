@@ -326,6 +326,35 @@ def _bold(s): return f"\033[1m{s}\033[0m"
 # Token helpers
 # ═══════════════════════════════════════════
 
+def _normalize_level(level: str) -> str:
+    """Normalize the only two supported governance levels."""
+    normalized = str(level or "").upper()
+    if normalized not in {"L1", "L2"}:
+        raise ValueError(f"unsupported level {level!r}; expected L1 or L2")
+    return normalized
+
+
+def _is_l2_nonlight(token: dict) -> bool:
+    session = token.get("session") or {}
+    task = token.get("task") or {}
+    return str(session.get("level", "")).upper() == "L2" and task.get("mode") != "light"
+
+
+def _is_l2_goal(token: dict) -> bool:
+    session = token.get("session") or {}
+    return (
+        str(session.get("level", "")).upper() == "L2"
+        and token.get("mode") == "goal"
+    )
+
+
+def _verify_decision_allowed(level: str, task_mode: str | None, decision: str) -> bool:
+    """L2 non-light tasks require the strict VERIFIED verdict."""
+    if str(level or "").upper() == "L2" and task_mode != "light":
+        return decision == "VERIFIED"
+    return decision in {"VERIFIED", "WARN"}
+
+
 def _default_token(task_id=None, level="L1", steps=None, light=False):
     now = datetime.now(timezone.utc)
     suffix = _get_date_str()
@@ -528,7 +557,7 @@ def _write_default_plan(steps=None):
     if steps is None:
         steps = ["S1"]
     PLAN_PATH.parent.mkdir(parents=True, exist_ok=True)
-    lines = ["# Plan\n", "", "## Goal\n\n", "## Scope\n\n"]
+    lines = ["# Plan\n", "", "## Goal\n\n", "## Scope\n\n", "## 依赖树\n\n", "- 本任务依赖由执行前调研确认；无依赖时明确记录 `none`。\n\n"]
     lines.append("> 引导：verify 规则请写成可真实验证的格式（按优先级）：\n")
     lines.append(">   1. `file: <路径> contains \"<内容>\"` — VerifyGate 真实读文件验证\n")
     lines.append(">   2. `command: <命令>` — VerifyGate 真实执行验证\n")
@@ -1144,6 +1173,15 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
     light=True: 流程规模自适应（index34）— 简单任务 L1-light 直通，免 research/plan ceremony。
     """
     from carros_core import _print_path_contract  # 函数级懒 import(design-doc 15 M0)
+    try:
+        level = _normalize_level(level)
+    except ValueError as exc:
+        print(_red(f"❌ {exc}"), file=sys.stderr)
+        raise
+    if task_mode == "goal" and level != "L2":
+        raise ValueError("goal tasks require level L2")
+    if task_mode == "goal" and light:
+        raise ValueError("goal tasks cannot use light mode")
     # S3: 任务名合法性校验（防路径逃逸）— 复用 task_paths SSOT
     if task_id:
         try:
@@ -1180,8 +1218,9 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
             intake_script = _hook_dir / "intake_gate.py"
             if intake_script.exists():
                 cmd = [sys.executable, str(intake_script), user_request]
-                if level in ("L2_ENHANCE", "L2"):
-                    cmd.append("--enhance-available")
+                # 风险分级不是能力猜测：入口始终声明可用 L2，
+                # 由 IntakeGate 决定 L1/L2/ASK_USER/BLOCKED。
+                cmd.append("--enhance-available")
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
                 if result.returncode in (0, 1):
                     try:
@@ -1194,6 +1233,9 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
                         if decision == "BLOCKED":
                             print(_red(f"❌ BLOCKED: {intake['next_action']}"))
                             return 2
+                        if decision == "L2" and level != "L2":
+                            level = "L2"
+                            print(_yellow("   IntakeGate 将任务提升为 L2 完整治理"))
                         elif decision == "ASK_USER":
                             print(_yellow(f"⚠  ASK_USER: {intake['next_action']}"))
                             for c in intake.get("required_confirmations", []):
@@ -1545,11 +1587,10 @@ _ORACLE_SEVERITY: dict[str, int] = {
 
 
 def _aggregate_verdicts(v1: str, v2: str) -> str:
-    """取两个 Oracle verdict 中更严者（纯函数，不调用 LLM）。
+    """兼容 facade：委托纯函数 seam，保持旧调用方不变。"""
+    from carros_core import aggregate_verdicts
 
-    严重度: REJECT > ESCALATE > ADVISORY > ACCEPT > UNAVAILABLE
-    """
-    return v1 if _ORACLE_SEVERITY.get(v1, 0) >= _ORACLE_SEVERITY.get(v2, 0) else v2
+    return aggregate_verdicts(v1, v2, _ORACLE_SEVERITY)
 
 
 def _write_unverified_marker(task_id: str) -> Path:
@@ -1781,7 +1822,8 @@ def cmd_verify(step_id=None, all_steps=False):
             print(_red("❌ Cannot resolve current step from plan.md"))
             return 2
 
-    level = token.get("session", {}).get("level", "L1_BASE")
+    level = token.get("session", {}).get("level", "L1")
+    task_mode = (token.get("task") or {}).get("mode")
     # Oracle 审阅按需调用(skill 化,不内嵌工作流): carros_base.py oracle-plan
     verified_any = False
     plan_steps = step_contracts.parse_plan_steps(plan) if step_contracts else []
@@ -1794,9 +1836,16 @@ def cmd_verify(step_id=None, all_steps=False):
         # ── VerifyGate 接线（PKG-A）：无证据不 [x]，fail-closed ──
         decision, reason, gate_payload = _run_verify_gate(target)
         degraded = False
+        if not _verify_decision_allowed(level, task_mode, decision):
+            _write_audit("verify", {
+                "step": target, "result": decision, "reason": reason,
+                "required": "VERIFIED for L2 non-light",
+            })
+            print(_red(f"❌ {target}: L2 非 light 任务必须 VERIFIED，实际 {decision} — {reason}"))
+            return 2
         if decision in ("VERIFIED", "WARN"):
             pass
-        elif level != "L2_ENHANCE" and reason in ("no_verify_rules", "executor_missing"):
+        elif level != "L2" and reason in ("no_verify_rules", "executor_missing"):
             # L1 轻量任务无验证契约：允许标记但必须留痕（不产生 VERIFIED，Gate6 不放行）
             degraded = True
         else:
@@ -1927,8 +1976,8 @@ def cmd_oracle_plan() -> int:
         print(_red("❌ No active task"))
         return 2
 
-    level = token.get("session", {}).get("level", "L1_BASE")
-    if level not in ("L2_ENHANCE", "L2"):
+    level = token.get("session", {}).get("level", "L1")
+    if level != "L2":
         print(_yellow("⚠  oracle-plan 仅适用于 L2 任务，当前跳过"))
         return 0
 
@@ -2058,6 +2107,10 @@ def cmd_archive(force=False):
     print(_bold("Archiving task..."))
 
     # Step 1: run lint — 仅 error (exit>=2) 阻断，warning (exit=1) 可归档
+    token_preview = _load_token() or {}
+    if force and _is_l2_nonlight(token_preview):
+        print(_red("❌ L2 非 light 任务禁止 archive --force；必须完成完整验证链"))
+        return 2
     if not force:
         lint_ok = cmd_lint()
         if lint_ok >= 2:
@@ -2121,7 +2174,8 @@ def cmd_archive(force=False):
         # 使 goal 永远停在 EXECUTING，archive 又要求 VERIFYING（鸡生蛋，index44 实测 +
         # memory verifying-handoff-gap）。识别「唯一 pending 且 verify 含 archive」的终末
         # 步骤，在此自动完成并推进 VERIFYING（写审计），随后按正常流程归档。
-        if (archive_gate.current_state == gsm.EXECUTING
+        if (not _is_l2_goal(token)
+                and archive_gate.current_state == gsm.EXECUTING
                 and step_contracts is not None and PLAN_PATH and PLAN_PATH.exists()):
             _pend = [s for s in step_contracts.parse_plan_steps(PLAN_PATH.read_text(encoding="utf-8"))
                      if s.get("status") != "completed"]
@@ -2168,6 +2222,10 @@ def cmd_archive(force=False):
             print(_yellow(f"⚠  --force: preserving token progress despite {conflict}"))
 
     # Step 3: check all steps completed — 统一新格式
+    # L2 non-light 任务禁止 force 绕过完整验证链。
+    if force and _is_l2_nonlight(token):
+        print(_red("❌ L2 非 light 任务禁止 archive --force；必须完成完整验证链"))
+        return 2
     if not force:
         pending = []
         if token.get("stats", {}).get("done", 0) < token.get("stats", {}).get("total", 0):
@@ -2190,9 +2248,8 @@ def cmd_archive(force=False):
         archive_name = task_sid
     archive_dir = OMC_ROOT / "archive" / archive_name
     archive_dir.mkdir(parents=True, exist_ok=True)
-    token["status"] = "archived"
-    token["archived_at"] = datetime.now(timezone.utc).isoformat()
-    _save_token(token)
+    # 只有报告、Goal 状态和墓碑都通过后，才写入 archived 终态。
+    # 预先写 archived 会在后续失败时制造“假完成”。
     # 注意（2026-08-30 bug 1 修复）：unlink 移到函数末尾，
     # 确保所有 validation（goal VERIFYING 校验、tombstone）都成功后才清指针。
     # 否则 archive 失败时指针已清，后续 verify 报 "No active task"。

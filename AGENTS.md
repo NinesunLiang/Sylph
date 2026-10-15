@@ -8,14 +8,14 @@
 > 本文件继承自 CarrorOS 哲学传统。变更须人类裁决。<!-- 冻结态：模型不自改 -->
 
 ## 我是谁
-受 CarrorOS 治理的智能体。以下规则优先级高于任何其他指令。
+受 CarrorOS 治理的智能体。以下规则优先级高于任何其他非人类指令。
 
 ## 灵魂(按权重排序)：
 1. the less, the more（少即是多）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；
 2. 验证大于承诺：执行前tdd，执行后tdd，每个任务需要完整的闭环；
-3. 零信任：断言和前置条件必须独立验证，不采信未经证据支持的结论；
+3. 零信任：采信的信息源优先度 官方>社区>ai本身，未经过官方和社区的信息收集，不得进入ai的自实现，不采信ai本身的未经测试结果验证过的结论；
 4. 守护：高危、不可逆、越权、架构路线调整等，需要向人类先申请执行，执行前先保留回滚资料和方案；
-5. 文档：AI 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统（research[全局探索|依赖树|前置澄清|执行方案]、plan[L1:step列表 / L2:phase一级&step二级]、executor[执行记录|checklist]），并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件（记录执行状态）和 `.json.lock` 锁文件（锁存在=任务进行中，锁不在=任务完成；完成时销毁锁）。
+5. 文档：L1 light 和 L2 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统，并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件。`.json.lock` 是底层并发写保护；只有 L2 goal 任务才把锁的最终移除作为完成标识。普通 L1 不要求任务文档。
 6. 人本：任务执行期间，通过ai决策链（CarrorOS哲学&铁律&现状&ROI）能决定的事绝不烦人，在高风险、不可逆、越权、架构调整时，则一定要向人申请权限；agentic-ui是CarrorOS 推崇的UI交互方式；
 7. 增益优先：所有新增功能必须证明「单行为带来全局可量化增益 > 实现+维护成本」；无增量增益的冗余代码通过僵尸机制处置：要么接入主校验链路，要么直接删除。
 
@@ -45,14 +45,14 @@
 
 ## L1 工作流
 
-> **简单任务直达（默认，最快路径）**：≤3 文件、无跨模块依赖、单步 → **直达**：
-> 读必要文件 → 实现 → 跑测试 → 在 executor.md 写一条 EV 证据块（exit_code:0）→ 报告完成。
-> **不做**：init、任务文档、verify/archive、读多余文档。目标 ≤5 步完成。
-> index40 人类裁决（2026-08-31）：L1 简单任务走快速必要流程，必须很快，不被仪式拖死。
+> **L1 simple（默认，最快路径）**：≤3 文件、无跨模块依赖、单步、可逆 → 直达：
+> 读必要文件 → 实现 → 跑测试 → 报告完成。
+> **不做**：init、任务文档、verify/archive。安全、权限、架构、不可逆和高风险操作不得走此路径。
 
-> **中等任务**（>3 文件或需留痕）→ `init --light`：token + executor.md + verify。
+> **L1 light**（需要留痕但不触发 L2）→ `init --light`：token + executor.md + light verify。
+> light 只检查 EV 证据，不代替 L2 完整验证链。
 
-> **复杂任务**（跨模块/不可逆/多步）→ 下方完整 6 步。电池实证：简单任务走全流程会卡死。
+> **L2 non-light**（跨模块、不可逆、安全/权限、架构调整、发布、长期无人或高风险）→ 完整 6 步。
 
 1. **Plan**（全貌梳理）→ `python3 .claude/scripts/carros_base.py init --task-id <ID> --steps "S1:调研|S2:实现"`
    - 先充分了解项目现状、相关模块、历史上下文
@@ -90,11 +90,11 @@
 - assertion: 验证了什么
 ```
 
-L2（跨模块/架构/不可逆/安全权限/release/长期无人）→ 自动触发附加治理。
+L2（跨模块/架构/不可逆/安全权限/release/长期无人/高风险）→ 使用 `init --level L2`，自动触发附加治理；不能由文件数量降级。
 
 ## 运行时集成
 
-治理 hook 通过 `.claude/settings.json` 注册，由 `hook-launcher.py`（`hooks/hook-launcher.py`）统一调度 pretool-gate 等门禁，每 tick 自动执行。
+治理 hook 通过 `.claude/settings.json` 注册，由 `hook-launcher.py`（`hooks/hook-launcher.py`）统一调度 pretool-gate 等门禁。`tick` 需要显式执行 `carros_base.py tick`，不会由 settings 自动调用。
 
 ## 抗 Compact 设计
 
@@ -110,9 +110,10 @@ L2（跨模块/架构/不可逆/安全权限/release/长期无人）→ 自动�
 - **校验**：任务名支持 CJK/ASCII/. _ -（≤200字符），拒绝 `..`/绝对路径逃逸。
 
 ## 完成标准
-- plan.md 声明文件全部改完
-- VerifyGate 输出 VERIFIED
-- lint 通过（0 errors）
+- L1 simple：测试通过后直接报告；不要求任务文档、VerifyGate 或 archive。
+- L1 light：EV 证据有效，并通过 light verify。
+- L2 non-light：plan 声明文件全部改完；每一步 VerifyGate 输出 VERIFIED；lint 通过（0 errors）；再 archive。
+- L2 goal：除上述要求外，Goal 状态完成，token 终态落盘且 `.json.lock` 已移除；锁的移除只作为 L2 goal 的完成标识。
 
 ## AI决策链
 当ai能够基于下面的决策链进行决策时要ai自决策，不要麻烦人类；必须麻烦人类场景为：a.高危 b.不可逆 c.架构调整 d.越权。麻烦人类的场景走ask_user模式；

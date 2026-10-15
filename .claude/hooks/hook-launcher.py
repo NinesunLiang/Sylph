@@ -13,6 +13,7 @@ import sys
 from pathlib import Path
 
 CRITICAL_HOOKS = {"pretool-gate.py"}
+PRETOOL_RC_DENY_HOOKS = {"pretool-gate.py", "carroros-night-deny.py"}
 
 
 def _detect_hook_event_type() -> str:
@@ -132,20 +133,28 @@ def _merge_hook_results(results: list) -> dict:
 
     for hook_name, (rc, parsed) in results:
         if parsed is None:
+            if (rc != 0 and hook_name in PRETOOL_RC_DENY_HOOKS
+                    and _detect_hook_event_type() == "PreToolUse"):
+                any_permission_deny = True
             continue
-        if parsed.get("continue") is False:
+        hso = parsed.get("hookSpecificOutput", {})
+        pd = hso.get("permissionDecision", "") if isinstance(hso, dict) else ""
+        if parsed.get("continue") is False and pd != "ask":
             any_continue_false = True
+        if (rc != 0 and hook_name in PRETOOL_RC_DENY_HOOKS
+                and _detect_hook_event_type() == "PreToolUse"):
+            any_permission_deny = True
         # Collect message
         msg = parsed.get("message", "")
         if msg:
             messages.append(f"[{hook_name}] {msg}")
         # Collect hookSpecificOutput
         hso = parsed.get("hookSpecificOutput", {})
-        ctx = hso.get("additionalContext", "")
+        ctx = hso.get("additionalContext", "") if isinstance(hso, dict) else ""
         if ctx:
             contexts.append(f"[{hook_name}] {ctx}")
         # Detect permission decision
-        pd = hso.get("permissionDecision", "")
+        pd = hso.get("permissionDecision", "") if isinstance(hso, dict) else ""
         if pd == "deny":
             any_permission_deny = True
         elif pd == "ask":

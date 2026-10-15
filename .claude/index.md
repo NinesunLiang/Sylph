@@ -21,7 +21,7 @@
 
 | 房间 | 入口 | 功能 |
 |------|------|------|
-| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（17 顶层 py，13 注册，按触发点分类） |
+| hooks/ | `@.claude/hooks/index.md` | CC 治理 Hook 脚本（按触发点分类；注册表以 settings.json 和 pretool-gate.py 为准） |
 | nodes/ | `@.claude/nodes/README.md` | 最小公共节点（12 活跃 + a/b terminal + orchestrator 路由） |
 | schemas/ | `@.claude/schemas/README.md` | 公共接口定义（atomic/contract/output） |
 | references/ | `@.claude/references/index.md` | 公共资源文档（adr/design-docs/templates）；references 为唯一真源，大编号优先（ADR0017） |
@@ -44,21 +44,25 @@
 | metrics/ | `@.omc/metrics/index.md` | 基准测试报告 |
 
 ## 路由规则
-**默认 L1。** 当条件满足任意 L2 触发点时 → L2。
 
-| 层级 | 路由 | 说明 |
-|------|------|------|
-| L1 | 默认路径 | 日常开发、单文件修复、文档更新 |
-| L2 | 跨系统 / 不可逆 / 安全权限 / 发布 / 长时间无人 | 启用 Oracle + 降级 |
+任务只有三条合法路径：
+
+| 路径 | 适用情况 | 必做流程 |
+|------|----------|----------|
+| L1 simple | ≤3 个文件、单步、无跨模块依赖、可逆 | 读必要文件 → 实现 → 测试 → 报告；不创建任务文档 |
+| L1 light | 需要留痕但不触发 L2 | `init --light` → 写 EV → light verify；不要求完整 Research/Oracle |
+| L2 non-light | 跨模块、不可逆、安全/权限、发布、架构调整或长期无人 | `init --level L2` → research/plan → tick → TDD → VerifyGate=VERIFIED → archive |
+
+安全、权限、架构和不可逆操作直接进入 L2；不能因为“改动文件少”降级。
 
 ## 工作流路由
 
 | 场景 | 路径 | 入口 |
 |------|------|------|
 | 状态管理 | `kernel.md` → 管理内核 | 冻结 / 飞轮 / 降级 |
-| 完整生命周期 | `.claude/scripts/carros_base.py` | init→tick→verify→archive |
-| L1 快速任务 | `carros_base.py` | init→verify→archive |
-| L2 复杂任务 | `carros_base.py` + 条件 Oracle | 含 Oracle+降级 |
+| L1 simple | 人工快速路径 | 不调用 carros_base 生命周期 |
+| L1 light | `.claude/scripts/carros_base.py` | `init --light` → EV → verify |
+| L2 non-light / goal | `.claude/scripts/carros_base.py` | `init --level L2` → tick→verify→archive |
 
 ## Hook 路由
 
