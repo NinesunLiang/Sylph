@@ -105,7 +105,7 @@ def collect_candidates() -> tuple[list[dict], dict]:
     mech, tests = [], []
     for rel in files:
         p = ROOT / rel
-        if _excluded(rel) or p.suffix not in MECH_EXT:
+        if _excluded(rel) or p.suffix not in MECH_EXT or not p.is_file():
             continue
         (tests if _is_test(rel) else mech).append(rel)
 
