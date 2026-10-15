@@ -168,10 +168,18 @@ def test_destructive_passes_when_no_reference(tmp_path, pp, monkeypatch):
 # ── pre-push：比对基线（实跑教训）──
 
 def test_baseline_prefers_upstream(pp):
-    """当前分支是 release，其 upstream 是 origin/release；若错用 origin/HEAD(=origin/main)
-    会得到 391 个「改动」，完全失真。"""
-    assert pp._baseline() in ("@{u}", "origin/HEAD", "HEAD")
-    assert pp._baseline() == "@{u}", "本地 release 分支有 upstream，应优先用它"
+    """有 upstream 时优先用它；隔离分支无 upstream 时允许安全回退。"""
+    import subprocess
+    has_upstream = subprocess.run(
+        ["git", "rev-parse", "--verify", "--quiet", "@{u}"],
+        cwd=str(pp.ROOT), capture_output=True, text=True,
+    ).returncode == 0
+    got = pp._baseline()
+    assert got in ("@{u}", "origin/HEAD", "HEAD")
+    if has_upstream:
+        assert got == "@{u}"
+    else:
+        assert got != "@{u}"
 
 
 def test_test_fixture_downgraded_to_warning(tmp_path, pp, monkeypatch):

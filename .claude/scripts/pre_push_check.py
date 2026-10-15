@@ -21,7 +21,6 @@
 """
 from __future__ import annotations
 
-import json
 import re
 import subprocess
 import sys
@@ -41,7 +40,10 @@ REF_SCAN_SUFFIX = (".py", ".md", ".yaml", ".yml", ".json", ".sh")
 
 def _git(*args: str) -> str:
     r = subprocess.run(["git", *args], cwd=str(ROOT), capture_output=True, text=True)
-    return (r.stdout or "") if r.returncode == 0 else ""
+    if r.returncode != 0:
+        detail = (r.stderr or r.stdout or "git command failed").strip()
+        raise RuntimeError(f"git {' '.join(args)} failed: {detail}")
+    return r.stdout or ""
 
 
 def _baseline() -> str:
@@ -66,7 +68,7 @@ def changed_files() -> list[str]:
 
 
 def deleted_files() -> list[str]:
-    return [l.strip() for l in _git("diff", "HEAD", "--name-only", "--diff-filter=D").splitlines() if l.strip()]
+    return [l.strip() for l in _git("diff", _baseline(), "--name-only", "--diff-filter=D").splitlines() if l.strip()]
 
 
 def _secret_patterns():
@@ -223,7 +225,7 @@ def run() -> int:
     for m in des:
         print(f"    {m}")
 
-    _ok_dep, dep = check_dependency(files)
+    _, dep = check_dependency(files)
     print("\n[4] 依赖性  ✅（影响面如下，仅供确认）")
     for m in dep:
         print(f"    {m}")
