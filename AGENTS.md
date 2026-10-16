@@ -127,7 +127,8 @@ L2（跨模块/架构/不可逆/安全权限/release/长期无人/高风险）�
 > 证据：该会话 5 轮 279 步，工具调用 285 次共 37分27秒，其中 12 次长尾（≥60s）合计 32分47秒 = **87.5%**；
 > 5 次打满 300 秒上限合计 25分16秒。单次工具耗时中位数仅 0.1s——工具时间不是"干活"，是挂死。下列四条即这 12 次长尾的根因。
 
-- **显式超时**：探索性、一次性 bash 一律 `timeout <秒> <cmd>`。无超时命令会挂到执行器上限（liangshen 30s；standard 默认 30s / 上限 150s）并重置持久 shell；预计 >30 秒的命令改用后台 job，不占同步通道。
+- **显式超时 + 长任务异步**：两种模式的 bash 同步上限都是 30s——ELI5/standard 走 `bash-sandbox` 执行器（可显式传 `timeoutMs`，上限 150s）；梁神走 `persistent-bash`，参数只有 `{command}`、**没有 per-call 超时**，30s 即硬顶。预计 >30 秒的命令必须异步：ELI5/standard 用 `run_in_background` + `job_output`；梁神用持久 shell 自带的 `cmd > /tmp/x.log 2>&1 &`，后续调用 `jobs`/`tail` 收（后台作业随 shell 跨调用存活）。裸跑无兜底的命令会挂到上限并重置 shell。
+- **模型流空闲 120s**：本地 provider（splash-local / mtplm-local）的 `streamIdleTimeoutMs` 已由 900s（15 分钟）压到 120s [已验证:~/.dsh/profiles/desktop/cordis.patch.yml:35,57]——流卡住时 2 分钟内报错，不再白等。实测 TTFT 仅 4.6s，120s 有 26 倍余量。
 - **stdin 重定向**：手动运行读 stdin 的脚本必须 `< /dev/null`。`.claude/hooks/**` 有 13 个脚本读 `sys.stdin`（如 `telemetry-ttl.py:133`）[已验证:.claude/hooks/telemetry-ttl.py:133]；持久 shell 的 stdin 是常开管道，裸跑必挂到上限（实挂 303.2s）。
 - **禁用 heredoc 传源码**：不得用 `python3 - <<'EOF'` / `cat > f <<'EOF'` 写文件或传 Python 源码，一律 `Write`/`Edit` 落盘——即上节「临时 Python 过程脚本」的落盘纪律，heredoc 后紧跟裸跑 hook 是本次 3 次 300s 超时的复合形态。
 - **扫描排除巨型目录**：全仓 grep/rglob 必须排除 `.claude/worktrees`（421MB / 92 份副本）与 `apps/`（11G）；`.claude` 下已有 48,942 个文件。护栏样例见 `zombie_scan.py:20,42-43,53-56` [已验证:.claude/scripts/zombie_scan.py:20]（加护栏后该扫描 0.53s）。
