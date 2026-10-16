@@ -867,94 +867,10 @@ def _write_audit(event_type, data, fallback=False):
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def _dry_run_migration() -> list[dict]:
-    """Dry-run migration report: scan legacy YYYY-MM-DD dirs, print source/target/collision.
-
-    0 writes, re-entrant. 返回 list of {source, target, slug, collision}.
-    """
-    results: list[dict] = []
-    OMC_TASKS.mkdir(parents=True, exist_ok=True)
-    if not OMC_TASKS.exists():
-        return results
-
-    try:
-        from lib.task_paths import scan_task_dirs, find_conflicts
-        entries = scan_task_dirs(OMC_TASKS, include_legacy=True)
-        conflicts = find_conflicts(entries)
-        conflict_slugs = {c["slug"] for c in conflicts}
-        legacy_entries = [e for e in entries if e.is_legacy]
-
-        for e in legacy_entries:
-            target_date = e.date
-            target = str(OMC_TASKS / target_date / e.slug)
-            results.append({
-                "source": str(e.path),
-                "target": target,
-                "slug": e.slug,
-                "collision": e.slug in conflict_slugs,
-            })
-    except ImportError:
-        pass
-
-    if results:
-        print(f"{'Source':<60} {'Target':<60} {'Collision':<10}")
-        print("-" * 130)
-        for r in results:
-            print(f"{r['source']:<60} {r['target']:<60} {str(r['collision']):<10}")
-    else:
-        print("No legacy YYYY-MM-DD directories found.")
-
-    return results
 
 
-def cmd_migrate():
-    """Dry-run migration: 扫描 legacy YYYY-MM-DD → YYYYMMDD 报告.
-
-    用法:
-        carros_base.py migrate [--dry-run]
-
-    当前仅支持 dry-run (零写入), 可安全重入。
-    """
-    _dry_run_migration()
-    return 0
 
 
-def cmd_resolve_conflict():
-    """显示 slug 跨格式冲突 (YYYYMMDD + YYYY-MM-DD 并存).
-
-    用法:
-        carros_base.py resolve-conflict [--slug <slug>]
-
-    Dry-run only, 零写入。
-    """
-    OMC_TASKS.mkdir(parents=True, exist_ok=True)
-    try:
-        from lib.task_paths import scan_task_dirs, find_conflicts
-        entries = scan_task_dirs(OMC_TASKS, include_legacy=True)
-        conflicts = find_conflicts(entries)
-        if not conflicts:
-            print("No conflicts found.")
-            return 0
-
-        argv = sys.argv[sys.argv.index("resolve-conflict") + 1:]
-        slug_filter = None
-        i = 0
-        while i < len(argv):
-            if argv[i] == "--slug" and i + 1 < len(argv):
-                slug_filter = argv[i + 1]; i += 2
-            else:
-                i += 1
-
-        print(f"{'Slug':<40} {'Canonical Path':<60} {'Legacy Path':<60}")
-        print("-" * 160)
-        for c in conflicts:
-            if slug_filter and c["slug"] != slug_filter:
-                continue
-            print(f"{c['slug']:<40} {c['canonical_path']:<60} {c['legacy_path']:<60}")
-    except ImportError:
-        print("lib/task_paths.py not available")
-        return 2
-    return 0
 
 
 # ═══════════════════════════════════════════
@@ -3525,193 +3441,23 @@ def cmd_auto():
 # 夜跑控制面扩展（FINAL.md v3.1 §16 CarrorOS 侧）
 # ---------------------------------------------------------------------------
 
-def cmd_manifest_json():
-    """读取 night-manifest.yaml → 规范化 JSON（scope-check 等门禁消费，免 yq）。
-
-    用法:
-        carros_base.py manifest-json --manifest PATH [--get dotted.path] [--pages]
-        --get   输出单值（标量/JSON），缺失 → exit 2（fail-closed）
-        --pages 仅输出 pages[] 的 id 列表（每行一个）
-    """
-    argv = sys.argv[sys.argv.index("manifest-json") + 1:]
-    manifest_path = None
-    get_path = None
-    pages_only = False
-    page_id = None
-    i = 0
-    while i < len(argv):
-        if argv[i] == "--manifest" and i + 1 < len(argv):
-            manifest_path = argv[i + 1]; i += 2
-        elif argv[i] == "--get" and i + 1 < len(argv):
-            get_path = argv[i + 1]; i += 2
-        elif argv[i] == "--page-id" and i + 1 < len(argv):
-            page_id = argv[i + 1]; i += 2
-        elif argv[i] == "--pages":
-            pages_only = True; i += 1
-        else:
-            i += 1
-    if not manifest_path:
-        print(_red("ERROR: manifest-json 需要 --manifest PATH"), file=sys.stderr)
-        return 2
-    p = Path(manifest_path)
-    if not p.exists():
-        print(_red(f"ERROR: manifest 不存在: {p}"), file=sys.stderr)
-        return 2
-    try:
-        import yaml
-        data = yaml.safe_load(p.read_text(encoding="utf-8"))
-    except Exception as e:
-        print(_red(f"ERROR: manifest 解析失败（fail-closed）: {e}"), file=sys.stderr)
-        return 2
-    if not isinstance(data, dict):
-        print(_red("ERROR: manifest 顶层不是 mapping"), file=sys.stderr)
-        return 2
-    if pages_only:
-        pages = data.get("pages") or []
-        for pg in pages:
-            print(pg.get("id", ""))
-        return 0
-    if page_id:
-        pages = data.get("pages") or []
-        match = [pg for pg in pages if isinstance(pg, dict) and pg.get("id") == page_id]
-        if not match:
-            print(_red(f"ERROR: page 不存在: {page_id}"), file=sys.stderr)
-            return 2
-        data = match[0]
-    if get_path:
-        cur = data
-        for part in get_path.split("."):
-            if isinstance(cur, dict) and part in cur:
-                cur = cur[part]
-            elif isinstance(cur, list) and part.isdigit() and int(part) < len(cur):
-                cur = cur[int(part)]
-            else:
-                print(_red(f"ERROR: 字段缺失: {get_path}"), file=sys.stderr)
-                return 2
-        if isinstance(cur, (dict, list)):
-            print(json.dumps(cur, ensure_ascii=False))
-        elif cur is None:
-            print("null")
-        elif isinstance(cur, bool):
-            print("true" if cur else "false")
-        else:
-            print(cur)
-        return 0
-    print(json.dumps(data, ensure_ascii=False, indent=2))
-    return 0
 
 
-def cmd_token_write():
-    """token.json 唯一合法写入入口（FINAL §4.4：模型对 token 的写入仅允许经此 API）。
-
-    用法:
-        carros_base.py token-write --token-path PATH --set dotted.path=value
-              [--set ...] --expected-revision N
-    CAS 冲突 → exit 3；缺参数 → exit 2。
-    """
-    argv = sys.argv[sys.argv.index("token-write") + 1:]
-    token_path = None
-    sets = []
-    expected = None
-    i = 0
-    while i < len(argv):
-        if argv[i] == "--token-path" and i + 1 < len(argv):
-            token_path = argv[i + 1]; i += 2
-        elif argv[i] == "--set" and i + 1 < len(argv):
-            sets.append(argv[i + 1]); i += 2
-        elif argv[i] == "--expected-revision" and i + 1 < len(argv):
-            expected = int(argv[i + 1]); i += 2
-        else:
-            i += 1
-    if not token_path or not sets or expected is None:
-        print(_red("ERROR: token-write 需要 --token-path/--set/--expected-revision"), file=sys.stderr)
-        return 2
-    token = _load_token(Path(token_path))
-    if token is None:
-        print(_red(f"ERROR: token 不存在或损坏: {token_path}"), file=sys.stderr)
-        return 2
-    for kv in sets:
-        if "=" not in kv:
-            print(_red(f"ERROR: --set 格式应为 path=value: {kv}"), file=sys.stderr)
-            return 2
-        dotted, raw = kv.split("=", 1)
-        try:
-            value = json.loads(raw)
-        except json.JSONDecodeError:
-            value = raw
-        cur = token
-        parts = dotted.split(".")
-        for part in parts[:-1]:
-            nxt = cur.get(part)
-            if not isinstance(nxt, dict):
-                nxt = {}
-                cur[part] = nxt
-            cur = nxt
-        cur[parts[-1]] = value
-    try:
-        _save_token(token, Path(token_path), expected_revision=expected)
-    except CASConflict as e:
-        print(_red(f"CAS_CONFLICT: {e}"), file=sys.stderr)
-        return 3
-    print(_green(f"token 已写入 revision={token.get('revision')}"))
-    return 0
 
 
-def cmd_gate_results_init():
-    """创建页级 gate-results 目录（FINAL §4.4 权威链事实目录）。
-
-    用法:
-        carros_base.py gate-results-init --night-dir .omc/night/{date} --page-id FE-xxx
-    幂等；输出目录路径。
-    """
-    argv = sys.argv[sys.argv.index("gate-results-init") + 1:]
-    night_dir = None
-    page_id = None
-    i = 0
-    while i < len(argv):
-        if argv[i] == "--night-dir" and i + 1 < len(argv):
-            night_dir = argv[i + 1]; i += 2
-        elif argv[i] == "--page-id" and i + 1 < len(argv):
-            page_id = argv[i + 1]; i += 2
-        else:
-            i += 1
-    if not night_dir or not page_id:
-        print(_red("ERROR: gate-results-init 需要 --night-dir/--page-id"), file=sys.stderr)
-        return 2
-    d = Path(night_dir) / "gate-results" / page_id
-    d.mkdir(parents=True, exist_ok=True)
-    print(d)
-    return 0
 
 
-def cmd_worktree_status() -> int:
-    """列出所有 isolated worktrees 及审计摘要（worktree 隔离可观测性）。"""
-    if worktree_utils is None:
-        print(_red("❌ worktree_utils 不可用"), file=sys.stderr)
-        return 2
-    wts = worktree_utils.list_isolated_worktrees()
-    if not wts:
-        print("ℹ️  无 active isolated worktree")
-        return 0
-    for wt in wts:
-        print(f"  {wt['branch']}  @  {wt['path']}")
-    return 0
 
 
-def cmd_worktree_gc() -> int:
-    """回收僵尸/已归档 worktree（安全门: 未归档只 WARN 不删, 传 --execute 才真删）。"""
-    if worktree_utils is None:
-        print(_red("❌ worktree_utils 不可用"), file=sys.stderr)
-        return 2
-    execute = "--execute" in sys.argv
-    messages = worktree_utils.gc(execute=execute)
-    for m in messages:
-        print(m)
-    if not execute:
-        print("\n(dry-run; 传 --execute 执行删除。未归档 worktree 需人工确认)")
-    return 0
 
 
+# ── 核心动词（14）── 2026-10-16 人类裁决 KR-4/方案 A2：
+# 保留：init/resume/status/tick/verify/archive/lint/report/prune-stale-locks/help + 观察区
+# 退役观察区（retired）：调用不再服务任何主链，但保留入口并记使用率埋点
+#   （cmd.<verb> 事件进 audit 遥测），蒸馏器按 3 个月 0 调用判死 → 物理删除。
+# 已删除入口（无调用方、无外部消费者，grep 全仓验证）：
+#   manifest-json / token-write / gate-results-init / migrate / resolve-conflict /
+#   worktree-status / worktree-gc
 COMMANDS = {
     "init": cmd_init,
     "resume": cmd_resume,
@@ -3719,30 +3465,30 @@ COMMANDS = {
     "tick": cmd_tick,
     "verify": cmd_verify,
     "archive": cmd_archive,
-    "clarify": cmd_clarify,
-    "plan": cmd_plan,
-    "auto": cmd_auto,
     "lint": cmd_lint,
-    "bench": cmd_bench,
+    "report": cmd_report,
+    "prune-stale-locks": cmd_prune_stale_locks,
+    "help": cmd_help,
+    # ── 退役观察区（retired，埋点跟踪，3 个月 0 调用即删）──
     "gate": cmd_gate,
     "dispatch": cmd_dispatch,
     "poll": cmd_poll,
     "collect": cmd_collect,
-    "report": cmd_report,
-    "prune-stale-locks": cmd_prune_stale_locks,
     "cancel": cmd_cancel,
     "oracle": cmd_oracle,
     "oracle-plan": cmd_oracle_plan,
     "fallback": cmd_fallback,
-    "manifest-json": cmd_manifest_json,
-    "token-write": cmd_token_write,
-    "gate-results-init": cmd_gate_results_init,
-    "migrate": cmd_migrate,
-    "resolve-conflict": cmd_resolve_conflict,
-    "worktree-status": cmd_worktree_status,
-    "worktree-gc": cmd_worktree_gc,
-    "help": cmd_help,
+    "bench": cmd_bench,
+    "plan": cmd_plan,
+    "auto": cmd_auto,
+    "clarify": cmd_clarify,
 }
+
+# 退役观察区动词集合（COMMANDS 中的 retired 子集）
+RETIRED_COMMANDS = frozenset(
+    {"gate", "dispatch", "poll", "collect", "cancel",
+     "oracle", "oracle-plan", "fallback", "bench", "plan", "auto", "clarify"}
+)
 
 
 def main(argv=None):
@@ -3757,6 +3503,13 @@ def main(argv=None):
         print(_red(f"Unknown command: {command}"))
         print(f"Available: {', '.join(COMMANDS.keys())}")
         return 2
+
+    # 使用率埋点：退役观察区动词每次调用记 cmd.retired 事件（蒸馏器判死依据）
+    if command in RETIRED_COMMANDS:
+        try:
+            _write_audit("cmd.retired", {"verb": command})
+        except Exception:
+            pass
 
     args = argv[1:]
 
@@ -3909,15 +3662,6 @@ def main(argv=None):
                 pass
         return cmd_prune_stale_locks(dry_run=dry_run, max_age_days=max_age,
                                      prune_snapshots=prune_snapshots, keep_snapshots=keep)
-
-    elif command == "manifest-json":
-        return cmd_manifest_json()
-
-    elif command == "token-write":
-        return cmd_token_write()
-
-    elif command == "gate-results-init":
-        return cmd_gate_results_init()
 
     else:
         return COMMANDS[command]()
