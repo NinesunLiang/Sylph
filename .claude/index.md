@@ -68,7 +68,7 @@
 
 | 触发点 | 注册位置 | 说明 |
 |--------|----------|------|
-| 统一门禁 | `.claude/settings.json` → `hooks.PreToolUse` | pretool-gate.py（门禁集单一真源＝该文件 `L1_GATES`/`GATES`，index47 精简为 L1 12 道 / L2 13 道）+ pretool-scorecard-gate.py（v2 路径预检），hook-launcher 合并 spawn（ADR0016） |
+| 统一门禁 | `.claude/settings.json` → `hooks.PreToolUse` | pretool-gate.py（门禁集单一真源＝该文件 `_GATE_CORE`，2026-10-16 收敛为 L1=L2=14 道；oracle 退役观察区）+ pretool-scorecard-gate.py（v2 路径预检），hook-launcher 合并 spawn（ADR0016） |
 | Hook 调度 | `.claude/hooks/hook-launcher.py` | 从 settings.json 按名启动具体 hook；支持单次 spawn 串行执行多 hook |
 
 ## 脚本快速索引

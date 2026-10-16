@@ -24,8 +24,8 @@ AI 不可自改 AGENTS.md / kernel.md / index.md 及 `.claude/hooks/*` / `.claud
 1. **哲学**：少即是多 > 验证 > 零信任 > 守护 > 文档 > 人本 > 增益；少即是多负责取舍与复杂度控制，但不绕过铁律、审批或验证
 2. **铁律**：不可逆操作问人，可逆操作自决
 3. **ROI**：实现成本 vs 收益。低成本高收益 → 直接做
-4. **Gate 模式**：L1（默认，6 门）/ L2（完整 16 门 + Oracle）
-5. **Oracle 辅助**：仅 L2 模式下调用 phase3 oracle 辅助决策
+4. **Gate 模式**：L1（默认，14 核心门）/ L2（同 14 门，2026-10-16 起无额外门）
+5. **Oracle 辅助**：退役观察区（14 天 0 触发）；设 `CARROROS_ORACLE_GATE=1` 可恢复
 
 ## 学习飞轮（Phase 2，Enhance 专有）
 飞轮数据落 `.omc/knowledge/`，不进默认 Context。
@@ -33,9 +33,9 @@ AI 不可自改 AGENTS.md / kernel.md / index.md 及 `.claude/hooks/*` / `.claud
 ## 错误分析体系
 每个错误都是养分。自动记录 → 分类 → 根因 → 预防。
 
-## Gate 模式
-- **L1 轻量**（默认）：12 注册 hook（completion/claim-audit/bash-audit/sensitive-filter/等）
-- **L2 完整**：13 注册 hook + 条件激活 Oracle
+## Gate 模式（单一真源 = `.claude/hooks/pretool-gate.py::_GATE_CORE`）
+- **L1 轻量**（默认）：14 核心门（敏感读写/密钥/治理/注入/完整性/完成验证等，见 pretool-gate）
+- **L2 完整**：同 14 门（2026-10-16 人类裁决：oracle 退役观察区，L2 无额外门）
 - 切换：`carros_base.py init --mode L2` 或 harness.yaml `gate_mode: l2`
 
 ## 降级规则
