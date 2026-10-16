@@ -24,6 +24,8 @@ from datetime import date
 from pathlib import Path
 
 DEFAULT_OUT = ".omc/proposals"
+# 遥测单一真源位置（2026-10-16 遥测卫生：按月分片目录）
+GATE_PASS_TELEMETRY = ".omc/state/telemetry/gate-pass"
 IMPACTS = ("高", "中", "低")
 
 
@@ -191,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
     d = sub.add_parser("distill")
     d.add_argument("--threshold", type=int, default=3)
     d.add_argument("--out", default=DEFAULT_OUT)
-    d.add_argument("--gate-pass", default=".omc/state/gate-pass-count.jsonl")
+    d.add_argument("--gate-pass", default=GATE_PASS_TELEMETRY)
     d.add_argument("--window", type=int, default=14)
     l = sub.add_parser("list")
     l.add_argument("proposals", nargs="?", default=str(Path(DEFAULT_OUT) / "proposals.jsonl"))
@@ -201,7 +203,7 @@ def main(argv: list[str] | None = None) -> int:
         s.add_argument("note", nargs="?")
         s.add_argument("proposals", nargs="?", default=str(Path(DEFAULT_OUT) / "proposals.jsonl"))
     ar = sub.add_parser("anti-regrowth")
-    ar.add_argument("--gate-pass", default=".omc/state/gate-pass-count.jsonl")
+    ar.add_argument("--gate-pass", default=GATE_PASS_TELEMETRY)
     ar.add_argument("--window", type=int, default=14)
     args = ap.parse_args(argv)
     if args.cmd == "distill":

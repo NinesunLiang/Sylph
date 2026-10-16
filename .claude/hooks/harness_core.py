@@ -22,7 +22,7 @@ from pathlib import Path
 _HOOKS_DIR = Path(__file__).resolve().parent
 _PROJECT_ROOT = (_HOOKS_DIR / "../..").resolve()
 _STATE_DIR = _PROJECT_ROOT / ".omc" / "state"
-_EVIDENCE_FILE = _STATE_DIR / "hook-evidence.jsonl"
+_EVIDENCE_FILE = _STATE_DIR / "telemetry" / "hook-evidence"
 _HC_CACHE = _STATE_DIR / ".harness-cache"
 _HC_YAML = _PROJECT_ROOT / ".claude" / "harness.yaml"
 _FLYWHEEL_LOG = Path.home() / ".claude" / "flywheel.log"
@@ -233,10 +233,11 @@ def hc_get(key, default=""):
 # ─── Hook runtime evidence tracking ───
 
 def _write_evidence(name, event="hc_enabled", exit_code=0):
-    """Write evidence entry to hook-evidence.jsonl."""
+    """Write evidence entry to telemetry/hook-evidence/YYYYMM.jsonl（按月分片）。"""
     try:
-        _STATE_DIR.mkdir(parents=True, exist_ok=True)
+        _EVIDENCE_FILE.mkdir(parents=True, exist_ok=True)
         ts = int(time.time())
+        _month_file = _EVIDENCE_FILE / f"{time.strftime('%Y%m')}.jsonl"
         entry = json.dumps({
             "hook": name,
             "ts": ts,
@@ -244,7 +245,7 @@ def _write_evidence(name, event="hc_enabled", exit_code=0):
             "event": HC_EVENT_NAME,
             "exit": exit_code
         }, ensure_ascii=True)
-        with open(str(_EVIDENCE_FILE), "a", encoding="utf-8") as f:
+        with open(str(_month_file), "a", encoding="utf-8") as f:
             f.write(entry + "\n")
     except Exception:
         pass

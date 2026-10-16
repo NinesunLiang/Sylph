@@ -17,15 +17,23 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 
+def iter_gate_records(log_path):
+    """遍历 gate-pass 记录（兼容按月分片：传目录则读其下 *.jsonl，传文件则读单文件）。"""
+    path = Path(log_path)
+    files = sorted(path.glob("*.jsonl")) if path.is_dir() else [path] if path.exists() else []
+    for f in files:
+        for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
+            if line.strip():
+                yield line
+
+
 def gate_zombie_report(log_path, window_days: int = 14, asof: str | None = None) -> dict:
-    """解析 gate-pass 日志 → {gates, zombies, rate}。
+    """解析 gate-pass 日志（文件或分片目录）→ {gates, zombies, rate}。
 
     只统计 count>0 的行作为"真实触发"。asof 缺省取日志最大日期（测试确定性）。
     """
     gates: dict[str, list[str]] = {}  # gate -> [触发日期]
-    path = Path(log_path)
-    if path.exists():
-        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    for line in iter_gate_records(log_path):
             try:
                 rec = json.loads(line)
             except json.JSONDecodeError:
@@ -56,7 +64,7 @@ def gate_zombie_report(log_path, window_days: int = 14, asof: str | None = None)
 
 def _main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="门禁僵尸仪表")
-    ap.add_argument("log", nargs="?", default=".omc/state/gate-pass-count.jsonl")
+    ap.add_argument("log", nargs="?", default=".omc/state/telemetry/gate-pass/")
     ap.add_argument("--window", type=int, default=14, help="近 N 天窗口")
     args = ap.parse_args(argv)
     rep = gate_zombie_report(args.log, window_days=args.window)

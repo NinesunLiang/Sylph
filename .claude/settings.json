@@ -91,6 +91,11 @@
             "type": "command",
             "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreCompact python3 \".claude/hooks/hook-launcher.py\" \"stop-flywheel.py\"",
             "timeout": 15000
+          },
+          {
+            "type": "command",
+            "command": "cd \"$(git rev-parse --show-toplevel 2>/dev/null)\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreCompact python3 \".claude/hooks/telemetry-ttl.py\"",
+            "timeout": 20000
           }
         ]
       }

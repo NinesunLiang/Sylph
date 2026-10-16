@@ -655,9 +655,10 @@ def main() -> int:
     # E7: 校准日志 — 每条 VERIFIED 断言留痕,供后续 overturn 追踪
     if result.decision == "VERIFIED":
         try:
-            _cal_dir = Path(__file__).resolve().parent.parent.parent / ".omc" / "state"
+            _cal_dir = Path(__file__).resolve().parent.parent.parent / ".omc" / "state" / "telemetry" / "calibration"
             _cal_dir.mkdir(parents=True, exist_ok=True)
-            _cal_path = _cal_dir / "calibration-log.jsonl"
+            import time as _time
+            _cal_path = _cal_dir / f"{_time.strftime('%Y%m')}.jsonl"
 
             # E7增强1: 计算置信度 confidence（规则匹配率）
             total_rules = len(result.matched) + len(result.missing)
