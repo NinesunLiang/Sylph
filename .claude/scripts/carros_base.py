@@ -3139,8 +3139,19 @@ def cmd_fallback():
 
 
 def cmd_help():
-    """打印帮助信息"""
-    print(__doc__.strip())
+    """打印帮助信息 — 从 COMMANDS 注册表动态生成（单一真源，2026-10-16 A2）"""
+    core = [v for v in COMMANDS if v not in RETIRED_COMMANDS]
+    retired = [v for v in COMMANDS if v in RETIRED_COMMANDS]
+    print("carros_base.py — CarrorOS 核心动词（单一真源 = COMMANDS 注册表）")
+    print()
+    print(f"核心（{len(core)}）:")
+    for v in core:
+        print(f"  {v}")
+    print()
+    print(f"退役观察区（{len(retired)}，3 个月 0 调用即删，调用记 cmd.retired 埋点）:")
+    print("  " + " ".join(retired))
+    print()
+    print("退出码: 0=ok 1=warn 2=err 3=CAS冲突")
     return 0
 
 
