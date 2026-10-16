@@ -652,6 +652,39 @@ def main() -> int:
 
     write_audit(result, token)
 
+    # ── JEV 验收 loop（SIA B1，2026-10-16）：语义判据交 Jev，一次调用批量问 ──
+    # 纪律：fail-soft —— JEV 不可用/低置信时降级为机械门结论，绝不阻塞 verify。
+    try:
+        import subprocess as _jev_sub
+        _jev_commit = None
+        if token:
+            _jev_commit = (token.get("delivery") or {}).get("commit")
+        _jev_cmd = [sys.executable, str(Path(__file__).parent / "jev_verify_loop.py"),
+                    "--step", args.step]
+        if args.token:
+            _jev_cmd += ["--token", args.token]
+        if _jev_commit:
+            _jev_cmd += ["--commit", _jev_commit]
+        _jev_proc = _jev_sub.run(_jev_cmd, capture_output=True, text=True, timeout=150)
+        if _jev_proc.returncode == 0 and _jev_proc.stdout:
+            try:
+                _jev = json.loads(_jev_proc.stdout)
+            except json.JSONDecodeError:
+                _jev = {}
+            if _jev.get("blocks"):
+                print(f"⚠️ [JEV] {len(_jev['blocks'])} 条语义规则判「不符合」（置信足）："
+                      f"{[b['rule_id'] for b in _jev['blocks']]} — 建议人审，不自动阻塞",
+                      file=sys.stderr, flush=True)
+            elif _jev.get("degraded_reason"):
+                print(f"ℹ️ [JEV] {_jev['degraded_reason']}", file=sys.stderr)
+            elif _jev.get("judged"):
+                print(f"✅ [JEV] 语义验收通过（{len(_jev.get('passed', []))} 条规则）",
+                      file=sys.stderr)
+    except Exception as _jev_exc:
+        print(f"ℹ️ [JEV] 验收 loop 跳过（{type(_jev_exc).__name__}），机械门结论为准",
+              file=sys.stderr)
+
+
     # E7: 校准日志 — 每条 VERIFIED 断言留痕,供后续 overturn 追踪
     if result.decision == "VERIFIED":
         try:
