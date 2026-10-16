@@ -150,7 +150,17 @@ def run(step: str, token_arg: str | None, commit: str | None,
                            "degraded": out["degraded_reason"]})
         return out
 
+    # 接口适配：单次响应 = {"answers": {rule_id: ...}, "usage": ...}（list 是多采样聚合的输入形态）
+    if "list" not in raw and "answers" in raw:
+        raw = {"list": [raw]}
     answers = js._aggregate_answers(raw.get("list") or [])
+    n_answered = sum(1 for r in jev_rules if answers.get(r["rule_id"]))
+    if n_answered == 0 and len(jev_rules) > 0:
+        # 模型应答了但答案结构与规则对不上（接口/判据漂移）——不写「不能判定」假账本
+        out["degraded_reason"] = f"JEV 应答 {len(answers)} 项但 {len(jev_rules)} 条规则无匹配 → 降级：机械门为准"
+        _append_telemetry({"event_type": "jev_verify", "ts": _now(), "step": step,
+                           "degraded": out["degraded_reason"]})
+        return out
     for rule in jev_rules:
         rid = rule["rule_id"]
         ans = answers.get(rid) or {}
@@ -178,7 +188,9 @@ def run(step: str, token_arg: str | None, commit: str | None,
             out["passed"].append(rid)
 
     out["judged"] = True
-    out["usage"] = js._sum_usage(raw.get("list") or [])
+    out["usage"] = js._sum_usage(raw.get("list") or []) or (raw.get("usage") or {"input_tokens": 0, "output_tokens": 0, "cost": 0.0})
+    if all(v == 0 for v in (out["usage"].get("input_tokens") or 0, out["usage"].get("output_tokens") or 0)) and raw.get("usage"):
+        out["usage"] = raw["usage"]
     _append_telemetry({"event_type": "jev_verify", "ts": _now(), "step": step,
                        "judged": True, "blocks": len(out["blocks"]),
                        "low_confidence": len(out["low_confidence"]),
