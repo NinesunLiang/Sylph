@@ -196,6 +196,22 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default=None)
     args = ap.parse_args(argv)
 
+    # 密钥兜底：CC 会话会注入 settings.local.json 的 env；独立终端/脚本调用时
+    # 环境里可能没有 —— 从 settings.local.json 读一次（不修改该文件、不打印值）。
+    import os
+    if not os.environ.get("OPENROUTER_API_KEY"):
+        for cand in (ROOT / ".claude" / "settings.local.json",
+                     ROOT / ".claude" / "settings_ds.json"):
+            try:
+                envs = json.loads(cand.read_text()).get("env") or {}
+                k = envs.get("OPENROUTER_API_KEY") or ""
+                if not k:
+                    k = (json.loads(cand.read_text()) or {}).get("OPENROUTER_API_KEY", "")
+                if k:
+                    os.environ["OPENROUTER_API_KEY"] = k
+                    break
+            except Exception:
+                continue
     token = _read_token(args.token)
     commit = args.commit or (token.get("delivery") or {}).get("commit")
     if not commit:
