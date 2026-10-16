@@ -141,6 +141,35 @@ def _distill(args) -> int:
             })
     except Exception as exc:
         print(f"⚠ 脚本僵尸检测跳过: {exc}")
+    # 防重复（2026-10-17 人类反馈：每天蒸馏出同批提案刷屏）：
+    # 同 suggestion 已有 pending/accepted 提案 → 保留原提案，跳过新造（证据计数不动，
+    # 遥测趋势本身就是证据）。rejected 的不复活 —— 人已裁决的不再打扰。
+    try:
+        existing = {json.loads(l).get("suggestion"): json.loads(l)
+                    for l in Path(args.out, "proposals.jsonl").read_text().splitlines() if l.strip()}
+        kept = []
+        for p in props:
+            ex = existing.get(p["suggestion"])
+            if ex and ex.get("status") in ("pending", "accepted"):
+                kept.append(ex)  # 已在桌上的，不重复造
+            else:
+                kept.append(p)
+        props = kept
+    except FileNotFoundError:
+        pass
+    # 输出时合并既有全量（含裁决历史）+ 真正的新提案，而不是只写本次蒸馏结果
+    if existing:
+        ex_suggestions = {e.get("suggestion") for e in existing.values()}
+        merged = list(existing.values()) + [p for p in props if p["suggestion"] not in ex_suggestions]
+        seen = set()
+        out_all = []
+        for x in merged:
+            k = (x.get("suggestion"), x.get("status"))
+            if k in seen:
+                continue
+            seen.add(k)
+            out_all.append(x)
+        props = out_all
     jsonl, md = write_proposals(props, Path(args.out) / "proposals.jsonl", Path(args.out) / "proposals.md")
     print(f"[distill] {asof} | 提案 {len(props)} 条 | -> {jsonl}")
     for p in props:
