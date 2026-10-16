@@ -29,6 +29,8 @@ KNOWLEDGE = ROOT / ".omc" / "knowledge"
 CLAUDE_NEXT = KNOWLEDGE / "claude-next.md"
 SUBLIMATION_LOG = KNOWLEDGE / "sublimation-log.jsonl"
 ANTI_PATTERNS = ROOT / ".claude" / "references" / "anti-patterns.md"
+# 2026-10-16 防膨胀闸：anti-patterns.md 超阈值 → 停止追加（人类裁决：轻量化优先）
+ANTI_PATTERNS_MAX_LINES = 40
 ANTI_PATTERN_REDIRECTS = ROOT / ".omc" / "state" / "anti-pattern-redirects.jsonl"
 # ERROR_DNA 常量已随 error-dna 机制移除（index48 S1）
 KERNEL_CANDIDATES = KNOWLEDGE / "kernel-candidates.md"
@@ -127,6 +129,8 @@ def _sublimation_check() -> list[str]:
             existing = ANTI_PATTERNS.read_text(encoding="utf-8")
         except Exception:
             existing = ""
+        if len(existing.splitlines()) > ANTI_PATTERNS_MAX_LINES:
+            return []  # 防膨胀：文件超阈值，停止追加（需先精简/晋升才能再长）
 
     sublimated: list[str] = []
     _now_dt = datetime.now(timezone.utc)

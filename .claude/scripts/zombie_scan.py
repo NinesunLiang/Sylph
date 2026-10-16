@@ -17,7 +17,9 @@ import shutil
 import sys
 from pathlib import Path
 
-EXCLUDE_FRAGS = ("__pycache__", "/archived/", "/retired/", ".omo/", ".omc/", "node_modules/", "/dist/", "/.git/")
+EXCLUDE_FRAGS = ("__pycache__", "/archived/", "/retired/", "/.claude/worktrees/", ".omo/", ".omc/", "node_modules/", "/dist/", "/.git/", "/apps/", "/benchmark/", "/ui-demo/")
+# 2026-10-16 性能护栏：单文件超过该字节数不参与引用索引
+MAX_SCAN_FILE = 512 * 1024
 _LIVE_PREFIX = ("test_", "conftest", "__init__")
 
 
@@ -37,6 +39,9 @@ def find_zombies(root, scan_roots: tuple[str, ...] = (".",)) -> list[str]:
     故默认只扫 .claude/scripts 顶层，避免把活跃 hook 误判成僵尸）。
     """
     root = Path(root).resolve()
+    # 2026-10-16 性能护栏：排除 worktree 克隆（.claude/worktrees/**）——旧版 .claude
+    # 快照会让引用索引扫到数百份副本（曾致 distill 超时/OOM）。
+    _wt_dir = (root / ".claude" / "worktrees").resolve()
     candidates = []
     for sr in scan_roots:
         base = root / sr
@@ -44,28 +49,36 @@ def find_zombies(root, scan_roots: tuple[str, ...] = (".",)) -> list[str]:
             continue
         candidates.extend(p for p in base.rglob("*.py") if _is_candidate(p))
 
-    # 索引：stem -> 引用它的文件集合
+    # 索引：stem -> 引用它的文件集合。
+    # 护栏（2026-10-16）：真实仓库引用索引只扫 .claude/（框架本体）——apps/（11G 业务
+    # 克隆）曾致全仓 rglob 超时/OOM；非真实框架目录（测试 tmp）保持全扫。
     ref_by: dict[str, set[Path]] = {}
-    for src in root.rglob("*"):
-        if not src.is_file():
-            continue
-        rel = src.as_posix()
-        if any(f in rel for f in EXCLUDE_FRAGS):
-            continue
-        if src.name == "zombie_scan.py":
-            continue
-        try:
-            text = src.read_text(encoding="utf-8", errors="ignore")
-        except OSError:
-            continue
-        # 路径/文件名形式：x.py（文件名允许连字符，如 temp-bypass.py）
-        for m in re.finditer(r"([A-Za-z_][A-Za-z0-9_-]{1,80})\.py\b", text):
-            ref_by.setdefault(m.group(1), set()).add(src)
-        # import x / from a.b import x（含点分链，逐段登记）
-        for m in re.finditer(r"\b(?:import|from)\s+([A-Za-z_][A-Za-z0-9_.]*)", text):
-            for seg in m.group(1).split("."):
-                if seg:
-                    ref_by.setdefault(seg, set()).add(src)
+    index_roots = [root / ".claude"] if (root / ".claude").exists() else [root]
+    for _ir in index_roots:
+        for src in _ir.rglob("*"):
+            if not src.is_file():
+                continue
+            rel = src.as_posix()
+            if any(f in rel for f in EXCLUDE_FRAGS):
+                continue
+            if _wt_dir == src or _wt_dir in src.parents:
+                continue
+            if src.name == "zombie_scan.py":
+                continue
+            try:
+                if src.stat().st_size > MAX_SCAN_FILE:
+                    continue
+                text = src.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            # 路径/文件名形式：x.py（文件名允许连字符，如 temp-bypass.py）
+            for m in re.finditer(r"([A-Za-z_][A-Za-z0-9_-]{1,80})\.py\b", text):
+                ref_by.setdefault(m.group(1), set()).add(src)
+            # import x / from a.b import x（含点分链，逐段登记）
+            for m in re.finditer(r"\b(?:import|from)\s+([A-Za-z_][A-Za-z0-9_.]*)", text):
+                for seg in m.group(1).split("."):
+                    if seg:
+                        ref_by.setdefault(seg, set()).add(src)
 
     out = []
     for c in candidates:

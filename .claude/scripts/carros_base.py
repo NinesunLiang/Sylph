@@ -2289,6 +2289,29 @@ def cmd_archive(force=False):
     _write_audit("archive", {"task_id": token["session"]["id"], "result": "ARCHIVED"})
     _write_handoff(token)
 
+    # Step 6.2（2026-10-16 飞轮接通）：归档触发蒸馏器 — 防膨胀闸 + 进化提案
+    # 纪律：只建议不执行（提案落 .omc/proposals/），永不阻断归档（失败仅告警）。
+    try:
+        import subprocess as _subp
+        _pp = str(_hook_dir / "proposals.py")
+        _distill_proc = _subp.run(
+            [sys.executable, _pp, "distill", "--window", "14"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if _distill_proc.stdout:
+            print(_distill_proc.stdout.strip())
+        # 防膨胀闸（C2）：存在僵尸且本轮无删除证据 → 告警（不阻断，人类裁决）
+        _ar_proc = _subp.run(
+            [sys.executable, _pp, "anti-regrowth", "--window", "14"],
+            capture_output=True, text=True, timeout=60,
+        )
+        if _ar_proc.stdout:
+            print(_ar_proc.stdout.strip())
+        if _ar_proc.returncode != 0:
+            print(_yellow("⚠  防膨胀闸：存在僵尸门禁且本轮无删除证据 — 提案已入 .omc/proposals/，需人工处理"))
+    except Exception as _distill_exc:
+        print(_yellow(f"⚠  蒸馏器跳过（不影响归档）: {_distill_exc}"))
+
     # Step 6: terminal finalizer — retain the archived token and remove only its sidecar
     try:
         finalize_token(TOKEN_PATH, status="archived", reason="archive completed")
@@ -3138,6 +3161,29 @@ def cmd_fallback():
     return 2
 
 
+def cmd_propose():
+    """进化提案台 — distill / list / accept / reject（委托 proposals.py，飞轮 C1）。
+
+    用法:
+        carros_base.py propose distill [--window N]   蒸馏遥测 → 提案
+        carros_base.py propose list                   列出提案
+        carros_base.py propose accept <id> [note]     批准（reject 必须写 note）
+        carros_base.py propose reject <id> <note>
+    """
+    argv = sys.argv[sys.argv.index("propose") + 1:]
+    _pp = _hook_dir / "proposals.py"
+    if not argv or argv[0] in ("-h", "--help"):
+        print(__doc__.strip() if False else
+              "usage: propose distill|list|accept <id> [note]|reject <id> <note>")
+        return 2
+    try:
+        import proposals as _proposals
+        return _proposals.main(argv)
+    except Exception as exc:
+        print(_red(f"❌ propose 失败: {exc}"), file=sys.stderr)
+        return 2
+
+
 def cmd_help():
     """打印帮助信息 — 从 COMMANDS 注册表动态生成（单一真源，2026-10-16 A2）"""
     core = [v for v in COMMANDS if v not in RETIRED_COMMANDS]
@@ -3479,6 +3525,7 @@ COMMANDS = {
     "lint": cmd_lint,
     "report": cmd_report,
     "prune-stale-locks": cmd_prune_stale_locks,
+    "propose": cmd_propose,
     "help": cmd_help,
     # ── 退役观察区（retired，埋点跟踪，3 个月 0 调用即删）──
     "gate": cmd_gate,
