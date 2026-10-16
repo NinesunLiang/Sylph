@@ -527,8 +527,6 @@ def _derive_task_desc(token: dict, plan_path: Optional[Path] = None) -> str:
 
 def _write_handoff(token, plan_summary=None):
     """写入 Resume Capsule — 7 段结构化 handoff（R2 Compact Storm）"""
-    import sys
-    print(f"DEBUG: token type={type(token)}, repr={token!r}", file=sys.stderr)
     try:
         import lib.handoff_writer as hw
         tid = token.get("session", {}).get("id", "unknown")
