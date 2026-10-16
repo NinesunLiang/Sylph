@@ -16,7 +16,8 @@ def _load_launcher(name: str = "hook_launcher_night_result"):
     return module
 
 
-def test_night_deny_rc_is_visible_as_deny():
+def test_night_deny_rc_is_visible_as_deny(monkeypatch):
+    monkeypatch.setenv("HOOK_EVENT_TYPE", "PreToolUse")
     launcher = _load_launcher()
     merged = launcher._merge_hook_results([
         ("carroros-night-deny.py", (2, {

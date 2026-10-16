@@ -228,6 +228,37 @@ def verdict_from_noul(prob: Any, accept_at: float, reject_at: float) -> str:
     return VERDICT_INSUFFICIENT
 
 
+def verdict_from_answer(answer: dict | None, rule: dict) -> str:
+    """Normalize one JEV answer into the shared semantic verdict."""
+    if not answer:
+        return VERDICT_UNAVAILABLE
+    primitive = answer.get("type") or primitive_for(rule)
+    if primitive == "noul":
+        return verdict_from_noul(
+            answer.get("noul"),
+            float(rule.get("accept_at", 0.85)),
+            float(rule.get("reject_at", 0.30)),
+        )
+    if primitive == "choice":
+        return verdict_from_choice(
+            answer.get("choice"),
+            answer.get("confidence"),
+            float(rule.get("confidence_at", rule.get("accept_at", 0.85))),
+        )
+    return VERDICT_INSUFFICIENT
+
+
+def classify_answer(answer: dict | None, accept_at: float, reject_at: float,
+                    confidence_at: float = 0.55) -> dict:
+    """Small test-friendly adapter for the shared answer contract."""
+    rule = {"accept_at": accept_at, "reject_at": reject_at,
+            "confidence_at": confidence_at}
+    if answer and answer.get("type") == "choice":
+        rule["allow_not_applicable"] = True
+    verdict = verdict_from_answer(answer, rule)
+    return {"verdict": verdict}
+
+
 def verdict_from_choice(choice: Any, confidence: Any, threshold: float) -> str:
     """三值判定。
 
@@ -520,10 +551,9 @@ def _apply_answer(row: dict, rule: dict, answer: dict | None) -> None:
     prim = answer.get("type") or primitive_for(rule)
     row["jev_primitive"] = prim
     accept = float(rule.get("accept_at", 0.85))
-    reject = float(rule.get("reject_at", 0.30))
     if prim == "noul":
         row["jev_noul"] = answer.get("noul")
-        row["verdict"] = verdict_from_noul(answer.get("noul"), accept, reject)
+        row["verdict"] = verdict_from_answer(answer, rule)
     elif prim == "choice":
         row["jev_choice"] = answer.get("choice")
         row["jev_confidence"] = answer.get("confidence")
@@ -531,9 +561,7 @@ def _apply_answer(row: dict, rule: dict, answer: dict | None) -> None:
         # 三值用 confidence 阈值：三选项均分时 confidence ≈ 0.33，
         # 沿用二值的 accept_at 会让绝大多数判定落进「证据不足」。
         conf_at = float(rule.get("confidence_at", accept))
-        row["verdict"] = verdict_from_choice(
-            answer.get("choice"), answer.get("confidence"), conf_at
-        )
+        row["verdict"] = verdict_from_answer(answer, rule)
         # 低置信不给结论，但原始信号要留档：它可能是**规则本身有问题**的证据。
         conf = answer.get("confidence")
         if row["verdict"] == VERDICT_UNDECIDED:

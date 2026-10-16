@@ -8,10 +8,13 @@
 两者共用同一个 Jev 客户端与判定口径；判读不同（本工具用 jev_rules_audit.yaml）。
 
 流程：
-  1. 机械筛候选（没接线 / 只有 1 处接线的机制文件）
-  2. 给每个候选补事实（谁调它、最后改动、在不在注册表里）
+  1. 收集审计范围内的全部机制文件（可用 --suspects-only 只取低接线候选）
+  2. 给每个机制补事实（谁调它、最后改动、在不在注册表里）
   3. 逐条规则问 Jev
   4. 出体检报告，标 建议删除 / 建议调整 / 保留
+
+范围：默认审计 `.claude/` 核心机制；排除 `workflows/`、`worktrees/` 和
+`settings*` 作为被审计对象。settings 与索引仍可作为入口证据，不能从调用图中拿掉。
 
 只读：不删任何文件，不改任何机制。删不删由人类看完报告决定。
 """
@@ -35,7 +38,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AUDIT_RULES = SCRIPTS / "jev_rules_audit.yaml"
 MAIN_RULES = SCRIPTS / "jev_rules.yaml"
 
-EXCLUDE_SEG = ("references/", "worktrees/", "archived/", "archive/")
+EXCLUDE_SEG = ("workflows/", "worktrees/")
 TEXT_EXT = {".py", ".md", ".yaml", ".yml", ".json", ".sh", ".ts", ".tsx", ".js", ".txt"}
 MECH_EXT = {".py", ".sh"}
 
@@ -59,8 +62,25 @@ def _is_test(rel: str) -> bool:
     return n.startswith("test_") or n.endswith("_test.py") or "/tests/" in rel
 
 
-def _excluded(rel: str) -> bool:
-    return any(s in rel for s in EXCLUDE_SEG)
+def _in_audit_scope(rel: str) -> bool:
+    """Return whether a tracked path is an auditable mechanism candidate."""
+    path = Path(rel)
+    if not rel.startswith(".claude/"):
+        return False
+    if any(segment in rel for segment in EXCLUDE_SEG):
+        return False
+    if any(part.startswith("settings") for part in path.parts):
+        return False
+    return True
+
+
+def _in_evidence_scope(rel: str) -> bool:
+    """Return whether a tracked text file may provide caller/registry evidence."""
+    if not rel.startswith(".claude/"):
+        return False
+    if "workflows/" in rel or "worktrees/" in rel:
+        return False
+    return True
 
 
 def _patterns(rel: str) -> list[re.Pattern]:
@@ -88,11 +108,11 @@ def _last_commits(prefix: str) -> dict[str, str]:
     return dates
 
 
-def collect_candidates() -> tuple[list[dict], dict]:
+def collect_candidates(*, suspects_only: bool = True) -> tuple[list[dict], dict]:
     files = _tracked(".claude")
     idx: dict[str, str] = {}
     for rel in files:
-        if _excluded(rel):
+        if not _in_evidence_scope(rel) or _is_test(rel):
             continue
         p = ROOT / rel
         if p.suffix in TEXT_EXT and p.is_file():
@@ -105,7 +125,7 @@ def collect_candidates() -> tuple[list[dict], dict]:
     mech, tests = [], []
     for rel in files:
         p = ROOT / rel
-        if _excluded(rel) or p.suffix not in MECH_EXT or not p.is_file():
+        if not _in_audit_scope(rel) or p.suffix not in MECH_EXT or not p.is_file():
             continue
         (tests if _is_test(rel) else mech).append(rel)
 
@@ -131,7 +151,7 @@ def collect_candidates() -> tuple[list[dict], dict]:
             "last_commit": dates.get(rel, "?"),
         })
 
-    # 只把「可疑」的送去判：完全没接线，或只有 1 处接线（自产自销嫌疑）
+    # Jev 全量审计默认返回所有机制；兼容旧调用方时可只取低接线候选。
     suspects = [c for c in out if len(c["callers"]) <= 1]
     stats = {
         "mech_total": len(mech),
@@ -139,7 +159,7 @@ def collect_candidates() -> tuple[list[dict], dict]:
         "suspects": len(suspects),
         "unwired": sum(1 for c in out if not c["callers"]),
     }
-    return suspects, stats
+    return (suspects if suspects_only else out), stats
 
 
 # ── 2. 补事实 ──────────────────────────────────────────────────────
@@ -209,7 +229,9 @@ def _registration(rel: str) -> str:
     # ① 归属：workflows/<名字> 或 skills/<名字>。
     #    这类目录是**一个自洽单元**，根上有入口，内部文件互相调用是正常的。
     #    注册表里登记的是短名（`frontend-overnight/`），不是全路径，所以按名字查。
-    if len(parts) >= 3 and parts[0] == ".claude" and parts[1] in ("workflows", "skills"):
+    if (len(parts) >= 3 and parts[0] == ".claude"
+            and parts[1] in ("workflows", "skills")
+            and parts[2] != "archived"):
         own = parts[2]
         idx = f".claude/{parts[1]}/index.md"
         text = _text(idx) + _text(".claude/index.md")
@@ -222,8 +244,9 @@ def _registration(rel: str) -> str:
             lines.append(f"  - 它属于 {parts[1][:-1]}「{own}」，但注册表里查不到这个单元")
 
     # ② 文件自己有没有被点名
-    if rel in _text(".claude/settings.json"):
-        lines.append("  - settings.json 直接点名了这个文件（是注册的 hook）")
+    settings_text = _text(".claude/settings.json")
+    if Path(rel).name in settings_text and "hook-launcher.py" in settings_text:
+        lines.append("  - settings.json 通过 hook-launcher.py 间接注册了这个 hook")
     for reg in REGISTRIES:
         if rel in _text(reg):
             lines.append(f"  - {reg} 直接点名了这个文件")
@@ -348,18 +371,13 @@ def judge_one(cand: dict, rules: list[dict], client, model: str, samples: int) -
         if not isinstance(ans, dict):
             verdicts[rid] = {"verdict": js.VERDICT_UNAVAILABLE, "reason": "answers 缺项"}
             continue
+        v = js.verdict_from_answer(ans, rule)
+        verdicts[rid] = {"verdict": v}
         if ans.get("type") == "noul":
-            v = js.verdict_from_noul(
-                ans.get("noul"),
-                float(rule.get("accept_at", 0.85)),
-                float(rule.get("reject_at", 0.30)),
-            )
-            verdicts[rid] = {"verdict": v, "noul": ans.get("noul")}
-        else:
-            v = js.verdict_from_choice(ans.get("choice"), ans.get("confidence"),
-                                       float(rule.get("confidence_at", 0.55)))
-            verdicts[rid] = {"verdict": v, "choice": ans.get("choice"),
-                             "confidence": ans.get("confidence")}
+            verdicts[rid]["noul"] = ans.get("noul")
+        elif ans.get("type") == "choice":
+            verdicts[rid]["choice"] = ans.get("choice")
+            verdicts[rid]["confidence"] = ans.get("confidence")
     return {"path": cand["path"], "verdicts": verdicts, "error": None,
             "callers": cand["callers"], "facts": facts}
 
@@ -386,20 +404,24 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--model", default=js.MODEL_FROZEN)
     ap.add_argument("--out", default=str(ROOT / ".omc" / "state" / "jev" / "claude-audit"))
     ap.add_argument("--dry-run", action="store_true", help="只列候选，不调 Jev")
+    ap.add_argument("--suspects-only", action="store_true",
+                    help="只评估 0/1 接线候选；默认评估全部范围内机制")
     args = ap.parse_args(argv)
 
-    cands, stats = collect_candidates()
-    rules = merged_rules()
+    cands, stats = collect_candidates(suspects_only=args.suspects_only)
 
     print(f"机制文件 {stats['mech_total']} 个（测试 {stats['test_total']} 个另计）")
     print(f"可疑候选 {stats['suspects']} 个（0 接线 {stats['unwired']}）")
-    print(f"体检规则 {len(rules)} 条: {[r['rule_id'] for r in rules]}")
-    print()
 
     if args.dry_run:
+        print("体检规则未加载（dry-run）")
         for c in cands:
             print(f"  {len(c['callers'])} 接线  {c['bytes']:>7,}B  {c['path']}")
         return 0
+
+    rules = merged_rules()
+    print(f"体检规则 {len(rules)} 条: {[r['rule_id'] for r in rules]}")
+    print()
 
     client = js.JevClient()
     if not client.api_key:

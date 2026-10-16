@@ -75,13 +75,13 @@ def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
         )
     except subprocess.TimeoutExpired:
         print(f"hook-launcher: hook timed out (120s): {hook_name}", file=sys.stderr)
-        return (0, None)
+        return (2, None) if hook_name in PRETOOL_RC_DENY_HOOKS else (0, None)
     except FileNotFoundError:
         print(f"hook-launcher: python3/bash not found for: {hook_name}", file=sys.stderr)
-        return (0, None)
+        return (2, None) if hook_name in PRETOOL_RC_DENY_HOOKS else (0, None)
     except Exception as e:
         print(f"hook-launcher: spawn failed: {hook_name}: {e}", file=sys.stderr)
-        return (0, None)
+        return (2, None) if hook_name in PRETOOL_RC_DENY_HOOKS else (0, None)
 
     # Forward stderr immediately (operator visibility)
     if result.stderr:
@@ -98,9 +98,11 @@ def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
             pass
 
     if result.returncode != 0 and not parsed:
-        # Hook crashed without JSON — treat as warning continue
+        # Security/permission hooks fail closed; observability hooks may continue.
         print(f"hook-launcher: hook crashed (exit={result.returncode}): {hook_name}",
               file=sys.stderr)
+        if hook_name in PRETOOL_RC_DENY_HOOKS:
+            return (result.returncode, None)
         return (0, None)
 
     # Non-zero RC but has JSON → caller decides BLOCK propagation
@@ -160,7 +162,9 @@ def _merge_hook_results(results: list) -> dict:
         elif pd == "ask":
             any_permission_ask = True
         # Audit trail
-        reasons.append({"hook": hook_name, "rc": rc, "decision": hso.get("permissionDecisionReason", ""),
+        safe_hso = hso if isinstance(hso, dict) else {}
+        reasons.append({"hook": hook_name, "rc": rc,
+                         "decision": safe_hso.get("permissionDecisionReason", ""),
                          "message": msg[:200]})
 
     merged = {
@@ -175,8 +179,12 @@ def _merge_hook_results(results: list) -> dict:
         if contexts:
             hso["additionalContext"] = "\n".join(contexts)
         # Use first hook's reason as the primary one
-        first_dec = next((r[1][1].get("hookSpecificOutput", {}).get("permissionDecisionReason", "")
-                          for r in results if r[1][1]), "merged_decision")
+        def _reason(result):
+            parsed = result[1][1]
+            hso = parsed.get("hookSpecificOutput") if isinstance(parsed, dict) else None
+            return hso.get("permissionDecisionReason", "") if isinstance(hso, dict) else ""
+
+        first_dec = next((_reason(r) for r in results), "merged_decision")
         hso["permissionDecisionReason"] = first_dec
         merged["hookSpecificOutput"] = hso
     merged["_reasons"] = reasons  # internal audit (Claude Code ignores _-prefixed)

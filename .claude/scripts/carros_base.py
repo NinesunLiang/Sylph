@@ -285,6 +285,37 @@ def _init_paths_from_token(token, found_path):
 
 # ─── ANSI helpers ───
 def _green(s): return f"\033[32m{s}\033[0m"
+def _emit_jev_feedback(step_id: str, task_dir: Path) -> None:
+    """将 JEV 结果反馈给 LLM 一次；反馈失败不影响主流程。"""
+    try:
+        import subprocess as _sp
+        candidates = OMC_ROOT / "state" / "project-rules" / "candidates.json"
+        if not candidates.exists():
+            _sp.run(
+                [sys.executable, str(Path(__file__).resolve().parent / "project_rule_candidates.py")],
+                timeout=30, check=False,
+            )
+        token = _load_token() or {}
+        task_id = str((token.get("session") or {}).get("id") or task_dir.name)
+        checklist = OMC_ROOT / "state" / "jev" / task_dir.name / "checklist.json"
+        if not checklist.exists():
+            return
+        from jev_feedback import emit_feedback
+        candidates = OMC_ROOT / "state" / "project-rules" / "candidates.json"
+        feedback = emit_feedback(
+            checklist, OMC_ROOT / "state" / "jev" / task_id,
+            task_id, step_id, candidates,
+        )
+        if feedback.get("needs_review"):
+            print(_yellow(
+                f"   ↳ JEV 反馈已发给 LLM：请决定是否调整（仅一次，task={task_id} step={step_id}）"
+            ))
+        else:
+            print("   ↳ JEV 反馈：无须调整")
+    except Exception as exc:  # 反馈桥接失败不影响主流程
+        print(_yellow(f"   ↳ JEV 反馈跳过: {type(exc).__name__}"))
+
+
 def _maybe_run_jev_shadow(step_id):
     """JEV-C shadow（P1-b）——对交付物做规则轮询，只写记录，**不改变任何结论**。
 
@@ -314,6 +345,8 @@ def _maybe_run_jev_shadow(step_id):
         r = _sp.run(cmd, timeout=300, check=False)
         if r.returncode != 0:
             print(_yellow(f"   ↳ JEV-C shadow 跳过（exit {r.returncode}）"))
+        else:
+            _emit_jev_feedback(step_id, TASK_DIR)
     except Exception as exc:  # noqa: BLE001 —— shadow 绝不影响主流程
         print(_yellow(f"   ↳ JEV-C shadow 跳过: {type(exc).__name__}"))
 
@@ -338,6 +371,16 @@ def _is_l2_nonlight(token: dict) -> bool:
     session = token.get("session") or {}
     task = token.get("task") or {}
     return str(session.get("level", "")).upper() == "L2" and task.get("mode") != "light"
+
+
+def _goal_level_from_intake(requested_level: str, risk_level: str, jev_verdict: str | None = None) -> str:
+    """Choose Goal level: explicit L2/JEV L2/high risk win; low risk stays L1."""
+    level = str(requested_level or "L1").upper()
+    risk = str(risk_level or "low").lower()
+    verdict = str(jev_verdict or "").upper()
+    if level == "L2" or verdict == "L2" or risk in {"high", "critical"}:
+        return "L2"
+    return "L1"
 
 
 def _is_l2_goal(token: dict) -> bool:
@@ -1178,10 +1221,8 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
     except ValueError as exc:
         print(_red(f"❌ {exc}"), file=sys.stderr)
         raise
-    if task_mode == "goal" and level != "L2":
-        raise ValueError("goal tasks require level L2")
-    if task_mode == "goal" and light:
-        raise ValueError("goal tasks cannot use light mode")
+    if task_mode == "goal" and light and level == "L2":
+        raise ValueError("L2 goal tasks cannot use light mode")
     # S3: 任务名合法性校验（防路径逃逸）— 复用 task_paths SSOT
     if task_id:
         try:
@@ -1210,6 +1251,7 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
         os.environ.setdefault("CARROROS_TASK_MODE", task_mode)
 
     intake_decision_data = None
+    jev_level_advice = None
 
     # IntakeGate 前置分级（如有 user_request）
     if user_request:
@@ -1226,6 +1268,17 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
                     try:
                         intake = json.loads(result.stdout)
                         decision = intake["decision"]
+                        # Optional JEV advisor: unavailable/uncertain never lowers
+                        # deterministic IntakeGate risk; explicit L2 still wins.
+                        if os.environ.get("CARROROS_JEV_LEVEL_ADVISOR") == "1":
+                            try:
+                                from jev_sweep import VERDICT_OK
+                                jev_level_advice = "L2" if intake.get("risk_level") in ("high", "critical") else VERDICT_OK
+                            except Exception:
+                                jev_level_advice = None
+                        if jev_level_advice == "L2" and decision == "L1":
+                            decision = "L2"
+                            intake["decision"] = decision
                         print(f"   IntakeGate: {decision} (risk={intake['risk_level']})")
                         for r in intake.get("reasons", []):
                             print(f"     reason: {r}")
@@ -2169,33 +2222,8 @@ def cmd_archive(force=False):
         except Exception as exc:
             print(_red(f"❌ Goal state unreadable; archive aborted: {exc}"), file=sys.stderr)
             return 2
-        # index44 R2：终末"归档步骤"死结根治。GoalMachine 要求 done==total 才允许
-        # EXECUTING→VERIFYING，但常见 plan 把 archive 本身列为最后一步 → 该步 pending
-        # 使 goal 永远停在 EXECUTING，archive 又要求 VERIFYING（鸡生蛋，index44 实测 +
-        # memory verifying-handoff-gap）。识别「唯一 pending 且 verify 含 archive」的终末
-        # 步骤，在此自动完成并推进 VERIFYING（写审计），随后按正常流程归档。
-        if (not _is_l2_goal(token)
-                and archive_gate.current_state == gsm.EXECUTING
-                and step_contracts is not None and PLAN_PATH and PLAN_PATH.exists()):
-            _pend = [s for s in step_contracts.parse_plan_steps(PLAN_PATH.read_text(encoding="utf-8"))
-                     if s.get("status") != "completed"]
-            if len(_pend) == 1 and " archive" in str(_pend[0].get("verify", "")):
-                _step_id = _pend[0]["id"]
-                _pat = re.compile(r"^- \[[ aA]\] " + re.escape(_step_id) + r":", re.MULTILINE)
-                _ptxt = PLAN_PATH.read_text(encoding="utf-8")
-                PLAN_PATH.write_text(_pat.sub(f"- [x] {_step_id}:", _ptxt, count=1), encoding="utf-8")
-                token["stats"]["done"] = token["stats"].get("done", 0) + 1
-                _save_token(token)
-                _write_audit("archive_auto_completed_terminal_step", {
-                    "step": _step_id, "reason": "terminal-archive-step deadlock fix (index44 R2)",
-                })
-                try:
-                    _gm = GoalMachine(TOKEN_PATH)
-                    _gm.transition(gsm.VERIFYING, reason="archive auto-completed terminal archive step")
-                    archive_gate = _gm
-                    print(_yellow(f"   ↻ 终末归档步骤 {_step_id} 自动完成，goal -> VERIFYING（R2 死结修复）"))
-                except Exception as _exc:  # 防御：推进失败则回退提示走原检查
-                    print(_yellow(f"   ⚠ R2 自动推进失败({_exc})，走原 VERIFYING 检查"))
+        # Goal completion belongs to lx-goal done. Archive only accepts VERIFYING
+        # and never mutates plan/token step completion.
         if archive_gate.current_state != gsm.VERIFYING:
             print(
                 _red(
@@ -2253,8 +2281,8 @@ def cmd_archive(force=False):
     # 注意（2026-08-30 bug 1 修复）：unlink 移到函数末尾，
     # 确保所有 validation（goal VERIFYING 校验、tombstone）都成功后才清指针。
     # 否则 archive 失败时指针已清，后续 verify 报 "No active task"。
-    cmd_report(use_stdout=False)
-    print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
+    # Report is generated after the token reaches archived state below, so its
+    # status reflects the final lifecycle state.
 
     # Step 4: 复制 report 到 archive 目录
     if token.get("mode") == "goal":
@@ -2294,6 +2322,10 @@ def cmd_archive(force=False):
     token["status"] = "archived"
     token["archived_at"] = datetime.now(timezone.utc).isoformat()
     _save_token(token)
+
+    # Generate the report after the archived token is durable.
+    cmd_report(use_stdout=False)
+    print(_green(f"✅ Final report: {archive_dir / 'final-report.md'}"))
 
     # 按方案 10.md L987-1000 写 token.final.json + token.tombstone.json
     import shutil
