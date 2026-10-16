@@ -672,6 +672,10 @@ def _check_commit_push_integrity(payload: dict) -> str | None:
 
 
 def _check_oracle_gate(payload: dict) -> str | None:
+    # 2026-10-16 人类裁决：oracle 门退役观察区（14 天 0 触发）。默认 no-op，
+    # 设 CARROROS_ORACLE_GATE=1 可恢复（恢复 = 把 pretool-gate._GATE_L2_EXTRA 注释解开）。
+    if os.environ.get("CARROROS_ORACLE_GATE") != "1":
+        return None
     token = _active_token()
     if not token:
         return None

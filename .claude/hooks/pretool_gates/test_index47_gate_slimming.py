@@ -114,19 +114,37 @@ _BYPASS_CMD = "export SKIP_VERIFY_GATE=1 && git commit -m x"
 
 
 def test_oracle_gate_engages_for_l2_task(monkeypatch):
-    """L2 任务遇到「自我放行」语义必须 BLOCK——这是 oracle 独有的覆盖（无其他门管）。"""
+    """L2 任务遇到「自我放行」语义必须 BLOCK——这是 oracle 独有的覆盖（无其他门管）。
+
+    2026-10-16：oracle 门进退役观察区（14 天 0 触发），默认 no-op；
+    显式 CARROROS_ORACLE_GATE=1 时行为必须与退役前一致。"""
     monkeypatch.setattr(checks, "_active_token",
                         lambda: {"session": {"level": "L2"}, "task": {"current_step": "S1"}})
+    monkeypatch.setenv("CARROROS_ORACLE_GATE", "1")
     payload = {"tool_name": "Bash", "tool_input": {"command": _BYPASS_CMD}}
     result = checks._check_oracle_gate(payload)
-    assert result is not None, "L2 下 oracle 门未生效（应为 BLOCK）"
+    assert result is not None, "CARROROS_ORACLE_GATE=1 下 oracle 门未生效（应为 BLOCK）"
     assert result.startswith("BLOCK")
 
 
-def test_oracle_gate_engages_for_l2_enhance_token(monkeypatch):
-    """兼容旧写法 L2_ENHANCE（carros_base.py:1167/1909 的等价写法之一）。"""
+def test_oracle_gate_retired_by_default(monkeypatch):
+    """退役观察区纪律：未显式启用时 oracle 门 no-op（不触发）。"""
+    monkeypatch.delenv("CARROROS_ORACLE_GATE", raising=False)
     monkeypatch.setattr(checks, "_active_token",
-                        lambda: {"session": {"level": "L2_ENHANCE"}, "task": {"current_step": "S1"}})
+                        lambda: {"session": {"level": "L2"}, "task": {"current_step": "S1"}})
+    payload = {"tool_name": "Bash", "tool_input": {"command": _BYPASS_CMD}}
+    assert checks._check_oracle_gate(payload) is None
+
+
+def test_oracle_gate_engages_for_l2_enhance_token(monkeypatch):
+    """兼容旧写法 L2_ENHANCE（carros_base.py:1167/1909 的等价写法之一）。
+
+    注：index47 修复把等价判定收敛为 _ORACLE_L2_LEVELS={'L2'}，L2_ENHANCE 旧 token
+    在修复后同样 no-op（这正是本测试曾失败的原因——修复前它反而靠精确匹配命中）。
+    退役观察区语义：启用开关后行为必须与 index47 修复一致。"""
+    monkeypatch.setattr(checks, "_active_token",
+                        lambda: {"session": {"level": "L2"}, "task": {"current_step": "S1"}})
+    monkeypatch.setenv("CARROROS_ORACLE_GATE", "1")
     payload = {"tool_name": "Bash", "tool_input": {"command": _BYPASS_CMD}}
     assert checks._check_oracle_gate(payload) is not None
 

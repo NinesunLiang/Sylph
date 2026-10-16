@@ -94,7 +94,13 @@ _GATE_L2_EXTRA = [
     #   g3-reviews / numeric-claim  —— 返回值为软告警（NARROW/CHECKPOINT/WARN），
     #                                  pretool-gate 对四者一律「记一笔审计后放行」，
     #                                  从不拦截；numeric-claim 另与 claim-audit K1/G1 重复
-    ("oracle", _check_oracle_gate),
+    #
+    # 2026-10-16 人类裁决（门禁轻量化）：oracle 门 14 天 0 触发（僵尸，distill 提案
+    # p-2026-10-16-002）——退役观察区：保留函数定义（3 个月 0 调用即删，调用记埋点），
+    # 从门列表摘除。L2 门 = 14 核心 + 0 extra → 全仓门数收敛为 14，单一真源 =
+    # 本文件 _GATE_CORE（checks.py 实现 / gate-pass 遥测观测）。
+    # 如需恢复：把下面这行取消注释（人类操作）。
+    # ("oracle", _check_oracle_gate),
 ]
 
 L1_GATES = _GATE_CORE
