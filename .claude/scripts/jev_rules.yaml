@@ -143,7 +143,7 @@ rules:
   - rule_id: doc.process-complete
     requires: delivery
     source: AGENTS.md:18
-    text: "文档：AI 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统（research[全局探索|依赖树|前置澄清|执行方案]、plan[L1:step列表 / L2:phase一级&step二级]、executor[执行记录|checklist]），并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件（记录执行状态）和 `.json.lock` 锁文件（锁存在=任务进行中，锁不在=任务完成；完成时销毁锁）。"
+    text: "文档：L1 light 和 L2 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统，并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件。`.json.lock` 是底层并发写保护；只有 L2 goal 任务才把锁的最终移除作为完成标识。普通 L1 不要求任务文档。"
     rule_target: code
     judge_by: hybrid
     allow_not_applicable: true

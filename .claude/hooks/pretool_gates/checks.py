@@ -549,10 +549,10 @@ def _check_governance_delete_protection(payload: dict) -> str | None:
 
 # ── Gate 7: Oracle gate ──
 
-# index47：L2 档位的等价写法。原判定为精确匹配 "L2_ENHANCE"，但全仓从未写入该值
-# （carros_base.py:1167/1909 均把 ("L2_ENHANCE", "L2") 视为同一档；历史 28 个任务
+# index47：L2 档位的等价写法。原判定为精确匹配 "legacy-L2-alias"，但全仓从未写入该值
+# （carros_base.py:1167/1909 均把 ("legacy-L2-alias", "L2") 视为同一档；历史 28 个任务
 # token 实测 level 全为 L1/L2）→ oracle 门自建成起从未生效（0/4458）。
-_ORACLE_L2_LEVELS = {"L2", "L2_ENHANCE"}
+_ORACLE_L2_LEVELS = {"L2"}
 
 
 def _check_worktree_scope(payload: dict) -> str | None:

@@ -255,7 +255,9 @@ def build_plan(
         pending = []
         blocked_reason = None
     elif decision == "ASK_USER":
-        level = intake.get("level", "L1")
+        # Preserve the caller's requested governance level. Missing intake level
+        # must not silently downgrade an explicitly requested L2 task.
+        level = intake.get("requested_level") or intake.get("level") or "L2"
         steps = []
         pending = intake.get("required_confirmations", []) or ["clarify_goal_or_scope"]
         blocked_reason = "pending_user_decision"

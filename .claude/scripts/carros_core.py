@@ -18,6 +18,21 @@ from pathlib import Path
 from token_lifecycle import TERMINAL_STATUSES
 
 
+_ORACLE_SEVERITY: dict[str, int] = {
+    "REJECT": 4,
+    "ESCALATE": 3,
+    "ADVISORY": 2,
+    "ACCEPT": 1,
+    "UNAVAILABLE": 0,
+}
+
+
+def aggregate_verdicts(v1: str, v2: str, severity: dict[str, int] | None = None) -> str:
+    """Return the stricter verdict using an optional caller-owned severity map."""
+    levels = _ORACLE_SEVERITY if severity is None else severity
+    return v1 if levels.get(v1, 0) >= levels.get(v2, 0) else v2
+
+
 def _research_md_is_placeholder(research_path) -> bool:
     """M2 门禁：research.md 是否仍为占位模板。
 

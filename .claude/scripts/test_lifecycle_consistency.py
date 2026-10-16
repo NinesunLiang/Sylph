@@ -27,17 +27,16 @@ def test_level_normalization_rejects_unknown_values():
         carros.cmd_init(task_id="bad-level", level="L2_ENHANCE")
 
 
-def test_goal_requires_l2_and_cannot_be_light(tmp_path):
+def test_goal_allows_l1_and_rejects_l2_light(tmp_path):
     carros = _load_carros("carros_goal_contract")
     carros.OMC_TOKENS = tmp_path / "tokens"  # type: ignore[attr-defined]
     task_dir = tmp_path / "task"
-    with pytest.raises(ValueError, match="L2"):
-        carros.cmd_init(
-            task_id="goal-l1",
-            task_dir=str(task_dir),
-            level="L1",
-            task_mode="goal",
-        )
+    assert carros.cmd_init(
+        task_id="goal-l1",
+        task_dir=str(task_dir),
+        level="L1",
+        task_mode="goal",
+    ) == 0
 
     with pytest.raises(ValueError, match="light"):
         carros.cmd_init(

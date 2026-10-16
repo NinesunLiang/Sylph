@@ -236,17 +236,60 @@ def test_suggest_defers_when_no_verdicts():
 
 
 # ── 候选收集 ───────────────────────────────────────────────────────
-def test_collect_candidates_finds_unwired_and_single_wired():
-    cands, stats = ca.collect_candidates()
+def test_collect_candidates_finds_full_mechanism_set():
+    cands, stats = ca.collect_candidates(suspects_only=False)
     assert stats["mech_total"] > 0
     assert stats["test_total"] > 0
-    assert all(len(c["callers"]) <= 1 for c in cands), "候选集混进了接线充分的文件"
+    assert len(cands) == stats["mech_total"]
+    assert stats["suspects"] >= 1
     assert stats["unwired"] >= 1, "这个仓库已知存在 0 接线文件"
 
 
-def test_collect_candidates_excludes_docs_and_tests():
-    cands, _ = ca.collect_candidates()
+def test_collect_candidates_can_limit_to_suspects():
+    cands, stats = ca.collect_candidates(suspects_only=True)
+    assert len(cands) == stats["suspects"]
+    assert all(len(c["callers"]) <= 1 for c in cands)
+
+
+def test_collect_candidates_excludes_requested_boundaries():
+    cands, _ = ca.collect_candidates(suspects_only=False)
     for c in cands:
-        assert c["path"].endswith((".py", ".sh")), f"{c['path']} 不是机制文件"
-        assert "/references/" not in c["path"]
-        assert not Path(c["path"]).name.startswith("test_")
+        path = c["path"]
+        assert path.endswith((".py", ".sh")), f"{path} 不是机制文件"
+        assert "/workflows/" not in path
+        assert "/worktrees/" not in path
+        assert not Path(path).name.startswith("settings")
+        assert not Path(path).name.startswith("test_")
+
+
+def test_scope_includes_archived_mechanisms_but_excludes_settings():
+    assert ca._in_audit_scope(".claude/scripts/archived/fallback_matrix.py")
+    assert not ca._in_audit_scope(".claude/workflows/frontend-overnight/runner.py")
+    assert not ca._in_audit_scope(".claude/worktrees/task-isolated-demo/runner.py")
+    assert not ca._in_audit_scope(".claude/settings.local.json")
+    assert not ca._in_audit_scope(".claude/settings.permissions.json")
+
+
+def test_settings_are_evidence_for_registered_hooks():
+    facts = ca._registration(".claude/hooks/pretool-gate.py")
+    assert "settings.json" in facts
+    assert "间接注册" in facts
+
+
+def test_archived_skill_is_not_reported_as_active_owner():
+    facts = ca._registration(
+        ".claude/skills/archived/lx-oracle-legacy/runtime_oracle_agent.py")
+    assert "已登记的工作流/技能" in facts
+
+
+def test_evidence_scope_keeps_settings_but_excludes_runtime_boundaries():
+    assert ca._in_evidence_scope(".claude/settings.json")
+    assert ca._in_evidence_scope(".claude/hooks/pretool-gate.py")
+    assert not ca._in_evidence_scope(".claude/workflows/frontend-overnight/runner.py")
+    assert not ca._in_evidence_scope(".claude/worktrees/task-isolated-demo/runner.py")
+
+
+def test_dry_run_does_not_load_rules(monkeypatch):
+    monkeypatch.setattr(ca, "merged_rules", lambda: (_ for _ in ()).throw(
+        AssertionError("dry-run must not load Jev rules")))
+    assert ca.main(["--dry-run"]) == 0

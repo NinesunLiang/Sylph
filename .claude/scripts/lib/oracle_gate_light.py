@@ -38,7 +38,7 @@ def should_trigger_oracle(
     if level == "L1":
         return False, "L1 tasks: no oracle"
 
-    if level in ("L2", "L2_ENHANCE"):
+    if level == "L2":
         if retry_count >= 2:
             return True, f"retry_count={retry_count} >= 2"
         if risk_level == "high":
