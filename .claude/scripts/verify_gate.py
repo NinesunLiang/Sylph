@@ -265,7 +265,8 @@ def parse_evidence(executor_text: str, step: str) -> list[dict[str, Any]]:
             continue
         if in_entry:
             for key in ("step", "type", "source", "exit_code", "file", "assertion",
-                        "evidence_level", "confirmation", "change_summary", "output_tail"):
+                        "evidence_level", "confirmation", "change_summary", "output_tail",
+                        "consumes", "produces"):
                 kv = re.match(rf"- {key}:\s*(.+)$", stripped)
                 if kv:
                     val = kv.group(1).strip()
@@ -350,6 +351,12 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]],
                     return True, f"command match: {src} exit=0", []
                 elif ec == 0:
                     warnings.append(f"command {src} exit=0 but evidence_level={el} (expected E3)")
+            # E3 命令输出证据（2026-10-17 修复：EV 块真实贴出命令输出尾部时，
+            # source 是人写的描述，与命令字面不匹配——按输出对账放行，防命令门死锁）
+            if ec == 0 and el == "E3":
+                out = str(ev.get("output_tail", ""))
+                if len(out) >= 20:
+                    return True, f"command output match: {expected_cmd} in output_tail", []
         return False, f"no matching command evidence for: {expected_cmd}", warnings
 
     # file: rule — 真实读文件验证（还债升级：不信任 AI 自述的 file/assertion 字段）
