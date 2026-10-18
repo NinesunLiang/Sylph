@@ -39,9 +39,9 @@ def find_zombies(root, scan_roots: tuple[str, ...] = (".",)) -> list[str]:
     故默认只扫 .claude/scripts 顶层，避免把活跃 hook 误判成僵尸）。
     """
     root = Path(root).resolve()
-    # 2026-10-16 性能护栏：排除 worktree 克隆（.claude/worktrees/**）——旧版 .claude
-    # 快照会让引用索引扫到数百份副本（曾致 distill 超时/OOM）。
-    _wt_dir = (root / ".claude" / "worktrees").resolve()
+    # 2026-10-16 性能护栏：排除 worktree 克隆——旧版快照会让引用索引扫到数百份副本
+    # （曾致 distill 超时/OOM）。2026-10-18 起 worktree 落在 .omc/worktrees/。
+    _wt_dir = (root / ".omc" / "worktrees").resolve()
     candidates = []
     for sr in scan_roots:
         base = root / sr

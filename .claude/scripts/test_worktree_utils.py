@@ -21,6 +21,12 @@ def test_project_root_is_repo_root():
         f"PROJECT_ROOT 应为仓库根, 实际: {worktree_utils.PROJECT_ROOT.name}"
 
 
+def test_worktrees_dir_lives_under_omc():
+    """2026-10-18 人类裁决：worktree 无复用性、不提交上线 → 放 .omc/（已 gitignore）。"""
+    assert worktree_utils.WORKTREES_DIR == \
+        worktree_utils.PROJECT_ROOT / ".omc" / "worktrees"
+
+
 def test_list_isolated_parses_porcelain():
     """list_isolated_worktrees 能解析 git worktree list --porcelain。"""
     # 用真实 git 输出测试(当前仓库无 task-isolated worktree → 空列表, 不崩)

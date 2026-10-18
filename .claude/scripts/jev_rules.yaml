@@ -153,22 +153,25 @@ rules:
     failure_action: "补齐过程文档与证据块"
 
   - rule_id: know.official-first
-    source: .claude/rules/external-knowledge.md:36
-    text: "没有这段说明的自研，视为跳级。"
+    source: .claude/rules/external-knowledge.md:42
+    text: "优先级：项目内现有方案 > 官方 > 社区 > 自研；没有这段说明的自研，视为跳级。"
     rule_target: code
     judge_by: hybrid
     allow_not_applicable: true
     requires: delivery
     escalate_when_uncertain: true  # 判断不了多半是判据没写清「什么算查过」
-    trace_evidence: "交付里有没有说明查过哪些官方来源、哪些社区方案、为什么自研"
+    trace_evidence: "交付里有没有说明查过项目内现有方案、官方来源、社区方案，以及为什么自研"
     criteria_true: >-
-      若本次改动是自研：交付里写明了查过哪些官方来源与社区方案、结论是什么、
-      为什么自研方案更合适。
-      若本次改动用的是官方或社区现成方案：交付里写明了来源与版本。
+      查找顺序必须是：① 仓库内是否已有可复用实现（脚本/工具/配置/既有模块）；
+      ② 官方文档 / 官方仓库；③ 社区权威方案；④ 最后才自研。
+      若本次改动是自研：交付里写明了查过仓库内现有方案、官方来源与社区方案，
+      结论是什么、为什么它们不适用、为什么自研更合适。
+      若使用现有方案：交付里写明了来源（仓库路径 / 官方链接+版本 / 社区项目）。
       若本次改动与「项目外知识」无关（纯内部逻辑调整）：本规则不适用。
     criteria_false: >-
-      自研了本该有现成方案的东西，且交付里没有任何「查过官方/社区」的说明。
-    failure_action: "补上官方/社区检索记录；或改用已有方案"
+      仓库内已有现成实现却另起炉灶；或自研了本该有现成方案的东西，
+      且交付里没有任何「查过项目内 / 官方 / 社区」的说明。
+    failure_action: "先找项目内现有方案，再查官方/社区；补检索记录，或改用已有方案"
 
   - rule_id: safe.impact-analysis
     requires: delivery

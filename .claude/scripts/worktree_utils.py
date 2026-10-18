@@ -22,7 +22,11 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parents[1]  # .claude/scripts/ -> 上2层 = 仓库根
-WORKTREES_DIR = PROJECT_ROOT / ".claude" / "worktrees"
+# 2026-10-18 人类裁决：worktree 没有复用性、不提交上线 → 放在 .omc/（已 gitignore）。
+# 注意：worktree 内的 `.omc` 是指回主树 `.omc` 的符号链接，因此形成
+# `.omc/worktrees/x/.omc -> .omc` 的自引用路径。默认工具（find / rg / os.walk /
+# pathlib.rglob）不跟随目录符号链接，安全；但 `find -L` 这类强制跟随会绕圈。
+WORKTREES_DIR = PROJECT_ROOT / ".omc" / "worktrees"
 ARCHIVE_LOG = PROJECT_ROOT / ".omc" / "state" / "audit" / "worktree-archive.jsonl"
 
 # gc 安全门: 默认 dry-run, 传 --execute 才真删; 未归档 worktree 永不自动删
