@@ -23,9 +23,13 @@ Constraints:
 from __future__ import annotations
 
 import argparse
+import ast
 import importlib.util
 import json
+import os
 import re
+import shlex
+import subprocess
 import sys
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
@@ -328,6 +332,138 @@ def _resolve_verified_path(expected_file: str, base_dir: Path | None = None) -> 
     return first_in_repo
 
 
+# ── command 规则真执行（2026-10-18 治理提分：验证大于承诺）──────────
+# 旧行为：只把 AI 自述的 source / output_tail 当证据 —— 写 exit_code: 0 就能过。
+# 新行为：白名单内的验证命令**真跑**，exit≠0 直接失败；不可执行的命令回退旧逻辑。
+_VERIFY_ROOT = Path(__file__).resolve().parents[2]
+_VERIFY_CMD_ALLOW = [
+    re.compile(r"^python3?\s+-m\s+pytest\b"),
+    re.compile(r"^python3?\s+\.claude/scripts/[A-Za-z0-9_./-]+\.py\b"),
+    re.compile(r"^python3?\s+\.omc/scripts/[A-Za-z0-9_./-]+\.py\b"),
+    re.compile(r"^pytest\b"),
+    re.compile(r"^(npm|pnpm|yarn)\s+(run\s+)?test\b"),
+    re.compile(r"^node\s+--test\b"),
+    # 仓库内脚本（2026-10-18 扩容：真执行覆盖率 61.7% → 目标 85%+）
+    re.compile(r"^bash\s+(\.claude|\.omc|tool|apps)/[A-Za-z0-9_./-]+\.sh(?:\s.*)?$"),
+    re.compile(r"^(\./)?\.claude/scripts/[A-Za-z0-9_./-]+\.sh(?:\s.*)?$"),
+    # 只读文件检查
+    re.compile(r"^test\s+-[fds]\s+[^;&|<>`$\\]+$"),
+]
+_UNSAFE_SHELL = re.compile(r"[;&|<>`$\\\n]")
+_VERIFY_CMD_CACHE: dict[str, tuple[int | None, str]] = {}
+
+# `python3 -c` 的静态安全审查（2026-10-18）：只放行只读脚本。
+_ALLOWED_C_IMPORTS = {"json", "sys", "pathlib", "re", "math",
+                      "datetime", "hashlib", "itertools", "collections"}
+_FORBIDDEN_ATTRS = {
+    "system", "popen", "run", "Popen", "spawn", "kill",
+    "remove", "unlink", "rmdir", "rmtree", "rename", "replace",
+    "write_text", "write_bytes", "chmod", "chown",
+    "eval", "exec", "compile", "__import__",
+}
+
+
+# 执行命令时剥离密钥环境变量（2026-10-18）：验证命令不该能看到 API key。
+_SECRET_ENV_RE = re.compile(r"(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH)", re.IGNORECASE)
+_SAFE_ENV_KEYS = {"PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "LC_CTYPE",
+                  "TERM", "TMPDIR", "PYTHONPATH", "PWD", "SHELL"}
+
+
+def _sandbox_env(base: dict | None = None) -> dict:
+    src = dict(os.environ if base is None else base)
+    return {k: v for k, v in src.items()
+            if k in _SAFE_ENV_KEYS or not _SECRET_ENV_RE.search(k)}
+
+
+def _safe_python_c(code: str) -> bool:
+    """只允许只读的 `python3 -c`：无危险导入、无写文件、无进程/求值调用。"""
+    try:
+        tree = ast.parse(code)
+    except SyntaxError:
+        return False
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            if any(a.name.split(".")[0] not in _ALLOWED_C_IMPORTS for a in node.names):
+                return False
+        elif isinstance(node, ast.ImportFrom):
+            if (node.module or "").split(".")[0] not in _ALLOWED_C_IMPORTS:
+                return False
+        elif isinstance(node, ast.Attribute):
+            if node.attr in _FORBIDDEN_ATTRS:
+                return False
+        elif isinstance(node, ast.Name):
+            if node.id in {"eval", "exec", "compile", "__import__"}:
+                return False
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id == "open":
+                if len(node.args) >= 2:
+                    mode = node.args[1]
+                    if not (isinstance(mode, ast.Constant)
+                            and isinstance(mode.value, str)
+                            and set(mode.value) <= set("rb")):
+                        return False
+    return True
+
+
+def _execute_verify_command(command: str, timeout: int = 120) -> tuple[int | None, str]:
+    """白名单命令真执行；返回 (exit_code|None, output_or_reason)。
+
+    None 表示「不执行」（非白名单 / 含 shell 元字符 / 超时），调用方回退旧证据匹配。
+    """
+    cmd = (command or "").strip()
+    if not cmd:
+        return (None, "empty_command")
+    if cmd in _VERIFY_CMD_CACHE:
+        return _VERIFY_CMD_CACHE[cmd]
+
+    # 支持 `cd <仓库内路径> && <白名单命令>`；其余 && 链一律拒绝
+    cwd = _VERIFY_ROOT
+    work = cmd
+    if "&&" in cmd:
+        parts = [p.strip() for p in cmd.split("&&")]
+        if len(parts) != 2 or not parts[0].startswith("cd "):
+            return (None, "unsupported_and_chain")
+        target = parts[0][3:].strip().strip("'\"")
+        if not target or target.startswith(("~", "/")):
+            return (None, "cwd_outside_repo")
+        candidate = (_VERIFY_ROOT / target).resolve()
+        root_res = _VERIFY_ROOT.resolve()
+        if candidate != root_res and root_res not in candidate.parents:
+            return (None, "cwd_outside_repo")
+        cwd = candidate
+        work = parts[1]
+
+    python_c = work.startswith(("python3 -c ", "python -c "))
+    if python_c:
+        try:
+            parts = shlex.split(work)
+        except ValueError:
+            return (None, "bad_quoting")
+        if len(parts) != 3 or parts[1] != "-c":
+            return (None, "bad_python_c")
+        if not _safe_python_c(parts[2]):
+            return (None, "unsafe_python_c")
+    elif _UNSAFE_SHELL.search(work):
+        return (None, "unsafe_shell_metachar")
+    elif not any(rx.match(work) for rx in _VERIFY_CMD_ALLOW):
+        return (None, "not_whitelisted")
+    try:
+        argv = shlex.split(work)
+    except ValueError:
+        return (None, "bad_quoting")
+    try:
+        r = subprocess.run(argv, cwd=str(cwd), env=_sandbox_env(),
+                           capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return (None, "timeout")
+    except (OSError, ValueError) as exc:
+        return (None, f"spawn_failed:{type(exc).__name__}")
+    out = ((r.stdout or "") + (r.stderr or ""))[-800:]
+    result = (r.returncode, out)
+    _VERIFY_CMD_CACHE[cmd] = result
+    return result
+
+
 def match_verify_rule(rule: str, evidence: list[dict[str, Any]],
                       base_dir: Path | None = None) -> tuple[bool, str, list[str]]:
     """Match a single verify rule against available evidence.
@@ -340,6 +476,13 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]],
     cm = re.match(r"^command:(.+)$", rule)
     if cm:
         expected_cmd = cm.group(1).strip()
+        # 1) 白名单命令：真执行，结果说了算
+        code, detail = _execute_verify_command(expected_cmd)
+        if code == 0:
+            return True, f"command executed: {expected_cmd} exit=0", []
+        if code is not None:
+            return False, f"command failed: {expected_cmd} exit={code}", [detail[-300:]]
+        # 2) 不可执行（非白名单/含元字符/超时）→ 回退旧的证据匹配
         for ev in evidence:
             if ev.get("type") == "failure":
                 continue

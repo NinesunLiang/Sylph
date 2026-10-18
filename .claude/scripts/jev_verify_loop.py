@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -28,10 +29,40 @@ ROOT = SCRIPTS_DIR.parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import jev_sweep as js  # noqa: E402
+import jev_fit as jf  # noqa: E402
 
 REGISTRY = SCRIPTS_DIR / "jev_rules.yaml"
-LEDGER = ROOT / ".omc" / "state" / "jev" / "reviews.jsonl"
+# 测试隔离：CARROROS_JEV_LEDGER 指向临时账本，避免 pytest 污染真实案例史。
+LEDGER = Path(os.environ.get(
+    "CARROROS_JEV_LEDGER", str(ROOT / ".omc" / "state" / "jev" / "reviews.jsonl")))
 MAX_STATE_CHARS = 20000  # 1M 窗口时代单次判定预算：20K 字符 ≈ 5K token，足够判一个 commit
+
+
+def gate_decision(verdict: str, conf: float, accept_at: float, tier: str) -> str:
+    """校准分级门：判官的裁决权由「样本量等级」决定。
+
+    jev-eval 官方口径：<50 条拒绝采纳、50–200 provisional、≥200 才可正式使用。
+    因此只有 tier=ok 才允许硬阻断；其余一律降级为建议（人类裁决）。
+    """
+    if verdict not in ("不符合", "符合", "不适用"):
+        return "pass"
+    if verdict != "不符合":
+        return "pass"
+    if tier != "ok":
+        return "advice"
+    try:
+        return "block" if float(conf) >= float(accept_at) else "advice"
+    except (TypeError, ValueError):
+        return "advice"
+
+
+def _rule_tiers() -> dict[str, str]:
+    """从案例账本取每条规则的校准等级；读不到时保守返回 unknown。"""
+    try:
+        rows = jf.load_reviews(LEDGER)
+        return {rid: d["tier"] for rid, d in jf.analyze(rows).items()}
+    except Exception:
+        return {}
 
 
 def _now() -> str:
@@ -126,10 +157,11 @@ def run(step: str, token_arg: str | None, commit: str | None,
         return out
 
     state = "\n".join([
-        f"判定对象：本次 commit 改动（{commit or '未指定'}）+ 交付物",
+        f"主判定对象：本次代码改动的 diff（{commit or '未指定'}）",
+        "文档（plan.md / executor.md / research.md）只作辅助证据，不作为主要判定依据。",
         f"changed_paths: {changed_paths[:20]}",
-        f"交付物事实：\n{_delivery_facts(task_dir, step)}",
-        f"--- diff（截断至 {max_chars} 字符）---",
+        f"辅助证据（交付物事实）：\n{_delivery_facts(task_dir, step)}",
+        f"--- 代码 diff（截断至 {max_chars} 字符）---",
         change_text[:max_chars],
     ])
     js.assert_no_secret(state)  # 密钥不送 JEV（fail-closed）
@@ -150,6 +182,8 @@ def run(step: str, token_arg: str | None, commit: str | None,
                            "degraded": out["degraded_reason"]})
         return out
 
+    # 判官模型版本留痕（漂移追溯：同一个 registry_version 可能对应不同模型快照）
+    judge_model = raw.get("model") if isinstance(raw, dict) else None
     # 接口适配：单次响应 = {"answers": {rule_id: ...}, "usage": ...}（list 是多采样聚合的输入形态）
     if "list" not in raw and "answers" in raw:
         raw = {"list": [raw]}
@@ -161,6 +195,13 @@ def run(step: str, token_arg: str | None, commit: str | None,
         _append_telemetry({"event_type": "jev_verify", "ts": _now(), "step": step,
                            "degraded": out["degraded_reason"]})
         return out
+    tiers = _rule_tiers()
+    # 2026-10-18 去重：同一 (rule, commit) 的多步验收不重复入账。
+    # 否则一次任务跑 6 个 step 就会把同一份 diff 写 6 遍，稀释标注率。
+    existing_pending = {
+        (r.get("rule_id"), r.get("change_fingerprint"))
+        for r in jf.load_reviews(LEDGER) if not r.get("human")
+    }
     for rule in jev_rules:
         rid = rule["rule_id"]
         ans = answers.get(rid) or {}
@@ -170,20 +211,26 @@ def run(step: str, token_arg: str | None, commit: str | None,
             js._apply_answer(row, rule, ans)
         rec = {"review_id": f"v-{step}-{rid}", "recorded_at": _now(), "rule_id": rid,
                "registry_version": registry.get("registry_version", "unknown"),
+               "jev_model": judge_model,
                "source": "jev_verify_loop", "purpose": f"step {step} 验收",
                "change_fingerprint": commit or "", "verdict": row.get("verdict"),
                "jev_noul": row.get("jev_noul"), "jev_choice": row.get("jev_choice"),
                "jev_confidence": row.get("jev_confidence")}
-        _append_ledger(rec)
+        # 2026-10-18 降噪：没有 diff 的验收不写账本；同 (rule, commit) 只写一次。
+        if change_text.strip() and (rid, commit or "") not in existing_pending:
+            _append_ledger(rec)
+            existing_pending.add((rid, commit or ""))
         v = row.get("verdict")
-        if v == "不符合":
-            conf = row.get("jev_confidence") or row.get("jev_noul") or 0
-            accept = float(rule.get("accept_at", 0.85))
-            if conf >= accept:
-                out["blocks"].append({"rule_id": rid, "verdict": v, "conf": conf,
-                                      "evidence": row.get("evidence_refs")})
-            else:
-                out["low_confidence"].append({"rule_id": rid, "verdict": v, "conf": conf})
+        conf = row.get("jev_confidence") or row.get("jev_noul") or 0
+        accept = float(rule.get("accept_at", 0.85))
+        tier = tiers.get(rid, "unknown")
+        decision = gate_decision(v, conf, accept, tier)
+        if decision == "block":
+            out["blocks"].append({"rule_id": rid, "verdict": v, "conf": conf,
+                                  "tier": tier, "evidence": row.get("evidence_refs")})
+        elif decision == "advice":
+            out["low_confidence"].append({"rule_id": rid, "verdict": v, "conf": conf,
+                                          "tier": tier})
         elif v in ("符合", "不适用"):
             out["passed"].append(rid)
 

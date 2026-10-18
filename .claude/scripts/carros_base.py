@@ -1396,8 +1396,59 @@ def _sync_token_scope_from_plan(token: dict, plan_path: Path | None = None) -> d
     return token
 
 
+STALE_TASK_DAYS = 7
+
+
+def _stale_active_tokens(days: int = STALE_TASK_DAYS,
+                         tokens_root: Path | None = None) -> list[dict]:
+    """找出「开工后长期没归档」的 active 令牌（2026-10-18 文档灵魂补位）。
+
+    实测：96 个令牌里有 18 个 active，最老停在 2026-08-17。系统此前不会发现。
+    """
+    root = Path(tokens_root) if tokens_root is not None else (OMC_ROOT / "tokens")
+    now = datetime.now(timezone.utc)
+    out: list[dict] = []
+    if not root.exists():
+        return out
+    for p in root.rglob("*.json"):
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if d.get("status") != "active":
+            continue
+        sess = d.get("session") or {}
+        ts = sess.get("updated_at") or sess.get("created_at")
+        if not ts:
+            continue
+        try:
+            t = datetime.fromisoformat(str(ts).replace("Z", "+00:00"))
+        except ValueError:
+            continue
+        if t.tzinfo is None:
+            t = t.replace(tzinfo=timezone.utc)
+        age = (now - t).total_seconds() / 86400
+        if age >= days:
+            out.append({"task_id": sess.get("id") or p.stem,
+                        "path": str(p), "age_days": round(age, 1)})
+    return sorted(out, key=lambda x: -x["age_days"])
+
+
 def cmd_status(hot_mode=True):
     """展示当前任务状态。默认 Hot Card 模式。--full 出完整状态。"""
+    # 烂尾任务提醒（2026-10-18）：必须放在所有 early-return 之前——
+    # 否则「当前没有活跃任务」时永远看不到其它烂尾任务。
+    try:
+        _stale = _stale_active_tokens()
+        if _stale:
+            print(_yellow(f"⚠ 烂尾任务 {len(_stale)} 个（active 超过 {STALE_TASK_DAYS} 天）："))
+            for _s in _stale[:5]:
+                print(f"   - {_s['task_id']}（{_s['age_days']} 天） {_s['path']}")
+            if len(_stale) > 5:
+                print(f"   … 另有 {len(_stale) - 5} 个")
+    except Exception:
+        pass
+
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()
         if token and found_path:
@@ -1672,7 +1723,10 @@ def _run_verify_gate(step_id):
     if spec and spec.exists():
         cmd += ["--spec", str(spec)]
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        # 2026-10-18：JEV 语义验收已接真实判官（verify_gate 内层超时 150s）。
+        # 外层若仍用 30s，会在判官返回前先杀进程 → TimeoutExpired 误判 BLOCKED。
+        # 取 200s = 内层 150s + 机械检查余量。
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=200)
     except Exception as exc:
         return "BLOCKED", f"verify_gate_error:{type(exc).__name__}", {}
     try:

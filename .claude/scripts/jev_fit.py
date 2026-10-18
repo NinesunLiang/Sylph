@@ -26,6 +26,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,7 +37,9 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import jev_sweep as js  # noqa: E402
 
-LEDGER = ROOT / ".omc" / "state" / "jev" / "reviews.jsonl"
+# 测试隔离：CARROROS_JEV_LEDGER 指向临时账本，避免 pytest 污染真实案例史。
+LEDGER = Path(os.environ.get(
+    "CARROROS_JEV_LEDGER", str(ROOT / ".omc" / "state" / "jev" / "reviews.jsonl")))
 
 # 人工判定允许的取值；「不确定」视为弃权，不计入一致率分母
 HUMAN_VERDICTS = ("符合", "不符合", "不适用", "不确定")
@@ -57,6 +60,7 @@ HUMAN_VERDICTS = ("符合", "不符合", "不适用", "不确定")
 #   见 https://proceedings.iclr.cc/paper_files/paper/2025/... (Trust or Escalate)
 #
 # 注意：**原始一致率会在类别不平衡时虚高**，所以同时看 κ。
+MAX_PENDING_PER_RULE = 50    # 每规则待复核上限（2026-10-18 降噪：超过就不再入队）
 MIN_SAMPLES_REFUSE = 50      # 低于此数：拒绝采纳，先去攒样本
 MIN_SAMPLES_PROVISIONAL = 200  # 低于此数：只标 provisional
 TARGET_AGREEMENT = 0.80      # 参照一致率
@@ -104,12 +108,36 @@ def load_reviews(path: Path = LEDGER) -> list[dict]:
     return out
 
 
+def _pending_fingerprint(entry: dict) -> str:
+    """待复核去重键：优先用 change_fingerprint，没有就哈希 diff。"""
+    fp = str(entry.get("change_fingerprint") or "").strip()
+    if fp:
+        return fp
+    change = str(entry.get("change") or "")
+    return hashlib.sha256(change.encode("utf-8")).hexdigest()[:16] if change else ""
+
+
 def enqueue_pending(entry: dict, path: Path = LEDGER) -> None:
-    """把一个低置信条目放进待复核队列，让规则自己攒样本。"""
+    """把一个低置信条目放进待复核队列，让规则自己攒样本。
+
+    2026-10-18 降噪（475 条无人读 → 信噪比过低）：
+      1. 空 diff 无法判定 → 不入队
+      2. 同规则 + 同改动指纹 → 不重复入队
+      3. 每规则待复核上限 MAX_PENDING_PER_RULE → 超过不再入队
+    """
     js.assert_no_secret(json.dumps(entry, ensure_ascii=False))
+    if not str(entry.get("change") or "").strip():
+        return
     rows = load_reviews(path)
     if any(r["review_id"] == entry["review_id"] and r.get("human") is None for r in rows):
         return  # 幂等：同一条不重复入队
+    pending = [r for r in rows if r.get("human") is None]
+    rule_id = entry.get("rule_id")
+    fp = _pending_fingerprint(entry)
+    if fp and any(r.get("rule_id") == rule_id and _pending_fingerprint(r) == fp for r in pending):
+        return
+    if sum(1 for r in pending if r.get("rule_id") == rule_id) >= MAX_PENDING_PER_RULE:
+        return
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as fh:

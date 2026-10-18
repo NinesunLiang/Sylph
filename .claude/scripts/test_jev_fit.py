@@ -99,7 +99,7 @@ def test_pending_enqueue_is_idempotent(tmp_path):
     """同一条未复核的重复入队不得堆积。"""
     led = tmp_path / "reviews.jsonl"
     entry = {"review_id": "p-1", "rule_id": "soul.1.simple", "jev": {},
-             "purpose": "", "change": "", "changed_paths": [], "repo_context": "",
+             "purpose": "", "change": "diff x", "changed_paths": [], "repo_context": "",
              "human": None}
     jf.enqueue_pending(entry, led)
     jf.enqueue_pending(entry, led)
@@ -306,7 +306,7 @@ def test_pending_prints_usable_commands(tmp_path, capsys):
     for i in (1, 2):
         jf.enqueue_pending({
             "review_id": f"p-{i:08d}-soul.1.reuse", "rule_id": "soul.1.reuse",
-            "jev": {"verdict": "不能判定"}, "purpose": "x", "change": "d",
+            "jev": {"verdict": "不能判定"}, "purpose": "x", "change": f"diff {i}",
             "changed_paths": [], "repo_context": "", "human": None,
         }, led)
 
@@ -333,3 +333,40 @@ def test_resolve_review_id_reports_ambiguity():
     assert full is None and "不唯一" in err
     full, err = jf._resolve_review_id("nope", rows)
     assert full is None and "没有匹配" in err
+
+
+# ── 2026-10-18 降噪：空 diff 不入队 / 同指纹去重 / 每规则上限 ────────
+
+def _pending_entry(rid: str, rule: str, change: str, fp: str | None = None) -> dict:
+    e = {"review_id": rid, "rule_id": rule, "change": change,
+         "jev": {"verdict": "证据不足"}}
+    if fp is not None:
+        e["change_fingerprint"] = fp
+    return e
+
+
+def test_enqueue_skips_empty_change(tmp_path):
+    led = tmp_path / "reviews.jsonl"
+    jf.enqueue_pending(_pending_entry("p-1", "rule.a", ""), led)
+    assert not led.exists() or not led.read_text().strip()
+
+
+def test_enqueue_dedupes_same_rule_and_fingerprint(tmp_path):
+    led = tmp_path / "reviews.jsonl"
+    jf.enqueue_pending(_pending_entry("p-1", "rule.a", "diff A", fp="fp-1"), led)
+    jf.enqueue_pending(_pending_entry("p-2", "rule.a", "diff A", fp="fp-1"), led)
+    assert len(jf.load_reviews(led)) == 1
+
+
+def test_enqueue_keeps_different_fingerprints(tmp_path):
+    led = tmp_path / "reviews.jsonl"
+    jf.enqueue_pending(_pending_entry("p-1", "rule.a", "diff A", fp="fp-1"), led)
+    jf.enqueue_pending(_pending_entry("p-2", "rule.a", "diff B", fp="fp-2"), led)
+    assert len(jf.load_reviews(led)) == 2
+
+
+def test_enqueue_caps_pending_per_rule(tmp_path):
+    led = tmp_path / "reviews.jsonl"
+    for i in range(jf.MAX_PENDING_PER_RULE + 5):
+        jf.enqueue_pending(_pending_entry(f"p-{i}", "rule.a", f"diff {i}", fp=f"fp-{i}"), led)
+    assert len(jf.load_reviews(led)) == jf.MAX_PENDING_PER_RULE
