@@ -63,13 +63,26 @@ def _goal_mode() -> bool:
 
 def _is_governance(path: str) -> bool:
     p = path.replace("\\", "/")
+    # P0 治理加固（用户 2026-10-18 裁决）：冻结域 = 治理指令 + 治理执行面。
+    # 补漏：index.md / harness.yaml / settings.local.json / CLAUDE.md / rules/。
+    # 变更不再 WARN，必须持人类签发的审批票（见 governance_ticket.py）。
+    # 2026-10-18 人类裁决：审批票只用于**治理层**。
+    # `.claude/scripts/**` 是普通工具（verify_gate / carros_base / jev_* / worktree_utils…），
+    # 改它们不需要签票；唯一例外是签票器自身 gov_approve.py（否则等于允许 AI 改裁判规则）。
     gov_patterns = [
         r"(^|/)\.claude/hooks/",
-        r"(^|/)\.claude/scripts/",
-        r"(^|/)\.claude/settings\.json",
-        r"(^|/).claude/workflows/frontend-overnight/scripts/carroros-gates/",
+        r"(^|/)\.claude/scripts/gov_approve\.py$",
+        r"(^|/)\.claude/settings(\.local)?\.json",
+        r"(^|/)\.claude/workflows/frontend-overnight/scripts/carroros-gates/",
         r"(^|/)\.claude/kernel\.md$",
+        r"(^|/)\.claude/index\.md$",
+        r"(^|/)\.claude/harness\.yaml$",
+        r"(^|/)\.claude/rules/",
         r"(^|/)AGENTS\.md$",
+        r"(^|/)AGENTS\.compact\.md$",
+        r"(^|/)CLAUDE\.md$",
+        # 审批票与旁路状态是「人类授权」的凭据，AI 不得自行写入/篡改。
+        r"(^|/)\.omc/state/(governance-approval|temp-bypass|trust-breach)\.json$",
     ]
     return any(re.search(pat, p, re.IGNORECASE) for pat in gov_patterns)
 
@@ -207,9 +220,11 @@ def _block(reason: str, suggestion: str = "") -> int:
 
     ask_user = safe_reason.startswith("ASK_USER ")
     display_reason = safe_reason.removeprefix("ASK_USER ") if ask_user else safe_reason
+    # 2026-10-18 人类裁决（agentic-ui）：交互模式下 ASK_USER 用宿主可选择的 ask；
+    # 无人值守（goal）模式没有人能回答 ask，会卡死 → 回退 deny + 引导，让模型自纠。
     hs: dict[str, Any] = {
         "hookEventName": "PreToolUse",
-        "permissionDecision": "deny",
+        "permissionDecision": "ask" if (ask_user and not unattended) else "deny",
         "permissionDecisionReason": display_reason,
     }
 

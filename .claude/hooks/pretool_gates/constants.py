@@ -3,6 +3,7 @@ constants.py — Pure data module extracted from pretool-gate.py.
 All constants, patterns, regex lists, and gate definitions.
 """
 from __future__ import annotations
+import os
 import re
 from pathlib import Path
 
@@ -17,12 +18,15 @@ ROOT = next((p for p in _script_path.parents if (p / ".claude").is_dir()),
 # ── State paths ──
 OMC = ROOT / ".omc"
 STATE_DIR = OMC / "state"
-AUDIT = STATE_DIR / "audit"
+# 测试隔离（2026-10-18）：pytest 通过环境变量把审计/重定向状态指向临时目录，
+# 避免测试 spawn 的 hook 把事件写进真实治理审计。
+AUDIT = Path(os.environ.get("CARROROS_AUDIT_DIR", str(STATE_DIR / "audit")))
 CRITICAL_STATE = STATE_DIR / "context-critical.json"
 FALLBACK_REQUIRED = STATE_DIR / "fallback-blocked-required"
 FALLBACK_APPROVED = STATE_DIR / "fallback-blocked-approved"
 TEMP_BYPASS = STATE_DIR / "temp-bypass.json"
-REDIRECT_STREAK = STATE_DIR / "redirect-streak.json"
+REDIRECT_STREAK = Path(os.environ.get(
+    "CARROROS_REDIRECT_STREAK", str(STATE_DIR / "redirect-streak.json")))
 TRUST_BREACH = STATE_DIR / "trust-breach.json"
 STATE_TOKEN = OMC / "state" / "token.json"
 TOKENS = OMC / "tokens"

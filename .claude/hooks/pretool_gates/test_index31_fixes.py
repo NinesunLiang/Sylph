@@ -76,11 +76,15 @@ def test_env_file_write_is_blocked():
     assert r and r.startswith("BLOCK"), f".env 写入应 BLOCK, 实际: {r}"
 
 
-def test_governance_file_edit_stays_warn():
-    """治理文件域仍为 WARN（不升级 BLOCK，保持 AI 自决+审计）。"""
+def test_governance_file_edit_requires_human_ticket(monkeypatch, tmp_path):
+    """P0（2026-10-18 人类裁决）：治理文件从 WARN 升级为 BLOCK，须持人类审批票。
+
+    行为变更说明：旧契约是「治理文件 WARN 后放行」；新契约是「无票即拒绝」。
+    """
+    monkeypatch.setenv("CARROROS_GOV_TICKET", str(tmp_path / "no-ticket.json"))
     r = checks._check_sensitive_edit(_payload("Edit", file_path=".claude/hooks/pretool-gate.py",
                                                old_string="a", new_string="b"))
-    assert r is None or not r.startswith("BLOCK"), f"治理文件不应 BLOCK: {r}"
+    assert r is not None and r.startswith("BLOCK"), f"治理文件无票应 BLOCK: {r}"
 
 
 # ── F3 验证补位 ─────────────────────────────────────────────────────────

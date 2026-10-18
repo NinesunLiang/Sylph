@@ -26,6 +26,7 @@ from .helpers import (
     _active_token, _task_dir, _check_verified,
 )
 from .oracle import _oracle_classify, _ORACLE_ANTI_PATTERN_RULES
+from .governance_ticket import check as check_governance_ticket
 
 
 # ── Gate 1: Sensitive edit ──
@@ -38,23 +39,25 @@ def _check_sensitive_edit(payload: dict) -> str | None:
     if not path:
         return None
     if _is_governance(path):
+        # P0 治理加固（用户 2026-10-18 裁决）：
+        #   治理文件 = AI 不可擅自修改，但可「申请人类同意」。
+        #   放行条件 = 人类在终端签发的审批票（路径 + 内容哈希 + ≤24h TTL）。
+        #   goal 模式不再降级放行——无人值守恰恰是更需要守住的场景。
         safe = path[:200]
-        if _goal_mode():
-            msg = f"⚠️ [goal-mode] 治理文件写入: {safe} — goal 模式下降级放行"
-            sys.stderr.write(f"PreToolGate: GOV_WARN (goal-mode) - {safe}\n")
-            print(json.dumps({"continue": True, "message": msg}, ensure_ascii=False))
-            _append_audit({"event_type": "governance_goal_warn", "path": path, "tool": tool})
+        approved, why = check_governance_ticket(path)
+        if approved:
+            _append_audit({"event_type": "governance_write_approved",
+                           "actor": "hook:pretool-gate",
+                           "path": path, "tool": tool, "ticket": why})
             return None
-        reason_text = (
-            f"⚠️ GOVERNANCE_WARN: 治理文件 {safe} 被修改。\n"
-            f"  规则: .claude/settings.json 和 .claude/hooks/* 受 Gate 1 保护。\n"
-            f"  哲学&铁律: 治理文件不可改，但 AI 自决。\n"
-            f"  audit 已记录此事件供退出报告审查。"
-        )
-        sys.stderr.write(f"PreToolGate: GOV WARN (path={safe})\n{reason_text}\n")
-        _append_audit({"event_type": "governance_warn", "path": path, "tool": tool})
-        print(json.dumps({"continue": True, "message": reason_text}, ensure_ascii=False))
-        return None
+        _append_audit({"event_type": "governance_write_block",
+                       "actor": "hook:pretool-gate",
+                       "path": path, "tool": tool, "reason": why})
+        return (f"BLOCK governance_frozen|"
+                f"⛔ 治理文件 {safe} 受冻结域保护（{why}）。\n"
+                f"AI 不能擅自修改治理文件。若确需变更，请由人类在终端签发审批票：\n"
+                f"  python3 .claude/scripts/gov_approve.py --files {path} --reason \"<变更理由>\"\n"
+                f"签发后重新执行本次修改。")
     if _is_read_sensitive(path):
         # index31 F2: 凭据类 default-deny（.env/.ssh/credentials/secret/password/
         # api_key/token）——自动放行环境下 ASK_USER 退化为留痕（index30 法官发现），
@@ -280,11 +283,28 @@ def _check_sensitive_write_bash(payload: dict) -> str | None:
     for raw in candidates:
         if not raw:
             continue
-        if _is_sensitive(raw) or _is_governance(raw):
+        # P0：治理路径走审批票（与 Edit/Write 同一契约），不再只给 ASK_USER 软拦。
+        if _is_governance(raw):
+            approved, why = check_governance_ticket(raw)
+            if approved:
+                _append_audit({"event_type": "governance_write_approved",
+                               "actor": "hook:pretool-gate",
+                               "path": raw, "channel": "bash", "ticket": why})
+                continue
+            _append_audit({"event_type": "governance_write_block",
+                           "actor": "hook:pretool-gate",
+                           "path": raw, "channel": "bash", "reason": why})
+            # 用 ASK_USER 而非 BLOCK：两者在 CC 都是 permissionDecision=deny，
+            # 但 ASK_USER 不受 temp-bypass 影响，对冻结域更合适。
+            return (f"ASK_USER governance_frozen|"
+                    f"⛔ Bash 写入治理文件 {raw} 被冻结域拒绝（{why}）。\n"
+                    f"若确需变更，请由人类在真实终端签发审批票：\n"
+                    f"  python3 .claude/scripts/gov_approve.py --files {raw} --reason \"<理由>\"")
+        if _is_sensitive(raw):
             _append_audit({"event_type": "privacy_write_block", "actor": "hook:pretool-gate",
-                           "path": raw, "reason": "sensitive_or_governance"})
+                           "path": raw, "reason": "sensitive"})
             return (f"ASK_USER sensitive_write|"
-                    f"⛔ Bash 写入被门禁拦截：{raw} 命中敏感/治理路径（凭据/密钥/治理文件）。\n"
+                    f"⛔ Bash 写入被门禁拦截：{raw} 命中敏感路径（凭据/密钥）。\n"
                     f"确需修改请改用 Edit 工具走敏感编辑流程，或人工授权。")
     return None
 
@@ -311,19 +331,26 @@ def _check_governance_bypass(payload: dict) -> str | None:
             continue
         if not (_is_governance(target) or target in _GOV_BYPASS_EXTRA):
             continue
+        approved, why = check_governance_ticket(target)
+        if approved:
+            _append_audit({
+                "event_type": "governance_write_approved",
+                "actor": "hook:pretool-gate",
+                "path": target, "channel": "bash-redirect", "ticket": why,
+            })
+            continue
         _append_audit({
-            "event_type": "governance_bypass_redirect",
+            "event_type": "governance_write_block",
             "actor": "hook:pretool-gate",
-            "decision": "REDIRECT",
-            "reason": f"governance_bypass: bash write to {target}",
+            "decision": "BLOCK",
+            "reason": f"governance_bypass: bash write to {target} ({why})",
             "tool": tool,
             "command": command[:120],
         })
         return (
-            f"REDIRECT governance_bypass tool={tool} target={target}|"
-            f"⚠️ Bash 重定向写治理文件 {target}，绕过 Write 门禁。"
-            f"治理文件变更须走受控决策流程（铁律/审批）；请勿用 echo/cat >> 直写。"
-            f"若确需变更，通过正确路径申请后再写。"
+            f"BLOCK governance_frozen tool={tool} target={target}|"
+            f"⛔ Bash 重定向写治理文件 {target} 被冻结域拒绝（{why}）。\n"
+            f"治理文件变更须持人类签发的审批票：bash .omc/scripts/sign_p0_ticket.sh"
         )
     return None
 
@@ -479,6 +506,31 @@ def _doc_reference_hits(ref_root: str, fname: str) -> list[str]:
     return [p for p in (r.stdout or "").strip().splitlines() if p]
 
 
+def _doc_reference_lines(ref_root: str, fname: str, limit: int = 3) -> list[str]:
+    """返回引用行的 `文件:行号: 文本`（人本改进：让模型知道该改哪一行）。"""
+    import subprocess as _sp
+    escaped = re.escape(fname)
+    pattern = rf"(^|[^A-Za-z0-9_.-]){escaped}"
+    try:
+        r = _sp.run(
+            ["grep", "-rnE", "--include=*.md", "--exclude-dir=__pycache__",
+             "--exclude-dir=archived", "--exclude-dir=retired",
+             "--exclude=*.bak", pattern, ref_root],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return []
+    out: list[str] = []
+    for line in (r.stdout or "").splitlines():
+        parts = line.split(":", 2)
+        if len(parts) >= 2:
+            text = parts[2].strip() if len(parts) > 2 else ""
+            out.append(f"{parts[0]}:{parts[1]}: {text}"[:200])
+        if len(out) >= limit:
+            break
+    return out
+
+
 def _check_doc_reference_before_delete(payload: dict) -> str | None:
     """F3 门：删除文件前查文档引用图。
 
@@ -508,10 +560,20 @@ def _check_doc_reference_before_delete(payload: dict) -> str | None:
                 refs_found.append((target, ref_file))
     if refs_found:
         target, ref_file = refs_found[0]
+        from pathlib import PurePosixPath
+        fname = PurePosixPath(target).name
+        detail_lines: list[str] = []
+        for ref_dir in _DOC_REFERENCE_DIRS:
+            rp = project_root / ref_dir
+            if rp.exists():
+                detail_lines = _doc_reference_lines(str(rp), fname, limit=3)
+                if detail_lines:
+                    break
+        detail = "\n".join(f"  - {x}" for x in (detail_lines or [ref_file]))
         return (f"REDIRECT doc_reference_found|"
-                f"删除 {target} 但文档 {ref_file} 还在引用它。\n"
-                f"请先更新文档（移除引用或指向新位置），确认无认知依赖后再删除。\n"
-                f"如确认无关，可使用 temp-bypass.py 临时跳过。")
+                f"删除 {target} 但文档仍在引用它：\n{detail}\n"
+                f"正确做法：请先更新文档（删掉这些引用或改指向新位置），"
+                f"改完再删文件。不要重复重试删除——重试不会改变引用状态。")
     return None
 
 

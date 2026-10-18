@@ -105,6 +105,52 @@ _GATE_L2_EXTRA = [
 
 L1_GATES = _GATE_CORE
 GATES = _GATE_CORE + _GATE_L2_EXTRA
+
+# ── P0 治理加固（2026-10-18 人类裁决）：安全门 fail-closed ──
+# 旧行为：任何门抛异常都被 `except Exception: continue` 静默吞掉 → 安全门崩溃时
+# 等于自动放行（门禁"看不见"却报"没问题"，违反零信任）。
+# 新行为：下列安全门异常 → BLOCK；其余门异常 → 跳过 + 留审计，避免门禁 bug 放大成停摆。
+_FAIL_CLOSED_GATES = {
+    "sensitive-edit",
+    "sensitive-read",
+    "sensitive-write-bash",
+    "governance-bypass",
+    "governance-delete-protection",
+    "secret-scan",
+    "injection-guard",
+    "omc-skeleton-readonly",
+    "action",
+    "commit-push-integrity",
+}
+
+# 重试阈值（2026-10-18 人本降摩擦）：默认 2 次；文档引用门禁给 3 次，
+# 因为它要求「先改文档再删」，模型需要多一步操作才算完成。
+_REDIRECT_LIMITS = {"doc-reference-before-delete": 3}
+DEFAULT_REDIRECT_LIMIT = 2
+
+
+def _call_gate(gate_name: str, gate_fn, payload: dict) -> tuple[str | None, bool]:
+    """执行单道门，返回 (result, crashed)。
+
+    安全门崩溃 = 拒绝（fail-closed）；非安全门崩溃 = 跳过并留审计。
+    """
+    try:
+        return (gate_fn(payload), False)
+    except Exception as exc:
+        _append_audit({
+            "event_type": "gate_error",
+            "actor": "hook:pretool-gate",
+            "gate": gate_name,
+            "error": str(exc)[:200],
+        })
+        if gate_name in _FAIL_CLOSED_GATES:
+            return (
+                f"BLOCK gate_error_{gate_name}|"
+                f"门禁 {gate_name} 自身异常，按 fail-closed 拒绝本次操作。"
+                f"请修复门禁，或由人类在终端临时授权。",
+                True,
+            )
+        return (None, True)
 from pretool_gates.helpers import (
     _read_stdin, _extract_tool, _ok, _block, _redirect,
     _check_temp_bypass, _check_trust_breach, _clean_stale_state_token,
@@ -139,12 +185,14 @@ def main() -> int:
 
     executed_gates: set[str] = set()
     for gate_name, gate_fn in active_gates:
-        try:
-            result = gate_fn(payload)
-            _record_gate_decision(gate_name, result, gate_mode)
+        result, crashed = _call_gate(gate_name, gate_fn, payload)
+        _record_gate_decision(gate_name, result, gate_mode)
+        if crashed:
+            # 已由 _call_gate 写入 gate_error 审计；安全门此时 result 非空（BLOCK）。
+            _append_audit({"event_type": "gate_crashed", "gate": gate_name,
+                           "fail_closed": gate_name in _FAIL_CLOSED_GATES})
+        else:
             executed_gates.add(gate_name)
-        except Exception:
-            continue
         if result:
             if result.startswith("REDIRECT"):
                 # ── REDIRECT remains recoverable; repeated redirects escalate to ASK_USER ──
@@ -159,7 +207,7 @@ def main() -> int:
                 cnt = _increment_streak(streak_key)
                 # index33 电池实证修复：阈值 4→2（skip-tests 模型无视 1 次 REDIRECT 即完成，
                 # 原阈值 4 太高导致升级永不触发）。双法官共识#3。
-                if cnt >= 2:
+                if cnt >= _REDIRECT_LIMITS.get(gate_name, DEFAULT_REDIRECT_LIMIT):
                     _append_audit({
                         "event_type": "redirect_escalated_to_hard_stop",
                         "actor": "hook:pretool-gate",

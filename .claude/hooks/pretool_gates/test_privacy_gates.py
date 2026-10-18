@@ -134,7 +134,9 @@ def test_rooot_resolution_is_cwd_independent():
     assert (_c.ROOT / ".claude").is_dir(), f"ROOT 不是仓库根: {_c.ROOT}"
     assert (_c.ROOT / ".git").is_dir() or (_c.ROOT / "AGENTS.md").is_file(), \
         f"ROOT 缺仓库根标志: {_c.ROOT}"
-    assert _c.AUDIT == _c.ROOT / ".omc" / "state" / "audit", f"AUDIT 偏离仓库: {_c.AUDIT}"
+    expected = Path(os.environ.get(
+        "CARROROS_AUDIT_DIR", str(_c.ROOT / ".omc" / "state" / "audit")))
+    assert _c.AUDIT == expected, f"AUDIT 未跟随隔离配置: {_c.AUDIT}"
 
 
 def test_bash_write_pathlib_write_text():
