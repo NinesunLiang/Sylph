@@ -1434,6 +1434,24 @@ def _stale_active_tokens(days: int = STALE_TASK_DAYS,
     return sorted(out, key=lambda x: -x["age_days"])
 
 
+def _violation_summary(limit: int = 3) -> str:
+    """一行式违规摘要（2026-10-19 用户要求：捕获后要告诉用户）。"""
+    try:
+        import jev_fit as jf
+        rows = jf.load_reviews(jf.LEDGER)
+    except Exception:
+        return ""
+    counts: dict[str, int] = {}
+    for r in rows:
+        if (r.get("human") or {}).get("verdict") == "不符合":
+            rid = r.get("rule_id") or "unknown"
+            counts[rid] = counts.get(rid, 0) + 1
+    if not counts:
+        return ""
+    top = sorted(counts.items(), key=lambda kv: -kv[1])[:limit]
+    return ", ".join(f"{k} {v} 条" for k, v in top)
+
+
 def cmd_status(hot_mode=True):
     """展示当前任务状态。默认 Hot Card 模式。--full 出完整状态。"""
     # 烂尾任务提醒（2026-10-18）：必须放在所有 early-return 之前——
@@ -1448,6 +1466,11 @@ def cmd_status(hot_mode=True):
                 print(f"   … 另有 {len(_stale) - 5} 个")
     except Exception:
         pass
+
+    _vs = _violation_summary()
+    if _vs:
+        print(_yellow(f"⚠ 规则违规: {_vs}"
+                      f"（详情: python3 .claude/scripts/jev_audit.py violations）"))
 
     if not TOKEN_PATH or not TOKEN_PATH.exists():
         token, found_path = _find_latest_token()

@@ -179,6 +179,28 @@ def metrics(rows: list[dict], accept_at: dict[str, float] | None = None,
     return out
 
 
+def violations(rows: list[dict], latest: int = 3) -> dict:
+    """按规则汇总人工判定的「不符合」（含违规捕获），给出一行式摘要。"""
+    out: dict[str, dict] = {}
+    for r in rows:
+        h = r.get("human") or {}
+        if h.get("verdict") != "不符合":
+            continue
+        rid = r.get("rule_id") or "unknown"
+        d = out.setdefault(rid, {"count": 0, "latest": []})
+        d["count"] += 1
+        d["latest"].append({
+            "review_id": r.get("review_id", ""),
+            "note": (h.get("note") or r.get("purpose") or "")[:80],
+            "at": r.get("recorded_at") or h.get("reported_at") or "",
+            "reviewer": h.get("reviewer", ""),
+        })
+    for d in out.values():
+        d["latest"] = d["latest"][-latest:]
+        d["ready_to_strengthen"] = d["count"] >= 3
+    return out
+
+
 # ── CLI ────────────────────────────────────────────────────────────
 def _load_ledger(path: str | None) -> list[dict]:
     return jf.load_reviews(Path(path) if path else jf.LEDGER)
@@ -219,6 +241,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--ledger", default=None)
     p.add_argument("--seed", type=int, default=0)
 
+    p = sub.add_parser("violations", help="按规则汇总人工判定的违规")
+    p.add_argument("--ledger", default=None)
+    p.add_argument("--json", action="store_true")
+
     args = ap.parse_args(argv)
     rows = _load_ledger(getattr(args, "ledger", None))
 
@@ -247,6 +273,21 @@ def main(argv: list[str] | None = None) -> int:
                 print("还没有任何人工标注 —— 先跑 sample 抽盲评队列。")
                 return 0
             _print_metrics(rep)
+        return 0
+
+    if args.cmd == "violations":
+        rep = violations(rows)
+        if args.json:
+            print(json.dumps(rep, ensure_ascii=False, indent=2))
+            return 0
+        if not rep:
+            print("还没有人工判定的违规。看到违规时用 jev_report.py 记一条。")
+            return 0
+        for rid, d in sorted(rep.items(), key=lambda kv: -kv[1]["count"]):
+            flag = "  → 可增强规则" if d["ready_to_strengthen"] else ""
+            print(f"{rid}: {d['count']} 条{flag}")
+            for x in d["latest"]:
+                print(f"  - {x['note']}")
         return 0
 
     labeled = sum(1 for r in rows if (r.get("human") or {}).get("verdict"))
