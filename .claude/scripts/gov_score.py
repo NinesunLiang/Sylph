@@ -76,6 +76,43 @@ def _tokens():
     return out
 
 
+def _ledger_integrity() -> dict:
+    """账本完整性：累计行数锚点 vs 当前行数 + 已署名删除量。
+
+    未署名的删除会变成 unapproved_shrink，评分会把它们加回分母（不奖励删记录）。
+    """
+    expected = 0
+    try:
+        if jf.LEDGER_STATS.is_file():
+            lines = [ln for ln in jf.LEDGER_STATS.read_text(encoding="utf-8", errors="ignore").splitlines()
+                     if ln.strip()]
+            if lines:
+                expected = int(json.loads(lines[-1]).get("total") or 0)
+    except (OSError, ValueError, json.JSONDecodeError):
+        expected = 0
+    actual = 0
+    try:
+        actual = sum(1 for ln in jf.LEDGER.read_text(encoding="utf-8", errors="ignore").splitlines()
+                     if ln.strip())
+    except OSError:
+        actual = 0
+    signed = 0
+    try:
+        if jf.LEDGER_CORRECTIONS.is_file():
+            for ln in jf.LEDGER_CORRECTIONS.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if not ln.strip():
+                    continue
+                e = json.loads(ln)
+                if e.get("approved_by"):
+                    signed += int(e.get("count") or 0)
+    except (OSError, ValueError, json.JSONDecodeError):
+        signed = 0
+    shrink = max(0, expected - (actual + signed))
+    return {"expected_total": expected, "actual_total": actual,
+            "signed_removals": signed, "unapproved_shrink": shrink,
+            "ok": shrink == 0}
+
+
 def _ts(value: str) -> datetime | None:
     try:
         t = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
@@ -93,9 +130,15 @@ def frugality() -> dict:
     gate = _load("pretool_gate_score", HOOKS / "pretool-gate.py")
     gate_count = len(gate._GATE_CORE)
     gate_factor = 1.0 if gate_count <= 15 else 15 / gate_count
-    return {"score": round(10 * (1 - noise) * gate_factor, 2), "confidence": "high",
+    integ = _ledger_integrity()
+    denom = integ["actual_total"] + integ["unapproved_shrink"]
+    retention = integ["actual_total"] / denom if denom else 1.0
+    return {"score": round(10 * (1 - noise) * gate_factor * retention, 2),
+            "confidence": "high",
             "metrics": {"pending": len(pending), "unjudgeable": len(unjudgeable),
-                        "noise_ratio": round(noise, 3), "gate_count": gate_count}}
+                        "noise_ratio": round(noise, 3), "gate_count": gate_count,
+                        "retention": round(retention, 3),
+                        "unapproved_shrink": integ["unapproved_shrink"]}}
 
 
 # ── 2. 验证大于承诺 ────────────────────────────────────────────────
@@ -183,7 +226,13 @@ def guardian() -> dict:
 # ── 5. 文档 ────────────────────────────────────────────────────────
 def documentation(strict: bool = False) -> dict:
     now = datetime.now(timezone.utc)
-    toks = [t for t in _tokens() if t.get("status") == "active"]
+    all_toks = _tokens()
+    toks = [t for t in all_toks if t.get("status") == "active"]
+    # 未署名 abandoned 不算“已处理”：否则 AI 可以靠批量弃置任务抬高分数。
+    unapproved_abandoned = [
+        t for t in all_toks
+        if t.get("status") == "abandoned" and not t.get("abandoned_approved_by")]
+    toks += unapproved_abandoned
     locked = 0
     open_toks = []
     for t in toks:
@@ -202,6 +251,7 @@ def documentation(strict: bool = False) -> dict:
     ratio = stale / len(open_toks) if open_toks else 0.0
     return {"score": round(10 * (1 - ratio), 2), "confidence": "high",
             "metrics": {"active": len(toks), "locked_in_progress": locked,
+                        "unapproved_abandoned": len(unapproved_abandoned),
                         "active_unlocked": len(open_toks),
                         "stale_over_7d": stale, "stale_ratio": round(ratio, 3)}}
 
@@ -223,10 +273,19 @@ def human(strict: bool = False) -> dict:
               if (_ts(e.get("timestamp", "")) or now) >= window]
     stops = [e for e in events
              if e.get("event_type") == "redirect_escalated_to_hard_stop"]
-    corrections = sum(
+    attested = {str(e.get("correction_ts")) for e in events
+                if e.get("event_type") == "correction_attestation"
+                and e.get("approved_by")}
+    all_corrections = sum(
         int(e.get("count") or 0) for e in events
         if e.get("event_type") == "audit_correction"
         and e.get("correction") == "test_pollution")
+    corrections = sum(
+        int(e.get("count") or 0) for e in events
+        if e.get("event_type") == "audit_correction"
+        and e.get("correction") == "test_pollution"
+        and (e.get("approved_by") or str(e.get("timestamp")) in attested))
+    unsigned_ignored = max(0, all_corrections - corrections)
     if strict:
         counted = max(0, len(stops) - corrections)
     else:
@@ -241,6 +300,7 @@ def human(strict: bool = False) -> dict:
             "metrics": {"hard_stops_counted_30d": counted,
                         "events_total_30d": len(stops),
                         "test_pollution_correction": corrections,
+                        "unsigned_correction_ignored": unsigned_ignored,
                         "tasks_created_30d": tasks,
                         "stops_per_task": round(rate, 2),
                         "caveat": ("strict：全部事件 − 审计修正量" if strict
@@ -293,9 +353,13 @@ def gain(strict: bool = False) -> dict:
     if strict:
         rows = jf.load_reviews(jf.LEDGER)
         labeled = sum(1 for r in rows if r.get("human"))
-        ratio = labeled / len(rows) if rows else 0.0
+        integ = _ledger_integrity()
+        effective = len(rows) + integ["unapproved_shrink"]
+        ratio = labeled / effective if effective else 0.0
         return {"score": round(10 * min(1.0, ratio / 0.5), 2), "confidence": "high",
                 "metrics": {"ledger": len(rows), "labeled": labeled,
+                            "unapproved_shrink": integ["unapproved_shrink"],
+                            "effective_total": effective,
                             "label_ratio": round(ratio, 3)}}
     scripts = glob.glob(str(SCRIPTS / "*.py"))
     zombies = z.find_zombies(str(ROOT), scan_roots=(".claude/scripts",))
@@ -325,9 +389,11 @@ def main() -> int:
     scores = [d["score"] for d in dims.values()]
     avg = round(sum(scores) / len(scores), 2)
     fg = false_green()
+    integ = _ledger_integrity()
     if args.json:
         print(json.dumps({"dimensions": dims, "average": avg, "min": min(scores),
-                          "false_green": fg}, ensure_ascii=False, indent=2))
+                          "false_green": fg, "ledger_integrity": integ},
+                         ensure_ascii=False, indent=2))
         return 0
     print(f"{'维度':<14}{'分数':>7}{'置信度':>8}  指标")
     for key, d in dims.items():
@@ -336,6 +402,8 @@ def main() -> int:
     print(f"\n平均: {avg} / 10   最低: {min(scores)}")
     print(f"假绿（不并入平均）: {fg['score']}  "
           f"{json.dumps(fg['metrics'], ensure_ascii=False)}")
+    status = "OK" if integ["ok"] else f"⚠ 未署名删除 {integ['unapproved_shrink']} 行"
+    print(f"账本完整性: {status}  {json.dumps(integ, ensure_ascii=False)}")
     return 0
 
 

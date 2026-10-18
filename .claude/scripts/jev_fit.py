@@ -41,6 +41,38 @@ import jev_sweep as js  # noqa: E402
 LEDGER = Path(os.environ.get(
     "CARROROS_JEV_LEDGER", str(ROOT / ".omc" / "state" / "jev" / "reviews.jsonl")))
 
+# 账本计数锚点（append-only）：防止「删掉待复核记录 → 分数变高」。
+LEDGER_STATS = Path(os.environ.get(
+    "CARROROS_JEV_STATS", str(ROOT / ".omc" / "state" / "jev" / "ledger-stats.jsonl")))
+LEDGER_CORRECTIONS = Path(os.environ.get(
+    "CARROROS_JEV_CORRECTIONS", str(ROOT / ".omc" / "state" / "jev" / "ledger-corrections.jsonl")))
+
+
+def _line_count(path: Path) -> int:
+    try:
+        return sum(1 for ln in Path(path).read_text(encoding="utf-8", errors="ignore").splitlines()
+                   if ln.strip())
+    except OSError:
+        return 0
+
+
+def record_ledger_append(path: Path = LEDGER) -> None:
+    """每次写账本后记录累计行数；行数只能单调不减（除非有已署名的修正）。"""
+    try:
+        LEDGER_STATS.parent.mkdir(parents=True, exist_ok=True)
+        last = 0
+        if LEDGER_STATS.is_file():
+            lines = [ln for ln in LEDGER_STATS.read_text(encoding="utf-8", errors="ignore").splitlines()
+                     if ln.strip()]
+            if lines:
+                last = int(json.loads(lines[-1]).get("total") or 0)
+        total = max(last, _line_count(path))
+        with LEDGER_STATS.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"ts": datetime.now(timezone.utc).isoformat(),
+                                 "total": total, "path": str(path)}) + "\n")
+    except (OSError, ValueError, json.JSONDecodeError):
+        pass
+
 # 人工判定允许的取值；「不确定」视为弃权，不计入一致率分母
 HUMAN_VERDICTS = ("符合", "不符合", "不适用", "不确定")
 
@@ -142,6 +174,7 @@ def enqueue_pending(entry: dict, path: Path = LEDGER) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps({"kind": "pending", **entry}, ensure_ascii=False) + "\n")
+    record_ledger_append(p)
 
 
 def append_review(entry: dict, path: Path = LEDGER) -> None:
@@ -150,6 +183,7 @@ def append_review(entry: dict, path: Path = LEDGER) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     with p.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(entry, ensure_ascii=False) + "\n")
+    record_ledger_append(p)
 
 
 # ── record ─────────────────────────────────────────────────────────

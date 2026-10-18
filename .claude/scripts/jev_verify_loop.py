@@ -118,6 +118,7 @@ def _append_ledger(record: dict) -> None:
         LEDGER.parent.mkdir(parents=True, exist_ok=True)
         with LEDGER.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        jf.record_ledger_append(LEDGER)
     except OSError:
         pass  # 留痕失败不阻塞
 
