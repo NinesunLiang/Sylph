@@ -4,14 +4,10 @@ pretool-gate.py — CarrorOS PreToolUse Unified Gate (THIN ROUTER).
 
 This is now the thin routing layer. All gate logic lives in pretool_gates/*.py.
 
-Execution order (prefer REDIRECT; escalate to ASK_USER when needed):
-  1. sensitive-edit   — ask for confirmation on sensitive paths
-  2. fallback-check   — redirect blocked/waiting_user tasks
-  3. action-gate      — ask for confirmation on dangerous commands
-  4. plan-gate        — redirect missing task context
-  5. edit-scope       — warn or ask for scope clarification
-  6. verify-gate      — redirect unverified completion marks
-  7. oracle-gate      — L2 oracle classification
+门列表单一真源 = 本文件 `_GATE_CORE`（14 门，L1/L2 同集，2026-10-16 人类裁决收敛；
+oracle 退役观察区）。本文档不重复枚举门清单——改门时只改 `_GATE_CORE`，
+避免第二来源漂移（G5 index18 人类裁决）。
+执行顺序：`_GATE_CORE` 列表序；偏好 REDIRECT，必要时升级 ASK_USER。
 """
 from __future__ import annotations
 

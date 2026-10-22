@@ -1,11 +1,7 @@
 version: 2
-# runtime_reality（2026-08-13 ADR0016 降噪后真相对齐）：settings.json 实际注册——
-#   PreToolUse: hook-launcher → pretool-gate.py（L1 5 道真安全门 / L2 15 道）+ carroros-night-deny.py（合并一次 spawn）+ pretool-scorecard-gate.py（v2 路径预检）+ pre-completion-gate.py
-#   UserPromptSubmit: pretool-user-approve.py
-#   PostToolUse: hook-launcher → sensitive-filter + output-schema + error-dna（合并）+ posttool-claim-audit.py + read-tracker.py + completion-gate.py
-#   SessionStart: session-start.py
-#   Stop/PreCompact: stop-flywheel.py
-# 本文件为能力目录（含已合并/规划中），非运行时注册表；运行时以 settings.json 为唯一真相源。
+# runtime_reality 不在此复述：运行时注册表唯一真相源 = .claude/settings.json（PreToolUse/PostToolUse 等），
+# 门清单唯一真相源 = pretool-gate.py::_GATE_CORE（14 道，2026-10-16 收敛）。
+# 本文件为能力目录（含已合并/规划中），非运行时注册表。
 # 架构原则见 ADR0016：前置引导定路径 → 途中轻量（砍途中防错）→ 末端 TDD 校验。
 hooks:
 - name: permission-gate

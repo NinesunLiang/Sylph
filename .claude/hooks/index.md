@@ -12,43 +12,21 @@
 | `hook-launcher.py` | Hook 调度器 — 从 settings.json 按名启动 hook |
 | `(lib/)` | 共享库 _(`lifecycle_ssot.py` 等)_ |
 
-## Base 注册 Hook（settings.json 激活）
+## Base 注册 Hook（以 settings.json 为单一真源）
 
 | 类别 | Hook 文件 | 触发点 |
 |------|-----------|--------|
-| **门禁路由** | `pretool-gate.py` → `pretool_gates/*.py` | PreToolUse（L1 5 道真安全门 / L2 15 道含末端校验） |
+| **门禁路由** | `pretool-gate.py` → `pretool_gates/*.py` | PreToolUse（门列表单一真源 = 该文件 `_GATE_CORE`，L1=L2=14 道，2026-10-16 收敛） |
+| **夜航模式** | `carroros-night-deny.py` | PreToolUse（与 pretool-gate 同次 spawn 串行） |
 | **记分卡门禁** | `pretool-scorecard-gate.py` | PreToolUse:Edit/Write |
 | **完成门禁** | `pre-completion-gate.py` | PreToolUse:TaskUpdate |
 | **用户审批** | `pretool-user-approve.py` | UserPromptSubmit |
-| **夜航模式** | `carroros-night-deny.py` | PreToolUse |
 | **Claim审计** | `posttool-claim-audit.py` | PostToolUse:Edit/Write |
 | **安全过滤** | `posttool-sensitive-filter.py` | PostToolUse |
-| **Error DNA 采集** | `error-dna.py` | PostToolUse |
 | **完成审核** | `completion-gate.py` | PostToolUse:TaskUpdate |
 | **会话启动** | `session-start.py` | SessionStart |
 | **生命周期** | `precompact-lifecycle.py` | PreCompact |
 | **飞轮停止** | `stop-flywheel.py` | PreCompact |
-| **阅读追踪** | `read-tracker.py` | PostToolUse:Read |
+| **遥测清理** | `telemetry-ttl.py` | PreCompact |
 
-## 已删除 Hook（index15 降噪·ROI 清理）
-
-以下 hook 因 ROI 考量已删除（`git rm` 可恢复），不属有效治理资产：
-
-| 已删除文件 | 删除原因 |
-|------|------|
-| `posttool-bash-audit.py` | 仅被 error-dna 注释提及，无实际注册/引用 |
-| `session-resume.py` | 零引用死代码 |
-| `token_writer.py` | harness.yaml 显式禁用（token_writer: false） |
-| `turn-counter.py` | hc_enabled 门控但未启用 |
-| `compound-verify-gate.py` / `verify_contract.py` | 文档描述但文件从未存在（虚构引用） |
-
-## 已退休 Hook（还债·少即是多清理）
-
-以下 hook 已**物理删除**（index49，人类裁决「不符合少即是多的删除」）：
-
-| 已删文件 | 原因 |
-|------|------|
-| `postcompact.py` | 纯记录型；resume-note 写入逻辑无门禁价值，会话恢复由 session-start.py 读 handoff 兜底 |
-| `posttool-output-schema.py` | 纯提示型（warn-only）；输出 schema 校验无消费方 |
-
-> 原放在 `retired/` 目录「保留以便回滚」。回滚能力由 **git 历史**提供，无需在树内留副本——树内留副本本身就是「少即是多」的违规。
+> 已移除条目：`error-dna.py`（index48 随 error-dna 机制删除）、`read-tracker.py`（文件不存在，仅 harness.yaml 历史注释提及）。删除/退休 hook 的完整清单见 `references/archived/hooks-retired-20261023.md`。

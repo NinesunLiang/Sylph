@@ -74,7 +74,7 @@ rules:
     #   候选记录：accept_at=0.60（待样本充足后回放验证）
     accept_at: 0.70
     reject_at: 0.50
-    text: "the less, the more（少即是多）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；"
+    text: "少即是多（the less, the more）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；"
     rule_target: code
     judge_by: jev
     criteria_true: "改动是达成目的的最简实现：没有引入非必要的抽象、层级、依赖、文件或配置项"
@@ -87,7 +87,7 @@ rules:
     accept_at: 0.70
     reject_at: 0.50
     requires: repo_context
-    text: "the less, the more（少即是多）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；"
+    text: "少即是多（the less, the more）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；"
     rule_target: code
     judge_by: jev
     criteria_true: >-
@@ -103,7 +103,7 @@ rules:
   - rule_id: soul.7.gain
     escalate_when_uncertain: true  # 僵尸代码处置是主线；判不出多半是判据没写清「清理也算增益」
     source: AGENTS.md:20
-    text: "增益优先：所有新增功能必须证明「单行为带来全局可量化增益 > 实现+维护成本」；无增量增益的冗余代码通过僵尸机制处置：要么接入主校验链路，要么直接删除。"
+    text: "增益（增益优先，做少得多）：所有新增功能必须证明「单行为带来全局可量化增益 > 实现+维护成本」；无增量增益的冗余代码通过僵尸机制处置：要么接入主校验链路，要么直接删除。"
     rule_target: code
     judge_by: jev
     accept_at: 0.75
@@ -130,7 +130,7 @@ rules:
   - rule_id: soul.2.tdd-record
     requires: delivery
     source: AGENTS.md:15
-    text: "验证大于承诺：执行前tdd，执行后tdd，每个任务需要完整的闭环；"
+    text: "验证（验证大于承诺）：执行前tdd，执行后tdd，每个任务需要完整的闭环；"
     rule_target: code
     judge_by: hybrid
     allow_not_applicable: true
@@ -143,7 +143,7 @@ rules:
   - rule_id: doc.process-complete
     requires: delivery
     source: AGENTS.md:18
-    text: "文档：L1 light 和 L2 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统，并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件。`.json.lock` 是底层并发写保护；只有 L2 goal 任务才把锁的最终移除作为完成标识。普通 L1 不要求任务文档。"
+    text: "文档（磁盘状态为唯一真相源）：L1 light 和 L2 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统，并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件。`.json.lock` 是底层并发写保护；只有 L2 goal 任务才把锁的最终移除作为完成标识。普通 L1 不要求任务文档。"
     rule_target: code
     judge_by: hybrid
     allow_not_applicable: true
