@@ -12,13 +12,19 @@ Schema（C2 v1）：
 现存 kind 主要由 gate-zombie / delete-candidate 产生。
 
 用法：
-  python3 .claude/scripts/proposals.py distill [--threshold N] [--out DIR]
+  python3 .claude/scripts/proposals.py distill [--threshold N] [--gov-threshold N] [--out DIR]
   python3 .claude/scripts/proposals.py list|accept <id>|reject <id> <note>  [proposals.jsonl]
+
+  kind=gov-criterion（B 档，A+B 2026-10-22 开启）：判官账本人工复核备注 → 判据调优提案。
+  证据必须带 refs（人工备注留痕）+ 规则原文锁定 + 影响估计；accept 只生成判官回放单，
+  改登记表需 jev_fit replay 回放验证 + 人类登记版本；冻结域（AGENTS.md/kernel.md/hooks）
+  永不自动落盘，必须人工签票（24h TTL）。
 """
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -27,6 +33,22 @@ DEFAULT_OUT = ".omc/proposals"
 # 遥测单一真源位置（2026-10-16 遥测卫生：按月分片目录）
 GATE_PASS_TELEMETRY = ".omc/state/telemetry/gate-pass"
 IMPACTS = ("高", "中", "低")
+
+# ── B 档：治理域蒸馏（治理部分自迭代，A+B 2026-10-22 人类裁决开启）──
+# 判官账本（判官判定 + 人工复核留痕的单一真源）；env 覆盖供测试隔离
+JEV_LEDGER = os.environ.get("CARROROS_JEV_LEDGER") or \
+    str(Path(__file__).resolve().parents[2] / ".omc" / "state" / "jev" / "reviews.jsonl")
+# 治理判官登记表（kind=gov-criterion 提案的 target；冻结域文件本身仍不可自改）
+# 展示用相对名 + 绝对真身（防 cwd 漂移）
+GOV_RULES = ".claude/scripts/jev_rules.yaml"
+GOV_RULES_ABS = str(Path(__file__).resolve().parent / "jev_rules.yaml")
+# 冷却期：同一规则自上次治理提案裁决后 N 天内不再提案（控制打扰 ≤1-2 条/周）
+GOV_COOLDOWN_DAYS = int(os.environ.get("CARROROS_GOV_COOLDOWN_DAYS", "14"))
+# 治理域蒸馏最小证据数（人工备注/复核留痕，非 AI 自证）
+GOV_THRESHOLD_DEFAULT = 2
+# 判官回放单落盘目录（accept 后供 jev_fit replay 重放；env 覆盖供测试隔离）
+GOV_REPLAY_DIR = os.environ.get("CARROROS_GOV_REPLAY_DIR") or \
+    str(Path(__file__).resolve().parents[2] / ".omc" / "state" / "jev" / "replay")
 
 
 def make_proposals(zombies: list[dict], threshold: int = 3,
@@ -56,6 +78,150 @@ def make_proposals(zombies: list[dict], threshold: int = 3,
             "impact_estimate": "低", "status": "pending", "human_note": "", "test_commit": "",
         })
     return props
+
+
+def load_registry_text(rule_ids: list[str], registry_path: str | None = None) -> dict[str, dict]:
+    """读判官登记表 → {rule_id: {text, source}}。读失败/缺规则返回 {}（不造无原文提案）。
+
+    registry_path 为空时从脚本自身位置定位（GOV_RULES 相对仓库根，cwd 无关）。
+    """
+    out: dict[str, dict] = {}
+    if not rule_ids:
+        return out
+    if registry_path:
+        p = Path(registry_path)
+    else:
+        p = Path(GOV_RULES_ABS)
+    if not p.exists():
+        print(f"⚠ 判官登记表不存在: {p}（治理域蒸馏跳过）")
+        return out
+    try:
+        import yaml
+        reg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+        for r in reg.get("rules", []):
+            rid = r.get("rule_id")
+            if rid in rule_ids:
+                out[rid] = {"text": (r.get("text") or "").strip(),
+                            "source": r.get("source", "")}
+    except Exception as exc:
+        print(f"⚠ 判官登记表读取失败（治理域蒸馏跳过）: {exc}")
+    return out
+
+
+def _cooldown_map(jsonl_path) -> dict[str, date]:
+    """既有治理提案 → {规则id: 最近裁决/创建日期}（pending/rejected 都算在冷却）。"""
+    map_: dict[str, date] = {}
+    if not jsonl_path:
+        return map_
+    jsonl_path = Path(jsonl_path)
+    if not jsonl_path.exists():
+        return map_
+    for line in jsonl_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            d = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if d.get("kind") != "gov-criterion" or d.get("status") not in ("pending", "rejected"):
+            continue
+        ts = (d.get("ts") or d.get("created_at") or "")[:10]
+        if not ts:
+            continue
+        for rid in (d.get("evidence") or {}).get("rule_ids", []):
+            try:
+                cur = map_.get(rid)
+                new = date.fromisoformat(ts)
+                if cur is None or new > cur:
+                    map_[rid] = new
+            except ValueError:
+                continue
+    return map_
+
+
+def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOLD_DEFAULT,
+                       registry: dict[str, dict] | None = None,
+                       asof: date | None = None,
+                       jsonl_path=None,
+                       cooldown_days: int = GOV_COOLDOWN_DAYS) -> list[dict]:
+    """B 档：判官账本 → 治理判据调优提案（kind=gov-criterion）。
+
+    蒸馏对象 = 判官登记表的判据措辞（AI 可治理的治理本体），不是冻结文件原文。
+    证据 = 人工备注/复核（真实人判，非 AI 自证）；规则原文随提案锁定（防漂移）。
+    冷却期：同规则自上次裁决 N 天内不再造（默认 14 天，控制打扰）。
+    安全：只造提案，不落盘、不改任何文件；accept 走回放验证（见 _mutate）。
+    """
+    asof = asof or date.today()
+    if registry is None:
+        registry = load_registry_text(sorted({e.get("rule_id") for e in ledger_entries
+                                              if e.get("rule_id")}))
+    prefix = f"p-{asof.isoformat()}-gov"
+    cool = _cooldown_map(jsonl_path)
+    # 聚合：规则 → 人工备注/复核记录
+    by_rule: dict[str, list[dict]] = {}
+    for e in ledger_entries:
+        rid = e.get("rule_id") or (e.get("review_id") or "").rsplit("-", 1)[-1]
+        h = e.get("human") or {}
+        if h.get("note"):
+            by_rule.setdefault(rid, []).append(h)
+    props: list[dict] = []
+    seq = 0
+    for rid, notes in by_rule.items():
+        if len(notes) < threshold:
+            continue
+        last = cool.get(rid)
+        if last is not None and (asof - last).days < cooldown_days:
+            print(f"  ⏸ gov {rid} 冷却中（上次 {last}，{cooldown_days} 天内不重复提案）")
+            continue
+        info = registry.get(rid)
+        if not info or not info["text"]:
+            print(f"  ⚠ gov {rid} 登记表无规则原文，跳过（不造无原文提案）")
+            continue
+        seq += 1
+        # refs 用账本里对应条目（与 notes 顺序一致）
+        src = [x for x in ledger_entries
+               if (x.get("rule_id") or (x.get("review_id") or "").rsplit("-", 1)[-1]) == rid
+               and (x.get("human") or {}).get("note")]
+        refs = [f"jev-ledger: 判官={x.get('verdict', '?')} 人工复核={x['human']['verdict']} | {x['human']['note'][:120]}"
+                for x in src]
+        props.append({
+            "id": f"{prefix}-{seq:03d}", "source": "distiller",
+            "kind": "gov-criterion", "target": GOV_RULES,
+            "evidence": {"count": len(notes), "refs": refs[:10], "rule_ids": [rid],
+                          "locked_rule_text": info["text"], "locked_source": info["source"]},
+            "suggestion": (f"判官规则 {rid} 判据疑似过严/过宽（近窗 {len(notes)} 次人工复核备注）"
+                           f" → 调 criteria 措辞 + jev_fit replay 回放验证；"
+                           f"规则原文锁定自 {info['source']}，改措辞不改原文"),
+            "impact_estimate": "高", "replay_required": True,
+            "status": "pending", "human_note": "", "test_commit": "",
+            "ts": asof.isoformat(),
+        })
+    return props
+
+
+def write_gov_replay_sheet(p: dict, out_path) -> Path:
+    """accept 后生成判官回放单：锁定规则原文 + 证据引用 + 回放要求。"""
+    out_path = Path(out_path)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    ev = p.get("evidence", {})
+    lines = [
+        f"# 治理判据回放单 — {p['id']}",
+        "",
+        f"- 目标：`{p.get('target', GOV_RULES)}`（规则原文来源 `{ev.get('locked_source', '?')}`，AI 不可自改原文）",
+        f"- 建议：{p.get('suggestion', '')}",
+        f"- 证据（{ev.get('count', 0)} 条人工复核留痕）：",
+    ]
+    lines += [f"  - {r}" for r in ev.get("refs", [])]
+    lines += [
+        f"- 锁定规则原文：`{ev.get('locked_rule_text', '')}`",
+        "",
+        "## 回放要求（未过 = 提案退回，不得落盘）",
+        "1. 新判据在历史案例账本上重放：`python3 .claude/scripts/jev_fit.py replay --registry <新版登记表>`",
+        "2. 与现版对照：`jev_fit.py compare --a <现版> --b <新版>` — 只有新版一致率 ≥ 现版才采纳",
+        "3. 采纳后人类在判官登记表登记新 registry_version（AI 不直接改登记表语义）",
+    ]
+    out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out_path
 
 
 def write_proposals(props: list[dict], jsonl_out, md_out) -> tuple[Path, Path]:
@@ -141,9 +307,19 @@ def _distill(args) -> int:
             })
     except Exception as exc:
         print(f"⚠ 脚本僵尸检测跳过: {exc}")
+    # B 档：判官账本 → 治理判据调优提案（kind=gov-criterion，冷却期控制打扰）
+    try:
+        ledger = [json.loads(l) for l in Path(args.ledger).read_text(encoding="utf-8").splitlines()
+                  if l.strip()]
+        gov = make_gov_proposals(ledger, threshold=args.gov_threshold,
+                                 asof=asof, jsonl_path=Path(args.out) / "proposals.jsonl")
+        props.extend(gov)
+    except Exception as exc:
+        print(f"⚠ 治理域蒸馏跳过（不影响其他通道）: {exc}")
     # 防重复（2026-10-17 人类反馈：每天蒸馏出同批提案刷屏）：
     # 同 suggestion 已有 pending/accepted 提案 → 保留原提案，跳过新造（证据计数不动，
     # 遥测趋势本身就是证据）。rejected 的不复活 —— 人已裁决的不再打扰。
+    existing: dict = {}
     try:
         existing = {json.loads(l).get("suggestion"): json.loads(l)
                     for l in Path(args.out, "proposals.jsonl").read_text().splitlines() if l.strip()}
@@ -207,12 +383,24 @@ def _mutate(jsonl, pid: str, status: str, note: str) -> int:
             d["status"] = status
             if note:
                 d["human_note"] = note
+            if status == "accepted" and d.get("kind") == "gov-criterion":
+                # B 档安全边界：accept 只登记 + 生成判官回放单；
+                # 冻结域（AGENTS.md/kernel.md/hooks）与判官登记表一律不自动落盘。
+                d["replay_required"] = True
+                d["replay_sheet"] = str(write_gov_replay_sheet(
+                    d, Path(GOV_REPLAY_DIR) / f"{pid}.md"))
             lines[i] = json.dumps(d, ensure_ascii=False)
             hit = True
     if not hit:
         print(f"未找到 {pid}"); return 1
     p.write_text("\n".join(l for l in lines if l.strip()) + "\n", encoding="utf-8")
-    print(f"{pid} -> {status}")
+    extra = ""
+    if status == "accepted" and hit:
+        try:
+            extra = "（治理判据提案：回放单已生成，待 jev_fit replay 验证）"
+        except Exception:
+            extra = ""
+    print(f"{pid} -> {status}{extra}")
     return 0
 
 
@@ -224,6 +412,9 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--out", default=DEFAULT_OUT)
     d.add_argument("--gate-pass", default=GATE_PASS_TELEMETRY)
     d.add_argument("--window", type=int, default=14)
+    d.add_argument("--ledger", default=JEV_LEDGER, help="判官账本（治理域蒸馏数据源）")
+    d.add_argument("--gov-threshold", type=int, default=GOV_THRESHOLD_DEFAULT,
+                   help="治理判据提案最小证据数（人工复核备注条数）")
     l = sub.add_parser("list")
     l.add_argument("proposals", nargs="?", default=str(Path(DEFAULT_OUT) / "proposals.jsonl"))
     for st in ("accept", "reject"):
