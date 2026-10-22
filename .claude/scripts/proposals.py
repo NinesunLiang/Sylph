@@ -66,6 +66,8 @@ GOV_REPLAY_DIR = os.environ.get("CARROROS_GOV_REPLAY_DIR") or \
 # 账本里 human.reviewer 必须是真人；repo-history / *-proxy / 缺省 一律视为非人判。
 TRUSTED_LABEL_SOURCES = ("contemporaneous_human",)
 NON_HUMAN_REVIEWER_MARKERS = ("proxy", "repo-history", "bot", "ai", "agent", "model")
+# 弃权不是证据：与 jev_fit.py「不确定视为弃权，不计入一致率分母」同一口径
+ABSTAIN_VERDICTS = ("不确定", "不适用")
 # strict = 非人判不计入证据阈值（默认，宁可不提案也不虚报证据成色）
 # inform = 非人判也可提案，但降级影响估计并在正文显著标注（探索用）
 GOV_TRUST_MODES = ("strict", "inform")
@@ -188,6 +190,16 @@ def _cooldown_map(jsonl_path) -> dict[str, date]:
     return map_
 
 
+def is_abstain(entry: dict) -> bool:
+    """人判是否为弃权（不确定/不适用）。
+
+    通行做法（也与 jev_fit.py:76 的「不确定视为弃权，不计入一致率分母」一致）：
+    弃权不是证据，既不进证据计数，也不构成冲突。
+    """
+    h = entry.get("human") or {}
+    return str(h.get("verdict") or "").strip() in ABSTAIN_VERDICTS
+
+
 def entry_rule_id(entry: dict) -> str:
     """账本条目 → 规则 id。resolution 记录没有 rule_id，靠 review_id 尾段回连。"""
     rid = entry.get("rule_id")
@@ -219,13 +231,28 @@ def note_trust(entry: dict) -> tuple[bool, str]:
     return True, f"reviewer={reviewer}"
 
 
+def load_rules_full(registry_path: str | None = None) -> dict[str, dict]:
+    """读判官登记表全量规则（还原判官判定需要 accept_at/reject_at/confidence_at）。"""
+    p = Path(registry_path) if registry_path else Path(GOV_RULES_ABS)
+    if not p.exists():
+        return {}
+    try:
+        import yaml
+        reg = yaml.safe_load(p.read_text(encoding="utf-8")) or {}
+    except Exception as exc:
+        print(f"⚠ 判官登记表读取失败（冲突检测跳过）: {exc}")
+        return {}
+    return {r.get("rule_id"): r for r in reg.get("rules", []) if r.get("rule_id")}
+
+
 def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOLD_DEFAULT,
                        registry: dict[str, dict] | None = None,
                        asof: date | None = None,
                        jsonl_path=None,
                        cooldown_days: int = GOV_COOLDOWN_DAYS,
                        seq_start: int = 0,
-                       trust_mode: str = GOV_TRUST_MODE) -> list[dict]:
+                       trust_mode: str = GOV_TRUST_MODE,
+                       require_conflict: bool = True) -> list[dict]:
     """B 档：判官账本 → 治理判据调优提案（kind=gov-criterion）。
 
     蒸馏对象 = 判官登记表的判据措辞（AI 可治理的治理本体），不是冻结文件原文。
@@ -243,12 +270,23 @@ def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOL
         registry = load_registry_text(sorted({entry_rule_id(e) for e in ledger_entries
                                               if (e.get("human") or {}).get("note")}))
     cool = _cooldown_map(jsonl_path)
-    # 聚合：规则 → [(条目, 可信?, 原因)]
+    # 冲突驱动（用户口径 2026-10-23）：只有「判官结论 vs 人判结论」相反才请人裁决一次，
+    # 不做日常排队。require_conflict=False 可退回旧的「证据量驱动」。
+    conflicts = find_conflicts(ledger_entries, load_rules_full(),
+                               trust_mode=trust_mode) if require_conflict else []
+    conflicts_by_rule: dict[str, list[dict]] = {}
+    for c in conflicts:
+        conflicts_by_rule.setdefault(c["rule_id"], []).append(c)
+    # 聚合：规则 → [(条目, 可信?, 原因)]；弃权（不确定/不适用）不是证据
     by_rule: dict[str, list[tuple[dict, bool, str]]] = {}
+    abstained: dict[str, int] = {}
     for e in ledger_entries:
         rid = entry_rule_id(e)
         h = e.get("human") or {}
         if not h.get("note"):
+            continue
+        if is_abstain(e):
+            abstained[rid] = abstained.get(rid, 0) + 1
             continue
         ok, why = note_trust(e)
         by_rule.setdefault(rid, []).append((e, ok, why))
@@ -264,6 +302,14 @@ def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOL
                 why = "、".join(sorted({r[2] for r in untrusted}))
                 print(f"  ⚠ gov {rid} 有 {len(rows)} 条备注但 0 条人判（{why}）"
                       f" → 不计入证据；请用 jev_fit.py judge --label-source contemporaneous_human 补人判")
+            continue
+        rid_conflicts = conflicts_by_rule.get(rid, [])
+        opposite = [c for c in rid_conflicts if c["kind"] == "opposite"]
+        if require_conflict and not opposite:
+            # 无相反结论 → 不打扰（判官弃权的「判据不足」只做记录，不升级为裁决）
+            if rid_conflicts:
+                print(f"  ⏸ gov {rid} 有 {len(rid_conflicts)} 条判官弃权记录但无相反结论冲突"
+                      f" → 不请人裁决（判据不足信号已留在备注）")
             continue
         last = cool.get(rid)
         if last is not None and (asof - last).days < cooldown_days:
@@ -286,6 +332,11 @@ def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOL
             continue
         seq += 1
         refs: list[str] = []
+        for c in opposite:
+            ref = (f"jev-ledger [冲突] 判官={c['judge']} vs 人判={c['human']} | "
+                   f"{c['note'][:120]}")
+            if ref not in refs:
+                refs.append(ref)
         for e, ok, why in rows:
             h = e["human"]
             verdict = h.get("verdict") or "?"
@@ -310,15 +361,77 @@ def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOL
             "evidence": {"count": len(refs), "refs": refs[:10], "rule_ids": [rid],
                           "locked_rule_text": info["text"], "locked_source": info["source"],
                           "human_judged": n_trusted,
+                          "conflicts": [{"review_id": c["review_id"], "judge": c["judge"],
+                                          "human": c["human"]} for c in opposite],
                           "trust": "human" if n_trusted >= threshold else "mixed"},
-            "suggestion": (f"{caveat}判官规则 {rid} 判据疑似过严/过宽（人判备注 {n_trusted} 条）"
-                           f" → 调 criteria 措辞 + jev_fit replay 回放验证；"
+            "suggestion": (f"{caveat}判官规则 {rid} 判据与人判结论冲突 "
+                           f"{len(opposite)} 次（人判备注 {n_trusted} 条）"
+                           f" → 需人类裁决一次：调 criteria 措辞 + jev_fit replay 回放验证；"
                            f"规则原文锁定自 {info['source']}，改措辞不改原文"),
             "impact_estimate": impact, "replay_required": True,
             "status": "pending", "human_note": "", "test_commit": "",
             "ts": asof.isoformat(),
         })
     return props
+
+
+# 判官「没给结论」的判定：与人判明确结论不一致时，属判据不足信号，不算真冲突
+NO_CONCLUSION_VERDICTS = ("不能判定", "证据不足", "不可用")
+
+
+def judge_verdict_of(entry: dict, rules_by_id: dict) -> str | None:
+    """账本条目 → 判官当时的判定。verdict 字段多为 null，需从 jev 原始信号还原。"""
+    v = entry.get("verdict")
+    if v:
+        return str(v)
+    jev = entry.get("jev") or {}
+    rule = rules_by_id.get(entry_rule_id(entry))
+    if not jev or not rule:
+        return None
+    try:
+        from jev_sweep import verdict_from_answer
+    except Exception:
+        return None
+    try:
+        return verdict_from_answer(jev, rule)
+    except Exception:
+        return None
+
+
+def find_conflicts(ledger_entries: list[dict], rules_by_id: dict,
+                   trust_mode: str = GOV_TRUST_MODE) -> list[dict]:
+    """规则级冲突检测：可信人判 vs 判官判定，双方都有明确结论且相反。
+
+    用户口径（2026-10-23）：不搞日常排队，只有结论冲突才请人类裁决一次。
+    弃权（不确定/不适用）不算；判官没给结论也不算真冲突（另计 undecided_band）。
+    返回 [{rule_id, review_id, judge, human, note, kind}]，按规则聚合。
+    """
+    pending = {e.get("review_id"): e for e in ledger_entries if e.get("kind") == "pending"}
+    out: list[dict] = []
+    for e in ledger_entries:
+        if e.get("kind") != "resolution":
+            continue
+        h = e.get("human") or {}
+        hv = str(h.get("verdict") or "").strip()
+        if not hv or hv in ABSTAIN_VERDICTS:
+            continue
+        ok, _why = note_trust(e)
+        if not ok and trust_mode != "inform":
+            continue
+        src = pending.get(e.get("review_id")) or e
+        judge = judge_verdict_of({**src, **{k: v for k, v in e.items() if k != "human"}},
+                                 rules_by_id)
+        if not judge:
+            continue
+        rid = entry_rule_id(e)
+        if judge in NO_CONCLUSION_VERDICTS:
+            # 判官没结论、人判有结论 → 判据不足（不是相反结论的冲突）
+            out.append({"rule_id": rid, "review_id": e.get("review_id"), "judge": judge,
+                        "human": hv, "note": h.get("note") or "", "kind": "undecided"})
+        elif judge != hv:
+            out.append({"rule_id": rid, "review_id": e.get("review_id"), "judge": judge,
+                        "human": hv, "note": h.get("note") or "", "kind": "opposite"})
+    return out
 
 
 def write_gov_replay_sheet(p: dict, out_path) -> Path:
