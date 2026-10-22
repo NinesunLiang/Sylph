@@ -4,20 +4,29 @@
 把真实使用沉淀的原料（gate-pass 门禁触发遥测）蒸馏成"进化提案"，供人类采纳台裁决。
 Schema（C2 v1）：
   {id: p-YYYY-MM-DD-NNN, source: distiller,
-   kind: anti-pattern | gate-zombie | doc-drift | new-gate | delete-candidate,
+   kind: anti-pattern | gate-zombie | doc-drift | new-gate | delete-candidate | gov-criterion,
    evidence: {count, refs[]}, suggestion, impact_estimate,
    status: pending|accepted|rejected|deferred, human_note, test_commit}
+  gov-criterion 额外字段：target, replay_required, ts,
+   evidence.{rule_ids, locked_rule_text, locked_source, human_judged, trust}
 
 注（index48）：原 anti-pattern 一路的数据源 error-dna 已整体移除；
-现存 kind 主要由 gate-zombie / delete-candidate 产生。
+现存 kind 主要由 gate-zombie / delete-candidate / gov-criterion 产生。
 
 用法：
-  python3 .claude/scripts/proposals.py distill [--threshold N] [--gov-threshold N] [--out DIR]
+  python3 .claude/scripts/proposals.py distill [--threshold N] [--gov-threshold N]
+                                              [--gov-trust strict|inform] [--out DIR]
   python3 .claude/scripts/proposals.py list|accept <id>|reject <id> <note>  [proposals.jsonl]
 
-  kind=gov-criterion（B 档，A+B 2026-10-22 开启）：判官账本人工复核备注 → 判据调优提案。
-  证据必须带 refs（人工备注留痕）+ 规则原文锁定 + 影响估计；accept 只生成判官回放单，
-  改登记表需 jev_fit replay 回放验证 + 人类登记版本；冻结域（AGENTS.md/kernel.md/hooks）
+  kind=gov-criterion（B 档，A+B 2026-10-22 开启）：判官账本人判备注 → 判据调优提案。
+  证据闸门（note_trust）：reviewer 必须是真人 且 label_source=contemporaneous_human；
+  repo-history / *-proxy / 缺 label_source 一律不算人判 —— 默认 strict 档不计入证据
+  阈值（宁可不提案，也不把 AI 自证包装成「人工复核」），--gov-trust inform 可放宽，
+  但会降级影响估计并在正文标注成色。
+  范围闸门：首批只动 GOV_ALLOWED_SOURCES（AGENTS.md）；kernel.md 源规则在判官样本
+  < GOV_KERNEL_MIN_SAMPLES(200) 前不蒸馏。
+  accept 只生成判官回放单；改登记表需 jev_fit replay/compare 回放验证（新版一致率
+  必须【更高】）+ 人类登记 registry_version；冻结域（AGENTS.md/kernel.md/hooks）
   永不自动落盘，必须人工签票（24h TTL）。
 """
 from __future__ import annotations
@@ -43,12 +52,52 @@ JEV_LEDGER = os.environ.get("CARROROS_JEV_LEDGER") or \
 GOV_RULES = ".claude/scripts/jev_rules.yaml"
 GOV_RULES_ABS = str(Path(__file__).resolve().parent / "jev_rules.yaml")
 # 冷却期：同一规则自上次治理提案裁决后 N 天内不再提案（控制打扰 ≤1-2 条/周）
+# 语义：asof - 上次裁决日 >= N 天才允许再提（N=14 即第 15 天起可提）
 GOV_COOLDOWN_DAYS = int(os.environ.get("CARROROS_GOV_COOLDOWN_DAYS", "14"))
 # 治理域蒸馏最小证据数（人工备注/复核留痕，非 AI 自证）
 GOV_THRESHOLD_DEFAULT = 2
 # 判官回放单落盘目录（accept 后供 jev_fit replay 重放；env 覆盖供测试隔离）
 GOV_REPLAY_DIR = os.environ.get("CARROROS_GOV_REPLAY_DIR") or \
     str(Path(__file__).resolve().parents[2] / ".omc" / "state" / "jev" / "replay")
+
+# ── 证据可信度闸门（P0，2026-10-22 审计修复）──
+# 只有「同期人工判定」才算可信参考答案（沿用 jev_fit.py:248 的教义：
+# hindsight_repo 是事后反推有偏差，llm_proxy 是模型代理占位）。
+# 账本里 human.reviewer 必须是真人；repo-history / *-proxy / 缺省 一律视为非人判。
+TRUSTED_LABEL_SOURCES = ("contemporaneous_human",)
+NON_HUMAN_REVIEWER_MARKERS = ("proxy", "repo-history", "bot", "ai", "agent", "model")
+# strict = 非人判不计入证据阈值（默认，宁可不提案也不虚报证据成色）
+# inform = 非人判也可提案，但降级影响估计并在正文显著标注（探索用）
+GOV_TRUST_MODES = ("strict", "inform")
+GOV_TRUST_MODE = os.environ.get("CARROROS_GOV_TRUST", "strict")
+# 首批范围：只允许来源为 AGENTS.md 的规则（人类裁决的 B 档首批边界，编码为白名单）
+GOV_ALLOWED_SOURCES = tuple(
+    s.strip() for s in os.environ.get("CARROROS_GOV_ALLOWED_SOURCES", "AGENTS.md").split(",")
+    if s.strip())
+# 冻结域闸门：kernel.md 来源的规则在判官样本量达标前不进入蒸馏（人类裁决约束）
+GOV_KERNEL_MIN_SAMPLES = int(os.environ.get("CARROROS_GOV_KERNEL_MIN_SAMPLES", "200"))
+
+
+def _max_seq_for_day(jsonl_path, asof: date) -> int:
+    """既有提案里同一天已占用的最大流水号（防新提案撞号被 write_proposals 静默丢弃）。"""
+    if not jsonl_path:
+        return 0
+    p = Path(jsonl_path)
+    if not p.exists():
+        return 0
+    import re as _re
+    pat = _re.compile(rf"^p-{asof.isoformat()}-(\d{{3}})$")
+    mx = 0
+    for line in p.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            m = pat.match(str(json.loads(line).get("id", "")))
+        except json.JSONDecodeError:
+            continue
+        if m:
+            mx = max(mx, int(m.group(1)))
+    return mx
 
 
 def make_proposals(zombies: list[dict], threshold: int = 3,
@@ -139,60 +188,133 @@ def _cooldown_map(jsonl_path) -> dict[str, date]:
     return map_
 
 
+def entry_rule_id(entry: dict) -> str:
+    """账本条目 → 规则 id。resolution 记录没有 rule_id，靠 review_id 尾段回连。"""
+    rid = entry.get("rule_id")
+    if rid:
+        return str(rid)
+    return (entry.get("review_id") or "").rsplit("-", 1)[-1]
+
+
+def note_trust(entry: dict) -> tuple[bool, str]:
+    """判断一条账本备注是否「人判」→ (可信?, 依据/原因)。
+
+    守 jev_fit.py 的参考答案教义：只有 contemporaneous_human 且 reviewer 是真人时可信。
+    否则返回 False + 原因（repo-history / *-proxy / 缺 label_source 等），
+    供提案正文如实标注，绝不把 AI 自证包装成「人工复核」。
+    """
+    h = entry.get("human") or {}
+    reviewer = str(h.get("reviewer") or "").strip()
+    label = str(h.get("label_source") or "").strip()
+    if not reviewer:
+        return False, "缺 reviewer"
+    low = reviewer.lower()
+    for marker in NON_HUMAN_REVIEWER_MARKERS:
+        if marker in low:
+            return False, f"reviewer={reviewer}"
+    if not label:
+        return False, f"缺 label_source（reviewer={reviewer}）"
+    if label not in TRUSTED_LABEL_SOURCES:
+        return False, f"label_source={label}"
+    return True, f"reviewer={reviewer}"
+
+
 def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOLD_DEFAULT,
                        registry: dict[str, dict] | None = None,
                        asof: date | None = None,
                        jsonl_path=None,
-                       cooldown_days: int = GOV_COOLDOWN_DAYS) -> list[dict]:
+                       cooldown_days: int = GOV_COOLDOWN_DAYS,
+                       seq_start: int = 0,
+                       trust_mode: str = GOV_TRUST_MODE) -> list[dict]:
     """B 档：判官账本 → 治理判据调优提案（kind=gov-criterion）。
 
     蒸馏对象 = 判官登记表的判据措辞（AI 可治理的治理本体），不是冻结文件原文。
-    证据 = 人工备注/复核（真实人判，非 AI 自证）；规则原文随提案锁定（防漂移）。
-    冷却期：同规则自上次裁决 N 天内不再造（默认 14 天，控制打扰）。
+    证据 = 人判备注（note_trust 闸门：非人判不计入阈值，只在正文如实标注成色）；
+    规则原文随提案锁定（防漂移）。
+    范围 = GOV_ALLOWED_SOURCES 白名单（首批 AGENTS.md）；kernel.md 另设样本量闸门。
+    冷却期：同规则自上次裁决 >= N 天前才允许再提（默认 14 天，控制打扰）。
+    ID：沿用 schema p-YYYY-MM-DD-NNN，seq_start 由调用方给已有提案数，避免撞号。
     安全：只造提案，不落盘、不改任何文件；accept 走回放验证（见 _mutate）。
     """
     asof = asof or date.today()
+    if trust_mode not in GOV_TRUST_MODES:
+        raise ValueError(f"trust_mode 必须是 {GOV_TRUST_MODES}，收到 {trust_mode!r}")
     if registry is None:
-        registry = load_registry_text(sorted({e.get("rule_id") for e in ledger_entries
-                                              if e.get("rule_id")}))
-    prefix = f"p-{asof.isoformat()}-gov"
+        registry = load_registry_text(sorted({entry_rule_id(e) for e in ledger_entries
+                                              if (e.get("human") or {}).get("note")}))
     cool = _cooldown_map(jsonl_path)
-    # 聚合：规则 → 人工备注/复核记录
-    by_rule: dict[str, list[dict]] = {}
+    # 聚合：规则 → [(条目, 可信?, 原因)]
+    by_rule: dict[str, list[tuple[dict, bool, str]]] = {}
     for e in ledger_entries:
-        rid = e.get("rule_id") or (e.get("review_id") or "").rsplit("-", 1)[-1]
+        rid = entry_rule_id(e)
         h = e.get("human") or {}
-        if h.get("note"):
-            by_rule.setdefault(rid, []).append(h)
+        if not h.get("note"):
+            continue
+        ok, why = note_trust(e)
+        by_rule.setdefault(rid, []).append((e, ok, why))
     props: list[dict] = []
     seq = 0
-    for rid, notes in by_rule.items():
-        if len(notes) < threshold:
+    for rid, rows in by_rule.items():
+        trusted = [r for r in rows if r[1]]
+        untrusted = [r for r in rows if not r[1]]
+        # 阈值只数人判：strict 下非人判不算证据；inform 下允许但降级
+        counted = rows if trust_mode == "inform" else trusted
+        if len(counted) < threshold:
+            if untrusted and len(rows) >= threshold:
+                why = "、".join(sorted({r[2] for r in untrusted}))
+                print(f"  ⚠ gov {rid} 有 {len(rows)} 条备注但 0 条人判（{why}）"
+                      f" → 不计入证据；请用 jev_fit.py judge --label-source contemporaneous_human 补人判")
             continue
         last = cool.get(rid)
         if last is not None and (asof - last).days < cooldown_days:
-            print(f"  ⏸ gov {rid} 冷却中（上次 {last}，{cooldown_days} 天内不重复提案）")
+            print(f"  ⏸ gov {rid} 冷却中（上次 {last}，需满 {cooldown_days} 天才可再提）")
             continue
         info = registry.get(rid)
         if not info or not info["text"]:
             print(f"  ⚠ gov {rid} 登记表无规则原文，跳过（不造无原文提案）")
             continue
+        # 范围闸门：首批只动 AGENTS.md 源，kernel.md 需样本量达标
+        src = str(info.get("source") or "")
+        src_file = src.split(":")[0]
+        if any(m in src_file for m in ("kernel.md",)):
+            if len(ledger_entries) < GOV_KERNEL_MIN_SAMPLES:
+                print(f"  ⏸ gov {rid} 源为冻结域 {src}（判官样本 {len(ledger_entries)}"
+                      f" < {GOV_KERNEL_MIN_SAMPLES}，暂不蒸馏）")
+                continue
+        elif GOV_ALLOWED_SOURCES and src_file not in GOV_ALLOWED_SOURCES:
+            print(f"  ⏸ gov {rid} 源 {src} 不在首批白名单 {GOV_ALLOWED_SOURCES}，跳过")
+            continue
         seq += 1
-        # refs 用账本里对应条目（与 notes 顺序一致）
-        src = [x for x in ledger_entries
-               if (x.get("rule_id") or (x.get("review_id") or "").rsplit("-", 1)[-1]) == rid
-               and (x.get("human") or {}).get("note")]
-        refs = [f"jev-ledger: 判官={x.get('verdict', '?')} 人工复核={x['human']['verdict']} | {x['human']['note'][:120]}"
-                for x in src]
+        refs: list[str] = []
+        for e, ok, why in rows:
+            h = e["human"]
+            verdict = h.get("verdict") or "?"
+            judge = e.get("verdict")
+            judge_txt = judge if judge else "账本无 verdict（缺口）"
+            tag = "[人判]" if ok else f"[非人判:{why}]"
+            ref = (f"jev-ledger {tag} 判官={judge_txt} 人工判定={verdict} | "
+                   f"{h['note'][:120]}")
+            if ref not in refs:  # 去重（同一备注重复记两次不算两条证据）
+                refs.append(ref)
+        n_trusted = len(trusted)
+        if trust_mode == "inform" and n_trusted < threshold:
+            impact = "中"
+            caveat = (f"⚠ 证据含非人判标签（人判仅 {n_trusted}/{len(rows)} 条），"
+                      f"需人工先确认成色再采纳；")
+        else:
+            impact = "高"
+            caveat = ""
         props.append({
-            "id": f"{prefix}-{seq:03d}", "source": "distiller",
+            "id": f"p-{asof.isoformat()}-{seq_start + seq:03d}", "source": "distiller",
             "kind": "gov-criterion", "target": GOV_RULES,
-            "evidence": {"count": len(notes), "refs": refs[:10], "rule_ids": [rid],
-                          "locked_rule_text": info["text"], "locked_source": info["source"]},
-            "suggestion": (f"判官规则 {rid} 判据疑似过严/过宽（近窗 {len(notes)} 次人工复核备注）"
+            "evidence": {"count": len(refs), "refs": refs[:10], "rule_ids": [rid],
+                          "locked_rule_text": info["text"], "locked_source": info["source"],
+                          "human_judged": n_trusted,
+                          "trust": "human" if n_trusted >= threshold else "mixed"},
+            "suggestion": (f"{caveat}判官规则 {rid} 判据疑似过严/过宽（人判备注 {n_trusted} 条）"
                            f" → 调 criteria 措辞 + jev_fit replay 回放验证；"
                            f"规则原文锁定自 {info['source']}，改措辞不改原文"),
-            "impact_estimate": "高", "replay_required": True,
+            "impact_estimate": impact, "replay_required": True,
             "status": "pending", "human_note": "", "test_commit": "",
             "ts": asof.isoformat(),
         })
@@ -209,15 +331,20 @@ def write_gov_replay_sheet(p: dict, out_path) -> Path:
         "",
         f"- 目标：`{p.get('target', GOV_RULES)}`（规则原文来源 `{ev.get('locked_source', '?')}`，AI 不可自改原文）",
         f"- 建议：{p.get('suggestion', '')}",
-        f"- 证据（{ev.get('count', 0)} 条人工复核留痕）：",
+        f"- 证据（{ev.get('count', 0)} 条；其中人判 {ev.get('human_judged', 0)} 条，"
+        f"成色 `{ev.get('trust', '?')}`）：",
     ]
     lines += [f"  - {r}" for r in ev.get("refs", [])]
+    if ev.get("trust") == "mixed":
+        lines += ["", "> ⚠ 本条证据含非人判标签（AI 代理/仓库回溯），"
+                      "采纳前须由人复核成色；不得据此直接改判据。"]
     lines += [
         f"- 锁定规则原文：`{ev.get('locked_rule_text', '')}`",
         "",
         "## 回放要求（未过 = 提案退回，不得落盘）",
         "1. 新判据在历史案例账本上重放：`python3 .claude/scripts/jev_fit.py replay --registry <新版登记表>`",
-        "2. 与现版对照：`jev_fit.py compare --a <现版> --b <新版>` — 只有新版一致率 ≥ 现版才采纳",
+        "2. 与现版对照：`jev_fit.py compare --a <现版> --b <新版>` — 只有新版一致率【更高】才允许采纳"
+        "（jev_fit.py 教义原文：更高，不是不低于；回放与留出集两侧都须成立）",
         "3. 采纳后人类在判官登记表登记新 registry_version（AI 不直接改登记表语义）",
     ]
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -228,21 +355,32 @@ def write_proposals(props: list[dict], jsonl_out, md_out) -> tuple[Path, Path]:
     jsonl_out = Path(jsonl_out)
     md_out = Path(md_out)
     jsonl_out.parent.mkdir(parents=True, exist_ok=True)
-    # 幂等：已存在的 id 跳过（防重跑重复）
-    seen: set[str] = set()
+    # 幂等：已存在的 id 跳过（防重跑重复）。区分两种情况：
+    #   同 id 同内容 → 幂等跳过（静默，重跑不该报警）
+    #   同 id 不同内容 → 真撞号，提案会凭空消失，必须喊出来（2026-10-22 审计发现）
+    seen: dict[str, str] = {}
     if jsonl_out.exists():
         for line in jsonl_out.read_text(encoding="utf-8").splitlines():
             if not line.strip():
                 continue
             try:
-                seen.add(json.loads(line).get("id", ""))
+                d = json.loads(line)
             except json.JSONDecodeError:
-                pass
-    with jsonl_out.open("a", encoding="utf-8") as f:
-        for p in props:
-            if p["id"] in seen:
                 continue
+            seen[d.get("id", "")] = json.dumps(d, ensure_ascii=False, sort_keys=True)
+    with jsonl_out.open("a", encoding="utf-8") as f:
+        collided = []
+        for p in props:
+            key = json.dumps(p, ensure_ascii=False, sort_keys=True)
+            if p["id"] in seen:
+                if seen[p["id"]] != key:
+                    collided.append(p["id"])
+                continue
+            seen[p["id"]] = key  # 同批内重复也要拦，否则文件里出现重复 id
             f.write(json.dumps(p, ensure_ascii=False) + "\n")
+    if collided:
+        print(f"⚠ 提案 ID 撞号且内容不同，被跳过 {len(collided)} 条: {sorted(set(collided))}"
+              f" —— 检查蒸馏编号（同一天多轮蒸馏需接续已用号）")
     with md_out.open("w", encoding="utf-8") as f:
         f.write("# 进化提案台\n\n")
         for p in props:
@@ -311,8 +449,14 @@ def _distill(args) -> int:
     try:
         ledger = [json.loads(l) for l in Path(args.ledger).read_text(encoding="utf-8").splitlines()
                   if l.strip()]
+        # seq_start 取「已造方案数」与「既有同日最大号」的较大值：
+        # 沿用 schema p-YYYY-MM-DD-NNN，且绝不与其他通道/历史提案撞号
         gov = make_gov_proposals(ledger, threshold=args.gov_threshold,
-                                 asof=asof, jsonl_path=Path(args.out) / "proposals.jsonl")
+                                 asof=asof, jsonl_path=Path(args.out) / "proposals.jsonl",
+                                 seq_start=max(len(props),
+                                               _max_seq_for_day(Path(args.out) / "proposals.jsonl",
+                                                                asof)),
+                                 trust_mode=args.gov_trust)
         props.extend(gov)
     except Exception as exc:
         print(f"⚠ 治理域蒸馏跳过（不影响其他通道）: {exc}")
@@ -414,7 +558,9 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--window", type=int, default=14)
     d.add_argument("--ledger", default=JEV_LEDGER, help="判官账本（治理域蒸馏数据源）")
     d.add_argument("--gov-threshold", type=int, default=GOV_THRESHOLD_DEFAULT,
-                   help="治理判据提案最小证据数（人工复核备注条数）")
+                   help="治理判据提案最小证据数（人判备注条数）")
+    d.add_argument("--gov-trust", default=GOV_TRUST_MODE, choices=list(GOV_TRUST_MODES),
+                   help="strict=非人判不计证据（默认）；inform=可提案但降级并标注成色")
     l = sub.add_parser("list")
     l.add_argument("proposals", nargs="?", default=str(Path(DEFAULT_OUT) / "proposals.jsonl"))
     for st in ("accept", "reject"):
