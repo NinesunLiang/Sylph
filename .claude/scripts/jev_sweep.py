@@ -750,8 +750,10 @@ def run_sweep(
 
             for item in summary.get("escalate_for_rule_tuning", []):
                 rid = item["rule_id"]
+                change_preview = state['change'][:200]
+                fp = hashlib.sha256(f'{rid}{change_preview}'.encode()).hexdigest()[:12]
                 _jf.enqueue_pending({
-                    "review_id": f"p-{hashlib.sha256(f'{rid}{state['change'][:200]}'.encode()).hexdigest()[:12]}-{rid}",
+                    "review_id": f"p-{fp}-{rid}",
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "rule_id": rid,
                     "registry_version": registry.get("registry_version"),

@@ -1,0 +1,86 @@
+# jev_rules_memory.yaml — 记忆观察 JEV-C 规则登记表
+#
+# 检测对象：**用户对话产生的观察记录**。
+# 判定维度：是否值得写入长期记忆（MEMORY.md / USER.md）或需人工确认。
+
+schema_version: carros.jev_rules.v1
+registry_version: v1
+status: draft
+scope: memory_observations_only
+
+defaults:
+  escalate_when_uncertain: false
+  accept_at: 0.80
+  reject_at: 0.30
+  confidence_at: 0.55
+
+rules:
+  # ═══ A. 硬约束类（高置信直写） ═════════════════════════════════════════════
+  
+  - rule_id: mem.hard-constraint
+    escalate_when_uncertain: true
+    source: MEMORY.md:硬规则
+    text: "用户明确表达的禁止/必须/零容忍/铁律类指令"
+    rule_target: memory
+    judge_by: jev
+    criteria_true: "观察文本包含明确的禁止性词汇（禁止/必须/零容忍/铁律/直接给干货/不许/拒绝/硬限/直接写入），且置信度≥0.8"
+    criteria_false: "观察文本不包含硬约束关键词，或置信度<0.8"
+    failure_action: "标记待复核，不直接写入"
+
+  - rule_id: mem.explicit-preference
+    escalate_when_uncertain: false
+    source: MEMORY.md:个人偏好
+    text: "用户明确表达的稳定偏好（优先/偏好/习惯/喜欢/倾向/不追求复杂解释）"
+    rule_target: memory
+    judge_by: jev
+    criteria_true: "观察文本包含偏好类关键词（优先/偏好/习惯/喜欢/倾向/不追求/简短/直接/短句），置信度≥0.7，且为用户主动陈述而非被动回应"
+    criteria_false: "无偏好关键词，或置信度<0.7，或属于临时情绪表达"
+    failure_action: "低置信丢弃，中置信入待确认"
+
+  # ═══ B. 技能/能力缺口类（中置信需确认） ═════════════════════════════════════════════
+  
+  - rule_id: mem.skill-gap
+    escalate_when_uncertain: true
+    source: MEMORY.md:模型路由
+    text: "用户表达想要掌握/学会/不会用/缺乏某项技能或工具能力"
+    rule_target: memory
+    judge_by: jev
+    criteria_true: "观察文本包含技能缺口关键词（要/需要/想要/缺/技能/学会/掌握/不会/不会用/想学），置信度≥0.6，且语境为用户主动提出学习需求"
+    criteria_false: "无技能缺口关键词，或置信度<0.6，或属于闲聊/假设性提问"
+    failure_action: "入待确认队列，由用户裁决是否写入 USER.md 技能树"
+
+  # ═══ C. 痛点/问题类（中置信需确认） ═════════════════════════════════════════════
+  
+  - rule_id: mem.pain-point
+    escalate_when_uncertain: false
+    source: MEMORY.md:个人偏好
+    text: "用户反馈的具体痛点/坑/失败经验/不想重复的错误"
+    rule_target: memory
+    judge_by: jev
+    criteria_true: "观察文本描述具体的失败/报错/坑/痛点/踩坑/不想再/避免/修复，置信度≥0.6，且包含可复用的避坑指南"
+    criteria_false: "仅发泄情绪、无具体可操作信息、置信度<0.6"
+    failure_action: "入待确认队列"
+
+  # ═══ D. 架构/技术选型原则类（高置信直写） ═════════════════════════════════════════════
+  
+  - rule_id: mem.arch-principle
+    escalate_when_uncertain: false
+    source: MEMORY.md:硬规则
+    text: "用户陈述的稳定架构原则/技术选型优先级/工程纪律"
+    rule_target: memory
+    judge_by: jev
+    criteria_true: "观察文本包含架构原则关键词（可逆/可观测/低耦合/稳定性>可维护性/先保护数据/复杂度必须有来源/省钱优先/隐私优先/先验证再配置），置信度≥0.75"
+    criteria_false: "无架构原则关键词，或置信度<0.75，或属于临时建议而非稳定原则"
+    failure_action: "低置信丢弃"
+
+  # ═══ E. 临时/低价值/闲聊类（低置信丢弃） ═════════════════════════════════════════════
+  
+  - rule_id: mem.low-value
+    escalate_when_uncertain: false
+    source: MEMORY.md:记忆边界
+    text: "纯闲聊/情绪发泄/一次性信息/已过时细节/无来源结论/隐私信息"
+    rule_target: memory
+    judge_by: jev
+    criteria_true: "观察文本属于：问候/道别/情绪宣泄/无具体技术内容/一次性会话细节/隐私数据（密码/key/token/地址/电话），置信度≥0.5"
+    criteria_false: "包含任何可复用的技术知识/偏好/原则/痛点/技能需求"
+    failure_action: "直接丢弃，不入待确认"
