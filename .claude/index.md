@@ -39,7 +39,8 @@
 | tasks/ | `@.omc/tasks/index.md` | 任务文档系统 — 唯一入口 |
 | state/ | `@.omc/state/index.md` | 运行时状态（lifecycle/hud/snapshots/oracle） |
 | archive/ | `@.omc/archive/index.md` | 归档任务快照 |
-| audit/ | `@.omc/audit/index.md` | 审计日志 JSONL（按日分片） |
+| audit/ | `@.omc/audit/index.md` | 审计日志 JSONL（机器自决事件，按日分片） |
+| decisions/ | `.omc/decisions/DECISIONS.md` | AI 治理决策日志（人类裁决，时间正序，append-only；不入库） |
 | knowledge/ | `@.omc/knowledge/index.md` | 升华管道数据 |
 | metrics/ | `@.omc/metrics/index.md` | 基准测试报告 |
 
