@@ -41,6 +41,7 @@
 | `intake_gate.py` | 准入门禁 |
 | `output_compress.py` | 输出压缩 |
 | `plan_builder.py` | 计划构建器 |
+| `jev_approve.py` | 审批第 1 档：外部模型独立评审后签发 30 分钟批准（D-016） |
 | `executor_ledger.py` | 执行分类账 |
 | `clarify_engine.py` | 澄清引擎 |
 | `omc_lint.py` | 代码规范检查 |

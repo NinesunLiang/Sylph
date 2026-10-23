@@ -51,10 +51,20 @@ def test_production_commands_require_human():
         assert r and r.startswith("ASK_USER human_gate"), f"{cmd} -> {r!r}"
 
 
-def test_dependency_install_needs_jev_approval():
-    """第 1 档：无 JEV 批准时必须询问，不得静默放行（fail-closed）。"""
+def test_dependency_install_needs_jev_approval(monkeypatch):
+    """第 1 档：无 JEV 批准时必须询问，不得静默放行（fail-closed）。
+
+    显式隔离磁盘上的真实批准记录，避免测试依赖 .omc/state 的临时状态。
+    """
+    monkeypatch.setattr(checks, "_has_fresh_jev_approval", lambda _cmd: False)
     r = checks._check_action_gate(_bash("npm install left-pad"))
     assert r and r.startswith("ASK_USER jev_required"), f"{r!r}"
+
+
+def test_dependency_install_allowed_with_jev_approval(monkeypatch):
+    """第 1 档：持有未过期的高分批准时放行，不再打扰人类。"""
+    monkeypatch.setattr(checks, "_has_fresh_jev_approval", lambda _cmd: True)
+    assert checks._check_action_gate(_bash("npm install left-pad")) is None
 
 
 def test_quoted_literal_not_misblocked():
