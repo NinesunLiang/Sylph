@@ -349,9 +349,11 @@ def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOL
     asof = asof or date.today()
     if trust_mode not in GOV_TRUST_MODES:
         raise ValueError(f"trust_mode 必须是 {GOV_TRUST_MODES}，收到 {trust_mode!r}")
+    orig = {x.get("review_id"): x for x in ledger_entries if x.get("rule_id")}
     if registry is None:
-        registry = load_registry_text(sorted({entry_rule_id(e) for e in ledger_entries
-                                              if (e.get("human") or {}).get("note")}))
+        registry = load_registry_text(sorted({
+            entry_rule_id(orig.get(e.get("review_id"), e) if not e.get("rule_id") else e)
+            for e in ledger_entries if (e.get("human") or {}).get("note")}))
     cool = _cooldown_map(jsonl_path)
     # 冲突驱动（用户口径 2026-10-23）：只有「判官结论 vs 人判结论」相反才请人裁决一次，
     # 不做日常排队。require_conflict=False 可退回旧的「证据量驱动」。
@@ -364,7 +366,7 @@ def make_gov_proposals(ledger_entries: list[dict], threshold: int = GOV_THRESHOL
     by_rule: dict[str, list[tuple[dict, bool, str]]] = {}
     abstained: dict[str, int] = {}
     for e in ledger_entries:
-        rid = entry_rule_id(e)
+        rid = entry_rule_id(orig.get(e.get("review_id"), e) if not e.get("rule_id") else e)
         h = e.get("human") or {}
         if not h.get("note"):
             continue
@@ -489,7 +491,16 @@ def find_conflicts(ledger_entries: list[dict], rules_by_id: dict,
     弃权（不确定/不适用）不算；判官没给结论也不算真冲突（另计 undecided_band）。
     返回 [{rule_id, review_id, judge, human, note, kind}]，按规则聚合。
     """
-    pending = {e.get("review_id"): e for e in ledger_entries if e.get("kind") == "pending"}
+    # 原判定位（2026-10-24）：明确结论存在 kind=None 原始记录里；只查 pending 配不上对。
+    by_id: dict = {}
+    for x in ledger_entries:
+        rid = x.get("review_id")
+        if not rid:
+            continue
+        prev = by_id.get(rid)
+        if prev is None or (not judge_verdict_of(prev, rules_by_id)
+                            and judge_verdict_of(x, rules_by_id)):
+            by_id[rid] = x
     out: list[dict] = []
     for e in ledger_entries:
         if e.get("kind") != "resolution":
@@ -501,12 +512,13 @@ def find_conflicts(ledger_entries: list[dict], rules_by_id: dict,
         ok, _why = note_trust(e)
         if not ok and trust_mode != "inform":
             continue
-        src = pending.get(e.get("review_id")) or e
+        src = by_id.get(e.get("review_id")) or e
         judge = judge_verdict_of({**src, **{k: v for k, v in e.items() if k != "human"}},
                                  rules_by_id)
         if not judge:
             continue
-        rid = entry_rule_id(e)
+        # 规则 id 从原判取：resolution 不带 rule_id，回落到 review_id 尾段会截断
+        rid = entry_rule_id(src)
         if judge in NO_CONCLUSION_VERDICTS:
             # 判官没结论、人判有结论 → 判据不足（不是相反结论的冲突）
             out.append({"rule_id": rid, "review_id": e.get("review_id"), "judge": judge,
@@ -724,7 +736,8 @@ def _stats(args) -> int:
     print(f"   待裁决 {s['pending']} | 拒绝 {s['rejected']} | 搁置 {s['deferred']} | 总 {s['total']}")
     if s["unverified_decisions"]:
         print(f"   ⚠ 无归属裁决 {s['unverified_decisions']} 条（历史遗留，无法追溯裁决人）")
-    print(f"M5 体重: 代码 {s['weight']['code_lines']} 行 | 文档 {s['weight']['doc_lines']} 行")
+    print(f"M5 体重: 代码 {s['weight']['code_lines']} 行（含测试）| "
+          f"文档 {s['weight']['doc_lines']} 行")
     return 0
 
 

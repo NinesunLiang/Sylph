@@ -113,6 +113,45 @@ def test_mutate_records_who_and_when(tmp_path):
     assert row.get("decision_source") == "propose_cli"
 
 
+def test_definite_judge_verdict_links_to_human_resolution():
+    """判官给了明确结论（kind=None）时，人判相反必须被识别为 opposite 冲突。
+
+    2026-10-24 实测缺陷：find_conflicts 只在 kind=pending 里找原判，
+    而明确结论都存在 kind=None 的原始记录里 → 反对意见永远配不上对，
+    治理判据提案因此永远无法产生。
+    """
+    ledger = [
+        {"kind": None, "review_id": "v-X-soul.2.tdd-record",
+         "rule_id": "soul.2.tdd-record", "verdict": "不符合", "registry_version": "v4"},
+        {"kind": "resolution", "review_id": "v-X-soul.2.tdd-record",
+         "human": {"verdict": "符合", "note": "TDD 记录在任务账本",
+                   "reviewer": "lucas.liang",
+                   "label_source": "contemporaneous_human"}},
+    ]
+    conflicts = P.find_conflicts(ledger, P.load_rules_full())
+    assert [c for c in conflicts
+            if c["rule_id"] == "soul.2.tdd-record" and c["kind"] == "opposite"], conflicts
+
+
+def test_opposite_conflict_becomes_gov_proposal(tmp_path):
+    """opposite 冲突必须真的变成 gov-criterion 提案（端到端）。"""
+    ledger = [
+        {"kind": None, "review_id": "v-X-soul.2.tdd-record",
+         "rule_id": "soul.2.tdd-record", "verdict": "不符合", "registry_version": "v4"},
+        {"kind": "resolution", "review_id": "v-X-soul.2.tdd-record",
+         "human": {"verdict": "符合", "note": "TDD 记录在任务账本",
+                   "reviewer": "lucas.liang",
+                   "label_source": "contemporaneous_human"}},
+    ]
+    props = P.make_gov_proposals(
+        ledger, threshold=1, asof=date(2026, 10, 24),
+        jsonl_path=tmp_path / "proposals.jsonl",
+        registry={"soul.2.tdd-record": {"text": "执行前tdd，执行后tdd",
+                                        "source": "AGENTS.md:15"}},
+        require_conflict=True, trust_mode="strict")
+    assert [p for p in props if p["kind"] == "gov-criterion"], props
+
+
 def test_stats_reports_three_metrics(tmp_path):
     rows = [
         {**_gate_prop("p-2026-10-20-001"), "status": "accepted", "decided_by": "lucas.liang"},
