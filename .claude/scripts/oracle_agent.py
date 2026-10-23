@@ -292,6 +292,29 @@ def _save_verdict(target: str, verdict: dict) -> Path:
     return fname
 
 
+def _static_pass_exists(task_id: str) -> bool:
+    """Mate-Oracle（runtime/duo）前置条件（D-019）：同任务已有 static 通过记录。
+
+    方案评审与改动审核是「必要时」的第二道关，必须排在 Oracle 静态之后，
+    避免跳过静态直接上双审（既贵又无锚点）。
+    """
+    d = ORACLE_VERDICTS_DIR / task_id
+    if not d.exists():
+        return False
+    for f in sorted(d.glob("*.json")):
+        try:
+            data = json.loads(f.read_text(encoding="utf-8", errors="ignore"))
+        except (OSError, ValueError):
+            continue
+        v = data.get("verdict") or {}
+        mode = str(v.get("mode", "static")).lower()
+        if mode not in ("static", ""):
+            continue
+        if str(v.get("verdict", "")).upper() in ("ACCEPT", "ADVISORY"):
+            return True
+    return False
+
+
 def _load_latest_verdict(hours: int = 24) -> Optional[dict]:
     now = time.time()
     # Scan all subdirectories under ORACLE_VERDICTS_DIR (no closure variable dependency)
@@ -902,8 +925,26 @@ def cmd_review(args: List[str]) -> int:
     if mode == "static":
         result = review_static(task_id, plan, executor, diff, research, token)
     elif mode == "runtime":
+        # D-019：Mate-Oracle 只在必要时（方案评审 / 改动审核）且 Oracle 静态通过后使用。
+        if not _static_pass_exists(task_id):
+            print(json.dumps({
+                "error": "mate_requires_static_pass",
+                "detail": "Mate-Oracle 必须排在 Oracle 静态之后：请先运行 "
+                          "--mode static 并取得 ACCEPT/ADVISORY，再执行本模式。",
+                "task_id": task_id, "mode": mode,
+            }, ensure_ascii=False))
+            return 2
         result = review_runtime(task_id, executor, logs, research, token)
     elif mode == "duo":
+        # D-019：同上，双审必须已有静态通过记录。
+        if not _static_pass_exists(task_id):
+            print(json.dumps({
+                "error": "mate_requires_static_pass",
+                "detail": "Mate-Oracle 必须排在 Oracle 静态之后：请先运行 "
+                          "--mode static 并取得 ACCEPT/ADVISORY，再执行本模式。",
+                "task_id": task_id, "mode": mode,
+            }, ensure_ascii=False))
+            return 2
         result = review_duo(task_id, plan, executor, diff, logs, research, token)
     elif mode == "analyze":
         result = review_analyze(task_id, plan, executor, diff, logs, research, token)

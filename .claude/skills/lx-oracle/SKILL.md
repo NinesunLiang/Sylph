@@ -91,6 +91,11 @@ Oracle 审 → ACCEPT 放行 / ADVISORY 记录放行
 - 一般 L2: 按需
 - 熔断: Oracle 不可用 → UNVERIFIED 标记 → archive 阻塞(fail-closed,不降级放行)
 
+**顺序约束（2026-10-24 人类裁决 D-019）**:
+- **Mate-Oracle（runtime / duo）只在必要时使用**：方案评审、审核改动；不进入日常命令审批。
+- **必须先有 Oracle 静态通过记录**（同 task-id 的 ACCEPT / ADVISORY），否则 `--mode runtime|duo` 直接拒绝（exit 2，`mate_requires_static_pass`）。
+- 单条命令的审批走另一条链：AI 自决 → Oracle 静态（建议）→ JEV 决策模型 → 人类。
+
 **组件底层**(carros_base.py / carros_core.py 保留,供 skill 调用):
 - `_run_oracle_staged(token, mode, label)` → (verdict, rc, reasons),熔断 fail-closed
 - `_aggregate_verdicts(v1, v2)` → 更严者(duo 聚合纯函数)
