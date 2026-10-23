@@ -12,7 +12,7 @@
 | `.claude/` Markdown | 32,719 | 含 references/archived（ADR0017 保留） |
 | 已迁出治理域 | 7,566 py | `capabilities/frontend-overnight/`（C 档） |
 | 回归 | **911 passed / 0 failed** | `.claude/scripts/ + .claude/hooks/` |
-| lx-goal 自身测试 | 90 passed / 16 failed | **既有红灯**，D 档前置项（见迁移方案） |
+| lx-goal 自身测试 | 89 passed + 1 skipped | C1–C8 红灯规格已隔离（D0 完成，见迁移方案） |
 | 距目标 25k | **-11,124** | |
 
 ## 2. 本轮在 CarrorOS_dev 实际落地

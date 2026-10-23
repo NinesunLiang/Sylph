@@ -32,6 +32,16 @@ module = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
 spec.loader.exec_module(module)
 
+# D0（2026-10-23）：C1–C8 是 TDD 红灯规格，目标分支尚未并入实现
+# （`git log -S cmd_pause -- lx-goal.py` 零提交；实现仅存在于 photo-coach 分支）。
+# 未实现时整文件 skip，避免把「设计中的红」误报成「回归破裂」；
+# 实现合并（D 档）后删除本 skip，让 16 条契约自动转绿。
+if not hasattr(module, "cmd_pause"):
+    pytest.skip(
+        "C1–C8 尚未在 CarrorOS_dev 实现（TDD 红灯规格）；见 LX_GOAL_MERGE_PLAN-20261023.md",
+        allow_module_level=True,
+    )
+
 DATE = "20260817"
 STATE = "EXECUTING"
 

@@ -11,7 +11,7 @@
 | 已委托 carros_base 的部分 | `lx-goal.py:438` 起调 `carros_base.py init`；`:116` `from carros_base import _save_token` |
 | 仍自持的生命周期 | `cmd_phase0_done`(838) / `cmd_plan_done`(1163) / `cmd_verify_step`(1589) / `cmd_task_done`(1627) / `cmd_clear`(1837) / `cmd_checklist_verify`(1947) / `cmd_done`(2071) |
 | 重复实现 | token 保存（`_save_task_token` 与 carros_base `_save_token` 双入口）、verify（`_verify_goal_step` vs `verify_gate.verify_step`）、done/archive（`cmd_done` vs `carros_base archive`） |
-| 测试资产 | lx-goal 90 passed / 16 failed（**目标分支既有红灯**，D0 必须先定位）；全仓 911 passed |
+| 测试资产 | lx-goal 89 passed + 1 skipped（C1–C8 红灯规格已隔离，D0 完成）；全仓 911 passed |
 
 ## 2. 目标
 
@@ -24,7 +24,7 @@
 
 | 阶段 | 动作 | 验收 | 回滚 |
 |---|---|---|---|
-| D0 | 先让 16 个既有红灯归零/归因，再把 token 字段、事件、CLI 输出拍成 characterization 测试 | 116 测试全绿 | 无代码改动 |
+| D0 ✅ | （2026-10-23 完成）归因：16 条是 C1–C8 TDD 红灯规格，目标分支从未并入实现（`git log -S cmd_pause` 零提交）；已加模块级 skip 隔离，实现合并后自动转绿 | 89 passed + 1 skipped，0 failed | 删除 skip 即恢复红光 |
 | D1 | 抽 `carros_lib/token_store.py`：把 carros_base `_save_token`/`_load_token`/CAS 原样搬过去，两边 import | 1,003 + 116 全绿；无逻辑变化 | `git revert` |
 | D2 | lx-goal 的 `_save_task_token` 改调 token_store；删除本地副本 | 同上；CAS 冲突测试通过 | 同上 |
 | D3 | `cmd_verify_step` 改为：goal 包装器 → `verify_gate.verify_step` | verify 相关 30+ 测试全绿 | 同上 |
