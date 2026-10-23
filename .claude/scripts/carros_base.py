@@ -1088,7 +1088,14 @@ def cmd_resume(task_doc=None, auto_continue=False):
             pass
 
     print()
-    if pending:
+    if _held_by_other_active:
+        # 2026-10-24 修复（双评审 E4）：指针没切过来时，绝不能打印 tick/verify 指令——
+        # 照抄会把操作落到**旧任务**上（实测旧任务被误判 already completed）。
+        print(_yellow(
+            f"   ⛔ 本任务未激活：活跃指针仍属于 {_prev_slug}。\n"
+            f"      此刻运行 tick/verify 会作用到旧任务上，请勿执行。\n"
+            f"      处理：先归档旧任务，再重新 resume 本任务。"))
+    elif pending:
         print(_yellow(f"   ⏭️  Next Action: 继续执行 {pending[0]}"))
         print(f"      python3 .claude/scripts/carros_base.py tick --step {pending[0]}")
     elif token_info.get("goal_state"):
@@ -1277,6 +1284,10 @@ def cmd_init(task_id, level="L1", steps=None, user_request=None, task_dir=None, 
     print(f"   Task:  {TASK_DIR}")
     print(f"   Plan:  {PLAN_PATH}")
     print(f"   Exec:  {EXECUTOR_PATH}")
+    # 2026-10-24 修复（双评审 E3）：init 不写活跃指针，未 resume 前 tick/verify 会报
+    # 「No active task」。这里不自动抢占指针（防跨任务污染），但必须显式告知下一步。
+    print(_yellow(f"   → 下一步必须绑定任务：resume {TASK_DIR}"))
+    print("     （init 不写活跃指针；未 resume 前 tick/verify 会报 No active task）")
     # 前置引导强化（index15 后续）：激活时显式输出路径契约，让 AI 一开始就规划在 schema 内
     if TASK_DIR:
         _print_path_contract(TASK_DIR)

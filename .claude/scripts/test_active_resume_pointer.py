@@ -96,3 +96,18 @@ def test_resume_after_archived_task_allows_overwrite(fake_env):
     ptr = omc / "state" / "active-resume.json"
     data2 = json.loads(ptr.read_text(encoding="utf-8"))
     assert "task-B" in data2.get("slug", ""), "pointer should move to B after A archived"
+
+
+def test_resume_when_pointer_held_prints_no_next_action(fake_env, capsys):
+    """双评审 E4 回归：未激活成功时不得打印 tick 指令。
+
+    旧行为会无条件打印 `Next Action: tick --step S1`，照抄会 tick 到**旧任务**上。
+    """
+    omc, _ = fake_env
+    cb.cmd_resume(str(omc / "tasks" / "20260813" / "task-A"))
+    capsys.readouterr()
+
+    cb.cmd_resume(str(omc / "tasks" / "20260813" / "task-B"))
+    out = capsys.readouterr().out
+    assert "本任务未激活" in out, out
+    assert "Next Action" not in out, out
