@@ -2331,14 +2331,10 @@ def cmd_archive(force=False):
         except OSError:
             print(_yellow("⚠  trust_breach 清除失败"))
 
-    # Step 6.4（2026-10-23 审计 C1 修复）：archive 时自动蒸馏 error-dna。
-    # index48 移除 error-dna hook 后数据断流，83 条存量无人提炼（失败模式只进不出）。
-    # 未蒸馏 ≥20 条 → 按 error_type 聚类出草案待人类确认；非致命（失败不阻断归档）。
-    try:
-        import error_dna_distill as _edna
-        _edna.main(["--root", str(PROJECT_ROOT)])
-    except Exception as exc:  # noqa: BLE001 — 蒸馏失败不得阻断归档终态
-        print(_yellow(f"⚠ error-dna 蒸馏跳过: {exc}"))
+    # Step 6.4（2026-10-24 RSI 修复）：error-dna 蒸馏器已退役。
+    # 数据源 2026-09-10 断流（83 条存量后零写入），实时失败信号也不足；
+    # 继续读取等于拿化石当燃料。脚本移入 .claude/scripts/retired/ 以便追溯。
+    # 回归锚点：test_rsi_dead_fuel.py。
 
     # Step 6.5 (2026-08-30 bug 1 修复)：归档成功才清活跃任务指针。
     # 必须在所有 cleanup（trust_breach）都成功后执行——确保 archive
@@ -2573,7 +2569,8 @@ def cmd_propose():
 
     用法:
         carros_base.py propose distill [--window N]   蒸馏遥测 → 提案
-        carros_base.py propose list                   列出提案
+        carros_base.py propose list                   列出提案（含待裁决数）
+        carros_base.py propose stats                  三指标：采纳数/转化率/体重
         carros_base.py propose accept <id> [note]     批准（reject 必须写 note）
         carros_base.py propose reject <id> <note>
     """
@@ -2581,7 +2578,7 @@ def cmd_propose():
     _pp = _hook_dir / "proposals.py"
     if not argv or argv[0] in ("-h", "--help"):
         print(__doc__.strip() if False else
-              "usage: propose distill|list|accept <id> [note]|reject <id> <note>")
+              "usage: propose distill|list|stats|accept <id> [note]|reject <id> <note>")
         return 2
     try:
         import proposals as _proposals

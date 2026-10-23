@@ -17,6 +17,7 @@ Schema（C2 v1）：
   python3 .claude/scripts/proposals.py distill [--threshold N] [--gov-threshold N]
                                               [--gov-trust strict|inform] [--out DIR]
   python3 .claude/scripts/proposals.py list|accept <id>|reject <id> <note>  [proposals.jsonl]
+  python3 .claude/scripts/proposals.py stats [--json]   # M1 采纳数 / M2 转化率 / M5 体重
 
   kind=gov-criterion（B 档，A+B 2026-10-22 开启）：判官账本人判备注 → 判据调优提案。
   证据闸门（note_trust）：reviewer 必须是真人 且 label_source=contemporaneous_human；
@@ -32,10 +33,13 @@ Schema（C2 v1）：
 from __future__ import annotations
 
 import argparse
+import getpass
 import json
 import os
+import re
 import sys
-from datetime import date
+from collections import Counter
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 DEFAULT_OUT = ".omc/proposals"
@@ -54,6 +58,8 @@ GOV_RULES_ABS = str(Path(__file__).resolve().parent / "jev_rules.yaml")
 # 冷却期：同一规则自上次治理提案裁决后 N 天内不再提案（控制打扰 ≤1-2 条/周）
 # 语义：asof - 上次裁决日 >= N 天才允许再提（N=14 即第 15 天起可提）
 GOV_COOLDOWN_DAYS = int(os.environ.get("CARROROS_GOV_COOLDOWN_DAYS", "14"))
+# 通用冷却期（2026-10-24 RSI 修复）：被拒绝/搁置的提案，同 key 在 N 天内不再重提。
+PROPOSAL_COOLDOWN_DAYS = int(os.environ.get("CARROROS_PROPOSAL_COOLDOWN_DAYS", "14"))
 # 治理域蒸馏最小证据数（人工备注/复核留痕，非 AI 自证）
 GOV_THRESHOLD_DEFAULT = 2
 # 判官回放单落盘目录（accept 后供 jev_fit replay 重放；env 覆盖供测试隔离）
@@ -188,6 +194,83 @@ def _cooldown_map(jsonl_path) -> dict[str, date]:
             except ValueError:
                 continue
     return map_
+
+
+def proposal_key(p: dict) -> str:
+    """提案稳定身份（跨天比对，不依赖日期编号）。"""
+    kind, sug = p.get("kind"), str(p.get("suggestion") or "")
+    m = (re.search(r"门禁「(.+?)」", sug) if kind == "gate-zombie"
+         else re.search(r"死代码\s+(\S+?)（", sug) if kind == "delete-candidate" else None)
+    if m:
+        return ("gate:" if kind == "gate-zombie" else "path:") + m.group(1)
+    ids = sorted((p.get("evidence") or {}).get("rule_ids") or []) if kind == "gov-criterion" else []
+    return "rule:" + ",".join(ids) if ids else f"suggestion:{sug}"
+
+
+def decision_date(p: dict) -> date | None:
+    """裁决日期：显式字段优先，其次提案 id 的日期前缀。"""
+    vals = [p.get(f) for f in ("decided_at", "rejected_at", "accepted_at", "created_at", "ts")]
+    m = re.match(r"p-(\d{4}-\d{2}-\d{2})-", str(p.get("id") or ""))
+    vals.append(m.group(1) if m else None)
+    for v in vals:
+        try:
+            return date.fromisoformat(str(v)[:10])
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def filter_distilled(props: list[dict], existing_rows: list[dict],
+                     asof: date, cooldown_days: int = PROPOSAL_COOLDOWN_DAYS
+                     ) -> tuple[list[dict], list[dict]]:
+    """去重 + 冷却：pending/accepted 保留；rejected/deferred 冷却期内抑制，期满可复活。"""
+    latest: dict = {}
+    for row in existing_rows:
+        k, d = proposal_key(row), decision_date(row)
+        if k not in latest or (d and (latest[k][1] is None or d > latest[k][1])):
+            latest[k] = (row, d)
+    kept: list[dict] = []
+    suppressed: list[dict] = []
+    for p in props:
+        row, d = latest.get(proposal_key(p), (None, None))
+        if row and row.get("status") in ("pending", "accepted"):
+            kept.append(row)
+            continue
+        if row and row.get("status") in ("rejected", "deferred") and d \
+                and (asof - d).days < cooldown_days:
+            suppressed.append(row)
+            continue
+        kept.append(p)
+    return kept, suppressed
+
+
+def rsi_stats(jsonl_path, root=None) -> dict:
+    """RSI 三指标（磁盘真相源）：M1 采纳数 / M2 转化率 / M5 体重。"""
+    root = Path(root) if root else Path(__file__).resolve().parents[2]
+    p = Path(jsonl_path)
+    rows = [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines()
+            if l.strip()] if p.exists() else []
+    c = Counter(r.get("status") for r in rows)
+    accepted, rejected, deferred = c.get("accepted", 0), c.get("rejected", 0), c.get("deferred", 0)
+    decided = accepted + rejected + deferred
+
+    def _lines(paths) -> int:
+        return sum(len(q.read_text(encoding="utf-8", errors="ignore").splitlines())
+                   for q in paths)
+
+    code = [q for d in ("scripts", "hooks") for q in (root / ".claude" / d).rglob("*.py")
+            if "__pycache__" not in q.parts]
+    docs = [q for q in (root / ".claude").rglob("*.md") if "archived" not in q.parts]
+    docs += [q for q in (root / n for n in ("AGENTS.md", "CLAUDE.md")) if q.exists()]
+    return {
+        "total": len(rows), "accepted": accepted, "rejected": rejected,
+        "deferred": deferred, "pending": c.get("pending", 0), "decided": decided,
+        "adoption_rate": (accepted / decided) if decided else 0.0,
+        "unverified_decisions": sum(
+            1 for r in rows if r.get("status") in ("accepted", "rejected", "deferred")
+            and not (r.get("decided_by") or r.get("rejected_by"))),
+        "weight": {"code_lines": _lines(code), "doc_lines": _lines(docs)},
+    }
 
 
 def is_abstain(entry: dict) -> bool:
@@ -573,40 +656,40 @@ def _distill(args) -> int:
         props.extend(gov)
     except Exception as exc:
         print(f"⚠ 治理域蒸馏跳过（不影响其他通道）: {exc}")
-    # 防重复（2026-10-17 人类反馈：每天蒸馏出同批提案刷屏）：
-    # 同 suggestion 已有 pending/accepted 提案 → 保留原提案，跳过新造（证据计数不动，
-    # 遥测趋势本身就是证据）。rejected 的不复活 —— 人已裁决的不再打扰。
-    existing: dict = {}
-    try:
-        existing = {json.loads(l).get("suggestion"): json.loads(l)
-                    for l in Path(args.out, "proposals.jsonl").read_text().splitlines() if l.strip()}
-        kept = []
-        for p in props:
-            ex = existing.get(p["suggestion"])
-            if ex and ex.get("status") in ("pending", "accepted"):
-                kept.append(ex)  # 已在桌上的，不重复造
-            else:
-                kept.append(p)
-        props = kept
-    except FileNotFoundError:
-        pass
-    # 输出时合并既有全量（含裁决历史）+ 真正的新提案，而不是只写本次蒸馏结果
-    if existing:
-        ex_suggestions = {e.get("suggestion") for e in existing.values()}
-        merged = list(existing.values()) + [p for p in props if p["suggestion"] not in ex_suggestions]
-        seen = set()
-        out_all = []
-        for x in merged:
-            k = (x.get("suggestion"), x.get("status"))
-            if k in seen:
+    # 防重复 + 冷却（2026-10-24 RSI 修复）：
+    #   同 key 已有 pending/accepted → 保留原提案；
+    #   同 key 已被 rejected/deferred 且未过冷却期 → 抑制（拒绝必须真的生效）；
+    #   冷却期满 → 允许重新提案。
+    out_jsonl = Path(args.out) / "proposals.jsonl"
+    existing_rows: list[dict] = []
+    if out_jsonl.exists():
+        for line in out_jsonl.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
                 continue
-            seen.add(k)
-            out_all.append(x)
-        props = out_all
-    jsonl, md = write_proposals(props, Path(args.out) / "proposals.jsonl", Path(args.out) / "proposals.md")
+            try:
+                existing_rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    kept, suppressed = filter_distilled(props, existing_rows, asof, PROPOSAL_COOLDOWN_DAYS)
+    props = kept
+    # 输出时合并既有全量（含裁决历史）+ 真正的新提案，而不是只写本次蒸馏结果
+    merged = list(existing_rows)
+    seen_ids = {r.get("id") for r in merged}
+    for p in props:
+        if p.get("id") in seen_ids:
+            continue
+        merged.append(p)
+        seen_ids.add(p.get("id"))
+    props = merged
+    jsonl, md = write_proposals(props, out_jsonl, Path(args.out) / "proposals.md")
+    pending_n = sum(1 for p in props if p.get("status") == "pending")
     print(f"[distill] {asof} | 提案 {len(props)} 条 | -> {jsonl}")
     for p in props:
         print(f"  {p['id']} [{p['kind']}/{p['impact_estimate']}] {p['suggestion']}")
+    if suppressed:
+        print(f"⏳ 冷却期内抑制重复提案 {len(suppressed)} 条（人已裁决，"
+              f"{PROPOSAL_COOLDOWN_DAYS} 天内不打扰）")
+    print(f"⏳ 待裁决 {pending_n} 条 — 查看: carros_base.py propose list")
     return 0
 
 
@@ -614,12 +697,34 @@ def _list_proposals(jsonl) -> int:
     p = Path(jsonl)
     if not p.exists():
         print("无提案文件"); return 1
-    for line in p.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        d = json.loads(line)
+    rows = [json.loads(l) for l in p.read_text(encoding="utf-8").splitlines() if l.strip()]
+    counts = Counter(r.get("status") for r in rows)
+    print(f"# 提案 {len(rows)} 条 | 待裁决 {counts.get('pending', 0)} | "
+          f"采纳 {counts.get('accepted', 0)} | 拒绝 {counts.get('rejected', 0)} | "
+          f"搁置 {counts.get('deferred', 0)}")
+    for d in rows:
         note = f" | note={d['human_note']}" if d.get("human_note") else ""
-        print(f"  {d['id']} [{d['kind']}/{d['impact_estimate']}/{d['status']}] {d['suggestion']}{note}")
+        by = d.get("decided_by") or d.get("rejected_by")
+        who = f" | by={by}" if by else ""
+        if d.get("status") in ("accepted", "rejected", "deferred") and not by:
+            who = " | ⚠ 无归属裁决"
+        print(f"  {d['id']} [{d['kind']}/{d['impact_estimate']}/{d['status']}] "
+              f"{d['suggestion']}{who}{note}")
+    return 0
+
+
+def _stats(args) -> int:
+    s = rsi_stats(Path(args.out) / "proposals.jsonl")
+    if args.json:
+        print(json.dumps(s, ensure_ascii=False, indent=2))
+        return 0
+    print("# RSI 指标（磁盘真相源）")
+    print(f"M1 闭环数（采纳后落地）: {s['accepted']}")
+    print(f"M2 转化率（采纳/已裁决）: {s['adoption_rate']:.1%} ({s['accepted']}/{s['decided']})")
+    print(f"   待裁决 {s['pending']} | 拒绝 {s['rejected']} | 搁置 {s['deferred']} | 总 {s['total']}")
+    if s["unverified_decisions"]:
+        print(f"   ⚠ 无归属裁决 {s['unverified_decisions']} 条（历史遗留，无法追溯裁决人）")
+    print(f"M5 体重: 代码 {s['weight']['code_lines']} 行 | 文档 {s['weight']['doc_lines']} 行")
     return 0
 
 
@@ -640,6 +745,15 @@ def _mutate(jsonl, pid: str, status: str, note: str) -> int:
             d["status"] = status
             if note:
                 d["human_note"] = note
+            # 归属留痕（2026-10-24 RSI 修复）：谁、何时、通过什么渠道裁决。
+            # 历史提案无此字段 → list/stats 显式标为「无归属裁决」，不再装作有记录。
+            try:
+                d["decided_by"] = (os.environ.get("CARROROS_DECIDED_BY")
+                                   or getpass.getuser())
+            except Exception:  # noqa: BLE001 — 取不到用户也不能吞掉裁决
+                d["decided_by"] = "unknown"
+            d["decided_at"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
+            d["decision_source"] = "propose_cli"
             if status == "accepted" and d.get("kind") == "gov-criterion":
                 # B 档安全边界：accept 只登记 + 生成判官回放单；
                 # 冻结域（AGENTS.md/kernel.md/hooks）与判官登记表一律不自动落盘。
@@ -684,6 +798,10 @@ def main(argv: list[str] | None = None) -> int:
     ar = sub.add_parser("anti-regrowth")
     ar.add_argument("--gate-pass", default=GATE_PASS_TELEMETRY)
     ar.add_argument("--window", type=int, default=14)
+    s = sub.add_parser("stats", help="RSI 三指标：采纳数 / 转化率 / 体重")
+    s.add_argument("--out", default=DEFAULT_OUT)
+    s.add_argument("--gate-pass", default=GATE_PASS_TELEMETRY)
+    s.add_argument("--json", action="store_true")
     args = ap.parse_args(argv)
     if args.cmd == "distill":
         return _distill(args)
@@ -694,6 +812,8 @@ def main(argv: list[str] | None = None) -> int:
         return _mutate(args.proposals, args.id, status, args.note or "")
     if args.cmd == "anti-regrowth":
         return _anti_regrowth(args)
+    if args.cmd == "stats":
+        return _stats(args)
     return 2
 
 
