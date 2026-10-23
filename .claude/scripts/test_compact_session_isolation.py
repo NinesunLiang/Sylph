@@ -235,6 +235,8 @@ def test_session_start_graceful_when_resume_note_missing(monkeypatch, tmp_path, 
     monkeypatch.setattr(module, "OMC", tmp_path)
     monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
     monkeypatch.setattr(module, "STEPWISE_STATE", tmp_path / "stepwise")
+    # D-023：handoff 兜底注入后，本用例需把 HANDOFF 也指到空目录才能真正测「什么都没有」
+    monkeypatch.setattr(module, "HANDOFF", tmp_path / "session-handoff.md")
 
     original = sys.stdin
     sys.stdin = io.StringIO(json.dumps({"source": "compact", "session_id": "sid-a"}))

@@ -201,6 +201,11 @@ def main() -> None:
         brief = _active_token_brief()
         if brief:
             parts.append(brief)
+        # D-023：PreCompact 不写 resume-note → handoff 正文此前从未注入（只剩任务指针）。
+        if not resume_docs and HANDOFF.is_file():
+            body = HANDOFF.read_text(encoding="utf-8")[:MAX_HANDOFF]
+            if body.strip():
+                parts.append(f"## {HANDOFF.name}\n{body}")
 
     if not parts:
         print(json.dumps({"continue": True}))

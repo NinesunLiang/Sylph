@@ -81,21 +81,9 @@ _GATE_CORE = [
     ("commit-push-integrity", _check_commit_push_integrity),
 ]
 _GATE_L2_EXTRA = [
-    # index47 (2026-09-10)：按 12 天门禁遥测 + 人类裁决「收益大才留，否则删」精简。
-    # 已删除的 9 道门及依据（数据源 .omc/scripts/gate_roi_audit.py）：
-    #   verify / stall              —— 结构性死门：verify 0/4458；stall 依赖全仓无人设置的
-    #                                  HERMES_SESSION_ID，0/4601
-    #   g2-large-file / document-quality / g5-wide-glob / g6-budget / action-loop
-    #                               —— 合计约 22285 次运行、真生效 5 次
-    #   g3-reviews / numeric-claim  —— 返回值为软告警（NARROW/CHECKPOINT/WARN），
-    #                                  pretool-gate 对四者一律「记一笔审计后放行」，
-    #                                  从不拦截；numeric-claim 另与 claim-audit K1/G1 重复
-    #
-    # 2026-10-16 人类裁决（门禁轻量化）：oracle 门 14 天 0 触发（僵尸，distill 提案
-    # p-2026-10-16-002）——退役观察区：保留函数定义（3 个月 0 调用即删，调用记埋点），
-    # 从门列表摘除。L2 门 = 14 核心 + 0 extra → 全仓门数收敛为 14，单一真源 =
-    # 本文件 _GATE_CORE（checks.py 实现 / gate-pass 遥测观测）。
-    # 如需恢复：把下面这行取消注释（人类操作）。
+    # 2026-09-10 / 2026-10-16 两次人类裁决把死门与 oracle 门摘除，全仓收敛为 14 门，
+    # 单一真源 = 本文件 _GATE_CORE。历史依据见 git log 与 gate_roi_report.py 输出。
+    # 如需恢复 oracle：取消下一行注释（人类操作）。
     # ("oracle", _check_oracle_gate),
 ]
 
