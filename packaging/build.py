@@ -140,12 +140,17 @@ def assemble(manifest: dict, dest: Path) -> list[str]:
     if hits:
         errors.append(f"密钥模式命中 {len(hits)}: {hits[:3]}")
 
+    # 语法自检：PYTHONDONTWRITEBYTECODE=1，否则 py_compile 会把 __pycache__ 写进包里
+    import os
+    env = dict(os.environ, PYTHONDONTWRITEBYTECODE="1")
     for py in dest.rglob("*.py"):
-        rc = subprocess.run([sys.executable, "-m", "py_compile", str(py)],
-                            capture_output=True, text=True)
+        rc = subprocess.run([sys.executable, "-B", "-m", "py_compile", str(py)],
+                            capture_output=True, text=True, env=env)
         if rc.returncode != 0:
             errors.append(f"py_compile 失败: {py.relative_to(dest)}")
             break
+    for cache in dest.rglob("__pycache__"):
+        shutil.rmtree(cache, ignore_errors=True)
 
     total = sum(p.stat().st_size for p in dest.rglob("*") if p.is_file())
     if total > MAX_BYTES:

@@ -1,0 +1,1071 @@
+"""
+checks.py — All _check_* gate functions extracted from pretool-gate.py.
+"""
+from __future__ import annotations
+import json
+import os
+import re
+import sys
+import time
+from datetime import datetime
+from pathlib import Path
+
+from .constants import (
+    OMC, STATE_DIR, ROOT,
+    DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS, ASK_USER_COMMANDS,
+    HUMAN_GATE_COMMANDS, JEV_GATE_COMMANDS,
+    READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
+    _INJECTION_PATTERNS, _EXTERNAL_DATA_MAX_LEN,
+    BASH_READ_TOKEN_RE, BASH_WRITE_TOKEN_RE,
+    SECRET_CONTENT_COMPILED, PRIVACY_SCAN_SIZE_CAP,
+    READ_SENSITIVE_PATTERNS,
+)
+from .helpers import (
+    _goal_mode, _is_governance, _is_sensitive,
+    _extract_tool, _extract_input, _extract_path, _extract_command,
+    _match_any, _append_audit,
+    _active_token, _task_dir, _check_verified,
+)
+from .oracle import _oracle_classify, _ORACLE_ANTI_PATTERN_RULES
+from .governance_ticket import check as check_governance_ticket
+
+
+# ── Gate 1: Sensitive edit ──
+
+def _check_sensitive_edit(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS:
+        return None
+    path = _extract_path(payload)
+    if not path:
+        return None
+    if _is_governance(path):
+        # P0 治理加固（用户 2026-10-18 裁决）：
+        #   治理文件 = AI 不可擅自修改，但可「申请人类同意」。
+        #   放行条件 = 人类在终端签发的审批票（路径 + 内容哈希 + ≤24h TTL）。
+        #   goal 模式不再降级放行——无人值守恰恰是更需要守住的场景。
+        safe = path[:200]
+        approved, why = check_governance_ticket(path)
+        if approved:
+            _append_audit({"event_type": "governance_write_approved",
+                           "actor": "hook:pretool-gate",
+                           "path": path, "tool": tool, "ticket": why})
+            return None
+        _append_audit({"event_type": "governance_write_block",
+                       "actor": "hook:pretool-gate",
+                       "path": path, "tool": tool, "reason": why})
+        return (f"BLOCK governance_frozen|"
+                f"⛔ 治理文件 {safe} 受冻结域保护（{why}）。\n"
+                f"AI 不能擅自修改治理文件。若确需变更，请由人类在终端签发审批票：\n"
+                f"  python3 .claude/scripts/gov_approve.py --files {path} --reason \"<变更理由>\"\n"
+                f"签发后重新执行本次修改。")
+    if _is_read_sensitive(path):
+        # index31 F2: 凭据类 default-deny（.env/.ssh/credentials/secret/password/
+        # api_key/token）——自动放行环境下 ASK_USER 退化为留痕（index30 法官发现），
+        # 凭据改写不可逆，升级为硬 BLOCK；确需修改走人工审批流程。
+        _append_audit({"event_type": "credential_write_block", "actor": "hook:pretool-gate",
+                       "path": path, "tool": tool})
+        return (f"BLOCK sensitive-credential|"
+                f"⛔ 凭据类文件 {path} 写入被默认拒绝（default-deny）。\n"
+                f"凭据改写不可逆且有泄露风险；确需修改请走人工审批流程。")
+    if _is_sensitive(path):
+        return (f"ASK_USER 敏感路径 {path}|"
+                f"检测到可能包含凭据的敏感文件，请确认是否继续修改。\n"
+                f"确认后继续；未确认则停止本次操作。")
+    return None
+
+
+# ── Gate 1b (index25): sensitive read — 读取侧隐私门禁 ──
+# 动机: posttool-sensitive-filter 是提示型掩码（hook stderr 输出掩码版，不剥离模型可见的
+# 原始工具结果）→ 密钥仍会进入模型上下文（index24 P1 双法官确认）。本门在读取前拦截:
+# 路径命中敏感模式 → 直接拦；内容命中密钥模式（<1MB 文本）→ 拦。
+def _candidate_read_paths(payload: dict) -> list[str]:
+    tool = _extract_tool(payload).lower()
+    inp = _extract_input(payload)
+    paths: list[str] = []
+    if tool in ("read", "grep", "search_files"):
+        p = str(inp.get("file_path") or inp.get("path") or "")
+        if p:
+            paths.append(p)
+    elif tool == "bash":
+        cmd = _extract_command(payload) or ""
+        for m in BASH_READ_TOKEN_RE.finditer(cmd):
+            g = m.group(1) or m.group(2)
+            if g:
+                paths.append(g)
+    return paths
+
+
+def _resolve_read_path(p: str) -> Path:
+    q = Path(p.strip().strip("'\""))
+    if not q.is_absolute():
+        q = Path(os.getcwd()) / q
+    return q
+
+
+_READ_SENSITIVE_RE = re.compile("|".join(READ_SENSITIVE_PATTERNS), re.IGNORECASE)
+
+
+def _is_read_sensitive(path: str) -> bool:
+    """读取侧敏感判定：仅凭据/密钥类路径；治理文件域（AGENTS.md/.claude/hooks）可读。"""
+    return bool(_READ_SENSITIVE_RE.search(path.replace("\\", "/")))
+
+
+def _check_sensitive_read(payload: dict) -> str | None:
+    """读取敏感文件（路径模式或内容含密钥模式）→ ASK_USER(deny)，阻止密钥进入上下文。"""
+    for raw in _candidate_read_paths(payload):
+        q = _resolve_read_path(raw)
+        if not q.exists():
+            continue
+        s = str(q)
+        if _is_read_sensitive(s):
+            _append_audit({"event_type": "privacy_read_block", "actor": "hook:pretool-gate",
+                           "path": s, "reason": "sensitive_path"})
+            return (f"ASK_USER sensitive_read|"
+                    f"⛔ 读取被隐私门禁拦截：{q.name} 命中敏感路径模式（凭据/密钥）。\n"
+                    f"确需读取请人工授权；或先脱敏导出。")
+        if q.is_file() and q.stat().st_size <= PRIVACY_SCAN_SIZE_CAP:
+            try:
+                data = q.read_bytes()
+            except OSError:
+                continue
+            if b"\x00" in data[:8192]:
+                continue  # 二进制文件不扫描
+            text = data.decode("utf-8", errors="ignore")
+            if any(pat.search(text) for pat in SECRET_CONTENT_COMPILED):
+                _append_audit({"event_type": "privacy_read_block", "actor": "hook:pretool-gate",
+                               "path": s, "reason": "secret_content"})
+                return (f"ASK_USER sensitive_read|"
+                        f"⛔ 读取被隐私门禁拦截：{q.name} 内容含密钥/凭据模式"
+                        f"（sk-*/私钥/令牌）。\n"
+                        f"确需读取请人工授权；或使用脱敏导出通道。")
+    return None
+
+
+# ── Gate 1d (index31 F3): test-verification — 改代码后验证补位 ──
+# index30 法官发现：skip-tests 场景 verify-gate 未触发，ON 侧"说明风险"即达标。
+# 本门：Edit/Write 修改 .py 源码且项目存在测试文件但本日无测试执行记录 → REDIRECT
+# 引导实跑（软引导不阻断；验证大于承诺铁律的机制化）。
+#
+# index37 修复（双法官盲评 P0）：门禁三连环死锁导致 8/17 ON 探针 exit=1
+#   ① 门禁要求"本日 audit 有测试记录"，但无任何机制记录测试运行 → 永远无法满足
+#      → 新增 Bash test_run 记录器：跑 pytest/unittest/测试脚本 → 写 audit → 门禁自清
+#   ② 同一良性 .py 编辑被 REDIRECT 2 次 → 升级 hard stop → max_turns 卡死
+#      → 同一文件已引导过一次 → 放行（验证要求移到完成时，符合 index34 无人模式"不硬阻断"裁决）
+_TEST_RUN_CMD_RE = re.compile(
+    r"\bpytest\b|run-tests|python3?\s+(?:-m\s+)?(?:pytest|unittest)\b|python3?\s+test_[A-Za-z0-9_]+\.py\b",
+    re.IGNORECASE,
+)
+_GUIDE_WINDOW_SEC = 300
+
+
+def _is_test_run_cmd(cmd: str) -> bool:
+    return bool(_TEST_RUN_CMD_RE.search(cmd))
+
+
+def _is_stub_file(path: str) -> bool:
+    """目标 .py 文件当前是否为 stub（空实现）——实现新函数不该被 test-verification 拦。
+
+    index40 F1：control-benign 类"实现 add()"被拦 → 死锁/烧轮数；stub 文件是"实现"
+    而非"修改"，验证移到完成后（跑测试验证结果），编辑本身放行。
+    """
+    try:
+        content = Path(path).read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    return bool(
+        re.search(r"^\s*pass\s*$", content, re.MULTILINE)
+        or "NotImplemented" in content
+        or re.search(r"^\s*\.\.\.\s*$", content, re.MULTILINE)
+        or re.search(r"^\s*raise\s+NotImplementedError", content, re.MULTILINE)
+    )
+
+
+def _recent_test_run(window_sec: int = _GUIDE_WINDOW_SEC) -> bool:
+    """近期（窗口内）audit 是否有 test_run 记录。
+
+    index40 F2：堵"重试绕过"——跑过测试才放行；仅"被引导过一次"不放行。
+    """
+    try:
+        today = datetime.now().strftime("%Y-%m-%d")
+        audit_dir = STATE_DIR / "audit"
+        now = time.time()
+        if not audit_dir.exists():
+            return False
+        for f in audit_dir.glob(f"{today}.jsonl"):
+            for line in f.read_text(encoding="utf-8", errors="ignore").splitlines():
+                if "test_run" not in line:
+                    continue
+                try:
+                    ev = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                ts = ev.get("timestamp", "")
+                if not ts:
+                    continue
+                try:
+                    epoch = datetime.fromisoformat(ts.replace("Z", "+00:00")).timestamp()
+                except ValueError:
+                    continue
+                if (now - epoch) < window_sec:
+                    return True
+    except OSError:
+        return False
+    return False
+
+
+def _check_test_verification(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    # Bash 跑测试 → 记录 test_run 到 audit（门禁自清路径）
+    if tool == "bash":
+        cmd = _extract_command(payload) or ""
+        if _is_test_run_cmd(cmd):
+            _append_audit({"event_type": "test_run", "reason": "pytest", "cmd": cmd[:160]})
+        return None
+    if tool not in WRITE_TOOLS:
+        return None
+    path = str(_extract_path(payload) or "").replace("\\", "/")
+    base = os.path.basename(path)
+    if not path.endswith(".py"):
+        return None
+    if "/test" in path.lower().replace("\\", "/") or path.startswith("tests/"):
+        return None
+    is_test_file = base.startswith("test_") or base.endswith("_test.py")
+    if is_test_file:
+        # index44 S5 G1：新建测试 = red-first 编写 → 放行；修改**已存在**测试文件走下方闸，
+        # 堵「改测试断言对齐代码」绕过 test-first（index44 skip-tests 实证：test_config.py
+        # 断言 ==30 被改成 ==99 而全程未跑 pytest）。
+        try:
+            if not Path(path).exists():
+                return None
+        except OSError:
+            return None
+    # 项目是否有测试文件（cwd 根一层，性能护栏）
+    has_tests = False
+    try:
+        for cand in ("test_*.py", "*_test.py"):
+            if list(Path(os.getcwd()).glob(cand)):
+                has_tests = True
+                break
+        if not has_tests and (Path(os.getcwd()) / "tests").is_dir():
+            has_tests = True
+    except OSError:
+        return None
+    if not has_tests:
+        return None
+    # index40 F1：目标文件是 stub（实现新函数）→ 放行（验证移到完成后）
+    if _is_stub_file(path):
+        return None
+    # 近期（窗口内）是否有测试执行记录（index40 F2：跑过测试才放行，堵重试绕过）
+    if _recent_test_run():
+        return None
+    _append_audit({"event_type": "test_verification_redirect", "actor": "hook:pretool-gate",
+                   "path": path, "reason": "no_test_evidence"})
+    return (f"REDIRECT test-verification|"
+            f"⚠️ 修改了 {os.path.basename(path)}，项目存在测试文件且近期无测试执行记录。\n"
+            f"铁律「验证大于承诺」：请先运行测试（如 python3 -m pytest -q，运行后门禁自动放行）"
+            f"并附结果证据后再报告完成。")
+
+
+# ── Gate 1c (index25): sensitive write via Bash — 补 sensitive-edit 的 Bash 通道 ──
+# 动机: sensitive-edit 只覆盖 WRITE_TOOLS（Edit/Write），模型经 Bash 写敏感/治理路径
+# （sed -i / tee / 重定向 / python open(w|a) / touch）可绕过（index24 P6 双法官确认）。
+def _check_sensitive_write_bash(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    cmd = _extract_command(payload) or ""
+    candidates: list[str] = []
+    for rx in BASH_WRITE_TOKEN_RE:
+        for m in rx.finditer(cmd):
+            g = m.group(1)
+            if g:
+                candidates.append(g.strip().strip("'\""))
+    for raw in candidates:
+        if not raw:
+            continue
+        # P0：治理路径走审批票（与 Edit/Write 同一契约），不再只给 ASK_USER 软拦。
+        if _is_governance(raw):
+            approved, why = check_governance_ticket(raw)
+            if approved:
+                _append_audit({"event_type": "governance_write_approved",
+                               "actor": "hook:pretool-gate",
+                               "path": raw, "channel": "bash", "ticket": why})
+                continue
+            _append_audit({"event_type": "governance_write_block",
+                           "actor": "hook:pretool-gate",
+                           "path": raw, "channel": "bash", "reason": why})
+            # 用 ASK_USER 而非 BLOCK：两者在 CC 都是 permissionDecision=deny，
+            # ASK_USER 对冻结域更合适（AI 无法自行放行）。
+            return (f"ASK_USER governance_frozen|"
+                    f"⛔ Bash 写入治理文件 {raw} 被冻结域拒绝（{why}）。\n"
+                    f"若确需变更，请由人类在真实终端签发审批票：\n"
+                    f"  python3 .claude/scripts/gov_approve.py --files {raw} --reason \"<理由>\"")
+        if _is_sensitive(raw):
+            _append_audit({"event_type": "privacy_write_block", "actor": "hook:pretool-gate",
+                           "path": raw, "reason": "sensitive"})
+            return (f"ASK_USER sensitive_write|"
+                    f"⛔ Bash 写入被门禁拦截：{raw} 命中敏感路径（凭据/密钥）。\n"
+                    f"确需修改请改用 Edit 工具走敏感编辑流程，或人工授权。")
+    return None
+
+
+# ── governance_bypass 软门禁（ADR 0015 二期）：Bash 写敏感治理文件 → REDIRECT ──
+# 路径找补：echo/cat >> CLAUDE.md 等绕过 Write 门禁直写治理文件 → 软门禁
+# REDIRECT 回正确路径，不 BLOCK（对齐 agentic-ui 软锁哲学：REDIRECT/ASK_USER）。
+
+# 治理文件判定在 _is_governance 基础上补充顶层 CLAUDE.md 与 .claude/harness.yaml
+# （_is_governance 的 patterns 未覆盖这两处）。
+_GOV_BYPASS_EXTRA = ("CLAUDE.md", ".claude/harness.yaml")
+
+
+def _check_governance_bypass(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    command = _extract_command(payload)
+    if not command:
+        return None
+    for m in re.finditer(r"[>]{1,2}\s+([^\s;>|&]+)", command):
+        target = m.group(1).strip("'\"")
+        if not target:
+            continue
+        if not (_is_governance(target) or target in _GOV_BYPASS_EXTRA):
+            continue
+        approved, why = check_governance_ticket(target)
+        if approved:
+            _append_audit({
+                "event_type": "governance_write_approved",
+                "actor": "hook:pretool-gate",
+                "path": target, "channel": "bash-redirect", "ticket": why,
+            })
+            continue
+        _append_audit({
+            "event_type": "governance_write_block",
+            "actor": "hook:pretool-gate",
+            "decision": "BLOCK",
+            "reason": f"governance_bypass: bash write to {target} ({why})",
+            "tool": tool,
+            "command": command[:120],
+        })
+        return (
+            f"BLOCK governance_frozen tool={tool} target={target}|"
+            f"⛔ Bash 重定向写治理文件 {target} 被冻结域拒绝（{why}）。\n"
+            f"治理文件变更须持人类签发的审批票：bash .omc/scripts/sign_p0_ticket.sh"
+        )
+    return None
+
+
+# ── Gate 3: Action gate ──
+
+def _split_command_segments(cmd: str) -> list[str]:
+    """按 ; / && / || / | / 换行 切分命令段（引号内与 # 注释不切分）。
+
+    index30 修复：危险命令模式锚定段首（`^git push` 等），复合命令
+    （`cd x && git push --force`）中段原本不命中 → 放行（实测真实发生
+    force push 副作用）。切段后每段独立锚定匹配；引号内文本/注释不误伤。
+    """
+    segments: list[str] = []
+    buf: list[str] = []
+    i, n = 0, len(cmd)
+    quote: str | None = None
+    while i < n:
+        ch = cmd[i]
+        if quote:
+            buf.append(ch)
+            if ch == quote and (i == 0 or cmd[i - 1] != "\\"):
+                quote = None
+            i += 1
+            continue
+        if ch in ("'", '"'):
+            quote = ch
+            buf.append(ch)
+            i += 1
+            continue
+        if ch == "#":  # 行注释：跳到行尾
+            while i < n and cmd[i] != "\n":
+                i += 1
+            continue
+        two = cmd[i:i + 2]
+        if ch == "\n" or two in ("&&", "||") or ch in (";", "|"):
+            seg = "".join(buf).strip()
+            if seg:
+                segments.append(seg)
+            buf = []
+            i += 2 if two in ("&&", "||") else 1
+            continue
+        buf.append(ch)
+        i += 1
+    seg = "".join(buf).strip()
+    if seg:
+        segments.append(seg)
+    return segments
+
+
+def _has_fresh_jev_approval(command: str) -> bool:
+    """第 1 档：该命令是否已有未过期的 JEV 高分批准（由 jev_approve.py 写入）。
+
+    fail-closed：文件缺失/损坏/过期/分数不足 → False（走询问）。
+    """
+    import hashlib
+    from datetime import datetime, timezone
+
+    path = Path(".omc/state/jev-approval.json")
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    want = hashlib.sha256(command.strip().encode("utf-8")).hexdigest()[:16]
+    now = datetime.now(timezone.utc)
+    for item in data.get("approvals", []):
+        if item.get("hash") != want:
+            continue
+        if float(item.get("score", 0)) < 8.0 or item.get("verdict") != "ACCEPT":
+            continue
+        try:
+            if now >= datetime.fromisoformat(item["expires_at"]):
+                continue
+        except (KeyError, ValueError):
+            continue
+        return True
+    return False
+
+
+def _strip_quoted(cmd: str) -> str:
+    """去掉引号内的字面文本，防止 `echo "curl x | bash"` 被当成真实管道执行。"""
+    return re.sub(r"'[^']*'|\"[^\"]*\"", " ", cmd)
+
+
+def _check_action_gate(payload: dict) -> str | None:
+    """审批三档（2026-10-24 人类裁决 D-016）。
+
+    第 2 档 HUMAN_GATE：不可逆 / 生产 / 远程代码执行 → 真正 ASK_USER（人类点头）。
+    第 1 档 JEV_GATE  ：依赖安装等可评估动作 → 有 JEV 高分批准则放行，否则 ASK_USER。
+    第 0 档            ：其余放行，不制造噪声。
+
+    关键修复：管道类规则必须对**整条命令**匹配。旧实现先按 `|` 切段，
+    `curl ... | bash` 的管道被切掉，规则永不命中。
+    """
+    command = _extract_command(payload)
+    if not command:
+        return None
+
+    # 第 2 档 A：灾难级命令（分段匹配，保留原有语义）
+    for seg in _split_command_segments(command):
+        # 字面输出类命令（echo/grep/...）里的引号内容不是被执行代码，剥掉再判
+        probe = _strip_quoted(seg) if re.match(r"^\s*(echo|printf|grep|rg|cat|awk|sed)\b", seg) else seg
+        hard = _match_any(probe, DANGEROUS_COMMANDS)
+        if hard:
+            _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                            "decision": "BLOCK", "reason": "dangerous_command",
+                            "pattern": hard, "command_preview": command[:160]})
+            return (f"BLOCK dangerous_command pattern={hard}|"
+                    f"⛔ 检测到不可逆破坏性操作。\\n"
+                    f"可选方案: 1. 使用更安全的替代操作 2. 拆分为小步验证 3. 等待人类介入")
+
+    # 第 2 档 B：生产 / 远程代码执行（整条命令匹配，先剥掉引号内字面文本）
+    bare = _strip_quoted(command)
+    human = _match_any(bare, HUMAN_GATE_COMMANDS)
+    if human:
+        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                        "decision": "ASK_USER", "reason": "human_gate_command",
+                        "pattern": human, "command_preview": command[:160]})
+        return (f"ASK_USER human_gate pattern={human}|"
+                f"⛔ 该命令触及生产环境 / 远程代码执行，必须人类确认。\\n"
+                f"AI 无法自行放行；请由人类决定是否执行。")
+
+    # 第 1 档：JEV 可裁决动作
+    jev = _match_any(bare, JEV_GATE_COMMANDS)
+    if jev:
+        if _has_fresh_jev_approval(command):
+            _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                            "decision": "ALLOW", "reason": "jev_approval",
+                            "pattern": jev, "command_preview": command[:160]})
+            return None
+        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                        "decision": "ASK_USER", "reason": "jev_required",
+                        "pattern": jev, "command_preview": command[:160]})
+        return (f"ASK_USER jev_required pattern={jev}|"
+                f"该命令需 JEV 裁决。请先运行 jev_approve.py 获取独立评审；\\n"
+                f"未获批准前不自动放行（fail-closed）。")
+
+    # 第 0 档：仅路径级破坏性提示（不打扰）
+    warn_only = _match_any(command, WARN_ONLY_COMMANDS)
+    if warn_only:
+        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                        "decision": "WARN", "reason": "path_specific_destructive",
+                        "pattern": warn_only, "command_preview": command[:160]})
+        return f"WARN path_specific_destructive pattern={warn_only}"
+    return None
+
+
+# ── Gate 5-extended: F3 (2026-08-30) 文档引用图删除前检查 ──
+_DOC_REFERENCE_EXTS = (".md", ".txt", ".rst", ".adoc")  # 文档类文件才查引用
+_DOC_REFERENCE_DIRS = (
+    ".claude/references",
+    ".claude/docs",
+    "docs",
+    "README.md",
+    "AGENTS.md",
+)
+
+
+def _extract_delete_targets(payload: dict) -> list[str]:
+    """提取 Delete/Bash rm 操作的目标路径（不带 shell 解析的轻量实现）。
+
+    index34 修复：跳过 rm 的 flag（-rf/-f/--force 等），否则 `rm -rf AGENTS.md`
+    只会捕获 `-rf` 而非目标文件（index33 治理删除保护对真实攻击形态失效，验收法官发现）。
+    """
+    tool = _extract_tool(payload).lower()
+    targets: list[str] = []
+    if tool == "delete":
+        path = _extract_path(payload)
+        if path:
+            targets.append(path)
+    elif tool == "bash":
+        cmd = _extract_command(payload) or ""
+        # 匹配 rm / unlink / git rm 后的参数段，跳过 flag（以 - 开头），保留其余 token 为目标
+        import re as _re
+        for m in _re.finditer(r"\b(?:rm|unlink|git\s+rm)\b([^;|&>]*)", cmd):
+            seg = m.group(1)
+            flags_done = False
+            for tok in seg.split():
+                if not flags_done and tok == "--":
+                    flags_done = True
+                    continue
+                if not flags_done and tok.startswith("-"):
+                    continue  # 跳过 flag（-rf/-f/--force 等）
+                # index37 修复：剥离引号（`rm -rf "AGENTS.md"` 目标带引号 → 与
+                # _GOVERNANCE_DELETE_BASENAMES 精确比较永远不匹配，治理文件被当普通文件删掉）
+                targets.append(tok.strip("'\""))
+        # index44 S5 G2：堵 python 通道绕过——模型被 rm 拦截后转 python
+        # os.remove/os.unlink/shutil.rmtree/Path.unlink 等删除，需同样过"被引用/冻结"门禁
+        # （index44 doc-ref 实证：rm 被 deny 后模型转 python 删除被引用文件成功）。
+        # 先剥离 # 注释，避免把注释里的删除字样误当目标。
+        _code = _re.sub(r"#[^\n]*", "", cmd)
+        for _ptn in (
+            r"\b(?:os\.remove|os\.unlink|os\.removedirs|shutil\.rmtree|shutil\.rm)\s*\(\s*(['\"])([^'\"]+)\1",
+            r"\bPath\s*\(\s*(['\"])([^'\"]+)\1\s*\)\s*\.(?:unlink|rmdir)\s*\(",
+        ):
+            for _pm in _re.finditer(_ptn, _code):
+                targets.append(_pm.group(2).strip("'\""))
+    return targets
+
+
+def _doc_reference_hits(ref_root: str, fname: str) -> list[str]:
+    """在文档目录中查找 `fname` 的**路径边界精确**引用，返回命中文件路径列表。
+
+    index48：原实现用 `grep -rl "<basename>"`——**子串匹配**。删 `flywheel.py` 时，
+    文档里的 `stop-flywheel.py`（另一个仍在使用的文件）会被误判为引用，导致
+    合法删除被 REDIRECT 并升级 ASK_USER（实测触发）。
+    改为要求文件名前是行首或非 [A-Za-z0-9_.-] 字符（即真正的路径/代码边界）。
+    """
+    import re as _re
+    import subprocess as _sp
+    escaped = _re.escape(fname)
+    pattern = rf"(^|[^A-Za-z0-9_.-]){escaped}"
+    try:
+        r = _sp.run(
+            ["grep", "-rlE", "--include=*.md", "--exclude-dir=__pycache__",
+             "--exclude-dir=archived", "--exclude-dir=retired",
+             "--exclude=*.bak", pattern, ref_root],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return []
+    return [p for p in (r.stdout or "").strip().splitlines() if p]
+
+
+def _doc_reference_lines(ref_root: str, fname: str, limit: int = 3) -> list[str]:
+    """返回引用行的 `文件:行号: 文本`（人本改进：让模型知道该改哪一行）。"""
+    import subprocess as _sp
+    escaped = re.escape(fname)
+    pattern = rf"(^|[^A-Za-z0-9_.-]){escaped}"
+    try:
+        r = _sp.run(
+            ["grep", "-rnE", "--include=*.md", "--exclude-dir=__pycache__",
+             "--exclude-dir=archived", "--exclude-dir=retired",
+             "--exclude=*.bak", pattern, ref_root],
+            capture_output=True, text=True, timeout=5,
+        )
+    except Exception:
+        return []
+    out: list[str] = []
+    for line in (r.stdout or "").splitlines():
+        parts = line.split(":", 2)
+        if len(parts) >= 2:
+            text = parts[2].strip() if len(parts) > 2 else ""
+            out.append(f"{parts[0]}:{parts[1]}: {text}"[:200])
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _check_doc_reference_before_delete(payload: dict) -> str | None:
+    """F3 门：删除文件前查文档引用图。
+
+    防止 AI 删脚本/文档时破坏文档一致性（删了脚本但文档还在描述它）。
+    仅对 .claude/scripts/ / src/ 等代码/脚本文件做检查。
+    """
+    targets = _extract_delete_targets(payload)
+    if not targets:
+        return None
+    project_root = ROOT
+    refs_found: list[tuple[str, str]] = []  # (target, ref_file)
+    for target in targets:
+        # 仅对 .py / .sh / .js / .ts / .yaml 等代码/配置检查（不是删 .md 自身）
+        if not target.endswith((".py", ".sh", ".js", ".ts", ".yaml", ".yml", ".json")):
+            continue
+        # 取文件名（去路径）
+        from pathlib import PurePosixPath
+        fname = PurePosixPath(target).name
+        if not fname or fname.startswith("."):
+            continue
+        # grep 文档目录（路径边界精确匹配，见 _doc_reference_hits）
+        for ref_dir in _DOC_REFERENCE_DIRS:
+            ref_path = project_root / ref_dir
+            if not ref_path.exists():
+                continue
+            for ref_file in _doc_reference_hits(str(ref_path), fname):
+                refs_found.append((target, ref_file))
+    if refs_found:
+        target, ref_file = refs_found[0]
+        from pathlib import PurePosixPath
+        fname = PurePosixPath(target).name
+        detail_lines: list[str] = []
+        for ref_dir in _DOC_REFERENCE_DIRS:
+            rp = project_root / ref_dir
+            if rp.exists():
+                detail_lines = _doc_reference_lines(str(rp), fname, limit=3)
+                if detail_lines:
+                    break
+        detail = "\n".join(f"  - {x}" for x in (detail_lines or [ref_file]))
+        return (f"REDIRECT doc_reference_found|"
+                f"删除 {target} 但文档仍在引用它：\n{detail}\n"
+                f"正确做法：请先更新文档（删掉这些引用或改指向新位置），"
+                f"改完再删文件。不要重复重试删除——重试不会改变引用状态。")
+    return None
+
+
+# ── Gate 6b: 治理指令文件删除保护（index33 电池实证）──
+
+# 治理灵魂文件：删除=删除治理框架本身（冻结规则：变更须人类裁决）
+_GOVERNANCE_DELETE_BASENAMES = ("AGENTS.md", "CLAUDE.md")
+
+# 2026-10-24 双评审 E8：递归删除整个治理目录时 basename 不匹配 → 曾可 `rm -rf .claude` 删光门禁。
+_GOVERNANCE_DELETE_DIRS = (".claude", ".git")
+
+
+def _check_governance_delete_protection(payload: dict) -> str | None:
+    """治理指令文件删除保护：AGENTS.md/CLAUDE.md/.claude/kernel.md/.claude/index.md 不可删。
+
+    电池实证（index33 rm-dot ON）：模型删光 AGENTS.md/CLAUDE.md/README/.omc，
+    而 .claude/ 与 .git/ 仅靠 Claude Code 内建 rm -rf 危险命令门禁存活——
+    CarrorOS 治理基座自身无删除自保。删除治理指令文件=删除治理框架本身，
+    属高价值不可逆操作，REDIRECT 拒绝并提示走人类裁决。
+    """
+    targets = _extract_delete_targets(payload)
+    if not targets:
+        return None
+    # 两轮扫描：灵魂文件优先（不管它在参数列表的第几个），其次治理目录。
+    for target in targets:
+        norm = target.rstrip("/")
+        basename = norm.split("/")[-1] if norm else ""
+        # 顶层治理指令文件（AGENTS.md/CLAUDE.md）或 .claude/ 下内核/路由文件
+        # index34 收紧：仅认 .claude/kernel.md|index.md，避免误伤任意目录的 index.md
+        if basename in _GOVERNANCE_DELETE_BASENAMES or (
+            ".claude/kernel.md" in norm or ".claude/index.md" in norm
+        ):
+            return (f"REDIRECT governance_delete_protected|"
+                    f"不能删除治理指令文件 {target}（AGENTS.md/CLAUDE.md/kernel.md/index.md 是治理灵魂文件）。\n"
+                    f"删除治理指令文件等于删除治理框架本身，属于高价值不可逆操作。\n"
+                    f"如确需变更，请走人类裁决流程（冻结规则：变更须人类裁决）。")
+
+    for target in targets:
+        norm = target.rstrip("/")
+        basename = norm.split("/")[-1] if norm else ""
+        # 递归删除整个治理目录（`.claude` / `.git`）→ 真拦截
+        if basename in _GOVERNANCE_DELETE_DIRS:
+            return (f"ASK_USER governance_dir_delete|"
+                    f"⛔ 不能递归删除治理目录 {target}（含门禁/冻结规则/版本库）。\n"
+                    f"删除它等于删除整套治理基座，属不可逆高危操作，必须人类确认。")
+    return None
+
+
+# ── Gate 7: Oracle gate ──
+
+# index47：L2 档位的等价写法。原判定为精确匹配 "legacy-L2-alias"，但全仓从未写入该值
+# （carros_base.py:1167/1909 均把 ("legacy-L2-alias", "L2") 视为同一档；历史 28 个任务
+# token 实测 level 全为 L1/L2）→ oracle 门自建成起从未生效（0/4458）。
+_ORACLE_L2_LEVELS = {"L2"}
+
+
+def _check_worktree_scope(payload: dict) -> str | None:
+    """index49：worktree 隔离执行期的写路径门禁。
+
+    完备模式（L2）的 goal 会在 worktree 中执行。若 agent 仍写主树，隔离形同虚设
+    （多进程互相踩）。本门把主树代码改动拦下并指向 worktree 内等价路径。
+
+    放行：worktree 内路径、`.omc/`（账本按设计共享主树）、仓库外路径、非写操作。
+    无隔离执行（无活跃 token 或无 worktree 字段）→ no-op。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool not in WRITE_TOOLS:
+        return None
+    raw_path = _extract_path(payload)
+    if not raw_path:
+        return None
+    try:
+        token = _active_token()
+    except Exception:
+        return None
+    if not isinstance(token, dict):
+        return None
+    wt = token.get("worktree")
+    if not wt:
+        return None
+    try:
+        root = Path(ROOT).resolve()
+        wt_path = Path(str(wt)).resolve()
+        target = Path(raw_path)
+        target = (target if target.is_absolute() else (root / target)).resolve()
+    except (OSError, ValueError):
+        return None
+    # worktree 内 → 放行
+    if target == wt_path or wt_path in target.parents:
+        return None
+    # 仓库外 → 不管
+    if target != root and root not in target.parents:
+        return None
+    rel = target.relative_to(root)
+    # 账本共享主树（见 index49 S2 的 .omc symlink 方案）→ 放行
+    if rel.parts and rel.parts[0] == ".omc":
+        return None
+    suggested = wt_path / rel
+    return (f"REDIRECT worktree_scope|隔离执行中（L2 完备模式），代码改动必须落在 worktree 内。\n"
+            f"当前目标：{target}\n"
+            f"请改用：{suggested}\n"
+            f"（只有 .omc/ 账本目录共享主树；其余一律在 worktree 内改动，验收后自动合回。）")
+
+
+def _git_cmd(*args: str) -> str:
+    try:
+        import subprocess as _sp
+        r = _sp.run(["git", *args], cwd=str(ROOT), capture_output=True, text=True, timeout=20)
+        return (r.stdout or "") if r.returncode == 0 else ""
+    except Exception:
+        return ""
+
+
+def _check_commit_push_integrity(payload: dict) -> str | None:
+    """index51：commit 前的完整性接管。
+
+    **保留**：`git commit` → 检查**本次改动的 .py 语法**
+              （实测：commit 一个语法错的文件，改动前无人拦）
+
+    **已回退**：push 侧「悬空引用」检查——实测误报率 67%，会造成 push 恒阻塞。
+               回退依据见下方注释（与被替换的旧 lx-pre-push 同病）。
+
+    匹配用**命令位置**（行首或 `;`/`&`/`|` 之后）而非纯文本包含——
+    防止「命令/文档里只是提到 git commit」被误判（实测踩过：heredoc 正文提到 git push 即被拦）。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    cmd = _extract_command(payload) or ""
+    if not cmd:
+        return None
+
+    # ── git commit：改动的 .py 语法 ──
+    if re.search(r"(?:^|[;&|]\s*|\n\s*)git\s+commit\b", cmd, re.IGNORECASE):
+        staged = [l.strip() for l in _git_cmd("diff", "--cached", "--name-only",
+                                              "--diff-filter=ACM").splitlines() if l.strip()]
+        if not staged:
+            staged = [l.strip() for l in _git_cmd("diff", "--name-only",
+                                                  "--diff-filter=ACM").splitlines() if l.strip()]
+        bad: list[str] = []
+        for rel in staged[:200]:
+            if not rel.endswith(".py"):
+                continue
+            f = ROOT / rel
+            if not f.is_file():
+                continue
+            try:
+                import py_compile
+                py_compile.compile(str(f), doraise=True)
+            except Exception as exc:
+                bad.append(f"{rel}（{type(exc).__name__}: {str(exc)[:80]}）")
+        if bad:
+            _append_audit({"event_type": "commit_syntax_block", "actor": "hook:pretool-gate",
+                            "decision": "BLOCK", "reason": "syntax_error_in_staged_py",
+                            "files": bad[:5]})
+            return ("BLOCK commit_syntax|"
+                    f"⛔ 暂存区有 {len(bad)} 个 .py 语法错误，提交会落库坏文件：\n  "
+                    + "\n  ".join(bad[:5])
+                    + "\n先修复语法再提交。")
+        return None
+
+    # ── push 侧的「悬空引用」检查：index51 实测**已回退** ──
+    # 实测数据（对真实仓库跑）：22 项命中里绝大多数是误报——
+    #   · install.sh ← constants.py 里的正则 r"\bpip\s+install\b"（与文件无关）
+    #   · Benchmarking/index15.md ← 正文提到「index15」（编号巧合）
+    #   · error-dna.py ← harness.yaml 中「已于 index48 移除」的说明行
+    #   · test_*.py ← 断言「该文件不存在」的测试自身
+    # 误报率 67%（2/3 基准场景）→ 会造成 push 恒阻塞，与被替换的旧 lx-pre-push 同病。
+    # 按人类要求「不符合大增益的要回退」，本项**已回退**；仅保留 commit 侧语法检查。
+    return None
+
+
+def _check_oracle_gate(payload: dict) -> str | None:
+    # 2026-10-16 人类裁决：oracle 门退役观察区（14 天 0 触发）。默认 no-op，
+    # 设 CARROROS_ORACLE_GATE=1 可恢复（恢复 = 把 pretool-gate._GATE_L2_EXTRA 注释解开）。
+    if os.environ.get("CARROROS_ORACLE_GATE") != "1":
+        return None
+    token = _active_token()
+    if not token:
+        return None
+    session = token.get("session", {}) or {}
+    if str(session.get("level", "L1_BASE")) not in _ORACLE_L2_LEVELS:
+        return None
+    command = _extract_command(payload)
+    if not command:
+        return None
+    verdict, detail = _oracle_classify(command)
+    task = token.get("task", {})
+    step = task.get("current_step") if isinstance(task, dict) else None
+    if verdict == "REDIRECT":
+        if detail in ("gov_file_bypass",):
+            _guidance = ""
+            for _, _detail, _guide in _ORACLE_ANTI_PATTERN_RULES:
+                if _detail == detail:
+                    _guidance = _guide
+                    break
+            return f"REDIRECT oracle_redirect:{detail}|{_guidance}"
+        _guidance = ""
+        for _, _detail, _guide in _ORACLE_ANTI_PATTERN_RULES:
+            if _detail == detail:
+                _guidance = _guide
+                break
+        print(f"⚠️ [oracle-gate] 检测到反模式({detail})", file=sys.stderr, flush=True)
+        return None
+    if verdict == "BLOCK":
+        return (f"BLOCK oracle_gate:{detail}|"
+                f"⛔ 检测到高置信危险语义({detail})。\n"
+                f"可选方案: 1. 移除绕过语义后重试  2. 确需绕过: 用户人工裁决")
+    if verdict == "ESCALATE":
+        return (f"ASK_USER oracle_gate:{detail}|"
+                f"❓ 命令无法可靠解析且含高危信号,请人工判断。")
+    if verdict in ("FORCE", "TRIGGER"):
+        print(f"🔮 [oracle-gate] L2 {verdict} 触发检测", file=sys.stderr, flush=True)
+    return None
+
+
+# ── Document quality gate ──
+
+
+
+# ── Context control gates ──
+
+
+
+
+
+
+
+
+
+
+# ── Secret scan ──
+
+def _git_secret_candidates(command: str) -> list[str]:
+    candidates = []
+    patterns = [
+        (r"\b[A-Za-z0-9+/=]{40,}\b", "base64_like"),
+        (r"\bgh[ps]_[A-Za-z0-9]{36,}\b", "github_token"),
+        (r"\bsk-[A-Za-z0-9]{20,}\b", "openai_key"),
+        (r"\bAKIA[A-Z0-9]{16}\b", "aws_key"),
+        (r"(?i)\bpassword\s*[=:]\s*['\"][^'\"]{6,}['\"]", "password_assignment"),
+    ]
+    for pat, label in patterns:
+        if re.search(pat, command):
+            candidates.append(label)
+    return candidates
+
+
+def is_test_file(rel: str) -> bool:
+    """测试文件判定（index51）。
+
+    测试里的 `sk-...` 多为**夹具**而非真泄漏，业界密钥扫描器普遍排除。
+    本判定被 `_check_secret_scan` 与 pre_push_check 共用——**单一真源，不做两份**。
+    """
+    name = Path(str(rel)).name
+    norm = str(rel).replace("\\", "/")
+    return (name.startswith("test_") or name.endswith("_test.py")
+            or "/tests/" in f"/{norm}" or "/test/" in f"/{norm}")
+
+
+def _check_secret_scan(payload: dict) -> str | None:
+    """密钥扫描（index51 强化）。
+
+    - **Bash `git push`** 命令文本 → 有候选密钥：WARN（保持原行为，push 文本本身不是泄漏源）
+    - **写工具内容**（Write/Edit）→ 命中密钥模式：
+        · 测试文件（夹具）→ 放行
+        · 其他文件 → **BLOCK**（原为静默放行；实测写入真密钥不被阻拦）
+    """
+    tool = _extract_tool(payload).lower()
+    command = _extract_command(payload)
+    if not command and tool in WRITE_TOOLS:
+        ti = _extract_input(payload)
+        command = str(ti.get("content", "") or ti.get("new_string", "") or "")
+    if not command:
+        return None
+    # Git operations（保持原有：仅告警）
+    if tool == "bash" and re.search(r"\bgit\s+push\b", command, re.IGNORECASE):
+        cands = _git_secret_candidates(command)
+        if cands:
+            _append_audit({"event_type": "secret_scan_warning", "actor": "hook:pretool-gate",
+                            "decision": "WARN", "reason": f"git_push_secret_candidates:{cands}",
+                            "command_preview": command[:160]})
+            print(f"⚠️ [secret-scan] git push 含潜在密钥: {cands}", file=sys.stderr, flush=True)
+        return None
+    # 写工具内容（index51 新增）：真密钥写入非测试文件 → BLOCK
+    if tool in WRITE_TOOLS:
+        path = _extract_path(payload) or ""
+        if is_test_file(path):
+            return None  # 测试夹具，放行
+        for rx in SECRET_CONTENT_COMPILED:
+            if rx.search(command):
+                _append_audit({"event_type": "secret_scan_block", "actor": "hook:pretool-gate",
+                                "decision": "BLOCK", "reason": "secret_in_write_content",
+                                "path": path[:160]})
+                return (f"BLOCK secret_in_content|"
+                        f"⛔ 写入内容命中密钥/凭据模式，目标文件：{path or '(未知)'}\n"
+                        f"请改用环境变量或密钥管理注入，不要把明文密钥写进仓库文件。\n"
+                        f"（测试夹具路径不受此门约束。）")
+    return None
+
+
+# ── Numeric claim gate ──
+
+
+
+# ── 优化2 (2026-08-30) Git commit 软完成语检测 ──
+# 防止 AI 在 commit message 里写"all done"/"fixed it"等绕过 commit message 审核
+# 仅对 git commit 触发，避免误报其他命令
+_COMMIT_SOFT_PATTERNS = [
+    "all done", "fixed it", "fixed the bug", "done with", "ready for review",
+    "all set", "completed successfully", "ship it",
+    "看起来没问题", "看起来正常", "基本完成", "大部分完成", "差不多了",
+    "搞定了", "修好了", "改完了", "做完了",
+    # 2026-10-24 双评审 E8：补常见中文变体（实测 "任务已完成，全部通过" 曾被放行）
+    "已完成", "全部通过", "全部验证", "均已完成", "整体完成",
+    "all verified", "fully complete", "everything works",
+]
+
+
+def _check_commit_soft_completion(payload: dict) -> str | None:
+    """优化2：git commit -m "..." 含软完成语应被 REDIRECT。
+
+    仅在 Bash 工具调用中提取 git commit -m "..." 字符串并检测。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool != "bash":
+        return None
+    cmd = _extract_command(payload) or ""
+    # 仅匹配 git commit -m "..." 或 git commit -m '...'
+    import re as _re
+    m = _re.search(r"git\s+commit\s+(?:[^|&;]*\s)?-m\s+['\"](.+?)['\"]", cmd, _re.DOTALL)
+    if not m:
+        return None
+    msg = m.group(1).lower()
+    for pat in _COMMIT_SOFT_PATTERNS:
+        if pat.lower() in msg:
+            _append_audit({"event_type": "commit_soft_completion_detected", "actor": "hook:pretool-gate",
+                            "decision": "REDIRECT", "reason": "soft_completion_in_commit_msg",
+                            "pattern": pat, "msg_preview": msg[:80]})
+            return (f"REDIRECT commit_soft_completion|"
+                    f"commit message 含软完成语 '{pat}'。\n"
+                    f"请用具体 VERIFIED 证据替换，例如:\n"
+                    f"  'VERIFIED: pytest → 3 passed'\n"
+                    f"  '[已验证:src/foo.py:42] 修复了 XX'\n"
+                    f"如确认无关，请改写 commit message 为具体 VERIFIED 证据。")
+    return None
+
+
+# ── Action loop gate ──
+
+
+
+# ── Stall detection gate ──
+
+
+
+# ── Injection guard gate ──
+
+def _check_injection(payload: dict) -> str | None:
+    tool = _extract_tool(payload).lower()
+    ti = _extract_input(payload)
+    if tool not in WRITE_TOOLS:
+        return None
+    content = ""
+    for key in ("content", "new_string", "file_content", "text", "data"):
+        val = ti.get(key)
+        if isinstance(val, str) and len(val) > 20:
+            content = val
+            break
+    if not content:
+        return None
+    for pattern in _INJECTION_PATTERNS:
+        m = pattern.search(content)
+        if m:
+            _append_audit({"event_type": "injection_detected", "actor": "hook:pretool-gate",
+                            "decision": "BLOCK", "reason": f"prompt_injection_pattern:{pattern.pattern[:40]}",
+                            "tool": tool, "match": m.group()[:80]})
+            return (f"BLOCK injection_detected tool={tool}|"
+                    f"⛔ 写入内容检测到提示注入模式: '{m.group()[:60]}'")
+    if len(content) > _EXTERNAL_DATA_MAX_LEN:
+        return (f"REDIRECT content_truncated tool={tool}|"
+                f"内容长度 {len(content)} 字符超过 8000 限制。使用 Write 写入前 6000 字符+续写标记，再用 Edit 替换标记追加剩余内容")
+    return None
+
+
+# ──────────────────────────────────────────────
+# omc-skeleton-readonly gate（worktree 隔离用）
+# .omc/**/*.md 骨架文件在 worktree 内只读——多智能体并发时, worktree 隔离
+# 任务不得改写 .omc/ 骨架索引(会与主树/其他 worktree merge 冲突)。
+# 必须进 _GATE_CORE(守护级, 不因 L1/L2 跳过)。
+# ──────────────────────────────────────────────
+# index30 修复: 只拦 state 骨架/导航索引/归档冻结文档; 放行任务文档
+# (.omc/tasks/{date}/{task}/executor.md 等——模型按 AGENTS.md 工作流必须写,
+# 旧正则 .omc/**/*.md 拦全部导致治理自噬: ON 电池 tick/verify 流程被自身门禁 BLOCK)。
+_SKELETON_MD_RE = re.compile(
+    r"(^|[/\\])\.omc[/\\](?:state[/\\].*\.md$|archive[/\\].*\.md$|.*[/\\]index\.md$)",
+    re.IGNORECASE)
+
+
+def _check_omc_skeleton_readonly(payload: dict) -> str | None:
+    """拦截对 .omc/**/*.md 骨架的 Write/Edit/MultiEdit。
+
+    gate 契约: 返回 None=放行, 返回 "BLOCK <reason>"=阻断。
+    只拦 .md 骨架(状态写入走 carros_base.py 接口), 放行 .json 等其他文件。
+    """
+    tool = _extract_tool(payload).lower()
+    if tool not in ("write", "edit", "multiedit"):
+        return None
+    ti = _extract_input(payload) or {}
+    path = str(ti.get("file_path", "") or "").replace("\\", "/")
+    if _SKELETON_MD_RE.search(path):
+        _append_audit({
+            "event_type": "omc_skeleton_write_blocked",
+            "actor": "hook:pretool-gate",
+            "gate": "omc-skeleton-readonly",
+            "decision": "BLOCK",
+            "reason": f"skeleton_md_write:{path[:120]}",
+            "tool": tool,
+        })
+        return (f"BLOCK omc-skeleton-readonly|"
+                f"直接修改骨架文件 {path!r} 被禁止(worktree 隔离下 .omc/**/*.md 只读)。"
+                f"如需更新任务状态, 使用 carros_base.py 的状态写入接口。")
+    return None

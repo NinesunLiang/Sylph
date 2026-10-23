@@ -58,7 +58,9 @@ packaging/
   template/         # build.py 生成物，不入库（.gitignore）
 ```
 
-`template/` 是**生成物**，不提交；仓库里只保留 manifest + 两个脚本。这样包内容随源码自动同步，不会出现"模板过期"。
+`template/` **提交进仓库**（2026-10-24 修订，对齐 `origin/main` 的做法）。
+装的人克隆下来就能 `bash install.sh`，**零构建步骤、不要 PyYAML**。
+代价是模板可能和源码脱节 —— 由 `.claude/scripts/test_packaging_template.py` 逐文件哈希比对兜底，不一致即红。
 
 ## 6. build.py 行为
 
@@ -78,6 +80,14 @@ packaging/
    - 包体积 < 3 MB
 
 ## 7. install.sh 行为
+
+**用法（最终形态）**：进到你要装的项目目录，跑一行
+
+```
+bash <本仓库路径>/packaging/install.sh
+```
+
+默认装到**当前目录**；也可传路径：`bash install.sh /path/to/project [--force]`。
 
 1. 检测 `python3` / `git`，缺失则提示并退出（不自动装）。
 2. 目标目录：默认当前目录；非空时必须 `--force` 或交互确认。

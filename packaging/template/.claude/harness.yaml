@@ -1,0 +1,87 @@
+harness_version: 7.0.0
+mode: relaxed
+workflow:
+  doc_root: rpe
+  executor_doc: executor.md
+  plan_doc: plan.md
+  research_doc: research.md
+task_decomposition:
+  require_step_file: false
+  step_file_path: .claude/{YYYY-M-D}/{task}_step.md
+  substep_format: '[ ] {描述} → 验收标准'
+  timeout_minutes: 10
+  max_different_approaches: 3
+  on_exceed_attempts: record_in_step_file_and_continue
+  sync_rule: complete_one_mark_one
+  circuit_breaker_states: Closed → Open → Half-Open
+  half_open_retry: true
+  rollback_declaration: required_for_strict_mode
+knowledge:
+  inject_files: false
+  snapshot_expiry_sec: 86400
+ghost_mode:
+  exit_report_gate: true
+  default_poll_interval: 600
+  default_expiry_hours: 3
+  default_min_iterations: 0
+turn_counter:
+  todo_refresh_interval: 10
+  todo_max_items: 15
+fuzzy_detection:
+  fuzzy_verbs: 继续 优化 修复 改进 完善 处理一下 看一下 搞一下
+lsp_suggest:
+  enabled: true
+completion_gate:
+  min_evidence_chars: 60
+  required_keyword: VERIFIED
+  quality_threshold: 75
+  evidence_freshness_sec: 300
+  soft_completion_words: 应该没问题了|基本完成|大部分完成|差不多了.*完成|理论上可行|看起来正常|之前验证过|should be fine|basically
+    done|mostly complete|seems to work|probably works|theoretically|should work|looks
+    good
+bash_audit:
+  dangerous_patterns: git commit git push git reset --hard rm -rf rm -r pkill kill
+  fail_streak_threshold: 3
+  hard_block_threshold: 10
+permission_gate:
+  git_commit_regex: git\s+(commit|add\s+--?all|\badd\b.*-A)
+  git_push_force_regex: git\s+push\s+(\S+\s+)?(\S+\s+)?--?force|git\s+push\s+--?force
+  git_push_regex: git\s+push\b
+  destructive_regex: \brm\s+-rf\b|\bdrop\s+(table|database|collection|schema)\b|\btruncate(\s+table)?\s+\S|\bdelete\s+from\b
+  sudo_regex: ^\s*sudo\b|sudo\s
+  gh_write_regex: gh\s+(release\s+(upload|create|edit|delete)|pr\s+(create|merge|close|review)|issue\s+(create|close|comment)|repo\s+(create|delete|rename)|variable\s+set|secret\s+set|workflow\s+(run|disable|enable)|gist\s+create|api\s+.*(-X\s+(PUT|POST|PATCH|DELETE)|--method\s+(PUT|POST|PATCH|DELETE)|-f\b))
+  bypass_regex: base64\s+(-d|--decode).*\|\s*\b(bash|sh|dash|zsh)\b|xxd\s+-r.*\|\s*\b(bash|sh)\b|printf\s+["']%[bdh]|eval\s+\$\(echo
+  scope_write_regex: current-scope\.txt|sensitive-approved|permission-approved
+  approved_ops_ttl: 1800
+  c1_whitelist: ''
+hooks_enabled:
+  # ── 核心安全 (高ROI 保留) ──
+  permission_gate: true
+  privacy_gate: true
+  fuzzy_block: true
+  pretool_terminal_safety: true
+  context_guard: true
+  # ── 质量/治理 (高ROI 保留) ──
+  completion_gate: true
+  # error_dna: 已于 index48（2026-09-10 人类裁决）移除
+  posttool_claim_audit: true
+  # ── 状态持久化 (高ROI 保留) ──
+  context_compressor: true
+  session_resume: true
+  posttool_handoff_writer: true
+  posttool_bash_audit: false
+  knowledge_condenser: true
+  # error_dna_auto_fix: 已于 index48 随 error-dna 移除
+  token_writer: false
+terminal_safety:
+  max_command_length: 2000
+fail_closure:
+  security_gates: close
+  quality_gates: close
+read_exempt:
+  exempt_tools: Read Grep
+  exempt_bash_read: true
+  sensitive_only: true
+
+# 注：R8 收敛曾保留 44 行「已删除历史死配置」注释块（2026-10-23 人类裁决删除，
+# 少即是多：树内留副本是违规，回滚能力由 git 历史提供，见 hooks/index.md 同裁决）。

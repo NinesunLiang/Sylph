@@ -1,0 +1,811 @@
+"""
+helpers.py — Helper functions extracted from pretool-gate.py.
+"""
+from __future__ import annotations
+import json
+import os
+import re
+import secrets
+import shlex
+import sys
+import time
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from .constants import (
+    ROOT, OMC, STATE_DIR, TOKENS, AUDIT,
+    CRITICAL_STATE, FALLBACK_REQUIRED, FALLBACK_APPROVED,
+    TEMP_BYPASS, REDIRECT_STREAK, TRUST_BREACH,
+    SENSITIVE_PATTERNS, STALE_LOCK_THRESHOLD,
+    READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
+    STATE_TOKEN,
+)
+
+# ── GateKeeper 分层裁决链 ──
+sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
+from gatekeeper import GateKeeper, GateContext, make_context  # noqa: E402
+
+# ── Round7 PKG-1: SSOT ──
+sys.path.insert(0, str(ROOT / ".claude" / "scripts" / "lib"))
+try:
+    from task_ssot import latest_terminal_token as _ssot_latest_terminal_token
+    _SSOT_ERR: Exception | None = None
+except Exception as exc:
+    _ssot_latest_terminal_token = None
+    _SSOT_ERR = exc
+
+# Export for checks.py
+_ssot_err = _SSOT_ERR
+
+
+# ═══════════════════════════════════
+# Goal mode
+# ═══════════════════════════════════
+
+def _goal_mode() -> bool:
+    token = _active_token()
+    if not token or token.get("mode") != "goal" or token.get("status") != "active":
+        return False
+    expires = token.get("goal", {}).get("expires_at")
+    if expires:
+        try:
+            if datetime.now(timezone.utc) >= datetime.fromisoformat(expires):
+                return False
+        except ValueError:
+            return False
+    return True
+
+
+# ═══════════════════════════════════
+# Governance
+# ═══════════════════════════════════
+
+def _is_governance(path: str) -> bool:
+    p = path.replace("\\", "/")
+    # P0 治理加固（用户 2026-10-18 裁决）：冻结域 = 治理指令 + 治理执行面。
+    # 补漏：index.md / harness.yaml / settings.local.json / CLAUDE.md / rules/。
+    # 变更不再 WARN，必须持人类签发的审批票（见 governance_ticket.py）。
+    # 2026-10-18 人类裁决：审批票只用于**治理层**。
+    # `.claude/scripts/**` 是普通工具（verify_gate / carros_base / jev_* / worktree_utils…），
+    # 改它们不需要签票；唯一例外是签票器自身 gov_approve.py（否则等于允许 AI 改裁判规则）。
+    gov_patterns = [
+        r"(^|/)\.claude/hooks/",
+        r"(^|/)\.claude/scripts/gov_approve\.py$",
+        r"(^|/)\.claude/settings(\.local)?\.json",
+        r"(^|/)\.claude/workflows/frontend-overnight/scripts/carroros-gates/",
+        r"(^|/)\.claude/kernel\.md$",
+        r"(^|/)\.claude/index\.md$",
+        r"(^|/)\.claude/harness\.yaml$",
+        r"(^|/)\.claude/rules/",
+        r"(^|/)AGENTS\.md$",
+        r"(^|/)AGENTS\.compact\.md$",
+        r"(^|/)CLAUDE\.md$",
+        # 审批票与旁路状态是「人类授权」的凭据，AI 不得自行写入/篡改。
+        r"(^|/)\.omc/state/(governance-approval|temp-bypass|trust-breach)\.json$",
+    ]
+    return any(re.search(pat, p, re.IGNORECASE) for pat in gov_patterns)
+
+
+def _is_sensitive(path: str) -> bool:
+    p = path.replace("\\", "/")
+    return bool(re.search("|".join(SENSITIVE_PATTERNS), p, re.IGNORECASE))
+
+
+# ═══════════════════════════════════
+# Extraction helpers
+# ═══════════════════════════════════
+
+def _read_stdin() -> dict[str, Any]:
+    try:
+        raw = sys.stdin.read()
+        if not raw:
+            return {}
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+
+# _check_temp_bypass 已删除（D-016）：该机制让 AI 自写通行证，改为无旁路 fail-closed。
+
+
+def _extract_tool(payload: dict) -> str:
+    return str(payload.get("tool_name") or payload.get("tool") or payload.get("name") or "")
+
+
+def _extract_input(payload: dict) -> dict[str, Any]:
+    for key in ("tool_input", "input", "arguments", "args"):
+        val = payload.get(key)
+        if isinstance(val, dict):
+            return val
+    return payload
+
+
+def _extract_path(payload: dict) -> str:
+    data = _extract_input(payload)
+    return str(data.get("file_path") or data.get("filePath") or data.get("path") or data.get("filename") or "")
+
+
+def _extract_command(payload: dict) -> str:
+    data = _extract_input(payload)
+    return str(data.get("command") or payload.get("command") or "")
+
+
+# ═══════════════════════════════════
+# Output helpers
+# ═══════════════════════════════════
+
+def _ok(msg: str = "OK") -> int:
+    print(json.dumps({"continue": True, "message": f"PreToolGate: {msg}"}, ensure_ascii=False))
+    return 0
+
+
+_REASON_TO_HAZARD = {
+    "destructive": ("destructive", "irreversible"),
+    "irreversible": ("irreversible",),
+    "privilege": ("privilege_escalation",),
+    "architecture": ("architecture_change",),
+    "production": ("production",),
+    "production_op": ("production",),
+    "env_bypass": ("privilege_escalation",),
+    "trust_broken": ("privilege_escalation", "irreversible"),
+    "governance": ("governance_violation",),
+}
+
+
+# ── S7 治理补引导：拦截不只给"拒绝"，还给出"下一步怎么做" ──
+_GUIDANCE_HINTS: list[tuple[str, str]] = [
+    ("action_loop", "已连续执行相同命令，可能陷入循环。先停止重试，归因根因（保留实际输出），再小步验证。"),
+    ("task_blocked", "任务被阻塞。输入 /approve <token> 解除阻塞，或 /deny 保持阻塞并调整计划。"),
+    ("dangerous_command", "该命令有风险。优先使用更安全的替代操作，或将操作拆分为小步验证。"),
+    ("cd_churn", "确认目标目录后直接执行目标命令，不要连续空 cd 导航。"),
+    ("multi_cmd_newline", "多命令请用 && 连接为单行，不要用 \\n 换行拆条。"),
+    ("redundant_file_probe", "检查文件请一次 read 完成，不要反复 head/cat/wc 同一文件。"),
+    ("gov_file_bypass", "治理文件(.claude/hooks/*)不可直接编辑。如需修改 hook，使用 goal 模式(/lx-goal)。"),
+    ("verify_gate", "验证证据不足。先补 EV 证据块，再跑 verify。"),
+    ("document-quality", "文档质量不足。先补充上下文/影响范围，再继续。"),
+    ("plan-gate", "plan.md 未满足门禁。先补 Phase/Step/verify 声明。"),
+]
+
+
+def _next_better_step(reason: str) -> str:
+    """根据拦截原因给出'下一步怎么做'引导；静态映射优先，动态学习源（anti-pattern-redirects.jsonl）兜底。"""
+    low = reason.lower()
+    for key, hint in _GUIDANCE_HINTS:
+        if key in low:
+            return hint
+    try:
+        from .oracle import _load_anti_pattern_redirects
+        for pattern, _pk, guidance in _load_anti_pattern_redirects():
+            if guidance and pattern.search(reason):
+                return guidance
+    except Exception:
+        pass
+    return ""
+
+
+def _block(reason: str, suggestion: str = "") -> int:
+    safe_reason = reason[:300]
+    unattended = _goal_mode()
+    is_high_risk = any(k in safe_reason.lower() for k in _REASON_TO_HAZARD)
+
+    ask_user = safe_reason.startswith("ASK_USER ")
+    display_reason = safe_reason.removeprefix("ASK_USER ") if ask_user else safe_reason
+    # 2026-10-18 人类裁决（agentic-ui）：交互模式下 ASK_USER 用宿主可选择的 ask；
+    # 无人值守（goal）模式没有人能回答 ask，会卡死 → 回退 deny + 引导，让模型自纠。
+    hs: dict[str, Any] = {
+        "hookEventName": "PreToolUse",
+        "permissionDecision": "ask" if (ask_user and not unattended) else "deny",
+        "permissionDecisionReason": display_reason,
+    }
+
+    if ask_user:
+        hs["additionalContext"] = (
+            f"ASK_USER: {display_reason}\n\n"
+            f"{suggestion or '请确认是否继续，或调整当前计划。'}"
+        )
+        print(json.dumps({"continue": True, "hookSpecificOutput": hs}, ensure_ascii=False))
+        sys.stderr.write(f"PreToolGate: ASK_USER - {display_reason}\n")
+        return 0
+
+    if is_high_risk:
+        hazard_flags = []
+        for key, flags in _REASON_TO_HAZARD.items():
+            if key in safe_reason.lower():
+                hazard_flags.extend(flags)
+        ctx = make_context(
+            action=safe_reason, target="",
+            destructive="destructive" in hazard_flags,
+            irreversible="irreversible" in hazard_flags,
+            privilege_escalation="privilege_escalation" in hazard_flags,
+            architecture_change="architecture_change" in hazard_flags,
+            production="production" in hazard_flags,
+            risk="high", unattended=unattended,
+        )
+        result = GateKeeper.evaluate(ctx)
+        full_msg = GateKeeper.format_output(result)
+        if result.decision.value == "skip":
+            hs["additionalContext"] = (
+                f"blocked-human: {safe_reason}\n\n"
+                f"原因: 高风险操作在goal模式下被跳过。\n"
+                f"建议: continue other work, skip this risk.\n"
+                f"详情已记录至 skipped-risks.jsonl, 退出报告将汇总。"
+            )
+            print(json.dumps({
+                "continue": True,
+                "hookSpecificOutput": hs,
+            }, ensure_ascii=False))
+            sys.stderr.write(f"PreToolGate: SKIPPED (goal) - {safe_reason}\n")
+            return 0
+        # Interactive high-risk: use GateKeeper output + AskUserQuestion instruction
+        hs["additionalContext"] = (
+            f"{full_msg}\n\n"
+            f"---\n"
+            f"请使用 AskUserQuestion 与用户交互，提供选项供用户选择。"
+        )
+        print(json.dumps({
+            "continue": True,
+            "hookSpecificOutput": hs,
+        }, ensure_ascii=False))
+        sys.stderr.write(f"PreToolGate: BLOCKED (ask_user) - {safe_reason}\n")
+        return 0
+
+    # Non-high-risk: recoverable denial
+    hint = _next_better_step(safe_reason)
+    extra = f"\n\n正确做法: {hint}" if hint else ""
+    hs["additionalContext"] = (
+        f"🔄 {safe_reason}\n\n可选方案:\n  {suggestion}{extra}"
+        if suggestion else f"🔄 {safe_reason}{extra}"
+    )
+    print(json.dumps({
+        "continue": True,
+        "hookSpecificOutput": hs,
+    }, ensure_ascii=False))
+    sys.stderr.write(f"PreToolGate: DENIED - {safe_reason}\n")
+    return 0
+
+
+def _redirect(reason: str, guidance: str = "") -> int:
+    ctx = make_context(
+        action=reason, target="",
+        risk="medium", unattended=_goal_mode(),
+        fixable_issue=True,
+    )
+    result = GateKeeper.evaluate(ctx, gate_type="pretool")
+    full_output = GateKeeper.format_output(result)
+    hint = _next_better_step(reason)
+    extra = f"\n\n正确做法: {hint}" if hint else ""
+    print(json.dumps({
+        "continue": True,
+        "hookSpecificOutput": {
+            "hookEventName": "PreToolUse",
+            "permissionDecision": "deny",
+            "permissionDecisionReason": reason,
+            "additionalContext": f"REDIRECT: {reason}\n\n{guidance}{extra}\n\n{full_output}",
+        }
+    }, ensure_ascii=False))
+    sys.stderr.write(f"PreToolGate: REDIRECT - {reason}\n")
+    if guidance:
+        sys.stderr.write(f"  {guidance}\n")
+    return 0
+
+
+def _increment_streak(key: str, path: Path | None = None) -> int:
+    """Atomic increment for redirect streak with 6h TTL.
+
+    Reads existing streak data, cleans expired entries (6h TTL),
+    increments count for *key*, writes back, returns new count.
+    """
+    _TTL = 21600  # 6 hours
+    now_s = int(time.time())
+    store: dict[str, dict] = {}
+    p = path or REDIRECT_STREAK
+    try:
+        if p.is_file():
+            raw = json.loads(p.read_text(encoding="utf-8"))
+            for k, v in raw.items():
+                if isinstance(v, dict) and "c" in v and "t" in v:
+                    if now_s - v["t"] < _TTL:
+                        store[k] = v
+    except Exception:
+        store = {}
+    prev = store.get(key, {}).get("c", 0)
+    store[key] = {"c": prev + 1, "t": now_s}
+    try:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(store), encoding="utf-8")
+    except Exception:
+        pass
+    return prev + 1
+
+
+# ═══════════════════════════════════
+# Trust breach
+# ═══════════════════════════════════
+
+def _check_trust_breach() -> str | None:
+    if not TRUST_BREACH.exists():
+        return None
+    try:
+        data = json.loads(TRUST_BREACH.read_text(encoding="utf-8", errors="replace"))
+        return data.get("reason", "unknown")
+    except Exception:
+        return "unknown"
+
+
+def _record_trust_breach(reason: str) -> None:
+    try:
+        TRUST_BREACH.parent.mkdir(parents=True, exist_ok=True)
+        TRUST_BREACH.write_text(json.dumps({
+            "reason": reason,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }, ensure_ascii=False), encoding="utf-8")
+    except OSError:
+        pass
+
+
+def _is_trust_breach_reason(detail: str) -> bool:
+    # Only env_bypass / bypass_attempt / trust_broken trigger permanent trust breach.
+    # Normal governance_path deny does NOT write permanent trust breach.
+    return any(kw in detail.lower() for kw in ["env_bypass", "bypass_attempt", "trust_broken"])
+
+
+def _clear_trust_breach() -> bool:
+    try:
+        if TRUST_BREACH.exists():
+            TRUST_BREACH.unlink()
+            return True
+    except OSError:
+        pass
+    return False
+
+
+def _match_any(text: str, patterns: list[str]) -> str | None:
+    for p in patterns:
+        if re.search(p, text):
+            return p
+    return None
+
+
+def _append_audit(event: dict) -> None:
+    try:
+        AUDIT.mkdir(parents=True, exist_ok=True)
+        # 审计分片名用本地日期（UTC+8 晚 8 小时运行会落昨日分片，双法官 index21 发现）；
+        # 时间戳字段 timestamp 仍保持 UTC ISO（下方 setdefault）。
+        day = datetime.now().strftime("%Y-%m-%d")
+        event.setdefault("timestamp", datetime.now(timezone.utc).replace(microsecond=0).isoformat())
+        if "task_id" not in event or "step_id" not in event:
+            try:
+                token = _active_token()
+                if token:
+                    session = token.get("session", {}) or {}
+                    task = token.get("task", {}) or {}
+                    event.setdefault(
+                        "task_id",
+                        session.get("id") or (task.get("id") if isinstance(task, dict) else None) or "unknown",
+                    )
+                    if isinstance(task, dict) and task.get("current_step"):
+                        event.setdefault("step_id", task.get("current_step"))
+            except Exception:
+                pass
+        with (AUDIT / f"{day}.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps(event, ensure_ascii=False, sort_keys=True) + "\n")
+    except OSError:
+        pass
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    try:
+        if path.exists():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+    return {}
+
+
+# ═══════════════════════════════════
+# Token helpers
+# ═══════════════════════════════════
+
+def _latest_token() -> Path | None:
+    raw_token = os.environ.get("CARROROS_TOKEN_PATH", "").strip()
+    if raw_token:
+        path = Path(raw_token).expanduser().resolve()
+        return path if path.is_file() else None
+    raw_task = os.environ.get("CARROROS_TASK_DIR", "").strip()
+    if not raw_task:
+        return None
+    task_dir = Path(raw_task).expanduser().resolve()
+    path = TOKENS / task_dir.parent.name / f"{task_dir.name}.json"
+    return path if path.is_file() else None
+
+
+def _active_token() -> dict[str, Any] | None:
+    path = _latest_token()
+    if not path:
+        return None
+    token = _read_json(path)
+    if not isinstance(token, dict) or not token:
+        return None
+    task = token.get("task", {})
+    if not isinstance(task, dict):
+        token["task"] = {"name": str(task), "status": token.get("status", "active")}
+    return token
+
+
+def _task_dir(token: dict) -> Path | None:
+    task = token.get("task", {})
+    if not isinstance(task, dict):
+        task = {}
+    explicit = (
+        task.get("dir")
+        or token.get("task_dir")
+        or token.get("plan_dir")
+    )
+    if explicit:
+        p = ROOT / explicit if not Path(explicit).is_absolute() else Path(explicit)
+        if p.exists():
+            return p
+    return None
+
+
+def _parse_scope(plan_text: str) -> list[str]:
+    in_scope = False
+    files: list[str] = []
+    for line in plan_text.splitlines():
+        s = line.strip()
+        if s.lower().startswith("## scope") or s.lower().startswith("## scope freeze"):
+            in_scope = True
+            continue
+        if in_scope and s.startswith("## "):
+            break
+        if in_scope:
+            m = re.match(r"[-*]\s+`?([^`\s]+)`?", s)
+            if m:
+                files.append(m.group(1).replace("\\", "/"))
+    return files
+
+
+def _strip_dot_slash(s: str) -> str:
+    return s[2:] if s.startswith("./") else s
+
+
+def _in_scope(path: str, scope: list[str]) -> bool:
+    try:
+        p_real = os.path.realpath(path)
+    except Exception:
+        p_real = path.replace("\\\\", "/")
+    p = _strip_dot_slash(p_real)
+    for item in scope:
+        s_orig = item.replace("\\\\", "/")
+        try:
+            s_abs = os.path.realpath(s_orig)
+        except Exception:
+            s_abs = s_orig
+        s = _strip_dot_slash(s_abs)
+        if "*" in s or "?" in s:
+            import fnmatch
+            if fnmatch.fnmatch(p, s) or fnmatch.fnmatch(os.path.basename(p), s):
+                return True
+            parts = p.split("/")
+            for i in range(len(parts)):
+                if fnmatch.fnmatch("/".join(parts[i:]), s):
+                    return True
+            continue
+        s_dir = s.rstrip("/")
+        if p == s_dir or p == "/" + s_dir:
+            return True
+        prefix = s_dir + "/"
+        if p.startswith(prefix) or p.startswith("/" + prefix):
+            return True
+        if p.endswith("/" + s_dir):
+            return True
+    return False
+
+
+def _check_verified(step_id: str | None, task_id: str | None = None,
+                    task_dir: Path | None = None) -> bool:
+    if not step_id or not task_id:
+        return False
+    dirs = [AUDIT, OMC / "state" / "audit"]
+    if task_dir:
+        dirs.append(task_dir / "state" / "audit")
+    for d in dirs:
+        if not d.exists():
+            continue
+        for f in sorted(d.glob("*.jsonl")):
+            with f.open("r", encoding="utf-8") as fh:
+                for line in fh:
+                    try:
+                        e = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if e.get("event") == "verify":
+                        data = e.get("data", {})
+                        if (isinstance(data, dict)
+                                and data.get("result") == "VERIFIED"
+                                and data.get("step") == step_id
+                                and data.get("task_id") == task_id):
+                            return True
+                    if (e.get("event_type") == "verify_decision"
+                            and e.get("decision") == "VERIFIED"
+                            and e.get("step") == step_id
+                            and e.get("task_id") == task_id):
+                        return True
+    return False
+
+
+def _auto_init(target_path: str | None = None) -> None:
+    import subprocess
+    try:
+        script = ROOT / ".claude/scripts/carros_base.py"
+        if not script.exists():
+            return
+        cmd = [sys.executable, str(script), "init", "--auto"]
+        if target_path:
+            cmd += ["--target", target_path]
+        subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True, timeout=10)
+    except Exception:
+        pass
+
+
+def _safe_unlink(path: Path) -> None:
+    try:
+        if path.exists():
+            path.unlink()
+    except OSError:
+        pass
+
+
+def _auto_archive_token(token_path: Path, token_data: dict, reason: str) -> None:
+    try:
+        archive_dir = OMC / "archive" / "tokens" / token_path.parent.name
+        archive_dir.mkdir(parents=True, exist_ok=True)
+        archive_path = archive_dir / token_path.name
+        token_data["status"] = "archived"
+        token_data.setdefault("session", {})
+        token_data["session"]["archived_at"] = datetime.now(timezone.utc).isoformat()
+        token_data.setdefault("task", {})
+        if isinstance(token_data.get("task"), dict):
+            token_data["task"]["archive_reason"] = reason
+        archive_path.write_text(json.dumps(token_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        token_path.unlink()
+        _append_audit({
+            "event_type": "token_auto_archived",
+            "actor": "hook:pretool-gate",
+            "reason": reason,
+            "token": token_path.name,
+            "archived_to": str(archive_path),
+        })
+    except OSError:
+        pass
+
+
+def _failure_escalate(signature: str, *, window: int = 20, threshold: int = 3) -> bool:
+    if not AUDIT.exists():
+        return False
+    try:
+        files = sorted(AUDIT.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)[:2]
+    except OSError:
+        return False
+    hits = 0
+    seen = 0
+    for path in files:
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            continue
+        for line in reversed(lines):
+            if seen >= window:
+                return hits >= threshold
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                e = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(e, dict):
+                continue
+            if e.get("decision") not in ("BLOCK", "ESCALATE"):
+                continue
+            seen += 1
+            if signature and signature in str(e.get("reason", "")):
+                hits += 1
+    return hits >= threshold
+
+
+def _clean_stale_state_token() -> None:
+    if not STATE_TOKEN.exists():
+        return
+    try:
+        data = json.loads(STATE_TOKEN.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    task = data.get("task") if isinstance(data.get("task"), dict) else {}
+    status = task.get("status") or (data.get("task") or {}).get("status") or ""
+    if status not in ("blocked", "waiting_user"):
+        return
+    fb = task.get("fallback", {}) or {}
+    ts_str = fb.get("timestamp") or data.get("session", {}).get("fallback", {}).get("timestamp") or ""
+    if not ts_str:
+        return
+    try:
+        from datetime import datetime, timezone
+        ts = datetime.fromisoformat(ts_str)
+        age = (datetime.now(timezone.utc) - ts).total_seconds()
+    except Exception:
+        return
+    if age >= STALE_LOCK_THRESHOLD:
+        try:
+            STATE_TOKEN.unlink()
+        except OSError:
+            pass
+
+
+# ═══════════════════════════════════
+# Gate mode & misc
+# ═══════════════════════════════════
+
+def _gate_mode_from_token(token) -> str:
+    """index31: 任务 level 与 gate mode 联动（L1 任务→l1 轻量门，L2→全量）。"""
+    try:
+        if isinstance(token, dict):
+            lvl = str(((token.get("session") or {}).get("level") or "")).lower()
+            if lvl in ("l1", "l2"):
+                return lvl
+    except Exception:
+        pass
+    return ""
+
+
+def _harness_gate_mode() -> str:
+    """读取项目档位配置。
+
+    index46 S5 (G1)：原路径 `ROOT/scripts/carroros-gates/harness.yaml` 在仓内不存在
+    （仓内实为 `.claude/harness.yaml`），使该级配置永久失效、必然落到兜底档。
+    现修正为 `.claude/harness.yaml`，并同时接受顶层 `gate_mode` 与 `project.gate_mode`。
+    """
+    candidates = [ROOT / ".claude" / "harness.yaml",
+                  ROOT / "scripts" / "carroros-gates" / "harness.yaml"]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            import yaml
+            with open(path, "r") as fh:
+                data = yaml.safe_load(fh) or {}
+        except Exception:
+            continue
+        if not isinstance(data, dict):
+            continue
+        mode = str(data.get("gate_mode", "") or "").lower()
+        if mode not in ("l1", "l2"):
+            mode = str((data.get("project") or {}).get("gate_mode", "") or "").lower()
+        if mode in ("l1", "l2"):
+            return mode
+    return ""
+
+
+def _get_gate_mode() -> str:
+    """门禁档位解析。
+
+    index46 S5 (G1 / H1 人类指令)：绝大多数任务走 L1 轻量流程，只有与安全、权限、
+    架构相关或十分复杂的任务才走 L2 全流程。因此**兜底档位由 l2 改为 l1**，
+    与 AGENTS.md「简单任务直达（默认，最快路径）」/ index.md「默认 L1」的文档承诺对齐。
+
+    优先级（高 → 低）：
+      1. `CARROROS_GATE_MODE` 环境变量（显式覆盖；CI 如需全量门可设 l2）
+      2. 活跃 token 的 `session.level`（任务分级：L1 任务→轻门，L2 任务→全量门）
+      3. 项目配置 `gate_mode`（`.claude/harness.yaml`）
+      4. 兜底 l1
+
+    安全底线不受影响：L1 的 `_GATE_CORE` 已含 sensitive-*/secret-scan/
+    governance-bypass/governance-delete-protection 等真安全门（见 pretool-gate.py）。
+    """
+    env_mode = os.environ.get("CARROROS_GATE_MODE", "").lower()
+    if env_mode in ("l1", "l2"):
+        return env_mode
+    # index31: 任务级别优先联动（有活跃 token 时按 level 定门）
+    try:
+        _tok_mode = _gate_mode_from_token(_active_token())
+        if _tok_mode:
+            return _tok_mode
+    except Exception:
+        pass
+    harness_mode = _harness_gate_mode()
+    return harness_mode if harness_mode else "l1"
+
+
+def _is_ci_environment() -> bool:
+    return (
+        not sys.stdin.isatty() or
+        os.environ.get("CI") == "true" or
+        os.environ.get("CARROROS_CI_MODE") == "1"
+    )
+
+
+def _validate_bypass_token(token: str) -> bool:
+    if not token or len(token) < 8:
+        return False
+    try:
+        _SECRET_FILE = Path(__file__).resolve().parent.parent / ".bypass_secret"
+        if not _SECRET_FILE.exists():
+            return False
+        secret = _SECRET_FILE.read_text(encoding="utf-8").strip()
+        if not secret:
+            return False
+        if ":" not in token:
+            return False
+        parts = token.split(":")
+        if len(parts) != 2:
+            return False
+        import hmac
+        nonce, signature = parts
+        expected = hmac.new(secret.encode(), nonce.encode(), digestmod="sha256").hexdigest()[:16]
+        return hmac.compare_digest(signature, expected)
+    except Exception:
+        return False
+
+
+_GATE_PASS_COUNTER = AUDIT.parent / "gate-pass-count.jsonl"
+
+
+def _record_gate_decision(gate_name: str, result: str | None, mode: str) -> None:
+    """index31 审计压缩: PASS 收敛为按 (date,gate,mode) 计数文件; 非 PASS 逐条 audit。"""
+    now = datetime.now(timezone.utc)
+    decision = result[:50] if result else "PASS"
+    if decision == "PASS":
+        try:
+            _GATE_PASS_COUNTER.parent.mkdir(parents=True, exist_ok=True)
+            with open(_GATE_PASS_COUNTER, "a", encoding="utf-8") as _fh:
+                _fh.write(json.dumps({
+                    "date": now.strftime("%Y-%m-%d"),
+                    "gate": gate_name,
+                    "mode": mode,
+                    "count": 1,
+                }) + "\n")
+        except OSError:
+            pass
+        return
+    _append_audit({
+        "event_type": "gate_decision",
+        "gate": gate_name,
+        "mode": mode,
+        "decision": decision,
+        "timestamp": now.isoformat(),
+    })
+
+
+def _verify_contract_compliance(mode: str, executed_gates: set[str]) -> str | None:
+    try:
+        _CONTRACT_PATH = ROOT / ".claude" / "scripts" / "gate-contract.yaml"
+        if not _CONTRACT_PATH.exists():
+            return None
+        import yaml
+        contract = yaml.safe_load(_CONTRACT_PATH.read_text(encoding="utf-8")) or {}
+        mode_cfg = contract.get(mode.upper(), {}) or {}
+        required = mode_cfg.get("required_gates", [])
+        enforcement = mode_cfg.get("enforcement", {}) or {}
+        missing = [g for g in required if g not in executed_gates]
+        if not missing:
+            return None
+        policy = enforcement.get("missing_gate", "INFO")
+        missing_str = ", ".join(missing[:5])
+        if policy == "BLOCK":
+            return (f"BLOCK contract-violation: {mode} missing required gates ({missing_str})|"
+                    f"⛔ gate-contract.yaml 要求 gate 未执行。\n"
+                    f"原因: {mode} 模式要求以下 gate 必须执行: {missing_str}\n"
+                    f"可选方案: 检查 gate-contract.yaml 配置\n"
+                    f"预期结果: 配置修正后自动通过")
+        _append_audit({
+            "event_type": "contract_warning",
+            "mode": mode,
+            "missing_gates": missing,
+            "enforcement": policy,
+        })
+        return None
+    except Exception:
+        return None

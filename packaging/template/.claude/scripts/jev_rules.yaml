@@ -1,0 +1,345 @@
+# jev_rules.yaml — JEV-C 规则登记表
+#
+# 检测对象：**交付物**。包括
+#   · 本次 commit 的改动内容
+#   · 该任务产出的过程文档与验证记录
+#
+# 不检测「AI 行为是否合规」。行为在检测时已经发生、不可改变，事后算账零价值；
+# 约束行为靠执行前引导 + 执行中 hook 门禁（去向见文件末尾 behavior_rules_moved_out）。
+#
+# 但**交付物齐不齐是可观测的**：文档在不在、验证记录在不在、有没有影响范围分析，
+# 这些是产出物的客观属性，属于「结果」的一部分，所以要判。
+#
+# 规则唯一真源是仓库里已有的文本（AGENTS.md / README.md）。
+# 本表只做「登记 + 标注 + 阈值」，不得发明规则，不得改写规则原文。
+#
+# judge_by:
+#   script —— 可枚举、可计数，脚本/退出码即结论，不进 Jev 请求
+#   jev    —— 需要读懂语义，交给 Jev
+#   hybrid —— 先脚本给出事实，再把事实连同规则喂 Jev
+#
+# allow_not_applicable: 该规则存在「与本次交付无关」的第三态时置 true，
+#   此时用三值 choice（符合/不符合/不适用）；否则用二值 noul。
+
+schema_version: carros.jev_rules.v3
+registry_version: v4
+status: draft_pending_human_review
+scope: deliverables_only
+
+# 判据变更记录（append-only）。
+# 纪律：**任何判据或阈值改动都必须新增一条并抬高 registry_version**。
+# 否则案例账本里记的版本号是假的，回放结果无法复算。
+# `registry_version` 必须等于本列表最新一条的 version —— 有测试守着。
+changelog:
+  - version: v4
+    date: 2026-10-15
+    changes:
+      - "soul.1 拆为 soul.1.simple（最简实现）+ soul.1.reuse（复用已有能力）；越界改保留在 proj.scope.no-overreach。粒度纪律：一条规则只问一件事"
+      - "soul.7.gain 判据加入三条不符合情形：自产自销 / 零调用方 / 说不出增益。依据 A/B 实测（C1 两臂共识性漏报）"
+      - "soul.1.reuse 标记 requires: repo_context —— 没有仓库上下文时不给结论"
+      - "新增 know.official-first，来源 .claude/rules/external-knowledge.md"
+      - "soul.1.simple 阈值：reject_at 0.50（分布缺口）；accept_at 保持 0.70（0.60 的候选因样本 <50 被纪律退回）"
+      - "三值规则新增 confidence_at=0.55，不再沿用二值阈值"
+  - version: v3-draft
+    date: 2026-10-15
+    changes:
+      - "检测对象收敛为「交付物」，移除 AI 行为类检测"
+      - "7 条脚本规则接入 script_check 声明式检查"
+      - "低置信一律不给结论；关键规则低置信升级复核判据"
+
+# escalate_when_uncertain:
+#   低置信时该规则的值不值得升级给人类复核「规则判据是否要改」。
+#   不是每条都要升级 —— 不重要的低置信直接放着不管。
+defaults:
+  escalate_when_uncertain: false
+  accept_at: 0.85
+  reject_at: 0.30
+  # 三值 choice 用 confidence 阈值。三选项均分时 confidence ≈ 0.33，
+  # 沿用二值的 0.85 会让绝大多数判定落进「证据不足」，等于工具不表态。
+  confidence_at: 0.55
+
+rules:
+  # ═══ A. 交付质量 ═══════════════════════════════════════════════════
+
+  # 粒度纪律：一条规则只问一件事。
+  # 原先 soul.1 把「最简实现 / 复用已有轮子 / 不越界改」三件事塞进一个 noul，
+  # 给出 0.63 时无法判断是哪一项没过，闭环就诊断不了。现拆成独立规则。
+  # 「不越界改」已有独立规则 proj.scope.no-overreach，此处不重复。
+  - rule_id: soul.1.simple
+    escalate_when_uncertain: true  # 最高权重哲学；判不出来往往意味着判据太抽象，值得回头改
+    source: AGENTS.md:14
+    # reject_at 依据：24 个历史 commit 的分布缺口在 0.44/0.55 之间 → 取 0.50。
+    # accept_at 保持 0.70：候选 0.60 在 n=8 上把一致率 0.88→1.00，但样本低于
+    #   外部基准的 50 条底线（jev-eval 做法），属拟合单个样本，按纪律退回。
+    #   候选记录：accept_at=0.60（待样本充足后回放验证）
+    accept_at: 0.70
+    reject_at: 0.50
+    text: "少即是多（the less, the more）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；"
+    rule_target: code
+    judge_by: jev
+    criteria_true: "改动是达成目的的最简实现：没有引入非必要的抽象、层级、依赖、文件或配置项"
+    criteria_false: "改动引入了本可以避免的抽象、层级、依赖、文件或配置项"
+    failure_action: "退回最简实现"
+
+  - rule_id: soul.1.reuse
+    escalate_when_uncertain: true
+    source: AGENTS.md:14
+    accept_at: 0.70
+    reject_at: 0.50
+    requires: repo_context
+    text: "少即是多（the less, the more）：能不做就不做，能简单实现就简单实现，防止熵膨胀；但不得绕过铁律、审批或验证；"
+    rule_target: code
+    judge_by: jev
+    criteria_true: >-
+      改动复用了仓库里已有的能力，而不是另造一套等价的东西。
+      只在 repo_context 里确实列出了相关已有实现时，才据此判定为符合。
+    criteria_false: >-
+      改动重复实现了仓库里已有的能力。
+      **若 repo_context 没提供「仓库里有没有现成实现」的信息，
+      而改动又明显在造新轮子（新增通用工具、抽象层、适配器），则倾向判不符合；
+      若改动与「造轮子」无关（改错字、删冗余、纯文档），本规则不适用。**
+    failure_action: "改用仓库已有实现"
+
+  - rule_id: soul.7.gain
+    escalate_when_uncertain: true  # 僵尸代码处置是主线；判不出多半是判据没写清「清理也算增益」
+    source: AGENTS.md:20
+    text: "增益（增益优先，做少得多）：所有新增功能必须证明「单行为带来全局可量化增益 > 实现+维护成本」；无增量增益的冗余代码通过僵尸机制处置：要么接入主校验链路，要么直接删除。"
+    rule_target: code
+    judge_by: jev
+    accept_at: 0.75
+    reject_at: 0.30
+    # 判据修订（2026-10-15，依据 A/B 实测）：
+    # 旧判据只问「有没有接入主链路」，于是「自己新增功能 + 自己新增调用它的一段代码」
+    # 也算通过。实测 C1(f6bad4a)：zombie_scan.py 的唯一调用方是同一提交里新写的
+    # proposals.py 片段，Jev 与 LLM 都判了「符合」，而该提交后来被标 delete-candidate。
+    # 规则原文要的是「必须**证明**增益 > 成本」，接入 ≠ 证明。故加入「自产自销」判据。
+    criteria_true: >-
+      满足以下之一：
+      (a) 本次改动是在消除冗余——删除僵尸产物、收敛重复实现、去掉零调用方代码。
+          此时增益是「减少维护面」，直接算符合，不因为没新增功能就判低。
+      (b) 新增的产物被**本次改动之前就已存在**的代码调用（调用方不是本次新写的），
+          且交付里能说出它带来的增益是什么。
+    criteria_false: >-
+      满足以下之一即判不符合：
+      (a) **自产自销**：新增了产物，除了本次改动自己新写的调用代码和它自己的测试之外，
+          没有任何既有代码引用它。功能与它的唯一使用者一起新增，等于自己给自己发牌照。
+      (b) **零调用方**：新增了产物，没有任何引用，也没有被删除。
+      (c) 虽被既有代码调用，但交付里始终说不出增益是什么，增益只能靠推测。
+    failure_action: "接入主校验链路，或直接删除"
+
+  - rule_id: soul.2.tdd-record
+    requires: delivery
+    source: AGENTS.md:15
+    text: "验证（验证大于承诺）：执行前tdd，执行后tdd，每个任务需要完整的闭环；"
+    rule_target: code
+    judge_by: hybrid
+    allow_not_applicable: true
+    trace_evidence: "executor.md 里有没有测试类证据块（type: test）、有没有 exit_code、有没有前置红/后置绿的记录"
+    unobservable: "记录里的红绿是不是真的跑过（本节点只判记录本身是否完整可信）"
+    criteria_true: "交付里有改动前的失败测试记录和改动后的通过测试记录，且能对应到本次改动"
+    criteria_false: "没有任何测试记录，或只有单侧记录、无法对应到本次改动"
+    failure_action: "补前置/后置测试记录；确无测试必要需在交付里写明理由"
+
+  - rule_id: doc.process-complete
+    requires: delivery
+    source: AGENTS.md:18
+    text: "文档（磁盘状态为唯一真相源）：L1 light 和 L2 任务在 `.omc/tasks/{date}/{task_name}/` 创建文档系统，并在 `.omc/tokens/{date}/` 下创建同名 `.json` 令牌文件。`.json.lock` 是底层并发写保护；只有 L2 goal 任务才把锁的最终移除作为完成标识。普通 L1 不要求任务文档。"
+    rule_target: code
+    judge_by: hybrid
+    allow_not_applicable: true
+    trace_evidence: "research.md / plan.md / executor.md / token.json 是否存在，executor 里有多少证据块"
+    criteria_true: "过程文档齐备，且 executor 的证据块能反映真实执行过程而不是空壳"
+    criteria_false: "缺少必要文档，或文档存在但为空壳、无法反映执行过程"
+    failure_action: "补齐过程文档与证据块"
+
+  - rule_id: know.official-first
+    source: .claude/rules/external-knowledge.md:42
+    text: "优先级：项目内现有方案 > 官方 > 社区 > 自研；没有这段说明的自研，视为跳级。"
+    rule_target: code
+    judge_by: hybrid
+    allow_not_applicable: true
+    requires: delivery
+    escalate_when_uncertain: true  # 判断不了多半是判据没写清「什么算查过」
+    trace_evidence: "交付里有没有说明查过项目内现有方案、官方来源、社区方案，以及为什么自研"
+    criteria_true: >-
+      查找顺序必须是：① 仓库内是否已有可复用实现（脚本/工具/配置/既有模块）；
+      ② 官方文档 / 官方仓库；③ 社区权威方案；④ 最后才自研。
+      若本次改动是自研：交付里写明了查过仓库内现有方案、官方来源与社区方案，
+      结论是什么、为什么它们不适用、为什么自研更合适。
+      若使用现有方案：交付里写明了来源（仓库路径 / 官方链接+版本 / 社区项目）。
+      若本次改动与「项目外知识」无关（纯内部逻辑调整）：本规则不适用。
+    criteria_false: >-
+      仓库内已有现成实现却另起炉灶；或自研了本该有现成方案的东西，
+      且交付里没有任何「查过项目内 / 官方 / 社区」的说明。
+    failure_action: "先找项目内现有方案，再查官方/社区；补检索记录，或改用已有方案"
+
+  - rule_id: safe.impact-analysis
+    requires: delivery
+    source: AGENTS.md:60
+    text: "输出影响范围清单（涉及文件 / 依赖关系 / 预估风险）"
+    rule_target: code
+    judge_by: hybrid
+    allow_not_applicable: true
+    trace_evidence: "research.md 里有没有依赖树、影响范围清单、风险预估"
+    criteria_true: "有依赖树与影响范围清单，能说明本次改动牵动了什么、可能有什么副作用"
+    criteria_false: "没有影响范围分析，改动是否引入副作用无从判断"
+    failure_action: "补依赖树与影响范围清单，标出受影响方与预估风险"
+
+  # ═══ B. 项目开发原则（README.md = simpleX 项目宪法 v4.1）════════════
+
+  - rule_id: proj.style.token-source
+    source: README.md:153
+    text: "| 样式 | `.claude/compact_inject/ui-styling.md` | 双轨：layouts 裸 BEM，pages/components CSS Modules；Token 来源 `src/styles/tokens/`，非新值或无近似值禁止从零定义新值 |"
+    rule_target: code
+    judge_by: jev
+    allow_not_applicable: true
+    criteria_true: "样式值来自已有 tokens；确需新值时有明确理由且没有近似值可用"
+    criteria_false: "在已有近似 token 的情况下另起炉灶定义了新值"
+    failure_action: "改用现有 token"
+
+  - rule_id: proj.api.type-align
+    source: README.md:143
+    text: "**禁止**：删除 UI 多余属性 / 删除 API 多余属性 / 凭记忆猜测属性是否存在"
+    rule_target: code
+    judge_by: jev
+    allow_not_applicable: true
+    criteria_true: "类型对齐时保留了双方各自多余的属性，没有凭记忆猜测"
+    criteria_false: "删除了某一方多余的属性，或凭记忆猜测属性是否存在"
+    failure_action: "恢复被删属性；改类型前先 grep 确认使用情况"
+
+  - rule_id: proj.data.no-fake-data
+    script_check:
+      - kind: forbidden_pattern
+        patterns: ["?? 'P001'", '?? "P001"', "?? 'TEMP_AGENT'", '?? "TEMP_AGENT"',
+                   "?? '未命名'", '?? "未命名"', "?? 'TEMP'", '?? "TEMP"', "?? '默认'"]
+        scope: added_lines
+    escalate_when_uncertain: true  # 红线：假数据会打到后端，判不出必须看
+    source: README.md:231
+    text: "**禁止的假数据模式**（全项目 grep 零容忍）："
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: "没有把兜底值当业务数据传给后端；占位符只用于显示"
+    criteria_false: "存在把假数据或空串当参数传给后端的写法"
+    failure_action: "只兜底显示，不兜底数据"
+
+  - rule_id: proj.c7.redline
+    script_check:
+      - kind: line_limit
+        suffixes: [".tsx", ".module.scss"]
+        max: 300
+      - kind: forbidden_regex
+        regex: "#[0-9a-fA-F]{3,8}\\b"
+        suffixes: [".tsx", ".module.scss", ".scss"]
+        scope: added_lines
+        note: "裸色值：颜色应取自 src/styles/tokens/"
+    escalate_when_uncertain: true  # 红线：拆分线，判不出说明量化判据没写清
+    source: README.md:23
+    text: "**C7 红线**：`.tsx` ≤300 行 / `.module.scss` ≤300 行 / 禁止裸色值和 px 魔法数"
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: ".tsx 与 .module.scss 均不超过 300 行，且无裸色值或 px 魔法数"
+    criteria_false: "存在超过 300 行的文件，或存在裸色值/px 魔法数"
+    failure_action: "拆分文件；颜色与间距改用 tokens"
+
+  - rule_id: proj.ts.no-any
+    script_check:
+      - kind: forbidden_regex
+        regex: "(\\bany\\b\\s*[;,)>=|]|\\bas\\s+any\\b|<any>)"
+        suffixes: [".ts", ".tsx"]
+        scope: added_lines
+    source: README.md:156
+    text: "| TypeScript | `.claude/compact_inject/react-patterns.md` | strict / 禁止 any / 类型按域命名 / **本项目中所有需要 tsc 检查类型的情况，必须运行 `pnpm run typecheck`** |"
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: "没有 any；涉及 tsc 时跑了 typecheck"
+    criteria_false: "出现 any，或涉及 tsc 却没跑 typecheck"
+    failure_action: "补类型；跑 pnpm run typecheck"
+
+  - rule_id: proj.richtext.tiptap
+    script_check:
+      - kind: forbidden_pattern
+        patterns: ["react-markdown", "remark-gfm"]
+        scope: added_lines
+    source: README.md:166
+    text: "| 富文本 | `.claude/docs/Tiptap.md` | 渲染 markdown/表格/代码→必须 Tiptap（禁止 react-markdown+remark-gfm） |"
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: "富文本渲染使用 Tiptap"
+    criteria_false: "使用了 react-markdown + remark-gfm"
+    failure_action: "改用 Tiptap"
+
+  - rule_id: proj.icon.no-emoji
+    script_check:
+      # 只管 UI 组件文件。README:165 约束的是「图标」，不是日志前缀。
+      # 实测教训：不限后缀时，.py 里的 ⛔ 日志前缀被误判成「用 emoji 当图标」。
+      - kind: forbidden_regex
+        regex: "[\\U0001F300-\\U0001FAFF\\u2600-\\u27BF]"
+        suffixes: [".tsx", ".jsx"]
+        scope: added_lines
+        note: "UI 文件里 emoji 不能当图标，应使用 lucide-react"
+    source: README.md:165
+    text: "| 图标 | `.claude/compact_inject/ui-styling.md` | lucide-react / 尺寸继承 / 禁止 emoji |"
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: "图标使用 lucide-react，无 emoji 充当图标"
+    criteria_false: "用 emoji 当图标"
+    failure_action: "换成 lucide-react 图标"
+
+  - rule_id: proj.port.9001
+    script_check:
+      - kind: port_declaration
+        allowed: [9001]
+        basenames: ["vite.config.ts", "vite.config.js", "vite.config.mts"]
+    source: README.md:307
+    text: "**⚠️ 开发服务器端口规则**：本地开发必须使用 **9001 端口**。"
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: "本地开发配置使用 9001"
+    criteria_false: "使用了其它端口"
+    failure_action: "改回 9001"
+
+  - rule_id: proj.dir.no-flat-component
+    script_check:
+      - kind: path_forbidden
+        regex: "(^|/)pages/[^/]+/modules/[^/]+\\.tsx$"
+        note: "页面组件平铺在 modules/ 下；应改为 组件名/index.tsx"
+      - kind: path_forbidden
+        regex: "(^|/)components/[^/]+\\.tsx$"
+        note: "子组件平铺文件；应改为 组件名/index.tsx"
+    source: README.md:69
+    text: "**禁止**：layouts 写业务逻辑 | styles 外全局样式 | 跨域引用私有组件 | store 存 UI 态 | types/index.ts 定义类型 | 超 2 级相对路径(用 `@/`) | **页面组件平铺文件** | **子组件不建文件夹** | **多个组件共用一个 SCSS**"
+    rule_target: code
+    judge_by: script
+    allow_not_applicable: true
+    criteria_true: "组件按文件夹组织，子组件各自建目录，SCSS 各自独立，层级与引用合规"
+    criteria_false: "存在平铺组件文件、子组件不建文件夹、多组件共用 SCSS、或跨域引用私有组件等"
+    failure_action: "按目录规范重构"
+
+# ── 移出的行为类规则，及其在执行前/执行中已有的承载 ──────────────────
+# 这些不做交付物检测：它们约束的是「AI 怎么做」，不是「产物长什么样」。
+# 仅登记去向，供审计时不重复立项。
+behavior_rules_moved_out:
+  - rule_id: soul.3.zero-trust
+    source: AGENTS.md:16
+    where: "执行前引导 + 执行中 posttool-claim-audit"
+  - rule_id: soul.4.guard
+    source: AGENTS.md:17
+    where: "执行中 pretool-gate（高危/不可逆拦截 + 人工申请）"
+  - rule_id: soul.6.human
+    source: AGENTS.md:19
+    where: "执行中 ask_user 机制与 AiDecisionChain"
+  - rule_id: iron.1.no-fabrication
+    source: AGENTS.md:23
+    where: "执行前引导 + 执行中 posttool-claim-audit（G1_PSEUDO_INTEGRITY）"
+  - rule_id: iron.2.evidence-gate
+    source: AGENTS.md:24
+    where: "执行中 verify_gate.py / completion-gate；其交付物侧由 doc.process-complete 覆盖"
+  - rule_id: iron.3.init-first
+    source: AGENTS.md:25
+    where: "执行中 pretool-gate（未 init 不得改代码）"

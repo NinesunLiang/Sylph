@@ -7,6 +7,9 @@
 #
 # 平台支持：macOS / Linux / Windows-WSL。
 # Windows 原生（cmd/PowerShell）不支持——治理代码依赖 fcntl 文件锁，该模块在 Windows 不存在。
+#
+# 安装包已随仓库提交（packaging/template/），克隆后可直接运行本脚本，无需构建。
+# 仅当修改了 manifest 或治理源码后，才需要 python3 packaging/build.py 重新生成并提交。
 
 set -euo pipefail
 
@@ -33,7 +36,9 @@ done
 command -v python3 >/dev/null 2>&1 || die "缺少 python3，请先安装（本脚本不自动装）"
 command -v git >/dev/null 2>&1 || die "缺少 git，请先安装（本脚本不自动装）"
 
-[ -d "$TEMPLATE" ] || die "找不到模板目录：$TEMPLATE（请先运行 python3 packaging/build.py）"
+[ -d "$TEMPLATE" ] || die "找不到安装包：$TEMPLATE
+     安装包随仓库提交，缺失说明克隆不完整；
+     或运行 python3 packaging/build.py 重新生成。"
 
 # ── 目标校验 ──
 mkdir -p "$TARGET"

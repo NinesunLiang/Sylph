@@ -23,5 +23,5 @@ benchmark/runs/
 improve_plan
 .tooling/
 apps
-# 打包生成物（每次 build 重算，不入库）
-packaging/template/
+# 发行包按 main 的做法提交进仓库（安装器直接用，零构建步骤）
+# 改动白名单或源码后运行 python3 packaging/build.py 重新生成并提交

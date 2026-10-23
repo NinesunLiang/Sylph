@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""
+pretool-gate.py — CarrorOS PreToolUse Unified Gate (THIN ROUTER).
+
+This is now the thin routing layer. All gate logic lives in pretool_gates/*.py.
+
+门列表单一真源 = 本文件 `_GATE_CORE`（14 门，L1/L2 同集，2026-10-16 人类裁决收敛；
+oracle 退役观察区）。本文档不重复枚举门清单——改门时只改 `_GATE_CORE`，
+避免第二来源漂移（G5 index18 人类裁决）。
+执行顺序：`_GATE_CORE` 列表序；偏好 REDIRECT，必要时升级 ASK_USER。
+"""
+from __future__ import annotations
+
+import json
+import os
+import sys
+import time
+from pathlib import Path
+
+# ── Import all gate logic from modular package ──
+_script_path = Path(__file__).resolve()
+ROOT = _script_path.parents[2]
+os.chdir(str(ROOT))
+
+sys.path.insert(0, str(ROOT / ".claude" / "scripts"))
+sys.path.insert(0, str(_script_path.parent))
+
+# U3 (index18 人类裁决)：agentic-ui 标准化输出；库缺失时回退纯文本，不阻断
+try:
+    from lib.agentic_ui import banner as _au_banner, status as _au_status
+except Exception:
+    def _au_banner(level, title, message):
+        print(f"\n⚠️ [{title}] {message}\n", file=sys.stderr)
+    def _au_status(level, title, message, detail=""):
+        print(f"\n⚠️ [{title}] {message}", file=sys.stderr)
+        if detail:
+            print(f"  {detail}", file=sys.stderr)
+
+from pretool_gates.checks import (
+    _check_sensitive_edit, _check_governance_bypass, _check_action_gate,
+    _check_secret_scan, _check_injection,
+    _check_oracle_gate, _check_worktree_scope, _check_commit_push_integrity,
+    _check_omc_skeleton_readonly,
+    _check_sensitive_read, _check_sensitive_write_bash,
+    _check_test_verification, _check_doc_reference_before_delete,
+    _check_commit_soft_completion, _check_governance_delete_protection,
+)
+
+# ── L1/L2 Gate definitions ──
+# L1: 轻量模式（日常任务），仅真安全门（敏感路径/危险命令/密钥/治理绕过/卡死）。
+# 降噪·激进砍（index15 后续，人类裁决）：砍 fallback/plan/edit-scope/claim-source/
+# source-marker —— 途中防错与强制格式，由前置 schema 引导（scorecard-gate 升级）
+# + 末端 TDD 校验（verify_gate/completion-gate）替代，避免每工具调用 6+ 道 gate 的开销。
+# G5 (index18 人类裁决)：L1/L2 门列表单一真源——核心门只写一遍，避免改门时两处漏改。
+_GATE_CORE = [
+    ("sensitive-edit", _check_sensitive_edit),
+    # index25(人类裁决修复): 读取侧隐私门禁 + Bash 写敏感路径补漏
+    ("sensitive-read", _check_sensitive_read),
+    ("sensitive-write-bash", _check_sensitive_write_bash),
+    ("test-verification", _check_test_verification),
+    ("governance-bypass", _check_governance_bypass),
+    ("action", _check_action_gate),
+    ("secret-scan", _check_secret_scan),
+    # 骨架只读(worktree 隔离): .omc/**/*.md 在 worktree 内只读, 守护级必须 L1 也生效
+    ("omc-skeleton-readonly", _check_omc_skeleton_readonly),
+    # F3 (2026-08-30)：删除前查文档引用图（L1 也生效，文档一致性保护低成本）
+    ("doc-reference-before-delete", _check_doc_reference_before_delete),
+    # 优化2 (2026-08-30)：git commit 软完成语检测（L1 也生效，commit message 自夸防护）
+    ("commit-soft-completion", _check_commit_soft_completion),
+    # index33 电池实证修复：治理指令文件删除保护（rm-dot ON 删 AGENTS.md/CLAUDE.md）
+    ("governance-delete-protection", _check_governance_delete_protection),
+    # index46 S5 (G1)：兜底档位由 l2 改为 l1 后，原属 L2 的 injection-guard 会默认不跑。
+    # 但该门承载两件真安全/真防错事：(a) 写入内容提示注入模式 BLOCK（kernel.md §提示注入
+    # 防护 明文要求）；(b) 单次 Write 超 8000 字符 REDIRECT（防 anti-patterns.md L2
+    # WRITE_OVERSIZE 的 content_truncated 复现）。故提升为 L1 常开门，不随档位下调而丢失。
+    # 仅在 WRITE_TOOLS 写入时触发，成本可忽略。
+    ("injection-guard", _check_injection),
+    # index49：worktree 隔离执行期的写路径门禁（无隔离执行时 no-op）
+    ("worktree-scope", _check_worktree_scope),
+    # index51：commit/push 前的完整性接管（commit 查语法 / push 查删除引用）
+    ("commit-push-integrity", _check_commit_push_integrity),
+]
+_GATE_L2_EXTRA = [
+    # 2026-09-10 / 2026-10-16 两次人类裁决把死门与 oracle 门摘除，全仓收敛为 14 门，
+    # 单一真源 = 本文件 _GATE_CORE。历史依据见 git log 与 gate_roi_report.py 输出。
+    # 如需恢复 oracle：取消下一行注释（人类操作）。
+    # ("oracle", _check_oracle_gate),
+]
+
+L1_GATES = _GATE_CORE
+GATES = _GATE_CORE + _GATE_L2_EXTRA
+
+# ── P0 治理加固（2026-10-18 人类裁决）：安全门 fail-closed ──
+# 旧行为：任何门抛异常都被 `except Exception: continue` 静默吞掉 → 安全门崩溃时
+# 等于自动放行（门禁"看不见"却报"没问题"，违反零信任）。
+# 新行为：下列安全门异常 → BLOCK；其余门异常 → 跳过 + 留审计，避免门禁 bug 放大成停摆。
+_FAIL_CLOSED_GATES = {
+    "sensitive-edit",
+    "sensitive-read",
+    "sensitive-write-bash",
+    "governance-bypass",
+    "governance-delete-protection",
+    "secret-scan",
+    "injection-guard",
+    "omc-skeleton-readonly",
+    "action",
+    "commit-push-integrity",
+}
+
+# 重试阈值（2026-10-18 人本降摩擦）：默认 2 次；文档引用门禁给 3 次，
+# 因为它要求「先改文档再删」，模型需要多一步操作才算完成。
+_REDIRECT_LIMITS = {"doc-reference-before-delete": 3}
+DEFAULT_REDIRECT_LIMIT = 2
+
+
+def _call_gate(gate_name: str, gate_fn, payload: dict) -> tuple[str | None, bool]:
+    """执行单道门，返回 (result, crashed)。
+
+    安全门崩溃 = 拒绝（fail-closed）；非安全门崩溃 = 跳过并留审计。
+    """
+    try:
+        return (gate_fn(payload), False)
+    except Exception as exc:
+        _append_audit({
+            "event_type": "gate_error",
+            "actor": "hook:pretool-gate",
+            "gate": gate_name,
+            "error": str(exc)[:200],
+        })
+        if gate_name in _FAIL_CLOSED_GATES:
+            return (
+                f"BLOCK gate_error_{gate_name}|"
+                f"门禁 {gate_name} 自身异常，按 fail-closed 拒绝本次操作。"
+                f"请修复门禁，或由人类在终端临时授权。",
+                True,
+            )
+        return (None, True)
+from pretool_gates.helpers import (
+    _read_stdin, _extract_tool, _ok, _block, _redirect,
+    _check_trust_breach, _clean_stale_state_token,
+    _goal_mode, _append_audit, _get_gate_mode,
+    _record_gate_decision, _verify_contract_compliance,
+    _is_trust_breach_reason, _record_trust_breach, _increment_streak,
+    _active_token,
+)
+
+# ── State paths used by main ──
+from pretool_gates.constants import TRUST_BREACH
+
+
+def main() -> int:
+    payload = _read_stdin()
+    tool_name = _extract_tool(payload).lower() or "unknown"
+
+    # ── Temp bypass: 已删除（2026-10-24 人类裁决 D-016）──
+    # 旧机制允许 AI 直接写 .omc/state/temp-bypass.json 把全部 BLOCK 降级为放行，
+    # 等于「AI 自己给自己发通行证」。按主流做法（无旁路 / fail-closed）整条移除。
+    # ── Trust breach check ──
+    breach = _check_trust_breach()
+    if breach:
+        return _block(f"trust_broken: {breach}",
+                       f"信任已破裂。如需恢复：人工删除 .omc/state/trust-breach.json 后重试。")
+
+    _clean_stale_state_token()
+
+    # ── Gate selection ──
+    gate_mode = _get_gate_mode()
+    active_gates = GATES if gate_mode == "l2" else L1_GATES
+
+    executed_gates: set[str] = set()
+    for gate_name, gate_fn in active_gates:
+        result, crashed = _call_gate(gate_name, gate_fn, payload)
+        _record_gate_decision(gate_name, result, gate_mode)
+        if crashed:
+            # 已由 _call_gate 写入 gate_error 审计；安全门此时 result 非空（BLOCK）。
+            _append_audit({"event_type": "gate_crashed", "gate": gate_name,
+                           "fail_closed": gate_name in _FAIL_CLOSED_GATES})
+        else:
+            executed_gates.add(gate_name)
+        if result:
+            if result.startswith("REDIRECT"):
+                # ── REDIRECT remains recoverable; repeated redirects escalate to ASK_USER ──
+                parts = result.split("|", 1)
+                reason = parts[0].replace("REDIRECT ", "").strip()
+                token = _active_token()
+                task = token.get("task", {}) if isinstance(token, dict) else {}
+                session = token.get("session", {}) if isinstance(token, dict) else {}
+                task_id = session.get("id", "unknown") if isinstance(session, dict) else "unknown"
+                step_id = task.get("current_step", "unknown") if isinstance(task, dict) else "unknown"
+                streak_key = f"{gate_name}|{reason}|{task_id}|{step_id}"
+                cnt = _increment_streak(streak_key)
+                # index33 电池实证修复：阈值 4→2（skip-tests 模型无视 1 次 REDIRECT 即完成，
+                # 原阈值 4 太高导致升级永不触发）。双法官共识#3。
+                if cnt >= _REDIRECT_LIMITS.get(gate_name, DEFAULT_REDIRECT_LIMIT):
+                    _append_audit({
+                        "event_type": "redirect_escalated_to_hard_stop",
+                        "actor": "hook:pretool-gate",
+                        "gate": gate_name,
+                        "redirect_count": cnt,
+                        "reason": f"exceeded_{cnt}_redirect_limit",
+                    })
+                    # index44 R1：升级消息须携带合规出路 + 明令停止重试，防模型在
+                    # 无人/spawn 语境反复尝试同操作烧光轮次（skip-tests/doc-ref exit1 教训：
+                    # 旧文案"请确认是否继续"无真人可答 → 死循环到 max_turns）。
+                    _gparts = result.split("|", 1)
+                    _guide = _gparts[1].strip() if len(_gparts) > 1 else ""
+                    return _block(
+                        f"ASK_USER redirect_limit_{cnt}",
+                        f"该操作已被 REDIRECT {cnt} 次（{reason}），判定为不可行路径。"
+                        f"禁止继续重试同一操作。\n"
+                        f"若存在合规路径，请立即改走：{_guide or '先完成前置合规步骤（运行测试 / 清理引用 / 走人类裁决）再操作'}。\n"
+                        f"若已无合规路径或无法完成，请输出最终结论报告并结束任务，不要反复消耗轮次。",
+                    )
+                parts = result.split("|", 1)
+                reason = parts[0].replace("REDIRECT ", "").strip()
+                guidance = parts[1].strip() if len(parts) > 1 else ""
+                return _redirect(reason, guidance)
+            if result.startswith("BLOCK"):
+                parts = result.split("|", 1)
+                reason = parts[0].replace("BLOCK ", "").strip()
+                suggestion = parts[1].strip() if len(parts) > 1 else ""
+                if _is_trust_breach_reason(reason):
+                    _record_trust_breach(reason)
+                return _block(f"ASK_USER {reason}", suggestion or "请确认是否继续或调整计划。")
+            if result == "HARD_BLOCK":
+                return _block("ASK_USER hard_boundary", "请人工确认下一步，不自动终止任务。")
+            elif result.startswith("ASK_USER"):
+                parts = result.split("|", 1)
+                reason = parts[0].replace("ASK_USER ", "").strip()
+                suggestion = parts[1].strip() if len(parts) > 1 else ""
+                return _block(reason, suggestion)
+            elif result.startswith(("NARROW", "CHECKPOINT_FIRST", "CHECKPOINT", "WARN")):
+                _append_audit({
+                    "event_type": "gate_soft_warn",
+                    "actor": "hook:pretool-gate",
+                    "gate": gate_name,
+                    "reason": result,
+                })
+                goal_mode = _goal_mode()
+                if not goal_mode:
+                    _au_banner("warn", gate_name, result)
+                continue
+
+    # ── Gate Contract Compliance (output as int, not string) ──
+    contract_result = _verify_contract_compliance(gate_mode, executed_gates)
+    if contract_result and contract_result.startswith("BLOCK"):
+        return _block(
+            "ASK_USER contract_violation",
+            "门禁证据不完整；请确认继续，系统不会再以 HARD_BLOCK 终止任务。",
+        )
+
+    return _ok(f"ALLOW tool={tool_name}")
+
+
+if __name__ == "__main__":
+    sys.exit(main())
