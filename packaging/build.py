@@ -241,11 +241,15 @@ mkdir -p "$TARGET/.omc/state" "$TARGET/.omc/tasks" "$TARGET/.omc/tokens" "$TARGE
 info ".omc 骨架就绪（不写入任何数据）"
 
 GI="$TARGET/.gitignore"
-if [ -f "$GI" ]; then
-  if grep -qxF ".omc" "$GI"; then info ".gitignore 已含 .omc"; else printf '\\n.omc\\n' >> "$GI"; info ".gitignore 已追加 .omc"; fi
-else
-  printf '.omc\\n' > "$GI"; info "已创建 .gitignore 并写入 .omc"
-fi
+[ -f "$GI" ] || : > "$GI"
+for entry in ".claude" ".omc"; do
+  if grep -qxF "$entry" "$GI"; then
+    info ".gitignore 已含 $entry"
+  else
+    printf '%s\\n' "$entry" >> "$GI"
+    info ".gitignore 已追加 $entry"
+  fi
+done
 
 [ -f "$TARGET/.claude/scripts/carros_base.py" ] && info "自检：carros_base.py 存在" || warn "自检未通过：缺少 carros_base.py"
 echo

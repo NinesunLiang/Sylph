@@ -63,19 +63,17 @@ info "已复制治理文件"
 mkdir -p "$TARGET/.omc/state" "$TARGET/.omc/tasks" "$TARGET/.omc/tokens" "$TARGET/.omc/audit"
 info ".omc 骨架就绪（不写入任何数据）"
 
-# ── .gitignore 加一行 .omc ──
+# ── .gitignore 追加 .claude 与 .omc（已有则不重复）──
 GI="$TARGET/.gitignore"
-if [ -f "$GI" ]; then
-  if grep -qxF ".omc" "$GI"; then
-    info ".gitignore 已含 .omc"
+[ -f "$GI" ] || : > "$GI"
+for entry in ".claude" ".omc"; do
+  if grep -qxF "$entry" "$GI"; then
+    info ".gitignore 已含 $entry"
   else
-    printf '\n.omc\n' >> "$GI"
-    info ".gitignore 已追加 .omc"
+    printf '%s\n' "$entry" >> "$GI"
+    info ".gitignore 已追加 $entry"
   fi
-else
-  printf '.omc\n' > "$GI"
-  info "已创建 .gitignore 并写入 .omc"
-fi
+done
 
 # ── 自检 ──
 if [ -f "$TARGET/.claude/scripts/carros_base.py" ]; then
