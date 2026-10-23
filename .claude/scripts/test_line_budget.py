@@ -23,14 +23,14 @@ CLAUDE = ROOT / ".claude"
 BUDGET = {
     # 2026-10-24 D-020 下调（只降不升）：删 12 退役命令 + clarify_engine +
     # task_planner + sub_agent_manager 后实测 22,865；留 35 行余量。
-    ".claude/scripts": 22900,    # 实测 22865
+    ".claude/scripts": 22550,    # 实测 22499（D-021 删 sub_agent_executor 后再降）
     ".claude/hooks": 7650,       # 实测 7649（到顶，再加代码必须先删）
     ".claude/workflows": 100,    # 实测 0（frontend-overnight 已迁出 → capabilities/）
     ".claude/skills": 3150,      # 实测 3093（本轮未删 skills 代码，不调）
 }
 
 # 口径（用户 2026-10-23 裁决 F）：目标只算**非测试**代码，≤25k。
-# 2026-10-24 实测 33,611（本轮 −2,513）；缺口 ≈8.6k，靠 D 档 + 后续删除逐档下压。
+# 2026-10-24 实测 33,241（本轮累计 −2,883）；缺口 ≈8.2k，靠 D 档 + 后续删除逐档下压。
 TARGET_NON_TEST_LINES = 25000
 
 

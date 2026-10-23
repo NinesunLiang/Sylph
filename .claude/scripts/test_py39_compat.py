@@ -37,7 +37,6 @@ CORE_MODULES = [
     "verify_gate",
     "content_writer",
     "goal_contracts",
-    "sub_agent_executor",
     "executor_ledger",
 ]
 

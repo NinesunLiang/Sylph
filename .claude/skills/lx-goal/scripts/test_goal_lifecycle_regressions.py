@@ -713,37 +713,8 @@ def test_goal_execution_writer_gate_excludes_archiving(tmp_path):
     )
 
 
-def test_subagent_executor_seals_goal_parent_before_execution(monkeypatch, tmp_path):
-    executor_spec = importlib.util.spec_from_file_location(
-        "sub_agent_executor_under_test", ROOT / ".claude/scripts/sub_agent_executor.py"
-    )
-    assert executor_spec is not None and executor_spec.loader is not None
-    executor_module = importlib.util.module_from_spec(executor_spec)
-    executor_spec.loader.exec_module(executor_module)
-
-    project = tmp_path / "project"
-    fake_script = project / ".claude/scripts/sub_agent_executor.py"
-    fake_script.parent.mkdir(parents=True)
-    monkeypatch.setattr(executor_module, "__file__", str(fake_script))
-    task_dir = project / ".omc/tasks/20260811/goal"
-    sub_dir = task_dir / "sub_task/sub-S1"
-    sub_dir.mkdir(parents=True)
-    token_path = project / ".omc/tokens/20260811/goal.json"
-    token_path.parent.mkdir(parents=True)
-    token_path.write_text(
-        json.dumps(
-            {
-                "mode": "goal",
-                "session": {"id": "goal"},
-                "goal": {"state": "PLANNING"},
-            }
-        ),
-        encoding="utf-8",
-    )
-
-    executor = executor_module.SubAgentExecutor(sub_dir)
-    with pytest.raises(RuntimeError, match="Goal state=PLANNING"):
-        executor._goal_write_allowed()
+# test_subagent_executor_seals_goal_parent_before_execution 已随 sub_agent_executor.py
+# 于 2026-10-24 D-021 删除：该模块只被测试引用，无生产调用方。
 
 
 def test_goal_done_does_not_archive_without_goal_machine(monkeypatch, tmp_path):
