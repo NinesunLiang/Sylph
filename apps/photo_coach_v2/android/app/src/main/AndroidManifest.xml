@@ -1,0 +1,91 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- S4 教练页：调用 DeepSeek 官方接口需要联网（Key 在手机里输入，只存本机） -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- F1 拍摄需要相机 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 录像/音频（当前 enableAudio: false，留着以备开启） -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- 从相册选参考图：Android 13+ 用细分权限，13 以下用读外部存储 -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission
+        android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <!-- F1 拍完存相册。按 gal 官方 README 的权限表：
+         · API ≤ 29 需要写外部存储，且必须写 maxSdkVersion="29"
+         · API 29 还需要在 <application> 上加 requestLegacyExternalStorage
+         · API ≥ 30 走 MediaStore，**不需要**任何存储权限
+         ⚠️ camera_android_camerax 插件自己声明了同一个权限但写的是 28，
+         两处值不一致会让 manifest 合并直接失败（构建报错原文就建议这么修）。 -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29"
+        tools:replace="android:maxSdkVersion" />
+
+    <!-- 有相机才算完整功能，但没相机（模拟器）也别装不上 -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <application
+        android:label="摄影助手v2"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true"
+        android:networkSecurityConfig="@xml/network_security_config">
+        <!-- API 29（Android 10）存相册需要 legacy 存储模式（gal README 权限表）。 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+        <!-- 🔴 删掉 image_picker 塞进来的**谷歌 Play Core 动态模块元数据**。
+             `image_picker` 1.2.3 的实现包 `image_picker_android` 的清单里带：
+                 <service com.google.android.gms.metadata.ModuleDependencies
+                          android:enabled="false" .../>
+             它声明「让 Google Play 后台安装 photo picker 模块」——
+             是给**有谷歌商店/谷歌服务的机器**用的动态下发元数据。
+             华为（无 GMS）上这行毫无作用，但它让合并清单里出现 com.google*，
+             无法通过「无谷歌依赖红线」机器审计（tool/check_no_google.sh）。
+             它 enabled=false、exported=false，删掉不影响任何功能
+             （photo picker 在 Android 14+ 走系统组件，13- 走相册权限路径）。
+             与 v1 删 MlKitInitProvider 是同一手法、同一纪律：
+             合并清单里不许出现任何 com.google* 组件。 -->
+        <service
+            android:name="com.google.android.gms.metadata.ModuleDependencies"
+            tools:node="remove" />
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

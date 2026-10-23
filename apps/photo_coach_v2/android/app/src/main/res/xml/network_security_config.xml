@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  S4 教练页：放行「明文 HTTP」。
+
+  为什么需要：
+    Android 28（API 28，Android 9）起默认**禁止明文 HTTP** 流量。
+    直连路径是 https://api.deepseek.com —— 本来就是 TLS，不受影响。
+    唯一需要明文的是「可选中转」路径：手机连家里局域网的
+    http://<电脑IP>:8787/analyze（见 server/README.md）。
+    不放行，用户一旦把接口地址填成 http:// 就会看到
+    「CLEARTEXT communication not permitted」——一个莫名其妙的死胡同。
+
+  风险边界（自用 App 的可接受权衡）：
+    - 默认路径（直连 DeepSeek 官方接口）始终是 HTTPS，不受此配置影响。
+    - 明文只会在用户**主动**把接口地址填成本机/局域网 http 时才发生，
+      且那个中转只在自己可信网络里。
+    - Key 不在明文里：直连时 Key 走 HTTPS 的 Authorization 头；
+      走中转时客户端根本不需要填 Key（Key 在服务端），明文请求体里没有密钥。
+  若将来公开分发本 App，应把这里收紧到「仅 loopback/特定域名允许明文」。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

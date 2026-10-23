@@ -1,0 +1,102 @@
+name: photo_coach_v2
+description: "摄影助手 v2 — 无谷歌依赖重建版（参数建议、构图教练、姿势集）"
+publish_to: "none"
+version: 0.9.3+105
+
+# ⚠️ 本 app 的依赖白名单（重建决策 D4，见 .omc/tasks/20261010/photo-coach-v2-rebuild/research.md）：
+# 只允许 纯本地/无谷歌系 插件。google_mlkit_* 系列**永远不许加回来**——
+# 它们的 MlKitInitProvider 会在无谷歌服务机型（华为）上启动即崩（v0.15.0–v0.19.1 事故根因）。
+# 端上姿态测量用 lib/features/analysis/body_scanner.dart 的 NoopBodyScanner 桩代替。
+# tool/check_no_google.sh 会在每次构建后机器验证这条红线。
+
+environment:
+  sdk: ^3.12.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # 相机：官方插件（S3 拍摄页用）。官方插件只支持 曝光补偿/对焦/变焦/闪光灯，
+  # 不支持手动 ISO/快门（见 lib/features/camera/camera_controller.dart 顶部注释）。
+  camera: ^0.12.1
+  # 选图（F2 教练页传参考图用）
+  image_picker: ^1.2.3
+  # 本地图片压缩 + base64（省 token / 省流量）
+  image: ^4.10.1
+  # 存相册（F1 拍完存相册）
+  gal: ^2.3.3
+  # 本地存储（S4：教练页模型 Key/配置，只存本机 SharedPreferences）
+  # 纯平台通道，无谷歌依赖（check_no_google.sh 白名单放行）
+  shared_preferences: ^2.3.0
+  # 图标
+  cupertino_icons: ^1.0.8
+  # SVG 渲染（v0.6.0 拍照秘诀卡片示意图）。纯 Dart 解析，无原生/无谷歌依赖。
+  flutter_svg: ^2.3.0
+  # 端上人脸检测（YuNet）——唯一走 OpenCV 原生库的依赖。
+  # 白名单依据：开源 C++ 库 + onnx 推理，无 com.google* 代码（check_no_google.sh 已放行）。
+  # 🔴 pin 2.2.2：2.3.1 需要 Dart >=3.13，本 SDK 是 3.12.x，升 SDK 前不许动。
+  # 构建注意：改 hooks.include_modules 必须 rm -rf .dart_tool/hooks_runner
+  # （CMake FORCE 缓存会中毒，实证于 spike_opencv）。
+  opencv_dart: 2.2.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # 真机自动化：测试代码跑在**手机上**，不是电脑上
+  integration_test:
+    sdk: flutter
+  # 测试用：假相机平台，让 CameraSession 在没有手机时也能测
+  # （必须是直接依赖，否则 import 不到）
+  camera_platform_interface: ^2.14.0
+  plugin_platform_interface: ^2.1.8
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  # 参考照按 性別→姿态 分目录，Flutter 不会递归扫目录，
+  # 所以每一层都要显式声明。少了哪一行，那一类图在真机上就是空白。
+  assets:
+    - assets/poses/
+    - assets/poses/站/
+    - assets/poses/坐/
+    - assets/poses/躺/
+    # 拍照秘诀（v0.6.0）6 张示意图
+    - assets/secrets/
+    # 拍照秘诀示例图（v0.7.0）12 张正确/错误对比图
+    - assets/secrets/examples/
+    # YuNet 人脸检测模型（v0.7.0，232 KB，rootBundle 懒加载）
+    - assets/models/
+
+# dartcv4 原生库构建钩子：只编 YuNet 需要的 OpenCV 模块闭包（7 个）。
+# ⚠️ include_modules 是**整体替换**默认 16 模块集，不是追加——
+# dnn/objdetect 默认是排除的，必须显式列出来（实证于 spike_opencv 构建）。
+# ⚠️ 改这个列表后必须先 rm -rf .dart_tool/hooks_runner 再构建（CMake FORCE 缓存中毒）。
+hooks:
+  user_defines:
+    dartcv4:
+      # 本机没有系统 cmake，只有仓库 .tooling/android-sdk 里那份 3.31.5；
+      # 默认 preferAndroidCmake=false（非 android 目标会跳过它），显式打开。
+      # ⚠️ 跑测试/构建必须 export ANDROID_HOME=<repo>/.tooling/android-sdk，
+      # 否则钩子找不到 cmake，native assets 构建直接失败（实证于本任务）。
+      # ⚠️ 构建/测试环境要求（实证于本任务）：
+      #   export ANDROID_HOME=<repo>/.tooling/android-sdk   （里面有 cmake 3.31.5 + ninja）
+      # ⚠️ 只有 CLT（无完整 Xcode）的 mac 上，ios.toolchain.cmake 的 xcodebuild
+      #    查询会返回空 → configure 崩在 get_filename_component。已给本机 pub-cache
+      #    的 native_toolchain_cmake-0.3.2/cmake/ios.toolchain.cmake 打本地补丁
+      #    （xcode-select -p 回退到 CLT SDK；机器本地，不进仓库；备份在 /tmp）。
+      #    换机器 / 全新 pub get 后需重打，见任务 handoff.md。
+      macos:
+        # 不用 Xcode 生成器（SDK 版 cmake 不认识 CLT 的 Xcode 1.5），
+        # 直接 Unix Makefiles + 系统 make + CLT clang。
+        generator: 'Unix Makefiles'
+        prefer_android_cmake: true
+      android:
+        prefer_android_cmake: true
+        prefer_android_ninja: true
+      include_modules:
+        - imgproc
+        - imgcodecs
+        - dnn
+        - objdetect
+        - calib3d # objdetect 依赖（dartcv CMake 链接依赖）
+        - features2d # calib3d 依赖 -> 必须在闭包里
+        - flann # calib3d/features2d 依赖
