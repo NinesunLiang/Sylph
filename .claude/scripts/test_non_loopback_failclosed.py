@@ -23,7 +23,6 @@ def load(path, name):
 
 result_mod = load(SCRIPTS / "sub_agent_result.py", "sub_agent_result_under_test")
 executor_mod = load(SCRIPTS / "sub_agent_executor.py", "sub_agent_executor_under_test")
-manager_mod = load(SCRIPTS / "sub_agent_manager.py", "sub_agent_manager_under_test")
 
 LOOPBACK_URLS = ["http://127.0.0.1:9998", "http://localhost:9998", "http://[::1]:9998"]
 REMOTE_URLS = ["https://api.anthropic.com", "http://192.168.1.50:8080", "https://proxy.example.com"]
@@ -75,21 +74,5 @@ def test_executor_call_api_allows_remote_with_override(tmp_path, monkeypatch):
 
 
 # ── manager spawn fail-closed ────────────────────────────────────────
-
-def test_manager_refuses_remote_spawn_without_override(tmp_path, monkeypatch):
-    task_dir = tmp_path / "task"
-    sub_dir = task_dir / "sub_task" / "sub-S1"
-    sub_dir.mkdir(parents=True)
-    (sub_dir / "result.json").write_text(json.dumps({"status": "pending"}), encoding="utf-8")
-    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.example.com")
-    monkeypatch.delenv("CARROROS_ALLOW_REMOTE_AGENT", raising=False)
-
-    calls = []
-    monkeypatch.setattr(manager_mod.sb, "Popen", lambda *a, **k: calls.append(a) or object())
-
-    mgr = manager_mod.SubAgentManager(task_dir)
-    mgr._spawn_subagent(sub_dir, "S1")
-
-    assert calls == []
-    result = json.loads((sub_dir / "result.json").read_text(encoding="utf-8"))
-    assert result["status"] == "failed"
+# SubAgentManager 已于 2026-10-24 删除（D-020），其 spawn 侧用例随之移除。
+# executor 侧的 loopback fail-closed 保护仍由上面的用例覆盖。

@@ -17,10 +17,8 @@
 | 脚本 | 用途 |
 |------|------|
 | `task_state_tracker.py` | 任务状态追踪 |
-| `task_planner.py` | 任务规划器 |
 | `goal_state_machine.py` | Goal 状态机 |
 | `sub_agent_executor.py` | SubAgent 执行器 |
-| `sub_agent_manager.py` | SubAgent 管理器 |
 | `sub_agent_recovery.py` | SubAgent 恢复 |
 
 ## 测试/验证
@@ -43,7 +41,6 @@
 | `plan_builder.py` | 计划构建器 |
 | `jev_approve.py` | 审批第 1 档：外部模型独立评审后签发 30 分钟批准（D-016） |
 | `executor_ledger.py` | 执行分类账 |
-| `clarify_engine.py` | 澄清引擎 |
 | `omc_lint.py` | 代码规范检查 |
 | `init-omc.sh` | ~~项目初始化脚本（R9 收口已删）~~ |
 

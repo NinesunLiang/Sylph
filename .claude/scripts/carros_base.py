@@ -80,15 +80,8 @@ except ImportError:
     PlanGate = None
     PlanGateError = Exception
 
-try:
-    import task_planner
-except ImportError:
-    task_planner = None
-
-try:
-    import sub_agent_manager as sam
-except ImportError:
-    sam = None
+# task_planner / sub_agent_manager 导入已于 2026-10-24 删除（D-020）：
+# task_planner 导入后从未调用；sub_agent_manager 只服务已删除的 12 个退役命令。
 
 try:
     import step_contracts

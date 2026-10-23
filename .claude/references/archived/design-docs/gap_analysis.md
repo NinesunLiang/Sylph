@@ -35,7 +35,7 @@
 |---|------|----------|------|
 | 16 | README 主心智仍曾按“中低阶/高阶模型”区分 Base/Enhance | 已更新 README，后续需同步所有历史指导文档 | ⚠️ 文档迁移中 |
 | 17 | MainAgent/SubAgent 模型未统一 | `.omc/scripts/sub_agent_executor.py` 有 `DEFAULT_MODEL = "deepseek-chat"`，SubAgent 可偏离主会话 | ❌ 未完成 |
-| 18 | SubAgent 模型继承链不透明 | `sub_agent_manager.py` 只透传 `ANTHROPIC_BASE_URL`，未显式冻结/审计 resolved model | ❌ 未完成 |
+| 18 | SubAgent 模型继承链不透明 | 原 SubAgent 管理器模块只透传 `ANTHROPIC_BASE_URL`，未显式冻结/审计 resolved model（该模块已于 2026-10-24 D-020 删除，问题随之消失） | ✅ 已随模块删除而消解 |
 | 19 | 代理协议参数映射不稳定 | 已观察到 `Unsupported parameter: max_output_tokens`；仓库调用使用 `max_tokens`，错误来自适配层或上游请求转换 | ❌ 未完成 |
 | 20 | `.claude/` / `.omc/` 边界混杂 | handoff 写入 `.claude/session-handoff.md`，可复用脚本同时存在两侧 | ❌ 未完成 |
 | 21 | 日期格式混用 | 代码使用 `%Y%m%d`，历史目录同时有 `YYYY-MM-DD` | ⚠️ 未统一 |
