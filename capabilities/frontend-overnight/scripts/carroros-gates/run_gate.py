@@ -4,6 +4,12 @@
                   [--target-repo R] [--evidence JSON] -- cmd [args...]
 退出：0=PASS；被包装命令非 0 → 1=FAIL；无法启动 → 2=ERROR。
 """
+# GATE_CHECKS C2: tsc-no-emit eslint-zero-warnings build-ok
+# GATE_CHECKS C4: playwright-green
+# GATE_CHECKS C5: playwright-green
+# GATE_CHECKS C6: worst-regions-converged no-console-error
+# ↑ 2026-10-23 P7（D10 根因修复）：本通用执行器按 --gate-id 包装各 gate 判据实现，
+#   标记行声明实现的判据 id，与 gate-spec.yaml 互为锁（preflight 校验 实现⊇spec）。
 from __future__ import annotations
 import json, subprocess, sys
 from pathlib import Path

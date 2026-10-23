@@ -139,7 +139,8 @@ git revert d9bee2b  # 第一个 GateKeeper commit
 ## 降级策略（L2→L1）（来源: 原 fallback-matrix.md）
 
 > 当 context 过高 / 模型异常 / 连续失败时，自动降级 L2 → L1。
-> 实现见 `scripts/fallback_engine.py`（已取代旧 `fallback_matrix.py`）。
+> 实现见 `scripts/fallback_engine.py`（旧 `fallback_matrix.py` 已于 2026-10-23 删除，
+> git 历史可恢复）。
 
 ### 降级触发条件
 
@@ -162,8 +163,7 @@ git revert d9bee2b  # 第一个 GateKeeper commit
 # 触发降级（fallback_engine 入口）
 python3 .claude/scripts/fallback_engine.py <failure_type> [risk] [token_path]
 
-# 历史接口（fallback_matrix.py 已归档）—— 不要再使用
-# python3 .claude/scripts/archived/fallback_matrix.py --check <触发点ID>
+# 历史接口（fallback_matrix.py 已删除，git 历史可恢复）—— 不要再使用
 ```
 
 返回示例（`should_fallback=true/false, action, reason`）。

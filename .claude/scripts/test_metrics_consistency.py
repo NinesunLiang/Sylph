@@ -14,6 +14,9 @@ C_EXPECT = [15, 15, 15, 10, 10, 10, 10, 10, 10]
 E_EXPECT = [20, 20, 15, 12, 10, 13, 10, 10]
 
 JUDGE_PROMPT_CANDIDATES = [
+    # 活体真源（2026-10-23 审计 P0-3：此前仅锁归档副本，活体漂移无人察觉）
+    # 活体真源：.claude/scripts/eval/judge-prompt.md（VerifyGate 按此字面路径 contains 校验）
+    REPO / ".claude" / "scripts" / "eval/judge-prompt.md",
     REPO / ".omc" / "archive" / "20260831_index44双法官盲评-CarrorOS-真实-AI-治理效能真实-spawn-空-872f102c"
             / "index44双法官盲评-CarrorOS-真实-AI-治理效能真实-spawn-空-872f102c" / "scripts" / "judge-prompt.md",
     REPO / ".omc" / "tasks" / "20260908" / "index45-双法官复测-修复后-真实spawn-空" / "scripts" / "judge-prompt.md",
@@ -29,7 +32,9 @@ def _weights_from_table(text: str, prefix: str) -> list[int]:
 
 def _weights_from_prompt(text: str, prefix: str) -> list[int]:
     # 例：C1 指令清晰度(15) / C2 ...(15)
-    pairs = [(int(idx), int(w)) for idx, w in re.findall(rf"{prefix}(\d+)[^)]*\((\d+)\)", text)]
+    # 2026-10-23 收紧：[^)\n] 禁止跨行贪婪（活体 prompt 正文「C7 …证据缺口（第 6 轮…(15)」
+    # 曾跨行假匹配），数字须紧跟在维度名后同一行。
+    pairs = [(int(idx), int(w)) for idx, w in re.findall(rf"{prefix}(\d+)\s[^)\n]*\((\d+)\)", text)]
     return [w for _, w in sorted(pairs)]
 
 

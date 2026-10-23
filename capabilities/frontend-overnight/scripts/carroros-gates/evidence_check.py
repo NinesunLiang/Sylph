@@ -2,6 +2,8 @@
 """evidence_check.py — C7 证据门禁（FINAL.md v3.1 §5/§6 + E6 + P0-2）
 退出：0=PASS 1=FAIL 2=ERROR 3=FAILED_INVARIANT
 """
+# GATE_CHECKS C7: evidence-files-exist
+# ↑ 2026-10-23 P7：判据实现声明，与 gate-spec.yaml 互为锁（preflight 校验 实现⊇spec）。
 from __future__ import annotations
 import json, subprocess, sys, yaml
 from pathlib import Path

@@ -254,6 +254,22 @@ if r.returncode == 0:
 else:
     print("  ! gh 未认证——DONE 页 delivery_status=NOT_ATTEMPTED（不影响 DONE 判定）")
 
+# 11. gate-spec 一致性（2026-10-23 P7 / 审计 D10 根因修复）：
+# 判据写在 gate-spec.yaml，实现脚本以 GATE_CHECKS 标记行声明 → 校验 实现⊇spec。
+# 「门禁全绿但判据没实现」是 D10 病灶，这里起飞前拦红。
+import gate_spec_check as gsc
+_gspec = GATES_DIR.parent.parent / "gate-spec.yaml"
+if _gspec.is_file():
+    g_missing, _greport = gsc.check_spec(_gspec, GATES_DIR)
+    if g_missing:
+        for _m in g_missing:
+            note(f"GATE_SPEC_MISMATCH: {_m}")
+        print(f"  ✗ gate-spec 一致性：{len(g_missing)} 项判据未实现")
+    else:
+        ok("gate-spec 一致性：实现 ⊇ spec（C2/C4/C5/C6/C7 判据全部有实现声明）")
+else:
+    note(f"gate-spec.yaml 缺失: {_gspec}（D10：门禁判据无契约真源）")
+
 print()
 if fails:
     print(f"preflight NO-GO（{len(fails)} 项）:", file=sys.stderr)

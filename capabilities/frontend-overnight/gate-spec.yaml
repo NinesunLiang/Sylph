@@ -1,0 +1,25 @@
+# gate-spec.yaml — 门禁通过判据的唯一真源（2026-10-23 P7 / 审计 D10 根因修复）
+#
+# D10 病灶：判据写在 UI-RESTORE-PLAYBOOK.md §5 的散文表里，实现脚本从不声明自己
+# 实现了哪些判据 → 「门禁全绿」可能只是命令退出码 0，判据从未被检查。
+# 契约：本文件每个 gate 声明 checks[]（判据 id）；对应实现脚本内必须存在
+#   `GATE_CHECKS <gate_id>: <id> <id> ...`
+# 标记行声明其实现的判据。preflight 一致性校验要求 实现 ⊇ spec，缺项 → GATE_SPEC_MISMATCH → NO-GO。
+# 改判据 = 改本文件 + 同步实现脚本标记行，二者缺一不可（改一不改二即红）。
+
+gates:
+  C2:
+    impl: run_gate.py
+    checks: [tsc-no-emit, eslint-zero-warnings, build-ok]   # playbook §5: 0 错误
+  C4:
+    impl: run_gate.py
+    checks: [playwright-green]                              # 交互矩阵全绿
+  C5:
+    impl: run_gate.py
+    checks: [playwright-green]                              # 浮层关闭语义 + 焦点陷阱
+  C6:
+    impl: run_gate.py
+    checks: [worst-regions-converged, no-console-error]     # playbook §5: worstRegions 收敛 + 无 console error
+  C7:
+    impl: evidence_check.py
+    checks: [evidence-files-exist]                          # 截图+evidence.json 真实存在、非空
