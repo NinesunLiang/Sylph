@@ -1,0 +1,72 @@
+# CarrorOS 发行白名单（单一真源）
+# 只有这里列出的路径会进包；新增能力必须显式加进来。
+# 规则：白名单 ∩ 非排除。排除优先于包含。
+
+version:
+  # 人类裁决 2026-10-24：版本号 = main 大版本 + 1，minor/patch 归零。
+  base_major: 7          # origin/main 当前 7.0.1
+  release_major: 8       # → 8.0.0
+  source: "origin/main:VERSION.json"
+
+include:
+  # 治理核心（脚本）
+  - ".claude/scripts/**/*.py"
+  - ".claude/scripts/**/*.sh"
+  - ".claude/scripts/**/*.yaml"
+  - ".claude/scripts/**/*.md"
+  # 门禁本体
+  - ".claude/hooks/**/*.py"
+  - ".claude/hooks/**/*.md"
+  # 技能
+  - ".claude/skills/**/*.md"
+  - ".claude/skills/**/*.py"
+  - ".claude/skills/**/*.sh"
+  - ".claude/skills/**/*.yaml"
+  # 节点 / 接口 / 规则 / 工作流
+  - ".claude/nodes/**/*"
+  - ".claude/schemas/**/*"
+  - ".claude/rules/**/*"
+  - ".claude/workflows/**/*"
+  # 配置与路由
+  - ".claude/harness.yaml"
+  - ".claude/settings.json"
+  - ".claude/kernel.md"
+  - ".claude/index.md"
+  - ".claude/VERSION"
+  # 根文档
+  - "AGENTS.md"
+  - "CLAUDE.md"
+  - "README.md"
+
+exclude:
+  # 密钥：出现即中止（build.py 会单独硬失败）
+  - "**/settings.local.json"
+  - "**/.env"
+  - "**/*.key"
+  - "**/*.pem"
+  # 测试与缓存
+  - "**/test_*.py"
+  - "**/conftest.py"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  # 归档
+  - "**/archive/**"
+  - "**/archived/**"
+  # 运行时数据
+  - "**/*.jsonl"
+  - "**/*.lock"
+  - "**/*.log"
+  - ".omc/**"
+  # 项目专属（永不发行）
+  - "apps/**"
+  - "Benchmarking/**"
+  - "inputs/**"
+  - "capabilities/**"
+  - "rpe/**"
+  - "packaging/**"
+
+# 明确不打包的顶层目录说明（供人阅读，不参与计算）
+excluded_notes:
+  references: "人类裁决：AI 看的资料，不进产品包"
+  tests: "143 个 test_*.py 不进包"
+  datasets: "apps/ Benchmarking/ inputs/ capabilities/ rpe/"

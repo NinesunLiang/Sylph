@@ -23,3 +23,5 @@ benchmark/runs/
 improve_plan
 .tooling/
 apps
+# 打包生成物（每次 build 重算，不入库）
+packaging/template/
