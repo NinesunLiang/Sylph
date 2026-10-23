@@ -26,7 +26,7 @@ AI 不可自改 AGENTS.md / kernel.md / index.md 及 `.claude/hooks/*` / `.claud
 3. **ROI**：实现成本 vs 收益。低成本高收益 → 直接做
 4. **Gate 模式**：L1（默认，14 核心门）/ L2（同 14 门，2026-10-16 起无额外门）
 5. **Oracle 辅助**：退役观察区（14 天 0 触发）；设 `CARROROS_ORACLE_GATE=1` 可恢复
-6. **人类裁决落盘**：AI 治理习惯类裁决（治理/哲学/门禁/流程，非业务）正序追加到 `.omc/decisions/DECISIONS.md`（人本哲学落盘点，append-only 不可覆盖）；架构级治理决策同时登记 `adr/`
+6. **人类裁决落盘**：AI 治理习惯类裁决（治理/哲学/门禁/流程，非业务）正序追加到 `.claude/decisions/DECISIONS.md`（人本哲学落盘点，append-only 不可覆盖）；架构级治理决策同时登记 `adr/`
 
 ## 学习飞轮（Phase 2，Enhance 专有）
 飞轮数据落 `.omc/knowledge/`，不进默认 Context。

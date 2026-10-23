@@ -30,6 +30,7 @@
 | rules/ | `@.claude/rules/index.md` | 语言与工具行为规则（3个：bash-style / terminal-safety / external-knowledge） |
 | skills/ | `@.claude/skills/index.md` | AI agent skills（10 个 lx-* 扁平布局） |
 | workflows/ | `@.claude/workflows/index.md` | 工作流（front-stepwise 起源；frontend-overnight 已迁出到 `capabilities/`，不入治理） |
+| decisions/ | `@.claude/decisions/README.md` | 人类裁决日志（`DECISIONS.md` 本机生成，append-only；不入库、不进安装包） |
 
 ### `.omc/` — 运行时任务状态
 
@@ -40,7 +41,6 @@
 | state/ | `@.omc/state/index.md` | 运行时状态（lifecycle/hud/snapshots/oracle） |
 | archive/ | `@.omc/archive/index.md` | 归档任务快照 |
 | audit/ | `@.omc/audit/index.md` | 审计日志 JSONL（机器自决事件，按日分片） |
-| decisions/ | `.omc/decisions/DECISIONS.md` | AI 治理决策日志（人类裁决，时间正序，append-only；不入库） |
 | knowledge/ | `@.omc/knowledge/index.md` | 升华管道数据 |
 | metrics/ | `@.omc/metrics/index.md` | 基准测试报告 |
 

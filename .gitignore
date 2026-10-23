@@ -25,3 +25,6 @@ improve_plan
 apps
 # 发行包按 main 的做法提交进仓库（安装器直接用，零构建步骤）
 # 改动白名单或源码后运行 python3 packaging/build.py 重新生成并提交
+
+# 人类裁决历史：本机生成，不入库、不进安装包（D-031）
+.claude/decisions/DECISIONS.md

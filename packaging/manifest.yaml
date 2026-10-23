@@ -27,6 +27,8 @@ include:
   - ".claude/schemas/**/*"
   - ".claude/rules/**/*"
   - ".claude/workflows/**/*"
+  # 决策日志：只带空态说明，历史文件本机生成（D-031）
+  - ".claude/decisions/README.md"
   # 配置与路由
   - ".claude/harness.yaml"
   - ".claude/settings.json"
@@ -57,6 +59,7 @@ exclude:
   - "**/*.lock"
   - "**/*.log"
   - ".omc/**"
+  - ".claude/decisions/DECISIONS.md"
   # 项目专属（永不发行）
   - "apps/**"
   - "Benchmarking/**"
@@ -68,5 +71,6 @@ exclude:
 # 明确不打包的顶层目录说明（供人阅读，不参与计算）
 excluded_notes:
   references: "人类裁决：AI 看的资料，不进产品包"
+  decisions: "人类裁决历史本机生成，不进产品包（只带 README 空态说明）"
   tests: "143 个 test_*.py 不进包"
   datasets: "apps/ Benchmarking/ inputs/ capabilities/ rpe/"
