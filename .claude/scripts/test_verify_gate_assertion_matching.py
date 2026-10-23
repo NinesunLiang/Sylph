@@ -82,3 +82,28 @@ def test_assertion_segment_match_also_checks_output_tail():
           "exit_code": 0}],
     )
     assert ok, reason
+
+
+def test_water_rule_rejected_against_placeholder_evidence():
+    """回归锚点（2026-10-24 双评审 R1）：水规则不得被模板占位证据通过。
+
+    `init` 默认生成的规则 `assertion: step S1 evidence is recorded` 归一化后只剩
+    单核心术语 {evidence}；未改一字的 executor 模板（assertion: step evidence pending）
+    曾能让 VerifyGate 直接判 VERIFIED，击穿「验证大于承诺」。
+    """
+    ok, reason, _ = match_verify_rule(
+        "assertion: step S1 evidence is recorded",
+        [{"type": "test", "assertion": "step evidence pending", "exit_code": 0}],
+    )
+    assert not ok, reason
+    assert "water_rule" in reason, reason
+
+
+def test_multi_segment_single_term_rule_still_matches():
+    """水规则防护不得误伤：单核心术语但带多分段的规则仍走多数命中。"""
+    ok, reason, _ = match_verify_rule(
+        "assertion: task binding confirmed; report index advanced; all checks green",
+        [{"type": "test", "assertion": "task binding confirmed and report index advanced",
+          "evidence_level": "E2"}],
+    )
+    assert ok, reason

@@ -107,35 +107,7 @@ def _read_stdin() -> dict[str, Any]:
         return {}
 
 
-def _check_temp_bypass() -> bool:
-    if not TEMP_BYPASS.exists():
-        return False
-    try:
-        data = json.loads(TEMP_BYPASS.read_text(encoding="utf-8"))
-        expires = data.get("expires_at", "")
-        if not expires:
-            # No expires_at — fail closed, delete and return False
-            TEMP_BYPASS.unlink(missing_ok=True)
-            return False
-        try:
-            from datetime import datetime, timezone
-            exp = datetime.fromisoformat(expires)
-            now = datetime.now(timezone.utc)
-            if now >= exp:
-                TEMP_BYPASS.unlink(missing_ok=True)
-                return False
-            # Enforce max 24h validity
-            max_valid = now.timestamp() + 86400
-            if exp.timestamp() > max_valid:
-                TEMP_BYPASS.unlink(missing_ok=True)
-                return False
-        except Exception:
-            TEMP_BYPASS.unlink(missing_ok=True)
-            return False
-        return True
-    except Exception:
-        TEMP_BYPASS.unlink(missing_ok=True)
-        return False
+# _check_temp_bypass 已删除（D-016）：该机制让 AI 自写通行证，改为无旁路 fail-closed。
 
 
 def _extract_tool(payload: dict) -> str:

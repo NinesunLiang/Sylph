@@ -38,10 +38,8 @@ rg "iron_law" .omc/state/gatekeeper-events.jsonl | tail -3
 **处理方法**:
 1. 如果属于哲学/ROI 评分误差 → 调整 `gatekeeper.py` 中的 `_generate_options()` 或 `_threshold_for_risk()`
 2. 如果属于铁律误触发 → 检查 `_check_iron_rules()` 中的条件
-3. 临时 bypass（需人工确认）:
-   ```bash
-   python3 .claude/scripts/temp-bypass.py --minutes 30 --reason "已确认安全——误拦截"
-   ```
+3. 临时放行：**已无此机制**（2026-10-24 D-016 删除临时旁路）。
+   误拦截请直接修正触发条件，或由人类在终端签发审批票（`gov_approve.py`）。
 4. 记录到 anti-patterns.md 供后续调优
 
 ### 场景 B: Gate 漏放行（假阴性）

@@ -59,17 +59,28 @@ def gate_zombie_report(log_path, window_days: int = 14, asof: str | None = None)
     zombies.sort(key=lambda z: z["last_seen"])
     total = len(gates)
     rate = round(len(zombies) / total, 4) if total else 0.0
-    return {"gates": sorted(gates), "zombies": zombies, "rate": rate, "asof": asof}
+    # 陈旧度：asof 缺省取「数据里最大的日期」，数据断了也会显得新鲜。
+    # 用真实今天对比，陈旧时报告必须自我标注，否则会拿死数据发假提案。
+    try:
+        stale_days = max((date.today() - datetime.fromisoformat(asof).date()).days, 0)
+    except ValueError:
+        stale_days = 0
+    return {"gates": sorted(gates), "zombies": zombies, "rate": rate, "asof": asof,
+            "stale_days": stale_days}
 
 
 def _main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="门禁僵尸仪表")
-    ap.add_argument("log", nargs="?", default=".omc/state/telemetry/gate-pass/")
+    ap.add_argument("log", nargs="?", default=".omc/state/gate-pass-count.jsonl")
     ap.add_argument("--window", type=int, default=14, help="近 N 天窗口")
     args = ap.parse_args(argv)
     rep = gate_zombie_report(args.log, window_days=args.window)
     print(f"asof={rep['asof']} | 历史触发门禁 {len(rep['gates'])} | "
           f"僵尸 {len(rep['zombies'])} | M3 僵尸率 {rep['rate']:.1%} (目标 ≤10%)")
+    if rep.get("stale_days", 0) > args.window:
+        print(f"  ⚠ 数据陈旧：最新遥测 {rep['asof']}，距今 {rep['stale_days']} 天"
+              f"（> {args.window} 天窗口）——僵尸率不可信，勿据此发提案")
+        return 2
     for z in rep["zombies"]:
         print(f"  ⚠ 僵尸候选: {z['gate']} (最后触发 {z['last_seen']})")
     return 1 if rep["zombies"] else 0

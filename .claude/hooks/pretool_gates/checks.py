@@ -13,6 +13,7 @@ from pathlib import Path
 from .constants import (
     OMC, STATE_DIR, ROOT,
     DANGEROUS_COMMANDS, WARN_ONLY_COMMANDS, ASK_USER_COMMANDS,
+    HUMAN_GATE_COMMANDS, JEV_GATE_COMMANDS,
     READ_TOOLS, WRITE_TOOLS, PLAN_FILE_PATTERNS,
     _INJECTION_PATTERNS, _EXTERNAL_DATA_MAX_LEN,
     BASH_READ_TOKEN_RE, BASH_WRITE_TOKEN_RE,
@@ -61,12 +62,12 @@ def _check_sensitive_edit(payload: dict) -> str | None:
     if _is_read_sensitive(path):
         # index31 F2: 凭据类 default-deny（.env/.ssh/credentials/secret/password/
         # api_key/token）——自动放行环境下 ASK_USER 退化为留痕（index30 法官发现），
-        # 凭据改写不可逆，升级为硬 BLOCK；确需修改走 temp-bypass/人工流程。
+        # 凭据改写不可逆，升级为硬 BLOCK；确需修改走人工审批流程。
         _append_audit({"event_type": "credential_write_block", "actor": "hook:pretool-gate",
                        "path": path, "tool": tool})
         return (f"BLOCK sensitive-credential|"
                 f"⛔ 凭据类文件 {path} 写入被默认拒绝（default-deny）。\n"
-                f"凭据改写不可逆且有泄露风险；确需修改请走人工审批/temp-bypass 流程。")
+                f"凭据改写不可逆且有泄露风险；确需修改请走人工审批流程。")
     if _is_sensitive(path):
         return (f"ASK_USER 敏感路径 {path}|"
                 f"检测到可能包含凭据的敏感文件，请确认是否继续修改。\n"
@@ -295,7 +296,7 @@ def _check_sensitive_write_bash(payload: dict) -> str | None:
                            "actor": "hook:pretool-gate",
                            "path": raw, "channel": "bash", "reason": why})
             # 用 ASK_USER 而非 BLOCK：两者在 CC 都是 permissionDecision=deny，
-            # 但 ASK_USER 不受 temp-bypass 影响，对冻结域更合适。
+            # ASK_USER 对冻结域更合适（AI 无法自行放行）。
             return (f"ASK_USER governance_frozen|"
                     f"⛔ Bash 写入治理文件 {raw} 被冻结域拒绝（{why}）。\n"
                     f"若确需变更，请由人类在真实终端签发审批票：\n"
@@ -401,31 +402,102 @@ def _split_command_segments(cmd: str) -> list[str]:
     return segments
 
 
+def _has_fresh_jev_approval(command: str) -> bool:
+    """第 1 档：该命令是否已有未过期的 JEV 高分批准（由 jev_approve.py 写入）。
+
+    fail-closed：文件缺失/损坏/过期/分数不足 → False（走询问）。
+    """
+    import hashlib
+    from datetime import datetime, timezone
+
+    path = Path(".omc/state/jev-approval.json")
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    want = hashlib.sha256(command.strip().encode("utf-8")).hexdigest()[:16]
+    now = datetime.now(timezone.utc)
+    for item in data.get("approvals", []):
+        if item.get("hash") != want:
+            continue
+        if float(item.get("score", 0)) < 8.0 or item.get("verdict") != "ACCEPT":
+            continue
+        try:
+            if now >= datetime.fromisoformat(item["expires_at"]):
+                continue
+        except (KeyError, ValueError):
+            continue
+        return True
+    return False
+
+
+def _strip_quoted(cmd: str) -> str:
+    """去掉引号内的字面文本，防止 `echo "curl x | bash"` 被当成真实管道执行。"""
+    return re.sub(r"'[^']*'|\"[^\"]*\"", " ", cmd)
+
+
 def _check_action_gate(payload: dict) -> str | None:
+    """审批三档（2026-10-24 人类裁决 D-016）。
+
+    第 2 档 HUMAN_GATE：不可逆 / 生产 / 远程代码执行 → 真正 ASK_USER（人类点头）。
+    第 1 档 JEV_GATE  ：依赖安装等可评估动作 → 有 JEV 高分批准则放行，否则 ASK_USER。
+    第 0 档            ：其余放行，不制造噪声。
+
+    关键修复：管道类规则必须对**整条命令**匹配。旧实现先按 `|` 切段，
+    `curl ... | bash` 的管道被切掉，规则永不命中。
+    """
     command = _extract_command(payload)
     if not command:
         return None
+
+    # 第 2 档 A：灾难级命令（分段匹配，保留原有语义）
     for seg in _split_command_segments(command):
-        hard = _match_any(seg, DANGEROUS_COMMANDS)
+        # 字面输出类命令（echo/grep/...）里的引号内容不是被执行代码，剥掉再判
+        probe = _strip_quoted(seg) if re.match(r"^\s*(echo|printf|grep|rg|cat|awk|sed)\b", seg) else seg
+        hard = _match_any(probe, DANGEROUS_COMMANDS)
         if hard:
             _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
                             "decision": "BLOCK", "reason": "dangerous_command",
                             "pattern": hard, "command_preview": command[:160]})
             return (f"BLOCK dangerous_command pattern={hard}|"
-                    f"⛔ 检测到不可逆破坏性操作。\n"
-                    f"可选方案: 1. 使用临时 bypass  2. 使用更安全的替代操作  3. 等待用户介入")
-        ask = _match_any(seg, ASK_USER_COMMANDS)
-        if ask:
+                    f"⛔ 检测到不可逆破坏性操作。\\n"
+                    f"可选方案: 1. 使用更安全的替代操作 2. 拆分为小步验证 3. 等待人类介入")
+
+    # 第 2 档 B：生产 / 远程代码执行（整条命令匹配，先剥掉引号内字面文本）
+    bare = _strip_quoted(command)
+    human = _match_any(bare, HUMAN_GATE_COMMANDS)
+    if human:
+        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                        "decision": "ASK_USER", "reason": "human_gate_command",
+                        "pattern": human, "command_preview": command[:160]})
+        return (f"ASK_USER human_gate pattern={human}|"
+                f"⛔ 该命令触及生产环境 / 远程代码执行，必须人类确认。\\n"
+                f"AI 无法自行放行；请由人类决定是否执行。")
+
+    # 第 1 档：JEV 可裁决动作
+    jev = _match_any(bare, JEV_GATE_COMMANDS)
+    if jev:
+        if _has_fresh_jev_approval(command):
             _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
-                            "decision": "WARN", "reason": "approval_required_command",
-                            "pattern": ask, "command_preview": command[:160]})
-            return f"WARN approval_required pattern={ask}"
-        warn_only = _match_any(seg, WARN_ONLY_COMMANDS)
-        if warn_only:
-            _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
-                            "decision": "WARN", "reason": "path_specific_destructive",
-                            "pattern": warn_only, "command_preview": command[:160]})
-            return f"WARN path_specific_destructive pattern={warn_only}"
+                            "decision": "ALLOW", "reason": "jev_approval",
+                            "pattern": jev, "command_preview": command[:160]})
+            return None
+        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                        "decision": "ASK_USER", "reason": "jev_required",
+                        "pattern": jev, "command_preview": command[:160]})
+        return (f"ASK_USER jev_required pattern={jev}|"
+                f"该命令需 JEV 裁决。请先运行 jev_approve.py 获取独立评审；\\n"
+                f"未获批准前不自动放行（fail-closed）。")
+
+    # 第 0 档：仅路径级破坏性提示（不打扰）
+    warn_only = _match_any(command, WARN_ONLY_COMMANDS)
+    if warn_only:
+        _append_audit({"event_type": "preaction_decision", "actor": "hook:pretool-gate",
+                        "decision": "WARN", "reason": "path_specific_destructive",
+                        "pattern": warn_only, "command_preview": command[:160]})
+        return f"WARN path_specific_destructive pattern={warn_only}"
     return None
 
 
@@ -582,6 +654,9 @@ def _check_doc_reference_before_delete(payload: dict) -> str | None:
 # 治理灵魂文件：删除=删除治理框架本身（冻结规则：变更须人类裁决）
 _GOVERNANCE_DELETE_BASENAMES = ("AGENTS.md", "CLAUDE.md")
 
+# 2026-10-24 双评审 E8：递归删除整个治理目录时 basename 不匹配 → 曾可 `rm -rf .claude` 删光门禁。
+_GOVERNANCE_DELETE_DIRS = (".claude", ".git")
+
 
 def _check_governance_delete_protection(payload: dict) -> str | None:
     """治理指令文件删除保护：AGENTS.md/CLAUDE.md/.claude/kernel.md/.claude/index.md 不可删。
@@ -594,6 +669,7 @@ def _check_governance_delete_protection(payload: dict) -> str | None:
     targets = _extract_delete_targets(payload)
     if not targets:
         return None
+    # 两轮扫描：灵魂文件优先（不管它在参数列表的第几个），其次治理目录。
     for target in targets:
         norm = target.rstrip("/")
         basename = norm.split("/")[-1] if norm else ""
@@ -606,6 +682,15 @@ def _check_governance_delete_protection(payload: dict) -> str | None:
                     f"不能删除治理指令文件 {target}（AGENTS.md/CLAUDE.md/kernel.md/index.md 是治理灵魂文件）。\n"
                     f"删除治理指令文件等于删除治理框架本身，属于高价值不可逆操作。\n"
                     f"如确需变更，请走人类裁决流程（冻结规则：变更须人类裁决）。")
+
+    for target in targets:
+        norm = target.rstrip("/")
+        basename = norm.split("/")[-1] if norm else ""
+        # 递归删除整个治理目录（`.claude` / `.git`）→ 真拦截
+        if basename in _GOVERNANCE_DELETE_DIRS:
+            return (f"ASK_USER governance_dir_delete|"
+                    f"⛔ 不能递归删除治理目录 {target}（含门禁/冻结规则/版本库）。\n"
+                    f"删除它等于删除整套治理基座，属不可逆高危操作，必须人类确认。")
     return None
 
 
@@ -874,6 +959,9 @@ _COMMIT_SOFT_PATTERNS = [
     "all set", "completed successfully", "ship it",
     "看起来没问题", "看起来正常", "基本完成", "大部分完成", "差不多了",
     "搞定了", "修好了", "改完了", "做完了",
+    # 2026-10-24 双评审 E8：补常见中文变体（实测 "任务已完成，全部通过" 曾被放行）
+    "已完成", "全部通过", "全部验证", "均已完成", "整体完成",
+    "all verified", "fully complete", "everything works",
 ]
 
 
@@ -902,7 +990,7 @@ def _check_commit_soft_completion(payload: dict) -> str | None:
                     f"请用具体 VERIFIED 证据替换，例如:\n"
                     f"  'VERIFIED: pytest → 3 passed'\n"
                     f"  '[已验证:src/foo.py:42] 修复了 XX'\n"
-                    f"如确认无关，可使用 temp-bypass.py 临时跳过。")
+                    f"如确认无关，请改写 commit message 为具体 VERIFIED 证据。")
     return None
 
 

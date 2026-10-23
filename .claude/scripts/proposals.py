@@ -40,7 +40,7 @@ from pathlib import Path
 
 DEFAULT_OUT = ".omc/proposals"
 # 遥测单一真源位置（2026-10-16 遥测卫生：按月分片目录）
-GATE_PASS_TELEMETRY = ".omc/state/telemetry/gate-pass"
+GATE_PASS_TELEMETRY = ".omc/state/gate-pass-count.jsonl"
 IMPACTS = ("高", "中", "低")
 
 # ── B 档：治理域蒸馏（治理部分自迭代，A+B 2026-10-22 人类裁决开启）──

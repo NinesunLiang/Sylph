@@ -75,6 +75,8 @@ DANGEROUS_COMMANDS = [
     r"^sudo\b",
     r"^chmod\s+777\b", r"^chown\b", r"^git\s+push\s+(-f|--force)",
     r"^dd\s+if=", r"^mkfs\.", r"^fdisk\b", r":\(\)\{\s*:\|:\s*&\s*\};:",
+    # 2026-10-24 双评审 R4：远端写在 --force 之前可绕过原锚定正则
+    r"\bgit\s+push\b.*\s(?:-f|--force)\b",
 ]
 
 WARN_ONLY_COMMANDS = [
@@ -82,12 +84,26 @@ WARN_ONLY_COMMANDS = [
     r"(^|\s)rm\s+-rf?\s+['\"]?~/(?!/|$|'|\")",
 ]
 
-ASK_USER_COMMANDS = [
-    r"\bcurl\b.*\|\s*(sh|bash)", r"\bwget\b.*\|\s*(sh|bash)",
-    r"\bnpm\s+install\b", r"\bpip\s+install\b", r"\bbrew\s+install\b",
-    r"\bcargo\s+install\b", r"\bdocker\s+run\b", r"\bkubectl\b",
+# ── 审批三档（2026-10-24 人类裁决 D-016）──
+# 旧名 ASK_USER_COMMANDS 名实不符：命中后只返回 WARN → 审计后放行，从未真正询问。
+# 现按风险拆两档，二者都必须走真正的 permissionDecision=ask：
+#   HUMAN_GATE（第 2 档）：不可逆/生产/远程代码执行 → 永远人类点头
+#   JEV_GATE  （第 1 档）：可评估的依赖安装 → JEV 高分放行，否则问人
+HUMAN_GATE_COMMANDS = [
+    r"\bcurl\b[^;|&]*\|\s*(sh|bash)", r"\bwget\b[^;|&]*\|\s*(sh|bash)",
+    r"\bdocker\s+run\b", r"\bkubectl\b",
     r"\bterraform\s+apply\b", r"\bterraform\s+destroy\b",
+    r"\bhelm\s+(install|upgrade|delete)\b",
+    r"\bgh\s+(release|pr\s+merge)\b",
 ]
+
+JEV_GATE_COMMANDS = [
+    r"\bnpm\s+install\b", r"\bpip\s+install\b", r"\bbrew\s+install\b",
+    r"\bcargo\s+install\b", r"\bpnpm\s+add\b", r"\byarn\s+add\b",
+]
+
+# 向后兼容别名（旧代码/测试可能仍按此名引用）
+ASK_USER_COMMANDS = HUMAN_GATE_COMMANDS
 
 # ── Oracle keywords ──
 ORACLE_TRIGGER_KW = [

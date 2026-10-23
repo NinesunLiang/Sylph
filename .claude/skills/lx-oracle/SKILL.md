@@ -74,19 +74,16 @@ python3 .claude/scripts/oracle_agent.py review --task-id <task_id> --mode duo --
 
 > Oracle 审阅不强制进入 verify/report 流程,按需触发。组件化设计: 能力在 skill + CLI,人类/AI 在关键点调用。
 
-**入口**:
-- `carros_base.py oracle-plan` — plan 审 + 打回单闭环(REJECT→round+reasons→3轮→Mate→ESCALATE)
-- `carros_base.py oracle review --mode static|runtime|duo` — 任意点双审
-- `carros_base.py oracle health|status` — 探活
+**入口**（2026-10-24 人类裁决 D-015：`carros_base.py oracle*` 已物理删除，统一走 `oracle_agent.py`）:
+- `python3 .claude/scripts/oracle_agent.py review --task-id <ID> --mode static` — 静态审（plan/executor）
+- `python3 .claude/scripts/oracle_agent.py review --mode runtime|duo` — 运行时 / 双审
+- `python3 .claude/scripts/oracle_agent.py status` — 探活
 
-**闭环流程**:
+**闭环流程**（多轮打回单随 `oracle-plan` 一并删除，现由调用方自行循环）:
 ```
-Oracle 审 → ACCEPT 放行
-          └ REJECT → 打回单(round + reasons 落盘 plan-oracle.json)
-                → 按说明修复 → 重审覆盖
-                → 连续 3 轮仍 REJECT → 升级 Mate Oracle 复核 1 轮
-                      ├ 通过 → 放行(不升级人工)
-                      └ 不通过 → 升级人工(ESCALATE)
+Oracle 审 → ACCEPT 放行 / ADVISORY 记录放行
+          └ REJECT  → 按 reasons 修复 → 重新 review
+                → 连续 3 轮仍 REJECT → 升级人工(ESCALATE)
 ```
 
 **触发建议**:

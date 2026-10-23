@@ -41,7 +41,6 @@
 | `intake_gate.py` | 准入门禁 |
 | `output_compress.py` | 输出压缩 |
 | `plan_builder.py` | 计划构建器 |
-| `temp-bypass.py` | 临时绕过 |
 | `executor_ledger.py` | 执行分类账 |
 | `clarify_engine.py` | 澄清引擎 |
 | `omc_lint.py` | 代码规范检查 |

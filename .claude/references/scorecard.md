@@ -233,7 +233,7 @@
 | F4 | rm references/gate-rules.yaml | ❌ NO-OP（pre_action_gate.py 数据驱动配置） | — |
 | F5 | merge fallback-matrix.md → runbook.md | ✅ 合并（删 58 + 加 32 行） | f9e0b68 |
 | F6 | rm scripts/install.sh + init-omc.sh | ✅ 删除（88 行，已死代码） | d6a6001 |
-| F7 | rm scripts/temp-bypass.py + 错误日志器 | ❌ NO-OP（被 pretool_gates/3 + goal_state_machine.py 强引用；该日志器已于 index48 随 error-dna 移除） | — |
+| F7 | rm 临时旁路脚本 + 错误日志器 | ✅ 已删（2026-10-24 D-016：AI 可自写通行证 → 改为无旁路 fail-closed） | — |
 | F8 | merge precompact-lifecycle.py + stop-flywheel.py | ❌ NO-OP（fail-closed vs best-effort 正交双语义） | — |
 | F9 | archive carroros-night-deny.py → retired/ | ❌ NO-OP（被 frontend-overnight 5 处 + ADR-0018 强引用） | — |
 | F10 | update index.md + scorecard | ✅ 同步（references/scripts 索引对齐） | ae7146a |

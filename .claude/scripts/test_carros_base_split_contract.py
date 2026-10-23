@@ -8,7 +8,9 @@ SOURCE = ROOT / ".claude" / "scripts" / "carros_base.py"
 
 def test_carros_base_keeps_public_command_registry():
     text = SOURCE.read_text(encoding="utf-8")
-    for command in ("init", "verify", "archive", "oracle", "fallback"):
+    # 2026-10-24 人类裁决：12 个退役观察区命令（含 oracle / fallback）已物理删除，
+    # 契约只剩真实在用的核心动词。详见 .omc/decisions/DECISIONS.md D-015。
+    for command in ("init", "verify", "archive", "status", "tick", "lint"):
         assert f'"{command}"' in text
 
 

@@ -149,7 +149,7 @@ def _call_gate(gate_name: str, gate_fn, payload: dict) -> tuple[str | None, bool
         return (None, True)
 from pretool_gates.helpers import (
     _read_stdin, _extract_tool, _ok, _block, _redirect,
-    _check_temp_bypass, _check_trust_breach, _clean_stale_state_token,
+    _check_trust_breach, _clean_stale_state_token,
     _goal_mode, _append_audit, _get_gate_mode,
     _record_gate_decision, _verify_contract_compliance,
     _is_trust_breach_reason, _record_trust_breach, _increment_streak,
@@ -164,9 +164,9 @@ def main() -> int:
     payload = _read_stdin()
     tool_name = _extract_tool(payload).lower() or "unknown"
 
-    # ── Temp bypass check ──
-    bypass_active = _check_temp_bypass()
-
+    # ── Temp bypass: 已删除（2026-10-24 人类裁决 D-016）──
+    # 旧机制允许 AI 直接写 .omc/state/temp-bypass.json 把全部 BLOCK 降级为放行，
+    # 等于「AI 自己给自己发通行证」。按主流做法（无旁路 / fail-closed）整条移除。
     # ── Trust breach check ──
     breach = _check_trust_breach()
     if breach:
@@ -231,14 +231,6 @@ def main() -> int:
                 parts = result.split("|", 1)
                 reason = parts[0].replace("BLOCK ", "").strip()
                 suggestion = parts[1].strip() if len(parts) > 1 else ""
-                if bypass_active:
-                    _append_audit({
-                        "event_type": "gate_bypassed",
-                        "actor": "hook:pretool-gate",
-                        "gate": gate_name,
-                        "reason": result,
-                    })
-                    return _ok(f"BYPASS_ALLOW [{gate_name}] (用户已授权临时跳过)")
                 if _is_trust_breach_reason(reason):
                     _record_trust_breach(reason)
                 return _block(f"ASK_USER {reason}", suggestion or "请确认是否继续或调整计划。")

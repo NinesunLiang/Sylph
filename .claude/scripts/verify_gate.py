@@ -538,6 +538,14 @@ def match_verify_rule(rule: str, evidence: list[dict[str, Any]],
         expected_terms = _extract_core_terms(expected_norm)
         segments = [s.strip() for s in re.split(r"[;；,，。\n]+", expected_raw) if len(s.strip()) > 3]
         segments_norm = [_normalize_i18n(s) for s in segments]
+        # 水规则防护（2026-10-24，双评审 R1）：核心术语只剩 1 个、且不带分段时，规则退化为
+        # 「单词匹配」，任何含该词的占位断言都能通过（实测 `step S1 evidence is recorded`
+        # 只剩 {evidence}，模板占位 `assertion: step evidence pending` 直接 VERIFIED）。
+        # 有多个分段时仍走多数命中，属正常语义规则，不拦。
+        if len(expected_terms) == 1 and len(segments_norm) <= 1:
+            return False, (f"water_rule: assertion 规则只有 {len(expected_terms)} 个核心术语且无分段"
+                           f"（{sorted(expected_terms)}），无法机械验证；请改用 file:/command: "
+                           f"或写更具体的 assertion"), warnings
         for ev in evidence:
             if ev.get("type") == "failure":
                 continue

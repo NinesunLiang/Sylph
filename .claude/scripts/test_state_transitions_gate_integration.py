@@ -36,7 +36,7 @@ PLAN_TEXT = """## 依赖树
 - 无
 
 - [a] S1: first
-  - verify: assertion: step S1 evidence is recorded
+  - verify: assertion: state transition gate wired and completion verified
 """
 
 EXECUTOR_TEXT = """## Conditions
@@ -56,7 +56,7 @@ EXECUTOR_TEXT = """## Conditions
 - source: integration fixture
 - exit_code: 0
 - file: test_state_transitions_gate_integration.py
-- assertion: step S1 evidence is recorded; require_transition invoked on full completion
+- assertion: state transition gate wired and completion verified; require_transition invoked on full completion
 """
 
 
