@@ -162,4 +162,7 @@ packaging/
 | **opencode / codex / cursor / gemini / dsh** | ❌ **不支持** | 门禁绑定 Claude Code 的 hook 协议；`CarrorOS_dev` 无 `.opencode` / `.codex` / `.cursor` / `.gemini` 适配目录（`origin/main` 有） |
 
 **结论**：发行包当前是「Claude Code + macOS/Linux/WSL」的组合。
-换宿主（opencode/dsh）或上 Windows 原生，都需要额外适配，不在本方案范围内。
+
+> **定位声明（2026-10-24 人类裁决）**：本发行包**专为 Mac 打造**。
+> Windows 原生不是缺陷、也不在路线图上——需要时另起分支做 Windows 版本。
+> 同理，换宿主（opencode / dsh / cursor / codex）也不在本方案范围内。
