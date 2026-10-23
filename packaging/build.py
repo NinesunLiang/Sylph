@@ -180,6 +180,104 @@ def _post_manifest_check(dest: Path, version: str) -> list[str]:
     return errors
 
 
+SELFEXTRACT_HEADER = """#!/usr/bin/env bash
+# CarrorOS 治理能力安装器（自解压单文件）
+# 用法：把本文件拷到目标项目目录，然后 bash carroros-install.sh
+# 版本：__VERSION__ | 构建：__COMMIT__ | 文件：__FILES__ 个 / __SIZE__
+#
+# 只安装通用 AI 治理能力：门禁、审批、验证、状态恢复、哲学规则。
+# 不安装：密钥、测试、数据集、产品代码、运行时数据。
+# 平台：macOS / Linux / WSL（Windows 原生不支持，治理代码依赖 fcntl）
+
+set -euo pipefail
+GREEN='\\033[0;32m'; YELLOW='\\033[1;33m'; RED='\\033[0;31m'; NC='\\033[0m'
+info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+die()  { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
+
+TARGET=""
+FORCE=0
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE=1 ;;
+    -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
+    *) TARGET="$arg" ;;
+  esac
+done
+[ -n "$TARGET" ] || TARGET="$(pwd)"
+mkdir -p "$TARGET"
+TARGET="$(cd "$TARGET" && pwd)"
+[ "$TARGET" = "/" ] && die "拒绝安装到根目录"
+
+command -v python3 >/dev/null 2>&1 || die "缺少 python3，请先安装（本脚本不自动装）"
+
+SELF_NAME="$(basename "$0")"
+OTHERS="$(ls -A "$TARGET" 2>/dev/null | grep -vxF "$SELF_NAME" || true)"
+if [ -n "$OTHERS" ] && [ "$FORCE" -ne 1 ]; then
+  die "目标目录已有其它内容：$TARGET
+     加 --force 重试（只新增/覆盖治理文件，不动其它内容）"
+fi
+
+info "安装到：$TARGET"
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+
+python3 - "$0" "$TMP" <<'PYEOF'
+import base64, io, sys, tarfile
+src, out = sys.argv[1], sys.argv[2]
+data = open(src, 'rb').read().split(b'__PAYLOAD_BEGIN__\\n', 1)[1]
+tarfile.open(fileobj=io.BytesIO(base64.b64decode(data)), mode='r:gz').extractall(out)
+PYEOF
+
+cp -R "$TMP/template/." "$TARGET/"
+info "已复制治理文件"
+
+mkdir -p "$TARGET/.omc/state" "$TARGET/.omc/tasks" "$TARGET/.omc/tokens" "$TARGET/.omc/audit"
+info ".omc 骨架就绪（不写入任何数据）"
+
+GI="$TARGET/.gitignore"
+if [ -f "$GI" ]; then
+  if grep -qxF ".omc" "$GI"; then info ".gitignore 已含 .omc"; else printf '\\n.omc\\n' >> "$GI"; info ".gitignore 已追加 .omc"; fi
+else
+  printf '.omc\\n' > "$GI"; info "已创建 .gitignore 并写入 .omc"
+fi
+
+[ -f "$TARGET/.claude/scripts/carros_base.py" ] && info "自检：carros_base.py 存在" || warn "自检未通过：缺少 carros_base.py"
+echo
+info "安装完成。下一步："
+echo "  1) 配置模型：编辑 .claude/settings.json 的 env 段（或设置同名环境变量）"
+echo "  2) 自检：cd \\"$TARGET\\" && python3 .claude/scripts/carros_base.py status"
+echo "  3) 阅读：AGENTS.md（哲学与铁律）"
+
+exit 0
+__PAYLOAD_BEGIN__
+"""
+
+
+def make_selfextract(dest_template: Path, manifest: dict) -> Path:
+    """把 template 打成 tar.gz 再 base64 塞进脚本，生成单文件安装器。"""
+    import base64
+    import io
+    import tarfile
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        tar.add(dest_template, arcname="template")
+    payload = base64.b64encode(buf.getvalue()).decode("ascii")
+
+    files = sum(1 for p in dest_template.rglob("*") if p.is_file())
+    size = sum(p.stat().st_size for p in dest_template.rglob("*") if p.is_file())
+    header = (SELFEXTRACT_HEADER
+              .replace("__VERSION__", _version(manifest))
+              .replace("__COMMIT__", _git("rev-parse", "--short", "HEAD"))
+              .replace("__FILES__", str(files))
+              .replace("__SIZE__", f"{size / 1024 / 1024:.1f} MB"))
+    out = PKG / "carroros-install.sh"
+    out.write_text(header + payload + "\n", encoding="utf-8")
+    out.chmod(0o755)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="只自检，不写盘")
@@ -206,6 +304,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"   test=0  settings.local=0  jsonl=0  secret=0")
     if not args.check:
         print(f"   输出: {TEMPLATE.relative_to(ROOT)}")
+        installer = make_selfextract(TEMPLATE, manifest)
+        print(f"   单文件安装器: {installer.relative_to(ROOT)} "
+              f"({installer.stat().st_size / 1024 / 1024:.1f} MB)")
     return 0
 
 

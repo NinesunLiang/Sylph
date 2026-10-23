@@ -81,13 +81,18 @@ packaging/
 
 ## 7. install.sh 行为
 
-**用法（最终形态）**：进到你要装的项目目录，跑一行
+**用法（最终形态，2026-10-24 修订）**：**一个文件，放进项目目录，跑一次。**
 
 ```
-bash <本仓库路径>/packaging/install.sh
+1. 把 packaging/carroros-install.sh 拷到你的项目目录
+2. bash carroros-install.sh
 ```
 
-默认装到**当前目录**；也可传路径：`bash install.sh /path/to/project [--force]`。
+单文件 0.7 MB，内嵌 tar.gz 自解压，**不需要仓库、不需要构建、不需要 PyYAML**。
+默认装到当前目录；也可传路径：`bash carroros-install.sh /path/to/project [--force]`。
+目录非空时需要 `--force`（脚本自身不算"非空"）。
+
+（`packaging/install.sh` 保留为仓库内安装器，用于从本仓库直接装到别处。）
 
 1. 检测 `python3` / `git`，缺失则提示并退出（不自动装）。
 2. 目标目录：默认当前目录；非空时必须 `--force` 或交互确认。
