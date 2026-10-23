@@ -82,6 +82,6 @@
 │   └── lx-goal/                  # Goal 模式
 └── scripts/
     ├── carros_base.py             # 主入口
-    ├── run-regression.sh          # 回归地基
+    ├── run_regression.py          # 回归地基
     └── lib/                       # 共享子模块
 scorecard.md                        # 纵向提分账本（references/ 真源）

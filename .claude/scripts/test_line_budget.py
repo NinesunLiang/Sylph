@@ -23,7 +23,9 @@ CLAUDE = ROOT / ".claude"
 BUDGET = {
     # 2026-10-24 D-020 下调（只降不升）：删 12 退役命令 + clarify_engine +
     # task_planner + sub_agent_manager 后实测 22,865；留 35 行余量。
-    ".claude/scripts": 22550,    # 实测 22499（D-021 删 sub_agent_executor 后再降）
+    # D-027：run-regression.sh（91 行 shell）改为 run_regression.py（Python，计入棘轮）。
+    # 功能等价、没加新能力，属口径变化，按实测一次性上调 50 行。
+    ".claude/scripts": 22600,    # 实测 22589
     ".claude/hooks": 7650,       # 实测 7649（到顶，再加代码必须先删）
     ".claude/workflows": 100,    # 实测 0（frontend-overnight 已迁出 → capabilities/）
     ".claude/skills": 3150,      # 实测 3093（本轮未删 skills 代码，不调）

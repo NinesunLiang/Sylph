@@ -12,7 +12,7 @@ repo 根目录存在 `scripts/`，内含 CarrorOS 治理脚本与 UI 还原门�
 清空并删除 repo 根 `scripts/` 目录，按能力域归位：
 
 1. **UI 还原能力** → `.claude/workflows/frontend-overnight/scripts/carroros-gates/`：11 门禁（scope/run_gate/evidence/c7/preflight/finalize/install_hook/morning_report/lock/run_all/abstraction）+ assertion-catalog.yaml + lib/ + smoke/ + templates/
-2. **CarrorOS 通用能力** → `.claude/scripts/`：alloc_report_index / gatekeeper_digest / write_lock / run-regression.sh
+2. **CarrorOS 通用能力** → `.claude/scripts/`：alloc_report_index / gatekeeper_digest / write_lock / run_regression.py
 3. **共享契约** → `.claude/scripts/gate-contract.yaml`（读取方为 hook helpers.py + test_deadweight_cuts.py，非 UI 门禁）
 4. **引用联动**：hook `carroros-night-deny.py` / `constants.py` / `helpers.py` 路径正则（用户批准）、frontend `config.py` CARROTOROS_GATES_DIR、carroros-gates 内部自引、8 个 frontend/reference 文档
 5. **删除**：根 scripts/ 目录本身 + __pycache__ 构建缓存（信息）

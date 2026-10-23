@@ -131,7 +131,7 @@
 | 维度 | 运行时(7/24) | 迁移后(7/24) | Δ | 证据 |
 |------|-----------|-----------|--------|------|
 | C8 可维护性 | 6 | **7** | **+1** | 56/56 测试覆盖; Coverage Gate 自动检测缺口(100%), --block 模式可阻断提分; 全部测试集中管理于 feature_test/; 回归 54/54 全绿 |
-| AI 赋能全流程自动化 (治理) | 7 | **8** | **+1** | run-regression.sh 54/54 全自动套件 + goal mode stash/restore; Coverage Gate 门禁; 测试文件标准化管理流程 |
+| AI 赋能全流程自动化 (治理) | 7 | **8** | **+1** | 回归跑批脚本 54/54 全自动套件 + goal mode stash/restore（2026-10-24 D-027 由 shell 改为 Python）；Coverage Gate 门禁; 测试文件标准化管理流程 |
 | C1-C9 加权 | 7.71 | **7.81** | +0.10 | C8 提分影响 |
 | 治理均分 | 7.57 | **7.71** | +0.14 | AI赋能提分影响 |
 | **24项总加权** | **7.67** | **7.72** | **+0.05** | |
@@ -213,7 +213,7 @@
 | R1 | PKG-B 契约统一（gpt) | commit 70689d3;A-B2/3/6/7/8(21脚本）/9/10/11/12 全绿；PKG-A 边界 sha256 未动；scripts/apply-pkg-b.sh 幂等可重跑 | E6 5→8✅、C1 6→8✅ |
 | R2 | PKG-A 验证链（整合器施工） | commit 009c749;U11+C3+E6=20/20 PASS;A-A1..A-A5 全绿；scripts/apply-pkg-a.sh 幂等；发现 carros_base 符号链接并适配 | E3 4→9✅、E2 6→8✅、C5→8✅、C9→8✅、人机权限 7→8✅ |
 | R3 | PKG-C 生命周期（grok,✅ 已送信已施工） | commit fc8d156;grok 六段式零改动；A0-A12 全绿（单测 6/6+验收门两遍+三角+幂等+fail-closed+互斥+scope+archive 只读）;PKG-A/B 回归 20/20+launcher 绿；偏差声明 2 处（A12 bold grep 适配/gitignore state 规则）;settings 提交经 temp-bypass（零密钥行变更） | C2→9✅、E8→9✅、抗衰减→9✅、C5→9✅ |
-| R4 | 补缺： S1/S2/K1/H8/H9半/K3/K4/E1门/H10/S7(moot) | commit 13b1c78;23 处编辑+7 条 error-dna 隔离+hooks-on.bak 删除；A-R4-1..8 全绿（py_compile x3/行为单测/20-20 回归/launcher/幽灵 grep/diff --check);apply-pkg-r4.sh 幂等（首轮 S2a 锚/E1b 假 SKIP 已修） | C1→9✅、C3→8✅、C7→8✅、C8→8✅、E1→8✅、E4→8✅、功能标志→8✅、学习笔记→8✅、内置安全→7✅ |
+| R4 | 补缺： S1/S2/K1/H8/H9半/K3/K4/E1门/H10/S7(moot) | commit 13b1c78;23 处编辑+7 条 error-dna 隔离+hooks-on.bak 删除；A-R4-1..8 全绿（py_compile x3/行为单测/20-20 回归/launcher/幽灵 grep/diff --check);施工脚本幂等（首轮 S2a 锚/E1b 假 SKIP 已修）；该一次性脚本已于 2026-10-24 D-026 删除（引用的 error_dna 与 varlock 均已不存在） | C1→9✅、C3→8✅、C7→8✅、C8→8✅、E1→8✅、E4→8✅、功能标志→8✅、学习笔记→8✅、内置安全→7✅ |
 | R5a | E5 修复 + K2 去重 | commit 0d8d149(oracle-escalation 重组）+710c417(enhance 三份字节级重复+坏死 shim 删除，零入边实证） | E5→8✅、C6→9✅ |
 | R5 | 终验： 24 项重评+终审包 | 六套回归现跑全绿 rc=0(PKG-A 20/20+A-A1..5 稳态、PKG-B A-B2..12、PKG-C V0..V6、R4 A-1..8、launcher 3/3);R5 施工 4 处：A-B12 重冻结（R1 冻结值留存）、A-A5 稳态漂移门（legacy 分支保留）、compact-write detached 留痕（行为单测 2 例）、sync-state 悬空更正；观察项 1 条（hook 相对路径 cwd 脆弱）;终审包 round3/final-review/（主文档+证据 8 件+SHA256SUMS+tar.gz);**三 model 终审： 四项提分 3:0 成立**，记票=round3/verdict-reconciliation.md | C3→9✅、C7→9✅、C9→9✅、E6→9✅（总加权 8.30→8.51；门禁 8.6 未达，终审 1:2 拒收口） |
 | R6 | 受限收口（终审 2:1 锁定，禁扩）: R6-A E7 精确 BLOCK 化；R6-B 人工轮换闭环（owner 认领）;R6-C 一项 8→9（整合器机械选定即冻结，候选 C4/C8/E1/E2/E4/E5，治理项数学不够） | R6-A✅: Gate 7 三层重写（BLOCK/ESCALATE/hint/PASS),test-oracle-gate.py 31/31(U20+G9+E2),opus 六场景全覆盖+gpt 低误报低漏报双证；七套回归 rc=0;A-B12/A-A5 重冻结（漂移仅 pretool-gate.py,R5 值留存）;R6-C✅: 机械选定 E2（零新增面积×权重 20 最高收益，记票预耦合）;R6-B⏸ 待人工；收口报告 round3/r6-closure.md | E7 7→8✅、E2 8→9✅（总加权 8.51→8.65,**加权门禁达成**;24 项全≥8 仅差 R6-B) |

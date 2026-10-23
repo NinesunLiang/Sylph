@@ -82,7 +82,7 @@ V1 曾提议 **headless 检测 + 分级降级 + 审计降频**。经第一轮联
 | 缓冲写零丢行 | 审计行数不变，内容完整 |
 | gate 集不变 | L1=9 / L2=20 断言 |
 | probe 盘证 | `claimed_created ⊆ disk_created`，否则 EVIDENCE_GAP |
-| 回归 | run-regression.sh 全绿 |
+| 回归 | run_regression.py 全绿 |
 
 ## 4. 第二轮联合审核结论（2026-08-12）
 

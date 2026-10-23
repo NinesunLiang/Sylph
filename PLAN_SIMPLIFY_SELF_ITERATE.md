@@ -182,7 +182,7 @@ g2_large_file / g5_wide_glob / g6_budget / document_quality / g3_reviews
 
 1. distiller v1：archive 后触发（≥20 条新错误才跑），输出 proposals.md + proposals.jsonl
 2. approver v1：CLI `carros propose list|accept|reject`
-3. accept → 自动生成红测试 → 绿 → 回归（复用现有 run-regression.sh）
+3. accept → 自动生成红测试 → 绿 → 回归（复用现有 run_regression.py）
 4. 防膨胀闸 v1：归档 checklist 加"删≥1/证明无僵尸"一问（carros_base archive 内）
 5. 不动：评测/探针/文档折叠（后续阶段）
 

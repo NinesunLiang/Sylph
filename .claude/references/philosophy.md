@@ -14,13 +14,13 @@
 |------|------|
 | 1 少即是多 | feature-registry.yaml、gatekeeper.py、plan_builder.py |
 | 2 验证 | verify_gate.py、adr/0003-verifygate-evidence-hierarchy.md |
-| 3 零信任 | run-regression.sh、test-*.py 全集合 |
+| 3 零信任 | run_regression.py、test-*.py 全集合 |
 | 4 守护 | hooks/lib/lifecycle_ssot.py、hooks/precompact-lifecycle.py、.omc/state/restore/ 目录约定 |
 | 5 文档 | token.json（carros_base.py init 生成）、scripts/lib/task_ssot.py、redirect-mechanism.md、adr/0002-token-lock-task-lifecycle.md |
 | 6 人本 | hooks/pretool-user-approve.py、adr/0005-goal-mode-autonomous-execution.md、handoff.json |
 | 7 增益 | feature-registry.yaml、adr/0013-scorecard-self-rating-audit-gate.md、anti-patterns.md |
 
-> 已移除映射：`trace1-e1-scope-defense.md`（文件不存在，零信任回归由 run-regression.sh + test-*.py 承载）、`anti-patterns.json`（实际为 .md）、`lifecycle_ssot.py`/`task_ssot.py` 路径已修正到真实位置。
+> 已移除映射：`trace1-e1-scope-defense.md`（文件不存在，零信任回归由 run_regression.py + test-*.py 承载）、`anti-patterns.json`（实际为 .md）、`lifecycle_ssot.py`/`task_ssot.py` 路径已修正到真实位置。
 
 ---
 
