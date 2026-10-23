@@ -1,51 +1,43 @@
-# 轻量化路线图（阶段 2 已落地）
+# 轻量化路线图（CarrorOS_dev 口径）
 
-> 日期：2026-10-23 | 任务：lightweight-20261023（阶段 1）→ lightweight2-20261023（阶段 2）
-> 原则：**只砍有证据的死重，不砍安全与测试**；每次砍完跑全量回归；预算只降不升。
+> 日期：2026-10-23 | 分支：`CarrorOS_dev` | 原则：只砍有证据的死重，不砍安全与测试；每次砍完跑全量回归；预算只降不升。
+> 口径（用户裁决 F）：**目标只算非测试代码，≤25k 行**。
 
-## 1. 两阶段实测（累计）
+## 1. 当前实测（2026-10-23，CarrorOS_dev）
 
-| 指标 | 起点 | 阶段 1 后 | 阶段 2 后 | 累计 Δ |
-|---|---|---|---|---|
-| `.claude/` Python 总行数 | 66,865 | 65,941 | **56,828** | **-10,037（-15%）** |
-| 非测试 Python 行数 | 45,238 | 44,249 | **35,192** | **-10,046** |
-| `.claude/` Markdown 行数 | 36,747 | 36,653 | **34,772** | -1,975 |
-| 回归测试 | 1001 passed | 1003 passed | **1003 passed / 0 failed** | +2 |
+| 指标 | 实测 | 说明 |
+|---|---|---|
+| `.claude/` Python 总行数 | 53,084 | 含测试 |
+| 非测试 Python | **36,124** | scripts 25,453 + hooks 7,581 + workflows 0 + skills 3,090 |
+| `.claude/` Markdown | 32,719 | 含 references/archived（ADR0017 保留） |
+| 已迁出治理域 | 7,566 py | `capabilities/frontend-overnight/`（C 档） |
+| 回归 | **911 passed / 0 failed** | `.claude/scripts/ + .claude/hooks/` |
+| lx-goal 自身测试 | 90 passed / 16 failed | **既有红灯**，D 档前置项（见迁移方案） |
+| 距目标 25k | **-11,124** | |
 
-阶段 1：删 3 个零引用脚本 + 1 个归档脚本 + 生成物；清 17 个 `__pycache__`；装棘轮。
-阶段 2（B/C）：删 `ui_autopilot` 3 个零引用模块（-924 行）；`frontend-overnight` 整体迁出 `.claude/workflows/` → `capabilities/frontend-overnight/`（-8,189 行 py + -1,932 行 md，git mv 保历史）；`carroros-night-deny.py` 从 settings.json 解绑（注册 hook 12→11，能力保留）；新增 ADR0019。
+## 2. 本轮在 CarrorOS_dev 实际落地
 
-## 2. 目标口径（用户 2026-10-23 裁决 F）
+- **C 档**：`frontend-overnight` 迁出到 `capabilities/`（7,566 py），`night-deny` 从 settings.json 解绑（注册 hook 12→11），ADR0019。
+- **B 档**：`ui_autopilot` 三个零引用模块在目标分支本就不存在，无行数变化（不重复删除）。
+- **棘轮**：`test_line_budget.py` 按目标实测重标：scripts 25,650 / hooks 7,650 / workflows 100 / skills 3,150（合计 36,550）。
+- **文档**：目标分支既有裁决优先——kernel/哲学/gate-contract/README/harness 保持原样（14 门、oracle 退役观察区）；只更新 workflows 行与 night-deny 说明。
+- **产品更新**：`feat:pure` 的 `apps/photo_coach_v2`（485 文件）已迁入（commit 2f9474d）。
 
-**只算非测试代码，目标 ≤25k 行。** 当前 35,192 行，缺口 ≈10,192 行。
-（旧口径把测试 21,550 行与产品工作流算进去，≤15k 在算术上不可达。）
+## 3. 死代码盘点（目标分支，本轮实测）
 
-## 3. 档位状态
+- 零引用：**1 个 / 185 行**（`jev_calibrate.py`，JEV 域，待 JEV 裁决）。
+- 弱引用（仅测试/内部）：`claude_audit_jev.py`、`gov_score.py`、`consolidate.py`、`self_evolve.py`、`gate_roi_report.py` 等。
+- `self_evolve.py` 是自迭代 cron 入口，zombie README 明确保留；`observe.py/consolidate.py` 属同管线。
+- 结论：**目标分支已无“成规模的安全删除空间”**，再往下必须动子系统（D 档）或产品域（C 已完成）。
 
-| 档 | 动作 | 状态 | 可减 |
-|---|---|---|---|
-| **B** | 删 `ui_autopilot` 3 个零引用模块 | ✅ 完成 | -924 py |
-| **C** | `frontend-overnight` 迁出治理域（保留能力） | ✅ 完成 | -8,189 py、-1,932 md |
-| **D** | lx-goal 生命周期并入 carros_base | 📋 迁移方案已出（artifacts/LX_GOAL_MERGE_PLAN.md），**未动代码** | 目标 ~2,000 |
-| **E** | `references/archived/`（19,887 md） | ❌ 不建议（ADR0017 裁决归档不删） | — |
+## 4. 防回胖
 
-## 4. 已装的防回胖机制
+- `test_line_budget.py`：超 36,550 即红；目标常量 `TARGET_NON_TEST_LINES = 25000`。
+- 下调节奏：完成 D 档后把 scripts/skills 预算同步下调。
 
-- `test_line_budget.py`：scripts 22100 / hooks 7700 / workflows 100 / skills 5650
-  （合计 35,550；超限即红）。
-- 下调节奏：每完成一档削减，把预算下调到实测值 + 0.4%，并同步本文件。
-- 目标常量 `TARGET_NON_TEST_LINES = 25000` 已写入测试文件，作为下一里程碑。
+## 5. 待办
 
-## 5. 冻结域文档漂移（已修，用户 2026-10-23 授权「删除错误过时的」）
-
-- `.claude/kernel.md` Gate 模式：改为**实测值**「11 个 hook 脚本 / L1 16 道门 / L2 18 道门」，
-  删除不存在/过时的 hook 名（bash-audit 等）与「13 注册 hook」错误计数；Oracle 改为
-  「不挂 hook，经 carros_base oracle 显式调用」。
-- `.claude/index.md`：hooks 行（15 顶层 py / 11 注册）、rules（3 个）、tokens（94 个）、
-  workflows 行（frontend-overnight 已迁出）、门禁数（16/18）。
-
-## 6. 仍未解决（需人类裁决）
-
-1. **评测尺子**：index46 是 2026-09-10 的；用户已在 Claude Code 侧跑新一轮 OFF/ON 电池（本会话未跑、不碰）。
-2. **JEV 孤儿**：7 个 JEV 脚本仅在 `.omc/worktrees/task-isolated-goal-7de94ace/`，主干无；合回 or 弃置待裁。
-3. **分支拓扑**：`main` 停 2026-07-12、`release` 停 09-13；治理最新代码在 `photo-coach-v2-rebuild`，稳定发布线待定。
+1. **D 档**（lx-goal 1,855 行并入 carros_base）：方案已出，前置 = 电池基线 + 16 个既有红灯先稳定。
+2. **JEV**：`jev_calibrate.py` 零引用等，随 JEV 去留一并裁决。
+3. **分支/发布**：`CarrorOS_dev` 领先 `origin/feature_jev_version` 36 个提交，未 push。
+4. **电池**：用户在 Claude Code 侧执行中（本会话不跑）。
