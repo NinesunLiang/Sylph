@@ -230,7 +230,12 @@ tarfile.open(fileobj=io.BytesIO(base64.b64decode(data)), mode='r:gz').extractall
 PYEOF
 
 cp -R "$TMP/template/." "$TARGET/"
-info "已复制治理文件"
+CL_COUNT="$(find "$TARGET/.claude" -type f 2>/dev/null | wc -l | tr -d ' ')"
+info "已复制治理核心 .claude/（$CL_COUNT 个文件）"
+for d in scripts hooks skills nodes schemas rules workflows; do
+  n="$(find "$TARGET/.claude/$d" -type f 2>/dev/null | wc -l | tr -d ' ')"
+  [ "$n" -gt 0 ] && echo "        .claude/$d: $n"
+done
 
 mkdir -p "$TARGET/.omc/state" "$TARGET/.omc/tasks" "$TARGET/.omc/tokens" "$TARGET/.omc/audit"
 info ".omc 骨架就绪（不写入任何数据）"
