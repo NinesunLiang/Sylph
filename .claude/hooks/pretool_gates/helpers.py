@@ -192,11 +192,11 @@ def _block(reason: str, suggestion: str = "") -> int:
 
     ask_user = safe_reason.startswith("ASK_USER ")
     display_reason = safe_reason.removeprefix("ASK_USER ") if ask_user else safe_reason
-    # 2026-10-18 人类裁决（agentic-ui）：交互模式下 ASK_USER 用宿主可选择的 ask；
-    # 无人值守（goal）模式没有人能回答 ask，会卡死 → 回退 deny + 引导，让模型自纠。
+    # 2026-10-24 人类裁决（D-033）：交互模式下**所有**拒绝都走 ask，不再 deny；
+    # 无人值守（goal）模式没有人能回答 ask，会卡死 → 保留 deny + 引导，让模型自纠。
     hs: dict[str, Any] = {
         "hookEventName": "PreToolUse",
-        "permissionDecision": "ask" if (ask_user and not unattended) else "deny",
+        "permissionDecision": "ask" if not unattended else "deny",
         "permissionDecisionReason": display_reason,
     }
 
@@ -276,11 +276,12 @@ def _redirect(reason: str, guidance: str = "") -> int:
     full_output = GateKeeper.format_output(result)
     hint = _next_better_step(reason)
     extra = f"\n\n正确做法: {hint}" if hint else ""
+    # D-033：交互模式 REDIRECT 也走 ask；无人模式保留 deny 让模型自纠。
     print(json.dumps({
         "continue": True,
         "hookSpecificOutput": {
             "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
+            "permissionDecision": "ask" if not _goal_mode() else "deny",
             "permissionDecisionReason": reason,
             "additionalContext": f"REDIRECT: {reason}\n\n{guidance}{extra}\n\n{full_output}",
         }

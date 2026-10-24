@@ -16,6 +16,7 @@ _Updated: 2026-10-16 | 人类裁决精简：165 行 → ≤40 行（防膨胀闸
 | L4 | EV 块缺 plan.verify 关键短语 | assertion 逐字复用 plan.verify 原文 | VerifyGate evidence_missing |
 | L5 | 单次 sleep 超沙箱超时(120s) | 分段 sleep / 后台 / 轮询 | — |
 | L6 | bug 修一半停手 → 下游连环错 | 修复后跑全流程（一镜到底） | — |
+| L7 | 给用户多行/折行的长命令（终端断开执行） | 只给单行 `bash .omc/scripts/x.sh`，长操作先落脚本 | stop-user-command-gate.py（Stop hook 强制） |
 
 ## 已归档（移入 references/archived/anti-patterns-20261016.md，含 index37 来源完整版 L 段）
 

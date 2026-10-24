@@ -28,5 +28,6 @@
 | **生命周期** | `precompact-lifecycle.py` | PreCompact |
 | **飞轮停止** | `stop-flywheel.py` | PreCompact |
 | **遥测清理** | `telemetry-ttl.py` | PreCompact |
+| **用户命令门禁** | `stop-user-command-gate.py` | Stop（扫描最终回复，禁止多行/折行命令） |
 
 > 已移除条目：`error-dna.py`（index48 随 error-dna 机制删除）、`read-tracker.py`（文件不存在，仅 harness.yaml 历史注释提及）。删除/退休 hook 的完整清单见 `references/archived/hooks-retired-20261023.md`。

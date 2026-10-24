@@ -272,10 +272,11 @@ def test_ask_user_emits_host_choice(capsys):
     assert data["hookSpecificOutput"]["permissionDecision"] == "ask"
 
 
-def test_destructive_block_still_denies(capsys):
+def test_plain_block_now_asks(capsys):
+    """D-033（2026-10-24 人类裁决）：交互模式所有拒绝都走 ask，不再 deny。"""
     HELPERS._block("BLOCK plain_block", "危险操作")
     data = _last_json(capsys.readouterr().out)
-    assert data["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert data["hookSpecificOutput"]["permissionDecision"] == "ask"
 
 
 def test_goal_mode_ask_user_stays_deny(capsys, monkeypatch):
