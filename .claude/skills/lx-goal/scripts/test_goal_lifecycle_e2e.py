@@ -54,6 +54,17 @@ def _valid_plan(path: Path) -> None:
     )
 
 
+def _make_plan_green(plan_dir: Path) -> None:
+    """模拟实现完成：特性 TDD 从红转绿（done 的后置门前置条件）。"""
+    plan = plan_dir / "plan.md"
+    plan.write_text(
+        plan.read_text(encoding="utf-8").replace(
+            "- feature_tdd_cmd: exit 1", "- feature_tdd_cmd: exit 0"
+        ),
+        encoding="utf-8",
+    )
+
+
 def _valid_executor(path: Path) -> None:
     path.write_text(
         "# Executor\n\n"
@@ -99,6 +110,8 @@ def goal_ctx(tmp_path, monkeypatch):
     monkeypatch.setattr(module, "TASKS_DIR", tmp_path / "tasks")
     monkeypatch.setattr(module, "PLANS_DIR", tmp_path / "tasks")
     monkeypatch.setattr(module, "CURRENT_PLAN_DIR", plan_dir.resolve())
+    # 测试必须 hermetic：不创建真实 git worktree（历史上会残留到 .omc/worktrees/）
+    monkeypatch.setattr(module, "enter_isolation_if_complete", lambda *a, **k: {})
 
     ctx = {"plan_dir": plan_dir, "token_path": token_path, "tokens": tokens}
     return ctx
@@ -132,6 +145,7 @@ def test_goal_lifecycle_plan_to_done_chain(goal_ctx):
     assert "VERIFIED: 所有计划步骤已完成" in report
 
     # done: EXECUTING -> VERIFYING -> ARCHIVING -> ARCHIVED, lock removed
+    _make_plan_green(plan_dir)
     module.cmd_done(plan_dir)
     assert _state(token_path) == "ARCHIVED"
     assert json.loads(token_path.read_text(encoding="utf-8"))["status"] == "archived"
@@ -143,6 +157,7 @@ def test_goal_lifecycle_writes_durable_handoffs(goal_ctx):
     module.cmd_phase0_done()
     module.cmd_plan_done()
     module.cmd_task_done("步骤完成")
+    _make_plan_green(plan_dir)
     module.cmd_done(plan_dir)
 
     state_dir = plan_dir / "state"
@@ -162,6 +177,7 @@ def test_goal_lifecycle_off_completes_and_removes_lock(goal_ctx):
     module.cmd_phase0_done()
     module.cmd_plan_done()
     module.cmd_task_done("步骤完成")
+    _make_plan_green(plan_dir)
     module.cmd_done(plan_dir)
     assert _state(token_path) == "ARCHIVED"
 
@@ -176,6 +192,7 @@ def test_goal_lifecycle_token_is_resume_source(goal_ctx):
     module.cmd_phase0_done()
     module.cmd_plan_done()
     module.cmd_task_done("步骤完成")
+    _make_plan_green(plan_dir)
     module.cmd_done(plan_dir)
 
     # A fresh context can recover from the token via task_dir binding.

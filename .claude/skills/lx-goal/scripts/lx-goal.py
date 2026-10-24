@@ -399,6 +399,163 @@ def missing_verified_evidence(plan_dir: Path) -> list[str]:
 
 
 # ============================================================
+# 下一步入参契约 — 每步结束后主动告知，靠事前准备代替事后报错
+# ============================================================
+
+_CLI = "python3 .claude/skills/lx-goal/scripts/lx-goal.py"
+_RULE = "─" * 62
+
+
+def goal_level(data: dict) -> str:
+    """Read the declared level (L1 simple / L2 complete) from the task token."""
+    return str((data.get("session") or {}).get("level") or "L1").upper()
+
+
+_RENEW_THRESHOLD = timedelta(hours=1)
+_RENEW_EXTEND = timedelta(hours=6)
+
+
+def _renew_goal_expiry(mode_data: dict, path: str | None) -> None:
+    """无人值守防中断：剩余不足 1 小时时顺延 6 小时（仅在仍有 step 成功推进时调用）。
+
+    已过期的任务不静默续命——过期后 hooks 会退回「问人」模式，属于明确的
+    fail-closed 边界，必须由人类重新激活。
+    """
+    goal = mode_data.get("goal") or {}
+    raw = goal.get("expires_at")
+    if not raw or not path:
+        return
+    try:
+        expires = datetime.fromisoformat(raw)
+    except (TypeError, ValueError):
+        return
+    now = datetime.now(timezone.utc)
+    remaining = expires - now
+    if remaining <= timedelta(0):
+        print("⚠  本任务已过期，无法自动续期；请重新运行 lx-goal.py on 激活。", file=sys.stderr)
+        return
+    if remaining > _RENEW_THRESHOLD:
+        return
+    goal["expires_at"] = (now + _RENEW_EXTEND).isoformat()
+    _write_mode_file(mode_data, path)
+    print(f"⏳ 剩余不足 1 小时，已顺延至 {goal['expires_at']}（无人值守不中断）")
+
+
+def _remaining_step_summary(plan_dir: Path | None) -> str:
+    if not plan_dir:
+        return ""
+    try:
+        total = plan_step_count(plan_dir)
+        done = len(completed_plan_steps(plan_dir))
+    except Exception:
+        return ""
+    return f"（进度 {done}/{total}）" if total else ""
+
+
+def _print_next_contract(stage: str, level: str = "L1", plan_dir: Path | None = None) -> None:
+    """Print what the NEXT command needs, before the AI writes anything.
+
+    stage: after-on | after-phase0 | after-plan | after-task | after-report | after-accept
+    """
+    l2 = str(level).upper() == "L2"
+    task_dir = "--task-dir <task_dir>"
+    lines: list[str] = []
+
+    if stage == "after-on":
+        lines = [
+            "👉 下一步：phase0-done（研究阶段）",
+            "   提前准备 research.md，下面 8 个章节都要有真实内容：",
+            "     ## 背景 / ## 约束 / ## 已知信息 / ## 不确定性",
+            "     ## 全貌 / ## 方案 / ## Dependency TDD",
+            "     ## 依赖树（至少 1 条 `- ` 列表项）",
+            "   plan.md 这一阶段先不要填（plan 的判据在下一步才需要）。",
+            f"   命令: {_CLI} phase0-done {task_dir}",
+        ]
+    elif stage == "after-phase0":
+        lines = [
+            "👉 下一步：plan-done（通过后才允许执行）",
+            "   提前准备 plan.md：",
+            "     - ## 依赖树（至少 1 条）",
+            "     - ## Phase N 下每个 step：`- [ ] S1: 描述`",
+            "          - status / - depends_on / - scope / - acceptance / - verify",
+            "     - step id 不重复，depends_on 只能指向已存在的 step 且不能成环",
+        ]
+        if l2:
+            lines += [
+                "   L2 额外（缺一条前置门必拒）：",
+                "     - dep_tdd_cmd: <命令>      # 依赖树测试，现在必须 exit 0",
+                "     - feature_tdd_cmd: <命令>  # 特性测试，现在必须非 0（红的）",
+                "   plan-done 会自动：ResearchGate → PlanGate → 前置 TDD 门 → 建 worktree",
+            ]
+        lines.append(f"   命令: {_CLI} plan-done {task_dir}")
+    elif stage == "after-plan":
+        progress = _remaining_step_summary(plan_dir)
+        lines = [
+            f"👉 下一步：task-done（每个 step 调一次）{progress}",
+            "   每步提前准备：",
+            "     - 在 executor.md 追加 EV 块：",
+            "         ### EV-<step_id>",
+            "         - step / - type / - source / - exit_code / - assertion",
+            "     - assertion 逐字复用 plan.md 里该 step 的 verify 原文",
+        ]
+        if l2:
+            lines.append("   L2：代码改动只在 worktree 内进行（worktree-scope 门禁拦主树写入）")
+        lines += [
+            f'   命令: {_CLI} task-done "<完成描述>" {task_dir}',
+            "   内部自动 tick + VerifyGate：不通过不会标记完成，补证据后重试。",
+        ]
+    elif stage == "after-task":
+        remaining = 0
+        total = 0
+        if plan_dir:
+            try:
+                total = plan_step_count(plan_dir)
+                remaining = max(total - len(completed_plan_steps(plan_dir)), 0)
+            except Exception:
+                remaining = 0
+        if remaining > 0:
+            lines = [
+                f"👉 下一步：继续 task-done（还剩 {remaining}/{total} 步）",
+                "   每个 step 的 EV 块写完后立即调用，不要攒到最后。",
+                f'   命令: {_CLI} task-done "<完成描述>" {task_dir}',
+            ]
+        else:
+            lines = [
+                "👉 下一步：收尾三连（按顺序）",
+                f"   1) report  {_CLI} report {task_dir}",
+                f"   2) accept  {_CLI} accept {task_dir}   # 可选：高风险任务才需要双法官",
+                f"   3) done    {_CLI} done {task_dir}",
+                "   提前准备：executor.md 的 Acceptance Checklist 全部勾选 [x]。",
+            ]
+            if l2:
+                lines.append("   L2：done 会自动跑后置 TDD（依赖 + 特性必须都全绿），不需要人参与。")
+    elif stage == "after-report":
+        lines = [
+            "👉 下一步：done（accept 可选）",
+            "   提前准备：",
+            "     - executor.md 的 Acceptance Checklist 全部勾选 [x]",
+            "     - state/goal-report.md 含 **status**: pass|blocked|warn|incomplete 与 **confidence**",
+        ]
+        if l2:
+            lines.append("     - L2：done 会自动跑开发后的 dep/feature 两条 TDD，必须都 exit 0")
+            lines.append("     - 高风险任务可先跑 accept（双法官），简单任务不必")
+        lines.append(f"   命令: {_CLI} done {task_dir}" + (f"   （可选先跑 {_CLI} accept {task_dir}）" if l2 else ""))
+    elif stage == "after-accept":
+        lines = [
+            "👉 下一步：done（归档 + 删锁）",
+            "   提前准备：executor.md checklist 全勾；报告 verdict schema 齐全。",
+            f"   命令: {_CLI} done {task_dir}",
+        ]
+    if not lines:
+        return
+    print()
+    print(_RULE)
+    for line in lines:
+        print(line)
+    print(_RULE)
+
+
+# ============================================================
 # 子命令
 # ============================================================
 
@@ -517,8 +674,7 @@ def cmd_on(goal: str, expiry_hours: int = 6, task_id: str | None = None, level: 
     print(f"🔒 物理锁: {lock_file}")
     print(f"✅ 目标任务已开启 — 目标: {goal}, {expiry_hours}h 过期")
     print(f"   后续命令必须绑定: --task-dir {plan_dir.resolve()}")
-    print('   任务逐项标记: lx-goal.py task-done "完成项描述" --task-dir <path>')
-    print("   完成后输出报告: lx-goal.py report --task-dir <path>")
+    _print_next_contract("after-on", level)
     # 无人模式轮询指引（跨会话/compact 恢复硬化）
     print("   ── 无人模式硬化 ──")
     print("   状态探测: lx-goal.py is-active --task-dir <path>")
@@ -582,9 +738,10 @@ def cmd_off(plan_dir: Path | str | None = None):
     )
     final_status = "archived" if status == "archived" else "completed"
     finalize_token(lock_file, status=final_status, reason="goal off")
-    cmd_report()
+    cmd_report(next_hint=False)
     print(f"🔓 终态锁已删除，token 保留: {lock_file}")
     print(f"RPE退出报告: {checklist}")
+    print("🔚 Goal 已关闭（off 路径），无需后续命令。")
 
 
 def cmd_status(plan_dir: Path | str | None = None):
@@ -630,9 +787,6 @@ def cmd_phase0_done():
         if len(e.errors) > 5:
             print(f"   (共 {len(e.errors)} 项失败)")
         sys.exit(1)
-
-    # index49：完备模式（L2）前置 TDD 门——依赖树全绿 + 特性全红；简易模式 no-op
-    _tdd_gate_or_fail(plan_dir, "pre")
 
     slug = plan_dir.name
     date_dir = plan_dir.parent.name
@@ -687,8 +841,7 @@ def cmd_phase0_done():
     print("✅ Phase 0 完成 → PLANNING 已解锁")
     print("   ResearchGate 内容结构验证通过")
     print("   已提交 PLANNING 入参 schema：research.md / ResearchGate 结果")
-    print("   现在填写并审查 plan.md")
-    print("   完成后运行: lx-goal.py plan-done")
+    _print_next_contract("after-phase0", goal_level(mode_data), plan_dir)
 
 
 def extract_tdd_commands(plan_text: str) -> dict:
@@ -735,15 +888,36 @@ def evaluate_posttdd(results: dict) -> tuple[bool, str]:
     return True, "后置门通过：依赖树与特性 TDD 均全绿"
 
 
-def run_tdd_commands(plan_dir: Path, commands: dict) -> dict:
+def _tdd_run_dir(plan_dir: Path) -> Path:
+    """TDD 命令的执行目录：完备模式优先 worktree，否则项目根目录。
+
+    plan_dir 是任务文档目录（.omc/tasks/...），不是代码目录；
+    在它里面跑 `pytest tests/` 找不到任何测试，必然误判。
+    """
+    try:
+        data, _ = _read_mode_file(plan_dir)
+    except SystemExit:
+        data = {}
+    except Exception:
+        data = {}
+    worktree = str((data or {}).get("worktree") or "")
+    if worktree:
+        candidate = Path(worktree).expanduser()
+        if candidate.is_dir():
+            return candidate
+    return PROJECT_ROOT
+
+
+def run_tdd_commands(plan_dir: Path, commands: dict, cwd: Path | str | None = None) -> dict:
     """执行 plan 声明的两条 TDD 命令，返回 {"dep_exit": n, "feature_exit": n}（缺则 None）。"""
+    workdir = Path(cwd) if cwd else _tdd_run_dir(plan_dir)
     results: dict = {"dep_exit": None, "feature_exit": None}
     for key, slot in (("dep_tdd_cmd", "dep_exit"), ("feature_tdd_cmd", "feature_exit")):
         cmd = commands.get(key)
         if not cmd:
             continue
         try:
-            proc = subprocess.run(cmd, shell=True, cwd=str(plan_dir),
+            proc = subprocess.run(cmd, shell=True, cwd=str(workdir),
                                   capture_output=True, text=True, timeout=600)
             results[slot] = proc.returncode
         except subprocess.TimeoutExpired:
@@ -818,6 +992,11 @@ def cmd_plan_done():
         print(f"❌ PlanGate 未通过，不能进入执行态: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # index49：完备模式（L2）前置 TDD 门——依赖树全绿 + 特性全红；简易模式 no-op。
+    # 判据写在 plan.md（dep_tdd_cmd / feature_tdd_cmd），因此必须等 plan 写完、
+    # 在进入 EXECUTING 之前判定；放在 phase0-done 时 plan 还是空骨架，必然误拒。
+    _tdd_gate_or_fail(plan_dir, "pre")
+
     slug = plan_dir.name
     date_dir = plan_dir.parent.name
     lock_file = TOKENS_DIR / date_dir / f"{slug}.json"
@@ -879,10 +1058,14 @@ def cmd_plan_done():
     print("✅ PlanGate 通过 → EXECUTING 已解锁")
     print("   已提交 EXECUTING 入参 schema：plan.md / current_step.schema / executor sections")
     print("   现在才允许 tick、subagent-log 和 executor 证据写入")
+    _print_next_contract("after-plan", goal_level(mode_data), plan_dir)
 
 
-def cmd_report(plan_dir: Path | str | None = None):
-    """Generate a report inside the selected task directory."""
+def cmd_report(plan_dir: Path | str | None = None, next_hint: bool = True):
+    """Generate a report inside the selected task directory.
+
+    next_hint=False 供 `off` 复用：off 已是收尾路径，不再提示下一步 accept/done。
+    """
     mode_data, path = _read_mode_file(plan_dir)
     plan_dir = _get_plan_dir(mode_data)
     if not plan_dir:
@@ -1055,6 +1238,8 @@ def cmd_report(plan_dir: Path | str | None = None):
     report_file.write_text(report_content, encoding="utf-8")
     print(f"✅ 报告已生成: {report_file}")
     print(report_content)
+    if next_hint:
+        _print_next_contract("after-report", goal_level(mode_data), plan_dir)
 
 
 def cmd_poll(plan_dir: Path | str | None = None):
@@ -1290,7 +1475,10 @@ def cmd_task_done(description: str = "未知任务"):
             _update_lock_counter(plan_dir, "completed_tasks")
     if plan_dir:
         _sync_canonical_step_stats(plan_dir)
+    # 无人值守：只有「有 step 成功通过 VerifyGate」才续期，避免空转无限续命。
+    _renew_goal_expiry(mode_data, path)
     print(f"✅ 已验证并标记任务完成: {_sanitize(description)}")
+    _print_next_contract("after-task", goal_level(mode_data), plan_dir)
     return 0
 
 
@@ -1478,6 +1666,7 @@ def cmd_accept():
     level = str((mode_data.get("session") or {}).get("level") or "").upper()
     if not is_complete_mode(level):
         print("ℹ️  简易模式（L1）无验收门，直接放行")
+        _print_next_contract("after-accept", level, plan_dir)
         return
 
     # ① 后置 TDD 门
@@ -1520,6 +1709,7 @@ def cmd_accept():
         print(f"✅ 已合回发起分支并清理 worktree: {branch}")
     else:
         print("ℹ️  无 worktree（非完备隔离执行），跳过合回")
+    _print_next_contract("after-accept", level, plan_dir)
 
 def cmd_done(plan_dir: Path | str | None = None):
     """Finalize the explicitly selected Goal task after verification."""
@@ -1531,6 +1721,24 @@ def cmd_done(plan_dir: Path | str | None = None):
 
     # 当前任务唯一闭环条件：绑定 task_dir 的 executor checklist 全部完成。
     cmd_checklist_verify(plan_dir)
+
+    # 完备模式（L2）收尾前必须跑开发后 TDD（依赖树 + 特性均全绿）。
+    # 双法官（accept）是可选增强：高风险任务建议跑，简单任务不必；此处不强制。
+    if is_complete_mode(goal_level(mode_data)):
+        # 每次都实跑：judge-verdict.json 是 AI 可写的文件，不能作为跳过测试的依据。
+        _tdd_gate_or_fail(plan_dir, "post")
+        # accept 可跳过，但 worktree 合回不可跳过：代码留在隔离工作树里不能算归档。
+        wt = str(mode_data.get("worktree") or "")
+        branch = str(mode_data.get("worktree_branch") or "")
+        if wt and branch and Path(wt).expanduser().is_dir():
+            sys.path.insert(0, str(PROJECT_ROOT / ".claude" / "scripts"))
+            from worktree_utils import merge_worktree
+            try:
+                merge_worktree(Path(wt).expanduser(), branch, plan_dir.name)
+            except Exception as exc:
+                print(f"❌ worktree 合回失败，拒绝归档: {exc}", file=sys.stderr)
+                sys.exit(1)
+            print(f"✅ 已合回发起分支并清理 worktree: {branch}")
 
     # 优化3 (2026-08-30)：exit-report 必须含 verdict schema 必需字段
     report_file = plan_dir / "state" / "goal-report.md"
@@ -1608,6 +1816,7 @@ def cmd_done(plan_dir: Path | str | None = None):
     plan_md = plan_dir / "plan.md"
     with open(plan_md, "a", encoding="utf-8") as f:
         f.write(f"\n---\n✅ **任务验收完成** @ {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+    print("🎯 目标模式闭环完成，无需后续命令。")
 
 
 def cmd_update_lock(plan_dir_str: str = "", field: str = "", inc: int = 1):

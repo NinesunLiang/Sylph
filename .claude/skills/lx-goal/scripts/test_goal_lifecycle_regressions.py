@@ -545,6 +545,8 @@ def test_phase0_and_plan_done_are_separate_transitions(monkeypatch, tmp_path):
     monkeypatch.setattr(module, "TOKENS_DIR", tmp_path / "tokens")
     monkeypatch.setattr(module, "_read_mode_file", lambda selected=None: (mode_data, str(token_path)))
     monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
+    # hermetic：不要在真实仓库创建 worktree
+    monkeypatch.setattr(module, "enter_isolation_if_complete", lambda *a, **k: {})
 
     module.cmd_phase0_done()
     after_research = json.loads(token_path.read_text(encoding="utf-8"))
@@ -688,6 +690,8 @@ def test_plan_done_rolls_back_token_when_sidecar_commit_fails(monkeypatch, tmp_p
     monkeypatch.setattr(module, "_read_mode_file", lambda plan_dir=None: (mode_data, "mode.json"))
     monkeypatch.setattr(module, "_get_plan_dir", lambda data: plan_dir)
     monkeypatch.setattr(module, "_write_mode_file", fail_sidecar)
+    # hermetic：不要在真实仓库创建 worktree
+    monkeypatch.setattr(module, "enter_isolation_if_complete", lambda *a, **k: {})
 
     with pytest.raises(SystemExit) as exc:
         module.cmd_plan_done()
