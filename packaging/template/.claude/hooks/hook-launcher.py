@@ -39,6 +39,21 @@ def _emit_continue(message="", hook_name=""):
         print(message, file=sys.stderr)
 
 
+def _ask_or_continue(message, hook_name=""):
+    """钩子基础设施故障时的统一出口：交互模式 ask，其他事件放行并提示。
+
+    人类裁决 2026-10-24（D-033）：钩子找不到/崩溃/超时属于「机器没看清」，
+    不得复用退出码 2 的阻断语义。必须让人类看见并自行选择。
+    """
+    event = _detect_hook_event_type()
+    text = message or f"hook-launcher: {hook_name} 未成功执行，已放行并提示"
+    hso = {"hookEventName": event, "additionalContext": text}
+    if event == "PreToolUse":
+        hso["permissionDecision"] = "ask"
+        hso["permissionDecisionReason"] = text
+    return {"continue": True, "hookSpecificOutput": hso}
+
+
 def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
     """Run a single hook, collecting stdout into the merge buffer (NOT printing directly).
 
@@ -51,18 +66,13 @@ def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
     """
     hook_path = os.path.join(launcher_dir, hook_name)
 
-    # Critical hook missing → block
+    # Critical hook missing → ask（D-033：基础设施故障绝不阻断）
     if not os.path.isfile(hook_path):
         if hook_name in CRITICAL_HOOKS:
-            cn_msg = "hook-launcher: CRITICAL hook missing: " + hook_name + " — blocked"
+            cn_msg = ("hook-launcher: CRITICAL hook missing: " + hook_name
+                      + " — 已改为 ask，不阻断")
             print(cn_msg, file=sys.stderr)
-            return (2, {
-                "continue": True,
-                "hookSpecificOutput": {
-                    "hookEventName": "PreToolUse",
-                    "additionalContext": cn_msg,
-                },
-            })
+            return (0, _ask_or_continue(cn_msg, hook_name))
         # Non-critical missing: continue
         print(f"hook-launcher: hook not found: {hook_name}", file=sys.stderr)
         return (0, None)
@@ -74,14 +84,17 @@ def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
             timeout=120, env=env,
         )
     except subprocess.TimeoutExpired:
-        print(f"hook-launcher: hook timed out (120s): {hook_name}", file=sys.stderr)
-        return (2, None) if hook_name in PRETOOL_RC_DENY_HOOKS else (0, None)
+        msg = f"hook-launcher: hook timed out (120s): {hook_name} — 已放行并提示"
+        print(msg, file=sys.stderr)
+        return (0, _ask_or_continue(msg, hook_name))
     except FileNotFoundError:
-        print(f"hook-launcher: python3/bash not found for: {hook_name}", file=sys.stderr)
-        return (2, None) if hook_name in PRETOOL_RC_DENY_HOOKS else (0, None)
+        msg = f"hook-launcher: python3/bash not found for: {hook_name} — 已放行并提示"
+        print(msg, file=sys.stderr)
+        return (0, _ask_or_continue(msg, hook_name))
     except Exception as e:
-        print(f"hook-launcher: spawn failed: {hook_name}: {e}", file=sys.stderr)
-        return (2, None) if hook_name in PRETOOL_RC_DENY_HOOKS else (0, None)
+        msg = f"hook-launcher: spawn failed: {hook_name}: {e} — 已放行并提示"
+        print(msg, file=sys.stderr)
+        return (0, _ask_or_continue(msg, hook_name))
 
     # Forward stderr immediately (operator visibility)
     if result.stderr:
@@ -98,12 +111,10 @@ def _run_one_hook(hook_name, stdin_data, launcher_dir, project_root, env):
             pass
 
     if result.returncode != 0 and not parsed:
-        # Security/permission hooks fail closed; observability hooks may continue.
-        print(f"hook-launcher: hook crashed (exit={result.returncode}): {hook_name}",
-              file=sys.stderr)
-        if hook_name in PRETOOL_RC_DENY_HOOKS:
-            return (result.returncode, None)
-        return (0, None)
+        # D-033：钩子崩溃不是人类拒绝，绝不阻断；转成 ask/放行并留提示。
+        msg = f"hook-launcher: hook crashed (exit={result.returncode}): {hook_name} — 已放行并提示"
+        print(msg, file=sys.stderr)
+        return (0, _ask_or_continue(msg, hook_name))
 
     # Non-zero RC but has JSON → caller decides BLOCK propagation
     return (result.returncode, parsed)
@@ -137,7 +148,8 @@ def _merge_hook_results(results: list) -> dict:
         if parsed is None:
             if (rc != 0 and hook_name in PRETOOL_RC_DENY_HOOKS
                     and _detect_hook_event_type() == "PreToolUse"):
-                any_permission_deny = True
+                # D-033：rc≠0 是钩子故障，不是人类拒绝 → ask
+                any_permission_ask = True
             continue
         hso = parsed.get("hookSpecificOutput", {})
         pd = hso.get("permissionDecision", "") if isinstance(hso, dict) else ""
@@ -145,7 +157,8 @@ def _merge_hook_results(results: list) -> dict:
             any_continue_false = True
         if (rc != 0 and hook_name in PRETOOL_RC_DENY_HOOKS
                 and _detect_hook_event_type() == "PreToolUse"):
-            any_permission_deny = True
+            # D-033：rc≠0 是钩子故障，不是人类拒绝 → ask
+            any_permission_ask = True
         # Collect message
         msg = parsed.get("message", "")
         if msg:

@@ -1,6 +1,6 @@
 ---
 name: lx-goal
-version: v1.5.0
+version: v1.6.0
 description: "目标模式 — 一次前置澄清 → 全自动执行 → 退出报告。人类离开后 AI 自主完成所有任务。入口：`/lx-goal` 或 `/executor`"
 when_to_use: "Use when user says 'goal mode', 'lx-goal', '无人值守', '自主执行', `/lx-goal`, `/executor`, or auto-detects a well-defined L2+ task with clear AC"
 argument-hint: "[目标描述] [过期小时=6]"
@@ -44,16 +44,16 @@ schemas:
 | 级别 | 流程 |
 |---|---|
 | **L1 简易** | 只做必要项：research → plan → 执行 → verify → 归档 |
-| **L2 完备** | 简易项 **+** worktree 隔离 **+** 依赖树 **+** 前置/后置 TDD 门 **+** 双法官验收 |
+| **L2 完备** | 简易项 **+** worktree 隔离 **+** 依赖树 **+** 前置/后置 TDD 门 **+**（可选）双法官验收 |
 
 **完备模式（L2）的硬性链条**：
 
 1. 进入执行态前自动建 **worktree 隔离**（`plan-done` 时；worktree 内 `.omc` 链接回主树，账本不随 worktree 删除而丢失）
 2. **前置 TDD 门**（进入执行态前）：依赖树 TDD **全绿** + 特性 TDD **全红**（红=测试确实在测未实现行为）
 3. 执行
-4. **后置 TDD 门**：依赖树与特性 TDD **均全绿**
-5. **双法官验收**（`accept` 子命令）
-6. 验收通过 → **自动合回发起分支**并清理 worktree
+4. **后置 TDD 门**：依赖树与特性 TDD **均全绿**（`done` 自动校验，不可跳过）
+5. **双法官验收（可选）**：高风险任务建议跑 `accept`；简单任务不必
+6. 归档时自动合回发起分支并清理 worktree（`accept` 跑过就由它合回）
 
 plan.md 须声明两条判据命令：`- dep_tdd_cmd: <命令>` 与 `- feature_tdd_cmd: <命令>`。
 
@@ -78,6 +78,9 @@ plan.md 须声明两条判据命令：`- dep_tdd_cmd: <命令>` 与 `- feature_t
 ```
 Phase 0. 一次问清（人类窗口期） → AI 激活 → Phase 1→N. 全自动执行 → 退出报告
 ```
+
+**每一步都提前告知，不靠事后报错**：每个生命周期命令结束时都会打印「下一步入参契约」
+（下一步要准备哪些文件/字段/命令）。照它准备再执行；门禁只做兜底，不作为发现问题的第一手段。
 
 ### Phase 0：前置澄清
 
@@ -166,8 +169,12 @@ AC 完成度: {N}/{M}（{N} 项通过）
 
 ```bash
 lx-goal report   # 生成执行报告（含 verdict schema）
-lx-goal off      # 关闭模式 + 清理信号文件
+lx-goal accept   # 可选：双法官验收（高风险任务建议跑）
+lx-goal done     # 校验 checklist/verdict → L2 跑后置 TDD → 合回 worktree → 归档 → 删锁
 ```
+
+`off` 是另一条关闭路径（只做 checklist + 报告，不推进 GoalMachine 到 ARCHIVED）；
+正式闭环一律走 `done`，不要混用。
 
 报告结构：执行摘要 → 已完成任务 → 跳过风险 → ⚠️ 需人类介入项 → 推迟决策项 → 附带发现
 

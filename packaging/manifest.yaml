@@ -4,8 +4,11 @@
 
 version:
   # 人类裁决 2026-10-24：版本号 = main 大版本 + 1，minor/patch 归零。
+  # 人类裁决 2026-10-24（D-034）：本次显式发行 8.0.1，minor/patch 按需递增。
   base_major: 7          # origin/main 当前 7.0.1
-  release_major: 8       # → 8.0.0
+  release_major: 8       # → 8
+  release_minor: 0       # → 8.0
+  release_patch: 1       # → 8.0.1
   source: "origin/main:VERSION.json"
 
 include:

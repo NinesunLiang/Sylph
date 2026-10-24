@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -100,8 +101,13 @@ def _scan_secrets(dest: Path) -> list[str]:
 
 
 def _version(manifest: dict) -> str:
+    """发行版本号：大版本.小版本.补丁，全部来自 manifest（缺省归零）。"""
     v = manifest.get("version") or {}
-    return f"{v.get('release_major', 1)}.0.0"
+    return (
+        f"{v.get('release_major', 1)}."
+        f"{v.get('release_minor', 0)}."
+        f"{v.get('release_patch', 0)}"
+    )
 
 
 def _git(*args: str) -> str:
@@ -175,8 +181,8 @@ def _post_manifest_check(dest: Path, version: str) -> list[str]:
         errors.append("缺少门禁入口 pretool-gate.py")
     if not (dest / "AGENTS.md").is_file():
         errors.append("缺少 AGENTS.md")
-    if not version.endswith(".0.0"):
-        errors.append(f"版本号不符合 大版本.0.0 规则: {version}")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        errors.append(f"版本号不符合 大版本.小版本.补丁 规则: {version}")
     return errors
 
 
