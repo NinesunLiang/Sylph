@@ -1,0 +1,50 @@
+# Gate Contract — CarrorOS Base
+# 定义 L1/L2 模式下必须运行的 gate、必须产出的证据、阻断规则
+# verify 命令检查此 contract 的 compliance
+schema_version: "1.1"
+
+L1:
+  required_gates:
+    - sensitive-edit
+    - sensitive-read
+    - sensitive-write-bash
+    - test-verification
+    - governance-bypass
+    - action
+    - secret-scan
+    - omc-skeleton-readonly
+    - doc-reference-before-delete
+    - commit-soft-completion
+    - governance-delete-protection
+    - injection-guard
+    - worktree-scope
+    - commit-push-integrity
+  required_evidence:
+    - audit_event: true
+  enforcement:
+    missing_gate: WARN
+    missing_evidence: INFO
+
+L2:
+  required_gates:
+    - sensitive-edit
+    - sensitive-read
+    - sensitive-write-bash
+    - test-verification
+    - governance-bypass
+    - action
+    - secret-scan
+    - omc-skeleton-readonly
+    - doc-reference-before-delete
+    - commit-soft-completion
+    - governance-delete-protection
+    - oracle
+    - injection-guard
+    - worktree-scope
+    - commit-push-integrity
+  required_evidence:
+    - audit_event: true
+    - harness_evidence: true
+  enforcement:
+    missing_gate: WARN
+    missing_evidence: INFO

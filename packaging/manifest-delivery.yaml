@@ -1,0 +1,73 @@
+# CarrorOS Delivery —— 第一个产品清单（单一真源）
+#
+# 产品定义（只装这五套系统，不多装一行）：
+#   ① lx-goal        目标模式：一次澄清 → 无人值守执行 → 退出报告
+#   ② 文档系统       任务文档（research/plan/executor）+ 进度 + 归档
+#   ③ 令牌系统       .omc/tokens CAS 状态源（+ 锁）
+#   ④ 抗 compact     磁盘状态 + handoff + resume（换会话不失忆）
+#   ⑤ hooks 系统     14 道运行时门禁 + fail-closed + 审计
+#
+# 不装：其它 11 个 skill、apps、rpe、Benchmarking、capabilities、inputs、
+#       decisions 历史、archived/retired、全部测试、运行时数据。
+#
+# 组装/自检复用 packaging/build.py::assemble（密钥扫描 + 语法检查 + 体积上限）。
+
+version:
+  release_major: 1        # 第一个产品：独立版本号，不跟全量包 8.x 混
+  release_minor: 0
+  release_patch: 0
+
+include:
+  # ── 指令层（AI 必读的宪法与路由）──
+  - "AGENTS.md"
+  - "CLAUDE.md"
+  - "LICENSE"
+  - ".claude/kernel.md"
+  - ".claude/index.md"
+  - ".claude/VERSION"
+  - ".claude/settings.json"
+  - ".claude/nodes/**/*.md"
+  - ".claude/schemas/**/*"
+  - ".claude/rules/**/*.md"
+  - ".claude/references/anti-patterns.md"
+  - ".claude/references/philosophy.md"
+  - ".claude/references/working-set-template.yaml"
+  - ".claude/decisions/README.md"
+
+  # ── ① lx-goal ──
+  - ".claude/skills/lx-goal/**/*.md"
+  - ".claude/skills/lx-goal/**/*.py"
+
+  # ── ②③④ 文档 / 令牌 / 抗compact 引擎（全部 scripts，避免动态 import 漏件）──
+  - ".claude/scripts/**/*.py"
+  - ".claude/scripts/**/*.sh"
+  - ".claude/scripts/**/*.yaml"
+
+  # ── ⑤ hooks 门禁 ──
+  - ".claude/hooks/**/*.py"
+  - ".claude/hooks/**/*.md"
+
+exclude:
+  # 测试与缓存
+  - "**/test_*.py"
+  - "**/conftest.py"
+  - "**/__pycache__/**"
+  - "**/*.pyc"
+  # 归档 / 退役 / 内部过程记录
+  - "**/archive/**"
+  - "**/archived/**"
+  - "**/retired/**"
+  - "**/reports/**"
+  - "**/patches/**"
+  - "**/eval/**"
+  # 运行时数据
+  - "**/*.jsonl"
+  - "**/*.lock"
+  - "**/*.log"
+  - ".omc/**"
+  - ".claude/decisions/**"
+  # 密钥
+  - "**/settings.local.json"
+  - "**/.env"
+  - "**/*.key"
+  - "**/*.pem"

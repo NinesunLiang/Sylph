@@ -1,0 +1,115 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Bash|Delete|Read|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreToolUse python3 \".claude/hooks/hook-launcher.py\" \"pretool-gate.py\" || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreToolUse python3 \".claude/hooks/hook-launcher.py\" \"pretool-scorecard-gate.py\" || true"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreToolUse python3 \".claude/hooks/hook-launcher.py\" \"pre-completion-gate.py\" || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Read|Write|Edit|MultiEdit|Grep|SearchFiles|Task|TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PostToolUse python3 \".claude/hooks/hook-launcher.py\" \"posttool-sensitive-filter.py\" || true",
+            "timeout": 5000
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PostToolUse python3 \".claude/hooks/hook-launcher.py\" \"posttool-claim-audit.py\" || true"
+          }
+        ]
+      },
+      {
+        "matcher": "TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PostToolUse python3 \".claude/hooks/hook-launcher.py\" \"completion-gate.py\" || true"
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=UserPromptSubmit python3 \".claude/hooks/hook-launcher.py\" \"pretool-user-approve.py\" || true",
+            "timeout": 3000
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=SessionStart python3 \".claude/hooks/session-start.py\" || true"
+          }
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreCompact python3 \".claude/hooks/precompact-lifecycle.py\" || true"
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreCompact python3 \".claude/hooks/hook-launcher.py\" \"stop-flywheel.py\" || true",
+            "timeout": 15000
+          },
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; HOOK_EVENT_TYPE=PreCompact python3 \".claude/hooks/telemetry-ttl.py\" || true",
+            "timeout": 20000
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR:-.}\" 2>/dev/null || true; python3 \".claude/hooks/stop-user-command-gate.py\" || true",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
