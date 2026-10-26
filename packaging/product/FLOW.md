@@ -252,12 +252,5 @@ python3 .claude/skills/lx-goal/scripts/lx-goal.py report --format client --out �
 
 ---
 
-## 12. 想要完整版
+仓库与更新：<https://github.com/NinesunLiang/Sylph>
 
-这个交付版本刻意做小：**一个技能（目标模式）+ 14 道门禁**。
-完整版在此之上还有：12 个技能、25 道门禁、双法官评审、错误 DNA 学习库、可再分发的发行链。
-
-仓库：<https://github.com/NinesunLiang/Sylph>
-
-> 建议先用这个版本跑通一单（拿到一份真实交付报告），确认流程适合你，再上完整版。
-> 一上来就装 25 道门 + 12 个技能，大多数人在第一天就被门槛劝退。

@@ -152,12 +152,14 @@ def test_worktree_isolation_wired_in_product(product):
     assert "resolve_task_document" in tp, "缺任务地址解析"
 
 
-def test_readme_points_to_flow_and_full_version(product):
+def test_readme_points_to_flow_and_repo(product):
     text = (product / "README.md").read_text(encoding="utf-8")
-    assert "CARROROS-FLOW.md" in text, "README 应指明装完后的流程文档文件名"
-    assert "想要完整版" in text, "README 应有完整版入口"
-    assert "github.com/NinesunLiang/Sylph" in text
+    assert "CARROROS-FLOW.md" in text, "README 应指明装完后的使用说明文件名"
+    assert "github.com/NinesunLiang/Sylph" in text, "README 应保留仓库链接"
     assert "curl | bash" in text or "管道执行" in text, "需说明为何不推荐管道执行"
+    # 不把产品写成"残缺版"：不得出现与其它版本的对比/劝退话术
+    for bad in ("想要完整版", "刻意做小", "门槛劝退", "25 道门禁"):
+        assert bad not in text, f"README 不得出现削弱产品的表述: {bad}"
 
 
 def test_installer_deploys_flow_doc(product):
