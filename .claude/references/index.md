@@ -32,6 +32,7 @@
 | `sandbox-long-task-pattern.md` | 沙箱内长任务模式（分批 / 后台 / 轮询） |
 | `scorecard.md` | 评分对账卡（/lx-goal 循环对账真相源） |
 | `skill-atomization-guide.md` | Skill 原子化指南 |
+| `simpleX-constitution-v4.1.md` | 历史存档：simpleX 前端项目的项目宪法（原根 `README.md`，2026-10-27 迁入；根 README 已改为 CarrorOS 产品介绍） |
 
 ## ADR
 
