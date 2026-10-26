@@ -6,9 +6,9 @@
 
 > **过程可观测 · 安全 · 敢让客户离开后持续工作一天 · 回来还有掌控感**
 
-![安装](https://github.com/NinesunLiang/Sylph/raw/feat/carroros-delivery/packaging/products/carroros-delivery/docs/shot-install.png)
+![安装](https://github.com/NinesunLiang/Sylph/raw/feat/carroros-delivery/packaging/product/docs/shot-install.png)
 
-![交付报告](https://github.com/NinesunLiang/Sylph/raw/feat/carroros-delivery/packaging/products/carroros-delivery/docs/shot-report.png)
+![交付报告](https://github.com/NinesunLiang/Sylph/raw/feat/carroros-delivery/packaging/product/docs/shot-report.png)
 
 ---
 
