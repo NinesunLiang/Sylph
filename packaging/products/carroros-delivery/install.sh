@@ -44,7 +44,7 @@ info "安装到：$TARGET"
 
 # ── 拷贝治理层（.claude 整目录 + 根文档）──
 cp -R "$HERE/.claude" "$TARGET/.claude"
-for f in AGENTS.md CLAUDE.md README.md LICENSE; do
+for f in AGENTS.md CLAUDE.md LICENSE; do
   [ -f "$HERE/$f" ] || continue
   if [ -f "$TARGET/$f" ] && [ "$FORCE" -ne 1 ]; then
     cp "$HERE/$f" "$TARGET/$f.carroros-new"
@@ -55,10 +55,10 @@ for f in AGENTS.md CLAUDE.md README.md LICENSE; do
 done
 info "治理层已复制"
 
-# ── 流程文档（装到根目录单一文件，避免撞你已有的 docs/）──
-if [ -f "$HERE/docs/FLOW.md" ]; then
-  cp "$HERE/docs/FLOW.md" "$TARGET/CARROROS-FLOW.md"
-  info "流程文档：CARROROS-FLOW.md（全景时序 / 命令表 / 报告从哪来）"
+# ── 使用说明：装成单一文件，绝不碰你项目里已有的 README.md ──
+if [ -f "$HERE/README.md" ]; then
+  cp "$HERE/README.md" "$TARGET/CARROROS-FLOW.md"
+  info "使用说明：CARROROS-FLOW.md（30 秒上手 / 目标怎么写 / 回来怎么验收 / 出问题怎么办）"
 fi
 
 # ── .omc 骨架（幂等，不写数据）──

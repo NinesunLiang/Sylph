@@ -81,7 +81,7 @@ def test_only_lx_goal_skill(product):
 
 def test_product_readme_has_four_value_props(product):
     text = (product / "README.md").read_text(encoding="utf-8")
-    for kw in ("过程可观测", "安全", "敢离开一天", "回来有掌控感"):
+    for kw in ("过程可观测", "安全", "敢让客户离开后持续工作一天", "回来还有掌控感"):
         assert kw in text, f"产品 README 缺卖点: {kw}"
     # 不得出现已被证伪的绝对化表述
     assert "密钥写不进代码" not in text, "密钥门禁是 ASK/拦截，不是绝对写不进"
@@ -107,17 +107,22 @@ def test_installer_and_skills_index_overlaid(product):
     assert "lx-oracle" not in index, "交付版索引不得列其它技能"
 
 
-def test_flow_doc_is_user_facing(product):
-    """使用说明是写给用户看的：任务导向、可照抄执行，不是实现者手册。"""
-    flow = product / "docs" / "FLOW.md"
-    assert flow.is_file(), "缺 docs/FLOW.md"
-    text = flow.read_text(encoding="utf-8")
+def test_readme_is_the_user_guide(product):
+    """README 本身就是使用说明（2026-10-27 人类裁决：按特色 README 发布）。
+
+    要求：任务导向、可照抄执行；不得泄漏实现细节，不得写成"残缺版"推销。
+    """
+    text = (product / "README.md").read_text(encoding="utf-8")
+
+    # 安装在前：第一屏就能装
+    assert "carroros-delivery-install.sh" in text
+    assert "curl | bash" in text or "管道执行" in text, "需说明为何不推荐管道执行"
 
     # 用户旅程必须有：上手 / 发起 / 澄清 / 发生什么 / 离开 / 验收 / 客户报告 / 排障
     for kw in ("30 秒上手", "发起一个目标", "AI 会问你一次", "你的项目会发生什么",
                "你能离开多久", "回来怎么验收", "给客户的交付报告", "出问题了怎么办",
                "它不做什么"):
-        assert kw in text, f"使用说明缺用户小节: {kw}"
+        assert kw in text, f"README 缺用户小节: {kw}"
 
     # 可照抄的命令（用户真正会敲的）
     assert "/lx-goal" in text
@@ -128,13 +133,17 @@ def test_flow_doc_is_user_facing(product):
     assert "固定地址" in text, "任务地址机制未以用户语言呈现"
     assert "task-isolated" in text, "独立分支隔离未以用户可见方式呈现"
 
+    # 不把产品写成"残缺版"
+    for bad in ("想要完整版", "刻意做小", "门槛劝退", "25 道门禁"):
+        assert bad not in text, f"README 不得出现削弱产品的表述: {bad}"
+
     # 不得泄漏实现细节 / 治理内部语汇（这些属于代码注释与 ADR，不属于用户文档）
     forbidden = ("_link_ledger", "_check_worktree_scope", "resolve_task_document",
                  "_TASK_NAME_RE", "enter_isolation_if_complete", "人类裁决", "第 13 道")
     leaked = [f for f in forbidden if f in text]
-    assert leaked == [], f"使用说明泄漏实现细节: {leaked}"
+    assert leaked == [], f"README 泄漏实现细节: {leaked}"
 
-    # 完整版入口（产品 → 完整 CarrorOS 的漏斗）
+    # 仓库链接保留
     assert "github.com/NinesunLiang/Sylph" in text
 
 
@@ -152,21 +161,21 @@ def test_worktree_isolation_wired_in_product(product):
     assert "resolve_task_document" in tp, "缺任务地址解析"
 
 
-def test_readme_points_to_flow_and_repo(product):
+def test_readme_announces_installed_doc_name(product):
+    """README 需告诉用户：装完会多一份 CARROROS-FLOW.md（不碰你的 README）。"""
     text = (product / "README.md").read_text(encoding="utf-8")
-    assert "CARROROS-FLOW.md" in text, "README 应指明装完后的使用说明文件名"
-    assert "github.com/NinesunLiang/Sylph" in text, "README 应保留仓库链接"
-    assert "curl | bash" in text or "管道执行" in text, "需说明为何不推荐管道执行"
-    # 不把产品写成"残缺版"：不得出现与其它版本的对比/劝退话术
-    for bad in ("想要完整版", "刻意做小", "门槛劝退", "25 道门禁"):
-        assert bad not in text, f"README 不得出现削弱产品的表述: {bad}"
+    assert "CARROROS-FLOW.md" in text
 
 
-def test_installer_deploys_flow_doc(product):
-    """流程文档必须在安装后落到目标根目录（不能只躺在包里）。"""
+def test_installer_deploys_user_guide_without_touching_readme(product):
+    """README 即使用说明：装成 CARROROS-FLOW.md，且【不得】覆盖目标项目自己的 README.md。"""
     body = (product / "install.sh").read_text(encoding="utf-8")
-    assert "CARROROS-FLOW.md" in body, "安装器应把流程文档装到目标根目录"
-    assert (product / "docs" / "FLOW.md").is_file()
+    assert "CARROROS-FLOW.md" in body, "安装器应把使用说明装到目标根目录"
+    assert '"$HERE/README.md"' in body, "使用说明源就是产品 README"
+    # 根文档拷贝循环里不得包含 README.md（否则会覆盖用户自己的 README）
+    assert "for f in AGENTS.md CLAUDE.md LICENSE; do" in body, \
+        "根文档拷贝列表不得含 README.md"
+    assert not (product / "docs" / "FLOW.md").exists(), "FLOW.md 已并入 README，不应再存在"
 
 
 def test_single_file_installer_built(product):

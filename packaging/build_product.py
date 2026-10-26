@@ -142,7 +142,6 @@ def _overlay_products_files(out: Path) -> list[str]:
 
     pairs = [
         (PRODUCT_SRC / "README.md", out / "README.md"),
-        (PRODUCT_SRC / "FLOW.md", out / "docs" / "FLOW.md"),
         (PRODUCT_SRC / "install.sh", out / "install.sh"),
         (PRODUCT_SRC / "skills-index.md", out / ".claude" / "skills" / "index.md"),
     ]
