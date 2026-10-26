@@ -799,7 +799,17 @@ def main() -> int:
     parser.add_argument("--token", required=False)
     parser.add_argument("--spec", required=False,
                        help="spec.md 路径 — 可选，提供 AC 规则以增强验证")
+    parser.add_argument("--root", required=False,
+                       help="隔离执行根目录（L2 worktree）。file: 规则与命令执行都以它为根，"
+                            "否则后置验证在主树找不到 worktree 内产物（2026-10-27 实测发现）")
     args = parser.parse_args()
+
+    if args.root:
+        # 两个根常量都要改：VERIFY_ROOT 供 file: 规则解析，_VERIFY_ROOT 供命令执行 cwd。
+        # 只改一个 → file 规则仍在主树找文件（2026-10-27 实测：verified file missing）
+        global VERIFY_ROOT, _VERIFY_ROOT
+        VERIFY_ROOT = Path(args.root).resolve()
+        _VERIFY_ROOT = VERIFY_ROOT
 
     _assert_self_check()  # 内建自检 fail-closed（机制自身不变量）
 

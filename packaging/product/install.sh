@@ -68,7 +68,9 @@ info ".omc 骨架就绪（tokens / tasks / audit / state）"
 # ── .gitignore 追加（不重复）──
 GI="$TARGET/.gitignore"
 [ -f "$GI" ] || : > "$GI"
-for entry in ".claude" ".omc"; do
+# __pycache__/*.pyc 必须忽略：L2 隔离执行在 worktree 里跑测试会生成字节码，
+# 未忽略则 git 视为未提交改动 → worktree 合回被永久拒绝（2026-10-27 e2e 实测）
+for entry in ".claude" ".omc" "__pycache__/" "*.pyc"; do
   if grep -qxF "$entry" "$GI"; then
     info ".gitignore 已含 $entry"
   else

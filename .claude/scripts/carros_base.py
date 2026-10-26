@@ -1744,6 +1744,12 @@ def _run_verify_gate(step_id):
             "required_action": "恢复 .claude/scripts/verify_gate.py 后重跑"}
     cmd = [sys.executable, str(script), "--step", step_id,
            "--plan", str(PLAN_PATH), "--executor", str(EXECUTOR_PATH)]
+    # L2 隔离执行期产物在 worktree：file: 规则必须相对 worktree 解析，
+    # 否则后置验证永远在主树找不到文件（2026-10-27 e2e 实测 BLOCKED）
+    _token_for_root = _load_token() if TOKEN_PATH else None
+    _wt = (_token_for_root or {}).get("worktree")
+    if _wt and Path(_wt).is_dir():
+        cmd += ["--root", str(_wt)]
     if TOKEN_PATH:
         cmd += ["--token", str(TOKEN_PATH)]
     spec = (TASK_DIR / "spec.md") if TASK_DIR else None

@@ -28,3 +28,7 @@ apps
 
 # 人类裁决历史：本机生成，不入库、不进安装包（D-031）
 .claude/decisions/DECISIONS.md
+
+# 内部治理过程产物（自我演化报告/补丁提案）：本机保留，不入库
+.claude/scripts/reports/
+.claude/scripts/patches/
