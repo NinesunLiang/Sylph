@@ -1,0 +1,9 @@
+blank_issues_enabled: false
+
+contact_links:
+  - name: 安装与使用说明（先看这个）
+    url: https://github.com/NinesunLiang/Sylph/releases/tag/v1.0.0
+    about: 安装包、使用说明（30 秒上手 / 目标怎么写 / 回来怎么验收 / 出问题怎么办）都在 Release 里
+  - name: 我这个宿主能用吗？
+    url: https://github.com/NinesunLiang/Sylph/issues/new?template=host_request.yml
+    about: 本产品靠宿主 hook 工作；Cursor / Copilot 等暂不支持，可在该模板里登记 +1

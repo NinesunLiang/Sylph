@@ -1,0 +1,40 @@
+name: 需要支持其它宿主 / Request another host
+description: 你在用 Cursor / Codex CLI / Copilot / OpenCode 等，希望本产品也支持
+title: "[host] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **先说清现实**：本产品靠宿主的 hook 事件工作（PreToolUse / PostToolUse /
+        SessionStart / PreCompact / Stop）。宿主不提供这些事件，装了也不会生效。
+
+        这个 issue 的作用是**统计需求**：同一宿主 +1 多会往上排。
+  - type: dropdown
+    id: host
+    attributes:
+      label: 你用的是哪个宿主
+      options:
+        - Cursor
+        - OpenAI Codex CLI
+        - GitHub Copilot CLI
+        - OpenCode
+        - Qwen Code
+        - Gemini CLI
+        - 其它（下文说明）
+    validations:
+      required: true
+  - type: textarea
+    id: hooks
+    attributes:
+      label: 该宿主是否提供 hook / 插件事件？（可选）
+      description: 知道的可以贴文档链接或事件名；不知道就写"不清楚"。
+    validations:
+      required: false
+  - type: input
+    id: why
+    attributes:
+      label: 你最想让它在这个宿主上做哪一件事
+      placeholder: 例如「拦住 AI 把密钥写进代码」/「跑完给我一份交付报告」
+    validations:
+      required: true

@@ -1,0 +1,58 @@
+name: 报告问题 / Report a problem
+description: 安装失败、门禁没生效、报告不对、任务卡住
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢反馈。**请先确认宿主环境**：本产品靠宿主 CLI 的 hook 工作，
+        当前实测只在 **Claude Code** 上生效；Cursor / Copilot 等不支持同等 hook 事件。
+  - type: dropdown
+    id: host
+    attributes:
+      label: 宿主（AI 编程 CLI）
+      options:
+        - Claude Code
+        - 其它支持 hook 的 CLI（请在下文说明）
+        - 不确定
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: 安装包版本
+      description: Release 页面上的版本号，或 `cat .claude/VERSION`
+      placeholder: v1.0.0
+    validations:
+      required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: 卡在哪一步
+      options:
+        - 安装（install.sh）
+        - 起目标（/lx-goal）
+        - 澄清 / 计划阶段
+        - 执行阶段（tick / verify）
+        - 出报告（report）
+        - 收尾 / 合回分支（done）
+        - 门禁没拦住 / 误拦
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: 发生了什么
+      description: 命令 + 实际输出（可贴截图）。**请先去掉密钥、内网地址、客户信息。**
+      placeholder: |
+        $ bash install.sh ~/proj
+        ...实际输出...
+    validations:
+      required: true
+  - type: textarea
+    id: expect
+    attributes:
+      label: 你期望什么
+    validations:
+      required: false
