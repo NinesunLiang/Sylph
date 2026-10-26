@@ -55,6 +55,12 @@ for f in AGENTS.md CLAUDE.md README.md LICENSE; do
 done
 info "治理层已复制"
 
+# ── 流程文档（装到根目录单一文件，避免撞你已有的 docs/）──
+if [ -f "$HERE/docs/FLOW.md" ]; then
+  cp "$HERE/docs/FLOW.md" "$TARGET/CARROROS-FLOW.md"
+  info "流程文档：CARROROS-FLOW.md（全景时序 / 命令表 / 报告从哪来）"
+fi
+
 # ── .omc 骨架（幂等，不写数据）──
 mkdir -p "$TARGET/.omc/state" "$TARGET/.omc/tasks" "$TARGET/.omc/tokens" "$TARGET/.omc/audit"
 info ".omc 骨架就绪（tokens / tasks / audit / state）"

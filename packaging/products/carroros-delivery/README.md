@@ -61,10 +61,11 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 
 ---
 
-## 先读流程，再用它：`docs/FLOW.md`
+## 先读流程，再用它
 
-装完最该看的是 **[docs/FLOW.md](docs/FLOW.md)**：全景时序、五系统分工、生命周期命令表、
-一次真实任务的产物清单、报告从哪来、为什么换会话不失忆、门禁在哪一层生效。
+装完后项目根目录会有一份 **`CARROROS-FLOW.md`**（仓库内路径 `docs/FLOW.md`）：
+全景时序、五系统分工、生命周期命令表、一次真实任务的产物清单、报告从哪来、
+为什么换会话不失忆、门禁在哪一层生效。
 
 一句话版：
 
