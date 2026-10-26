@@ -61,11 +61,12 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 
 ---
 
-## 先读流程，再用它
+## 先读使用说明，再用它
 
-装完后项目根目录会有一份 **`CARROROS-FLOW.md`**（仓库内路径 `docs/FLOW.md`）：
-全景时序、五系统分工、生命周期命令表、一次真实任务的产物清单、报告从哪来、
-为什么换会话不失忆、门禁在哪一层生效。
+装完后项目根目录会有一份 **`CARROROS-FLOW.md`**（仓库内路径 `docs/FLOW.md`），十二节：
+30 秒上手 · 开始前检查 · 目标怎么写 · 澄清怎么答 · 开工后项目会发生什么 ·
+能离开多久 · 回来怎么验收（三步） · 给客户的报告怎么用 · 出问题怎么办 ·
+L1/L2 区别 · 它不做什么 · 完整版入口。
 
 一句话版：
 
@@ -94,14 +95,14 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 归档时内容搬到 `archive/` 而**原地址留符号链接**——所以老命令、老链接、审计记录永远还能解析。
 任务名有严格校验（CJK/ASCII/`._-`、首字符非符号、≤200、拒绝 `..` 与路径逃逸），这是路径注入的第一道防线。
 「最近一个任务」由 `.omc/state/active-resume.json` 唯一指定，不靠扫描猜测。
-→ 详见 `CARROROS-FLOW.md` §4
+→ 详见 `CARROROS-FLOW.md` §5.2
 
 **② worktree 隔离执行（L2 强制）**
 `plan-done` 后创建 `.omc/worktrees/task-isolated-*` 独立分支，代码改动只发生在这里；
 写主树会被 `worktree-scope` 门拦下并指向 worktree 内等价路径。
 关键细节：worktree 里的 `.omc` **反向链接回主树**——隔离只作用于代码，账本/证据/审计始终在主树，
 所以 worktree 收尾删除时**证据不会跟着消失**。
-→ 详见 `CARROROS-FLOW.md` §5
+→ 详见 `CARROROS-FLOW.md` §5.3
 
 ---
 

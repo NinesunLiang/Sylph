@@ -107,19 +107,34 @@ def test_installer_and_skills_index_overlaid(product):
     assert "lx-oracle" not in index, "交付版索引不得列其它技能"
 
 
-def test_flow_doc_shipped(product):
-    """流程文档必须随包发出去（解释怎么做的）。"""
+def test_flow_doc_is_user_facing(product):
+    """使用说明是写给用户看的：任务导向、可照抄执行，不是实现者手册。"""
     flow = product / "docs" / "FLOW.md"
     assert flow.is_file(), "缺 docs/FLOW.md"
     text = flow.read_text(encoding="utf-8")
-    for kw in ("全景时序", "生命周期命令", "为什么换会话不失忆", "门禁在哪一层生效"):
-        assert kw in text, f"FLOW.md 缺小节: {kw}"
-    # 两个核心机制必须有专门章节（2026-10-27 人类指出漏写）
-    assert "任务地址系统" in text, "缺「任务地址系统」章节"
-    assert "worktree 隔离执行" in text, "缺「worktree 隔离执行」章节"
-    for fact in ("active-resume.json", "worktree-scope", "反向链接", "符号链接"):
-        assert fact in text, f"FLOW.md 缺关键事实: {fact}"
-    # 完整版入口必须存在（产品 → 完整 CarrorOS 的漏斗）
+
+    # 用户旅程必须有：上手 / 发起 / 澄清 / 发生什么 / 离开 / 验收 / 客户报告 / 排障
+    for kw in ("30 秒上手", "发起一个目标", "AI 会问你一次", "你的项目会发生什么",
+               "你能离开多久", "回来怎么验收", "给客户的交付报告", "出问题了怎么办",
+               "它不做什么"):
+        assert kw in text, f"使用说明缺用户小节: {kw}"
+
+    # 可照抄的命令（用户真正会敲的）
+    assert "/lx-goal" in text
+    assert "report --format client" in text
+    assert "resume .omc/tasks/" in text
+
+    # 两个核心机制要用用户语言讲到
+    assert "固定地址" in text, "任务地址机制未以用户语言呈现"
+    assert "task-isolated" in text, "独立分支隔离未以用户可见方式呈现"
+
+    # 不得泄漏实现细节 / 治理内部语汇（这些属于代码注释与 ADR，不属于用户文档）
+    forbidden = ("_link_ledger", "_check_worktree_scope", "resolve_task_document",
+                 "_TASK_NAME_RE", "enter_isolation_if_complete", "人类裁决", "第 13 道")
+    leaked = [f for f in forbidden if f in text]
+    assert leaked == [], f"使用说明泄漏实现细节: {leaked}"
+
+    # 完整版入口（产品 → 完整 CarrorOS 的漏斗）
     assert "github.com/NinesunLiang/Sylph" in text
 
 
