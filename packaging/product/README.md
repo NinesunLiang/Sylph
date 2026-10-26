@@ -12,7 +12,7 @@
 
 ```bash
 # 1) 下载单个脚本（约 600 KB，自解压，无需 clone 仓库）
-curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/packaging/products/carroros-delivery/dist/carroros-delivery-install.sh \
+curl -fsSL https://github.com/NinesunLiang/Sylph/releases/download/v1.0.0/carroros-delivery-install.sh \
   -o carroros-delivery-install.sh
 
 # 2) 装进你的项目
