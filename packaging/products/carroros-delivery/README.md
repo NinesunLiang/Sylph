@@ -28,7 +28,7 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 > 为什么不能 `curl | bash`：自解压包要读自己的文件体，管道执行拿不到（脚本会提示你改成两步）。
 > 两步还有个好处：**你可以先读一遍脚本再跑**。
 
-**不动你的代码、不改你的依赖**，只在 `.gitignore` 追加两行（`.claude`、`.omc`）。
+**不动你的代码、不改你的依赖**，只在 `.gitignore` 追加四行（`.claude`、`.omc`、`__pycache__/`、`*.pyc`）。
 
 **安装器做了什么（不黑箱）**：
 
@@ -42,6 +42,21 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 
 > Windows 原生不支持（治理代码依赖 `fcntl` 文件锁）；WSL / macOS / Linux 可用。
 
+### 环境要求（**这条很关键，别装错地方**）
+
+本产品靠**宿主 CLI 的 hook 机制**工作，不是独立程序：
+
+| 要求 | 说明 |
+|---|---|
+| **宿主必须是支持 hook 的 AI 编程 CLI** | 当前实测：**Claude Code**（按 `settings.json` 里 `PreToolUse` / `PostToolUse` / `SessionStart` / `PreCompact` / `Stop` 事件生效） |
+| Cursor / Copilot / 纯网页版 ChatGPT | ❌ **不生效**：它们不提供同等 hook 事件，装了也不会自动拦截、不会自动出报告 |
+| Python 3.10+ | 治理层与技能脚本的运行环境 |
+| git | L2 任务的隔离执行需要 git worktree |
+
+> 一句话：**它是「给 AI 编程 CLI 加的治理层」，不是能独立跑的桌面应用。**
+> 如果你的工具不是 Claude Code，现在别装——等后续版本适配。
+
+
 ---
 
 ## 30 秒上手
@@ -50,7 +65,7 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 # ① 确认装好（应输出 "No active task"）
 python3 .claude/scripts/carros_base.py status
 
-# ② 对 AI 说这句话（在 Claude Code 等 AI 编程工具里）
+# ② 对 AI 说这句话（宿主要求见下方「环境要求」）
 /lx-goal 把官网首页改成响应式，手机 375px 宽不能出现横向滚动条
 ```
 
