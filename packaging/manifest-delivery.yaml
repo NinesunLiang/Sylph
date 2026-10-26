@@ -65,7 +65,9 @@ exclude:
   - "**/*.lock"
   - "**/*.log"
   - ".omc/**"
-  - ".claude/decisions/**"
+  # 裁决日志：只排除历史文件本身；README.md（空态说明）必须随包，
+  # 否则 index.md 里的 @.claude/decisions/README.md 成为悬空引用（2026-10-27 审计发现）
+  - ".claude/decisions/DECISIONS.md"
   # 密钥
   - "**/settings.local.json"
   - "**/.env"

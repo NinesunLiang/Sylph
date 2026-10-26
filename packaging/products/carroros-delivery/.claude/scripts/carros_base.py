@@ -1889,7 +1889,7 @@ def cmd_verify(step_id=None, all_steps=False):
                 "step": target, "result": decision, "reason": reason,
                 "required": "VERIFIED for L2 non-light",
             })
-            print(_red(f"❌ {target}: L2 非 light 任务必须 VERIFIED，实际 {decision} — {reason}"))
+            print(_red(f"❌ {target}: 验证未通过（{decision}）— {reason}；完成前必须是 VERIFIED（当前级别 {level}，mode={task_mode}）"))
             return 2
         if decision in ("VERIFIED", "WARN"):
             pass

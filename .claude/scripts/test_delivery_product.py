@@ -190,3 +190,19 @@ def test_single_file_installer_built(product):
     assert "\nexit 0\n" in text, "自解压脚本缺 exit 哨兵"
     assert "#===BASE64_PAYLOAD===" in text
     assert installer.stat().st_size > 100_000
+
+
+def test_dependency_closure_is_complete():
+    """发布前护栏：产品依赖闭包必须完整（文档引用 / 脚本调用 / 本地 import）。
+
+    2026-10-27 审计发现：manifest 把 `.claude/decisions/**` 全排除，
+    导致 index.md 引用的 decisions/README.md 悬空 → 本测试防复发。
+    """
+    import importlib.util as _ilu
+
+    audit_path = Path(__file__).resolve().parent / "audit_product_closure.py"
+    spec = _ilu.spec_from_file_location("product_closure_audit", audit_path)
+    assert spec is not None and spec.loader is not None
+    mod = _ilu.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    assert mod.main() == 0, "依赖闭包不完整：见上方缺失清单"

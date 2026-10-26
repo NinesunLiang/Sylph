@@ -188,7 +188,7 @@ rules:
   # ═══ B. 项目开发原则（README.md = simpleX 项目宪法 v4.1）════════════
 
   - rule_id: proj.style.token-source
-    source: README.md:153
+    source: .claude/references/simpleX-constitution-v4.1.md:153
     text: "| 样式 | `.claude/compact_inject/ui-styling.md` | 双轨：layouts 裸 BEM，pages/components CSS Modules；Token 来源 `src/styles/tokens/`，非新值或无近似值禁止从零定义新值 |"
     rule_target: code
     judge_by: jev
@@ -198,7 +198,7 @@ rules:
     failure_action: "改用现有 token"
 
   - rule_id: proj.api.type-align
-    source: README.md:143
+    source: .claude/references/simpleX-constitution-v4.1.md:143
     text: "**禁止**：删除 UI 多余属性 / 删除 API 多余属性 / 凭记忆猜测属性是否存在"
     rule_target: code
     judge_by: jev
@@ -214,7 +214,7 @@ rules:
                    "?? '未命名'", '?? "未命名"', "?? 'TEMP'", '?? "TEMP"', "?? '默认'"]
         scope: added_lines
     escalate_when_uncertain: true  # 红线：假数据会打到后端，判不出必须看
-    source: README.md:231
+    source: .claude/references/simpleX-constitution-v4.1.md:231
     text: "**禁止的假数据模式**（全项目 grep 零容忍）："
     rule_target: code
     judge_by: script
@@ -234,7 +234,7 @@ rules:
         scope: added_lines
         note: "裸色值：颜色应取自 src/styles/tokens/"
     escalate_when_uncertain: true  # 红线：拆分线，判不出说明量化判据没写清
-    source: README.md:23
+    source: .claude/references/simpleX-constitution-v4.1.md:23
     text: "**C7 红线**：`.tsx` ≤300 行 / `.module.scss` ≤300 行 / 禁止裸色值和 px 魔法数"
     rule_target: code
     judge_by: script
@@ -249,7 +249,7 @@ rules:
         regex: "(\\bany\\b\\s*[;,)>=|]|\\bas\\s+any\\b|<any>)"
         suffixes: [".ts", ".tsx"]
         scope: added_lines
-    source: README.md:156
+    source: .claude/references/simpleX-constitution-v4.1.md:156
     text: "| TypeScript | `.claude/compact_inject/react-patterns.md` | strict / 禁止 any / 类型按域命名 / **本项目中所有需要 tsc 检查类型的情况，必须运行 `pnpm run typecheck`** |"
     rule_target: code
     judge_by: script
@@ -263,7 +263,7 @@ rules:
       - kind: forbidden_pattern
         patterns: ["react-markdown", "remark-gfm"]
         scope: added_lines
-    source: README.md:166
+    source: .claude/references/simpleX-constitution-v4.1.md:166
     text: "| 富文本 | `.claude/docs/Tiptap.md` | 渲染 markdown/表格/代码→必须 Tiptap（禁止 react-markdown+remark-gfm） |"
     rule_target: code
     judge_by: script
@@ -281,7 +281,7 @@ rules:
         suffixes: [".tsx", ".jsx"]
         scope: added_lines
         note: "UI 文件里 emoji 不能当图标，应使用 lucide-react"
-    source: README.md:165
+    source: .claude/references/simpleX-constitution-v4.1.md:165
     text: "| 图标 | `.claude/compact_inject/ui-styling.md` | lucide-react / 尺寸继承 / 禁止 emoji |"
     rule_target: code
     judge_by: script
@@ -295,7 +295,7 @@ rules:
       - kind: port_declaration
         allowed: [9001]
         basenames: ["vite.config.ts", "vite.config.js", "vite.config.mts"]
-    source: README.md:307
+    source: .claude/references/simpleX-constitution-v4.1.md:307
     text: "**⚠️ 开发服务器端口规则**：本地开发必须使用 **9001 端口**。"
     rule_target: code
     judge_by: script
@@ -312,7 +312,7 @@ rules:
       - kind: path_forbidden
         regex: "(^|/)components/[^/]+\\.tsx$"
         note: "子组件平铺文件；应改为 组件名/index.tsx"
-    source: README.md:69
+    source: .claude/references/simpleX-constitution-v4.1.md:69
     text: "**禁止**：layouts 写业务逻辑 | styles 外全局样式 | 跨域引用私有组件 | store 存 UI 态 | types/index.ts 定义类型 | 超 2 级相对路径(用 `@/`) | **页面组件平铺文件** | **子组件不建文件夹** | **多个组件共用一个 SCSS**"
     rule_target: code
     judge_by: script
