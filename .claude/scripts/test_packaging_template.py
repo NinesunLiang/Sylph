@@ -54,7 +54,12 @@ def test_template_matches_source():
     actual = {
         p.relative_to(TEMPLATE).as_posix(): p
         for p in TEMPLATE.rglob("*")
-        if p.is_file() and p.name != "VERSION.json"
+        if p.is_file()
+        and p.name != "VERSION.json"
+        # 字节码不是产物：测试进程导入模板内脚本时会留下 __pycache__/*.pyc，
+        # 那是运行副作用而非构建内容，不应判「模板多出文件」（2026-10-27）。
+        and "__pycache__" not in p.parts
+        and p.suffix != ".pyc"
     }
 
     missing = sorted(set(expected) - set(actual))

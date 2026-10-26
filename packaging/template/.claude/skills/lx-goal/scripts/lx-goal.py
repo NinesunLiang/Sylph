@@ -1061,10 +1061,164 @@ def cmd_plan_done():
     _print_next_contract("after-plan", goal_level(mode_data), plan_dir)
 
 
-def cmd_report(plan_dir: Path | str | None = None, next_hint: bool = True):
+_CLIENT_REPORT_TITLE = "交付报告"
+
+
+def _plan_step_titles(plan_dir: Path) -> dict[str, str]:
+    """step_id → 人类可读标题（来自 plan.md 的 `- [x] S1: 标题` 行）。
+
+    客户版不能只写 S1/S2——付费方需要看懂每条交付项是什么。
+    """
+    plan_md = plan_dir / "plan.md"
+    if not plan_md.exists():
+        return {}
+    titles: dict[str, str] = {}
+    for line in plan_md.read_text(encoding="utf-8").splitlines():
+        m = re.match(r"- \[[ xXaA]\] (\S+?):\s*(.+)$", line.strip())
+        if m:
+            titles[m.group(1)] = m.group(2).strip()
+    return titles
+
+
+def _client_step_label(step: str, titles: dict[str, str]) -> str:
+    title = titles.get(step)
+    return f"{title}" if title else step
+
+
+def _render_client_report(*, goal: str, task_id: str, generated_at: str,
+                          completed_steps: list[str], incomplete_steps: list[str],
+                          missing_evidence: list[str], skipped_risks: list[dict],
+                          hard_boundary_hits: list[dict], blocked_human: list[dict],
+                          verdict_status: str, step_titles: dict[str, str] | None = None) -> str:
+    """客户版退出报告（report --format client）。
+
+    设计合同：面向付费方阅读，**不出现任何治理内部术语**
+    （EV 块 / uncertified 代码 / GateKeeper / verdict status·confidence）。
+    内部版 goal-report.md 仍是唯一机器真相源，本函数只做「面向客户的翻译」。
+    """
+    total = len(completed_steps) + len(incomplete_steps)
+    titles = step_titles or {}
+
+    # ── 交付项表 ──
+    rows: list[str] = []
+    for i, step in enumerate(completed_steps, 1):
+        evidence = "已完成但证据待补" if step in missing_evidence else "已完成，有测试证据"
+        rows.append(f"| {i} | {_sanitize(_client_step_label(step, titles))} | ✅ 已完成 | {evidence} |")
+    for i, step in enumerate(incomplete_steps, len(completed_steps) + 1):
+        rows.append(f"| {i} | {_sanitize(_client_step_label(step, titles))} | ⏳ 未完成 | 未达验收条件 |")
+    deliverable_table = "\n".join(rows) or "| - | 本次无计划交付项 | - | - |"
+
+    # ── 需客户决定的事 ──
+    decisions: list[str] = []
+    idx = 0
+    for h in hard_boundary_hits or []:
+        idx += 1
+        decisions.append(
+            f"| {idx} | {_sanitize(h.get('description', '?'))} | "
+            f"{_sanitize(h.get('reason', '需你亲自执行'))} | "
+            f"{_sanitize(h.get('human_action', '请按建议步骤执行'))} |"
+        )
+    for b in blocked_human or []:
+        idx += 1
+        decisions.append(
+            f"| {idx} | {_sanitize(b.get('description', '?'))} | "
+            f"需要你的业务判断 | "
+            f"{_sanitize(b.get('ai_recommendation', '见说明'))}"
+            f"（依据：{_sanitize(b.get('rationale', '-'))}） |"
+        )
+    for r in skipped_risks or []:
+        if not isinstance(r, dict) or r.get("risk_level") not in ("medium", "high", "critical"):
+            continue
+        idx += 1
+        basis = _sanitize(r.get("reason") or "风险规避")
+        impact = _sanitize(r.get("impact") or "")
+        decisions.append(
+            f"| {idx} | {_sanitize(r.get('description', '?'))} | "
+            f"本次未纳入，需你确认是否追加 | "
+            f"建议{('评估后决定是否做' + (f'（{impact}）' if impact else ''))}；当时判断：{basis} |"
+        )
+    decision_table = "\n".join(decisions) or "| - | 无需你介入的事项 | - | - |"
+
+    # ── 本次未做（范围外）──
+    excluded = "\n".join(
+        f"- {_sanitize(r.get('description', '?'))}"
+        + (f"（原因：{_sanitize(r.get('reason'))}）" if isinstance(r, dict) and r.get("reason") else "")
+        for r in (skipped_risks or [])
+        if isinstance(r, dict)
+    ) or "- 无（计划内事项全部处理）"
+
+    # ── 需管理员权限的操作 ──
+    manual = "\n".join(
+        f"- **{_sanitize(h.get('description', '?'))}**：{_sanitize(h.get('human_action', '请人工执行'))}"
+        f"（原因：{_sanitize(h.get('reason', '不可由自动化执行'))}）"
+        for h in (hard_boundary_hits or [])
+    ) or "- 无"
+
+    if verdict_status == "pass":
+        conclusion = "建议验收：计划内交付项全部完成并通过验证。"
+    else:
+        conclusion = "建议暂缓验收：仍有未完成或未验证的交付项，见下表。"
+
+    return f"""# {_CLIENT_REPORT_TITLE}
+
+**项目**：{_sanitize(goal)}
+**报告日期**：{generated_at}
+**任务编号**：{task_id}
+
+---
+
+## 一、结论
+
+{conclusion}
+
+| 项目 | 数量 |
+|---|---|
+| 计划交付项 | {total} |
+| 已完成并验证 | {len(completed_steps)} |
+| 未完成 | {len(incomplete_steps)} |
+| 需要你决定的事项 | {idx} |
+
+## 二、本次交付内容
+
+| # | 交付项 | 状态 | 验证情况 |
+|---|---|---|---|
+{deliverable_table}
+
+> 只有附了验证证据的项才会被记为「已完成」；没有证据的一律视为未完成。
+
+## 三、这些内容是怎么验证的
+
+1. **先写测试再实现**：每个交付项都先有会失败的测试，实现后测试全部通过才算完成。
+2. **交付行为受约束**：敏感配置不会被写入代码；危险的、不可逆的操作必须交给你确认后执行。
+3. **全过程可追溯**：每一步的判定与执行都有记录，需要时可向你提供完整过程记录。
+
+## 四、需要你决定的事
+
+| # | 事项 | 为什么需要你定 | 我的建议 |
+|---|---|---|---|
+{decision_table}
+
+## 五、本次未做的部分（明确排除在范围外）
+
+{excluded}
+
+## 六、需要你用管理员权限执行的操作
+
+{manual}
+
+## 七、验收方式
+
+- 逐项对照「二、本次交付内容」检查，每项都可要求现场演示验证过程。
+- 交付后 2 周内的问题修复不含额外费用（按合同约定）。
+"""
+
+
+def cmd_report(plan_dir: Path | str | None = None, next_hint: bool = True,
+               format: str = "internal", out: str | None = None):
     """Generate a report inside the selected task directory.
 
     next_hint=False 供 `off` 复用：off 已是收尾路径，不再提示下一步 accept/done。
+    format="client" → 额外产出面向客户的「交付报告」（默认 internal 只产内部版）。
     """
     mode_data, path = _read_mode_file(plan_dir)
     plan_dir = _get_plan_dir(mode_data)
@@ -1234,6 +1388,26 @@ def cmd_report(plan_dir: Path | str | None = None, next_hint: bool = True):
 **status**: {verdict_status}
 **confidence**: {verdict_confidence}
 """
+    if format == "client":
+        client_content = _render_client_report(
+            goal=goal,
+            task_id=plan_dir.name,
+            generated_at=datetime.now().strftime('%Y-%m-%d'),
+            completed_steps=completed_steps,
+            incomplete_steps=incomplete_steps,
+            missing_evidence=missing_evidence,
+            skipped_risks=mode_data.get("skipped_risks", []),
+            hard_boundary_hits=mode_data.get("hard_boundary_hits", []),
+            blocked_human=mode_data.get("blocked_human", []),
+            verdict_status=verdict_status,
+            step_titles=_plan_step_titles(plan_dir),
+        )
+        client_file = Path(out).expanduser() if out else (plan_dir / "state" / "goal-report-client.md")
+        client_file.parent.mkdir(parents=True, exist_ok=True)
+        client_file.write_text(client_content, encoding="utf-8")
+        print(f"✅ 客户版交付报告已生成: {client_file}")
+        return
+
     report_file.parent.mkdir(parents=True, exist_ok=True)
     report_file.write_text(report_content, encoding="utf-8")
     print(f"✅ 报告已生成: {report_file}")
@@ -1941,6 +2115,9 @@ def _usage() -> str:
     return (
         "用法: lx-goal.py <子命令> [参数]  或  lx-goal.py on \"<目标描述>\" [小时|--expiry N] [--task-id ID]\n"
         f"子命令: {cmds}\n"
+        "  report [--format internal|client] [--out <路径>]\n"
+        "         internal（默认）→ state/goal-report.md（机器真相源，含 verdict）\n"
+        "         client          → state/goal-report-client.md（客户版「交付报告」，无治理术语）\n"
         "说明: 参数先完整校验，未知 option/非法小时数不会创建 mode、token 或 lock。"
     )
 
@@ -2053,8 +2230,40 @@ def main():
         rc = handlers[cmd_name](*(args[:3]))
         if isinstance(rc, int):
             sys.exit(rc)
+    elif cmd_name == "report":
+        # report [--format internal|client] [--out <path>]
+        fmt = "internal"
+        out = None
+        rest = []
+        i = 0
+        while i < len(args):
+            a = args[i]
+            if a == "--format" and i + 1 < len(args):
+                fmt = args[i + 1]
+                i += 2
+                continue
+            if a.startswith("--format="):
+                fmt = a.split("=", 1)[1]
+                i += 1
+                continue
+            if a == "--out" and i + 1 < len(args):
+                out = args[i + 1]
+                i += 2
+                continue
+            if a.startswith("--out="):
+                out = a.split("=", 1)[1]
+                i += 1
+                continue
+            rest.append(a)
+            i += 1
+        if fmt not in ("internal", "client"):
+            print(f"ERROR: --format 只接受 internal|client，收到 {fmt!r}", file=sys.stderr)
+            sys.exit(2)
+        rc = cmd_report(format=fmt, out=out)
+        if isinstance(rc, int):
+            sys.exit(rc)
     else:
-        # off, status, phase0-done, plan-done, report, poll, retry, done — 无参数
+        # off, status, phase0-done, plan-done, poll, retry, done — 无参数
         rc = KNOWN_SUBCOMMANDS[cmd_name]()
         if isinstance(rc, int):
             sys.exit(rc)

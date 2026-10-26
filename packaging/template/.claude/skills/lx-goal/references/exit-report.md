@@ -54,3 +54,36 @@
 | #4 | 没验证=没做 | task-done 附证据，Oracle 裁决留痕 |
 | #6 | 0 信任 | 风险记录 skipped_risks，Oracle 独立审核 |
 | #7 | 文档优先 | 退出报告结构化，裁决可追溯 |
+
+---
+
+## 客户版交付报告（`report --format client`）
+
+内部版 `state/goal-report.md` 是**机器与自用的真相源**，含治理术语（EV 块、uncertified 代码、
+GateKeeper 摘要、verdict status/confidence），**不直接给客户**。
+
+对客户交付时用：
+
+```bash
+python3 .claude/skills/lx-goal/scripts/lx-goal.py report --format client --task-dir <task_dir>
+# 默认输出 state/goal-report-client.md；--out <路径> 可指定位置
+```
+
+### 客户版结构（7 节，全部为客户语言）
+
+| 节 | 内容 | 翻译自 |
+|---|------|--------|
+| 一、结论 | 建议验收 / 建议暂缓验收 + 数量表 | verdict status（pass→建议验收） |
+| 二、本次交付内容 | 交付项 / 状态 / 验证情况 | completed_steps + missing_evidence |
+| 三、这些内容是怎么验证的 | 先测试后实现、行为受约束、全过程可追溯 | 门禁与 TDD 机制（不暴露术语） |
+| 四、需要你决定的事 | 事项 / 为什么要你定 / 我的建议 | hard_boundary_hits + blocked_human + 中高风险 skipped_risks |
+| 五、本次未做的部分 | 范围排除项 + 原因 | skipped_risks（全部等级） |
+| 六、需管理员权限执行的操作 | 操作 + 原因 | hard_boundary_hits |
+| 七、验收方式 | 如何逐项验收 | 固定话术 |
+
+### 硬约束（测试钉死）
+
+`scripts/test_client_report_format.py` 保证客户版**不得出现**：
+`EV-`、`uncertified`、`skipped_risks`、`GateKeeper`、`plan.step.`、`**status**`、`**confidence**`。
+
+改客户版模板时必须同步跑该测试；新增内部术语前先想清楚它会不会漏到客户版。

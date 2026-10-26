@@ -1,6 +1,6 @@
 ---
 name: lx-goal
-version: v1.6.0
+version: v1.7.0
 description: "目标模式 — 一次前置澄清 → 全自动执行 → 退出报告。人类离开后 AI 自主完成所有任务。入口：`/lx-goal` 或 `/executor`"
 when_to_use: "Use when user says 'goal mode', 'lx-goal', '无人值守', '自主执行', `/lx-goal`, `/executor`, or auto-detects a well-defined L2+ task with clear AC"
 argument-hint: "[目标描述] [过期小时=6]"

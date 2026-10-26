@@ -7,6 +7,7 @@ P0 治理加固（2026-10-18）：治理写入改为「无票即拒绝」后，�
 from __future__ import annotations
 
 import os
+import sys
 import tempfile
 from pathlib import Path
 
@@ -19,6 +20,13 @@ os.environ.setdefault(
 os.environ.setdefault(
     "CARROROS_REDIRECT_STREAK",
     str(Path(tempfile.mkdtemp(prefix="carroros-streak-")) / "redirect-streak.json"))
+
+# 2026-10-27：测试不得在仓库里留字节码缓存。
+# 实证：部分 hook 测试会导入 packaging/template 下的脚本，生成的 __pycache__/*.pyc
+# 落在已提交的模板目录里 → test_template_matches_source 报「模板多出文件」假红，
+# 且脏文件有被误提交的风险。父/子进程一起关，子进程继承 os.environ。
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+sys.dont_write_bytecode = True
 
 
 @pytest.fixture(autouse=True)

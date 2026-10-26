@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.7.0
+- feat: `report --format client` —— 客户版「交付报告」
+  - 输出 `state/goal-report-client.md`（`--out <路径>` 可指定位置），7 节全客户语言：
+    结论 / 本次交付内容 / 怎么验证的 / 需要你决定的事 / 本次未做 / 需管理员权限执行 / 验收方式
+  - 交付项显示 plan.md 的人类可读标题，不再只给 `S1/S2` 内部编号
+  - **硬约束**：不得出现 `EV-` / `uncertified` / `skipped_risks` / `GateKeeper` /
+    `plan.step.` / `**status**` / `**confidence**`（`test_client_report_format.py` 钉死）
+  - 内部版 `goal-report.md` 仍是唯一机器真相源，默认行为不变
+  - 用法：`lx-goal.py report --format client [--out <路径>]`
+
 ## v1.6.0
 - feat: 每步结束打印「下一步入参契约」——事前告知，不靠事后报错
   - on → research 8 章节；phase0-done → plan 结构 + L2 TDD 判据
