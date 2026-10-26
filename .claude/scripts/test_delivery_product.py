@@ -105,3 +105,36 @@ def test_installer_and_skills_index_overlaid(product):
     index = (product / ".claude" / "skills" / "index.md").read_text(encoding="utf-8")
     assert "lx-goal" in index
     assert "lx-oracle" not in index, "交付版索引不得列其它技能"
+
+
+def test_flow_doc_shipped(product):
+    """流程文档必须随包发出去（解释怎么做的）。"""
+    flow = product / "docs" / "FLOW.md"
+    assert flow.is_file(), "缺 docs/FLOW.md"
+    text = flow.read_text(encoding="utf-8")
+    for kw in ("全景时序", "生命周期命令", "为什么换会话不失忆", "门禁在哪一层生效"):
+        assert kw in text, f"FLOW.md 缺小节: {kw}"
+    # 完整版入口必须存在（产品 → 完整 CarrorOS 的漏斗）
+    assert "github.com/NinesunLiang/Sylph" in text
+
+
+def test_readme_points_to_flow_and_full_version(product):
+    text = (product / "README.md").read_text(encoding="utf-8")
+    assert "docs/FLOW.md" in text, "README 应引导先读流程"
+    assert "想要完整版" in text, "README 应有完整版入口"
+    assert "github.com/NinesunLiang/Sylph" in text
+    assert "curl | bash" in text or "管道执行" in text, "需说明为何不推荐管道执行"
+
+
+def test_single_file_installer_built(product):
+    """一行命令部署：dist/ 下必须有自解压单文件安装器。"""
+    build = _load(PKG / "build.py", "product_build_selfextract")
+    prod = _load(PKG / "build_product.py", "product_selfextract")
+    manifest = build.yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
+    installer = prod.make_selfextract(product, manifest)
+    assert installer.is_file()
+    text = installer.read_text(encoding="utf-8")
+    # 头部必须有退出哨兵，否则 shell 会把 base64 当命令执行
+    assert "\nexit 0\n" in text, "自解压脚本缺 exit 哨兵"
+    assert "#===BASE64_PAYLOAD===" in text
+    assert installer.stat().st_size > 100_000

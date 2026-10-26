@@ -28,6 +28,103 @@ OUT = PKG / "products" / "carroros-delivery"
 
 PRODUCT_NAME = "CarrorOS Delivery"
 
+SELFEXTRACT_HEADER = """#!/usr/bin/env bash
+# CarrorOS Delivery 安装器（自解压单文件）
+# 版本：__VERSION__ | 构建：__COMMIT__ | 文件：__FILES__ 个 / __SIZE__
+#
+# 用法：
+#   bash carroros-delivery-install.sh [目标目录] [--force]
+#   curl -fsSL <本文件 URL> | bash -s -- [目标目录]
+#
+# 装什么：lx-goal 目标模式 / 任务文档 / 令牌 / 抗 compact / hooks 门禁（五套系统）
+# 不装什么：其它技能、示例应用、评测数据、运行时数据、密钥
+# 平台：macOS / Linux / WSL（Windows 原生不支持，治理代码依赖 fcntl）
+
+set -euo pipefail
+GREEN='\\033[0;32m'; YELLOW='\\033[1;33m'; RED='\\033[0;31m'; NC='\\033[0m'
+info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+die()  { echo -e "${RED}[ERROR]${NC} $1" >&2; exit 1; }
+
+TARGET=""
+FORCE=""
+for arg in "$@"; do
+  case "$arg" in
+    --force) FORCE="--force" ;;
+    -h|--help) sed -n '2,13p' "$0"; exit 0 ;;
+    *) TARGET="$arg" ;;
+  esac
+done
+[ -n "$TARGET" ] || TARGET="$(pwd)"
+
+command -v python3 >/dev/null 2>&1 || die "缺少 python3，请先安装"
+command -v tar >/dev/null 2>&1 || die "缺少 tar"
+
+# 自解压包必须能读到自己：管道执行时 $0 会变成 bash，payload 取不到。
+case "${0##*/}" in
+  bash|sh|-) die "不支持管道执行（curl | bash）。
+     请先下载再运行（也更安全，你可以先看一遍脚本）：
+       curl -fsSL <本文件 URL> -o carroros-delivery-install.sh
+       bash carroros-delivery-install.sh <目标目录>" ;;
+esac
+[ -r "$0" ] || die "无法读取自身：$0（请下载后以文件方式运行）"
+
+TMP="$(mktemp -d)"
+trap 'rm -rf "$TMP"' EXIT
+info "解包到临时目录…"
+
+python3 - "$0" "$TMP" <<'PYEOF'
+import base64, io, sys, tarfile
+src, dst = sys.argv[1], sys.argv[2]
+# 分隔标记用「拼接」构造，避免它在本段源码里字面出现而被提前 split 截断。
+marker = "#===BASE64" + "_PAYLOAD==="
+raw = open(src, "r", encoding="utf-8").read()
+payload = raw.split(marker, 1)[1].strip()
+with tarfile.open(fileobj=io.BytesIO(base64.b64decode(payload)), mode="r:gz") as tar:
+    tar.extractall(dst)
+print("unpacked")
+PYEOF
+
+[ -f "$TMP/product/install.sh" ] || die "包内缺少 install.sh（安装包损坏）"
+echo
+bash "$TMP/product/install.sh" "$TARGET" $FORCE || exit 1
+
+# 关键：payload 紧跟在本行之后，必须在此退出，否则 shell 会把 base64 当成命令执行
+exit 0
+"""
+
+
+def make_selfextract(dest: Path, manifest: dict) -> Path:
+    """把组装好的产品打成 tar.gz，base64 塞进单文件脚本（一行命令部署）。"""
+    import base64
+    import io
+    import tarfile
+
+    build_mod = _load_build()
+    dist = dest / "dist"
+    if dist.exists():          # 防二次构建把上次的安装器打进去（递归膨胀）
+        shutil.rmtree(dist)
+
+    def _skip_dist(ti):
+        return None if "/dist/" in ti.name or ti.name.endswith("/dist") else ti
+
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+        tar.add(dest, arcname="product", filter=_skip_dist)
+    payload = base64.b64encode(buf.getvalue()).decode("ascii")
+
+    files = sum(1 for p in dest.rglob("*") if p.is_file())
+    size = sum(p.stat().st_size for p in dest.rglob("*") if p.is_file())
+    header = (SELFEXTRACT_HEADER
+              .replace("__VERSION__", build_mod._version(manifest))
+              .replace("__COMMIT__", build_mod._git("rev-parse", "--short", "HEAD"))
+              .replace("__FILES__", str(files))
+              .replace("__SIZE__", f"{size / 1024 / 1024:.1f} MB"))
+    out = dist / "carroros-delivery-install.sh"
+    dist.mkdir(parents=True, exist_ok=True)
+    out.write_text(header + "\n#===BASE64_PAYLOAD===\n" + payload + "\n", encoding="utf-8")
+    out.chmod(0o755)
+    return out
+
 
 def _load_build():
     spec = importlib.util.spec_from_file_location("carroros_build", PKG / "build.py")
@@ -45,6 +142,7 @@ def _overlay_products_files(out: Path) -> list[str]:
 
     pairs = [
         (PRODUCT_SRC / "README.md", out / "README.md"),
+        (PRODUCT_SRC / "FLOW.md", out / "docs" / "FLOW.md"),
         (PRODUCT_SRC / "install.sh", out / "install.sh"),
         (PRODUCT_SRC / "skills-index.md", out / ".claude" / "skills" / "index.md"),
     ]
@@ -93,6 +191,9 @@ def build(check_only: bool = False) -> int:
     if not check_only:
         print(f"   输出: {OUT.relative_to(ROOT)}")
         print(f"   安装: bash {OUT.relative_to(ROOT)}/install.sh <目标目录>")
+        installer = make_selfextract(OUT, manifest)
+        print(f"   单文件: {installer.relative_to(ROOT)} "
+              f"({installer.stat().st_size / 1024:.0f} KB，一行命令部署)")
     return 0
 
 

@@ -26,14 +26,51 @@
 
 ---
 
-## 30 秒装进你现有的项目
+## 一行命令装进你现有的项目
 
 ```bash
-bash install.sh /path/to/your-project
+# 1) 下载单个脚本（604 KB，自解压，无需 clone 仓库）
+curl -fsSL https://raw.githubusercontent.com/NinesunLiang/Sylph/main/packaging/products/carroros-delivery/dist/carroros-delivery-install.sh \
+  -o carroros-delivery-install.sh
+
+# 2) 装进你的项目
+bash carroros-delivery-install.sh /path/to/your-project
+```
+
+装完自检：
+
+```bash
 cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 ```
 
-装完自检通过即可用。**不会动你的代码、不改你的依赖**，只在 `.gitignore` 追加两行。
+> 为什么不用 `curl | bash`：自解压包需要读到自己的文件体，管道执行拿不到
+> （脚本会直接提示你改成两步）。两步还有个好处——**你可以先读一遍脚本再跑**。
+
+**不会动你的代码、不改你的依赖**，只在 `.gitignore` 追加两行（`.claude`、`.omc`）。
+
+### 安装器做了什么（不黑箱）
+
+1. 解包自身（tar.gz + base64，单文件自解压）到临时目录
+2. 复制 `.claude/` 治理层 + `AGENTS.md` / `CLAUDE.md` / `README.md` / `LICENSE`
+   —— 目标已有同名文件时**另存为 `.carroros-new`，不覆盖**
+3. 建 `.omc/{state,tasks,tokens,audit}` 空骨架（不写任何数据）
+4. `.gitignore` 幂等追加 `.claude` / `.omc`
+5. 自检五大系统文件是否齐备
+
+> Windows 原生不支持（治理代码依赖 `fcntl` 文件锁）；WSL / macOS / Linux 可用。
+
+---
+
+## 先读流程，再用它：`docs/FLOW.md`
+
+装完最该看的是 **[docs/FLOW.md](docs/FLOW.md)**：全景时序、五系统分工、生命周期命令表、
+一次真实任务的产物清单、报告从哪来、为什么换会话不失忆、门禁在哪一层生效。
+
+一句话版：
+
+```
+你写目标 → AI 问清一次 → 无人值守执行 → 交付代码 + 一份给客户的报告
+```
 
 ---
 
@@ -128,6 +165,31 @@ AGENTS.md                # 宪法：哲学裁决链 + 铁律 + 工作流
 
 ---
 
+## 想要完整版 CarrorOS
+
+交付版刻意做小：**只有 lx-goal 一个技能、14 道门禁**。完整版在此基础上多出：
+
+| 完整版多什么 | 具体 |
+|---|---|
+| **12 个技能** | 需求拆解 / 领域建模 / 代码库设计 / 根因分析 / 提交前检查 / 推送前检查 / 步骤化执行 / 任务规格 / Oracle 评审 / 目标模式 / RPE / 评审复核 |
+| **25 道门禁** | 交付版 14 道之外，增加评分卡门、工作集门、知识注入、夜间模式、声明审计等 |
+| **双法官验收** | 高风险任务由两个独立判官盲评，输出裁决与理由 |
+| **学习飞轮** | `error-dna` 错误 DNA 库：同一个错误不再犯第三次 |
+| **发行链** | 可把治理层再打包分发给你的客户（本产品就是它的子集） |
+
+**仓库**：<https://github.com/NinesunLiang/Sylph>
+**完整安装**（全量治理包）：
+
+```bash
+git clone https://github.com/NinesunLiang/Sylph
+bash Sylph/packaging/install.sh /path/to/your-project
+```
+
+> 建议路径：**先用交付版跑通一单**（有报告、能验收），确认这套流程适合你，再上完整版。
+> 反过来（一上来装 25 道门 + 12 个技能）大多数人会在第一天被门槛劝退。
+
+---
+
 ## License
 
-MIT。商用、改、私有部署都允许。
+MIT。商用、修改、私有部署都允许。
