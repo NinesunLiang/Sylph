@@ -16,7 +16,7 @@
 | 卖点 | 客户心里的那句话 | 机制 | **你能当场拿出的证据** |
 |---|---|---|---|
 | **过程可观测** | "它在里面到底干了什么？" | 每步写证据块（改了哪个文件、断言了什么、退出码）+ 每次门禁判定写 JSONL 审计 | `.omc/audit/*.jsonl`、任务目录 `evidence.jsonl`、报告第二节 |
-| **安全** | "会不会把我的密钥、数据库、线上环境搞坏？" | 14 道运行时门禁：密钥/凭据、敏感路径、危险命令、治理文件自改、sudo、force-push、未验证就宣称完成 | 门禁拦截记录（可现场演示：让 AI 写一个密钥 → 被拦下） |
+| **安全** | "会不会把我的密钥、数据库、线上环境搞坏？" | 14 道运行时门禁：密钥/凭据、敏感路径、危险命令、治理文件自改、sudo、force-push、未验证就宣称完成；**L2 任务另加 git worktree 隔离**（改动只在独立分支，写主树被门禁拦下） | 门禁拦截记录 + **`git branch -a` 里那条 `task-isolated-*` 分支**（客户可以自己看） |
 | **敢离开一天** | "我不在的时候它卡住了、跑偏了怎么办？" | 前置澄清一次问清 → 执行期不暂停/不提问/不中断 → 卡点按决策链自决 → 真正的硬边界记进"需你决定"表 | 退出报告第四节：**每件事为什么需要你定 + AI 的建议 + 依据** |
 | **回来有掌控感** | "回来要花两小时搞清楚到底发生了什么" | 退出报告（内部版给真相，客户版给人话）+ handoff 恢复 + 状态全落磁盘 | `交付报告.md` 一份，七节看完就知道验收还是不验收 |
 
@@ -79,13 +79,29 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 
 | # | 系统 | 作用 | 关键文件 |
 |---|------|------|---------|
-| ① | **lx-goal 目标模式** | 一次前置澄清 → 全自动执行 → 退出报告 | `.claude/skills/lx-goal/` |
-| ② | **文档系统** | 任务文档（research/plan/executor）+ 进度 + 归档 | `.claude/scripts/carros_base.py` |
-| ③ | **令牌系统** | `.omc/tokens` 带 CAS 的状态源（并发写保护） | `.claude/scripts/token_lifecycle.py` |
+| ① | **lx-goal 目标模式** | 一次前置澄清 → 全自动执行 → 退出报告；**L2 附带 worktree 隔离** | `.claude/skills/lx-goal/` |
+| ② | **文档系统** | 任务文档（research/plan/executor）+ 进度 + 归档；地址 `.omc/tasks/{日期}/{任务名}` **稳定可寻址** | `.claude/scripts/carros_base.py` |
+| ③ | **令牌系统** | `.omc/tokens` 带 CAS 的状态源（并发写保护），路径与任务目录**同构** | `.claude/scripts/token_lifecycle.py` |
 | ④ | **抗 compact** | 状态全落磁盘；对话被压缩/换会话后仍能续跑 | `handoff` + `resume` 链路 |
-| ⑤ | **hooks 门禁** | 14 道运行时门禁，fail-closed，全程审计 | `.claude/hooks/` |
+| ⑤ | **hooks 门禁** | 14 道运行时门禁（含 `worktree-scope` 隔离门），fail-closed，全程审计 | `.claude/hooks/` |
 
 不装：其它 11 个技能、示例应用、内部评测、历史归档、运行时数据。
+
+### 两条最容易被忽略、但决定成败的设计
+
+**① 任务地址系统（`.omc/tasks/{日期}/{任务名}`）**
+任务不是"一堆文件"，是一个稳定地址：目录与令牌**同名同日、路径同构**，
+归档时内容搬到 `archive/` 而**原地址留符号链接**——所以老命令、老链接、审计记录永远还能解析。
+任务名有严格校验（CJK/ASCII/`._-`、首字符非符号、≤200、拒绝 `..` 与路径逃逸），这是路径注入的第一道防线。
+「最近一个任务」由 `.omc/state/active-resume.json` 唯一指定，不靠扫描猜测。
+→ 详见 `CARROROS-FLOW.md` §4
+
+**② worktree 隔离执行（L2 强制）**
+`plan-done` 后创建 `.omc/worktrees/task-isolated-*` 独立分支，代码改动只发生在这里；
+写主树会被 `worktree-scope` 门拦下并指向 worktree 内等价路径。
+关键细节：worktree 里的 `.omc` **反向链接回主树**——隔离只作用于代码，账本/证据/审计始终在主树，
+所以 worktree 收尾删除时**证据不会跟着消失**。
+→ 详见 `CARROROS-FLOW.md` §5
 
 ---
 
@@ -136,7 +152,8 @@ python3 .claude/skills/lx-goal/scripts/lx-goal.py report --format client --out �
 | **敏感操作拦截** | 密钥/凭据写入、敏感路径、危险命令、治理文件自改、`sudo`、`force-push` 全部走门禁。**默认交互模式必须你点头才放行**；若开启自动放行，这些门退化为"拦截 + 留痕"并写审计（报告里可查） |
 | **崩溃即拒绝** | 安全门自身出错时**拒绝执行**，而不是静默放行（fail-closed） |
 | **状态落磁盘** | 对话压缩、换会话、关机器，任务都能续上 |
-| **隔离执行** | L2 任务在 worktree 里跑，改不到你的主工作区（由门禁强制） |
+| **隔离执行** | L2 任务在 `.omc/worktrees/task-isolated-*` 独立分支执行；写主树被 `worktree-scope` 门拦下并给出 worktree 内等价路径。收尾合回发起分支并删除 worktree——**分支记录留在 git 里可查** |
+| **证据不随隔离消失** | worktree 内的 `.omc` 反向链接主树：代码在沙箱里改，账本/证据/审计始终在主树（否则 worktree 一删，证据全丢） |
 | **全程审计** | 每次拦截、每次审批、每次跳过都留 JSONL 记录 |
 
 ---

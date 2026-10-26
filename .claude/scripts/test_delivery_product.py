@@ -114,16 +114,42 @@ def test_flow_doc_shipped(product):
     text = flow.read_text(encoding="utf-8")
     for kw in ("全景时序", "生命周期命令", "为什么换会话不失忆", "门禁在哪一层生效"):
         assert kw in text, f"FLOW.md 缺小节: {kw}"
+    # 两个核心机制必须有专门章节（2026-10-27 人类指出漏写）
+    assert "任务地址系统" in text, "缺「任务地址系统」章节"
+    assert "worktree 隔离执行" in text, "缺「worktree 隔离执行」章节"
+    for fact in ("active-resume.json", "worktree-scope", "反向链接", "符号链接"):
+        assert fact in text, f"FLOW.md 缺关键事实: {fact}"
     # 完整版入口必须存在（产品 → 完整 CarrorOS 的漏斗）
     assert "github.com/NinesunLiang/Sylph" in text
 
 
+def test_worktree_isolation_wired_in_product(product):
+    """隔离能力必须真随包发出去：创建器 + 门禁 + 链接逻辑都在。"""
+    wt = product / ".claude" / "scripts" / "worktree_utils.py"
+    assert wt.is_file(), "缺 worktree_utils.py"
+    wt_text = wt.read_text(encoding="utf-8")
+    assert "_link_ledger" in wt_text, "缺账本反向链接实现"
+    assert "WORKTREES_DIR" in wt_text
+    checks = (product / ".claude" / "hooks" / "pretool_gates" / "checks.py").read_text(encoding="utf-8")
+    assert "_check_worktree_scope" in checks, "缺 worktree-scope 门禁"
+    tp = (product / ".claude" / "scripts" / "lib" / "task_paths.py").read_text(encoding="utf-8")
+    assert "_TASK_NAME_RE" in tp, "缺任务名校验"
+    assert "resolve_task_document" in tp, "缺任务地址解析"
+
+
 def test_readme_points_to_flow_and_full_version(product):
     text = (product / "README.md").read_text(encoding="utf-8")
-    assert "docs/FLOW.md" in text, "README 应引导先读流程"
+    assert "CARROROS-FLOW.md" in text, "README 应指明装完后的流程文档文件名"
     assert "想要完整版" in text, "README 应有完整版入口"
     assert "github.com/NinesunLiang/Sylph" in text
     assert "curl | bash" in text or "管道执行" in text, "需说明为何不推荐管道执行"
+
+
+def test_installer_deploys_flow_doc(product):
+    """流程文档必须在安装后落到目标根目录（不能只躺在包里）。"""
+    body = (product / "install.sh").read_text(encoding="utf-8")
+    assert "CARROROS-FLOW.md" in body, "安装器应把流程文档装到目标根目录"
+    assert (product / "docs" / "FLOW.md").is_file()
 
 
 def test_single_file_installer_built(product):
