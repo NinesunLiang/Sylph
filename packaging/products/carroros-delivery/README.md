@@ -253,6 +253,12 @@ python3 .claude/skills/lx-goal/scripts/lx-goal.py report
 
 ## 7. 给客户的交付报告（这是你收钱的凭据）
 
+![需要你决定的事](https://github.com/NinesunLiang/Sylph/raw/feat/carroros-delivery/packaging/product/docs/shot-decisions.png)
+
+> 上图是真实跑出来的报告（一个目标 + 三类决策信号）：硬边界、业务判断、范围外追加，
+> 每一行都带**我的建议与依据**。客户不需要相信你，他只需要审这张表。
+
+
 一条命令，生成一份可以直接发给付费方的报告：
 
 ```bash
