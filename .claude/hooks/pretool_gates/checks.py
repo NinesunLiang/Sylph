@@ -310,6 +310,49 @@ def _check_sensitive_write_bash(payload: dict) -> str | None:
     return None
 
 
+# ── 写目标解析：单一真源，覆盖 12 类写通道 ──────────────────────
+# 背景（2026-11-05 实测）：只认 `>` 重定向时，以下写法全部放行：
+#   cp /tmp/x .claude/hooks/x.py / mv / ln -sf / sed -i / tee -a
+#   git checkout -- CLAUDE.md / perl -pi / dd of=
+# 这些洞不报错，是最贵的一种。
+_WRITE_CHANNELS = [
+    re.compile(r"[>]{1,2}\s*'?\"?([^\s;>|&'\"]+)"),                       # > / >>
+    re.compile(r"(?:^|\s)tee\s+(?:-\S+\s+)*'?\"?([^\s;>|&'\"]+)"),      # tee -a f
+    re.compile(r"(?:^|\s)sed\s+-i\S*\s+(?:-\S+\s+)*.*?\s'?\"?([^\s;>|&'\"]+)$"),
+    re.compile(r"(?:^|[\s;&|])(?:cp|mv|ln|rsync|install)\s+(?:-\S+\s+)*\S+\s+'?\"?([^\s;>|&'\"]+)"),
+    re.compile(r"git\s+(?:checkout|restore|apply)\s+(?:-\S+\s+)*'?\"?([^\s;>|&'\"]+)"),
+    re.compile(r"perl\s+-[a-z]*i[a-z]*\b.*?\s'?\"?([^\s;>|&'\"]+)$"),
+    re.compile(r"\bof=([^\s;>|&'\"]+)"),                                      # dd of=
+    re.compile(r"""open\(\s*['\"]([^'\"]+)['\"]\s*,\s*['\"][wa]"""),
+    re.compile(r"""Path\(\s*['\"]([^'\"]+)['\"]\s*\)\.write_(?:text|bytes)"""),
+]
+
+
+def _norm_slash(path: str) -> str:
+    """词法归一：折叠 // 与 ./、解析 ..、去掉尾随点/空格。不碰文件系统。"""
+    p = (path or "").strip().strip("'\"").rstrip(" .")
+    parts: list[str] = []
+    for seg in p.replace("\\", "/").split("/"):
+        if seg in ("", "."):
+            continue
+        if seg == "..":
+            if parts:
+                parts.pop()
+            continue
+        parts.append(seg)
+    return "/".join(parts)
+
+
+def _governance_write_targets(command: str) -> list[str]:
+    out: list[str] = []
+    for rex in _WRITE_CHANNELS:
+        for m in rex.finditer(command or ""):
+            t = _norm_slash(m.group(1))
+            if t and t not in out:
+                out.append(t)
+    return out
+
+
 # ── governance_bypass 软门禁（ADR 0015 二期）：Bash 写敏感治理文件 → REDIRECT ──
 # 路径找补：echo/cat >> CLAUDE.md 等绕过 Write 门禁直写治理文件 → 软门禁
 # REDIRECT 回正确路径，不 BLOCK（对齐 agentic-ui 软锁哲学：REDIRECT/ASK_USER）。
@@ -326,11 +369,8 @@ def _check_governance_bypass(payload: dict) -> str | None:
     command = _extract_command(payload)
     if not command:
         return None
-    for m in re.finditer(r"[>]{1,2}\s+([^\s;>|&]+)", command):
-        target = m.group(1).strip("'\"")
-        if not target:
-            continue
-        if not (_is_governance(target) or target in _GOV_BYPASS_EXTRA):
+    for target in _governance_write_targets(command):
+        if not (_is_governance(target) or _norm_slash(target) in _GOV_BYPASS_EXTRA):
             continue
         approved, why = check_governance_ticket(target)
         if approved:
