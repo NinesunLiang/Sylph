@@ -24,19 +24,6 @@ def write_trace(event: dict):
     with open(TRACE_FILE, "a", encoding="utf-8") as f:
         f.write(entry + "\n")
 
-def get_context_sweetspot_alert():
-    try:
-        import subprocess, json
-        r = subprocess.run("python3 .claude/scripts/context_monitor.py", shell=True, capture_output=True, text=True)
-        if r.returncode == 0 and r.stdout.strip():
-            d = json.loads(r.stdout.strip())
-            pct = d.get("percentage", 0.0)
-            if pct >= 50.0:
-                return f"⚠️ [甜点区守卫] 当前上下文占比已达 {pct}% (超过 50% 最佳区间)。为保持最高智商，请勿开启新的 Task。请立即总结进展，并运行 `/compact` 压缩重置会话，或请用户开启新分支，通过读取文档恢复状态后再进行下一步！"
-    except Exception:
-        pass
-    return ""
-
 def _remark(content: str, task: str, from_states: str, to_state: str) -> str:
     """把 `- [{from}] {task}` 行的状态标记改为 `[{to}]`。
     行首锚定 + 词边界 — 修复 P0 前缀碰撞：str.replace 子串匹配会把
@@ -109,10 +96,6 @@ def main():
     print(json.dumps({"status": "success", "feature": args.feature, "task": args.task,
                        "action": args.action, "step": args.step, "branch": args.branch,
                        "phase": args.phase, "file": str(progress_file)}, ensure_ascii=False))
-    # 甜点区守卫（原为死代码从未调用）：context_monitor 缺失时静默跳过
-    alert = get_context_sweetspot_alert()
-    if alert:
-        print(alert)
 
 if __name__ == "__main__":
     main()

@@ -46,6 +46,8 @@ triggers:
 
 Schema: scan_target / finding / scan_report / fix_record / verdict
 
+设计、反复失败或术语冲突时，按需读取 `references/engineering-principles.md`。独立审核沿用 `.claude/scripts/oracle_agent.py`，说明见 `../lx-goal/references/oracle-review.md`。
+
 ### references/（按需加载）
 | 文件 | 加载时机 |
 |------|---------|

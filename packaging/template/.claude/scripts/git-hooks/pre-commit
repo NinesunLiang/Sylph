@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Git 硬闸：每次 commit 前强制跑 lx-pre-commit 的三项检查（必要性/语法/格式）。
+# 安装：bash .omc/scripts/install-git-hooks.sh
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK="$ROOT/.claude/scripts/pre_commit_check.py"
+if [ ! -f "$CHECK" ]; then
+  echo "ERROR: pre_commit_check.py missing; refusing commit" >&2
+  exit 1
+fi
+exec python3 "$CHECK" --staged

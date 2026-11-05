@@ -35,30 +35,31 @@ NOISE_SUFFIX = (".pyc", ".pyo", ".log", ".tmp")
 SYNTAX_CHECKABLE = (".py", ".json", ".yaml", ".yml", ".sh")
 
 
-def changed_files(staged_only: bool = False) -> list[str]:
-    """返回改动文件列表（相对仓库根）。
+def _git(*args: str) -> bytes:
+    result = subprocess.run(["git", *args], cwd=ROOT, capture_output=True)
+    if result.returncode:
+        raise RuntimeError(f"git {args[0]} failed: {result.stderr.decode(errors='replace').strip()}")
+    return result.stdout
 
-    注意：`git diff` **看不到未跟踪的新文件**。新建文件若不计入，会误判为「无改动」——
-    实跑时确实踩到。故非 staged 模式额外并入 `git ls-files --others`。
-    """
-    if staged_only:
-        cmd = ["git", "diff", "--cached", "--name-only", "--diff-filter=ACMR"]
-    else:
-        cmd = ["git", "diff", "HEAD", "--name-only", "--diff-filter=ACMR"]
-    r = subprocess.run(cmd, cwd=str(ROOT), capture_output=True, text=True)
-    files = [l.strip() for l in (r.stdout or "").splitlines() if l.strip()] if r.returncode == 0 else []
+
+def changed_files(staged_only: bool = False) -> list[str]:
+    """Include deletions; NUL-separated paths preserve Unicode and whitespace."""
+    args = ["diff", "--cached"] if staged_only else ["diff", "HEAD"]
+    raw = _git(*args, "--name-only", "-z", "--diff-filter=ACMRD")
     if not staged_only:
-        u = subprocess.run(["git", "ls-files", "--others", "--exclude-standard"],
-                           cwd=str(ROOT), capture_output=True, text=True)
-        if u.returncode == 0:
-            files.extend(l.strip() for l in (u.stdout or "").splitlines() if l.strip())
-    seen: set[str] = set()
-    out: list[str] = []
-    for f in files:
-        if f not in seen:
-            seen.add(f)
-            out.append(f)
-    return out
+        raw += _git("ls-files", "--others", "--exclude-standard", "-z")
+    return list(dict.fromkeys(p.decode("utf-8", errors="surrogateescape") for p in raw.split(b"\0") if p))
+
+
+def _read_content(rel: str, staged_only: bool = False) -> bytes | None:
+    if staged_only:
+        # A deletion has no stage-0 entry; other Git errors must remain visible.
+        entry = _git("ls-files", "--stage", "-z", "--", rel)
+        if not entry:
+            return None
+        return _git("show", f":{rel}")
+    path = ROOT / rel
+    return path.read_bytes() if path.exists() else None
 
 
 def is_noise(rel: str) -> bool:
@@ -80,41 +81,43 @@ def check_necessity(files: list[str]) -> tuple[bool, list[str]]:
     return True, msgs
 
 
-def check_syntax(rel: str) -> str | None:
-    """返回错误描述；None 表示通过（或该类型不做语法检查）。"""
-    p = ROOT / rel
-    if not p.exists():
-        return None
-    suffix = p.suffix.lower()
+def check_syntax(rel: str, staged_only: bool = False) -> str | None:
+    """Parse the selected snapshot without creating bytecode or executing code."""
+    suffix = Path(rel).suffix.lower()
     if suffix not in SYNTAX_CHECKABLE:
         return None
     try:
+        content = _read_content(rel, staged_only)
+        if content is None:
+            return None  # Deleted files are meaningful changes, not syntax inputs.
         if suffix == ".py":
-            import py_compile
-            py_compile.compile(str(p), doraise=True)
+            compile(content, rel, "exec", dont_inherit=True)
         elif suffix == ".json":
-            json.loads(p.read_text(encoding="utf-8"))
+            json.loads(content)
         elif suffix in (".yaml", ".yml"):
             import yaml
-            yaml.safe_load(p.read_text(encoding="utf-8"))
+            yaml.safe_load(content)
         elif suffix == ".sh":
-            r = subprocess.run(["bash", "-n", str(p)], capture_output=True, text=True, timeout=20)
+            r = subprocess.run(["bash", "-n"], input=content, capture_output=True, timeout=20)
             if r.returncode != 0:
-                return (r.stderr or "").strip().splitlines()[-1] if r.stderr else "bash -n 失败"
+                detail = r.stderr.decode(errors="replace").strip()
+                return detail.splitlines()[-1] if detail else "bash -n 失败"
     except Exception as exc:
         return f"{type(exc).__name__}: {str(exc)[:160]}"
     return None
 
 
-def check_format(rel: str) -> list[str]:
-    """基础格式：行尾空白 / tab 混用 / 末尾缺换行（只对文本文件）。"""
-    p = ROOT / rel
-    if not p.exists() or is_noise(rel):
+def check_format(rel: str, staged_only: bool = False) -> list[str]:
+    """Check formatting in the same snapshot used for syntax checks."""
+    if is_noise(rel):
         return []
-    if p.suffix.lower() not in (".py", ".md", ".json", ".yaml", ".yml", ".sh", ".txt"):
+    if Path(rel).suffix.lower() not in (".py", ".md", ".json", ".yaml", ".yml", ".sh", ".txt"):
         return []
     try:
-        text = p.read_text(encoding="utf-8")
+        content = _read_content(rel, staged_only)
+        if content is None:
+            return []
+        text = content.decode("utf-8")
     except (OSError, UnicodeDecodeError):
         return []
     issues: list[str] = []
@@ -143,13 +146,13 @@ def run(staged_only: bool = False) -> int:
         return 1
 
     # 2. 语法（阻断）
-    syn_errors = [(f, e) for f in files if (e := check_syntax(f))]
+    syn_errors = [(f, e) for f in files if (e := check_syntax(f, staged_only))]
     print(f"\n[2] 语法    {'✅' if not syn_errors else '❌'}")
     for f, e in syn_errors:
         print(f"    {f}: {e}")
 
     # 3. 格式（不阻断，只提示）
-    fmt = [(f, issues) for f in files if (issues := check_format(f))]
+    fmt = [(f, issues) for f in files if (issues := check_format(f, staged_only))]
     print(f"\n[3] 格式    {'✅' if not fmt else '⚠️'}")
     for f, issues in fmt:
         print(f"    {f}: {'; '.join(issues)}")

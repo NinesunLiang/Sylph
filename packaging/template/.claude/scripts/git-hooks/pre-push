@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Git 硬闸：每次 push 前强制跑 lx-pre-push 的四项检查（安全/边界/破坏性/依赖性）。
+# 安装：bash .omc/scripts/install-git-hooks.sh
+set -euo pipefail
+ROOT="$(git rev-parse --show-toplevel)"
+CHECK="$ROOT/.claude/scripts/pre_push_check.py"
+if [ ! -f "$CHECK" ]; then
+  echo "ERROR: pre_push_check.py missing; refusing push" >&2
+  exit 1
+fi
+exec python3 "$CHECK"

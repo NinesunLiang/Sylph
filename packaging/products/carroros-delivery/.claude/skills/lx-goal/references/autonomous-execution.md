@@ -19,7 +19,7 @@ Philosophy（7 条哲学原则，不可违背）
 
 **Level 1: AGENTS.md 裁决** — Philosophy → Iron Rules → Existing Practices。有明确答案 → 执行并记录依据。无覆盖 → Level 2。
 
-**Level 2: Oracle 第三方审核** — Oracle agent 独立审核，裁决留痕。调用入口: `python3 .claude/scripts/oracle_agent.py review --task-id <id> --mode duo`（详见 `skills/lx-oracle/SKILL.md`）。可执行 → [Oracle: approved]。应跳过 → skip-risk [Oracle: rejected]。不确定 → Level 3。
+**Level 2: Oracle 第三方审核** — Oracle agent 独立审核，裁决留痕。调用入口: `python3 .claude/scripts/oracle_agent.py review --task-id <id> --mode duo`（详见同目录 `oracle-review.md`）。可执行 → [Oracle: approved]。应跳过 → skip-risk [Oracle: rejected]。不确定 → Level 3。
 
 **Level 3: 人类裁决（最后手段）** — 记录为 blocked_human，附全部裁决记录。继续其他任务不阻塞。
 

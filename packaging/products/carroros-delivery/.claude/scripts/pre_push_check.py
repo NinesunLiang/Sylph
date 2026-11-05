@@ -39,7 +39,7 @@ REF_SCAN_SUFFIX = (".py", ".md", ".yaml", ".yml", ".json", ".sh")
 
 
 def _git(*args: str) -> str:
-    r = subprocess.run(["git", *args], cwd=str(ROOT), capture_output=True, text=True)
+    r = subprocess.run(["git", *args], cwd=str(ROOT), capture_output=True, text=True, errors="replace")
     if r.returncode != 0:
         detail = (r.stderr or r.stdout or "git command failed").strip()
         raise RuntimeError(f"git {' '.join(args)} failed: {detail}")
@@ -61,14 +61,14 @@ def _baseline() -> str:
 
 
 def changed_files() -> list[str]:
-    out = _git("diff", _baseline(), "--name-only", "--diff-filter=ACMR")
-    if not out.strip():
-        out = _git("diff", "HEAD", "--name-only", "--diff-filter=ACMR")
-    return [l.strip() for l in out.splitlines() if l.strip()]
+    out = _git("diff", _baseline(), "--name-only", "-z", "--diff-filter=ACMR")
+    if not out:
+        out = _git("diff", "HEAD", "--name-only", "-z", "--diff-filter=ACMR")
+    return [path for path in out.split("\0") if path]
 
 
 def deleted_files() -> list[str]:
-    return [l.strip() for l in _git("diff", _baseline(), "--name-only", "--diff-filter=D").splitlines() if l.strip()]
+    return [p for p in _git("diff", _baseline(), "--name-only", "-z", "--diff-filter=D").split("\0") if p]
 
 
 def _secret_patterns():
@@ -137,38 +137,70 @@ def check_boundary(files: list[str]) -> tuple[bool, list[str]]:
     return (not blocked), blocked + warns
 
 
-def _ref_pattern(basename: str) -> "re.Pattern[str]":
-    """构造引用匹配式。
+GENERATED_PREFIXES = ("packaging/template/", "packaging/products/")
+ARCHIVE_PREFIXES = (".claude/archive/", ".claude/references/archived/", ".omc/")
+HISTORICAL_FILES = (".claude/references/scorecard.md",)
 
-    关键：代码里的引用**通常不带扩展名**（`from helper import x` 而非 `helper.py`），
-    故除完整文件名外，还要按词边界匹配去扩展名的 stem，否则会漏判真实依赖。
+
+def _skip_reference_scan(rel: str) -> bool:
+    """Generated bundles, archives and dated ledgers hold history, not live references."""
+    return (rel.startswith(GENERATED_PREFIXES) or rel.startswith(ARCHIVE_PREFIXES)
+            or rel in HISTORICAL_FILES)
+
+
+def _ref_pattern(rel: str, unique_stem: bool) -> "re.Pattern[str]":
+    """Match real path references; match a bare stem only when that name is unique.
+
+    Generic entry-point names are shared by many files, so a bare-name match says
+    nothing about this file. Path references and imports of a unique module stem
+    still count.
     """
-    stem = Path(basename).stem
-    escaped_full = re.escape(basename)
-    escaped_stem = re.escape(stem)
-    return re.compile(rf"(?:{escaped_full})|(?<![A-Za-z0-9_.-]){escaped_stem}(?![A-Za-z0-9_-])")
+    stem = Path(rel).stem
+    parts = [re.escape(rel)]
+    for prefix in (".claude/", "./"):
+        if rel.startswith(prefix):
+            parts.append(re.escape(rel[len(prefix):]))
+    if unique_stem:
+        # Imports use the module stem without an extension; bare prose words do not.
+        parts.append(r"(?:^|[^\w.])(?:from|import)\s+" + re.escape(stem) + r"(?![\w-])")
+        parts.append(r"(?<![\w.-])" + re.escape(Path(rel).name) + r"(?![\w-])")
+    return re.compile("|".join(parts))
 
 
 _TRACKED_CACHE: list[str] | None = None
+_STEM_COUNTS: dict[str, int] | None = None
 
 
 def _tracked_files() -> list[str]:
     """被 git 跟踪的文件（缓存）。用 git 而非 rglob——rglob 会扫进 node_modules/.git，实测慢到超时。"""
     global _TRACKED_CACHE
     if _TRACKED_CACHE is None:
-        out = _git("ls-files")
-        _TRACKED_CACHE = [l.strip() for l in out.splitlines() if l.strip()]
+        out = _git("ls-files", "-z")
+        _TRACKED_CACHE = [p for p in out.split("\0") if p]
     return _TRACKED_CACHE
 
 
-def _refs_to(basename: str, exclude: str) -> list[str]:
+def _stem_counts() -> dict[str, int]:
+    global _STEM_COUNTS
+    if _STEM_COUNTS is None:
+        counts: dict[str, int] = {}
+        for rel in _tracked_files():
+            key = Path(rel).stem
+            counts[key] = counts.get(key, 0) + 1
+        _STEM_COUNTS = counts
+    return _STEM_COUNTS
+
+
+def _refs_to(rel: str, exclude: str) -> list[str]:
     """在**被跟踪的**文件里搜索提到该文件的文件（引用图）。"""
-    rx = _ref_pattern(basename)
+    rx = _ref_pattern(rel, _stem_counts().get(Path(rel).stem, 0) <= 1)
     hits: list[str] = []
-    for rel in _tracked_files():
-        if Path(rel).suffix not in REF_SCAN_SUFFIX or rel == exclude:
+    for other in _tracked_files():
+        if Path(other).suffix not in REF_SCAN_SUFFIX or other == exclude:
             continue
-        p = ROOT / rel
+        if _skip_reference_scan(other):
+            continue
+        p = ROOT / other
         try:
             if not p.is_file() or p.stat().st_size > 500_000:
                 continue
@@ -176,15 +208,15 @@ def _refs_to(basename: str, exclude: str) -> list[str]:
         except OSError:
             continue
         if rx.search(text):
-            hits.append(rel)
+            hits.append(other)
     return hits
 
 
 def check_destructive(deleted: list[str]) -> tuple[bool, list[str]]:
-    """破坏性：被删文件若仍被引用 → 阻断（悬空引用）。"""
+    """破坏性：被删文件若仍被路径或唯一模块名引用 → 阻断（悬空引用）。"""
     broken: list[str] = []
     for rel in deleted:
-        refs = _refs_to(Path(rel).name, rel)
+        refs = _refs_to(rel, rel)
         if refs:
             broken.append(f"{rel} 仍被 {len(refs)} 处引用（如 {refs[0]}）")
     return (not broken), broken
@@ -196,21 +228,58 @@ def check_dependency(files: list[str]) -> tuple[bool, list[str]]:
     for rel in files:
         if Path(rel).suffix not in REF_SCAN_SUFFIX:
             continue
-        refs = _refs_to(Path(rel).name, rel)
+        refs = _refs_to(rel, rel)
         if refs:
             notes.append(f"{rel} 被 {len(refs)} 处引用")
     return True, notes
 
 
+def check_history_security() -> tuple[bool, list[str]]:
+    """Inspect every outgoing changed blob, including files later removed.
+
+    Local refs only: no fetch, index mutation, or credential values in output.
+    """
+    compiled = _secret_patterns()
+    if compiled is None:
+        return False, ["密钥模式库不可用，无法检查待推送历史"]
+    commits = _git("rev-list", f"{_baseline()}..HEAD").splitlines()
+    seen: set[tuple[str, bool]] = set()
+    issues: list[str] = []
+    for commit in commits:
+        paths = _git("diff-tree", "--root", "-m", "--no-commit-id", "--name-only",
+                     "-r", "-z", "--diff-filter=ACMR", commit).split("\0")
+        for rel in dict.fromkeys(p for p in paths if p):
+            oid = _git("rev-parse", f"{commit}:{rel}").strip()
+            key = (oid, is_test_file(rel))
+            if key in seen:
+                continue
+            seen.add(key)
+            size = int(_git("cat-file", "-s", oid).strip())
+            if size > 2_000_000:
+                issues.append(f"{rel}（提交 {commit[:10]} 内容过大，未完成安全检查）")
+                continue
+            text = _git("cat-file", "blob", oid)
+            if any(rx.search(text) for rx in compiled):
+                message = f"{rel}（提交 {commit[:10]} 命中密钥/凭据模式）"
+                if is_test_file(rel):
+                    print(f"    🟡 {message}（测试夹具，仅警告）")
+                else:
+                    issues.append(message)
+    return not issues, issues
+
+
 def run() -> int:
     files = changed_files()
     deleted = deleted_files()
+    ok_history, history_issues = check_history_security()
     print(f"📋 pre-push 深度检查（改动 {len(files)} 个，删除 {len(deleted)} 个）\n")
-    if not files and not deleted:
-        print("ℹ️  无待推送改动")
+    if not files and not deleted and not history_issues:
+        print("ℹ️  无文件差异；待推送历史安全检查通过")
         return 0
 
     ok_sec, sec = check_security(files)
+    ok_sec = ok_sec and ok_history
+    sec.extend(history_issues)
     print(f"[1] 安全    {'✅' if ok_sec else '❌'}")
     for m in sec:
         print(f"    {m}")

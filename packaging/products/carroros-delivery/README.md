@@ -362,6 +362,8 @@ python3 .claude/skills/lx-goal/scripts/lx-goal.py report --format client --out �
 | ④ | **抗 compact** | 状态全落磁盘；对话被压缩 / 换会话后仍能续跑 |
 | ⑤ | **hooks 门禁** | 运行时拦截 + 崩溃即拒绝 + 全程审计 |
 
+提供四个入口：`/lx-goal` 无人执行、`/lx-rpe` 人机协作开发、`/lx-pre-commit` 提交前检查、`/lx-pre-push` 推送前检查。
+
 不装：其它技能、示例应用、内部评测、历史归档、运行时数据。
 
 ---

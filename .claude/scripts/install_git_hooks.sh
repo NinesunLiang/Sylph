@@ -2,7 +2,11 @@
 # 安装 CarrorOS Git 硬闸到当前仓库的 .git/hooks。
 # --check 只校验是否已安装且内容一致，不写文件。
 set -euo pipefail
-ROOT="$(git rev-parse --show-toplevel)"
+ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -z "$ROOT" ]; then
+  echo "ERROR: not inside a git repository; git hooks not installed" >&2
+  exit 1
+fi
 SRC="$ROOT/.claude/scripts/git-hooks"
 DST="$(git rev-parse --git-path hooks)"
 case "$DST" in /*) ;; *) DST="$ROOT/$DST" ;; esac

@@ -28,7 +28,7 @@
 | ~~error_rulers/~~ | 已随 error-dna 于 index48 移除（2026-09-10） | — |
 | scripts/ | `@.claude/scripts/index.md` | 治理工具脚本（按功能分 6 组 + lib/ 子模块） |
 | rules/ | `@.claude/rules/index.md` | 语言与工具行为规则（3个：bash-style / terminal-safety / external-knowledge） |
-| skills/ | `@.claude/skills/index.md` | AI agent skills（10 个 lx-* 扁平布局） |
+| skills/ | `@.claude/skills/index.md` | 四个公开入口：Goal / RPE / pre-commit / pre-push |
 | workflows/ | `@.claude/workflows/index.md` | 工作流（front-stepwise 起源；frontend-overnight 已迁出到 `capabilities/`，不入治理） |
 | decisions/ | `@.claude/decisions/README.md` | 人类裁决日志（`DECISIONS.md` 本机生成，append-only；不入库、不进安装包） |
 

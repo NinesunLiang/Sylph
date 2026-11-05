@@ -79,6 +79,17 @@ for entry in ".claude" ".omc" "__pycache__/" "*.pyc"; do
   fi
 done
 
+# ── Git 硬闸：安装即生效（非 Git 仓库跳过，不碰用户其它配置）──
+if git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
+  if ( cd "$TARGET" && bash .claude/scripts/install_git_hooks.sh ); then
+    info "Git 硬闸已安装：提交跑 pre-commit，推送跑 pre-push，失败即阻断"
+  else
+    warn "Git 硬闸安装失败：请手动执行 cd \"$TARGET\" && bash .claude/scripts/install_git_hooks.sh"
+  fi
+else
+  warn "目标不是 Git 仓库：已跳过 Git 硬闸。成为 Git 仓库后执行 bash .claude/scripts/install_git_hooks.sh"
+fi
+
 # ── 自检 ──
 missing=0
 for f in ".claude/scripts/carros_base.py" ".claude/scripts/token_lifecycle.py" \

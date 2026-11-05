@@ -17,6 +17,7 @@ include:
   - ".claude/scripts/**/*.sh"
   - ".claude/scripts/**/*.yaml"
   - ".claude/scripts/**/*.md"
+  - ".claude/scripts/git-hooks/*"   # 无扩展名的 git 钩子，通配 *.sh 收不到
   # 门禁本体
   - ".claude/hooks/**/*.py"
   - ".claude/hooks/**/*.md"

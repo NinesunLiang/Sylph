@@ -41,6 +41,10 @@ REQUIRED = [
     ".claude/hooks/pretool-gate.py",
     ".claude/hooks/hook-launcher.py",
     ".claude/hooks/pretool_gates/checks.py",
+    # ⑥ Git 硬闸（无扩展名，通配收不到，必须显式随包）
+    ".claude/scripts/git-hooks/pre-commit",
+    ".claude/scripts/git-hooks/pre-push",
+    ".claude/scripts/install_git_hooks.sh",
     # 指令层与接线
     "AGENTS.md",
     "CLAUDE.md",
@@ -69,6 +73,24 @@ def product(tmp_path_factory):
     overlay_errors = prod._overlay_products_files(dest)
     assert overlay_errors == [], f"产品文件缺失: {overlay_errors}"
     return dest
+
+
+def test_installer_installs_git_hooks(product, tmp_path):
+    """安装到 Git 仓库时必须自动装好硬闸，否则新环境无保护。"""
+    import os
+    import subprocess
+
+    target = tmp_path / "consumer-project"
+    target.mkdir()
+    subprocess.run(["git", "init", "-q", str(target)], check=True)
+    subprocess.run(["bash", str(product / "install.sh"), str(target)],
+                   check=True, capture_output=True, text=True)
+    hook = target / ".git" / "hooks" / "pre-commit"
+    assert hook.is_file(), "安装器没有安装 pre-commit 钩子"
+    assert os.access(hook, os.X_OK), "pre-commit 钩子不可执行"
+    source = product / ".claude" / "scripts" / "git-hooks" / "pre-commit"
+    assert hook.read_text(encoding="utf-8") == source.read_text(encoding="utf-8")
+    assert (target / ".git" / "hooks" / "pre-push").is_file()
 
 
 def test_five_systems_present(product):
