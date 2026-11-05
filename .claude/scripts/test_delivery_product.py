@@ -2,9 +2,9 @@
 
 产品合同（本测试钉死）：
 1. 五套系统齐全：lx-goal / 文档 / 令牌 / 抗compact / hooks
-2. 只带一个技能：skills/ 下除 lx-goal 外不得有其它技能目录
+2. 只带四个技能：Goal、RPE、pre-commit、pre-push
 3. 不带测试、字节码、运行时数据、密钥
-4. 产品专属文件被覆盖：README（四卖点）、install.sh、skills 索引（只列 lx-goal）
+4. 产品专属文件被覆盖：README（四卖点）、install.sh、skills 索引（只列四入口）
 5. 能按 manifest 组装且体积达标（build.assemble 自带 3MB 上限与语法检查）
 """
 from __future__ import annotations
@@ -27,6 +27,9 @@ REQUIRED = [
     ".claude/skills/lx-goal/SKILL.md",
     ".claude/skills/lx-goal/scripts/lx-goal.py",
     ".claude/skills/lx-goal/references/exit-report.md",
+    ".claude/skills/lx-rpe/SKILL.md",
+    ".claude/skills/lx-pre-commit/SKILL.md",
+    ".claude/skills/lx-pre-push/SKILL.md",
     # ② 文档系统
     ".claude/scripts/carros_base.py",
     # ③ 令牌系统
@@ -73,10 +76,10 @@ def test_five_systems_present(product):
     assert missing == [], f"交付版缺件: {missing}"
 
 
-def test_only_lx_goal_skill(product):
+def test_only_four_public_skills(product):
     skills = product / ".claude" / "skills"
     dirs = sorted(p.name for p in skills.iterdir() if p.is_dir())
-    assert dirs == ["lx-goal"], f"交付版只应带 lx-goal，实际: {dirs}"
+    assert dirs == ["lx-goal", "lx-pre-commit", "lx-pre-push", "lx-rpe"], f"交付版应保留四入口，实际: {dirs}"
 
 
 def test_product_readme_has_four_value_props(product):

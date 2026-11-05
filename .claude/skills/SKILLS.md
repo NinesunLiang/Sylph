@@ -1,31 +1,10 @@
-# Carror OS Skill 体系
+# skills/ — 四个公开入口
 
-## 分层架构
+| 技能 | 用途 |
+|---|---|
+| lx-goal | 一次澄清后无人执行、验证、退出报告 |
+| lx-rpe | 人机协作特性开发、人工验收 |
+| lx-pre-commit | 提交前必要性、语法、格式检查 |
+| lx-pre-push | 推送前安全、边界、破坏性与影响面检查 |
 
-```
-Governance (治理)           Workflow (工作流)
-  lx-oracle                   lx-pre-commit  lx-pre-push
-                              lx-root-cause-analysis  lx-stepwise
-
-Autonomous (自主)           Feature Dev (特性开发)
-  lx-goal                     lx-rpe
-  lx-ghost [archived]
-
-Foundation (基础)
-  lx-task-spec  lx-codebase-design  lx-domain-modeling
-```
-
-## 依赖关系
-
-```
-lx-goal ──→ lx-stepwise (子任务路由)
-lx-ghost ──→ lx-oracle (自主计划审核) [archived]
-lx-task-spec ──deep→ lx-stepwise (串行攻坚引擎)
-```
-
-## 共享基础设施
-
-| 文件 | 被引用者 |
-|------|---------|
-| `references/oma/` | lx-rpe (活跃消费：降级升级/裁决链/执行工作流) |
-| `schemas/atomic/verdict.yaml` | ALL skills |
+任务、令牌、恢复、隔离与证据引擎仍在 `.claude/scripts/`。独立审核是内部按需能力；工程原则按需加载，不增加公开入口。

@@ -512,8 +512,8 @@ Phase 3 — Execute- 状态：🔄 执行中 / ✅ 已完成- 当前 Task：RPE-
 **触发条件**：累计完成 ≥3 个 RPE 任务项 或 用户主动要求。
 **Claude Code 端**：
 ```1
-. 清理 tech-debt list： readFile rpe/{feature_name}/state/progress.md Tech-Debt List ├─ 每项评估： │ · 简单小修 → 记入 tech-debt list（待特性完成后处理） │ · 中等复杂（>3文件或需 AC 驱动）→ /lx-task-spec 创建独立任务 │ （buglist 中的问题是修复/改进性质，不升级到 RPE） └─ 清理完成 → 更新 state/progress.md
-2. 代码全局健康检查： /lx-pre-commit（全量文件，非增量）
+. 清理 tech-debt list： readFile rpe/{feature_name}/state/progress.md Tech-Debt List ├─ 每项评估： │ · 简单小修 → 记入 tech-debt list（待特性完成后处理） │ · 中等复杂（>3文件或需 AC 驱动）→ 按 AGENTS 的 L1/L2 分级建立独立修复任务 │ （buglist 中的问题是修复/改进性质，不升级到 RPE） └─ 清理完成 → 更新 state/progress.md
+2. 代码全局健康检查： 项目已有全量测试与代码审查（pre-commit 仍只检查待提交改动）
 
 ```
 **OpenCode 端**：
@@ -525,7 +525,7 @@ Phase 3 — Execute- 状态：🔄 执行中 / ✅ 已完成- 当前 Task：RPE-
 
 **Buglist 处理**：
 ```接
-收 buglist → 逐项分拣：├─ 小修（≤3文件，简单） → 记入 tech-debt list└─ 中等复杂（>3文件 或需 AC 驱动）→ /lx-task-spec
+收 buglist → 逐项分拣：├─ 小修（≤3文件，简单） → 记入 tech-debt list└─ 中等复杂（>3文件 或需 AC 驱动）→ 按 AGENTS 分级建立有 AC 与证据的独立修复任务
 buglist 中的问题本质是修复/改进。RPE 是从业务 PRD 出发的新特性，不是任务大小的升级目标。
 
 ```
@@ -562,12 +562,12 @@ buglist 中的问题本质是修复/改进。RPE 是从业务 PRD 出发的新�
 ## 跨 Skill 联动
 | 方向 | Skill | 项目类型 | 触发条件 | 数据契约|
 |------|-------|---------|---------|---------|
-|内部调用 | `lx-pre-commit` | 通用 | Step 3 编译通过后必须执行 | 传递：变更文件；接收：CR+测试+补测综合判定|
-|↳ | `lx-code-review` | Go | lx-pre-commit 内部调用 | 专项规则判定 + auto-fix 结果|
-|↳ | `lx-frontend-test` | 前端 | lx-pre-commit 检测测试缺口 | 缺口组件/Hook + 测试类型|
+|内部调用 | `lx-pre-commit` | 通用 | 实际提交前 | 改动必要性、语法、格式；不替代代码审查与业务测试|
+|独立检查 | 代码审查 | 通用 | 实现后 | 审核实际变更，记录问题与修复|
+|独立检查 | 项目已有测试 | 通用 | 实现后 | 按 AC 验证并补必要回归|
 |内部调用 | npm audit + ESLint security | 前端 | Step 4 必须执行 | 传递：变更文件；接收：依赖漏洞+代码模式判定|
-|内部调用 | `lx-pre-commit` | 通用 | 里程碑全量检查 | 传递：全部文件；接收：综合判定|
-|关联 | `lx-task-spec` | 通用 | 里程碑 buglist 中中等复杂问题 | 传递：问题描述 + AC → task-spec|
+|独立检查 | 项目已有全量测试 | 通用 | 里程碑检查 | 记录真实测试结果|
+|分拣 | AGENTS L1/L2 | 通用 | 里程碑修复问题 | 问题、AC、依赖、证据；无人任务用 Goal|
 
 ## 中止条件
 | 条件 | 输出|

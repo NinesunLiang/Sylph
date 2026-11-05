@@ -7,7 +7,8 @@
 #   ④ 抗 compact     磁盘状态 + handoff + resume（换会话不失忆）
 #   ⑤ hooks 系统     14 道运行时门禁 + fail-closed + 审计
 #
-# 不装：其它 11 个 skill、apps、rpe、Benchmarking、capabilities、inputs、
+# 四个公开技能：Goal、RPE、pre-commit、pre-push。
+# 不装：其它 skill、apps、rpe、Benchmarking、capabilities、inputs、
 #       decisions 历史、archived/retired、全部测试、运行时数据。
 #
 # 组装/自检复用 packaging/build.py::assemble（密钥扫描 + 语法检查 + 体积上限）。
@@ -34,9 +35,23 @@ include:
   - ".claude/references/working-set-template.yaml"
   - ".claude/decisions/README.md"
 
-  # ── ① lx-goal ──
+  # ── ① 四个公开入口 ──
   - ".claude/skills/lx-goal/**/*.md"
   - ".claude/skills/lx-goal/**/*.py"
+  - ".claude/skills/lx-goal/**/*.sh"
+  - ".claude/skills/lx-goal/**/*.yaml"
+  - ".claude/skills/lx-rpe/**/*.md"
+  - ".claude/skills/lx-rpe/**/*.py"
+  - ".claude/skills/lx-rpe/**/*.sh"
+  - ".claude/skills/lx-rpe/**/*.yaml"
+  - ".claude/skills/lx-pre-commit/**/*.md"
+  - ".claude/skills/lx-pre-commit/**/*.py"
+  - ".claude/skills/lx-pre-commit/**/*.sh"
+  - ".claude/skills/lx-pre-commit/**/*.yaml"
+  - ".claude/skills/lx-pre-push/**/*.md"
+  - ".claude/skills/lx-pre-push/**/*.py"
+  - ".claude/skills/lx-pre-push/**/*.sh"
+  - ".claude/skills/lx-pre-push/**/*.yaml"
 
   # ── ②③④ 文档 / 令牌 / 抗compact 引擎（全部 scripts，避免动态 import 漏件）──
   - ".claude/scripts/**/*.py"

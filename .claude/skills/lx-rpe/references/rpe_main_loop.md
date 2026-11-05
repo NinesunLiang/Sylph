@@ -69,7 +69,7 @@
 
 ## Step 3 — 编码 + pre-commit 门禁
 
-加载 `@../../nodes/auto_fixer.md`。lx-pre-commit 统一处理 Code Review + 测试 + 补测。
+加载 `@../../nodes/auto_fixer.md`。业务测试和 Code Review 由本步骤显式执行；lx-pre-commit v3 只负责改动必要性、语法与格式，不能替代测试或审查。
 
 **执行前检查点（go/no-go）**：
 - [ ] Step 2 设计已完成，影响文件列表已确定
@@ -81,13 +81,14 @@
 ### Go 项目
 1. 按设计逐文件实现。关键决策点主动说一句（复用模块、换策略等）
 2. 每个文件后编译验证：`python3 scripts/build_and_test.py --type go --budget {N}`
-3. 全部完成后 → 调用 lx-pre-commit（编译 → lx-code-review → go test -race → 补测）
+3. 全部完成后 → 执行变更相关 Code Review 和 `go test -race`，补充必要回归；实际提交前再运行 lx-pre-commit 轻量检查
 4. 门禁通过后 → 生成实现文档写入 executor.md（变更概要 + 关键决策 + 已知限制）
 
 ### 前端项目
 1. 按设计逐文件实现。关键决策点主动说一句
 2. 每个文件后 `npx tsc --noEmit` 增量编译
-4. 门禁通过后 → 生成实现文档写入 executor.md
+3. 全部完成后执行变更相关 Code Review 和项目已有测试，补充必要回归；实际提交前再运行 lx-pre-commit 轻量检查
+4. 验证通过后 → 生成实现文档写入 executor.md
 
 **编译失败处理**：第 1 次修复 → 第 2 次分析设计 → 第 3 次回 Step 2
 

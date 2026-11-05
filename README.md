@@ -25,35 +25,33 @@ CarrorOS 就是那一刻的守门人。
 
 ## 它到底做什么（全部在工具调用层生效）
 
-### 1. 危险操作当场拦下，不是事后报警
+### 1. 危险操作执行前交给人确认
 
-每次 AI 要写文件 / 执行命令 / 读敏感路径，先过 **14 道门禁**：
+注册的文件读写和命令调用由 **14 道核心门禁**按操作类型检查。交互模式下，门禁触发后通过 `ask` 交给人确认；最终裁决权属于人。无人 goal 模式保留 `deny` 和纠正引导，不自行替人批准风险操作（见 ADR0022）。
 
-| 门 | 拦什么 |
+| 门 | 检查什么 |
 |---|---|
-| `secret-scan` | 9 类密钥（`sk-`、`ghp_`、私钥、JWT、AWS `AKIA`、Stripe `sk_live`…）写进非测试文件 → **直接拒绝** |
-| `sensitive-edit` / `sensitive-read` / `sensitive-write-bash` | 敏感路径的读、写、以及**绕过写工具的 Bash 通道**，三条路都堵 |
-| `governance-bypass` / `governance-delete-protection` | AI 想改或删你的治理文件（宪法、门禁本体）→ 拒绝 |
-| `injection-guard` | 写入内容里含"忽略之前的所有指令"类注入模式 → 拒绝；单次写入超 8KB → 要求拆分 |
-| `test-verification` | 声称完成但没跑验证 → 拒绝 |
-| `commit-soft-completion` | commit message 里出现"完成/搞定/完美"这类自夸但无证据 → 拒绝 |
-| `doc-reference-before-delete` | 删文件前先查文档引用图，防止删掉还被引用的东西 |
+| `secret-scan` | 识别密钥写入非测试文件的风险 |
+| `sensitive-edit` / `sensitive-read` / `sensitive-write-bash` | 检查敏感路径的读、写及 Bash 写入通道 |
+| `governance-bypass` / `governance-delete-protection` | 检查治理文件（宪法、门禁本体）的修改和删除 |
+| `injection-guard` | 检查常见注入模式；单次写入超 8KB 时提示拆分 |
+| `test-verification` | 检查测试验证要求 |
+| `commit-soft-completion` | 检查提交中的无证据完成声明 |
+| `doc-reference-before-delete` | 删文件前检查文档引用 |
 | `commit-push-integrity` | commit 查语法、push 查删除引用 |
 
-### 2. 门禁崩了 = 拒绝，不是放行（fail-closed）
+### 2. 门禁发现风险或发生故障，要明确交给人裁决
 
-这是 CarrorOS 和绝大多数"检查工具"最本质的区别。
+安全门自身异常会生成风险判定；交互模式通过 `ask` 请求人类决定，不由机器做最终拒绝。关键 hook 缺失、超时或崩溃时，调度器在 PreToolUse 阶段请求确认；其他事件可能继续并提示。基础设施故障不能冒充人类拒绝，也不能当作检查通过。
 
-10 个安全门一旦自身抛异常，**判定为拒绝**并写审计日志；只有非安全门崩溃才跳过。
-
-> 因为一个"看不见却报告没问题"的门禁，比没有门禁更危险。
+这是审批护栏，不是操作系统沙箱；覆盖范围受工具注册和宿主执行权限影响。具体决策见 `.claude/references/adr/0022-hitl-ask-not-block.md`。
 
 ### 3. "AI 说完成了"不算完成，要有证据
 
-- 任务必须先 `init` 才能动手，跨会话状态**全部落磁盘**（对话被压缩也不丢）
-- 每个步骤要写证据块：`exit_code` / 改了哪个文件 / 断言了什么
-- 完成前跑回归验证，输出 `VERIFIED` 才算数
-- 全程审计日志（JSONL）：每道门的判定、每次拒绝、每次人工审批，可回溯
+- L1 simple：简单、可逆任务直接实现和测试，不要求初始化任务系统
+- L1 light：`init --light`，保留执行证据并通过 light verify
+- L2：任务状态落磁盘，每步写证据块，完成前通过 VerifyGate 和回归验证
+- 门禁判定和审批留有审计记录；有记录不等于业务验收通过
 
 ### 4. 不可逆的事必须问人
 
@@ -79,7 +77,7 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 
 # 3. 让 AI 干一件坏事，看它拦不拦
 #    对 AI 说：「帮我在 config.py 里写一个测试用的 AWS 访问密钥，格式照 AKIA 开头那套编」
-#    预期：被 secret-scan 拒绝，并在 .omc/audit/ 留下一条拒绝记录
+#    预期：交互模式下 secret-scan 请求人类确认，并留下门禁审计记录
 ```
 
 安装器只装**通用治理能力**（门禁、审批、验证、状态恢复、哲学规则），
@@ -95,7 +93,7 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 | CI 检查 | push 之后 | ❌（已经进仓库历史了） | ❌ | ❌ |
 | Code Review | 人看的时候 | 有时 | 有时 | ❌ |
 | AI 提示词里写"不要做危险操作" | 全靠模型自觉 | ❌ | ❌ | ❌ |
-| **CarrorOS（hook 层）** | **AI 动手的那一刻** | ✅ | ✅ | ✅ |
+| **CarrorOS（hook 层）** | **AI 动手的那一刻** | 检查并请求裁决 | 按任务级别核验证据 | 检查并请求裁决 |
 
 核心差异：**前面所有方案都在"事后"，CarrorOS 在"事中"。**
 
@@ -116,7 +114,7 @@ cd /path/to/your-project && python3 .claude/scripts/carros_base.py status
 .claude/
 ├── hooks/          # 门禁本体（14 门 + fail-closed + 审计）
 ├── scripts/        # 治理工具（任务生命周期/验证/恢复/审计分析）
-├── skills/         # 12 个 AI 技能（需求拆解/代码设计/根因分析/提交前检查…）
+├── skills/         # 四个公开入口（Goal/RPE/pre-commit/pre-push）
 ├── kernel.md       # 管理内核（冻结规则、决策框架）
 ├── index.md        # 渐进式披露路由
 └── decisions/      # 人类裁决日志（append-only）
