@@ -216,6 +216,8 @@ def check_destructive(deleted: list[str]) -> tuple[bool, list[str]]:
     """破坏性：被删文件若仍被路径或唯一模块名引用 → 阻断（悬空引用）。"""
     broken: list[str] = []
     for rel in deleted:
+        if _skip_reference_scan(rel):
+            continue  # 生成目录整体重建，删除副本不等于删源码
         refs = _refs_to(rel, rel)
         if refs:
             broken.append(f"{rel} 仍被 {len(refs)} 处引用（如 {refs[0]}）")
