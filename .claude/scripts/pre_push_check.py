@@ -137,19 +137,38 @@ def check_boundary(files: list[str]) -> tuple[bool, list[str]]:
     return (not blocked), blocked + warns
 
 
-def _ref_pattern(basename: str) -> "re.Pattern[str]":
-    """构造引用匹配式。
+GENERATED_PREFIXES = ("packaging/template/", "packaging/products/")
+ARCHIVE_PREFIXES = (".claude/archive/", ".claude/references/archived/", ".omc/")
+HISTORICAL_FILES = (".claude/references/scorecard.md",)
 
-    关键：代码里的引用**通常不带扩展名**（`from helper import x` 而非 `helper.py`），
-    故除完整文件名外，还要按词边界匹配去扩展名的 stem，否则会漏判真实依赖。
+
+def _skip_reference_scan(rel: str) -> bool:
+    """Generated bundles, archives and dated ledgers hold history, not live references."""
+    return (rel.startswith(GENERATED_PREFIXES) or rel.startswith(ARCHIVE_PREFIXES)
+            or rel in HISTORICAL_FILES)
+
+
+def _ref_pattern(rel: str, unique_stem: bool) -> "re.Pattern[str]":
+    """Match real path references; match a bare stem only when that name is unique.
+
+    Generic entry-point names are shared by many files, so a bare-name match says
+    nothing about this file. Path references and imports of a unique module stem
+    still count.
     """
-    stem = Path(basename).stem
-    escaped_full = re.escape(basename)
-    escaped_stem = re.escape(stem)
-    return re.compile(rf"(?:{escaped_full})|(?<![A-Za-z0-9_.-]){escaped_stem}(?![A-Za-z0-9_-])")
+    stem = Path(rel).stem
+    parts = [re.escape(rel)]
+    for prefix in (".claude/", "./"):
+        if rel.startswith(prefix):
+            parts.append(re.escape(rel[len(prefix):]))
+    if unique_stem:
+        # Imports use the module stem without an extension; bare prose words do not.
+        parts.append(r"(?:^|[^\w.])(?:from|import)\s+" + re.escape(stem) + r"(?![\w-])")
+        parts.append(r"(?<![\w.-])" + re.escape(Path(rel).name) + r"(?![\w-])")
+    return re.compile("|".join(parts))
 
 
 _TRACKED_CACHE: list[str] | None = None
+_STEM_COUNTS: dict[str, int] | None = None
 
 
 def _tracked_files() -> list[str]:
@@ -161,14 +180,27 @@ def _tracked_files() -> list[str]:
     return _TRACKED_CACHE
 
 
-def _refs_to(basename: str, exclude: str) -> list[str]:
+def _stem_counts() -> dict[str, int]:
+    global _STEM_COUNTS
+    if _STEM_COUNTS is None:
+        counts: dict[str, int] = {}
+        for rel in _tracked_files():
+            key = Path(rel).stem
+            counts[key] = counts.get(key, 0) + 1
+        _STEM_COUNTS = counts
+    return _STEM_COUNTS
+
+
+def _refs_to(rel: str, exclude: str) -> list[str]:
     """在**被跟踪的**文件里搜索提到该文件的文件（引用图）。"""
-    rx = _ref_pattern(basename)
+    rx = _ref_pattern(rel, _stem_counts().get(Path(rel).stem, 0) <= 1)
     hits: list[str] = []
-    for rel in _tracked_files():
-        if Path(rel).suffix not in REF_SCAN_SUFFIX or rel == exclude:
+    for other in _tracked_files():
+        if Path(other).suffix not in REF_SCAN_SUFFIX or other == exclude:
             continue
-        p = ROOT / rel
+        if _skip_reference_scan(other):
+            continue
+        p = ROOT / other
         try:
             if not p.is_file() or p.stat().st_size > 500_000:
                 continue
@@ -176,15 +208,15 @@ def _refs_to(basename: str, exclude: str) -> list[str]:
         except OSError:
             continue
         if rx.search(text):
-            hits.append(rel)
+            hits.append(other)
     return hits
 
 
 def check_destructive(deleted: list[str]) -> tuple[bool, list[str]]:
-    """破坏性：被删文件若仍被引用 → 阻断（悬空引用）。"""
+    """破坏性：被删文件若仍被路径或唯一模块名引用 → 阻断（悬空引用）。"""
     broken: list[str] = []
     for rel in deleted:
-        refs = _refs_to(Path(rel).name, rel)
+        refs = _refs_to(rel, rel)
         if refs:
             broken.append(f"{rel} 仍被 {len(refs)} 处引用（如 {refs[0]}）")
     return (not broken), broken
@@ -196,7 +228,7 @@ def check_dependency(files: list[str]) -> tuple[bool, list[str]]:
     for rel in files:
         if Path(rel).suffix not in REF_SCAN_SUFFIX:
             continue
-        refs = _refs_to(Path(rel).name, rel)
+        refs = _refs_to(rel, rel)
         if refs:
             notes.append(f"{rel} 被 {len(refs)} 处引用")
     return True, notes

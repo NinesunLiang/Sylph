@@ -58,7 +58,7 @@
 | 8 | e4-inertia | tests/test-e4-inertia.py | E4 惯性执行防护 |
 | 9 | audit-schema | tests/test-audit-schema.py | 审计 schema 合规 |
 | 10 | nine-challenge | tests/test-nine-challenge.py | 9 分挑战 |
-| 11 | lx-stepwise | tests/test-lx-stepwise.py | 逐步执行 |
+| 11 | ~~lx-stepwise~~ | 已随四入口收敛移除（2026-11-05） | 逐步证据由 Goal 的 tick/verify 承担 |
 | 12 | lifecycle-mutex | tests/test-lifecycle-mutex.py | 生命周期互斥 |
 | 13 | fallback-engine | tests/test-fallback-engine.py | 15 种失败/4 种决策 |
 | 14 | coverage-gate | tests/test-coverage-gate.py | 56/56 覆盖率门禁 |
