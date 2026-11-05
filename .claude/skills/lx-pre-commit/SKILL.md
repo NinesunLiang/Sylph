@@ -13,7 +13,7 @@ triggers:
 ---
 # lx-pre-commit — 提交前轻量检查
 
-> 纯指令调用，不接入治理管线。**每次 commit 前**跑一次（高频、秒级）。
+> **硬闸强制**：仓库 Git `pre-commit` 钩子会自动执行本检查，失败即阻断提交（`bash .claude/scripts/install_git_hooks.sh` 安装）。手动跑一次仍可用（高频、秒级）。
 
 ## 定位（index50 重建）
 

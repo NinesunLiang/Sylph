@@ -13,7 +13,7 @@ triggers:
 ---
 # lx-pre-push — 推送前深度检查
 
-> 纯指令调用，不接入治理管线。**每次 push 前**跑一次。生产的安全最后一道闸。
+> **硬闸强制**：仓库 Git `pre-push` 钩子会自动执行本检查，失败即阻断推送（`bash .claude/scripts/install_git_hooks.sh` 安装）。手动跑一次仍可用。生产的安全最后一道闸。
 
 ## 定位（index50 重建）
 
